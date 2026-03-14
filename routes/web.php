@@ -634,6 +634,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('stokopname-item/{id}/add-temuan-record', [App\Http\Controllers\ERM\StokOpnameController::class, 'addTemuanRecord'])->name('erm.stokopnameitem.add-temuan-record');
     // AJAX endpoints for select2 (controller)
     Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
+    // Zat Aktif AJAX endpoints (moved to controller)
+    Route::get('ajax/zataktif', [App\Http\Controllers\ERM\ZatAktifController::class, 'index']);
+    Route::post('ajax/zataktif', [App\Http\Controllers\ERM\ZatAktifController::class, 'store']);
     // Single obat details for AJAX (used by various JS fallbacks)
     Route::get('ajax/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'edit']);
     Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok']);

@@ -217,9 +217,15 @@ class ObatController extends Controller
                     return $obat->status_aktif;
                 })
                 ->addColumn('action', function ($obat) {
-                    $editBtn = '<button type="button" class="btn btn-sm btn-info btn-edit-obat" data-id="' . $obat->id . '"><i class="fas fa-edit"></i></button>';
+                    $editBtn = '<button type="button" class="btn btn-sm btn-primary btn-edit-obat" data-id="' . $obat->id . '"><i class="fas fa-edit"></i></button>';
                     $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
-                    return $editBtn . ' ' . $deleteBtn;
+                    $action = $editBtn;
+                    // Show delete button only to users with Admin role
+                    $user = auth()->user();
+                    if ($user && $user->hasAnyRole(['Admin'])) {
+                        $action .= ' ' . $deleteBtn;
+                    }
+                    return $action;
                 })
                 ->rawColumns(['zat_aktif', 'action', 'nama'])
                     ->make(true);

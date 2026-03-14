@@ -164,33 +164,41 @@
                 </div>
             </div>
         </div>
-    <div class="d-flex align-items-center mb-0 mt-2">
-        <h3 class="mb-0 mr-2">Daftar Obat Farmasi</h3>
+    <div class="d-flex align-items-center justify-content-between mb-2 mt-2">
+        <div>
+            <h3 class="mb-0">Daftar Obat Farmasi</h3>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0" style="background:transparent;padding:0;margin-top:6px;">
+                    <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
+                    <li class="breadcrumb-item">Farmasi</li>
+                    <li class="breadcrumb-item active">Stok Obat</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="btn-toolbar">
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-primary btn-tambah-obat">+ Tambah Obat</button>
+                <button type="button" class="btn btn-info ml-2 btn-zat-aktif"><i class="fas fa-pills"></i> Zat Aktif</button>
+                <div class="btn-group ml-2" role="group">
+                    <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item" href="{{ route('erm.obat.export-excel', request()->all()) }}" id="btnExportExcel" target="_blank">
+                            <i class="fas fa-file-excel mr-2"></i> Export Excel
+                        </a>
+                        <a class="dropdown-item" href="#" data-toggle="modal" data-target="#importCsvModal">
+                            <i class="fas fa-file-upload mr-2"></i> Import CSV
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="page-title-box">
-                <div class="row">
-                    <div class="col">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item">Farmasi</li>
-                            <li class="breadcrumb-item active">Stok Obat</li>
-                        </ol>
-                    </div><!--end col-->
-                </div><!--end row-->                                                              
-            </div><!--end page-title-box-->
-        </div><!--end col-->
-    </div><!--end row-->  
+    
 
-    <button type="button" class="btn btn-primary mb-3 btn-tambah-obat">+ Tambah Obat</button>
-    <a href="{{ route('erm.obat.export-excel', request()->all()) }}" class="btn btn-success mb-3" id="btnExportExcel" target="_blank">
-        <i class="fas fa-file-excel"></i> Export Excel
-    </a>
-    <button type="button" class="btn btn-secondary mb-3 ml-2" data-toggle="modal" data-target="#importCsvModal">
-        <i class="fas fa-file-upload"></i> Import CSV
-    </button>
+    
 
     <!-- Modal: Pilih Kolom Export -->
     <div class="modal fade" id="exportColumnsModal" tabindex="-1" role="dialog" aria-labelledby="exportColumnsModalLabel" aria-hidden="true">
@@ -269,65 +277,44 @@
             </div>
         </div>
     </div>
-
-    <div class="row mb-3">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Filter</h5>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_kategori">Kategori</label>
-                                <select id="filter_kategori" class="form-control select2">
-                                    <option value="">Semua Kategori</option>
-                                    @foreach($kategoris as $kategori)
-                                        <option value="{{ $kategori }}">{{ $kategori }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_metode_bayar">Metode Bayar</label>
-                                <select id="filter_metode_bayar" class="form-control select2">
-                                    <option value="">Semua Metode Bayar</option>
-                                    @foreach($metodeBayars as $metodeBayar)
-                                        <option value="{{ $metodeBayar->id }}">{{ $metodeBayar->nama }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_status">Status</label>
-                                <select id="filter_status" class="form-control select2">
-                                    <option value="">Semua Status</option>
-                                    <option value="1">Aktif</option>
-                                    <option value="0">Tidak Aktif</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_paten">Jenis Obat</label>
-                                <select id="filter_paten" class="form-control select2">
-                                    <option value="">Semua Jenis</option>
-                                    <option value="1">Obat Generik</option>
-                                    <option value="0">Obat Paten</option>
-                                </select>
+                    <!-- Modal: List Zat Aktif -->
+                    <div class="modal fade" id="zatAktifModal" tabindex="-1" role="dialog" aria-labelledby="zatAktifModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="zatAktifModalLabel">Daftar Zat Aktif</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body" id="zatAktifModalBody">
+                                        <div class="mb-3">
+                                            <div class="input-group">
+                                                <input type="text" id="newZatNama" class="form-control" placeholder="Tambah zat aktif baru..." aria-label="Nama Zat Aktif">
+                                                <div class="input-group-append">
+                                                    <button class="btn btn-primary" id="btnAddZat" type="button">Tambah</button>
+                                                </div>
+                                            </div>
+                                            <small class="form-text text-muted">Masukkan nama zat aktif lalu klik Tambah.</small>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table id="zataktif-table" class="table table-sm table-striped" style="width:100%">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width:60px">#</th>
+                                                        <th>Nama Zat Aktif</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody></tbody>
+                                            </table>
+                                        </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-12">
-                            <button id="reload-table" class="btn btn-info btn-sm">
-                                <i class="fas fa-sync"></i> Reload
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
                         <!-- Modal: Import CSV -->
                         <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
@@ -358,11 +345,55 @@
                                 </div>
                             </div>
                         </div>
-        </div>
-    </div>
      
     <div class="card">
         <div class="card-body">
+            <h5 class="card-title">Filter</h5>
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="filter_kategori">Kategori</label>
+                        <select id="filter_kategori" class="form-control select2">
+                            <option value="">Semua Kategori</option>
+                            @foreach($kategoris as $kategori)
+                                <option value="{{ $kategori }}">{{ $kategori }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="filter_metode_bayar">Metode Bayar</label>
+                        <select id="filter_metode_bayar" class="form-control select2">
+                            <option value="">Semua Metode Bayar</option>
+                            @foreach($metodeBayars as $metodeBayar)
+                                <option value="{{ $metodeBayar->id }}">{{ $metodeBayar->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="filter_status">Status</label>
+                        <select id="filter_status" class="form-control select2">
+                            <option value="">Semua Status</option>
+                            <option value="1">Aktif</option>
+                            <option value="0">Tidak Aktif</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="filter_paten">Jenis Obat</label>
+                        <select id="filter_paten" class="form-control select2">
+                            <option value="">Semua Jenis</option>
+                            <option value="1">Obat Generik</option>
+                            <option value="0">Obat Paten</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <hr />
             <table id="obat-table" class="table table-bordered table-hover">
                 <thead>
                     <tr>
@@ -637,7 +668,7 @@
                     render: function(data, type, row) {
                         var actionHtml = data || '';
                         // Ensure the action buttons and the Relasi button are grouped
-                        var relasiBtn = '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Farmasi</button>';
+                        var relasiBtn = '<button class="btn btn-sm btn-success btn-relations" data-id="'+row.id+'">Farmasi</button>';
                         return '<div class="btn-group" role="group">' + actionHtml + relasiBtn + '</div>';
                     }
                 }
@@ -852,13 +883,7 @@
             table.ajax.reload();
         });
         
-        // Add reload button functionality
-        $('#reload-table').on('click', function() {
-            console.log('Manually reloading table...');
-            $('#filter_status').val('').trigger('change.select2');
-            $('#filter_paten').val('').trigger('change.select2');
-            table.ajax.reload();
-        });
+        // Reload handled automatically when filters change; manual reload removed
 
         // Handle delete button clicks
         $(document).on('click', '.delete-btn', function() {
@@ -1015,6 +1040,100 @@
 
     function showGlobalLoading(msg){ ensureGlobalLoading(); $('#globalLoadingText').text(msg||'Processing...'); $('#globalLoading').fadeIn(150); }
     function hideGlobalLoading(){ $('#globalLoading').fadeOut(100); }
+</script>
+
+<script>
+    // Initialize and show Zat Aktif DataTable (client-side AJAX, max 10 rows per page)
+    $(document).on('click', '.btn-zat-aktif', function(){
+        showGlobalLoading('Memuat daftar zat aktif...');
+        // Ensure table exists
+        if ($.fn.DataTable.isDataTable('#zataktif-table')) {
+            // Reload data and show modal
+            $('#zataktif-table').DataTable().ajax.reload(null, false);
+            $('#zatAktifModal').modal('show');
+            hideGlobalLoading();
+            return;
+        }
+
+        // Initialize DataTable (server-side paging/search)
+        $('#zataktif-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: '/erm/ajax/zataktif',
+                dataSrc: 'data'
+            },
+            columns: [
+                { data: null, render: function(data, type, row, meta){ return meta.row + 1; }, orderable:false },
+                { data: 'nama', name: 'nama' }
+            ],
+            pageLength: 10,
+            lengthChange: false,
+            searching: true,
+            ordering: true,
+            order: [[1, 'asc']],
+            responsive: true,
+            language: { emptyTable: 'Tidak ada zat aktif.' },
+            initComplete: function(){
+                $('#zatAktifModal').modal('show');
+                hideGlobalLoading();
+            }
+        });
+    });
+
+    // Handler: add new Zat Aktif from modal
+    $(document).on('click', '#btnAddZat', function(){
+        var name = $('#newZatNama').val();
+        if(!name || !name.trim()){
+            alert('Masukkan nama zat aktif terlebih dahulu');
+            return;
+        }
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Menyimpan...');
+        $.ajax({
+            url: '/erm/ajax/zataktif',
+            method: 'POST',
+            data: {
+                nama: name,
+                _token: $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(res){
+                if(res && res.success){
+                    // clear input
+                    $('#newZatNama').val('');
+                    // reload table (if initialized)
+                    if ($.fn.DataTable.isDataTable('#zataktif-table')) {
+                        $('#zataktif-table').DataTable().ajax.reload(null, false);
+                    }
+                    // show simple success
+                    if(typeof Swal !== 'undefined'){
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false });
+                    } else {
+                        alert(res.message || 'Berhasil menambahkan');
+                    }
+                } else {
+                    alert((res && res.message) || 'Gagal menambahkan zat aktif');
+                }
+            },
+            error: function(xhr){
+                var msg = 'Gagal menambahkan';
+                try{
+                    var j = JSON.parse(xhr.responseText);
+                    if(j && j.errors && j.errors.nama){ msg = j.errors.nama.join(', '); }
+                }catch(e){}
+                alert(msg);
+            },
+            complete: function(){ $btn.prop('disabled', false).text('Tambah'); }
+        });
+    });
+
+    // Destroy DataTable when modal is hidden to free memory (optional)
+    $('#zatAktifModal').on('hidden.bs.modal', function(){
+        if ($.fn.DataTable.isDataTable('#zataktif-table')) {
+            $('#zataktif-table').DataTable().clear().destroy();
+            $('#zataktif-table tbody').empty();
+        }
+    });
 </script>
 
 @endsection
