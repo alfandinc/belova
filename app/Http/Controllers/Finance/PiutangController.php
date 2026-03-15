@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Finance\Piutang;
+use App\Services\Finance\PasienMembershipStatusService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -223,6 +224,8 @@ class PiutangController extends Controller
                 }
 
                 $invoice->save();
+
+                app(PasienMembershipStatusService::class)->syncFromInvoice($invoice);
             }
 
             DB::commit();

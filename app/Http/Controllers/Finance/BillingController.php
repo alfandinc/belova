@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
 use App\Models\ERM\ObatStokGudang;
+use App\Services\Finance\PasienMembershipStatusService;
 use App\Services\ERM\StokService;
 use App\Models\ERM\PaketRacikan;
 use App\Models\ERM\ResepFarmasi;
@@ -3000,6 +3001,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $existingPiutang->save();
                     }
                 }
+
+                app(PasienMembershipStatusService::class)->syncFromInvoice($invoice);
             }
 
             DB::commit();
