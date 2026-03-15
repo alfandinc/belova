@@ -1946,22 +1946,95 @@ class EresepController extends Controller
     public function getVisitationObat($visitationId)
     {
         try {
-            // Get unique obat from both resep dokter and farmasi for this visitation
             $resepFarmasi = ResepFarmasi::with('obat')
                 ->where('visitation_id', $visitationId)
                 ->get();
-            
-            $result = $resepFarmasi->map(function ($resep) {
-                return [
-                    'obat_id' => $resep->obat_id,
-                    'obat_nama' => $resep->obat->nama ?? 'Unknown',
-                    'racikan_ke' => $resep->racikan_ke,
-                    'dosis' => $resep->dosis,
-                    'aturan_pakai' => $resep->aturan_pakai
-                ];
-            })->unique('obat_id');
 
-            return response()->json($result->values()->all());
+            $activePakets = PaketRacikan::with(['details' => function ($query) {
+                    $query->select('paket_racikan_id', 'obat_id', 'dosis');
+                }])
+                ->where('is_active', true)
+                ->get(['id', 'nama_paket']);
+
+            $buildSignature = static function ($obatId, $dosis) {
+                $normalizedDose = Str::lower(preg_replace('/\s+/', '', trim((string) $dosis)));
+                return (string) $obatId . '|' . $normalizedDose;
+            };
+
+            $resolvePaketName = function ($racikanGroup) use ($activePakets, $buildSignature) {
+                $racikanSignature = $racikanGroup
+                    ->map(function ($resep) use ($buildSignature) {
+                        return $buildSignature($resep->obat_id, $resep->dosis);
+                    })
+                    ->sort()
+                    ->values()
+                    ->all();
+
+                foreach ($activePakets as $paket) {
+                    $paketSignature = collect($paket->details)
+                        ->map(function ($detail) use ($buildSignature) {
+                            return $buildSignature($detail->obat_id, $detail->dosis);
+                        })
+                        ->sort()
+                        ->values()
+                        ->all();
+
+                    if ($paketSignature === $racikanSignature) {
+                        return $paket->nama_paket;
+                    }
+                }
+
+                return null;
+            };
+
+            $nonRacikan = $resepFarmasi
+                ->filter(function ($resep) {
+                    return empty($resep->racikan_ke);
+                })
+                ->unique('obat_id')
+                ->map(function ($resep) {
+                    return [
+                        'obat_id' => $resep->obat_id,
+                        'obat_nama' => $resep->obat->nama ?? 'Unknown',
+                        'racikan_ke' => null,
+                        'dosis' => $resep->dosis,
+                        'aturan_pakai' => $resep->aturan_pakai,
+                        'paket_racikan_name' => null,
+                    ];
+                });
+
+            $racikan = $resepFarmasi
+                ->filter(function ($resep) {
+                    return !empty($resep->racikan_ke);
+                })
+                ->groupBy('racikan_ke')
+                ->flatMap(function ($racikanGroup) use ($resolvePaketName) {
+                    $paketName = $resolvePaketName($racikanGroup);
+
+                    return $racikanGroup->map(function ($resep) use ($paketName) {
+                        return [
+                            'obat_id' => $resep->obat_id,
+                            'obat_nama' => $resep->obat->nama ?? 'Unknown',
+                            'racikan_ke' => $resep->racikan_ke,
+                            'dosis' => $resep->dosis,
+                            'aturan_pakai' => $resep->aturan_pakai,
+                            'paket_racikan_name' => $paketName,
+                        ];
+                    });
+                });
+
+            $result = $nonRacikan->concat($racikan)->values()->map(function ($resep) {
+                return [
+                    'obat_id' => $resep['obat_id'],
+                    'obat_nama' => $resep['obat_nama'],
+                    'racikan_ke' => $resep['racikan_ke'],
+                    'dosis' => $resep['dosis'],
+                    'aturan_pakai' => $resep['aturan_pakai'],
+                    'paket_racikan_name' => $resep['paket_racikan_name'],
+                ];
+            });
+
+            return response()->json($result->all());
         } catch (\Exception $e) {
             Log::error('Error getting visitation obat: ' . $e->getMessage());
             return response()->json([]);
