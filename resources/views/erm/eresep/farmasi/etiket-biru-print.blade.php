@@ -27,8 +27,8 @@
         }
         .etiket-wrapper {
             position: fixed;
-            top: 0;
-            right: 0;
+            top: 0.5cm;
+            right: 0.5cm;
             width: 100mm;
             height: 15mm;
             background-color: #26ccff; /* blue background across the label */
