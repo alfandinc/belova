@@ -10,6 +10,7 @@ class WaScheduledMessage extends Model
 
     protected $fillable = [
         'client_id',
+        'pasien_id',
         'to',
         'message',
         'schedule_at',

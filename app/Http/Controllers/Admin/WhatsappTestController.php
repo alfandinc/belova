@@ -52,6 +52,11 @@ class WhatsappTestController extends Controller
                 $to = trim((string)$to);
                 if ($to === '') continue;
 
+                $pasienId = isset($pasienIds[$i]) ? trim((string) $pasienIds[$i]) : null;
+                if ($pasienId === '') {
+                    $pasienId = null;
+                }
+
                 $messageText = isset($messages[$i]) ? $messages[$i] : '';
                 $storedMessage = $messageText;
 
@@ -73,6 +78,7 @@ class WhatsappTestController extends Controller
 
                 WaScheduledMessage::create([
                     'client_id' => $request->input('from') ?: null,
+                    'pasien_id' => $pasienId,
                     'to' => $to,
                     'message' => $storedMessage,
                     'schedule_at' => $dt ?: Carbon::now(),
@@ -87,6 +93,7 @@ class WhatsappTestController extends Controller
         // single-send path
         $data = $request->validate([
             'to' => 'required|string',
+            'pasien_id' => 'nullable|string',
             'message' => 'nullable|string',
             'image' => 'nullable|file|image|max:5120'
         ]);
@@ -114,6 +121,7 @@ class WhatsappTestController extends Controller
 
             WaScheduledMessage::create([
                 'client_id' => $request->input('from') ?: null,
+                'pasien_id' => $data['pasien_id'] ?? null,
                 'to' => $data['to'],
                 'message' => $storedMessage,
                 'schedule_at' => $dt,
@@ -135,6 +143,7 @@ class WhatsappTestController extends Controller
 
                     WaScheduledMessage::create([
                         'client_id' => $request->input('from') ?: null,
+                        'pasien_id' => $data['pasien_id'] ?? null,
                         'to' => $data['to'],
                         'message' => $storedMessage,
                         'schedule_at' => Carbon::now(),
@@ -150,6 +159,7 @@ class WhatsappTestController extends Controller
             // text-only immediate send
             $payload = [ 'to' => $data['to'], 'message' => $data['message'] ?? '' ];
             if ($request->filled('from')) $payload['from'] = $request->input('from');
+            if (!empty($data['pasien_id'])) $payload['pasien_id'] = $data['pasien_id'];
 
             try {
                 $resp = Http::timeout(60)->post(config('app.wa_bot_url', 'http://localhost:3000') . '/send', $payload);

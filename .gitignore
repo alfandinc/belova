@@ -29,6 +29,8 @@ yarn-error.log
 # - Local auth/session and cache created by whatsapp-web.js (do not commit)
 /whatsapp-service/.wwebjs_auth/
 /whatsapp-service/.wwebjs_cache/
+/wa-bot/.wwebjs_auth/
+/wa-bot/.wwebjs_cache/
 
 # - Node modules and logs for the service
 /whatsapp-service/node_modules/

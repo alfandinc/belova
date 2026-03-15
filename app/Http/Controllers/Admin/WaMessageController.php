@@ -20,6 +20,7 @@ class WaMessageController extends Controller
             'to' => 'nullable|string',
             'body' => 'nullable|string',
             'message_id' => 'nullable|string',
+            'pasien_id' => 'nullable|string',
             'raw' => 'nullable'
         ]);
 
@@ -34,6 +35,38 @@ class WaMessageController extends Controller
             return $val;
         };
 
+        $canon = function($num){
+            if (!$num) return null;
+            if (strpos($num, '62') === 0) return $num;
+            if (strpos($num, '0') === 0) return '62' . substr($num, 1);
+            if (strpos($num, '8') === 0) return '62' . $num;
+            return $num;
+        };
+
+        $findPasienIdByPhone = function ($candidate) use ($canon) {
+            if (!$candidate) return null;
+
+            $digits = preg_replace('/\D+/', '', $candidate);
+            if (!$digits) return null;
+
+            $canonCandidate = $canon($digits);
+            $rows = DB::table('erm_pasiens')
+                ->whereRaw("REPLACE(no_hp, ' ', '') LIKE ?", ["%{$digits}%"])
+                ->orWhereRaw("REPLACE(no_hp2, ' ', '') LIKE ?", ["%{$digits}%"])
+                ->limit(10)
+                ->get(['id','no_hp','no_hp2']);
+
+            foreach ($rows as $pas) {
+                $n1 = preg_replace('/\\D+/', '', $pas->no_hp ?: '');
+                $n2 = preg_replace('/\\D+/', '', $pas->no_hp2 ?: '');
+                if ($canon($n1) === $canonCandidate || $canon($n2) === $canonCandidate) {
+                    return $pas->id;
+                }
+            }
+
+            return null;
+        };
+
         // If raw contains JSON with meta.normalized values, prefer them
         if (!empty($data['raw'])) {
             $decoded = null;
@@ -44,6 +77,19 @@ class WaMessageController extends Controller
                 }
                 if (isset($decoded['meta']['to_normalized'])) {
                     $data['to'] = $decoded['meta']['to_normalized'];
+                }
+                if (isset($decoded['meta']['requested_to_normalized'])) {
+                    $currentToDigits = preg_replace('/\D+/', '', (string) ($data['to'] ?? ''));
+                    $requestedToDigits = preg_replace('/\D+/', '', (string) $decoded['meta']['requested_to_normalized']);
+                    $looksLikePhone = strlen($currentToDigits) >= 9
+                        && strlen($currentToDigits) <= 15
+                        && (strpos($currentToDigits, '62') === 0 || strpos($currentToDigits, '0') === 0 || strpos($currentToDigits, '8') === 0);
+                    if (!$looksLikePhone && $requestedToDigits !== '') {
+                        $data['to'] = $decoded['meta']['requested_to_normalized'];
+                    }
+                }
+                if (empty($data['pasien_id']) && !empty($decoded['meta']['pasien_id'])) {
+                    $data['pasien_id'] = $decoded['meta']['pasien_id'];
                 }
             }
         }
@@ -62,34 +108,16 @@ class WaMessageController extends Controller
             $candidate = $data['to'] ?? null;
         }
 
-        if ($candidate) {
+        if (empty($data['pasien_id']) && $candidate) {
             // normalize digits-only
             $digits = preg_replace('/\D+/', '', $candidate);
-            // canonicalize: convert leading 0 or 8 to 62-prefixed form
-            $canon = function($num){
-                if (!$num) return null;
-                if (strpos($num, '62') === 0) return $num;
-                if (strpos($num, '0') === 0) return '62' . substr($num, 1);
-                if (strpos($num, '8') === 0) return '62' . $num;
-                return $num;
-            };
             $canonCandidate = $canon($digits);
-
-            // fetch possible matches by loose contains on digits to reduce rows, then verify canonical equality in PHP
+            $data['pasien_id'] = $findPasienIdByPhone($candidate);
             $rows = DB::table('erm_pasiens')
                 ->whereRaw("REPLACE(no_hp, ' ', '') LIKE ?", ["%{$digits}%"] )
                 ->orWhereRaw("REPLACE(no_hp2, ' ', '') LIKE ?", ["%{$digits}%"] )
                 ->limit(10)
                 ->get(['id','no_hp','no_hp2']);
-
-            foreach ($rows as $pas) {
-                $n1 = preg_replace('/\\D+/', '', $pas->no_hp ?: '');
-                $n2 = preg_replace('/\\D+/', '', $pas->no_hp2 ?: '');
-                if ($canon($n1) === $canonCandidate || $canon($n2) === $canonCandidate) {
-                    $data['pasien_id'] = $pas->id;
-                    break;
-                }
-            }
 
             // If still not matched, log debug info to help diagnose formats
             if (empty($data['pasien_id'])) {
@@ -131,30 +159,9 @@ class WaMessageController extends Controller
                 };
                 if (is_array($decoded)) $searchPhone($decoded);
                 if ($found) {
-                    // try to match this phone
-                    $digits = $found;
-                    $canon = function($num){
-                        if (!$num) return null;
-                        if (strpos($num, '62') === 0) return $num;
-                        if (strpos($num, '0') === 0) return '62' . substr($num, 1);
-                        if (strpos($num, '8') === 0) return '62' . $num;
-                        return $num;
-                    };
-                    $canonCandidate = $canon($digits);
-                    $rows = DB::table('erm_pasiens')
-                        ->whereRaw("REPLACE(no_hp, ' ', '') LIKE ?", ["%{$digits}%"] )
-                        ->orWhereRaw("REPLACE(no_hp2, ' ', '') LIKE ?", ["%{$digits}%"] )
-                        ->limit(10)
-                        ->get(['id','no_hp','no_hp2']);
-                    foreach ($rows as $pas) {
-                        $n1 = preg_replace('/\\D+/', '', $pas->no_hp ?: '');
-                        $n2 = preg_replace('/\\D+/', '', $pas->no_hp2 ?: '');
-                        if ($canon($n1) === $canonCandidate || $canon($n2) === $canonCandidate) {
-                            $data['pasien_id'] = $pas->id; break;
-                        }
-                    }
+                    $data['pasien_id'] = $findPasienIdByPhone($found);
                     if (empty($data['pasien_id'])) {
-                        Log::info('WaMessage: found phone in raw but no pasien match', ['found'=>$found,'canon'=>$canonCandidate]);
+                        Log::info('WaMessage: found phone in raw but no pasien match', ['found'=>$found,'canon'=>$canon($found)]);
                     } else {
                         Log::info('WaMessage: matched pasien from raw-found phone', ['found'=>$found,'pasien_id'=>$data['pasien_id']]);
                     }
@@ -177,26 +184,7 @@ class WaMessageController extends Controller
                         ->first();
                     if ($lastOut && !empty($lastOut->to)) {
                         $candidatePhone = preg_replace('/\\D+/', '', $lastOut->to);
-                        $canon = function($num){
-                            if (!$num) return null;
-                            if (strpos($num, '62') === 0) return $num;
-                            if (strpos($num, '0') === 0) return '62' . substr($num, 1);
-                            if (strpos($num, '8') === 0) return '62' . $num;
-                            return $num;
-                        };
-                        $canonCandidate = $canon($candidatePhone);
-                        $rows = DB::table('erm_pasiens')
-                            ->whereRaw("REPLACE(no_hp, ' ', '') LIKE ?", ["%{$candidatePhone}%"] )
-                            ->orWhereRaw("REPLACE(no_hp2, ' ', '') LIKE ?", ["%{$candidatePhone}%"] )
-                            ->limit(10)
-                            ->get(['id','no_hp','no_hp2']);
-                        foreach ($rows as $pas) {
-                            $n1 = preg_replace('/\\D+/', '', $pas->no_hp ?: '');
-                            $n2 = preg_replace('/\\D+/', '', $pas->no_hp2 ?: '');
-                            if ($canon($n1) === $canonCandidate || $canon($n2) === $canonCandidate) {
-                                $data['pasien_id'] = $pas->id; break;
-                            }
-                        }
+                        $data['pasien_id'] = $findPasienIdByPhone($candidatePhone);
                         if (!empty($data['pasien_id'])) {
                             Log::info('WaMessage: inferred pasien from recent outgoing', ['session'=>$data['session_client_id'],'candidate'=>$candidatePhone,'pasien_id'=>$data['pasien_id']]);
                         } else {

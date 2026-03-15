@@ -19,6 +19,12 @@ app.get('/', (req, res) => res.send('WA Bot running'));
 
 // Small sleep helper (compatible across Puppeteer versions)
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const normalizeWaAddr = (addr) => (addr ? String(addr).split('@')[0] : null);
+const normalizePhoneDigits = (value) => {
+  if (!value) return null;
+  const digits = String(value).replace(/[^0-9]/g, '');
+  return digits || null;
+};
 
 // Session source URLs (Laravel endpoint)
 const ENV_URL = process.env.WA_SESSIONS_URL || process.env.WA_BOT_SESSIONS_URL || null;
@@ -77,10 +83,9 @@ function createClientForId(id) {
   client.on('message', async msg => {
     try {
       const rawObj = { original: msg };
-      const normalize = (addr) => (addr ? String(addr).split('@')[0] : null);
       rawObj.meta = {
-        from_normalized: normalize(msg.from || msg.author || null),
-        to_normalized: normalize(msg.to || null)
+        from_normalized: normalizeWaAddr(msg.from || msg.author || null),
+        to_normalized: normalizeWaAddr(msg.to || null)
       };
 
       const payload = {
@@ -282,20 +287,24 @@ app.post('/send', async (req, res) => {
     // log outgoing message to server (best-effort)
     (async () => {
       try {
-        const normalize = (addr) => (addr ? String(addr).split('@')[0] : null);
+        const requestedTo = normalizePhoneDigits(to) || normalizeWaAddr(to);
         const rawObj = { original: sent || {} };
         rawObj.meta = {
-          from_normalized: normalize(client.info && client.info.me ? client.info.me._serialized : sessionId),
-          to_normalized: normalize(chatId)
+          from_normalized: normalizeWaAddr(client.info && client.info.me ? client.info.me._serialized : sessionId),
+          to_normalized: requestedTo || normalizeWaAddr(chatId),
+          requested_to: to || null,
+          requested_to_normalized: requestedTo,
+          pasien_id: req.body && req.body.pasien_id ? String(req.body.pasien_id) : null
         };
 
         await logMessageToServer({
           session_client_id: sessionId,
           direction: 'out',
           from: client.info && client.info.me ? client.info.me._serialized : sessionId,
-          to: chatId,
-          body: message,
+          to: requestedTo || chatId,
+          body: req.body.caption || message || null,
           message_id: sent && sent.id && sent.id._serialized ? sent.id._serialized : null,
+          pasien_id: req.body && req.body.pasien_id ? String(req.body.pasien_id) : null,
           raw: JSON.stringify(rawObj)
         });
       } catch (e) {
