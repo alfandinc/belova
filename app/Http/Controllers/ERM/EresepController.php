@@ -2112,8 +2112,7 @@ class EresepController extends Controller
 
             $mpdf = new \Mpdf\Mpdf([
                 'mode' => 'utf-8',
-                // Label is 10cm x 1.5cm
-                'format' => [100, 15],
+                'format' => 'A4',
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,

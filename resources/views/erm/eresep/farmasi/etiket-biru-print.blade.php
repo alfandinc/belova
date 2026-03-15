@@ -23,17 +23,14 @@
         body {
             font-family: Arial, sans-serif;
             overflow: hidden;
-            background-color: #ffffff !important; /* base page color; wrapper will provide blue */
+            background-color: #ffffff !important;
         }
-        /* Full-page blue wrapper to eliminate any white gaps */
         .etiket-wrapper {
-            /* mPDF page size is set to 100mm x 15mm in controller.
-               Keep wrapper flush to (0,0) to avoid cropping/shift. */
             position: fixed;
             top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            right: 0;
+            width: 100mm;
+            height: 15mm;
             background-color: #26ccff; /* blue background across the label */
         }
         /* Force all text inside the blue label to black */
@@ -72,8 +69,8 @@
         /* main label area stays blue */
         table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
-            width: 100%;
-            height: 100%; /* fill wrapper */
+            width: 100mm;
+            height: 15mm;
             table-layout: fixed;
             background-color: transparent; /* wrapper provides blue */
             border: 1px solid #000000; /* outer border of the label */
@@ -223,7 +220,7 @@
 </head>
 <body>
     <div class="etiket-wrapper">
-    <table class="main-table" style="width:100%;height:100%;border-collapse:collapse;">
+    <table class="main-table" style="border-collapse:collapse;">
         <tr>
             <td class="left-column">
                 <div class="no-tanggal">No RM {{ $pasien->id ?? '___' }} Tanggal {{ $print_date ?? now()->format('d/m/Y') }}</div>
