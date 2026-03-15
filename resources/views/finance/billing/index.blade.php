@@ -64,6 +64,10 @@
                             background: #e83e8c;
                             color: #fff;
                         }
+                        .badge-black {
+                            background: #2f2f2f;
+                            color: #fff;
+                        }
                         /* Ensure specialization (small) inside dokter-cell is not bold */
                         .dokter-cell small { font-weight: 400 !important; }
                         /* Make patient RM muted and normal weight */
@@ -326,8 +330,22 @@
                         if (type === 'display') {
                             var name = row.nama_pasien || '';
                             var noRm = row.no_rm || '';
+                            var statusPasien = String(row.status_pasien || '').trim();
                             var html = '<div class="patient-name-cell">';
                             html += '<div class="font-weight-bold">' + escapeHtml(name) + '</div>';
+
+                            var pasienStatusBadge = '';
+                            try {
+                                var statusLower = statusPasien.toLowerCase();
+                                if (statusLower.indexOf('vip') !== -1) {
+                                    pasienStatusBadge = '<span class="badge badge-warning"><i class="fas fa-crown mr-1"></i>VIP</span>';
+                                } else if (statusLower.indexOf('familia') !== -1) {
+                                    pasienStatusBadge = '<span class="badge badge-primary"><i class="fas fa-users mr-1"></i>Familia</span>';
+                                } else if (statusLower.indexOf('black') !== -1) {
+                                    pasienStatusBadge = '<span class="badge badge-black"><i class="fas fa-id-card mr-1"></i>Black</span>';
+                                }
+                            } catch(e) { pasienStatusBadge = ''; }
+
                             // compute metode bayar (but render together with no_rm to place badge left of id)
                             var metodeName = '';
                             try {
@@ -344,10 +362,13 @@
                                 }
                             } catch(e) { metodeName = ''; }
 
-                            if (noRm || (metodeName && String(metodeName).trim() !== '')) {
+                            if (pasienStatusBadge || noRm || (metodeName && String(metodeName).trim() !== '')) {
                                 html += '<div class="mt-1 d-flex align-items-center">';
+                                if (pasienStatusBadge) {
+                                    html += pasienStatusBadge;
+                                }
                                 if (metodeName && String(metodeName).trim() !== '') {
-                                    html += '<span class="badge badge-info">' + escapeHtml(String(metodeName)) + '</span>';
+                                    html += '<span class="badge badge-info' + (pasienStatusBadge ? ' ml-2' : '') + '">' + escapeHtml(String(metodeName)) + '</span>';
                                 }
                                 if (noRm) {
                                     html += '<span class="badge badge-secondary ml-2">' + escapeHtml(noRm) + '</span>';

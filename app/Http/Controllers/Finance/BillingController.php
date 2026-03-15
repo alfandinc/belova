@@ -3586,6 +3586,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('nama_pasien', function ($visitation) {
                 return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
             })
+            ->addColumn('status_pasien', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->status_pasien ?? 'Regular') : 'Regular';
+            })
             ->addColumn('dokter', function ($visitation) {
                 // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
                 if ($visitation->dokter && $visitation->dokter->user) {
