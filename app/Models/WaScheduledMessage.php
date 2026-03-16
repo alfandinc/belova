@@ -11,6 +11,7 @@ class WaScheduledMessage extends Model
     protected $fillable = [
         'client_id',
         'pasien_id',
+        'visitation_id',
         'to',
         'message',
         'schedule_at',
@@ -19,4 +20,9 @@ class WaScheduledMessage extends Model
     ];
 
     protected $dates = ['schedule_at', 'sent_at', 'created_at', 'updated_at'];
+
+    public function visitation()
+    {
+        return $this->belongsTo(\App\Models\ERM\Visitation::class, 'visitation_id');
+    }
 }

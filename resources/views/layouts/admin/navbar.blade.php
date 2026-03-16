@@ -28,6 +28,9 @@
                 <a href="{{ route('admin.whatsapp_test.index') }}"><i data-feather="message-circle" class="align-self-center menu-icon"></i><span>WhatsApp Test</span></a>
             </li>
             <li>
+                <a href="{{ route('admin.wa_visitation_templates.index') }}"><i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Visitation Templates</span></a>
+            </li>
+            <li>
                 <a href="{{ route('admin.wa_messages.index') }}"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Message Log</span></a>
             </li>
 

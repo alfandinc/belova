@@ -133,4 +133,14 @@ class Visitation extends Model
     {
         return $this->hasOne(ScreeningBatuk::class, 'visitation_id');
     }
+
+    public function waMessages()
+    {
+        return $this->hasMany(\App\Models\WaMessage::class, 'visitation_id');
+    }
+
+    public function waScheduledMessages()
+    {
+        return $this->hasMany(\App\Models\WaScheduledMessage::class, 'visitation_id');
+    }
 }

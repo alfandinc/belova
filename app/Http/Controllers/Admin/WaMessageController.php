@@ -20,9 +20,14 @@ class WaMessageController extends Controller
             'to' => 'nullable|string',
             'body' => 'nullable|string',
             'message_id' => 'nullable|string',
+            'remote_wa_id' => 'nullable|string',
+            'visitation_id' => 'nullable|string',
             'pasien_id' => 'nullable|string',
             'raw' => 'nullable'
         ]);
+
+        $rawFrom = $data['from'] ?? null;
+        $rawTo = $data['to'] ?? null;
 
         // attempt to normalize phone-like values
         $normalizeAddr = function ($val) {
@@ -67,6 +72,28 @@ class WaMessageController extends Controller
             return null;
         };
 
+        $findVisitationIdFromScheduled = function ($sessionClientId, $pasienId, $phone) {
+            $query = DB::table('wa_scheduled_messages')
+                ->where('client_id', $sessionClientId)
+                ->whereNotNull('visitation_id');
+
+            if (!empty($pasienId)) {
+                $query->where('pasien_id', $pasienId);
+            } elseif (!empty($phone)) {
+                $digits = preg_replace('/\D+/', '', $phone);
+                if ($digits) {
+                    $query->whereRaw("REPLACE(`to`, ' ', '') = ?", [$digits]);
+                }
+            }
+
+            $match = $query
+                ->orderByDesc('schedule_at')
+                ->orderByDesc('id')
+                ->first(['visitation_id']);
+
+            return $match->visitation_id ?? null;
+        };
+
         // If raw contains JSON with meta.normalized values, prefer them
         if (!empty($data['raw'])) {
             $decoded = null;
@@ -91,6 +118,21 @@ class WaMessageController extends Controller
                 if (empty($data['pasien_id']) && !empty($decoded['meta']['pasien_id'])) {
                     $data['pasien_id'] = $decoded['meta']['pasien_id'];
                 }
+                if (empty($data['remote_wa_id']) && !empty($decoded['meta']['remote_wa_id'])) {
+                    $data['remote_wa_id'] = $decoded['meta']['remote_wa_id'];
+                }
+                if (empty($data['visitation_id']) && !empty($decoded['meta']['visitation_id'])) {
+                    $data['visitation_id'] = $decoded['meta']['visitation_id'];
+                }
+            }
+        }
+
+        if (empty($data['remote_wa_id'])) {
+            $direction = strtolower($data['direction'] ?? '');
+            if (strpos($direction, 'in') === 0 || strpos($direction, 'incoming') === 0) {
+                $data['remote_wa_id'] = $rawFrom;
+            } else {
+                $data['remote_wa_id'] = $rawTo;
             }
         }
 
@@ -136,6 +178,16 @@ class WaMessageController extends Controller
             }
         }
 
+        if (empty($data['visitation_id'])) {
+            $data['visitation_id'] = $findVisitationIdFromScheduled(
+                $data['session_client_id'] ?? null,
+                $data['pasien_id'] ?? null,
+                $direction && (strpos($direction, 'in') === 0 || strpos($direction, 'incoming') === 0)
+                    ? ($data['from'] ?? null)
+                    : ($data['to'] ?? null)
+            );
+        }
+
         // If still no pasien_id and incoming used a non-phone 'from' (WhatsApp internal id),
         // attempt to search the decoded raw payload for any phone-like strings.
         if (empty($data['pasien_id']) && !empty($data['raw'])) {
@@ -174,6 +226,42 @@ class WaMessageController extends Controller
         // Heuristic: incoming messages where 'from' is internal id — infer pasien by recent outgoing messages
         if (empty($data['pasien_id']) && !empty($direction) && (strpos($direction, 'in') === 0 || strpos($direction, 'incoming') === 0)) {
             try {
+                if (!empty($data['remote_wa_id'])) {
+                    $lastOutByRemoteId = DB::table('wa_messages')
+                        ->where('session_client_id', $data['session_client_id'] ?? null)
+                        ->where('direction', 'out')
+                        ->where('remote_wa_id', $data['remote_wa_id'])
+                        ->orderByDesc('created_at')
+                        ->first();
+
+                    if ($lastOutByRemoteId) {
+                        if (!empty($lastOutByRemoteId->pasien_id)) {
+                            $data['pasien_id'] = $lastOutByRemoteId->pasien_id;
+                        } elseif (!empty($lastOutByRemoteId->to)) {
+                            $candidatePhone = preg_replace('/\D+/', '', $lastOutByRemoteId->to);
+                            $data['pasien_id'] = $findPasienIdByPhone($candidatePhone);
+                        }
+
+                        if (empty($data['visitation_id']) && !empty($lastOutByRemoteId->visitation_id)) {
+                            $data['visitation_id'] = $lastOutByRemoteId->visitation_id;
+                        }
+
+                        if (!empty($data['pasien_id'])) {
+                            Log::info('WaMessage: matched pasien from remote_wa_id', [
+                                'session' => $data['session_client_id'],
+                                'remote_wa_id' => $data['remote_wa_id'],
+                                'pasien_id' => $data['pasien_id'],
+                                'visitation_id' => $data['visitation_id'] ?? null,
+                            ]);
+                        }
+                    }
+                }
+
+                if (!empty($data['pasien_id'])) {
+                    $m = WaMessage::create($data);
+                    return response()->json(['ok' => true, 'id' => $m->id]);
+                }
+
                 $botNumber = preg_replace('/\\D+/', '', $data['to'] ?? '');
                 if ($botNumber) {
                     $lastOut = DB::table('wa_messages')
@@ -185,8 +273,11 @@ class WaMessageController extends Controller
                     if ($lastOut && !empty($lastOut->to)) {
                         $candidatePhone = preg_replace('/\\D+/', '', $lastOut->to);
                         $data['pasien_id'] = $findPasienIdByPhone($candidatePhone);
+                        if (empty($data['visitation_id']) && !empty($lastOut->visitation_id)) {
+                            $data['visitation_id'] = $lastOut->visitation_id;
+                        }
                         if (!empty($data['pasien_id'])) {
-                            Log::info('WaMessage: inferred pasien from recent outgoing', ['session'=>$data['session_client_id'],'candidate'=>$candidatePhone,'pasien_id'=>$data['pasien_id']]);
+                            Log::info('WaMessage: inferred pasien from recent outgoing', ['session'=>$data['session_client_id'],'candidate'=>$candidatePhone,'pasien_id'=>$data['pasien_id'],'visitation_id'=>$data['visitation_id'] ?? null]);
                         } else {
                             Log::info('WaMessage: heuristic found last outgoing but no pasien match', ['session'=>$data['session_client_id'],'candidate'=>$candidatePhone]);
                         }
@@ -195,6 +286,16 @@ class WaMessageController extends Controller
             } catch (\Exception $e) {
                 // ignore heuristic failures
             }
+        }
+
+        if (empty($data['visitation_id'])) {
+            $data['visitation_id'] = $findVisitationIdFromScheduled(
+                $data['session_client_id'] ?? null,
+                $data['pasien_id'] ?? null,
+                $direction && (strpos($direction, 'in') === 0 || strpos($direction, 'incoming') === 0)
+                    ? ($data['from'] ?? null)
+                    : ($data['to'] ?? null)
+            );
         }
 
         $m = WaMessage::create($data);

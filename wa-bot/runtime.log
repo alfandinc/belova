@@ -1,0 +1,59 @@
+[2026-03-16T07:07:26.547Z] bot_start {"pid":25172,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:07:32.091Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:20:12.292Z] bot_start {"pid":23936,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:20:52.455Z] bot_start {"pid":22604,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:21:44.498Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:21:44.500Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:21:44.503Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:29:55.734Z] bot_start {"pid":24932,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:30:05.589Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:30:20.603Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true}}
+[2026-03-16T07:32:46.642Z] bot_start {"pid":16204,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:32:51.586Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:33:06.590Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true}}
+[2026-03-16T07:34:19.126Z] bot_start {"pid":25140,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:34:23.526Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:34:38.537Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true}}
+[2026-03-16T07:35:53.069Z] bot_start {"pid":23148,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:35:57.707Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:36:12.722Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true}}
+[2026-03-16T07:36:24.656Z] process_exit {"code":130}
+[2026-03-16T07:38:37.948Z] bot_start {"pid":10604,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:38:43.227Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:38:58.231Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T07:38:58.232Z] client_ready_fallback {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T07:52:49.016Z] bot_start {"pid":3304,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T07:52:55.214Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T07:53:10.230Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T07:53:10.232Z] client_ready_fallback {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T07:53:10.255Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948","from":"149198607507617@lid","body":"ini test dari reply pasien"}
+[2026-03-16T07:53:10.257Z] incoming_event {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948","from":"149198607507617@lid","to":"628895854484@c.us","body":"ini test dari reply pasien"}
+[2026-03-16T07:53:10.999Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948"}
+[2026-03-16T07:53:25.261Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948","from":"149198607507617@lid","body":"ini test dari reply pasien"}
+[2026-03-16T07:53:40.275Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948","from":"149198607507617@lid","body":"ini test dari reply pasien"}
+[2026-03-16T07:53:55.286Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC15F4A87952516E5CD8B55126836948","from":"149198607507617@lid","body":"ini test dari reply pasien"}
+[2026-03-16T08:13:59.773Z] bot_start {"pid":12564,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T08:14:04.704Z] client_authenticated {"sessionId":"premiere-bot"}
+[2026-03-16T08:14:19.724Z] client_post_auth_inspect {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T08:14:19.726Z] client_ready_fallback {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T08:15:08.462Z] outgoing_send_logged {"sessionId":"premiere-bot","to":"6289619679552","pasien_id":"004230"}
+[2026-03-16T08:15:34.787Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC7EB840A1F50781790C6B9C95985ED9","from":"149198607507617@lid","body":"baik bapak, siap, saya datang"}
+[2026-03-16T08:15:34.789Z] incoming_event {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC7EB840A1F50781790C6B9C95985ED9","from":"149198607507617@lid","to":"628895854484@c.us","body":"baik bapak, siap, saya datang"}
+[2026-03-16T08:15:35.580Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC7EB840A1F50781790C6B9C95985ED9"}
+[2026-03-16T08:15:49.792Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC7EB840A1F50781790C6B9C95985ED9","from":"149198607507617@lid","body":"baik bapak, siap, saya datang"}
+[2026-03-16T08:16:04.786Z] incoming_polled {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC7EB840A1F50781790C6B9C95985ED9","from":"149198607507617@lid","body":"baik bapak, siap, saya datang"}
+[2026-03-16T08:22:43.411Z] client_change_state {"sessionId":"premiere-bot","state":"OPENING"}
+[2026-03-16T08:22:44.379Z] client_change_state {"sessionId":"premiere-bot","state":"PAIRING"}
+[2026-03-16T08:22:44.382Z] client_change_state {"sessionId":"premiere-bot","state":"CONNECTED"}
+[2026-03-16T08:25:15.414Z] bot_start {"pid":10332,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T08:25:35.994Z] client_ready_fallback {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(2) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T08:27:51.703Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC750309B127A4FB935F32C18192D05C"}
+[2026-03-16T08:28:06.878Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC32C5D4C519C95A3B0E915F0BAF6199"}
+[2026-03-16T09:46:54.149Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC5A0B1B1D0682F4A0DC91E07BAED249"}
+[2026-03-16T09:57:09.424Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC1605AEE8725727A4A85B4C2BFAFC8D"}
+[2026-03-16T09:58:09.444Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_AC4B00C9BD3C6915FF997CF1C6704881"}
+[2026-03-16T10:11:24.745Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_3EB047B3DD9A4CCD1B90D6"}
+[2026-03-16T11:36:02.330Z] bot_start {"pid":15820,"cwd":"C:\\wamp64\\www\\belova\\wa-bot","dirname":"C:\\wamp64\\www\\belova\\wa-bot"}
+[2026-03-16T11:36:42.961Z] client_ready_fallback {"sessionId":"premiere-bot","pageState":{"hasPage":true,"url":"https://web.whatsapp.com/","title":"(1) WhatsApp Business","readyState":"complete","hasWWebJS":true,"hasStore":true,"appState":"CONNECTED","wid":{"server":"c.us","user":"628895854484","_serialized":"628895854484@c.us"}}}
+[2026-03-16T11:39:43.704Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_3EB05FFE7A5D2C74C0E6DF"}
+[2026-03-16T11:40:13.489Z] incoming_logged {"sessionId":"premiere-bot","messageId":"false_149198607507617@lid_3EB0DB7219D22CB193D663"}

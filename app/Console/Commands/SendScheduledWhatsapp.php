@@ -45,6 +45,7 @@ class SendScheduledWhatsapp extends Command
         foreach ($rows as $row) {
             $payload = [ 'to' => $row->to ];
             if (!empty($row->pasien_id)) $payload['pasien_id'] = $row->pasien_id;
+            if (!empty($row->visitation_id)) $payload['visitation_id'] = $row->visitation_id;
             // detect image payload encoded as JSON
             $decoded = null;
             if (!empty($row->message)) {

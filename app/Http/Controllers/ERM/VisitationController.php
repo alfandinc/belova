@@ -10,10 +10,10 @@ use App\Models\ERM\MetodeBayar;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
-use App\Jobs\SendVisitationWhatsAppNotification;
-use App\Services\WhatsAppService;
+use App\Services\VisitationWhatsAppScheduler;
 
 class VisitationController extends Controller
 {
@@ -85,12 +85,13 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        // Send WhatsApp notification if enabled
-        if (config('whatsapp.enabled')) {
-            $this->sendVisitationWhatsApp($visitation);
-        }
+        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
-        return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Kunjungan berhasil disimpan.',
+            'whatsapp' => $waQueue,
+        ]);
     }
     public function storeProduk(Request $request)
     {
@@ -127,12 +128,13 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        // Send WhatsApp notification if enabled
-        if (config('whatsapp.enabled')) {
-            $this->sendVisitationWhatsApp($visitation);
-        }
+        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
-        return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Kunjungan berhasil disimpan.',
+            'whatsapp' => $waQueue,
+        ]);
     }
     public function storeLab(Request $request)
     {
@@ -169,12 +171,13 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        // Send WhatsApp notification if enabled
-        if (config('whatsapp.enabled')) {
-            $this->sendVisitationWhatsApp($visitation);
-        }
+        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
-        return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Kunjungan berhasil disimpan.',
+            'whatsapp' => $waQueue,
+        ]);
     }
 
     public function cekAntrian(Request $request)
@@ -294,7 +297,7 @@ class VisitationController extends Controller
         try {
             DB::beginTransaction();
 
-            Visitation::create([
+            $visitation = Visitation::create([
                 'id' => $customId,
                 'pasien_id' => $request->pasien_id,
                 'dokter_id' => $request->dokter_id,
@@ -329,7 +332,13 @@ class VisitationController extends Controller
 
             DB::commit();
 
-            return response()->json(['success' => true, 'message' => 'Rujuk and visitation created successfully.']);
+            $waQueue = $this->queueVisitationWhatsApp($visitation);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Rujuk and visitation created successfully.',
+                'whatsapp' => $waQueue,
+            ]);
         } catch (\Illuminate\Validation\ValidationException $ve) {
             DB::rollBack();
             Log::warning('Validation failed when creating rujuk', ['error' => $ve->getMessage(), 'request' => $request->all()]);
@@ -444,23 +453,58 @@ class VisitationController extends Controller
      */
     public function getWhatsAppStatus()
     {
-        if (!config('whatsapp.enabled')) {
-            return response()->json([
-                'enabled' => false,
-                'connected' => false,
-                'message' => 'WhatsApp service is disabled'
-            ]);
-        }
+        $serviceUrl = rtrim(config('app.wa_bot_url', 'http://localhost:3000'), '/');
 
-        $whatsappService = new WhatsAppService();
-        $health = $whatsappService->getServiceHealth();
-        $connected = $whatsappService->isConnected();
-        
-        return response()->json([
-            'enabled' => true,
-            'connected' => $connected,
-            'health' => $health,
-            'service_url' => config('whatsapp.service_url')
-        ]);
+        try {
+            $response = Http::timeout(10)->get($serviceUrl . '/sessions');
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'enabled' => true,
+                    'connected' => false,
+                    'message' => 'Failed to reach WhatsApp bot service',
+                    'service_url' => $serviceUrl,
+                ], 502);
+            }
+
+            $sessions = collect($response->json());
+            $connected = $sessions->contains(function ($session) {
+                return in_array($session['status'] ?? null, ['ready', 'authenticated'], true);
+            });
+
+            return response()->json([
+                'enabled' => true,
+                'connected' => $connected,
+                'sessions' => $sessions->values(),
+                'service_url' => $serviceUrl,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'enabled' => true,
+                'connected' => false,
+                'message' => $e->getMessage(),
+                'service_url' => $serviceUrl,
+            ], 502);
+        }
+    }
+
+    private function queueVisitationWhatsApp(Visitation $visitation): array
+    {
+        try {
+            return app(VisitationWhatsAppScheduler::class)->queueForVisitation($visitation);
+        } catch (\Exception $e) {
+            Log::error('Error queueing visitation WhatsApp notification', [
+                'visitation_id' => $visitation->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'queued' => false,
+                'reason' => 'queue_exception',
+                'message' => 'Pesan WhatsApp tidak dijadwalkan karena terjadi kesalahan internal.',
+                'session_status' => 'error',
+                'session_note' => $e->getMessage(),
+            ];
+        }
     }
 }

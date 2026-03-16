@@ -207,10 +207,31 @@ $(document).ready(function(){
             $('#rj_dokter_id').empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
             $('#rj_no_antrian').val('');
 
+            var htmlParts = ['<div>' + $('<div>').text((res && res.message) ? res.message : 'Kunjungan berhasil disimpan.').html() + '</div>'];
+
+            if (res && res.whatsapp) {
+                var wa = res.whatsapp;
+                var waMessage = $('<div>').text(wa.message || '').html();
+                var statusClass = wa.queued ? 'text-success' : 'text-warning';
+                htmlParts.push('<div class="mt-2 ' + statusClass + '"><strong>WhatsApp:</strong> ' + waMessage + '</div>');
+
+                if (wa.schedule_at) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Jadwal kirim: ' + $('<div>').text(wa.schedule_at).html() + '</small></div>');
+                }
+
+                if (wa.client_id) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Session: ' + $('<div>').text(wa.client_id).html() + '</small></div>');
+                }
+
+                if (wa.session_note) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Status bot: ' + $('<div>').text(wa.session_note).html() + '</small></div>');
+                }
+            }
+
             Swal.fire({
                 icon: 'success',
                 title: 'Berhasil',
-                text: (res && res.message) ? res.message : 'Kunjungan berhasil disimpan.',
+                html: htmlParts.join(''),
                 confirmButtonText: 'OK'
             }).then(function(){
                 try {

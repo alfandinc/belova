@@ -93,6 +93,166 @@
         width: '100%' 
     });
 
+    function escapeHtml(value) {
+        return $('<div>').text(value == null ? '' : String(value)).html();
+    }
+
+    function scheduledStatusBadge(status) {
+        var normalized = String(status || '').toLowerCase();
+        var badgeClass = 'badge-secondary';
+        var label = status || '-';
+
+        if (normalized === 'pending') badgeClass = 'badge-warning';
+        else if (normalized === 'sent') badgeClass = 'badge-success';
+        else if (normalized === 'failed') badgeClass = 'badge-danger';
+
+        return '<span class="badge ' + badgeClass + '">' + escapeHtml(label) + '</span>';
+    }
+
+    function formatScheduledDateTime(value) {
+        if (!value) return '-';
+        if (typeof moment !== 'undefined') {
+            var parsed = moment(value);
+            if (parsed.isValid()) {
+                return parsed.format('DD MMM YYYY HH:mm');
+            }
+        }
+        return escapeHtml(value);
+    }
+
+    function renderVisitationChatMessage(message) {
+        var isOutgoing = String(message.direction || '').toLowerCase() === 'out';
+        var alignClass = isOutgoing ? 'justify-content-end' : 'justify-content-start';
+        var bubbleClass = isOutgoing ? 'bg-success text-white' : 'bg-white border';
+        var metaLabel = formatScheduledDateTime(message.created_at);
+        var body = escapeHtml(message.body || '-').replace(/\n/g, '<br>');
+
+        return '<div class="d-flex ' + alignClass + ' mb-3">'
+            + '<div class="rounded px-3 py-2 shadow-sm ' + bubbleClass + '" style="max-width:75%;">'
+            + '<div class="small font-weight-bold mb-1">' + (isOutgoing ? 'Keluar' : 'Masuk') + '</div>'
+            + '<div style="white-space:normal; word-break:break-word;">' + body + '</div>'
+            + '<div class="small mt-2 ' + (isOutgoing ? 'text-white-50' : 'text-muted') + '">' + escapeHtml(metaLabel) + '</div>'
+            + '</div>'
+            + '</div>';
+    }
+
+    function openVisitationChat(visitationId, pasienNama) {
+        $('#visitation-chat-pasien').text(pasienNama || '-');
+        $('#visitation-chat-meta').text('Visitation ID: ' + visitationId);
+        $('#visitation-chat-body').html('<div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm mr-2"></span>Memuat riwayat pesan...</div>');
+        $('#modalVisitationChat').modal('show');
+
+        var urlTemplate = '{{ route("erm.rawatjalans.visitationMessages", ["visitation" => "__VISITATION__"]) }}';
+        var requestUrl = urlTemplate.replace('__VISITATION__', encodeURIComponent(visitationId));
+
+        $.get(requestUrl)
+            .done(function(response) {
+                var visitation = response.visitation || {};
+                var messages = Array.isArray(response.messages) ? response.messages : [];
+
+                $('#visitation-chat-pasien').text(visitation.pasien_nama || pasienNama || '-');
+                $('#visitation-chat-meta').text('Visitation ID: ' + (visitation.id || visitationId));
+
+                if (!messages.length) {
+                    $('#visitation-chat-body').html('<div class="text-center text-muted py-4">Belum ada pesan WhatsApp pada kunjungan ini.</div>');
+                    return;
+                }
+
+                $('#visitation-chat-body').html(messages.map(renderVisitationChatMessage).join(''));
+                var chatBody = document.getElementById('visitation-chat-body');
+                if (chatBody) {
+                    chatBody.scrollTop = chatBody.scrollHeight;
+                }
+            })
+            .fail(function(xhr) {
+                $('#visitation-chat-body').html('<div class="text-center text-danger py-4">Gagal memuat riwayat pesan.</div>');
+                Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Tidak dapat memuat riwayat WhatsApp.', 'error');
+            });
+    }
+
+    var scheduledMessagesTable = null;
+
+    function getScheduledMessagesTable() {
+        if (scheduledMessagesTable) {
+            return scheduledMessagesTable;
+        }
+
+        scheduledMessagesTable = $('#scheduled-messages-table').DataTable({
+            processing: true,
+            serverSide: true,
+            searching: true,
+            ordering: true,
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50], [10, 25, 50]],
+            ajax: {
+                url: '{{ route("erm.rawatjalans.scheduledMessages") }}',
+                data: function(d) {
+                    d.start_date = $('#filter_start_date').val();
+                    d.end_date = $('#filter_end_date').val();
+                }
+            },
+            order: [[3, 'desc']],
+            columns: [
+                {
+                    data: 'pasien_nama',
+                    name: 'pasien_nama',
+                    render: function(data, type, row) {
+                        var pasienLabel = escapeHtml(data || '-');
+                        if (row.pasien_id) {
+                            pasienLabel += '<div><small class="text-muted">RM: ' + escapeHtml(row.pasien_id) + '</small></div>';
+                        }
+                        return pasienLabel;
+                    }
+                },
+                { data: 'to', name: 'wa_scheduled_messages.to', render: function(data) { return escapeHtml(data || '-'); } },
+                { data: 'client_id', name: 'wa_scheduled_messages.client_id', render: function(data) { return escapeHtml(data || '-'); } },
+                { data: 'schedule_at', name: 'wa_scheduled_messages.schedule_at', render: function(data) { return formatScheduledDateTime(data); } },
+                { data: 'status', name: 'wa_scheduled_messages.status', render: function(data) { return scheduledStatusBadge(data); } },
+                { data: 'message_preview', name: 'wa_scheduled_messages.message', orderable: false, render: function(data) { return escapeHtml(data || '-'); } }
+            ],
+            language: {
+                emptyTable: 'Tidak ada scheduled message.',
+                zeroRecords: 'Tidak ada scheduled message yang cocok.',
+                processing: 'Memuat...'
+            }
+        });
+
+        $('#scheduled-messages-table').on('xhr.dt', function(e, settings, json) {
+            if (!json) {
+                $('#scheduled-messages-summary').text('Gagal memuat scheduled message.');
+                return;
+            }
+
+            var total = typeof json.recordsFiltered !== 'undefined' ? json.recordsFiltered : (json.recordsTotal || 0);
+            $('#scheduled-messages-summary').text(total ? ('Menampilkan ' + total + ' scheduled message.') : 'Tidak ada scheduled message pada filter saat ini.');
+        });
+
+        return scheduledMessagesTable;
+    }
+
+    function loadScheduledMessages() {
+        $('#scheduled-messages-summary').text('Memuat scheduled message...');
+        getScheduledMessagesTable().ajax.reload();
+    }
+
+    $('#btn-scheduled-messages').on('click', function() {
+        $('#modalScheduledMessages').modal('show');
+        loadScheduledMessages();
+    });
+
+    $('#btn-refresh-scheduled-messages').on('click', function() {
+        loadScheduledMessages();
+    });
+
+    $(document).on('click', '.open-visitation-chat', function() {
+        var visitationId = $(this).data('visitation-id');
+        var pasienNama = $(this).data('pasien-nama');
+        if (!visitationId) {
+            return;
+        }
+        openVisitationChat(String(visitationId), pasienNama);
+    });
+
     // If we set a default, refresh select2 UI and notify change so initial load uses it
     @if(isset($defaultDokterId) && $defaultDokterId)
         $('#filter_dokter').trigger('change');
@@ -487,6 +647,9 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
     $('#filter_dokter, #filter_klinik, #filter_start_date, #filter_end_date').on('change', function () {
         table.ajax.reload();
         updateStats();
+        if ($('#modalScheduledMessages').hasClass('show')) {
+            loadScheduledMessages();
+        }
     });
 
     // Stat card click handler

@@ -12,6 +12,8 @@
 
 @include('erm.partials.modal-reschedule')
 @include('erm.rawatjalans.partials.modal-daftar-kunjungan')
+@include('erm.rawatjalans.partials.modal-visitation-chat')
+@include('erm.rawatjalans.partials.modal-scheduled-messages')
 
 
 {{-- Screening Batuk modals are lazy-loaded on-demand to keep initial page HTML light --}}
@@ -36,19 +38,22 @@
 
     <div class="row mb-3">
         <div class="col-md-12 d-flex justify-content-between align-items-center">
-            <div class="d-flex gap-2">
+            <div class="btn-group" role="group" aria-label="Dokter room actions">
                 @if (auth()->user() && auth()->user()->hasRole('Dokter'))
-                    <button id="btn-buka-pintu" class="btn btn-danger mr-2">
-                        <i class="fas fa-door-open"></i> Perawat Buka Pintu
+                    <button id="btn-buka-pintu" class="btn btn-danger">
+                        <i class="fas fa-door-open"></i> Buka Pintu
                     </button>
                     <button id="btn-panggil-perawat" class="btn btn-warning">
-                        <i class="fas fa-bell"></i> Panggil Perawat ke Ruang Dokter
+                        <i class="fas fa-bell"></i> Panggil Perawat
                     </button>
                 @endif
             </div>
-            <div>
-                <div class="btn-group">
-                    <button type="button" class="btn btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <div class="btn-group" role="group" aria-label="Rawat jalan actions">
+                <button type="button" class="btn btn-success" id="btn-scheduled-messages">
+                    <i class="fab fa-whatsapp"></i> Whatsapp Bot
+                </button>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="fas fa-calendar-plus"></i> Daftarkan Pasien
                     </button>
                     <div class="dropdown-menu dropdown-menu-right">
@@ -61,7 +66,7 @@
         </div>
     </div>
     <!-- Statistics Cards -->
-    <div class="row mb-4 stats-row">
+    <div class="row mb-2 stats-row">
         <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="total" style="border: 2px solid #007bff; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
@@ -206,9 +211,6 @@
     {{-- Lab/Rujuk/Visitation list modals are lazy-loaded on-demand --}}
 
     <div class="card">
-        <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Daftar Kunjungan Rawat Jalan</h4>
-        </div>
         <div class="card-body">
             <div class="row mb-3">
                 <div class="col-md-2">
@@ -267,7 +269,7 @@
 @endsection
 
 @section('scripts')
-<script src="{{ route('erm.rawatjalans.assets.js') }}"></script>
+<script src="{{ route('erm.rawatjalans.assets.js') }}?v={{ filemtime(resource_path('views/erm/rawatjalans/assets/index_js.blade.php')) }}"></script>
 @endsection
 
 

@@ -731,6 +731,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/assets/index.js', [RawatJalanController::class, 'assetsJs'])->name('erm.rawatjalans.assets.js');
     Route::get('/rawatjalans/modals/common', [RawatJalanController::class, 'commonModals'])->name('erm.rawatjalans.modals.common');
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
+    Route::get('/rawatjalans/scheduled-messages', [RawatJalanController::class, 'scheduledMessages'])->name('erm.rawatjalans.scheduledMessages');
+    Route::get('/rawatjalans/{visitation}/messages', [RawatJalanController::class, 'visitationMessages'])->name('erm.rawatjalans.visitationMessages');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
@@ -1766,6 +1768,8 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             // WhatsApp sessions management (Admin)
             Route::post('/wa-sessions', [\App\Http\Controllers\Admin\WaSessionController::class, 'store'])->name('admin.wa_sessions.store');
             Route::delete('/wa-sessions/{waSession}', [\App\Http\Controllers\Admin\WaSessionController::class, 'destroy'])->name('admin.wa_sessions.destroy');
+                Route::get('/wa-visitation-templates', [\App\Http\Controllers\Admin\WaVisitationTemplateController::class, 'index'])->name('admin.wa_visitation_templates.index');
+                Route::put('/wa-visitation-templates/{waSession}', [\App\Http\Controllers\Admin\WaVisitationTemplateController::class, 'update'])->name('admin.wa_visitation_templates.update');
             
                     // Admin message log (DataTables)
                     Route::get('/wa-messages-log', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'index'])->name('admin.wa_messages.index');
