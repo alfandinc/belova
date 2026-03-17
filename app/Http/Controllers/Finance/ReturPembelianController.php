@@ -11,6 +11,7 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\KartuStok;
 use App\Models\ERM\GudangMapping;
+use App\Services\Finance\TransactionRecorderService;
 use App\Services\ERM\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -186,6 +187,31 @@ class ReturPembelianController extends Controller
 
             // Update total amount
             $retur->update(['total_amount' => $totalAmount]);
+
+            $invoice = Invoice::find($request->invoice_id);
+            if ($invoice && $totalAmount > 0) {
+                $returnedItemDescriptions = $retur->items
+                    ->map(function ($item) {
+                        $qty = rtrim(rtrim(number_format((float) ($item->quantity_returned ?? 0), 2, '.', ''), '0'), '.');
+                        return trim(($item->name ?? 'Item') . ' x' . $qty);
+                    })
+                    ->filter()
+                    ->implode(', ');
+
+                $description = 'No retur: ' . $retur->retur_number;
+                if ($returnedItemDescriptions !== '') {
+                    $description .= ' | Item diretur: ' . $returnedItemDescriptions;
+                }
+
+                app(TransactionRecorderService::class)->recordInvoicePayment(
+                    $invoice,
+                    (float) $totalAmount,
+                    $invoice->payment_method,
+                    $description,
+                    $retur->processed_date,
+                    'out'
+                );
+            }
 
             DB::commit();
 

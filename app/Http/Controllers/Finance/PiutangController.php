@@ -8,6 +8,7 @@ use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Finance\Piutang;
 use App\Services\Finance\PasienMembershipStatusService;
+use App\Services\Finance\TransactionRecorderService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
@@ -222,6 +223,19 @@ class PiutangController extends Controller
                         }
                     }
                 }
+
+                        $transactionDescription = strtolower((string) ($piutang->payment_status ?? '')) === 'paid'
+                            ? 'Pelunasan piutang invoice ' . ($invoice->invoice_number ?? $invoice->id)
+                            : 'Pembayaran piutang invoice ' . ($invoice->invoice_number ?? $invoice->id);
+
+                        app(TransactionRecorderService::class)->recordInvoicePayment(
+                            $invoice,
+                            $amount,
+                            $paymentMethod,
+                            $transactionDescription,
+                            $paymentDate,
+                            'in'
+                        );
 
                 $invoice->save();
 

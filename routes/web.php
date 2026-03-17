@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\{
 };
 use App\Http\Controllers\Finance\{
     BillingController,
+    FinanceTransactionController,
     InvoiceController,
     PiutangController,
 };
@@ -1150,6 +1151,8 @@ Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Employee|Admin')->grou
 
 Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Hrd')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
+        Route::get('/transactions', [FinanceTransactionController::class, 'index'])->name('finance.transactions.index');
+        Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');

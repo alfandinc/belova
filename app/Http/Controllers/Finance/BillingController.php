@@ -18,6 +18,7 @@ use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
 use App\Models\ERM\ObatStokGudang;
 use App\Services\Finance\PasienMembershipStatusService;
+use App\Services\Finance\TransactionRecorderService;
 use App\Services\ERM\StokService;
 use App\Models\ERM\PaketRacikan;
 use App\Models\ERM\ResepFarmasi;
@@ -3024,6 +3025,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         }
                         $existingPiutang->save();
                     }
+                }
+
+                if ($amountPaidNumeric > 0) {
+                    $paymentDescription = $shortageAmount > 0
+                        ? 'Pembayaran awal billing invoice ' . ($invoice->invoice_number ?? $invoice->id)
+                        : 'Pembayaran billing invoice ' . ($invoice->invoice_number ?? $invoice->id);
+
+                    app(TransactionRecorderService::class)->recordInvoicePayment(
+                        $invoice,
+                        $amountPaidNumeric,
+                        $paymentMethod,
+                        $paymentDescription,
+                        $paymentDate,
+                        'in'
+                    );
                 }
 
                 app(PasienMembershipStatusService::class)->syncFromInvoice($invoice);

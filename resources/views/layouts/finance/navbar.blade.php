@@ -46,6 +46,7 @@
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.transactions.index') }}"><i class="ti-control-record"></i>Transaksi</a></li>
                             <!-- Rekap Penjualan moved to Laporan section -->
                             <li class="nav-item"><a class="nav-link" href="{{ route('finance.retur-pembelian.index') }}"><i class="ti-control-record"></i>Retur Pembelian</a></li>
                             <!-- Pengajuan links moved to their own top-level section -->
