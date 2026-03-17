@@ -59,6 +59,23 @@ class Invoice extends Model
         return $this->hasMany(Piutang::class, 'invoice_id');
     }
 
+    public function returPembelians()
+    {
+        return $this->hasMany(ReturPembelian::class, 'invoice_id');
+    }
+
+    public function returPembelianItems()
+    {
+        return $this->hasManyThrough(
+            ReturPembelianItem::class,
+            ReturPembelian::class,
+            'invoice_id',
+            'retur_pembelian_id',
+            'id',
+            'id'
+        );
+    }
+
     // Generate a unique invoice number
     public static function generateInvoiceNumber()
     {

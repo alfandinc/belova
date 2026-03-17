@@ -1712,7 +1712,31 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     $visitation = Visitation::with(['pasien', 'metodeBayar'])->findOrFail($visitation_id);
     // Fetch latest invoice for this visitation (if exists)
-    $invoice = \App\Models\Finance\Invoice::with('piutangs')->where('visitation_id', $visitation_id)->latest()->first();
+    $invoice = \App\Models\Finance\Invoice::with(['piutangs', 'returPembelians.items'])
+        ->where('visitation_id', $visitation_id)
+        ->latest()
+        ->first();
+
+    $returnedItems = collect();
+    if ($invoice) {
+        $returnedItems = $invoice->returPembelians
+            ->sortByDesc(function ($retur) {
+                return $retur->processed_date ?? $retur->created_at;
+            })
+            ->flatMap(function ($retur) {
+                return $retur->items->map(function ($item) use ($retur) {
+                    return [
+                        'retur_number' => $retur->retur_number,
+                        'processed_date' => $retur->processed_date,
+                        'name' => $item->name,
+                        'quantity_returned' => $item->quantity_returned,
+                        'unit_price' => $item->unit_price,
+                        'total_amount' => $item->total_amount,
+                    ];
+                });
+            })
+            ->values();
+    }
 
     // Detect if invoice is out-of-date versus billing (used by UI to prompt "Update Invoice" before payment).
     $invoiceNeedsUpdate = false;
@@ -1737,7 +1761,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
     ];
     
-    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings', 'invoiceNeedsUpdate'));
+    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings', 'invoiceNeedsUpdate', 'returnedItems'));
 }
 
     public function createInvoice(Request $request)
@@ -3452,7 +3476,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $user = Auth::user();
         $isAdmin = ($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'));
         
-        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice.piutangs', 'metodeBayar'])
+        $visitations = \App\Models\ERM\Visitation::with([
+                'pasien',
+                'klinik',
+                'dokter.user',
+                'dokter.spesialisasi',
+                'metodeBayar',
+                'invoice' => function ($query) {
+                    $query->with('piutangs')
+                        ->withCount('returPembelianItems as returned_items_count');
+                },
+            ])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
             ->where('status_kunjungan', 2);
 

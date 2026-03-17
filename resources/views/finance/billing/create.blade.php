@@ -424,6 +424,43 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card shadow-sm mb-2">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-undo-alt mr-2"></i>Item Diretur
+                    </h5>
+                    <span class="badge badge-danger">{{ isset($returnedItems) ? $returnedItems->count() : 0 }} item</span>
+                </div>
+                <div class="card-body px-4 py-3">
+                    <div class="table-responsive">
+                        <table id="returnedItemsTable" class="table table-hover table-sm mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th style="width: 5%">No.</th>
+                                    <th style="width: 35%">Nama Item</th>
+                                    <th style="width: 10%">Qty Diretur</th>
+                                    <th style="width: 15%">Harga</th>
+                                    <th style="width: 15%">Total</th>
+                                    <th style="width: 20%">No. Retur</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach(($returnedItems ?? collect()) as $returnedItem)
+                                    <tr>
+                                        <td></td>
+                                        <td>{{ $returnedItem['name'] ?? '-' }}</td>
+                                        <td>{{ rtrim(rtrim(number_format((float) ($returnedItem['quantity_returned'] ?? 0), 2, '.', ''), '0'), '.') }}</td>
+                                        <td>Rp {{ number_format((float) ($returnedItem['unit_price'] ?? 0), 0, ',', '.') }}</td>
+                                        <td>Rp {{ number_format((float) ($returnedItem['total_amount'] ?? 0), 0, ',', '.') }}</td>
+                                        <td>{{ $returnedItem['retur_number'] ?? '-' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="col-md-3">
@@ -1361,6 +1398,43 @@
                 } catch (e) {
                     // ignore
                 }
+            }
+        });
+
+        const returnedItemsTable = $('#returnedItemsTable').DataTable({
+            processing: false,
+            serverSide: false,
+            responsive: false,
+            autoWidth: false,
+            paging: true,
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Semua"]],
+            order: [[5, 'desc']],
+            columnDefs: [
+                {
+                    targets: 0,
+                    orderable: false,
+                    searchable: false,
+                    width: '5%',
+                    render: function(data, type, row, meta) {
+                        return meta.row + meta.settings._iDisplayStart + 1;
+                    }
+                },
+                { targets: 2, className: 'text-center' },
+                { targets: 3, className: 'text-right' },
+                { targets: 4, className: 'text-right' }
+            ],
+            language: {
+                emptyTable: 'Belum ada item diretur untuk invoice ini',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ item retur',
+                search: 'Cari:',
+                paginate: {
+                    first: 'Pertama',
+                    last: 'Terakhir',
+                    next: 'Selanjutnya',
+                    previous: 'Sebelumnya'
+                },
+                lengthMenu: 'Tampilkan _MENU_ item retur'
             }
         });
 

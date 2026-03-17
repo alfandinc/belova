@@ -444,6 +444,14 @@
                             var inv = data || row.invoice_number || '';
                             var statusHtml = row.status || '';
                             var badge = '';
+                            var returBadge = '';
+                            var returnedItemsCount = 0;
+                            try {
+                                returnedItemsCount = Number((row.invoice && row.invoice.returned_items_count) || row.returned_items_count || 0) || 0;
+                            } catch(e) { returnedItemsCount = 0; }
+                            if (returnedItemsCount > 0) {
+                                returBadge = '<span class="badge badge-danger ml-1">' + escapeHtml(String(returnedItemsCount)) + ' Item Diretur</span>';
+                            }
                             if (row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') {
                                 // Prefer authoritative piutang relation if available to determine paid vs remaining
                                 var piutangRel = null;
@@ -498,7 +506,7 @@
                             var html = '<div class="invoice-cell d-flex align-items-center justify-content-between">';
                             html += '<div class="invoice-left">';
                             html += '<div class="font-weight-bold">' + escapeHtml(inv) + '</div>';
-                            if (badge) html += '<div class="mt-1">' + badge + '</div>';
+                            if (badge || returBadge) html += '<div class="mt-1">' + badge + returBadge + '</div>';
                             // show invoice total under invoice number if available
                             try {
                                 var totalVal = 0;
