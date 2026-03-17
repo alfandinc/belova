@@ -14,25 +14,47 @@ class FinanceTransactionController extends Controller
         return view('finance.transactions.index');
     }
 
+    public function stats(Request $request)
+    {
+        $baseQuery = $this->buildFilteredQuery($request);
+
+        $totalIn = (clone $baseQuery)
+            ->where('jenis_transaksi', 'in')
+            ->sum('jumlah');
+
+        $totalOut = (clone $baseQuery)
+            ->where('jenis_transaksi', 'out')
+            ->sum('jumlah');
+
+        return response()->json([
+            'total_in' => (float) $totalIn,
+            'total_out' => (float) $totalOut,
+            'balance' => (float) $totalIn - (float) $totalOut,
+        ]);
+    }
+
+    public function downloadExcel(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $jenisTransaksi = trim((string) $request->input('jenis_transaksi', ''));
+        $metodeBayar = trim((string) $request->input('metode_bayar', ''));
+        $search = trim((string) $request->input('search', ''));
+
+        $filenameDate = now()->format('Ymd_His');
+
+        return (new \App\Exports\Finance\TransactionExport(
+            $startDate,
+            $endDate,
+            $jenisTransaksi,
+            $metodeBayar,
+            $search
+        ))->download('transaksi_' . $filenameDate . '.xlsx');
+    }
+
     public function data(Request $request)
     {
-        $query = FinanceTransaction::query()->with(['invoice', 'visitation.pasien'])->select('finance_transactions.*');
-
-        $start = $request->input('start_date');
-        $end = $request->input('end_date');
-        if ($start && $end) {
-            $query->whereBetween('tanggal', [$start . ' 00:00:00', $end . ' 23:59:59']);
-        }
-
-        $jenis = trim((string) $request->input('jenis_transaksi', ''));
-        if ($jenis !== '') {
-            $query->where('jenis_transaksi', $jenis);
-        }
-
-        $metode = trim((string) $request->input('metode_bayar', ''));
-        if ($metode !== '') {
-            $query->where('metode_bayar', $metode);
-        }
+        $query = $this->buildFilteredQuery($request);
 
         return DataTables::of($query)
             ->filter(function ($query) use ($request) {
@@ -95,5 +117,30 @@ class FinanceTransactionController extends Controller
             })
             ->rawColumns(['pasien_display', 'invoice_display', 'jumlah_display', 'jenis_transaksi_display'])
             ->make(true);
+    }
+
+    private function buildFilteredQuery(Request $request)
+    {
+        $query = FinanceTransaction::query()
+            ->with(['invoice', 'visitation.pasien'])
+            ->select('finance_transactions.*');
+
+        $start = $request->input('start_date');
+        $end = $request->input('end_date');
+        if ($start && $end) {
+            $query->whereBetween('tanggal', [$start . ' 00:00:00', $end . ' 23:59:59']);
+        }
+
+        $jenis = trim((string) $request->input('jenis_transaksi', ''));
+        if ($jenis !== '') {
+            $query->where('jenis_transaksi', $jenis);
+        }
+
+        $metode = trim((string) $request->input('metode_bayar', ''));
+        if ($metode !== '') {
+            $query->where('metode_bayar', $metode);
+        }
+
+        return $query;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Models\Finance;
 
 use App\Models\ERM\Visitation;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,6 +21,7 @@ class FinanceTransaction extends Model
         'jenis_transaksi',
         'metode_bayar',
         'deskripsi',
+        'user_id',
     ];
 
     protected $casts = [
@@ -35,5 +37,10 @@ class FinanceTransaction extends Model
     public function visitation()
     {
         return $this->belongsTo(Visitation::class, 'visitation_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

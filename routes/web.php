@@ -1153,6 +1153,8 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
         Route::get('/transactions', [FinanceTransactionController::class, 'index'])->name('finance.transactions.index');
         Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
+        Route::get('/transactions/stats', [FinanceTransactionController::class, 'stats'])->name('finance.transactions.stats');
+        Route::get('/transactions/download', [FinanceTransactionController::class, 'downloadExcel'])->name('finance.transactions.download');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');

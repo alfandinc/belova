@@ -5,12 +5,42 @@
 @endsection
 @section('content')
 <div class="container-fluid">
-    <div class="card shadow-sm">
-        <div class="card-header">
-            <h4 class="card-title mb-0">Daftar Transaksi</h4>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Daftar Transaksi</h3>
+                <div class="text-muted small">Kelola riwayat transaksi kasir: pantau pemasukan dan pengeluaran pembayaran.</div>
+            </div>
+            <div class="d-flex flex-wrap justify-content-end" style="gap:.75rem;">
+                <div class="card shadow-sm border-0 mb-0" style="min-width:180px;">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-muted small">Total Uang Masuk</div>
+                        <div id="summary-total-in" class="h5 mb-0 font-weight-bold text-success">Rp 0</div>
+                    </div>
+                </div>
+                <div class="card shadow-sm border-0 mb-0" style="min-width:180px;">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-muted small">Total Uang Keluar</div>
+                        <div id="summary-total-out" class="h5 mb-0 font-weight-bold text-danger">Rp 0</div>
+                    </div>
+                </div>
+                <div class="card shadow-sm border-0 mb-0" style="min-width:180px;">
+                    <div class="card-body py-2 px-3">
+                        <div class="text-muted small">Balance</div>
+                        <div id="summary-balance" class="h5 mb-0 font-weight-bold text-primary">Rp 0</div>
+                    </div>
+                </div>
+            </div>
         </div>
+    </div>
+    <div class="card shadow-sm">
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-end mb-3" style="gap:.5rem;">
+                <div style="flex:0 0 auto;">
+                    <button type="button" id="btn-download-transactions" class="btn btn-success btn-sm">
+                        <i class="fas fa-file-excel mr-1"></i> Download Excel
+                    </button>
+                </div>
                 <div style="flex:0 0 260px;">
                     <input type="text" id="daterange-transactions" class="form-control form-control-sm" />
                 </div>
@@ -72,6 +102,28 @@
         var endDate = moment().endOf('month').format('YYYY-MM-DD');
         var jenisTransaksi = '';
         var metodeBayar = '';
+        var transactionRefreshIntervalId = null;
+
+        function formatRupiah(value) {
+            return 'Rp ' + Number(value || 0).toLocaleString('id-ID', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        }
+
+        function updateSummaryCards(data) {
+            $('#summary-total-in').text(formatRupiah(data && data.total_in));
+            $('#summary-total-out').text(formatRupiah(data && data.total_out));
+            $('#summary-balance').text(formatRupiah(data && data.balance));
+        }
+
+        function fetchTransactionStats() {
+            $.get('{{ route("finance.transactions.stats") }}', {
+                start_date: startDate,
+                end_date: endDate,
+                jenis_transaksi: jenisTransaksi,
+                metode_bayar: metodeBayar
+            }).done(function(res) {
+                updateSummaryCards(res || {});
+            });
+        }
 
         $('#daterange-transactions').daterangepicker({
             startDate: moment().startOf('month'),
@@ -99,6 +151,7 @@
             startDate = start.format('YYYY-MM-DD');
             endDate = end.format('YYYY-MM-DD');
             transactionTable.ajax.reload();
+            fetchTransactionStats();
         });
 
         var transactionTable = $('#datatable-transactions').DataTable({
@@ -148,12 +201,47 @@
         $('#filter-jenis-transaksi').on('change', function() {
             jenisTransaksi = $(this).val();
             transactionTable.ajax.reload();
+            fetchTransactionStats();
         });
 
         $('#filter-metode-bayar').on('change', function() {
             metodeBayar = $(this).val();
             transactionTable.ajax.reload();
+            fetchTransactionStats();
         });
+
+        $('#btn-download-transactions').on('click', function() {
+            var searchValue = '';
+            try {
+                searchValue = transactionTable.search() || '';
+            } catch (e) {
+                searchValue = '';
+            }
+
+            var params = $.param({
+                start_date: startDate,
+                end_date: endDate,
+                jenis_transaksi: jenisTransaksi,
+                metode_bayar: metodeBayar,
+                search: searchValue
+            });
+
+            window.location.href = '{{ route("finance.transactions.download") }}' + '?' + params;
+        });
+
+        transactionRefreshIntervalId = setInterval(function() {
+            transactionTable.ajax.reload(null, false);
+            fetchTransactionStats();
+        }, 10000);
+
+        $(window).on('beforeunload', function() {
+            if (transactionRefreshIntervalId) {
+                clearInterval(transactionRefreshIntervalId);
+                transactionRefreshIntervalId = null;
+            }
+        });
+
+        fetchTransactionStats();
     });
 </script>
 @endsection

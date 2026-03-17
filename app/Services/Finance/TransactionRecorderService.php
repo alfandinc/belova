@@ -5,6 +5,7 @@ namespace App\Services\Finance;
 use App\Models\Finance\FinanceTransaction;
 use App\Models\Finance\Invoice;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class TransactionRecorderService
 {
@@ -28,6 +29,7 @@ class TransactionRecorderService
             'jenis_transaksi' => $jenisTransaksi,
             'metode_bayar' => $metodeBayar,
             'deskripsi' => $deskripsi,
+            'user_id' => Auth::id(),
         ]);
     }
 }
