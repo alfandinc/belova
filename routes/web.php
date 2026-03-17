@@ -1048,7 +1048,10 @@ Route::prefix('erm')->middleware('role:Admin|Farmasi')->group(function () {
     Route::post('/aturan-pakai', [AturanPakaiController::class, 'store'])->name('erm.aturan-pakai.store');
     Route::put('/aturan-pakai/{id}', [AturanPakaiController::class, 'update'])->name('erm.aturan-pakai.update');
     Route::delete('/aturan-pakai/{id}', [AturanPakaiController::class, 'destroy'])->name('erm.aturan-pakai.destroy');
-    // Public list endpoint for resep pages (no auth to keep simple) - but still in erm prefix
+});
+
+// Read-only aturan pakai lookup used by resep dokter/farmasi Select2 fields.
+Route::prefix('erm')->middleware('role:Dokter|Admin|Farmasi')->group(function () {
     Route::get('/aturan-pakai/list/active', [AturanPakaiController::class, 'listActive'])->name('erm.aturan-pakai.list.active');
 });
 
