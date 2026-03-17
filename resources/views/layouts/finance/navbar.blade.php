@@ -38,49 +38,53 @@
                         </ul>
                     </li> --}}
                     @hasanyrole('Kasir|Admin|Finance')
+                    <li class="menu-label mt-0">Kasir</li>
                     <li>
-                        <a href="javascript: void(0);">
-                            <i class="fas fa-cash-register align-self-center menu-icon"></i>
-                            <span>Kasir</span>
-                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                        <a href="/finance/billing">
+                            <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
+                            <span>Daftar Billing</span>
                         </a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.transactions.index') }}"><i class="ti-control-record"></i>Transaksi</a></li>
-                            <!-- Rekap Penjualan moved to Laporan section -->
-                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.retur-pembelian.index') }}"><i class="ti-control-record"></i>Retur Pembelian</a></li>
-                            <!-- Pengajuan links moved to their own top-level section -->
-                        </ul>
+                    </li>
+                    <li>
+                        <a href="{{ route('finance.transactions.index') }}">
+                            <i class="fas fa-receipt align-self-center menu-icon"></i>
+                            <span>Riwayat Transaksi</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('finance.retur-pembelian.index') }}">
+                            <i class="fas fa-undo-alt align-self-center menu-icon"></i>
+                            <span>Retur Pembelian</span>
+                        </a>
+                    </li>
+                    @endhasanyrole
+                    @hasanyrole('Admin|Finance')
+                    <li class="menu-label">Laporan</li>
+                    <li>
+                        <a href="{{ route('finance.rekap-penjualan.form') }}">
+                            <i class="fas fa-chart-line align-self-center menu-icon"></i>
+                            <span>Rekap Penjualan</span>
+                        </a>
+                    </li>
+                    @endhasanyrole
+
+                    @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
+                    <li class="menu-label">Pengajuan</li>
+                    <li>
+                        <a href="{{ route('finance.pengajuan.index') }}">
+                            <i class="fas fa-wallet align-self-center menu-icon"></i>
+                            <span>Pengajuan Dana</span>
+                        </a>
                     </li>
                     @endhasanyrole
                     @hasanyrole('Admin|Finance')
                     <li>
-                        <a href="javascript: void(0);">
-                            <i class="fas fa-chart-line align-self-center menu-icon"></i>
-                            <span>Laporan</span>
-                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                        <a href="{{ route('finance.pengajuan.approver.index') }}">
+                            <i class="fas fa-user-check align-self-center menu-icon"></i>
+                            <span>Approver Pengajuan</span>
                         </a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.rekap-penjualan.form') }}"><i class="ti-control-record"></i>Rekap Penjualan</a></li>
-                        </ul>
                     </li>
                     @endhasanyrole
-
-                    <li>
-                        <a href="javascript: void(0);">
-                            <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
-                            <span>Pengajuan</span>
-                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
-                        </a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
-                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.pengajuan.index') }}"><i class="ti-control-record"></i>Pengajuan Dana</a></li>
-                            @endhasanyrole
-                            @hasanyrole('Admin|Finance')
-                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.pengajuan.approver.index') }}"><i class="ti-control-record"></i>Approver Pengajuan</a></li>
-                            @endhasanyrole
-                        </ul>
-                    </li>
                     {{-- <li>
                         <a href="javascript: void(0);">
                             <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
