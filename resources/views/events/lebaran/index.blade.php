@@ -134,28 +134,60 @@
     $(function () {
         var templateWidth = 1080;
         var templateHeight = 1920;
-        var templateUrl = '{{ asset('img/templates/lebaran_wa.png') }}';
-        var templateImage = null;
+        var previewConfigs = {
+            preview1: {
+                title: 'Preview Ucapan Lebaran',
+                templateUrl: '{{ asset('img/templates/lebaran_wa.png') }}',
+                templatePath: 'public/img/templates/lebaran_wa.png',
+                filenamePrefix: 'lebaran',
+                textColor: '#6f217c',
+                waMessageTemplate: [
+                    'Yth. Bapak/Ibu __PASIEN_NAME__',
+                    'Dengan penuh rasa syukur dan kebahagiaan, kami segenap keluarga besar Klinik Pratama Belova Skin & Beauty Center mengucapkan:',
+                    '',
+                    'Selamat Hari Raya Idul Fitri 1 Syawal 1447 H',
+                    '',
+                    'Taqabbalallahu minna wa minkum, taqabbal yaa karim.',
+                    'Mohon Maaf Lahir & Batin',
+                    'Semoga di hari yang fitri ini, kita semua diberikan kesehatan, kebahagiaan, serta dipertemukan kembali dengan Ramadan berikutnya dalam keadaan yang lebih baik.',
+                    '',
+                    'Terima kasih atas kepercayaan Anda kepada kami. Semoga kami senantiasa dapat memberikan pelayanan terbaik untuk kesehatan dan kecantikan Anda.',
+                    '',
+                    'Aamiin Ya Rabbal ‘Alamin.',
+                    '',
+                    'Wassalamu’alaikum warahmatullahi wabarakatuh.'
+                ].join('\n')
+            },
+            preview2: {
+                title: 'Preview Ucapan Lebaran 2',
+                templateUrl: '{{ asset('img/templates/lebaran_wa_2.png') }}',
+                templatePath: 'public/img/templates/lebaran_wa_2.png',
+                filenamePrefix: 'lebaran-2',
+                textColor: '#0b2c5f',
+                waMessageTemplate: [
+                    'Yth. Bapak/Ibu __PASIEN_NAME__',
+                    'Dengan penuh rasa syukur dan kebahagiaan, kami segenap keluarga besar Klinik Utama Premiere Belova mengucapkan:',
+                    '',
+                    'Selamat Hari Raya Idul Fitri 1 Syawal 1447 H',
+                    '',
+                    'Taqabbalallahu minna wa minkum, taqabbal yaa karim.',
+                    'Mohon Maaf Lahir & Batin',
+                    'Semoga di hari yang fitri ini, kita semua diberikan kesehatan, kebahagiaan, serta dipertemukan kembali dengan Ramadan berikutnya dalam keadaan yang lebih baik.',
+                    '',
+                    'Terima kasih atas kepercayaan Anda kepada kami. Semoga kami senantiasa dapat memberikan pelayanan terbaik untuk kesehatan Anda.',
+                    '',
+                    'Aamiin Ya Rabbal ‘Alamin.',
+                    '',
+                    'Wassalamu’alaikum warahmatullahi wabarakatuh.'
+                ].join('\n')
+            }
+        };
+        var templateImages = {};
         var activeLebaranId = null;
+        var activePreviewVariant = 'preview1';
         var refreshScrollTop = null;
         var refreshTableScrollTop = null;
         var waPatientPlaceholder = '__PASIEN_NAME__';
-        var waMessageTemplate = [
-            'Yth. Bapak/Ibu ' + waPatientPlaceholder,
-            'Dengan penuh rasa syukur dan kebahagiaan, kami segenap keluarga besar Klinik Pratama Belova Skin & Beauty Center mengucapkan:',
-            '',
-            'Selamat Hari Raya Idul Fitri 1 Syawal 1447 H',
-            '',
-            'Taqabbalallahu minna wa minkum, taqabbal yaa karim.',
-            'Mohon Maaf Lahir & Batin',
-            'Semoga di hari yang fitri ini, kita semua diberikan kesehatan, kebahagiaan, serta dipertemukan kembali dengan Ramadan berikutnya dalam keadaan yang lebih baik.',
-            '',
-            'Terima kasih atas kepercayaan Anda kepada kami. Semoga kami senantiasa dapat memberikan pelayanan terbaik untuk kesehatan dan kecantikan Anda.',
-            '',
-            'Aamiin Ya Rabbal ‘Alamin.',
-            '',
-            'Wassalamu’alaikum warahmatullahi wabarakatuh.'
-        ].join('\n');
 
         $('#file').on('change', function () {
             var fileName = $(this).val().split('\\').pop();
@@ -195,14 +227,22 @@
             return digits;
         }
 
-        function buildWaMessage(patientName) {
-            return waMessageTemplate.replace(waPatientPlaceholder, patientName || '-');
+        function getPreviewConfig(variant) {
+            return previewConfigs[variant] || previewConfigs.preview1;
         }
 
-        function updateWaPanel(patientName, phoneNumber) {
-            var message = buildWaMessage(patientName);
+        function buildWaMessage(patientName, variant) {
+            var config = getPreviewConfig(variant);
+            return config.waMessageTemplate.replace(waPatientPlaceholder, patientName || '-');
+        }
+
+        function updateWaPanel(patientName, phoneNumber, variant) {
+            var config = getPreviewConfig(variant);
+            var message = buildWaMessage(patientName, variant);
             var normalizedPhone = normalizeWhatsAppNumber(phoneNumber);
             var waUrl = normalizedPhone ? 'https://wa.me/' + normalizedPhone + '?text=' + encodeURIComponent(message) : '#';
+
+            $('#lebaranPreviewModalLabel').text(config.title);
 
             $('#lebaranWaMessage').val(message);
 
@@ -257,32 +297,34 @@
             }
         }
 
-        function updatePreviewImageFromCanvas(patientName) {
+        function updatePreviewImageFromCanvas(patientName, variant) {
+            var config = getPreviewConfig(variant);
             var canvas = document.getElementById('lebaranPreviewCanvas');
             var previewImage = document.getElementById('lebaranPreviewImage');
             var dataUrl = canvas.toDataURL('image/png');
 
             previewImage.src = dataUrl;
             previewImage.classList.remove('d-none');
-            previewImage.setAttribute('data-filename', 'lebaran-' + (patientName || 'preview').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '.png');
+            previewImage.setAttribute('data-filename', config.filenamePrefix + '-' + (patientName || 'preview').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '.png');
             fitCanvasToModal();
         }
 
-        function loadTemplate() {
-            if (templateImage) {
-                return Promise.resolve(templateImage);
+        function loadTemplate(variant) {
+            var config = getPreviewConfig(variant);
+            if (templateImages[variant]) {
+                return Promise.resolve(templateImages[variant]);
             }
 
             return new Promise(function (resolve, reject) {
                 var img = new Image();
                 img.onload = function () {
-                    templateImage = img;
+                    templateImages[variant] = img;
                     resolve(img);
                 };
                 img.onerror = function () {
-                    reject(new Error('Template image not found at ' + templateUrl));
+                    reject(new Error('Template image not found at ' + config.templateUrl));
                 };
-                img.src = templateUrl + '?v=' + Date.now();
+                img.src = config.templateUrl + '?v=' + Date.now();
             });
         }
 
@@ -312,16 +354,17 @@
             };
         }
 
-        function renderLebaranPreview(patientName, phoneNumber) {
+        function renderLebaranPreview(patientName, phoneNumber, variant) {
+            var config = getPreviewConfig(variant);
             clearPreviewError();
-            updateWaPanel(patientName, phoneNumber);
+            updateWaPanel(patientName, phoneNumber, variant);
 
             var canvas = document.getElementById('lebaranPreviewCanvas');
             var ctx = canvas.getContext('2d');
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            return loadTemplate().then(function (img) {
+            return loadTemplate(variant).then(function (img) {
                 canvas.width = templateWidth;
                 canvas.height = templateHeight;
 
@@ -335,7 +378,7 @@
                     height: canvas.height * 0.075
                 };
                 var displayName = patientName ? 'Bapak/Ibu ' + patientName : 'Bapak/Ibu -';
-                var textColor = '#6f217c';
+                var textColor = config.textColor || '#6f217c';
                 var fitted = buildFittedText(ctx, displayName, box.width - 40, box.height - 20);
                 var totalTextHeight = fitted.lines.length * fitted.lineHeight;
                 var startY = box.y + ((box.height - totalTextHeight) / 2) + (fitted.fontSize * 0.9);
@@ -349,9 +392,9 @@
                     ctx.fillText(line, box.x + (box.width / 2), startY + (index * fitted.lineHeight));
                 });
 
-                updatePreviewImageFromCanvas(displayName || 'preview');
+                updatePreviewImageFromCanvas(displayName || 'preview', variant);
             }).catch(function () {
-                showPreviewError('Template image `public/img/templates/lebaran_wa.png` belum ditemukan. Tambahkan file tersebut agar preview bisa ditampilkan.');
+                showPreviewError('Template image `' + config.templatePath + '` belum ditemukan. Tambahkan file tersebut agar preview bisa ditampilkan.');
             });
         }
 
@@ -417,7 +460,9 @@
                     render: function (data, type, row) {
                         var patientName = row.nama_pasien || '-';
                         var phoneNumber = row.event_nohp || '';
-                        return '<button type="button" class="btn btn-sm btn-outline-primary js-preview-lebaran" data-id="' + row.id + '" data-name="' + $('<div>').text(patientName).html() + '" data-phone="' + $('<div>').text(phoneNumber).html() + '">Preview</button>';
+                        return ''
+                            + '<button type="button" class="btn btn-sm js-preview-lebaran mr-1 mb-1" style="background:#e83e8c;border:1px solid #e83e8c;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview1" data-id="' + row.id + '" data-name="' + $('<div>').text(patientName).html() + '" data-phone="' + $('<div>').text(phoneNumber).html() + '">Preview</button>'
+                            + '<button type="button" class="btn btn-sm js-preview-lebaran mb-1" style="background:#0d6efd;border:1px solid #0d6efd;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview2" data-id="' + row.id + '" data-name="' + $('<div>').text(patientName).html() + '" data-phone="' + $('<div>').text(phoneNumber).html() + '">Preview 2</button>';
                     }
                 }
             ],
@@ -430,11 +475,12 @@
 
         $('#lebaran-table').on('click', '.js-preview-lebaran', function () {
             activeLebaranId = $(this).data('id') || null;
+            activePreviewVariant = $(this).data('variant') || 'preview1';
             var patientName = $(this).data('name') || '-';
             var phoneNumber = $(this).data('phone') || '';
             updateMarkSentButtonState(false);
             $('#lebaranPreviewModal').modal('show');
-            renderLebaranPreview(patientName, phoneNumber);
+            renderLebaranPreview(patientName, phoneNumber, activePreviewVariant);
         });
 
         $('#lebaranPreviewModal').on('hidden.bs.modal', function () {
@@ -562,6 +608,54 @@
 
     .lebaran-import-box .btn {
         min-height: calc(1.5em + 0.75rem + 2px);
+    }
+
+    #lebaran-table .btn-lebaran-preview,
+    #lebaran-table_wrapper .btn-lebaran-preview {
+        display: inline-block !important;
+        color: #fff !important;
+        background-color: #e83e8c !important;
+        border: 1px solid #e83e8c !important;
+        border-radius: 0.2rem !important;
+        padding: 0.25rem 0.5rem !important;
+        line-height: 1.5 !important;
+        text-align: center !important;
+        text-decoration: none !important;
+    }
+
+    #lebaran-table .btn-lebaran-preview:hover,
+    #lebaran-table .btn-lebaran-preview:focus,
+    #lebaran-table .btn-lebaran-preview:active,
+    #lebaran-table_wrapper .btn-lebaran-preview:hover,
+    #lebaran-table_wrapper .btn-lebaran-preview:focus,
+    #lebaran-table_wrapper .btn-lebaran-preview:active {
+        color: #fff !important;
+        background-color: #d63384 !important;
+        border-color: #d63384 !important;
+    }
+
+    #lebaran-table .btn-lebaran-preview-2,
+    #lebaran-table_wrapper .btn-lebaran-preview-2 {
+        display: inline-block !important;
+        color: #fff !important;
+        background-color: #0d6efd !important;
+        border: 1px solid #0d6efd !important;
+        border-radius: 0.2rem !important;
+        padding: 0.25rem 0.5rem !important;
+        line-height: 1.5 !important;
+        text-align: center !important;
+        text-decoration: none !important;
+    }
+
+    #lebaran-table .btn-lebaran-preview-2:hover,
+    #lebaran-table .btn-lebaran-preview-2:focus,
+    #lebaran-table .btn-lebaran-preview-2:active,
+    #lebaran-table_wrapper .btn-lebaran-preview-2:hover,
+    #lebaran-table_wrapper .btn-lebaran-preview-2:focus,
+    #lebaran-table_wrapper .btn-lebaran-preview-2:active {
+        color: #fff !important;
+        background-color: #0b5ed7 !important;
+        border-color: #0b5ed7 !important;
     }
 
     .lebaran-import-box .custom-file,
