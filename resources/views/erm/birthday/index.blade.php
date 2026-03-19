@@ -1,9 +1,9 @@
-@extends('layouts.erm.app')
+@extends('layouts.marketing.app')
 
 @section('title', 'Ulang Tahun Pasien')
 
 @section('navbar')
-@include('layouts.erm.navbar')
+@include('layouts.marketing.navbar')
 @endsection
 
 @section('content')
@@ -16,7 +16,7 @@
                     <div class="col">
                         <h4 class="page-title">Ulang Tahun Pasien</h4>
                         <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="/erm">Beranda</a></li>
+                            <li class="breadcrumb-item"><a href="{{ route('marketing.dashboard') }}">Marketing</a></li>
                             <li class="breadcrumb-item active">Ulang Tahun Pasien</li>
                         </ol>
                     </div>
@@ -182,7 +182,7 @@
             processing: true,
             serverSide: true,
             ajax: {
-                url: "{{ route('erm.birthday.data') }}",
+                url: "{{ route('marketing.birthday.data') }}",
                 data: function(d) {
                     var dateRange = $('#date-range').val().split(' - ');
                     d.start_date = moment(dateRange[0], 'DD/MM/YYYY').format('YYYY-MM-DD');
@@ -297,7 +297,7 @@
     
     // Mark as sent in database
     $.ajax({
-        url: "{{ route('erm.birthday.mark-sent') }}",
+        url: "{{ route('marketing.birthday.mark-sent') }}",
         type: 'POST',
         data: {
             _token: "{{ csrf_token() }}",
@@ -371,7 +371,7 @@ $('#generate-image').click(function() {
     
     // Generate image via AJAX
     $.ajax({
-        url: "{{ route('erm.birthday.generate-image') }}",
+        url: "{{ route('marketing.birthday.generate-image') }}",
         type: 'POST',
         data: {
             _token: "{{ csrf_token() }}",

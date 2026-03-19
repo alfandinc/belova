@@ -37,175 +37,140 @@
     <!-- end page title end breadcrumb -->
 
     <div class="row mb-3">
-        <div class="col-md-12 d-flex justify-content-between align-items-center">
-            <div class="btn-group" role="group" aria-label="Dokter room actions">
-                @if (auth()->user() && auth()->user()->hasRole('Dokter'))
-                    <button id="btn-buka-pintu" class="btn btn-danger">
-                        <i class="fas fa-door-open"></i> Buka Pintu
-                    </button>
-                    <button id="btn-panggil-perawat" class="btn btn-warning">
-                        <i class="fas fa-bell"></i> Panggil Perawat
-                    </button>
-                @endif
-            </div>
-            <div class="btn-group" role="group" aria-label="Rawat jalan actions">
-                <button type="button" class="btn btn-success" id="btn-scheduled-messages">
-                    <i class="fab fa-whatsapp"></i> Whatsapp Bot
-                </button>
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-calendar-plus"></i> Daftarkan Pasien
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-right">
-                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
-                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
-                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
+        <div class="col-12">
+            <div class="rawatjalan-toolbar">
+                <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-left">
+                    <div class="btn-group" role="group" aria-label="Dokter room actions">
+                        @if (auth()->user() && auth()->user()->hasRole('Dokter'))
+                            <button id="btn-buka-pintu" class="btn btn-danger">
+                                <i class="fas fa-door-open"></i> Buka Pintu
+                            </button>
+                            <button id="btn-panggil-perawat" class="btn btn-warning">
+                                <i class="fas fa-bell"></i> Panggil Perawat
+                            </button>
+                        @elseif (auth()->check())
+                            <button id="btn-notification-history" class="btn btn-warning position-relative">
+                                <i class="fas fa-bell"></i> Notification
+                                <span id="notification-unread-badge" class="badge badge-danger position-absolute" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px; display:none;">0</span>
+                            </button>
+                        @endif
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    <!-- Statistics Cards -->
-    <div class="row mb-2 stats-row">
+
+                <div class="rawatjalan-toolbar-stats">
+                    <div class="stats-row">
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="total" style="border: 2px solid #007bff; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
-                                <i class="fas fa-users text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-primary" data-status="total">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Total Visit</h6>
-                            <h4 class="mb-0 text-primary stat-number" id="stat-total">{{ $stats['total'] }}</h4>
-                        </div>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Total</div>
+                            <div class="stat-number" id="stat-total">{{ $stats['total'] }}</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="belum_diperiksa" style="border: 2px solid #ffc107; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
-                                <i class="fas fa-clock text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-warning" data-status="belum_diperiksa">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Belum Diperiksa</h6>
-                            <h4 class="mb-0 text-warning stat-number" id="stat-belum-diperiksa">{{ $stats['belum_diperiksa'] }}</h4>
-                        </div>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Menunggu</div>
+                            <div class="stat-number" id="stat-belum-diperiksa">{{ $stats['belum_diperiksa'] }}</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="sudah_diperiksa" style="border: 2px solid #28a745; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle bg-success d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
-                                <i class="fas fa-check text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-success" data-status="sudah_diperiksa">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-check"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Sudah Diperiksa</h6>
-                            <h4 class="mb-0 text-success stat-number" id="stat-sudah-diperiksa">{{ $stats['sudah_diperiksa'] }}</h4>
-                        </div>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Selesai</div>
+                            <div class="stat-number" id="stat-sudah-diperiksa">{{ $stats['sudah_diperiksa'] }}</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="tidak_datang" style="border: 2px solid #17a2b8; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle bg-info d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
-                                <i class="fas fa-user-times text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-danger" data-status="dibatalkan">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-times"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Tidak Datang</h6>
-                            <h4 class="mb-0 text-info stat-number" id="stat-tidak-datang">{{ $stats['tidak_datang'] }}</h4>
-                        </div>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Batal</div>
+                            <div class="stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</div>
                     </div>
                 </div>
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="dibatalkan" style="border: 2px solid #dc3545; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
-                                <i class="fas fa-times text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-purple" data-status="rujuk">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-share-alt"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Dibatalkan</h6>
-                            <h4 class="mb-0 text-danger stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</h4>
-                        </div>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Rujuk</div>
+                            <div class="stat-number" id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</div>
                     </div>
                 </div>
             </div>
         </div>
-            <div class="stat-col">
-                <div class="card shadow-sm stat-card stat-card-clickable" data-status="rujuk" style="border: 2px solid #6f42c1; border-radius: 10px; cursor:pointer;">
-                    <div class="card-body p-3">
-                        <div class="d-flex align-items-center">
-                            <div class="mr-3">
-                                <div class="rounded-circle bg-purple d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px; background-color:#6f42c1;">
-                                    <i class="fas fa-share-alt text-white"></i>
-                                </div>
-                            </div>
-                            <div class="flex-fill">
-                                <h6 class="mb-1 font-weight-bold text-muted">Rujuk/Konsultasi</h6>
-                                <h4 class="mb-0 text-dark stat-number" id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable" data-status="lab_permintaan" style="border: 2px solid #20c997; border-radius: 10px; cursor:pointer;">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="mr-3">
-                            <div class="rounded-circle d-flex align-items-center justify-content-center stat-icon" style="width:48px;height:48px;background:linear-gradient(135deg,#20c997,#0d8865);">
-                                <i class="fas fa-vials text-white"></i>
-                            </div>
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-teal" data-status="lab_permintaan">
+                <div class="card-body stat-pill-body">
+                    <div class="stat-icon-shell">
+                        <div class="stat-icon">
+                            <i class="fas fa-vials"></i>
                         </div>
-                        <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Permintaan Lab</h6>
-                            <h4 class="mb-0 text-teal stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</h4>
+                    </div>
+                    <div class="stat-pill-content">
+                        <div class="stat-label">Lab</div>
+                            <div class="stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                    </div>
+                </div>
+
+                <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-right">
+                    <div class="btn-group" role="group" aria-label="Rawat jalan actions">
+                        <button type="button" class="btn btn-success" id="btn-scheduled-messages">
+                            <i class="fab fa-whatsapp"></i> Whatsapp Bot
+                        </button>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="fas fa-calendar-plus"></i> Daftarkan Pasien
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
+                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
+                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-            <!-- 7th Card Template (duplicate & adjust as needed) -->
-            <!--
-            <div class="stat-col">
-                <div class="card shadow-sm stat-card stat-card-clickable" data-status="baru" style="border: 2px solid #0d6efd; border-radius: 10px; cursor:pointer;">
-                    <div class="card-body p-3">
-                        <div class="d-flex align-items-center">
-                            <div class="mr-3">
-                                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center stat-icon">
-                                    <i class="fas fa-star text-white"></i>
-                                </div>
-                            </div>
-                            <div class="flex-fill">
-                                <h6 class="mb-1 font-weight-bold text-muted">Label Baru</h6>
-                                <h4 class="mb-0 text-primary stat-number" id="stat-baru">0</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            -->
     </div>
 
     {{-- Lab/Rujuk/Visitation list modals are lazy-loaded on-demand --}}

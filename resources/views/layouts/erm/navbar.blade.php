@@ -50,60 +50,34 @@
                         </span>
                     </li> --}}
 
-                    <!-- Dashboard Section -->
                     @hasrole('Dokter|Admin')
+                    <li class="menu-label mt-0">Dashboard</li>
                     <li>
-
-
-                        <a href="javascript: void(0);"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Analytics</span></a>
-                            </li>
-                        </ul>
+                        <a href="/erm"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Analytics</span></a>
                     </li>
                     @endhasrole
 
-                    <!-- Pendaftaran Section -->
                     @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin|Beautician|Lab')
+                    <li class="menu-label">Pendaftaran</li>
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="user" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/pasiens/create"><i data-feather="user-plus" class="align-self-center menu-icon"></i><span>Pasien Baru</span></a>
-                            </li>
-                            <li>
-                                <a href="/erm/pasiens"><i data-feather="users" class="align-self-center menu-icon"></i><span>Data Pasien</span></a>
-                            </li>
-                        </ul>
+                        <a href="/erm/pasiens/create"><i data-feather="user-plus" class="align-self-center menu-icon"></i><span>Pasien Baru</span></a>
+                    </li>
+                    <li>
+                        <a href="/erm/pasiens"><i data-feather="users" class="align-self-center menu-icon"></i><span>Data Pasien</span></a>
                     </li>
                     @endhasanyrole
 
-                    <!-- Rawat Jalan Section -->
                     @hasanyrole('Dokter|Perawat|Admin')
+                    <li class="menu-label">Rawat Jalan</li>
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rajal</span></a>
-                            </li>
-                            <li>
-                                <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rajal</span></a>
-                            </li>
-                        </ul>
+                        <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rajal</span></a>
+                    </li>
+                    <li>
+                        <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rajal</span></a>
                     </li>
                     @endhasanyrole
 
-
-                    <!-- Other Section -->
-                    <li>
-                        <a href="javascript: void(0);"><i data-feather="more-horizontal" class="align-self-center menu-icon"></i><span>Lainnya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/birthday"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Ulang Tahun Pasien</span></a>
-                            </li>
-                        </ul>
-                    </li>
+                    <li class="menu-label">Lainnya</li>
                 </ul>
             </div>
         </div>

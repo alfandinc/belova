@@ -16,18 +16,26 @@ class EmployeeSelfServiceController extends Controller
     public function profile(Request $request)
 {
     $employee = Auth::user()->employee;
-    // $villages = \App\Models\Area\Village::all();
     $positions = \App\Models\HRD\Position::all();
-
-    if (!$employee) {
-        return redirect()->route('hrd.dashboard')
-            ->with('error', 'Data karyawan tidak ditemukan');
-    }
 
     // If you want to start in edit mode, pass ?edit=1 in the URL
     $editMode = $request->query('edit', false);
 
-    return view('hrd.employee.profile', compact('employee', 'positions', 'editMode'));
+        if (!$employee) {
+            return view('hrd.employee.profile', [
+                'employee' => null,
+                'positions' => $positions,
+                'editMode' => $editMode,
+                'profileNotFound' => true,
+            ]);
+        }
+
+        return view('hrd.employee.profile', [
+            'employee' => $employee,
+            'positions' => $positions,
+            'editMode' => $editMode,
+            'profileNotFound' => false,
+        ]);
 }
 
     // Add this new method

@@ -81,7 +81,7 @@
     @yield('navbar')
 
     <div class="page-wrapper">
-        @include('layouts.finance.topbar')
+        @include('layouts.shared.topbar')
 
         <div class="page-content">
             @yield('content')

@@ -218,6 +218,29 @@ Terima kasih.
     </div>
 </div>
 
+<div class="modal fade" id="modalNotificationHistory" tabindex="-1" role="dialog" aria-labelledby="modalNotificationHistoryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNotificationHistoryTitle">Riwayat Notifikasi Dokter ke Perawat</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-end mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-mark-all-notification-read" style="display:none;">
+                        <i class="fas fa-check-double mr-1"></i>Tandai Semua Telah Dibaca
+                    </button>
+                </div>
+                <div id="notification-history-content">
+                    <div class="text-center"><span class="spinner-border"></span> Memuat data...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Pasien Merchandise -->
 <div class="modal fade" id="modalPasienMerch" tabindex="-1" role="dialog" aria-labelledby="modalPasienMerchTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
@@ -280,6 +303,39 @@ Terima kasih.
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 <button type="submit" class="btn btn-primary" id="save-metode-bayar-btn">Simpan</button>
             </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditAntrian" tabindex="-1" role="dialog" aria-labelledby="modalEditAntrianTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditAntrianTitle">Edit Nomor Antrian & Waktu Kunjungan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="form-edit-antrian">
+                <div class="modal-body">
+                    <input type="hidden" id="edit-antrian-visitation-id" name="visitation_id">
+                    <div class="form-group">
+                        <label for="edit-antrian-no">Nomor Antrian</label>
+                        <input type="number" min="1" class="form-control" id="edit-antrian-no" name="no_antrian" required>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="edit-antrian-waktu">Waktu Kunjungan</label>
+                        <input type="time" class="form-control" id="edit-antrian-waktu" name="waktu_kunjungan">
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-danger" id="btn-batalkan-kunjungan-modal">Batalkan Kunjungan</button>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-edit-antrian">Simpan</button>
+                    </div>
+                </div>
             </form>
         </div>
     </div>

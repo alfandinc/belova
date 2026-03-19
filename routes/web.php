@@ -251,6 +251,18 @@ Route::get('/belova-mengaji/export/excel', [BelovaMengajiController::class, 'exp
 Route::get('/events', [\App\Http\Controllers\EventsController::class, 'index'])
     ->middleware('auth')
     ->name('events.dashboard');
+Route::get('/events/lebaran', [\App\Http\Controllers\Events\LebaranController::class, 'index'])
+    ->middleware('auth')
+    ->name('events.lebaran.index');
+Route::get('/events/lebaran/data', [\App\Http\Controllers\Events\LebaranController::class, 'data'])
+    ->middleware('auth')
+    ->name('events.lebaran.data');
+Route::post('/events/lebaran/import', [\App\Http\Controllers\Events\LebaranController::class, 'import'])
+    ->middleware('auth')
+    ->name('events.lebaran.import');
+Route::post('/events/lebaran/{lebaran}/mark-sent', [\App\Http\Controllers\Events\LebaranController::class, 'markSent'])
+    ->middleware('auth')
+    ->name('events.lebaran.mark_sent');
 
 // Running section (index only)
 Route::get('/running', [\App\Http\Controllers\RunningController::class, 'index'])
@@ -547,6 +559,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Export FakturBeli items to CSV/Excel-compatible file
     Route::get('/fakturbeli/items/export', [\App\Http\Controllers\ERM\FakturBeliController::class, 'exportItemsExcel'])->name('erm.fakturbeli.items.export');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
+    Route::post('/notif-mark-read', [App\Http\Controllers\ERM\RawatJalanController::class, 'markNotifRead'])->middleware('auth')->name('erm.rawatjalans.notification-mark-read');
+    Route::post('/notif-mark-all-read', [App\Http\Controllers\ERM\RawatJalanController::class, 'markAllNotifRead'])->middleware('auth')->name('erm.rawatjalans.notification-mark-all-read');
+    Route::get('/notif-unread-count', [App\Http\Controllers\ERM\RawatJalanController::class, 'notificationUnreadCount'])->middleware('auth')->name('erm.rawatjalans.notification-unread-count');
+    Route::get('/notif-history', [App\Http\Controllers\ERM\RawatJalanController::class, 'notificationHistory'])->middleware('auth')->name('erm.rawatjalans.notification-history');
 
     // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role
     Route::get('/kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search']);
@@ -966,12 +982,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     //Submit Billing Obat
     Route::post('/resepfarmasi/submit', [EResepController::class, 'submitResep'])->name('resepfarmasi.submit');
-
-    Route::get('/birthday', [BirthdayController::class, 'index'])->name('erm.birthday.index');
-    Route::get('/birthday/data', [BirthdayController::class, 'getData'])->name('erm.birthday.data');
-    Route::post('/birthday/mark-sent', [BirthdayController::class, 'markAsSent'])->name('erm.birthday.mark-sent');
-    Route::post('/birthday/generate-image', [BirthdayController::class, 'generateImage'])->name('erm.birthday.generate-image');
-    Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'])->name('erm.birthday.show-image');
 
     Route::post('/rawatjalans/batalkan', [RawatJalanController::class, 'batalkan']);
     Route::post('/rawatjalans/edit-antrian', [RawatJalanController::class, 'editAntrian']);
@@ -1532,6 +1542,13 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
+
+    // Birthday patient greetings
+    Route::get('/birthday', [BirthdayController::class, 'index'])->name('marketing.birthday.index');
+    Route::get('/birthday/data', [BirthdayController::class, 'getData'])->name('marketing.birthday.data');
+    Route::post('/birthday/mark-sent', [BirthdayController::class, 'markAsSent'])->name('marketing.birthday.mark-sent');
+    Route::post('/birthday/generate-image', [BirthdayController::class, 'generateImage'])->name('marketing.birthday.generate-image');
+    Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'])->name('marketing.birthday.show-image');
 
     // Penawaran
     Route::get('/penawaran', [\App\Http\Controllers\Marketing\PenawaranController::class, 'index'])->name('marketing.penawaran.index');

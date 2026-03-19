@@ -64,7 +64,7 @@
     @yield('navbar')
 
     <div class="page-wrapper">
-        @include('layouts.erm.topbar')
+        @include('layouts.shared.topbar', ['topbarShowDateTime' => true, 'topbarDateTimeId' => 'erm-date-time-display'])
 
         <div class="page-content">
             @yield('content')

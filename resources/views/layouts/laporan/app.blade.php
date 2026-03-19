@@ -56,7 +56,7 @@
     @yield('navbar')
 
     <div class="page-wrapper">
-        @include('layouts.laporan.topbar')
+        @include('layouts.shared.topbar', ['topbarUseEmployeePhoto' => true, 'topbarProfileRoute' => 'hrd.employee.profile'])
 
         <div class="page-content">
             @yield('content')

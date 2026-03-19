@@ -62,7 +62,7 @@
 
     <div class="page-wrapper">
         <!-- Top Bar Start -->
-        @include('layouts.bcl.topbar')
+        @include('layouts.shared.topbar', ['topbarShowDateTime' => true, 'topbarShowThemeToggle' => false, 'topbarDateTimeId' => 'bcl-date-time-display'])
         <!-- Top Bar End -->
 
         <!-- Page Content-->

@@ -79,7 +79,7 @@
         .topbar-right {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 12px;
         }
         
         .date-display {
@@ -89,9 +89,9 @@
         
         .theme-toggle {
             cursor: pointer;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -103,6 +103,18 @@
         
         .theme-toggle:hover {
             background: var(--border-color);
+        }
+
+        #logout-btn {
+            background: transparent;
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        #logout-btn:hover {
+            background: rgba(220, 53, 69, 0.12);
+            border-color: #dc3545;
+            color: #dc3545;
         }
         
         .content-wrapper {
@@ -544,7 +556,7 @@
                 <button class="theme-toggle" id="info-update-btn" title="Informasi Update">
                     <i class="fas fa-info-circle"></i>
                 </button>
-                <form method="POST" action="{{ route('logout') }}" style="display:inline; margin-left:10px;" id="logout-form">
+                <form method="POST" action="{{ route('logout') }}" style="display:inline;" id="logout-form">
                     @csrf
                     <button type="submit" class="theme-toggle" title="Logout" id="logout-btn">
                         <i class="fas fa-sign-out-alt"></i>

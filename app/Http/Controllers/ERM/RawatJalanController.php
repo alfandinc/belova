@@ -120,14 +120,163 @@ class RawatJalanController extends Controller
     {
         $user = Auth::user();
         if (!$user->hasRole('Perawat')) {
-            return response()->json(['new' => false]);
+            return response()->json(['new' => false, 'unread_count' => 0]);
         }
-        $notif = $user->unreadNotifications()->latest()->first();
+        $notif = $user->unreadNotifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->latest()
+            ->first();
+        $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
         if ($notif) {
-            $notif->markAsRead();
-            return response()->json(['new' => true, 'message' => $notif->data['message'], 'sender' => $notif->data['sender']]);
+            $unreadCount = $user->unreadNotifications()
+                ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+                ->count();
+
+            if (in_array($notif->id, $deliveredNotificationIds, true)) {
+                return response()->json([
+                    'new' => false,
+                    'id' => $notif->id,
+                    'unread_count' => $unreadCount,
+                ]);
+            }
+
+            $deliveredNotificationIds[] = $notif->id;
+            session(['rawatjalan_delivered_notification_ids' => array_values(array_unique($deliveredNotificationIds))]);
+
+            return response()->json([
+                'new' => true,
+                'id' => $notif->id,
+                'message' => $notif->data['message'],
+                'sender' => $notif->data['sender'],
+                'unread_count' => $unreadCount,
+            ]);
         }
-        return response()->json(['new' => false]);
+        $unreadCount = $user->unreadNotifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->count();
+        return response()->json(['new' => false, 'unread_count' => $unreadCount]);
+    }
+
+    public function markNotifRead(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $request->validate([
+            'notification_id' => 'required|string',
+        ]);
+
+        $notification = Auth::user()
+            ->notifications()
+            ->where('id', $request->notification_id)
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->first();
+
+        if (!$notification) {
+            return response()->json(['message' => 'Notifikasi tidak ditemukan'], 404);
+        }
+
+        if (is_null($notification->read_at)) {
+            Auth::user()
+                ->notifications()
+                ->where('id', $notification->id)
+                ->update(['read_at' => now()]);
+        }
+
+        $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
+        if (!empty($deliveredNotificationIds)) {
+            session([
+                'rawatjalan_delivered_notification_ids' => array_values(array_filter($deliveredNotificationIds, function ($id) use ($notification) {
+                    return $id !== $notification->id;
+                })),
+            ]);
+        }
+
+        $unreadCount = Auth::user()
+            ->unreadNotifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => $unreadCount,
+        ]);
+    }
+
+    public function markAllNotifRead()
+    {
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $notifications = Auth::user()
+            ->unreadNotifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->get();
+
+        foreach ($notifications as $notification) {
+            if (is_null($notification->read_at)) {
+                Auth::user()
+                    ->notifications()
+                    ->where('id', $notification->id)
+                    ->update(['read_at' => now()]);
+            }
+        }
+
+        session(['rawatjalan_delivered_notification_ids' => []]);
+
+        return response()->json([
+            'success' => true,
+            'unread_count' => 0,
+        ]);
+    }
+
+    public function notificationUnreadCount()
+    {
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $count = Auth::user()
+            ->unreadNotifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->count();
+
+        return response()->json([
+            'unread_count' => $count,
+        ]);
+    }
+
+    public function notificationHistory()
+    {
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $notifications = Auth::user()
+            ->notifications()
+            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->latest()
+            ->limit(10)
+            ->get()
+            ->map(function ($notification) {
+                return [
+                    'id' => $notification->id,
+                    'title' => $notification->data['title'] ?? 'Pesan dari Dokter',
+                    'message' => $notification->data['message'] ?? '-',
+                    'sender' => $notification->data['sender'] ?? '-',
+                    'created_at' => optional($notification->created_at)->format('d/m/Y H:i'),
+                    'read_at' => optional($notification->read_at)->format('d/m/Y H:i'),
+                    'is_read' => !is_null($notification->read_at),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $notifications,
+            'unread_count' => $notifications->where('is_read', false)->count(),
+        ]);
     }
 
     public function scheduledMessages(Request $request)
@@ -248,6 +397,7 @@ class RawatJalanController extends Controller
                         'erm_pasiens.no_hp as telepon_pasien',
                         'erm_pasiens.gender as gender',
                         'erm_pasiens.tanggal_lahir as tanggal_lahir',
+                        'erm_pasiens.notes as catatan_pasien',
                         'erm_pasiens.status_pasien as status_pasien',
                         'erm_pasiens.status_akses as status_akses',
                         'erm_pasiens.status_review as status_review',
@@ -261,6 +411,7 @@ class RawatJalanController extends Controller
                     // avoid eager-load queries by using cheap correlated subqueries
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
                     ->selectRaw('EXISTS(SELECT 1 FROM wa_scheduled_messages wsm WHERE wsm.visitation_id = erm_visitations.id) as has_wa_scheduled_message')
+                    ->selectRaw("(SELECT COUNT(1) FROM wa_messages wm WHERE wm.visitation_id = erm_visitations.id AND LOWER(COALESCE(wm.direction, '')) = 'in') as incoming_wa_message_count")
                     ->selectSub(
                         DB::table('erm_asesmen_penunjang as ap')
                             ->select('ap.created_at')
@@ -315,26 +466,26 @@ class RawatJalanController extends Controller
                 'labPermintaan as lab_permintaan_completed_count' => function($q){
                     $q->where('status','completed');
                 },
-                'riwayatTindakan as riwayat_tindakan_count'
+                'riwayatTindakan as riwayat_tindakan_count',
+                'suratIstirahats as surat_istirahat_count' => function ($q) {
+                    $q->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
+                },
+                'suratMondoks as surat_mondok_count' => function ($q) {
+                    $q->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
+                }
             ]);
             return datatables()->of($visitations)
                 ->filterColumn('nama_pasien', function ($query, $keyword) {
-                    $query->where('erm_pasiens.nama', 'like', "%{$keyword}%");
+                    $query->where(function ($subQuery) use ($keyword) {
+                        $subQuery->where('erm_pasiens.nama', 'like', "%{$keyword}%")
+                            ->orWhere('erm_pasiens.notes', 'like', "%{$keyword}%");
+                    });
                 })
                 ->filterColumn('no_rm', function ($query, $keyword) {
                     $query->where('erm_pasiens.id', 'like', "%{$keyword}%");
                 })
                 ->addColumn('antrian', function ($v) {
-                    $antrianHtml = '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
-                        if ($v->lab_permintaan_count > 0) {
-                            $statusClass = ($v->lab_permintaan_completed_count == $v->lab_permintaan_count) ? 'text-success' : 'blinking text-warning';
-                            $title = ($v->lab_permintaan_completed_count == $v->lab_permintaan_count) ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
-                            $antrianHtml .= ' <i class="fas fa-flask ml-2 lab-icon '.$statusClass.'" data-visitation-id="'.$v->id.'" style="cursor:pointer" title="'.$title.'"></i>';
-                    }
-                    if (isset($v->riwayat_tindakan_count) && $v->riwayat_tindakan_count > 0) {
-                        $antrianHtml .= ' <i class="fas fa-stethoscope blinking ml-2" title="Ada tindakan"></i>';
-                    }
-                    return $antrianHtml;
+                    return '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
                 })
                 ->addColumn('no_rm', function($v) { return $v->no_rm ?? '-'; })
                 ->addColumn('nama_pasien', function ($v) {
@@ -383,49 +534,52 @@ class RawatJalanController extends Controller
                 })
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
-                    $dokumenBtn = '';
+                    $actionButtons = [];
+                    $whatsAppButton = '';
                     if ($user->hasRole('Perawat')) {
                         $visitationId = (string) $v->id;
                         if (!empty($v->has_screening_batuk)) {
-                            $dokumenBtn = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Lihat"><i class="fas fa-eye mr-1"></i>Lihat</a>';
-                            $dokumenBtn .= '<button class="btn btn-sm btn-info ml-1 view-screening-btn" style="font-weight:bold;" title="Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs"></i></button>';
+                            $actionButtons[] = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Dokumen"><i class="fas fa-file-alt mr-1"></i>Dokumen</a>';
+                            $actionButtons[] = '<button class="btn btn-sm btn-warning view-screening-btn" style="font-weight:bold;" title="Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs"></i></button>';
                         } else {
-                            $dokumenBtn = '<button class="btn btn-sm btn-primary ml-1 screening-btn" style="font-weight:bold;" title="Lihat" data-visitation-id="' . $visitationId . '"><i class="fas fa-eye mr-1"></i>Lihat</button>';
+                            $actionButtons[] = '<button class="btn btn-sm btn-primary screening-btn" style="font-weight:bold;" title="Dokumen" data-visitation-id="' . $visitationId . '"><i class="fas fa-file-alt mr-1"></i>Dokumen</button>';
                         }
                     } elseif ($user->hasRole('Dokter')) {
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);
-                            $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Asesmen"><i class="fas fa-user-md mr-1"></i>Asesmen</a>';
+                            $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Asesmen"><i class="fas fa-user-md mr-1"></i>Asesmen</a>';
                         } elseif ($v->status_dokumen === 'cppt') {
                             $url = route('erm.cppt.create', $v->id);
-                            $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-success ml-1" style="font-weight:bold;" title="CPPT"><i class="fas fa-notes-medical mr-1"></i>CPPT</a>';
+                            $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-success" style="font-weight:bold;" title="CPPT"><i class="fas fa-notes-medical mr-1"></i>CPPT</a>';
                         }
                     }
-                    $additionalBtns = '';
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
-                        if (!empty($v->has_wa_scheduled_message)) {
-                            $additionalBtns .= '<button class="btn btn-sm btn-success ml-1 open-visitation-chat" style="font-weight:bold;" data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? '-') . '" title="Riwayat WhatsApp"><i class="fab fa-whatsapp"></i></button>';
+                        $incomingWaCount = intval($v->incoming_wa_message_count ?? 0);
+                        if (!empty($v->has_wa_scheduled_message) || $incomingWaCount > 0) {
+                            $badgeHtml = $incomingWaCount > 0
+                                ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $incomingWaCount . '</span>'
+                                : '';
+                            $whatsAppButton = '<button class="btn btn-sm btn-success open-visitation-chat position-relative" style="font-weight:bold; overflow: visible;" data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? '-') . '" title="Riwayat WhatsApp"><i class="fab fa-whatsapp"></i>' . $badgeHtml . '</button>';
                         }
                         $waktuKunjungan = $v->waktu_kunjungan ?? '';
                         // Ensure we always emit a valid JS argument for no_antrian (use null literal when empty)
                         $antrianJs = json_encode($v->no_antrian);
-                        $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $antrianJs . ', \'' . htmlspecialchars($waktuKunjungan, ENT_QUOTES, 'UTF-8') . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
-                        $additionalBtns .= '<button class="btn btn-sm btn-danger ml-1" style="font-weight:bold;" onclick="batalkanKunjungan(\'' . $v->id . '\', this)" title="Batalkan"><i class=\'fas fa-times\'></i></button>';
+                        $actionButtons[] = '<button class="btn btn-sm btn-secondary" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $antrianJs . ', \'' . htmlspecialchars($waktuKunjungan, ENT_QUOTES, 'UTF-8') . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
                         }
 
-                        // Compute selesai_asesmen time (if any) and append as small text under buttons
-                        $selesaiText = '-';
-                        try {
-                            if (!empty($v->asesmen_penunjang_created_at)) {
-                                $selesaiText = Carbon::parse($v->asesmen_penunjang_created_at)->format('H:i');
-                            } elseif (!empty($v->cppt_created_at)) {
-                                $selesaiText = Carbon::parse($v->cppt_created_at)->format('H:i');
+                        $buttonHtml = '';
+                        if (!empty($actionButtons) || $whatsAppButton !== '') {
+                            $buttonHtml .= '<div class="d-inline-flex align-items-center">';
+                            if (!empty($actionButtons)) {
+                                $buttonHtml .= '<div class="btn-group btn-group-sm" role="group">' . implode('', $actionButtons) . '</div>';
                             }
-                        } catch (\Exception $e) {
-                            $selesaiText = '-';
+                            if ($whatsAppButton !== '') {
+                                $buttonHtml .= '<div class="ml-1">' . $whatsAppButton . '</div>';
+                            }
+                            $buttonHtml .= '</div>';
                         }
 
-                        return $dokumenBtn . ' ' . $additionalBtns . '<div class="mt-1"><small class="text-muted">Selesai: ' . $selesaiText . '</small></div>';
+                        return $buttonHtml;
                     })
                 ->addColumn('waktu_kunjungan', function ($v) {
                     return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';

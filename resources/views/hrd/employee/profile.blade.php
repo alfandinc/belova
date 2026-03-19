@@ -1,9 +1,6 @@
 
 @extends('layouts.hrd.app')
 @section('title', 'HRD | Profil Karyawan')
-@section('navbar')
-    @include('layouts.hrd.navbar')
-@endsection
 
 @section('content')
 {{-- @include('hrd.partials.modal-edit-profile') --}}
@@ -11,6 +8,7 @@
 
 
 <div class="container py-4">
+    @if($employee)
     <div class="row">
         <!-- Profile Card -->
         <div class="col-md-4 mb-4">
@@ -158,6 +156,22 @@
             </div>
         </div>
     </div>
+    @else
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center py-5">
+                    <div class="mb-3">
+                        <i class="fas fa-user-slash text-warning" style="font-size: 3rem;"></i>
+                    </div>
+                    <h4 class="mb-2">Data Karyawan Tidak Ditemukan</h4>
+                    <p class="text-muted mb-4">Akun ini belum terhubung dengan data karyawan.</p>
+                    <a href="/" class="btn btn-primary">Kembali ke Main Menu</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
 </div>
 
 <!-- Edit Profile Modal -->
@@ -178,6 +192,15 @@
 @section('scripts')
 <script>
 $(function() {
+    @if($profileNotFound ?? false)
+    Swal.fire({
+        icon: 'warning',
+        title: 'Data karyawan tidak ditemukan',
+        text: 'Akun ini belum terhubung dengan data karyawan.',
+        confirmButtonText: 'OK'
+    });
+    @endif
+
     // Load modal content via AJAX
     $('#btnEditProfile').on('click', function() {
         $('#modalContent').html('<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');

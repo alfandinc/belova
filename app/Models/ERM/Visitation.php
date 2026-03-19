@@ -143,4 +143,14 @@ class Visitation extends Model
     {
         return $this->hasMany(\App\Models\WaScheduledMessage::class, 'visitation_id');
     }
+
+    public function suratIstirahats()
+    {
+        return $this->hasMany(SuratIstirahat::class, 'pasien_id', 'pasien_id');
+    }
+
+    public function suratMondoks()
+    {
+        return $this->hasMany(SuratMondok::class, 'pasien_id', 'pasien_id');
+    }
 }

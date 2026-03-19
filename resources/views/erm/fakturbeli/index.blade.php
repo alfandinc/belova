@@ -7,14 +7,29 @@
 <div class="container-fluid">
             <!-- Page-Title -->
     <!-- Title and Button Row -->
-    <div class="row mt-3 align-items-center">
-        <div class="col-md-6">
+    <div class="row mt-3 align-items-center mb-1">
+        <div class="col-md-4">
             <h2 class="mb-0">Input Faktur Pembelian</h2>
+        </div>
+        <div class="col-md-8">
+            <div class="d-flex flex-wrap justify-content-md-end align-items-center gap-2">
+                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
+                <button class="btn btn-success btn-sm ml-2" data-toggle="modal" data-target="#modalExportItems"><i class="fa fa-download"></i> Download Item Faktur (Excel)</button>
+                <div class="input-group input-group-sm ml-md-3" style="width: 260px;">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" title="Pilih tanggal terima">
+                            <i class="fa fa-calendar"></i>
+                        </span>
+                    </div>
+                    <input type="text" id="tanggalTerimaRange" class="form-control form-control-sm" autocomplete="off" placeholder="Select date">
+                </div>
+                <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
+            </div>
         </div>
     </div>
     <div class="row">
         <div class="col-sm-12">
-            <div class="page-title-box">
+            <div class="page-title-box py-1 mb-2">
                 <div class="row">
                     <div class="col">
                         <ol class="breadcrumb">
@@ -29,27 +44,36 @@
     </div><!--end row-->
         <!-- end page title end breadcrumb -->
         <div class="mb-3">
-            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
-                <button class="btn btn-success btn-sm ml-2" data-toggle="modal" data-target="#modalExportItems"><i class="fa fa-download"></i> Download Item Faktur (Excel)</button>
-                <div class="form-inline mt-2">
-                    <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
-                    <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
-                    <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
-                        <label for="statusFilter" class="ml-4 mr-2">Status:</label>
-                        <select id="statusFilter" class="form-control" style="width:150px;">
-                            <option value="">Semua</option>
-                            <option value="diminta">Diminta</option>
-                            <option value="diterima">Diterima</option>
-                            <option value="diapprove">Diapprove</option>
-                        </select>
-                    <div class="form-check ml-4">
-                        <input class="form-check-input" type="checkbox" id="hideDireturCheckbox" checked>
-                        <label class="form-check-label" for="hideDireturCheckbox">Sembunyikan Faktur Diretur</label>
+                <div class="d-flex flex-wrap align-items-end justify-content-between">
+                    <div class="d-flex flex-wrap align-items-end">
+                        <div class="mr-4 mb-2">
+                            <label for="statusFilter" class="d-block mb-1 font-weight-bold text-uppercase small">Status</label>
+                            <select id="statusFilter" class="form-control" style="width:150px;">
+                                <option value="">Semua</option>
+                                <option value="diminta">Diminta</option>
+                                <option value="diterima">Diterima</option>
+                                <option value="diapprove">Diapprove</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <span class="d-block mb-1 font-weight-bold text-uppercase small text-muted">Hide</span>
+                            <div class="d-flex flex-wrap align-items-center">
+                                <div class="custom-control custom-switch mr-3" title="Sembunyikan faktur diretur">
+                                    <input class="custom-control-input" type="checkbox" id="hideDireturCheckbox" checked>
+                                    <label class="custom-control-label small pt-1" for="hideDireturCheckbox">Diretur</label>
+                                </div>
+                                <div class="custom-control custom-switch" title="Sembunyikan faktur belum approve lebih dari 7 hari">
+                                    <input class="custom-control-input" type="checkbox" id="hideUnapprovedOver7DaysCheckbox" checked>
+                                    <label class="custom-control-label small pt-1" for="hideUnapprovedOver7DaysCheckbox">Pending &gt; 7 Hari</label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                        <!-- Custom search inputs -->
-                        <input type="text" id="searchNoFaktur" class="form-control ml-4" style="width:180px;" placeholder="Cari No Faktur">
-                        <input type="text" id="searchNamaObat" class="form-control ml-2" style="width:180px;" placeholder="Cari Nama Obat">
-                        <input type="text" id="searchPemasok" class="form-control ml-2" style="width:180px;" placeholder="Cari Pemasok">
+                    <div class="d-flex flex-wrap align-items-end mb-2">
+                        <input type="text" id="searchNoFaktur" class="form-control ml-md-2 mb-2 mb-md-0" style="width:180px;" placeholder="Cari No Faktur">
+                        <input type="text" id="searchNamaObat" class="form-control ml-md-2 mb-2 mb-md-0" style="width:180px;" placeholder="Cari Nama Obat">
+                        <input type="text" id="searchPemasok" class="form-control ml-md-2" style="width:180px;" placeholder="Cari Pemasok">
+                    </div>
                 </div>
         </div>
         <!-- Modal Cari Permintaan -->
@@ -109,12 +133,9 @@
                         <th>No Faktur</th>
                         <th>Nama Obat</th>
                         <th>Pemasok</th>
-                        <th>Tanggal Permintaan</th>
-                        <th>Tanggal Terima</th>
-                        <th>Jatuh Tempo</th>
+                        <th>Timeline</th>
                         <th>Total Harga</th>
                         <th>Status</th>
-                        <th>Bukti</th>
                         <th style="width: 280px; min-width: 260px; max-width: 320px;">Aksi</th>
                     </tr>
                 </thead>
@@ -124,6 +145,23 @@
 @push('scripts')
 <script>
 $(function() {
+    function formatTanggalIndonesia(value) {
+        if (!value || value === '-') {
+            return '-';
+        }
+
+        var parsed = moment(value, ['YYYY-MM-DD', moment.ISO_8601], true);
+        if (!parsed.isValid()) {
+            parsed = moment(value);
+        }
+
+        if (!parsed.isValid()) {
+            return value;
+        }
+
+        return parsed.locale('id').format('D MMMM YYYY');
+    }
+
     // Handler for cari permintaan
     $('#btnCariPermintaan').on('click', function() {
         var noPermintaan = $('#inputNoPermintaan').val().trim();
@@ -152,34 +190,72 @@ $(function() {
     var fakturTable = $('#fakturbeli-table').DataTable({
     processing: true,
     serverSide: true,
-    dom: 'lrtip', // Remove default search input
+    dom: 'rt<"row align-items-center mt-3"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"i><"col-sm-12 col-md-4 d-flex justify-content-md-end"p>>',
     ajax: {
             url: '{{ route('erm.fakturbeli.index') }}',
             data: function(d) {
                 d.tanggal_terima_range = $('#tanggalTerimaRange').val();
                 d.status = $('#statusFilter').val();
                 d.hide_diretur = $('#hideDireturCheckbox').is(':checked') ? 1 : 0;
-                    d.search_no_faktur = $('#searchNoFaktur').val();
-                    d.search_nama_obat = $('#searchNamaObat').val();
-                    d.search_pemasok = $('#searchPemasok').val();
-                }
+                d.hide_unapproved_over_7_days = $('#hideUnapprovedOver7DaysCheckbox').is(':checked') ? 1 : 0;
+                d.search_no_faktur = $('#searchNoFaktur').val();
+                d.search_nama_obat = $('#searchNamaObat').val();
+                d.search_pemasok = $('#searchPemasok').val();
+            }
             },
-        order: [[4, 'desc']], // received_date column (index 4)
+        order: [[4, 'desc']], // timeline column (backed by requested_date)
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false, render: function (data, type, row, meta) {
                 return meta.row + meta.settings._iDisplayStart + 1;
             }},
-            { data: 'no_faktur', name: 'no_faktur', render: function(data) {
-                return data ? data : '-';
+            { data: 'no_faktur', name: 'no_faktur', render: function(data, type, row) {
+                if (type !== 'display') {
+                    return data ? data : '-';
+                }
+
+                var noFaktur = data ? data : '-';
+                var buktiLink = row.bukti
+                    ? `<div class="mt-1"><a href='/storage/${row.bukti}' target='_blank'><em>Lihat Bukti</em></a></div>`
+                    : '';
+
+                return `<div>${noFaktur}${buktiLink}</div>`;
             }},
             { data: 'nama_obat', name: 'nama_obat', orderable: false, searchable: false },
             { data: 'pemasok', name: 'pemasok' },
-            { data: 'requested_date', name: 'requested_date' },
-            { data: 'received_date', name: 'received_date', render: function(data) {
-                return data ? data : '-';
-            }},
-            { data: 'due_date', name: 'due_date', render: function(data) {
-                return data ? data : '-';
+            { data: 'requested_date', name: 'requested_date', render: function(data, type, row) {
+                if (type !== 'display') {
+                    return data || row.received_date || row.due_date || '';
+                }
+
+                var requested = formatTanggalIndonesia(row.requested_date ? row.requested_date : '-');
+                var received = formatTanggalIndonesia(row.received_date ? row.received_date : '-');
+                var due = formatTanggalIndonesia(row.due_date ? row.due_date : '-');
+                var status = (row.status || '').toString().toLowerCase();
+                var lines = [];
+
+                function pushLine(label, value, color) {
+                    lines.push('<div><strong style="color:' + color + ';">' + label + '</strong> <span style="color:' + color + ';">' + value + '</span></div>');
+                }
+
+                if (status === 'diminta') {
+                    pushLine('Diminta Pada:', requested, '#f59e0b');
+                } else if (status === 'diapprove') {
+                    pushLine('Diterima Pada:', received, '#2563eb');
+                    pushLine('Jatuh Tempo Pada:', due, '#dc2626');
+                } else if (status === 'diterima') {
+                    pushLine('Diminta Pada:', requested, '#f59e0b');
+                    pushLine('Diterima Pada:', received, '#2563eb');
+                } else {
+                    pushLine('Diminta Pada:', requested, '#f59e0b');
+                    if (received !== '-') {
+                        pushLine('Diterima Pada:', received, '#2563eb');
+                    }
+                    if (due !== '-') {
+                        pushLine('Jatuh Tempo Pada:', due, '#dc2626');
+                    }
+                }
+
+                return lines.join('');
             }},
             { data: 'total', name: 'total', render: function(data) {
                 return data ? parseFloat(data).toLocaleString('id-ID', {style:'currency', currency:'IDR'}) : '-';
@@ -200,9 +276,6 @@ $(function() {
                 }
                 return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}`;
             }},
-            { data: 'bukti', name: 'bukti', render: function(data) {
-                return data ? `<a href='/storage/${data}' target='_blank'>Lihat</a>` : '-';
-            }},
             { data: 'action', name: 'action', orderable: false, searchable: false, render: function(data, type, row) {
                 if (row.status === 'diretur') {
                     return '';
@@ -211,6 +284,7 @@ $(function() {
             } },
         ],
         columnDefs: [
+            { targets: 4, width: '260px' },
             { targets: -1, width: '280px' }
         ]
     });
@@ -243,6 +317,9 @@ $(function() {
     });
     // Hide diretur filter handler
     $('#hideDireturCheckbox').on('change', function() {
+        fakturTable.ajax.reload();
+    });
+    $('#hideUnapprovedOver7DaysCheckbox').on('change', function() {
         fakturTable.ajax.reload();
     });
     // Debounce helper to avoid excessive reloads

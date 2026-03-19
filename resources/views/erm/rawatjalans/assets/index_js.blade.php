@@ -1,4 +1,79 @@
 ﻿$(document).ready(function () {
+    function getShownDokterNotificationIds() {
+        try {
+            var raw = sessionStorage.getItem('rawatjalan_shown_dokter_notifications');
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveShownDokterNotificationIds(ids) {
+        try {
+            sessionStorage.setItem('rawatjalan_shown_dokter_notifications', JSON.stringify(ids || {}));
+        } catch (e) {
+            // Ignore storage failures; in-memory fallback still works.
+        }
+    }
+
+    function getLastAlertedDokterNotificationId() {
+        try {
+            return sessionStorage.getItem('rawatjalan_last_alerted_dokter_notification_id') || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setLastAlertedDokterNotificationId(id) {
+        try {
+            if (id) {
+                sessionStorage.setItem('rawatjalan_last_alerted_dokter_notification_id', String(id));
+            }
+        } catch (e) {
+            // Ignore storage failures.
+        }
+    }
+
+    if (!window.__rawatjalanShownDokterNotificationIds) {
+        window.__rawatjalanShownDokterNotificationIds = getShownDokterNotificationIds();
+    }
+    var shownDokterNotificationIds = window.__rawatjalanShownDokterNotificationIds;
+
+    if (typeof window.__rawatjalanActiveDokterNotificationId === 'undefined') {
+        window.__rawatjalanActiveDokterNotificationId = null;
+    }
+
+    if (typeof window.__rawatjalanLastAlertedDokterNotificationId === 'undefined') {
+        window.__rawatjalanLastAlertedDokterNotificationId = getLastAlertedDokterNotificationId();
+    }
+
+    function updateNotificationBadge(count) {
+        var unreadCount = parseInt(count || 0, 10);
+        var $badge = $('#notification-unread-badge');
+        if (!$badge.length) {
+            return;
+        }
+
+        if (unreadCount > 0) {
+            $badge.text(unreadCount > 99 ? '99+' : unreadCount).show();
+        } else {
+            $badge.hide().text('0');
+        }
+    }
+
+    function refreshNotificationBadge() {
+        if (!$('#notification-unread-badge').length) {
+            return;
+        }
+
+        $.get('{{ route("erm.rawatjalans.notification-unread-count") }}')
+            .done(function (response) {
+                updateNotificationBadge(response.unread_count || 0);
+            });
+    }
+
+    refreshNotificationBadge();
+
     // Dokter: Send 'Perawat Buka Pintu' notification
     $('#btn-buka-pintu').click(function() {
         $.post('/erm/send-notif-perawat', {
@@ -52,9 +127,26 @@
         });
     });
 
-    setInterval(function() {
+    if (window.__rawatjalanPerawatNotifTimer) {
+        clearInterval(window.__rawatjalanPerawatNotifTimer);
+    }
+
+    window.__rawatjalanPerawatNotifTimer = setInterval(function() {
         $.get('/erm/get-notif', function(data) {
-            if (data.new) {
+            updateNotificationBadge(data.unread_count || 0);
+            if (
+                data.new &&
+                data.id &&
+                String(window.__rawatjalanLastAlertedDokterNotificationId || '') !== String(data.id) &&
+                !shownDokterNotificationIds[data.id] &&
+                window.__rawatjalanActiveDokterNotificationId !== data.id &&
+                !(typeof Swal !== 'undefined' && Swal.isVisible && Swal.isVisible())
+            ) {
+                shownDokterNotificationIds[data.id] = true;
+                saveShownDokterNotificationIds(shownDokterNotificationIds);
+                window.__rawatjalanLastAlertedDokterNotificationId = String(data.id);
+                setLastAlertedDokterNotificationId(data.id);
+                window.__rawatjalanActiveDokterNotificationId = data.id;
                 let soundFile = '/sounds/notif.mp3';
                 if (data.message === 'Mohon buka pintu untuk pasien.') {
                     soundFile = '/sounds/bell.wav';
@@ -64,6 +156,18 @@
                     text: data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
                     icon: 'info',
                     confirmButtonText: 'OK'
+                }).then(function(result) {
+                    window.__rawatjalanActiveDokterNotificationId = null;
+                    if (result && (result.isConfirmed || result.value === true)) {
+                        $.post('{{ route("erm.rawatjalans.notification-mark-read") }}', {
+                            _token: '{{ csrf_token() }}',
+                            notification_id: data.id
+                        }).done(function(response) {
+                            updateNotificationBadge(response.unread_count || 0);
+                        }).fail(function(xhr) {
+                            console.error('Failed to mark notification as read', xhr);
+                        });
+                    }
                 });
                 if (window.soundEnabled) {
                     var audio = new Audio(soundFile);
@@ -119,6 +223,99 @@
         }
         return escapeHtml(value);
     }
+
+    function notificationStatusBadge(isRead) {
+        return isRead
+            ? '<span class="badge badge-success">Sudah Dibaca</span>'
+            : '<span class="badge badge-warning">Belum Dibaca</span>';
+    }
+
+    function renderNotificationHistory(response) {
+        var rows = Array.isArray(response.data) ? response.data : [];
+        var unreadCount = parseInt(response.unread_count || 0, 10);
+
+        if (unreadCount > 0) {
+            $('#btn-mark-all-notification-read').show();
+        } else {
+            $('#btn-mark-all-notification-read').hide();
+        }
+
+        if (!rows.length) {
+            $('#notification-history-content').html('<div class="text-center text-muted">Belum ada riwayat notifikasi.</div>');
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-bordered table-sm mb-0">'
+            + '<thead><tr><th style="width: 18%;">Waktu</th><th style="width: 16%;">Pengirim</th><th>Pesan</th><th style="width: 18%;">Status</th><th style="width: 14%;">Aksi</th></tr></thead><tbody>';
+
+        rows.forEach(function (item) {
+            var statusHtml = notificationStatusBadge(item.is_read);
+            if (item.is_read && item.read_at) {
+                statusHtml += '<div class="small text-muted mt-1">Dibaca: ' + escapeHtml(item.read_at) + '</div>';
+            }
+
+            var actionHtml = item.is_read
+                ? '<span class="text-muted small">-</span>'
+                : '<button type="button" class="btn btn-sm btn-outline-success btn-mark-notification-read" data-notification-id="' + escapeHtml(item.id) + '">Tandai Dibaca</button>';
+
+            html += '<tr>'
+                + '<td>' + escapeHtml(item.created_at || '-') + '</td>'
+                + '<td>' + escapeHtml(item.sender || '-') + '</td>'
+                + '<td>' + escapeHtml(item.message || '-') + '</td>'
+                + '<td>' + statusHtml + '</td>'
+                + '<td>' + actionHtml + '</td>'
+                + '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        $('#notification-history-content').html(html);
+        refreshNotificationBadge();
+    }
+
+    function loadNotificationHistory() {
+        ensureRawatJalanCommonModalsLoaded().done(function () {
+            $('#notification-history-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
+            $('#btn-mark-all-notification-read').hide();
+            $('#modalNotificationHistory').modal('show');
+
+            $.get('{{ route("erm.rawatjalans.notification-history") }}')
+                .done(function (response) {
+                    renderNotificationHistory(response);
+                })
+                .fail(function () {
+                    $('#btn-mark-all-notification-read').hide();
+                    $('#notification-history-content').html('<div class="text-center text-danger">Gagal memuat riwayat notifikasi.</div>');
+                });
+        });
+    }
+
+    $(document).on('click', '#btn-notification-history', function () {
+        loadNotificationHistory();
+    });
+
+    $(document).on('click', '.btn-mark-notification-read', function () {
+        var notificationId = $(this).data('notification-id');
+        if (!notificationId) {
+            return;
+        }
+
+        $.post('{{ route("erm.rawatjalans.notification-mark-read") }}', {
+            _token: '{{ csrf_token() }}',
+            notification_id: notificationId
+        }).done(function (response) {
+            updateNotificationBadge(response.unread_count || 0);
+            loadNotificationHistory();
+        });
+    });
+
+    $(document).on('click', '#btn-mark-all-notification-read', function () {
+        $.post('{{ route("erm.rawatjalans.notification-mark-all-read") }}', {
+            _token: '{{ csrf_token() }}'
+        }).done(function (response) {
+            updateNotificationBadge(response.unread_count || 0);
+            loadNotificationHistory();
+        });
+    });
 
     function renderVisitationChatMessage(message) {
         var isOutgoing = String(message.direction || '').toLowerCase() === 'out';
@@ -403,8 +600,14 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             var badgesInner = badgesArr.join('');
 
                             var pasienId = row.pasien_id || '';
+                            var patientName = $('<div>').text(data || '').html();
+                            var catatanPasien = $.trim(row.catatan_pasien || '');
+                            var patientLabelHtml = '<span>' + patientName + '</span>';
+                            if (catatanPasien) {
+                                patientLabelHtml += ' <span style="font-weight:400;color:inherit;">(' + $('<div>').text(catatanPasien).html() + ')</span>';
+                            }
                             let nameHtml = '<div class="d-flex flex-column">'
-                                           + '<div class="align-self-start"><strong><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;">' + $('<div>').text(data||'').html() + '</a></strong></div>'
+                                           + '<div class="align-self-start"><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;"><strong>' + patientLabelHtml + '</strong></a></div>'
                                            + '<div class="mt-2 badge-group">'
                                                + (badgesInner ? badgesInner : '')
                                            + '</div>'
@@ -418,6 +621,10 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                 name: 'tanggal_visitation', 
                 searchable: true,
                 render: function(data, type, row, meta) {
+                    if (type !== 'display') {
+                        return data || row.tanggal_visitation || '';
+                    }
+
                     // Format tanggal to include weekday (Indonesian). Fallback to server string if parsing fails.
                     var formattedDate = data || '';
                     try {
@@ -490,7 +697,6 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         }
                     }
 
-                    // Make bold
                     if (formattedDate) formattedDate = '<strong>' + formattedDate + '</strong>';
 
                     var waktu = row.waktu_kunjungan || '';
@@ -512,8 +718,49 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         waktuText = String(waktu).replace(':', '.');
                     }
 
-                    // Example: Senin, 17 Januari 2016 - 09.00
-                    return '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
+                    var badgeHtml = [];
+
+                    if (parseInt(row.lab_permintaan_count || 0, 10) > 0) {
+                        var allLabCompleted = parseInt(row.lab_permintaan_completed_count || 0, 10) === parseInt(row.lab_permintaan_count || 0, 10);
+                        var labBadgeClass = allLabCompleted ? 'badge-success' : 'badge-warning blinking';
+                        var labTitle = allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
+                        badgeHtml.push(
+                            '<span class="badge ' + labBadgeClass + ' mr-1 mb-1 lab-icon" data-visitation-id="' + row.id + '" style="cursor:pointer;">' +
+                            '<i class="fas fa-flask mr-1"></i>Lab' +
+                            '</span>'
+                        );
+                    }
+
+                    if (parseInt(row.riwayat_tindakan_count || 0, 10) > 0) {
+                        badgeHtml.push(
+                            '<span class="badge badge-warning mr-1 mb-1" title="Ada tindakan">' +
+                            '<i class="fas fa-stethoscope mr-1"></i>Tindakan' +
+                            '</span>'
+                        );
+                    }
+
+                    if (parseInt(row.surat_istirahat_count || 0, 10) > 0) {
+                        badgeHtml.push(
+                            '<span class="badge badge-info mr-1 mb-1" title="Ada surat istirahat">' +
+                            '<i class="fas fa-file-medical mr-1"></i>Istirahat' +
+                            '</span>'
+                        );
+                    }
+
+                    if (parseInt(row.surat_mondok_count || 0, 10) > 0) {
+                        badgeHtml.push(
+                            '<span class="badge badge-primary mr-1 mb-1" title="Ada surat mondok">' +
+                            '<i class="fas fa-bed mr-1"></i>Mondok' +
+                            '</span>'
+                        );
+                    }
+
+                    var tanggalHtml = '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
+                    if (badgeHtml.length > 0) {
+                        tanggalHtml += '<div class="mt-2">' + badgeHtml.join('') + '</div>';
+                    }
+
+                    return tanggalHtml;
                 }
             },
             {
@@ -563,16 +810,21 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
-            { targets: 0, width: "8%" },  // Antrian
-            { targets: 1, width: "10%" }, // No RM
-            { targets: 2, width: "25%" }, // Nama Pasien
-            { targets: 3, width: "20%" }, // Tanggal
-            { targets: 4, width: "12%" }, // Metode Bayar
-            @if (empty($isDokter))
-            { targets: 5, width: "15%" }, // Dokter
-            { targets: 6, width: "10%" }, // Dokumen
-            @else
+            @if (!empty($isDokter))
+            { targets: 0, width: "5%" },  // No
+            { targets: 1, width: "8%" },  // No RM
+            { targets: 2, width: "28%" }, // Nama Pasien
+            { targets: 3, width: "26%" }, // Tanggal Kunjungan
+            { targets: 4, width: "8%" },  // Metode Bayar
             { targets: 5, width: "25%" }, // Dokumen
+            @else
+            { targets: 0, width: "6%" },  // Antrian
+            { targets: 1, width: "8%" },  // No RM
+            { targets: 2, width: "25%" }, // Nama Pasien
+            { targets: 3, width: "18%" }, // Tanggal
+            { targets: 4, width: "7%" },  // Metode Bayar
+            { targets: 5, width: "18%" }, // Dokter
+            { targets: 6, width: "18%" }, // Dokumen
             @endif
         ],
         createdRow: function(row, data, dataIndex) {
@@ -1024,43 +1276,11 @@ function batalkanKunjungan(visitationId, btn) {
 
 // Edit Antrian
 function editAntrian(visitationId, currentAntrian, currentWaktuKunjungan = null) {
-    Swal.fire({
-        title: 'Edit Nomor Antrian & Waktu Kunjungan',
-        html: `<input id="swal-input1" class="swal2-input" type="number" min="1" value="${currentAntrian}" placeholder="Nomor Antrian">
-               <input id="swal-input2" class="swal2-input" type="time" value="${currentWaktuKunjungan ? currentWaktuKunjungan : ''}" placeholder="Waktu Kunjungan (opsional)">`,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Simpan',
-        cancelButtonText: 'Batal',
-        preConfirm: () => {
-            const noAntrian = document.getElementById('swal-input1').value;
-            const waktuKunjungan = document.getElementById('swal-input2').value;
-            if (!noAntrian || noAntrian < 1) {
-                Swal.showValidationMessage('Nomor antrian tidak valid');
-                return false;
-            }
-            return { noAntrian, waktuKunjungan };
-        }
-    }).then((result) => {
-        if (result.value) {
-            $.ajax({
-                url: '/erm/rawatjalans/edit-antrian',
-                method: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}',
-                    visitation_id: visitationId,
-                    no_antrian: result.value.noAntrian,
-                    waktu_kunjungan: result.value.waktuKunjungan
-                },
-                success: function(res) {
-                    $('#rawatjalan-table').DataTable().ajax.reload();
-                    Swal.fire('Berhasil', 'Nomor antrian & waktu kunjungan berhasil diubah.', 'success');
-                },
-                error: function() {
-                    Swal.fire('Gagal', 'Terjadi kesalahan.', 'error');
-                }
-            });
-        }
+    ensureRawatJalanCommonModalsLoaded().done(function () {
+        $('#edit-antrian-visitation-id').val(visitationId);
+        $('#edit-antrian-no').val(currentAntrian || '');
+        $('#edit-antrian-waktu').val(currentWaktuKunjungan || '');
+        $('#modalEditAntrian').modal('show');
     });
 }
 
@@ -1131,8 +1351,10 @@ function ensureRawatJalanCommonModalsLoaded() {
         $('#modalLabPermintaanList').length &&
         $('#modalRujukList').length &&
         $('#modalVisitationList').length &&
+        $('#modalNotificationHistory').length &&
         $('#modalPasienMerch').length &&
-        $('#modalMetodeBayar').length
+        $('#modalMetodeBayar').length &&
+        $('#modalEditAntrian').length
     ) {
         return $.Deferred().resolve().promise();
     }
@@ -1143,7 +1365,7 @@ function ensureRawatJalanCommonModalsLoaded() {
 
     __rawatjalanCommonModalsLoading = $.get(__rawatjalanCommonModalsUrl)
         .done(function (html) {
-            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalPasienMerch, #modalMetodeBayar').remove();
+            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalNotificationHistory, #modalPasienMerch, #modalMetodeBayar, #modalEditAntrian').remove();
             $('body').append(html);
         })
         .always(function () {
@@ -1153,22 +1375,20 @@ function ensureRawatJalanCommonModalsLoaded() {
     return __rawatjalanCommonModalsLoading;
 }
 
-// Lazy-load: Screening Batuk modals (heavy HTML)
+// Lazy-load: Screening Batuk modals
 var __screeningBatukModalsUrl = "{{ route('erm.rawatjalans.modals.screeningBatuk') }}";
 var __screeningBatukModalsLoading = null;
 function ensureScreeningBatukModalsLoaded() {
-    // Already present
     if ($('#modalScreeningBatuk').length && $('#modalViewScreeningBatuk').length) {
         return $.Deferred().resolve().promise();
     }
-    // In-flight request
+
     if (__screeningBatukModalsLoading) {
         return __screeningBatukModalsLoading;
     }
 
     __screeningBatukModalsLoading = $.get(__screeningBatukModalsUrl)
         .done(function (html) {
-            // Prevent duplicates if called multiple times
             $('#modalScreeningBatuk, #modalViewScreeningBatuk').remove();
             $('body').append(html);
         })
@@ -1179,44 +1399,64 @@ function ensureScreeningBatukModalsLoaded() {
     return __screeningBatukModalsLoading;
 }
 
-// Open Screening Batuk Modal
-function openScreeningBatukModal(visitationId, editMode = false) {
-    // If the heavy modal HTML isn't in DOM yet, load it first then re-run.
-    if (!$('#modalScreeningBatuk').length) {
-        ensureScreeningBatukModalsLoaded().done(function(){
-            openScreeningBatukModal(visitationId, editMode);
-        }).fail(function(){
-            Swal.fire({
-                title: 'Terjadi Kesalahan',
-                text: 'Gagal memuat form Screening Batuk.',
-                icon: 'error',
-                confirmButtonText: 'OK'
-            });
-        });
+function openScreeningBatukModal(visitationId, editMode) {
+    ensureScreeningBatukModalsLoaded().done(function(){
+        $('#screening-visitation-id').val(visitationId);
+        $('#screening-edit-mode').val(editMode ? 'true' : 'false');
+
+        if (editMode) {
+            loadScreeningDataForEdit(visitationId);
+            $('#screening-modal-title').text('Edit Screening Batuk');
+            $('#screening-btn-text').text('Update Screening');
+        } else {
+            $('#form-screening-batuk')[0].reset();
+            $('input[type="radio"][value="tidak"]').prop('checked', true);
+            $('#screening-modal-title').text('Screening Batuk');
+            $('#screening-btn-text').text('Simpan & Lanjutkan');
+            $('#screening-id').val('');
+        }
+
+        $('#modalScreeningBatuk').modal('show');
+    });
+}
+
+$(document).on('submit', '#form-edit-antrian', function(e){
+    e.preventDefault();
+
+    var visitationId = $('#edit-antrian-visitation-id').val();
+    var noAntrian = $('#edit-antrian-no').val();
+    var waktuKunjungan = $('#edit-antrian-waktu').val();
+
+    if (!noAntrian || parseInt(noAntrian, 10) < 1) {
+        Swal.fire('Error', 'Nomor antrian tidak valid', 'warning');
         return;
     }
 
-    console.log('Opening screening modal for visitation ID:', visitationId, 'Edit mode:', editMode);
-    $('#screening-visitation-id').val(visitationId);
-    $('#screening-edit-mode').val(editMode);
-    
-    if (editMode) {
-        // Load existing data for editing
-        loadScreeningDataForEdit(visitationId);
-        $('#screening-modal-title').text('Edit Screening Batuk');
-        $('#screening-btn-text').text('Update Screening');
-    } else {
-        // Reset form for new entry
-        $('#form-screening-batuk')[0].reset();
-        // Set all radio buttons to default "tidak" values
-        $('input[name$="_tidak"]').prop('checked', true);
-        $('#screening-modal-title').text('Screening Batuk');
-        $('#screening-btn-text').text('Simpan & Lanjutkan');
-        $('#screening-id').val('');
-    }
-    
-    $('#modalScreeningBatuk').modal('show');
-}
+    $.ajax({
+        url: '/erm/rawatjalans/edit-antrian',
+        method: 'POST',
+        data: {
+            _token: '{{ csrf_token() }}',
+            visitation_id: visitationId,
+            no_antrian: noAntrian,
+            waktu_kunjungan: waktuKunjungan
+        },
+        success: function() {
+            $('#modalEditAntrian').modal('hide');
+            $('#rawatjalan-table').DataTable().ajax.reload();
+            Swal.fire('Berhasil', 'Nomor antrian & waktu kunjungan berhasil diubah.', 'success');
+        },
+        error: function() {
+            Swal.fire('Gagal', 'Terjadi kesalahan.', 'error');
+        }
+    });
+});
+
+$(document).on('click', '#btn-batalkan-kunjungan-modal', function(){
+    var visitationId = $('#edit-antrian-visitation-id').val();
+    $('#modalEditAntrian').modal('hide');
+    batalkanKunjungan(visitationId);
+});
 
 // Load existing screening data for editing
 function loadScreeningDataForEdit(visitationId) {

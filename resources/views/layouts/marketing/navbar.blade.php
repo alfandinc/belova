@@ -103,6 +103,9 @@
                 </a>
             </li>
             <li>
+                <a href="{{ route('marketing.birthday.index') }}"> <i data-feather="gift" class="align-self-center menu-icon"></i><span>Ulang Tahun Pasien</span></a>
+            </li>
+            <li>
                 <a href="/marketing/catatan-keluhan"> <i data-feather="alert-circle" class="align-self-center menu-icon"></i><span>Catatan Keluhan Customer</span></a>
             </li>
 

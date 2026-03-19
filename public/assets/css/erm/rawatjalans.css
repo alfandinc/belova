@@ -12,7 +12,7 @@
 
 .dataTables_wrapper td {
     vertical-align: middle;
-    white-space: normal; /* allow wrapping for long text like dokter names */
+    white-space: normal;
 }
 
 /* Uniform inline badge spacing */
@@ -22,21 +22,21 @@
     gap: 6px;
     flex-wrap: wrap;
 }
-.badge-group .badge { margin: 0; }
 
-/* Pink badge for children */
+.badge-group .badge {
+    margin: 0;
+}
+
 .badge-pink {
     background-color: #ff69b4;
     color: #fff;
 }
 
-/* Black card explicit style (ensure visible on all themes) */
 .badge-black {
     background-color: #343a40 !important;
     color: #fff !important;
 }
 
-/* Ensure patient name link matches surrounding text */
 .open-manage-modal {
     color: inherit !important;
     text-decoration: none !important;
@@ -44,16 +44,53 @@
     font-weight: inherit !important;
     text-transform: none !important;
 }
-.open-manage-modal:hover { color: inherit !important; text-decoration: none !important; }
+
+.open-manage-modal:hover {
+    color: inherit !important;
+    text-decoration: none !important;
+}
+
+.rawatjalan-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    min-height: 54px;
+    flex-wrap: wrap;
+}
+
+.rawatjalan-toolbar-actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+}
+
+.rawatjalan-toolbar-actions-left {
+    margin-right: 2px;
+}
+
+.rawatjalan-toolbar-actions-right {
+    margin-left: 2px;
+}
+
+.rawatjalan-toolbar-stats {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+}
 
 /* Smooth blinking animation for lab and tindakan icons */
 .blinking {
     animation: blinking-animation 1s linear infinite;
 }
+
 @keyframes blinking-animation {
-    0%, 100% {
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.2;
     }
@@ -61,105 +98,195 @@
 
 /* Statistics Cards Styling */
 .stat-card {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    --stat-color: #0d6efd;
+    border: 1.5px solid var(--stat-color) !important;
+    border-radius: 14px !important;
+    background: #fff;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1) !important;
+}
+
+.stat-pill-body {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 64px;
+    padding: 6px 12px 6px 6px !important;
+}
+
+.stat-icon-shell {
+    flex: 0 0 auto;
 }
 
 .stat-icon {
-    transition: transform 0.2s ease-in-out;
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--stat-color);
+    color: #fff;
+    font-size: 1.18rem;
+    transition: transform 0.18s ease;
 }
 
 .stat-card:hover .stat-icon {
-    transform: scale(1.1);
+    transform: scale(1.03);
+}
+
+.stat-pill-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+}
+
+.stat-label {
+    margin: 0;
+    color: #8892b0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
 .stat-number {
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1;
+    margin: 0;
+    color: var(--stat-color);
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 0.9;
 }
 
-@media (max-width: 768px) {
-    .stat-number {
-        font-size: 1.5rem;
-    }
-}
+.stat-theme-primary { --stat-color: #2563eb; }
+.stat-theme-warning { --stat-color: #f59e0b; }
+.stat-theme-success { --stat-color: #10b981; }
+.stat-theme-info { --stat-color: #0ea5e9; }
+.stat-theme-danger { --stat-color: #f43f5e; }
+.stat-theme-purple { --stat-color: #6366f1; }
+.stat-theme-teal { --stat-color: #10b981; }
 
-/* =============================
-   Compact Statistic Card Tweaks
-   ============================= */
-.row.mb-4 > [class*='col-'] { /* tighten bottom margin between cards */
-    margin-bottom: .75rem !important;
-}
-.stat-card {
-    border-width: 1px !important;
-    border-radius: 8px !important;
-}
-.stat-card .card-body {
-    padding: .55rem .65rem !important;
-}
-.stat-card .stat-icon {
-    width: 34px !important;
-    height: 34px !important;
-    font-size: 14px;
-}
-.stat-card .stat-number {
-    font-size: 1.25rem !important;
-    font-weight: 600;
-}
-.stat-card h6 {
-    font-size: .70rem;
-    letter-spacing: .25px;
-    margin-bottom: .15rem !important;
-    text-transform: uppercase;
-}
-/* Slightly reduce hover lift & shadow for compact look */
-.stat-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(0,0,0,.12) !important;
-}
-@media (max-width: 992px) { /* medium */
-    .stat-card .stat-number { font-size: 1.15rem !important; }
-}
-@media (max-width: 576px) { /* phones */
-    .stat-card .card-body { padding: .5rem .6rem !important; }
-    .stat-card .stat-icon { width: 30px !important; height: 30px !important; }
-    .stat-card .stat-number { font-size: 1.05rem !important; }
-}
-
-/* =============================
-   7-Column Responsive Layout
-   ============================= */
-.stats-row { /* custom flexible container */
+/* Responsive stats layout */
+.stats-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px; /* consistent spacing */
+    gap: 10px;
     margin-left: 0 !important;
     margin-right: 0 !important;
 }
-.stats-row .stat-col { /* 7 columns on very large screens */
-    flex: 1 1 calc(14.285% - 8px);
-    max-width: calc(14.285% - 8px);
+
+.rawatjalan-toolbar-stats .stats-row {
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
 }
-@media (max-width: 1600px) { /* fallback gracefully if narrower */
-    .stats-row .stat-col { flex: 1 1 calc(16.666% - 8px); max-width: calc(16.666% - 8px); }
+
+.rawatjalan-toolbar-stats .stat-col {
+    flex: 0 0 auto;
+    width: 142px;
+    max-width: 142px;
 }
-@media (max-width: 1400px) { /* 6 -> 5 */
-    .stats-row .stat-col { flex: 1 1 calc(20% - 8px); max-width: calc(20% - 8px); }
+
+@media (max-width: 1200px) {
+    .rawatjalan-toolbar {
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .rawatjalan-toolbar-stats {
+        order: 3;
+        flex-basis: 100%;
+        justify-content: flex-start;
+    }
+
+    .rawatjalan-toolbar-stats .stats-row {
+        justify-content: flex-start;
+    }
 }
-@media (max-width: 1200px) { /* 5 -> 4 */
-    .stats-row .stat-col { flex: 1 1 calc(25% - 8px); max-width: calc(25% - 8px); }
+
+@media (max-width: 768px) {
+    .stat-card {
+        border-radius: 12px !important;
+    }
+
+    .stat-pill-body {
+        min-height: 56px;
+        gap: 8px;
+        padding: 5px 10px 5px 5px !important;
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        font-size: 0.96rem;
+    }
+
+    .stat-number {
+        font-size: 1.5rem;
+    }
+
+    .stat-label {
+        font-size: 0.62rem;
+    }
+
+    .rawatjalan-toolbar-stats .stat-col {
+        width: 126px;
+        max-width: 126px;
+    }
+
+    .rawatjalan-toolbar-actions {
+        width: 100%;
+    }
+
+    .rawatjalan-toolbar-actions-left,
+    .rawatjalan-toolbar-actions-right {
+        margin: 0;
+    }
+
+    .rawatjalan-toolbar-actions .btn-group {
+        flex-wrap: wrap;
+    }
 }
-@media (max-width: 992px) { /* 4 -> 3 */
-    .stats-row .stat-col { flex: 1 1 calc(33.333% - 8px); max-width: calc(33.333% - 8px); }
-}
-@media (max-width: 768px) { /* 3 -> 2 */
-    .stats-row .stat-col { flex: 1 1 calc(50% - 8px); max-width: calc(50% - 8px); }
-}
-@media (max-width: 480px) { /* 2 -> 1 */
-    .stats-row .stat-col { flex: 1 1 100%; max-width: 100%; }
+
+@media (max-width: 576px) {
+    .stat-card {
+        border-radius: 10px !important;
+    }
+
+    .stat-pill-body {
+        min-height: 50px;
+        gap: 7px;
+        padding: 4px 9px 4px 4px !important;
+    }
+
+    .stat-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+    }
+
+    .stat-number {
+        font-size: 1.28rem;
+    }
+
+    .stat-label {
+        font-size: 0.56rem;
+    }
+
+    .rawatjalan-toolbar-stats .stat-col {
+        width: 112px;
+        max-width: 112px;
+    }
 }

@@ -14,6 +14,7 @@ use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Carbon;
 use Maatwebsite\Excel\Facades\Excel;
 
 class FakturBeliController extends Controller
@@ -28,6 +29,7 @@ class FakturBeliController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
+            $isAdmin = Auth::check() && Auth::user()->hasAnyRole(['Admin']);
             $data = FakturBeli::with(['pemasok', 'items.obat'])->select('erm_fakturbeli.*');
             // Filter by received_date range if provided
             if ($request->filled('tanggal_terima_range')) {
@@ -46,6 +48,17 @@ class FakturBeliController extends Controller
             // Hide diretur if requested
             if ($request->input('hide_diretur') == 1) {
                 $data = $data->where('status', '!=', 'diretur');
+            }
+            // Hide faktur that are still not approved after 7 days
+            if ($request->input('hide_unapproved_over_7_days') == 1) {
+                $cutoffDate = Carbon::now()->subDays(7)->toDateString();
+                $data = $data->where(function ($query) use ($cutoffDate) {
+                    $query->where('status', 'diapprove')
+                        ->orWhere(function ($pendingQuery) use ($cutoffDate) {
+                            $pendingQuery->where('status', '!=', 'diapprove')
+                                ->whereDate(DB::raw('COALESCE(received_date, requested_date, created_at)'), '>=', $cutoffDate);
+                        });
+                });
             }
             // Filter by nama obat
             if ($request->filled('search_nama_obat')) {
@@ -90,7 +103,7 @@ class FakturBeliController extends Controller
                     }
                     return null;
                 })
-                ->addColumn('action', function($row) {
+                ->addColumn('action', function($row) use ($isAdmin) {
                     if ($row->status === 'diapprove') {
                         return '<a href="/erm/fakturpembelian/' . $row->id . '/print" target="_blank" class="btn btn-secondary btn-sm"><i class="fa fa-print"></i> Print</a>';
                     }
@@ -107,7 +120,9 @@ class FakturBeliController extends Controller
                         $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Cek HPP</button> ';
                     }
                     // Delete button
-                    $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
+                    if ($isAdmin) {
+                        $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
+                    }
                     return $actionBtn;
                 })
                 ->rawColumns(['action'])
@@ -355,6 +370,8 @@ class FakturBeliController extends Controller
 
         public function destroy($id)
     {
+        abort_unless(Auth::check() && Auth::user()->hasAnyRole(['Admin']), 403, 'Unauthorized action.');
+
         $faktur = FakturBeli::findOrFail($id);
         $faktur->items()->delete();
         $faktur->delete();
