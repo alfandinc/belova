@@ -137,6 +137,8 @@
         var templateUrl = '{{ asset('img/templates/lebaran_wa.png') }}';
         var templateImage = null;
         var activeLebaranId = null;
+        var refreshScrollTop = null;
+        var refreshTableScrollTop = null;
         var waPatientPlaceholder = '__PASIEN_NAME__';
         var waMessageTemplate = [
             'Yth. Bapak/Ibu ' + waPatientPlaceholder,
@@ -364,6 +366,21 @@
             previewImage.style.height = Math.floor(templateHeight * scale) + 'px';
         }
 
+        function reloadTablePreservingScroll() {
+            var tableWrapper = document.querySelector('#lebaran-table_wrapper .table-responsive') || document.querySelector('.table-responsive');
+
+            refreshScrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+            refreshTableScrollTop = tableWrapper ? tableWrapper.scrollTop : null;
+
+            table.ajax.reload(function () {
+                window.scrollTo(0, refreshScrollTop || 0);
+
+                if (tableWrapper && refreshTableScrollTop !== null) {
+                    tableWrapper.scrollTop = refreshTableScrollTop;
+                }
+            }, false);
+        }
+
         var table = $('#lebaran-table').DataTable({
             processing: true,
             serverSide: false,
@@ -408,7 +425,7 @@
         });
 
         $('#statusFilter').on('change', function () {
-            table.ajax.reload(null, false);
+            reloadTablePreservingScroll();
         });
 
         $('#lebaran-table').on('click', '.js-preview-lebaran', function () {
@@ -502,7 +519,7 @@
                 }
             }).done(function () {
                 $('#lebaranPreviewModal').modal('hide');
-                table.ajax.reload(null, false);
+                reloadTablePreservingScroll();
             }).fail(function () {
                 showPreviewError('Gagal mengubah status menjadi sent. Coba lagi.');
             }).always(function () {
@@ -517,7 +534,7 @@
         });
 
         setInterval(function () {
-            table.ajax.reload(null, false);
+            reloadTablePreservingScroll();
         }, 5000);
     });
 </script>
