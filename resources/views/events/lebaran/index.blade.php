@@ -55,6 +55,17 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
+                    <div class="form-row align-items-end mb-3">
+                        <div class="col-md-3 col-lg-2">
+                            <label for="statusFilter" class="small text-muted mb-1">Filter Status</label>
+                            <select id="statusFilter" class="form-control form-control-sm">
+                                <option value="pending" selected>Pending</option>
+                                <option value="sent">Sent</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered w-100" id="lebaran-table">
                             <thead>
@@ -358,6 +369,9 @@
             serverSide: false,
             ajax: {
                 url: '{{ route('events.lebaran.data') }}',
+                data: function (d) {
+                    d.status = $('#statusFilter').val() || 'pending';
+                },
                 dataSrc: 'data'
             },
             paging: false,
@@ -391,6 +405,10 @@
                 }
             ],
             order: [[0, 'asc']]
+        });
+
+        $('#statusFilter').on('change', function () {
+            table.ajax.reload(null, false);
         });
 
         $('#lebaran-table').on('click', '.js-preview-lebaran', function () {
@@ -497,6 +515,10 @@
                 fitCanvasToModal();
             }
         });
+
+        setInterval(function () {
+            table.ajax.reload(null, false);
+        }, 5000);
     });
 </script>
 @endpush

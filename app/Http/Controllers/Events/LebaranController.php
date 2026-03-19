@@ -31,6 +31,11 @@ class LebaranController extends Controller
                 'erm_pasiens.no_hp as pasien_nohp',
             ]);
 
+        $statusFilter = trim((string) $request->input('status', ''));
+        if ($statusFilter !== '' && strtolower($statusFilter) !== 'all') {
+            $query->where('event_lebarans.status', $statusFilter);
+        }
+
         return DataTables::of($query)
             ->filterColumn('nama_pasien', function ($query, $keyword) {
                 $query->where(function ($subQuery) use ($keyword) {
