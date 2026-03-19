@@ -95,6 +95,7 @@
                                                 <label for="lebaranWaMessage" class="small text-muted mb-1">Template Ucapan WhatsApp</label>
                                                 <textarea id="lebaranWaMessage" class="form-control" rows="14" readonly></textarea>
                                                 <div class="mt-3 d-flex flex-wrap lebaran-wa-actions">
+                                                    <button type="button" class="btn btn-outline-primary mr-2 mb-2" id="copyLebaranImage">Copy Image</button>
                                                     <button type="button" class="btn btn-outline-secondary mr-2 mb-2" id="copyLebaranWaMessage">Copy Ucapan</button>
                                                     <a href="#" target="_blank" rel="noopener noreferrer" class="btn btn-success mb-2 disabled" id="openLebaranWaLink" aria-disabled="true">Buka di WhatsApp</a>
                                                 </div>
@@ -202,6 +203,45 @@
                     ? 'Nomor tujuan dari data Lebaran: ' + normalizedPhone
                     : 'Nomor WhatsApp pada data Lebaran belum tersedia, jadi link wa.me belum bisa dibuka.'
             );
+        }
+
+        function dataUrlToBlob(dataUrl) {
+            var parts = dataUrl.split(',');
+            var mimeMatch = parts[0].match(/:(.*?);/);
+            var mime = mimeMatch ? mimeMatch[1] : 'image/png';
+            var binary = atob(parts[1]);
+            var length = binary.length;
+            var bytes = new Uint8Array(length);
+
+            for (var i = 0; i < length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+
+            return new Blob([bytes], { type: mime });
+        }
+
+        function copyPreviewImageToClipboard() {
+            var previewImage = document.getElementById('lebaranPreviewImage');
+            if (!previewImage || !previewImage.src) {
+                return Promise.resolve({ ok: false, message: 'Preview gambar belum tersedia.' });
+            }
+
+            if (!navigator.clipboard || typeof window.ClipboardItem === 'undefined' || typeof navigator.clipboard.write !== 'function') {
+                return Promise.resolve({ ok: false, message: 'Browser ini tidak mendukung copy gambar otomatis ke clipboard.' });
+            }
+
+            try {
+                var blob = dataUrlToBlob(previewImage.src);
+                var item = new ClipboardItem({ 'image/png': blob });
+
+                return navigator.clipboard.write([item]).then(function () {
+                    return { ok: true, message: 'Gambar berhasil disalin ke clipboard. Anda bisa langsung paste di WhatsApp.' };
+                }).catch(function () {
+                    return { ok: false, message: 'Gagal menyalin gambar otomatis ke clipboard. Gunakan drag gambar sebagai alternatif.' };
+                });
+            } catch (error) {
+                return Promise.resolve({ ok: false, message: 'Gagal memproses gambar untuk clipboard.' });
+            }
         }
 
         function updatePreviewImageFromCanvas(patientName) {
@@ -379,6 +419,35 @@
             textarea.focus();
             textarea.select();
             document.execCommand('copy');
+        });
+
+        $('#copyLebaranImage').on('click', function () {
+            copyPreviewImageToClipboard().then(function (result) {
+                $('#lebaranWaHelp').text(result.message);
+            });
+        });
+
+        $('#openLebaranWaLink').on('click', function (event) {
+            var href = $(this).attr('href');
+
+            if ($(this).hasClass('disabled') || !href || href === '#') {
+                event.preventDefault();
+                return;
+            }
+
+            event.preventDefault();
+
+            var popup = window.open('about:blank', '_blank');
+
+            copyPreviewImageToClipboard().then(function (result) {
+                $('#lebaranWaHelp').text(result.message);
+
+                if (popup) {
+                    popup.location.href = href;
+                } else {
+                    window.open(href, '_blank');
+                }
+            });
         });
 
         $('#lebaranPreviewModal').on('shown.bs.modal', function () {
