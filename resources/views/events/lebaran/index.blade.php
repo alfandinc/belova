@@ -460,9 +460,11 @@
                     render: function (data, type, row) {
                         var patientName = row.nama_pasien || '-';
                         var phoneNumber = row.event_nohp || '';
+                        var encodedPatientName = encodeURIComponent(patientName);
+                        var encodedPhoneNumber = encodeURIComponent(phoneNumber);
                         return ''
-                            + '<button type="button" class="btn btn-sm js-preview-lebaran mr-1 mb-1" style="background:#e83e8c;border:1px solid #e83e8c;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview1" data-id="' + row.id + '" data-name="' + $('<div>').text(patientName).html() + '" data-phone="' + $('<div>').text(phoneNumber).html() + '">Preview</button>'
-                            + '<button type="button" class="btn btn-sm js-preview-lebaran mb-1" style="background:#0d6efd;border:1px solid #0d6efd;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview2" data-id="' + row.id + '" data-name="' + $('<div>').text(patientName).html() + '" data-phone="' + $('<div>').text(phoneNumber).html() + '">Preview 2</button>';
+                            + '<button type="button" class="btn btn-sm js-preview-lebaran mr-1 mb-1" style="background:#e83e8c;border:1px solid #e83e8c;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview1" data-id="' + row.id + '" data-name="' + encodedPatientName + '" data-phone="' + encodedPhoneNumber + '">Preview</button>'
+                            + '<button type="button" class="btn btn-sm js-preview-lebaran mb-1" style="background:#0d6efd;border:1px solid #0d6efd;color:#fff;border-radius:4px;padding:4px 10px;line-height:1.5;" data-variant="preview2" data-id="' + row.id + '" data-name="' + encodedPatientName + '" data-phone="' + encodedPhoneNumber + '">Preview 2</button>';
                     }
                 }
             ],
@@ -476,8 +478,8 @@
         $('#lebaran-table').on('click', '.js-preview-lebaran', function () {
             activeLebaranId = $(this).data('id') || null;
             activePreviewVariant = $(this).data('variant') || 'preview1';
-            var patientName = $(this).data('name') || '-';
-            var phoneNumber = $(this).data('phone') || '';
+            var patientName = decodeURIComponent($(this).attr('data-name') || '-');
+            var phoneNumber = decodeURIComponent($(this).attr('data-phone') || '');
             updateMarkSentButtonState(false);
             $('#lebaranPreviewModal').modal('show');
             renderLebaranPreview(patientName, phoneNumber, activePreviewVariant);
