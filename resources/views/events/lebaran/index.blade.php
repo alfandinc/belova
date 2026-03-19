@@ -227,13 +227,19 @@
             return digits;
         }
 
+        function decodeHtmlEntities(value) {
+            var textarea = document.createElement('textarea');
+            textarea.innerHTML = value || '';
+            return textarea.value;
+        }
+
         function getPreviewConfig(variant) {
             return previewConfigs[variant] || previewConfigs.preview1;
         }
 
         function buildWaMessage(patientName, variant) {
             var config = getPreviewConfig(variant);
-            return config.waMessageTemplate.replace(waPatientPlaceholder, patientName || '-');
+            return config.waMessageTemplate.replace(waPatientPlaceholder, decodeHtmlEntities(patientName || '-'));
         }
 
         function updateWaPanel(patientName, phoneNumber, variant) {
@@ -356,6 +362,7 @@
 
         function renderLebaranPreview(patientName, phoneNumber, variant) {
             var config = getPreviewConfig(variant);
+            patientName = decodeHtmlEntities(patientName || '-');
             clearPreviewError();
             updateWaPanel(patientName, phoneNumber, variant);
 
@@ -478,7 +485,7 @@
         $('#lebaran-table').on('click', '.js-preview-lebaran', function () {
             activeLebaranId = $(this).data('id') || null;
             activePreviewVariant = $(this).data('variant') || 'preview1';
-            var patientName = decodeURIComponent($(this).attr('data-name') || '-');
+            var patientName = decodeHtmlEntities(decodeURIComponent($(this).attr('data-name') || '-'));
             var phoneNumber = decodeURIComponent($(this).attr('data-phone') || '');
             updateMarkSentButtonState(false);
             $('#lebaranPreviewModal').modal('show');
