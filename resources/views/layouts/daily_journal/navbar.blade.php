@@ -52,7 +52,7 @@
                 </a>
             </li>
 
-            @if(Auth::user()?->hasRole('Manager'))
+            @if(Auth::user()?->hasAnyRole(['Manager', 'Hrd', 'Admin']))
                 <li>
                     <a href="{{ route('daily-journal.division.index') }}" class="{{ $isDivisionPage ? 'active' : '' }}">
                         <i data-feather="users" class="align-self-center menu-icon"></i>
