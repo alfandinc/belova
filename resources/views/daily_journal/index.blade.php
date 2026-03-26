@@ -1204,7 +1204,7 @@
                                     <div class="task-date-stack">
                                         <span class="deadline-label {{ $isUrgentDeadline ? 'is-urgent' : '' }}">
                                             <i class="fas fa-hourglass-end"></i>
-                                            Deadline {{ $task->deadline_date->format('d/m/Y') }}
+                                            {{ $task->deadline_date->format('d/m/Y') }}
                                         </span>
                                     </div>
                                 @endif
