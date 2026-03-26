@@ -384,7 +384,7 @@
     .tile-joblist { background-color: #00b8d9; }      /* bright cyan */
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
-    .tile-daily-journal { background-color: #ff7c9d; } /* warm pink */
+    .tile-daily-journal { background-color: #da16d0; } /* warm pink */
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
@@ -637,6 +637,19 @@
                     }
                 @endphp
 
+                @php
+                    $dailyJournalDeadlineCount = 0;
+                    try {
+                        $dailyJournalDeadlineCount = \App\Models\DailyJournalTask::query()
+                            ->where('user_id', Auth::id())
+                            ->whereNotNull('deadline_date')
+                            ->where('status', '!=', 'done')
+                            ->count();
+                    } catch (\Throwable $e) {
+                        $dailyJournalDeadlineCount = 0;
+                    }
+                @endphp
+
                 <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
                 <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1" data-filter="erm healthcare patient"
                    @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi']))
@@ -701,7 +714,13 @@
                 <a href="/daily-journal" class="menu-tile tile-daily-journal animate-item delay-5" data-filter="daily journal task planner agenda habit">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-book-open"></i></div>
-                        <div class="menu-badge">Journal</div>
+                        {{-- <div class="menu-badge">Journal</div> --}}
+                    </div>
+                    <div class="tile-bell-top" aria-hidden="true">
+                        <div class="bell"><i class="fas fa-hourglass-end"></i></div>
+                        @if(!empty($dailyJournalDeadlineCount) && $dailyJournalDeadlineCount > 0)
+                            <div class="count">{{ $dailyJournalDeadlineCount }}</div>
+                        @endif
                     </div>
                     <div class="menu-title">Daily Journal</div>
                     <div class="menu-sub">Task & Status Harian</div>
