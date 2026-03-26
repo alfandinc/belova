@@ -300,6 +300,9 @@
 
         .task-card.is-deletable {
             cursor: grab;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         .task-card.is-deletable:active {
@@ -1470,6 +1473,13 @@
                             return;
                         }
 
+                        if (pendingPress.captureOwner && typeof pendingPress.captureOwner.releasePointerCapture === 'function') {
+                            try {
+                                pendingPress.captureOwner.releasePointerCapture(pendingPress.pointerId);
+                            } catch (error) {
+                            }
+                        }
+
                         window.clearTimeout(pendingPress.timer);
                         window.removeEventListener('pointermove', pendingPress.onMove);
                         window.removeEventListener('pointerup', pendingPress.onEnd);
@@ -1490,6 +1500,13 @@
                         activeDrag.card.style.left = '';
                         activeDrag.card.style.top = '';
                         activeDrag.card.style.width = '';
+
+                        if (activeDrag.captureOwner && typeof activeDrag.captureOwner.releasePointerCapture === 'function') {
+                            try {
+                                activeDrag.captureOwner.releasePointerCapture(activeDrag.pointerId);
+                            } catch (error) {
+                            }
+                        }
 
                         if (activeDrag.placeholder && activeDrag.placeholder.parentNode) {
                             activeDrag.placeholder.parentNode.removeChild(activeDrag.placeholder);
@@ -1568,6 +1585,7 @@
                             card: card,
                             form: form,
                             placeholder: placeholder,
+                            captureOwner: card,
                             pointerId: pointerId,
                             offsetX: clientX - rect.left,
                             offsetY: clientY - rect.top,
@@ -1598,6 +1616,13 @@
                             const startX = event.clientX;
                             const startY = event.clientY;
 
+                            if (typeof card.setPointerCapture === 'function') {
+                                try {
+                                    card.setPointerCapture(pointerId);
+                                } catch (error) {
+                                }
+                            }
+
                             const onMove = function (moveEvent) {
                                 if (!pendingPress || moveEvent.pointerId !== pendingPress.pointerId) {
                                     return;
@@ -1618,6 +1643,7 @@
 
                             pendingPress = {
                                 card: card,
+                                captureOwner: card,
                                 pointerId: pointerId,
                                 startX: startX,
                                 startY: startY,
