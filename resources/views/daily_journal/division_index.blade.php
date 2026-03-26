@@ -111,17 +111,19 @@
             background: #fff;
             border-radius: 30px 30px 0 0;
             box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.12);
-            transform: translateY(105%);
+            transform: translate3d(0, 105%, 0);
             visibility: hidden;
             pointer-events: none;
             transition: transform 0.25s ease;
             padding: 16px 16px 26px;
             max-width: 520px;
             margin: 0 auto;
+            will-change: transform;
+            backface-visibility: hidden;
         }
 
         .assign-panel.active {
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
             visibility: visible;
             pointer-events: auto;
         }
@@ -134,6 +136,7 @@
             pointer-events: none;
             transition: opacity 0.2s ease;
             z-index: 35;
+            will-change: opacity;
         }
 
         .assign-overlay.active {
@@ -1920,20 +1923,34 @@
                 const closeAssignPanel = root.querySelector('#closeAssignPanel');
                 const assignThemeInput = root.querySelector('#assignThemeInput');
                 const assignThemeRadios = root.querySelectorAll('input[name="assign_theme_picker"]');
+                let openAssignFrame = null;
 
                 function openAssignPanel() {
                     if (filterPanel) {
                         filterPanel.classList.remove('active');
                     }
-                    if (assignPanel) {
-                        assignPanel.classList.add('active');
+
+                    if (openAssignFrame !== null) {
+                        window.cancelAnimationFrame(openAssignFrame);
                     }
-                    if (assignOverlay) {
-                        assignOverlay.classList.add('active');
-                    }
+
+                    openAssignFrame = window.requestAnimationFrame(function () {
+                        if (assignPanel) {
+                            assignPanel.classList.add('active');
+                        }
+                        if (assignOverlay) {
+                            assignOverlay.classList.add('active');
+                        }
+                        openAssignFrame = null;
+                    });
                 }
 
                 function closeAssignSheet() {
+                    if (openAssignFrame !== null) {
+                        window.cancelAnimationFrame(openAssignFrame);
+                        openAssignFrame = null;
+                    }
+
                     if (assignPanel) {
                         assignPanel.classList.remove('active');
                     }
