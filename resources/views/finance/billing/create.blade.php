@@ -866,15 +866,25 @@
             return (window.billingTotals && window.billingTotals.grandTotalInt) ? window.billingTotals.grandTotalInt : 0;
         }
 
+        function isInsuranceMethod(methodRaw) {
+            const method = (methodRaw || '').toString();
+            return method.startsWith('asuransi_');
+        }
+
+        function isPiutangLikeMethod(methodRaw) {
+            const method = (methodRaw || '').toString();
+            return method === 'piutang' || isInsuranceMethod(method);
+        }
+
         function isNonCashNonPiutang(methodRaw) {
             const method = (methodRaw || '').toString();
-            return method !== '' && method !== 'cash' && method !== 'piutang';
+            return method !== '' && method !== 'cash' && !isPiutangLikeMethod(method);
         }
 
         function syncModalPaidFromMethod() {
             const method = ($('#modal_payment_method').val() || '').toString();
 
-            // If user picks any non-tunai method (transfer/debit/qris/asuransi/etc),
+            // If user picks any non-tunai method except insurance,
             // auto-fill Dibayar to the grand total.
             if (isNonCashNonPiutang(method)) {
                 const grandTotalInt = getCurrentGrandTotalInt();
@@ -882,8 +892,8 @@
                 return;
             }
 
-            // If user picks piutang, keep Dibayar empty (treated as 0).
-            if (method === 'piutang') {
+            // Insurance still follows piutang behavior: keep Dibayar empty (treated as 0).
+            if (isPiutangLikeMethod(method)) {
                 $('#modal_amount_paid').val('');
             }
         }
@@ -3095,7 +3105,7 @@ $('#saveAllChangesBtn').on('click', function() {
             const method = ($('#modal_payment_method').val() || 'cash').toString();
             const paid = parseHarga($('#modal_amount_paid').val() || 0);
 
-            if (method !== 'piutang' && paid <= 0) {
+            if (!isPiutangLikeMethod(method) && paid <= 0) {
                 Swal.fire({
                     title: 'Info',
                     text: 'Masukkan jumlah dibayar terlebih dahulu.',
@@ -3105,7 +3115,7 @@ $('#saveAllChangesBtn').on('click', function() {
             }
 
             // Sync modal values into hidden fields used by calculateTotals() + backend payload
-            $('#amount_paid').val(method === 'piutang' ? '0' : ($('#modal_amount_paid').val() || '0'));
+            $('#amount_paid').val(isPiutangLikeMethod(method) ? '0' : ($('#modal_amount_paid').val() || '0'));
             $('#payment_method').val(method || 'cash');
             $('#paymentModal').modal('hide');
             updatePaymentActionButtons($('#payment_method').val() || 'cash');
