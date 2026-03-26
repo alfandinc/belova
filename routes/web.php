@@ -100,6 +100,7 @@ use App\Http\Controllers\BelovaMengajiController;
 use App\Http\Controllers\SatusehatDashboardController;
 use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController;
 use App\Http\Controllers\BukuMenuController;
+use App\Http\Controllers\DailyJournalController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
@@ -164,6 +165,18 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/buku-menu/data', [BukuMenuController::class, 'data'])->name('buku-menu.data');
     Route::get('/buku-menu/tindakan-data', [BukuMenuController::class, 'tindakanData'])->name('buku-menu.tindakan-data');
     Route::get('/buku-menu/labtest-data', [BukuMenuController::class, 'labtestData'])->name('buku-menu.labtest-data');
+
+    // Daily Journal (accessible for all authenticated users)
+    Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
+    Route::get('/daily-journal/division', [DailyJournalController::class, 'divisionIndex'])
+        ->middleware('role:Manager')
+        ->name('daily-journal.division.index');
+    Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
+    Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');
+    Route::post('/daily-journal/{dailyJournalTask}/report', [DailyJournalController::class, 'report'])
+        ->middleware('role:Manager')
+        ->name('daily-journal.report');
+    Route::delete('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
 
     // Hanya user dengan role ERM yang bisa akses modul ERM
     Route::get('/erm', [ERMDashboardController::class, 'index'])

@@ -384,6 +384,7 @@
     .tile-joblist { background-color: #00b8d9; }      /* bright cyan */
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
+    .tile-daily-journal { background-color: #ff7c9d; } /* warm pink */
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
@@ -697,6 +698,15 @@
                     <div class="menu-sub">Harga & Daftar Item</div>
                 </a>
 
+                <a href="/daily-journal" class="menu-tile tile-daily-journal animate-item delay-5" data-filter="daily journal task planner agenda habit">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-book-open"></i></div>
+                        <div class="menu-badge">Journal</div>
+                    </div>
+                    <div class="menu-title">Daily Journal</div>
+                    <div class="menu-sub">Task & Status Harian</div>
+                </a>
+
                 <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5" data-filter="survey feedback rating">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-star-half-alt"></i></div>
@@ -854,6 +864,7 @@
                     <div class="menu-sub">Akses Pengaturan WiFi</div>
                 </a> --}}
 
+                {{--
                 <a href="/hrd/joblist" class="menu-tile tile-joblist animate-item delay-17" data-filter="joblist task pekerjaan"
                    @if(!array_intersect($userRoles, ['Hrd','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Job List')"
@@ -872,6 +883,7 @@
                     <div class="menu-title">Job List</div>
                     <div class="menu-sub">Tugas & Deadline</div>
                 </a>
+                --}}
                 
                 <!-- Admin Panel -->
                 <a href="/admin/users" class="menu-tile tile-admin animate-item delay-18" data-filter="admin users pengaturan"
