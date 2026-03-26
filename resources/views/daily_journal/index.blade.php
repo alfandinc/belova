@@ -245,7 +245,7 @@
         .week-strip {
             display: grid;
             grid-template-columns: repeat(7, minmax(0, 1fr));
-            gap: 8px;
+            gap: 3px;
             margin-bottom: 18px;
         }
 
@@ -863,7 +863,7 @@
             }
 
             .week-strip {
-                gap: 12px;
+                gap: 7px;
             }
 
             .task-stack {
@@ -915,7 +915,7 @@
             }
 
             .week-strip {
-                gap: 14px;
+                gap: 8px;
                 margin-bottom: 24px;
             }
 
