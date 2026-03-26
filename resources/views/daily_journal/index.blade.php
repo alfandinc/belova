@@ -684,6 +684,66 @@
             z-index: 30;
         }
 
+        .journal-request-loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 249, 246, 0.62);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+            z-index: 80;
+        }
+
+        .journal-request-loader.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .journal-request-card {
+            min-width: 168px;
+            padding: 16px 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            display: grid;
+            justify-items: center;
+            gap: 10px;
+        }
+
+        .journal-request-spinner {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            border: 3px solid rgba(255, 107, 138, 0.2);
+            border-top-color: #ff6b8a;
+            animation: journalSpin 0.7s linear infinite;
+        }
+
+        .journal-request-text {
+            font-size: 13px;
+            font-weight: 700;
+            color: #374151;
+            text-align: center;
+        }
+
+        body.journal-request-busy {
+            overflow: hidden;
+        }
+
+        @keyframes journalSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .composer-overlay {
             position: fixed;
             inset: 0;
@@ -692,6 +752,7 @@
             pointer-events: none;
             transition: opacity 0.2s ease;
             z-index: 35;
+            will-change: opacity;
         }
 
         .composer-overlay.active {
@@ -708,15 +769,17 @@
             background: #fff;
             border-radius: 30px 30px 0 0;
             box-shadow: 0 -18px 42px rgba(15, 23, 42, 0.12);
-            transform: translateY(105%);
+            transform: translate3d(0, 105%, 0);
             transition: transform 0.25s ease;
             padding: 16px 16px 26px;
             max-width: 520px;
             margin: 0 auto;
+            will-change: transform;
+            backface-visibility: hidden;
         }
 
         .composer-sheet.active {
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
         }
 
         .sheet-handle {
@@ -1275,6 +1338,13 @@
         <i class="fas fa-plus"></i>
     </button>
 
+    <div class="journal-request-loader" id="journalRequestLoader" aria-hidden="true">
+        <div class="journal-request-card">
+            <span class="journal-request-spinner" aria-hidden="true"></span>
+            <span class="journal-request-text" id="journalRequestText">Processing...</span>
+        </div>
+    </div>
+
     <div class="composer-overlay" id="composerOverlay"></div>
 
     <div class="composer-sheet {{ $errors->any() ? 'active' : '' }}" id="composerSheet">
@@ -1363,6 +1433,48 @@
 @section('scripts')
     <script>
         (function () {
+            let isRequestPending = false;
+
+            function setBusyState(isBusy, message) {
+                const root = document.getElementById('myDailyJournalRoot');
+                const loader = root ? root.querySelector('#journalRequestLoader') : null;
+                const text = root ? root.querySelector('#journalRequestText') : null;
+
+                document.body.classList.toggle('journal-request-busy', isBusy);
+
+                if (text && message) {
+                    text.textContent = message;
+                }
+
+                if (loader) {
+                    loader.classList.toggle('active', isBusy);
+                    loader.setAttribute('aria-hidden', isBusy ? 'false' : 'true');
+                }
+            }
+
+            function getRequestMessage(url, options) {
+                const method = String(options && options.method ? options.method : 'GET').toUpperCase();
+                const formData = options && options.body instanceof FormData ? options.body : null;
+
+                if (method === 'GET') {
+                    return 'Loading...';
+                }
+
+                if (typeof url === 'string' && /daily-journal\/\d+\/report$/i.test(url)) {
+                    return 'Sending report...';
+                }
+
+                if (typeof url === 'string' && /daily-journal\/\d+$/i.test(url) && formData && formData.get('_method') === 'DELETE') {
+                    return 'Deleting task...';
+                }
+
+                if (typeof url === 'string' && /daily-journal\/\d+$/i.test(url)) {
+                    return 'Saving changes...';
+                }
+
+                return 'Saving task...';
+            }
+
             async function replaceRootFromResponse(response) {
                 const html = await response.text();
                 const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -1394,6 +1506,13 @@
             }
 
             async function ajaxVisit(url, options) {
+                if (isRequestPending) {
+                    return;
+                }
+
+                isRequestPending = true;
+                setBusyState(true, getRequestMessage(url, options || {}));
+
                 try {
                     const response = await fetch(url, {
                         headers: {
@@ -1422,6 +1541,9 @@
                     } else {
                         window.location.reload();
                     }
+                } finally {
+                    isRequestPending = false;
+                    setBusyState(false);
                 }
             }
 
@@ -1811,20 +1933,34 @@
                 const themeRadios = root.querySelectorAll('input[name="theme_picker"]');
                 const filterToggleBtn = root.querySelector('#filterToggleBtn');
                 const filterPanel = root.querySelector('#filterPanel');
+                let openSheetFrame = null;
 
                 function openSheet() {
                     if (filterPanel) {
                         filterPanel.classList.remove('active');
                     }
-                    if (sheet) {
-                        sheet.classList.add('active');
+
+                    if (openSheetFrame !== null) {
+                        window.cancelAnimationFrame(openSheetFrame);
                     }
-                    if (overlay) {
-                        overlay.classList.add('active');
-                    }
+
+                    openSheetFrame = window.requestAnimationFrame(function () {
+                        if (sheet) {
+                            sheet.classList.add('active');
+                        }
+                        if (overlay) {
+                            overlay.classList.add('active');
+                        }
+                        openSheetFrame = null;
+                    });
                 }
 
                 function closeSheet() {
+                    if (openSheetFrame !== null) {
+                        window.cancelAnimationFrame(openSheetFrame);
+                        openSheetFrame = null;
+                    }
+
                     if (sheet) {
                         sheet.classList.remove('active');
                     }

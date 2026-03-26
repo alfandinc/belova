@@ -926,6 +926,66 @@
             font-size: 13px;
         }
 
+        .journal-request-loader {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 249, 246, 0.62);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.18s ease, visibility 0.18s ease;
+            z-index: 80;
+        }
+
+        .journal-request-loader.active {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .journal-request-card {
+            min-width: 168px;
+            padding: 16px 18px;
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            display: grid;
+            justify-items: center;
+            gap: 10px;
+        }
+
+        .journal-request-spinner {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            border: 3px solid rgba(255, 107, 138, 0.2);
+            border-top-color: #ff6b8a;
+            animation: journalSpin 0.7s linear infinite;
+        }
+
+        .journal-request-text {
+            font-size: 13px;
+            font-weight: 700;
+            color: #374151;
+            text-align: center;
+        }
+
+        body.journal-request-busy {
+            overflow: hidden;
+        }
+
+        @keyframes journalSpin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         @media (min-width: 768px) {
             .journal-shell {
                 max-width: 980px;
@@ -1548,6 +1608,12 @@
         </div>
     </div>
     @if($divisionName)
+        <div class="journal-request-loader" id="journalRequestLoader" aria-hidden="true">
+            <div class="journal-request-card">
+                <span class="journal-request-spinner" aria-hidden="true"></span>
+                <span class="journal-request-text" id="journalRequestText">Processing...</span>
+            </div>
+        </div>
         <div class="assign-overlay{{ $assignFormHasErrors ? ' active' : '' }}" id="assignOverlay"></div>
         <button type="button" class="assign-toggle-btn" id="assignToggleBtn">
             <i class="fas fa-plus"></i>
@@ -1658,6 +1724,39 @@
 @section('scripts')
     <script>
         (function () {
+            let isRequestPending = false;
+
+            function setBusyState(isBusy, message) {
+                const root = document.getElementById('divisionJournalRoot');
+                const loader = root ? root.querySelector('#journalRequestLoader') : null;
+                const text = root ? root.querySelector('#journalRequestText') : null;
+
+                document.body.classList.toggle('journal-request-busy', isBusy);
+
+                if (text && message) {
+                    text.textContent = message;
+                }
+
+                if (loader) {
+                    loader.classList.toggle('active', isBusy);
+                    loader.setAttribute('aria-hidden', isBusy ? 'false' : 'true');
+                }
+            }
+
+            function getRequestMessage(url, options) {
+                const method = String(options && options.method ? options.method : 'GET').toUpperCase();
+
+                if (method === 'GET') {
+                    return 'Loading...';
+                }
+
+                if (typeof url === 'string' && /daily-journal\/\d+\/report$/i.test(url)) {
+                    return 'Sending report...';
+                }
+
+                return 'Saving task...';
+            }
+
             async function replaceRootFromResponse(response) {
                 const html = await response.text();
                 const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -1689,6 +1788,13 @@
             }
 
             async function ajaxVisit(url, options) {
+                if (isRequestPending) {
+                    return;
+                }
+
+                isRequestPending = true;
+                setBusyState(true, getRequestMessage(url, options || {}));
+
                 try {
                     const response = await fetch(url, {
                         headers: {
@@ -1717,6 +1823,9 @@
                     } else {
                         window.location.reload();
                     }
+                } finally {
+                    isRequestPending = false;
+                    setBusyState(false);
                 }
             }
 
