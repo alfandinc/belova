@@ -1210,6 +1210,25 @@
                 padding: 0 10px;
             }
 
+            .report-button {
+                width: 32px;
+                min-width: 32px;
+                padding: 0;
+                gap: 0;
+            }
+
+            .report-button span,
+            .reported-badge span {
+                display: none;
+            }
+
+            .reported-badge {
+                width: 32px;
+                min-width: 32px;
+                padding: 0;
+                gap: 0;
+            }
+
             .header-stat {
                 min-width: 0;
                 padding: 10px 8px;
@@ -1517,7 +1536,7 @@
                                     </form>
                                 @else
                                     <span class="reported-badge">
-                                        <i class="fas fa-check-circle"></i>
+                                        <i class="fas fa-paper-plane"></i>
                                         <span>Reported</span>
                                     </span>
                                 @endif
