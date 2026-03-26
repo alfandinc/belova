@@ -388,7 +388,7 @@
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
-    .tile-pusatstatistik { background-color: #2758b6; } /* pusat statistik blue */
+    .tile-ceodashboard { background-color: #2758b6; }  /* CEO dashboard blue */
 
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
@@ -919,6 +919,7 @@
                 @php
                     // Allow access only to users with role 'Satusehat' or 'Admin'
                     $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;
+                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Admin'])) > 0;
                 @endphp
                 <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
                    @if(!$hasSatusehatAccess)
@@ -931,16 +932,16 @@
                     <div class="menu-title">SatuSehat</div>
                     <div class="menu-sub">Integrasi Data Kesehatan</div>
                 </a>
-                <a href="{{ $hasSatusehatAccess ? '/statistik' : '#' }}" class="menu-tile tile-pusatstatistik animate-item delay-20" id="pusatstatistik-tile" data-filter="pusat statistik analytics"
-                   @if(!$hasSatusehatAccess)
-                       onclick="showRoleWarning(event, 'Pusat Statistik')"
+                <a href="{{ $hasCeoDashboardAccess ? '/ceo-dashboard' : '#' }}" class="menu-tile tile-ceodashboard animate-item delay-20" id="ceodashboard-tile" data-filter="ceo dashboard executive analytics statistik"
+                   @if(!$hasCeoDashboardAccess)
+                       onclick="showRoleWarning(event, 'CEO Dashboard')"
                    @endif>
                     <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-chart-pie"></i></div>
-                        <div class="menu-badge">Stats</div>
+                        <div class="menu-icon"><i class="fas fa-user-tie"></i></div>
+                        <div class="menu-badge">CEO</div>
                     </div>
-                    <div class="menu-title">Pusat Statistik</div>
-                    <div class="menu-sub">Dashboard Statistik</div>
+                    <div class="menu-title">CEO Dashboard</div>
+                    <div class="menu-sub">Executive Summary & KPI</div>
                 </a>
                 </div>
             </div>

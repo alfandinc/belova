@@ -356,30 +356,34 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->middleware('auth')
     ->name('running.wa_preview');
 
-// Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
-Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
-    Route::get('/', [\App\Http\Controllers\PusatStatistikController::class, 'index'])
-        ->name('statistik.index');
-    // future statistik routes (e.g. reports) should go here, e.g.:
-    // Route::get('/reports', [PusatStatistikController::class, 'reports'])->name('statistik.reports');
-    // Statistik Dokter
-    Route::get('/dokter', [\App\Http\Controllers\PusatStatistikController::class, 'dokter'])->name('statistik.dokter.index');
-    Route::get('/dokter/{id}', [\App\Http\Controllers\PusatStatistikController::class, 'dokter'])->name('statistik.dokter.show');
+// CEO Dashboard - executive analytics module
+Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Admin'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\CeoDashboardController::class, 'index'])
+        ->name('index');
+    Route::get('/daily-tasks/reported', [\App\Http\Controllers\CeoDashboardController::class, 'reportedDailyTasks'])
+        ->name('daily-tasks.index');
+    // Future CEO Dashboard routes (e.g. reports) should go here, e.g.:
+    // Route::get('/reports', [CeoDashboardController::class, 'reports'])->name('reports');
+    // Doctor analytics
+    Route::get('/dokter', [\App\Http\Controllers\CeoDashboardController::class, 'dokter'])->name('dokter.index');
+    Route::get('/dokter/{id}', [\App\Http\Controllers\CeoDashboardController::class, 'dokter'])->name('dokter.show');
     // JSON endpoint used by AJAX to load dokter data without full page reload
-    Route::get('/dokter/{id}/data', [\App\Http\Controllers\PusatStatistikController::class, 'dokterData'])->name('statistik.dokter.data');
+    Route::get('/dokter/{id}/data', [\App\Http\Controllers\CeoDashboardController::class, 'dokterData'])->name('dokter.data');
     // Visitation statistics (JSON) for a dokter
-    Route::get('/dokter/{id}/visitation-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterVisitationStats'])->name('statistik.dokter.visits');
+    Route::get('/dokter/{id}/visitation-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterVisitationStats'])->name('dokter.visits');
     // Visitation breakdown (jenis kunjungan + recent rows)
-    Route::get('/dokter/{id}/visitation-breakdown', [\App\Http\Controllers\PusatStatistikController::class, 'dokterVisitationBreakdown'])->name('statistik.dokter.breakdown');
+    Route::get('/dokter/{id}/visitation-breakdown', [\App\Http\Controllers\CeoDashboardController::class, 'dokterVisitationBreakdown'])->name('dokter.breakdown');
     // Patient statistics for a dokter (total patients, gender, age buckets, status)
-    Route::get('/dokter/{id}/patient-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterPatientStats'])->name('statistik.dokter.patient_stats');
+    Route::get('/dokter/{id}/patient-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterPatientStats'])->name('dokter.patient_stats');
     // Top patients by visit count for a dokter
-    Route::get('/dokter/{id}/top-patients', [\App\Http\Controllers\PusatStatistikController::class, 'dokterTopPatients'])->name('statistik.dokter.top_patients');
+    Route::get('/dokter/{id}/top-patients', [\App\Http\Controllers\CeoDashboardController::class, 'dokterTopPatients'])->name('dokter.top_patients');
     // Retention / new vs returning patients summary
-    Route::get('/dokter/{id}/retention-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterRetentionStats'])->name('statistik.dokter.retention_stats');
-    Route::get('/dokter/{id}/tindakan-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterTindakanStats'])->name('statistik.dokter.tindakan_stats');
-    Route::get('/dokter/{id}/obat-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterObatStats'])->name('statistik.dokter.obat_stats');
-    Route::get('/dokter/{id}/lab-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterLabStats'])->name('statistik.dokter.lab_stats');
+    Route::get('/dokter/{id}/retention-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterRetentionStats'])->name('dokter.retention_stats');
+    Route::get('/dokter/{id}/tindakan-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterTindakanStats'])->name('dokter.tindakan_stats');
+    Route::get('/dokter/{id}/obat-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterObatStats'])->name('dokter.obat_stats');
+    Route::get('/dokter/{id}/lab-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterLabStats'])->name('dokter.lab_stats');
+    // Premiere Belova statistics (clinic id = 1)
+    Route::get('/premiere-belova', [\App\Http\Controllers\CeoDashboardController::class, 'premiereBelova'])->name('premiere_belova.index');
 });
 
 // SatuSehat dashboard (uses ERM layout with custom navbar)

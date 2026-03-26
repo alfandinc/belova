@@ -1,4 +1,4 @@
-<!-- Pusat Statistik Left Sidenav -->
+<!-- CEO Dashboard Left Sidenav -->
         <div class="left-sidenav ">
             <!-- LOGO -->
             @php
@@ -19,7 +19,7 @@
             @endphp
 
                 <div class="brand mt-3">
-                <a href="/statistik" class="logo">
+                <a href="/ceo-dashboard" class="logo">
                     <span>
                         <img src="{{ $lightLogo }}" alt="logo" class="logo-light" style="width: auto; height: {{ $logoHeight }};">
                         <img src="{{ $darkLogo }}" alt="logo" class="logo-dark" style="width: auto; height: {{ $logoHeight }};">
@@ -31,17 +31,25 @@
                 <ul class="metismenu left-sidenav-menu">
                     <!-- Dashboard -->
                     <li>
-                        <a href="{{ route('statistik.index') }}"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
+                        <a href="{{ route('ceo-dashboard.index') }}"><i data-feather="home" class="align-self-center menu-icon"></i><span>CEO Dashboard</span></a>
                     </li>
 
                     <!-- Statistik Dokter -->
                     <li>
-                        <a href="{{ route('statistik.dokter.index') }}"><i data-feather="user" class="align-self-center menu-icon"></i><span>Statistik Dokter</span></a>
+                        <a href="{{ route('ceo-dashboard.dokter.index') }}"><i data-feather="user" class="align-self-center menu-icon"></i><span>Statistik Dokter</span></a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('ceo-dashboard.daily-tasks.index') }}"><i data-feather="check-square" class="align-self-center menu-icon"></i><span>Daily Task Report</span></a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('ceo-dashboard.premiere_belova.index') }}"><i data-feather="award" class="align-self-center menu-icon"></i><span>Premiere Belova</span></a>
                     </li>
 
                     <!-- Reports (placeholder for future) -->
                     <li>
-                        <a href="/statistik/reports"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Reports</span></a>
+                        <a href="/ceo-dashboard/reports"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Reports</span></a>
                     </li>
 
                 </ul>

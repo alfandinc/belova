@@ -2,20 +2,129 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyJournalTask;
 use Illuminate\Http\Request;
+use Yajra\DataTables\Facades\DataTables;
 
-class PusatStatistikController extends Controller
+class CeoDashboardController extends Controller
 {
     /**
-     * Display the pusat statistik dashboard (blank placeholder).
+     * Display the CEO Dashboard landing page.
      */
     public function index(Request $request)
     {
-        return view('pusatstatistik.dashboard');
+        return view('ceodashboard.dashboard');
     }
 
     /**
-     * Show statistik dokter page. If id provided, show that dokter, otherwise first available.
+     * Show reported daily tasks for CEO review in a DataTable.
+     */
+    public function reportedDailyTasks(Request $request)
+    {
+        if ($request->ajax()) {
+            $query = DailyJournalTask::query()
+                ->with(['user.employee.division', 'fromUser'])
+                ->where('reported', true)
+                ->select('daily_journal_tasks.*');
+
+            // Apply date range filter (task_date) when provided
+            if ($request->filled('start') && $request->filled('end')) {
+                try {
+                    $start = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay()->toDateString();
+                    $end = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay()->toDateString();
+                    $query->whereBetween('task_date', [$start, $end]);
+                } catch (\Exception $e) {
+                    // ignore invalid date formats
+                }
+            }
+
+            // Apply division filter when provided
+            if ($request->filled('division_id')) {
+                $divisionId = $request->input('division_id');
+                $query->whereHas('user.employee.division', function ($q) use ($divisionId) {
+                    $q->where('id', $divisionId);
+                });
+            }
+
+            return DataTables::eloquent($query)
+                ->filter(function ($query) use ($request) {
+                    $search = trim((string) data_get($request->input('search'), 'value'));
+
+                    if ($search === '') {
+                        return;
+                    }
+
+                    $query->where(function ($builder) use ($search) {
+                        $builder
+                            ->where('title', 'like', "%{$search}%")
+                            ->orWhere('note', 'like', "%{$search}%")
+                            ->orWhere('status', 'like', "%{$search}%")
+                            ->orWhereHas('user', function ($userQuery) use ($search) {
+                                $userQuery
+                                    ->where('name', 'like', "%{$search}%")
+                                    ->orWhere('email', 'like', "%{$search}%");
+                            })
+                            ->orWhereHas('user.employee', function ($employeeQuery) use ($search) {
+                                $employeeQuery
+                                    ->where('nama', 'like', "%{$search}%")
+                                    ->orWhereHas('division', function ($divisionQuery) use ($search) {
+                                        $divisionQuery->where('name', 'like', "%{$search}%");
+                                    });
+                            })
+                            ->orWhereHas('fromUser', function ($fromUserQuery) use ($search) {
+                                $fromUserQuery->where('name', 'like', "%{$search}%");
+                            });
+                    });
+                }, true)
+                ->addColumn('employee_name', function (DailyJournalTask $task) {
+                    return optional($task->user->employee)->nama ?: optional($task->user)->name ?: '-';
+                })
+                ->addColumn('division_name', function (DailyJournalTask $task) {
+                    return optional(optional($task->user)->employee?->division)->name ?: '-';
+                })
+                ->addColumn('assigned_by', function (DailyJournalTask $task) {
+                    return optional($task->fromUser)->name ?: '-';
+                })
+                ->editColumn('task_date', function (DailyJournalTask $task) {
+                    return optional($task->task_date)->format('d M Y') ?: '-';
+                })
+                ->editColumn('deadline_date', function (DailyJournalTask $task) {
+                    return optional($task->deadline_date)->format('d M Y') ?: '-';
+                })
+                ->editColumn('scheduled_time', function (DailyJournalTask $task) {
+                    return $task->scheduled_time ? substr((string) $task->scheduled_time, 0, 5) : '-';
+                })
+                ->editColumn('status', function (DailyJournalTask $task) {
+                    $badgeClass = match ($task->status) {
+                        'done' => 'success',
+                        'in_progress' => 'warning',
+                        'skipped' => 'secondary',
+                        default => 'info',
+                    };
+
+                    $label = str_replace('_', ' ', ucfirst($task->status));
+
+                    return '<span class="badge badge-soft-' . $badgeClass . '">' . e($label) . '</span>';
+                })
+                ->addColumn('reported_badge', function (DailyJournalTask $task) {
+                    return $task->reported
+                        ? '<span class="badge badge-soft-success">True</span>'
+                        : '<span class="badge badge-soft-secondary">False</span>';
+                })
+                ->addColumn('updated_at_display', function (DailyJournalTask $task) {
+                    return optional($task->updated_at)->format('d M Y H:i') ?: '-';
+                })
+                ->rawColumns(['status', 'reported_badge'])
+                ->make(true);
+        }
+
+        // Provide divisions list for the filters
+        $divisions = \App\Models\HRD\Division::orderBy('name')->get(['id', 'name']);
+        return view('ceodashboard.reported-daily-tasks', compact('divisions'));
+    }
+
+    /**
+     * Show the doctor analytics page for the CEO Dashboard.
      */
     public function dokter(Request $request, $id = null)
     {
@@ -65,7 +174,69 @@ class PusatStatistikController extends Controller
         }
 
         $initialVisits = ['labels' => $initialLabels ?? [], 'series' => $initialSeries ?? []];
-        return view('statistik.dokter', compact('dokter','dokterList','initialVisits'));
+        return view('ceodashboard.dokter', compact('dokter','dokterList','initialVisits'));
+    }
+
+    /**
+     * Premiere Belova statistics (visits where klinik_id = 1)
+     */
+    public function premiereBelova(Request $request)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        $currentYear = (int) $now->format('Y');
+
+        // determine years parameter: numeric (2,5, etc) or 'all'
+        $yearsParam = $request->query('years', null);
+
+        // helper to build labels and series for given startYear..endYear
+        $buildSeries = function($startYear, $endYear) use ($currentYear) {
+            // labels: month full names
+            $labels = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $labels[] = \Illuminate\Support\Carbon::create($currentYear, $m, 1)->format('F');
+            }
+
+            $series = [];
+            for ($y = $startYear; $y <= $endYear; $y++) {
+                $rows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->selectRaw('MONTH(v.tanggal_visitation) as m, count(*) as total')
+                    ->where('v.klinik_id', 1)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereYear('v.tanggal_visitation', $y)
+                    ->groupBy('m')
+                    ->pluck('total', 'm')
+                    ->toArray();
+
+                $data = [];
+                for ($m = 1; $m <= 12; $m++) {
+                    $data[] = isset($rows[$m]) ? (int)$rows[$m] : 0;
+                }
+
+                $series[] = ['name' => (string) $y, 'data' => $data];
+            }
+
+            return ['labels' => $labels, 'series' => $series];
+        };
+
+        if ($yearsParam === 'all') {
+            // determine earliest year with visits
+            $minYear = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                ->where('klinik_id', 1)
+                ->where('status_kunjungan', 2)
+                ->min(\Illuminate\Support\Facades\DB::raw('YEAR(tanggal_visitation)'));
+            $minYear = $minYear ? (int)$minYear : ($currentYear - 4);
+            $initial = $buildSeries($minYear, $currentYear);
+        } else {
+            $n = is_null($yearsParam) ? 2 : ((int)$yearsParam ?: 2);
+            $startYear = $currentYear - ($n - 1);
+            $initial = $buildSeries($startYear, $currentYear);
+        }
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json($initial);
+        }
+
+        return view('ceodashboard.premiere-belova', compact('initial'));
     }
 
     /**

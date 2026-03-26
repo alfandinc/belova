@@ -1,9 +1,9 @@
 @extends('layouts.erm.app')
 
-@section('title', 'Statistik Dokter')
+@section('title', 'CEO Dashboard - Statistik Dokter')
 
 @section('navbar')
-    @include('layouts.pusatstatistik.navbar')
+    @include('layouts.ceodashboard.navbar')
 @endsection
 
 @section('content')
@@ -458,7 +458,7 @@
             qsParts.push('sort=' + encodeURIComponent(sortField));
             qsParts.push('dir=' + encodeURIComponent(sortDir));
             var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
-            fetch('/statistik/dokter/' + dokterId + '/top-patients' + qs)
+            fetch('/ceo-dashboard/dokter/' + dokterId + '/top-patients' + qs)
                 .then(function(res){ if (!res.ok) throw res; return res.json(); })
                 .then(function(payload){
                     if (!payload || !payload.ok) return;
@@ -561,7 +561,7 @@
                     }
                 }
 
-                fetch('/statistik/dokter/' + id + '/data')
+                fetch('/ceo-dashboard/dokter/' + id + '/data')
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (payload && payload.ok && payload.data) {
@@ -811,7 +811,7 @@
                 var qs = '';
                 if (start && end) qs = '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
                 else if (!start && !end) qs = '?all=1';
-                fetch('/statistik/dokter/' + dokterId + '/visitation-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/visitation-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(sdata){
                         if (!sdata || !sdata.ok) return;
@@ -826,7 +826,7 @@
                 var qs = '';
                 if (start && end) qs = '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
                 else if (!start && !end) qs = '?all=1';
-                fetch('/statistik/dokter/' + dokterId + '/visitation-breakdown' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/visitation-breakdown' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) return;
@@ -844,7 +844,7 @@
                 var qs = '';
                 if (start && end) qs = '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
                 else if (!start && !end) qs = '?all=1';
-                fetch('/statistik/dokter/' + dokterId + '/patient-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/patient-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(pdata){
                         if (!pdata || !pdata.ok) return;
@@ -901,7 +901,7 @@
                 var qs = '';
                 if (start && end) qs = '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
                 else if (!start && !end) qs = '?all=1';
-                fetch('/statistik/dokter/' + dokterId + '/retention-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/retention-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) return;
@@ -938,7 +938,7 @@
                 if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
                 else if (!start && !end) { qsParts.push('all=1'); }
                 var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
-                fetch('/statistik/dokter/' + dokterId + '/tindakan-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/tindakan-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) {
@@ -959,7 +959,7 @@
                 if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
                 else if (!start && !end) { qsParts.push('all=1'); }
                 var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
-                fetch('/statistik/dokter/' + dokterId + '/lab-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/lab-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) { renderLabTable([]); return; }
@@ -1013,7 +1013,7 @@
                 if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
                 else if (!start && !end) { qsParts.push('all=1'); }
                 var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
-                fetch('/statistik/dokter/' + dokterId + '/obat-stats' + qs)
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/obat-stats' + qs)
                     .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) { renderObatTable([]); return; }
