@@ -1452,7 +1452,7 @@ class StokOpnameController extends Controller
                             'ref_type' => 'stok_opname',
                             'ref_id' => $stokOpname->id,
                             'batch' => null,
-                            'keterangan' => "Stok opname tercatat (tidak ada perubahan) - stok saat ini: {$currentTotal}",
+                            'keterangan' => $this->buildStokOpnameKeterangan(null, $currentTotal, $targetTotal, 'tidak ada perubahan'),
                             'user_id' => auth()->id()
                         ]);
                         $updatedCount++;
@@ -1561,7 +1561,7 @@ class StokOpnameController extends Controller
                                     null,
                                     'stok_opname',
                                     $stokOpname->id,
-                                    "Adjustment Stok Opname {$opnameRef} - Surplus {$deltaBatch} (aggregated)"
+                                    $this->buildStokOpnameKeterangan($opnameRef, $current, $allocated, 'surplus ' . $this->formatStockNumber($deltaBatch) . ' (aggregated)')
                                 );
                             } elseif ($deltaBatch < 0) {
                                 $qtyToRemove = abs($deltaBatch);
@@ -1572,7 +1572,7 @@ class StokOpnameController extends Controller
                                     $b->batch,
                                     'stok_opname',
                                     $stokOpname->id,
-                                    "Adjustment Stok Opname {$opnameRef} - Shortage {$qtyToRemove} (aggregated)"
+                                    $this->buildStokOpnameKeterangan($opnameRef, $current, $allocated, 'shortage ' . $this->formatStockNumber($qtyToRemove) . ' (aggregated)')
                                 );
                             }
                         }
@@ -1593,7 +1593,7 @@ class StokOpnameController extends Controller
                                 $b->batch,
                                 'stok_opname',
                                 $stokOpname->id,
-                                "Adjustment Stok Opname {$opnameRef} - Shortage {$remQty} (aggregated)"
+                                $this->buildStokOpnameKeterangan($opnameRef, $available, $available - $remQty, 'shortage ' . $this->formatStockNumber($remQty) . ' (aggregated)')
                             );
                             $toRemove -= $remQty;
                         }
@@ -1624,7 +1624,7 @@ class StokOpnameController extends Controller
                         'ref_type' => 'stok_opname',
                         'ref_id' => $stokOpname->id,
                         'batch' => $stokGudang->batch,
-                        'keterangan' => "Stok opname tercatat (tidak ada perubahan) - stok saat ini: {$currentStock}",
+                        'keterangan' => $this->buildStokOpnameKeterangan(null, $currentStock, $targetStock, 'tidak ada perubahan'),
                         'user_id' => auth()->id()
                     ]);
                     $updatedCount++;
@@ -1648,7 +1648,7 @@ class StokOpnameController extends Controller
                         null,
                         'stok_opname',
                         $stokOpname->id,
-                        "Adjustment Stok Opname {$opnameRef} - Surplus {$delta}"
+                        $this->buildStokOpnameKeterangan($opnameRef, $currentStock, $targetStock, 'surplus ' . $this->formatStockNumber($delta))
                     );
                 } elseif ($delta < 0) {
                     // Need to remove stock (found less than current system)
@@ -1662,7 +1662,7 @@ class StokOpnameController extends Controller
                         $stokGudang->batch,
                         'stok_opname',
                         $stokOpname->id,
-                        "Adjustment Stok Opname {$opnameRef} - Shortage {$qtyToRemove}"
+                        $this->buildStokOpnameKeterangan($opnameRef, $currentStock, $targetStock, 'shortage ' . $this->formatStockNumber($qtyToRemove))
                     );
                 }
 
@@ -1686,5 +1686,32 @@ class StokOpnameController extends Controller
                 'message' => 'Failed to update stock: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    protected function buildStokOpnameKeterangan($opnameRef, $stokSebelum, $stokSetelah, $status = null)
+    {
+        $parts = [];
+
+        if ($opnameRef) {
+            $parts[] = 'Adjustment Stok Opname ' . $opnameRef;
+        } else {
+            $parts[] = 'Stok opname tercatat';
+        }
+
+        if ($status) {
+            $parts[] = $status;
+        }
+
+        $parts[] = 'stok sebelum: ' . $this->formatStockNumber($stokSebelum);
+        $parts[] = 'stok setelah opname: ' . $this->formatStockNumber($stokSetelah);
+
+        return implode(' - ', $parts);
+    }
+
+    protected function formatStockNumber($value)
+    {
+        $formatted = number_format((float) $value, 4, '.', '');
+
+        return rtrim(rtrim($formatted, '0'), '.');
     }
 }
