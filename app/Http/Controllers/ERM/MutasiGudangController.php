@@ -27,14 +27,17 @@ class MutasiGudangController extends Controller
 
         $query = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
             ->where('stok', '>', 0)
-            // Ensure related obat is active (status_aktif = 1)
             ->whereHas('obat', function($q) {
                 $q->where('status_aktif', 1);
             })
             ->with('obat');
         if ($search) {
             $query->whereHas('obat', function($q) use ($search) {
-                $q->where('nama', 'like', "%$search%");
+                $q->where('status_aktif', 1)
+                    ->where(function ($sub) use ($search) {
+                        $sub->where('nama', 'like', "%$search%")
+                            ->orWhere('kode_obat', 'like', "%$search%");
+                    });
             });
         }
         $stokList = $query->get();
@@ -42,6 +45,10 @@ class MutasiGudangController extends Controller
         // Group by obat_id, sum stok
         $grouped = [];
         foreach ($stokList as $stokGudang) {
+            if (!$stokGudang->obat || (int) ($stokGudang->obat->status_aktif ?? 0) !== 1) {
+                continue;
+            }
+
             $obatId = $stokGudang->obat_id;
             if (!isset($grouped[$obatId])) {
                 $grouped[$obatId] = [
@@ -608,12 +615,16 @@ class MutasiGudangController extends Controller
         
         try {
             // Ambil obat aktif yang tidak ada di stok gudang manapun
-            $query = Obat::whereDoesntHave('stokGudang')
+            $query = Obat::where('status_aktif', 1)
+                ->whereDoesntHave('stokGudang')
                 ->select('id', 'nama', 'satuan', 'kode_obat')
                 ->orderBy('nama');
             
             if ($search) {
-                $query->where('nama', 'like', "%$search%");
+                $query->where(function ($q) use ($search) {
+                    $q->where('nama', 'like', "%$search%")
+                        ->orWhere('kode_obat', 'like', "%$search%");
+                });
             }
             
             $obatList = $query->get();
