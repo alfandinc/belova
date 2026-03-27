@@ -59,6 +59,49 @@
             text-align: center;
             margin-bottom: 15px;
         }
+        .emotion-label {
+            color: #fff;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .emotion-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+        .emotion-option {
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.04);
+            color: #fff;
+            text-align: center;
+            padding: 10px 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .emotion-option:hover,
+        .emotion-option.active {
+            transform: translateY(-2px);
+            border-color: rgba(255,255,255,0.4);
+            background: rgba(255,255,255,0.12);
+        }
+        .emotion-emoji {
+            display: block;
+            font-size: 22px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .emotion-name {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        @media (max-width: 480px) {
+            .emotion-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
     </style>
 </head>
 <body>
@@ -81,6 +124,20 @@
             <div class="form-group mb-3">
                 <label for="password">Password</label>
                 <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="form-group mb-3">
+                <span class="emotion-label">How's your mood today?</span>
+                <div class="emotion-grid">
+                    @foreach(($emotionOptions ?? \App\Http\Controllers\AuthController::emotionCatalog()) as $key => $emotion)
+                        <button type="button"
+                                class="emotion-option {{ old('emotion') === $key ? 'active' : '' }}"
+                                data-emotion="{{ $key }}">
+                            <span class="emotion-emoji">{{ $emotion['emoji'] }}</span>
+                            <span class="emotion-name">{{ $emotion['label'] }}</span>
+                        </button>
+                    @endforeach
+                </div>
+                <input type="hidden" name="emotion" id="emotion_input" value="{{ old('emotion') }}">
             </div>
             <input type="hidden" name="clinic_choice" id="clinic_choice_input">
             <button type="submit" class="btn btn-login" id="login-btn" disabled>Login</button>
@@ -114,6 +171,12 @@
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
     <script>
     $(document).ready(function() {
+        function updateLoginButtonState() {
+            var clinicSelected = !!$('#clinic_choice_input').val();
+            var emotionSelected = !!$('#emotion_input').val();
+            $('#login-btn').prop('disabled', !(clinicSelected && emotionSelected));
+        }
+
         // Show modal on page load
         $('#clinicChoiceModal').modal({backdrop: 'static', keyboard: false});
         $('#clinicChoiceModal').modal('show');
@@ -141,11 +204,19 @@
                 $('#login-title').text('Login SIM Klinik Premiere Belova');
                 $('#login-container').removeClass('skin').addClass('premiere');
             }
-            // Enable login button
-            $('#login-btn').prop('disabled', false);
+            updateLoginButtonState();
             // Hide modal
             $('#clinicChoiceModal').modal('hide');
         }
+
+        $('.emotion-option').on('click', function() {
+            $('.emotion-option').removeClass('active');
+            $(this).addClass('active');
+            $('#emotion_input').val($(this).data('emotion'));
+            updateLoginButtonState();
+        });
+
+        updateLoginButtonState();
     });
     </script>
 </body>

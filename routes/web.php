@@ -103,7 +103,9 @@ use App\Http\Controllers\BukuMenuController;
 use App\Http\Controllers\DailyJournalController;
 Route::get('/', function () {
     if (!Auth::check()) {
-        return view('auth.main_login');
+        return view('auth.main_login', [
+            'emotionOptions' => AuthController::emotionCatalog(),
+        ]);
     }
     // Pass number of in-progress JobList items to the main menu for notification badge
     $user = Auth::user();
@@ -140,7 +142,11 @@ Route::get('/', function () {
                 })->count();
         }
     }
-    return view('mainmenu', compact('inProgressCount'));
+    $activeUserEmotions = AuthController::getActiveUserEmotions();
+    $emotionOptions = AuthController::emotionCatalog();
+    $currentUserEmotion = session('user_emotion', AuthController::DEFAULT_EMOTION);
+
+    return view('mainmenu', compact('inProgressCount', 'activeUserEmotions', 'emotionOptions', 'currentUserEmotion'));
 });
 
 // Different login pages (GET requests only)
@@ -160,6 +166,9 @@ Route::fallback(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+    Route::post('/user-emotions/heartbeat', [AuthController::class, 'heartbeatEmotion'])->name('user-emotions.heartbeat');
+    Route::post('/user-emotions/update', [AuthController::class, 'updateEmotion'])->name('user-emotions.update');
+
     // Buku Menu (accessible for all authenticated users)
     Route::get('/buku-menu', [BukuMenuController::class, 'index'])->name('buku-menu.index');
     Route::get('/buku-menu/data', [BukuMenuController::class, 'data'])->name('buku-menu.data');

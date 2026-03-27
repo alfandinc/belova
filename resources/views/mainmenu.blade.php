@@ -81,6 +81,218 @@
             align-items: center;
             gap: 12px;
         }
+
+        .topbar-middle {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 0 20px;
+            min-width: 0;
+        }
+
+        .emotion-board {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 4px;
+            max-width: 780px;
+        }
+
+        .emotion-avatar-item {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            flex: 0 0 auto;
+            z-index: 1;
+        }
+
+        .emotion-avatar-item:hover {
+            z-index: 6;
+        }
+
+        .emotion-avatar-item.is-current-user,
+        .clickable-avatar {
+            cursor: pointer;
+        }
+
+        .emotion-avatar-item.is-current-user .emotion-avatar,
+        .clickable-avatar {
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.14), 0 8px 20px rgba(0,0,0,0.22);
+        }
+
+        .emotion-chip-empty {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            color: var(--text-muted);
+            border: 1px dashed var(--border-color);
+        }
+
+        .emotion-avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.16);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+            background: rgba(255,255,255,0.08);
+        }
+
+        .emotion-avatar-item:hover .emotion-avatar {
+            box-shadow: 0 10px 22px rgba(0,0,0,0.28);
+        }
+
+        .emotion-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .emotion-avatar-fallback {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #64748b, #334155);
+        }
+
+        .emotion-badge {
+            position: absolute;
+            bottom: -4px;
+            right: -2px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            line-height: 1;
+            border: 2px solid var(--bg-topbar);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            transform-origin: center center;
+        }
+
+        .emotion-avatar-item:hover .emotion-badge {
+            transform: scale(1.6);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.34);
+        }
+
+        .emotion-avatar-tooltip {
+            position: absolute;
+            left: 50%;
+            bottom: -52px;
+            transform: translateX(-50%);
+            padding: 5px 10px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.94);
+            color: #fff;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.22);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .emotion-avatar-tooltip .name {
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .emotion-avatar-tooltip .mood {
+            font-size: 10px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.8);
+            line-height: 1.2;
+        }
+
+        .emotion-avatar-item:hover .emotion-avatar-tooltip {
+            opacity: 1;
+            transform: translateX(-50%) translateY(4px);
+        }
+
+        .emotion-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .emotion-picker-option {
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+            color: inherit;
+            padding: 12px 8px;
+            text-align: center;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .emotion-picker-option:hover,
+        .emotion-picker-option.active {
+            transform: translateY(-2px);
+            border-color: rgba(255,255,255,0.35);
+            background: rgba(255,255,255,0.12);
+        }
+
+        .emotion-picker-option.active {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+            background: rgba(37, 99, 235, 0.12);
+        }
+
+        .emotion-picker-option.active .label {
+            color: #2563eb;
+        }
+
+        .emotion-picker-selected {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .emotion-picker-selected .emoji {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .emotion-picker-option .emoji {
+            display: block;
+            font-size: 24px;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .emotion-picker-option .label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+        }
         
         .date-display {
             color: var(--text-color);
@@ -481,6 +693,32 @@
             .date-display .date-compact { display: block; }
         }
 
+        @media (max-width: 992px) {
+            .topbar {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .topbar-middle {
+                order: 3;
+                width: 100%;
+                justify-content: flex-start;
+                padding: 0;
+            }
+
+            .emotion-board {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                padding-bottom: 2px;
+            }
+
+            .emotion-picker-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
         /* Hide the centered topbar greeting on very small screens to avoid overlap */
         @media (max-width: 480px) {
             .topbar-center { display: none; }
@@ -542,6 +780,31 @@
                     }
                 @endphp
                 <img src="{{ asset($logoDark) }}" data-logo-dark="{{ asset($logoDark) }}" data-logo-light="{{ asset($logoLight) }}" alt="Belova Logo" id="logo-image">
+            </div>
+            <div class="topbar-middle">
+                <div class="emotion-board" id="user-emotion-board">
+                    @php
+                        $emotionItems = $activeUserEmotions ?? [];
+                    @endphp
+                    @forelse($emotionItems as $emotionItem)
+                        <span class="emotion-avatar-item {{ (($emotionItem['user_id'] ?? null) === Auth::id()) ? 'is-current-user js-open-emotion-picker' : '' }}" data-user-id="{{ $emotionItem['user_id'] ?? '' }}">
+                            <span class="emotion-avatar">
+                                @if(!empty($emotionItem['avatar_url']))
+                                    <img src="{{ $emotionItem['avatar_url'] }}" alt="{{ $emotionItem['name'] ?? 'User' }}">
+                                @else
+                                    <span class="emotion-avatar-fallback">{{ $emotionItem['initials'] ?? 'U' }}</span>
+                                @endif
+                            </span>
+                            <span class="emotion-badge" style="background: {{ $emotionItem['color'] ?? '#475569' }};">{{ $emotionItem['emoji'] ?? '🙂' }}</span>
+                            <span class="emotion-avatar-tooltip">
+                                <span class="name">{{ $emotionItem['name'] ?? 'User' }}</span>
+                                <span class="mood">{{ $emotionItem['label'] ?? 'Calm' }}</span>
+                            </span>
+                        </span>
+                    @empty
+                        <span class="emotion-chip-empty">Belum ada user emotion aktif</span>
+                    @endforelse
+                </div>
             </div>
             {{-- <div class="topbar-center" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:600; color:var(--text-color); white-space:nowrap;">
                 Hello, {{ Auth::user()->name ?? '' }}
@@ -611,11 +874,11 @@
                         @endphp
 
                         @if(!empty($photoUrl))
-                            <div class="avatar" title="{{ Auth::user()->name ?? '' }}">
+                            <div class="avatar clickable-avatar js-open-emotion-picker" title="Klik untuk ganti mood">
                                 <img src="{{ $photoUrl }}" alt="{{ Auth::user()->name ?? '' }}" />
                             </div>
                         @else
-                            <div class="avatar-initials" title="{{ Auth::user()->name ?? '' }}">
+                            <div class="avatar-initials clickable-avatar js-open-emotion-picker" title="Klik untuk ganti mood">
                                 {{ $initials ?: 'U' }}
                             </div>
                         @endif
@@ -946,6 +1209,38 @@
                 </div>
             </div>
             </div>
+            <div class="modal fade" id="emotionPickerModal" tabindex="-1" role="dialog" aria-labelledby="emotionPickerModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="emotionPickerModalLabel">Ganti Mood</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Pilih mood terbaru untuk ditampilkan di topbar.</p>
+                            <div class="emotion-picker-selected" id="emotion-picker-selected">
+                                <span class="emoji">😌</span>
+                                <span class="text">Mood terpilih: Calm</span>
+                            </div>
+                            <div class="emotion-picker-grid" id="emotion-picker-grid">
+                                @foreach(($emotionOptions ?? []) as $emotionKey => $emotionOption)
+                                    <button type="button" class="emotion-picker-option {{ ($currentUserEmotion ?? 'calm') === $emotionKey ? 'active' : '' }}" data-emotion="{{ $emotionKey }}" data-label="{{ $emotionOption['label'] }}" data-emoji="{{ $emotionOption['emoji'] }}">
+                                        <span class="emoji">{{ $emotionOption['emoji'] }}</span>
+                                        <span class="label">{{ $emotionOption['label'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                            <input type="hidden" id="selected-emotion-input" value="{{ $currentUserEmotion ?? 'calm' }}">
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                            <button type="button" class="btn btn-primary" id="save-emotion-btn">Simpan Mood</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Jadwal Modal -->
                         <!-- Jadwal Improved Modal -->
                                     <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
@@ -1150,6 +1445,115 @@
     </script>
     <script>
     $(document).ready(function() {
+        var currentUserId = {{ (int) Auth::id() }};
+        var currentUserEmotion = @json($currentUserEmotion ?? 'calm');
+        var emotionCatalog = @json($emotionOptions ?? []);
+
+        function renderEmotionBoard(items) {
+            var $board = $('#user-emotion-board');
+            if (!$board.length) {
+                return;
+            }
+
+            if (!Array.isArray(items) || items.length === 0) {
+                $board.html('<span class="emotion-chip-empty">Belum ada user emotion aktif</span>');
+                return;
+            }
+
+            var html = items.map(function(item) {
+                var color = item.color || '#475569';
+                var emoji = item.emoji || '🙂';
+                var name = item.name || 'User';
+                var label = item.label || 'Calm';
+                var avatarUrl = item.avatar_url || '';
+                var initials = item.initials || 'U';
+                var isCurrentUser = Number(item.user_id || 0) === currentUserId;
+                var avatarHtml = avatarUrl
+                    ? '<img src="' + avatarUrl + '" alt="' + name + '">' 
+                    : '<span class="emotion-avatar-fallback">' + initials + '</span>';
+                return '<span class="emotion-avatar-item ' + (isCurrentUser ? 'is-current-user js-open-emotion-picker' : '') + '" data-user-id="' + (item.user_id || '') + '">'
+                    + '<span class="emotion-avatar">' + avatarHtml + '</span>'
+                    + '<span class="emotion-badge" style="background:' + color + ';">' + emoji + '</span>'
+                        + '<span class="emotion-avatar-tooltip">'
+                        + '<span class="name">' + labelSafe(name) + '</span>'
+                        + '<span class="mood">' + labelSafe(label) + '</span>'
+                        + '</span>'
+                    + '</span>';
+            }).join('');
+
+            $board.html(html);
+        }
+
+        function heartbeatUserEmotions() {
+            $.ajax({
+                url: '{{ route('user-emotions.heartbeat') }}',
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(response) {
+                    renderEmotionBoard(response.data || []);
+                }
+            });
+        }
+
+        function labelSafe(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function setSelectedEmotion(emotion) {
+            currentUserEmotion = emotion;
+            $('#selected-emotion-input').val(emotion);
+            $('.emotion-picker-option').removeClass('active');
+            $('.emotion-picker-option[data-emotion="' + emotion + '"]').addClass('active');
+
+            var emotionMeta = emotionCatalog[emotion] || emotionCatalog.calm || { label: 'Calm', emoji: '😌' };
+            $('#emotion-picker-selected .emoji').text(emotionMeta.emoji || '😌');
+            $('#emotion-picker-selected .text').text('Mood terpilih: ' + (emotionMeta.label || 'Calm'));
+        }
+
+        $(document).on('click', '.js-open-emotion-picker', function() {
+            setSelectedEmotion(currentUserEmotion || $('#selected-emotion-input').val() || 'calm');
+            $('#emotionPickerModal').modal('show');
+        });
+
+        $(document).on('click', '.emotion-picker-option', function() {
+            setSelectedEmotion($(this).data('emotion'));
+        });
+
+        $('#save-emotion-btn').on('click', function() {
+            var $button = $(this);
+            var emotion = $('#selected-emotion-input').val() || 'calm';
+
+            $button.prop('disabled', true).text('Menyimpan...');
+
+            $.ajax({
+                url: '{{ route('user-emotions.update') }}',
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    emotion: emotion
+                },
+                success: function(response) {
+                    currentUserEmotion = emotion;
+                    renderEmotionBoard(response.data || []);
+                    $('#emotionPickerModal').modal('hide');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).text('Simpan Mood');
+                }
+            });
+        });
+
+        renderEmotionBoard(@json($activeUserEmotions ?? []));
+        heartbeatUserEmotions();
+        setInterval(heartbeatUserEmotions, 60000);
+
         // Helper to render all pages of a PDF and download each as PNG
         async function renderAndDownloadPdfPages(url, baseFilename, canvasElement) {
             try {
