@@ -734,12 +734,6 @@ class StokGudangController extends Controller {
             ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan')
             ->havingRaw('SUM(' . $table . '.stok) < COALESCE(MIN(' . $table . '.min_stok), 0)');
 
-        // Optional: still allow filtering by gudang_id but stock aggregation remains across all gudang
-        if ($request->gudang_id) {
-            // if gudang_id is passed, include only rows from that gudang when computing totals
-            $query->where($table . '.gudang_id', $request->gudang_id);
-        }
-
         if ($request->hide_inactive == 1) {
             $query->where('o.status_aktif', 1);
         }
@@ -774,10 +768,36 @@ class StokGudangController extends Controller {
             ->addColumn('min_stok', function ($row) {
                 return number_format((float)$row->min_stok, 2, ',', '.');
             })
+            ->addColumn('detail_stok_gudang', function ($row) use ($request) {
+                $detailRows = ObatStokGudang::with('gudang')
+                    ->select('gudang_id', DB::raw('SUM(stok) as total_stok'))
+                    ->where('obat_id', $row->obat_id)
+                    ->groupBy('gudang_id')
+                    ->orderBy('gudang_id')
+                    ->get();
+
+                if ($detailRows->isEmpty()) {
+                    return '<span class="text-muted">Tidak ada detail gudang</span>';
+                }
+
+                $unit = isset($row->obat_satuan) && $row->obat_satuan
+                    ? (function_exists('mb_strtolower') ? mb_strtolower($row->obat_satuan) : strtolower($row->obat_satuan))
+                    : '';
+
+                $html = '<div class="small">';
+                foreach ($detailRows as $detail) {
+                    $gudangName = $detail->gudang ? e($detail->gudang->nama) : ('Gudang #' . $detail->gudang_id);
+                    $qty = number_format((float) $detail->total_stok, 2, ',', '.');
+                    $html .= '<div><strong>' . $gudangName . ':</strong> ' . $qty . ($unit ? ' ' . e($unit) : '') . '</div>';
+                }
+                $html .= '</div>';
+
+                return $html;
+            })
             ->addColumn('gudang', function ($row) {
                 return 'Semua Gudang';
             })
-            ->rawColumns(['nama_obat'])
+            ->rawColumns(['nama_obat', 'detail_stok_gudang'])
             ->make(true);
     }
 
@@ -797,10 +817,6 @@ class StokGudangController extends Controller {
             )
             ->groupBy($table . '.obat_id')
             ->havingRaw('SUM(' . $table . '.stok) < COALESCE(MIN(' . $table . '.min_stok), 0)');
-
-        if ($request->gudang_id) {
-            $query->where($table . '.gudang_id', $request->gudang_id);
-        }
 
         if ($request->hide_inactive == 1) {
             $query->where('o.status_aktif', 1);

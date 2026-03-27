@@ -266,6 +266,7 @@
                                             <th>Nama Obat</th>
                                             <th>Stok</th>
                                             <th>Min Stok</th>
+                                            <th>Detail Stok per Gudang</th>
                                         </tr>
                                     </thead>
                                 </table>
@@ -479,12 +480,11 @@ $(document).ready(function() {
 
     // Update low-stock count badge
     function updateLowStockCount() {
-        var gudangId = $('#filter_gudang').val();
         var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
         $.ajax({
             url: '{{ route("erm.stok-gudang.low-stock.count") }}',
             type: 'GET',
-            data: { gudang_id: gudangId, hide_inactive: hideInactive },
+            data: { hide_inactive: hideInactive },
             success: function(res) {
                 var count = res && res.count ? parseInt(res.count) : 0;
                 if (count > 0) {
@@ -1062,14 +1062,14 @@ $(document).ready(function() {
             ajax: {
                 url: '{{ route("erm.stok-gudang.low-stock") }}',
                 data: function(d) {
-                    d.gudang_id = $('#filter_gudang').val();
                     d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
                 }
             },
             columns: [
                 { data: 'nama_obat', name: 'nama_obat', orderable: false },
                 { data: 'total_stok', name: 'total_stok', orderable: false },
-                { data: 'min_stok', name: 'min_stok', orderable: false }
+                { data: 'min_stok', name: 'min_stok', orderable: false },
+                { data: 'detail_stok_gudang', name: 'detail_stok_gudang', orderable: false, searchable: false }
             ],
             order: [[0, 'asc']],
             pageLength: 25,
