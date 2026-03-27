@@ -53,6 +53,7 @@
                     $clinicId = $shift->dokter->klinik_id ?? '';
                     $jamMulai = $shift->jam_mulai ?? '';
                     $jamSelesai = $shift->jam_selesai ?? '';
+                    $doctorColor = $shift->color_hex ?? ($doctorColorMap[$dokterId] ?? '#64B5F6');
                   @endphp
                     <tr class="doctor-draggable"
                       draggable="true"
@@ -60,9 +61,10 @@
                       data-dokter-id="{{ $dokterId }}"
                       data-dokter-name="{{ $dokterName }}"
                       data-clinic-id="{{ $clinicId }}"
+                      data-color-hex="{{ $doctorColor }}"
                       data-jam-mulai="{{ $jamMulai }}"
                       data-jam-selesai="{{ $jamSelesai }}">
-                    <td class="align-middle"><span class="doctor-name-sidebar">{{ $dokterName }}</span></td>
+                    <td class="align-middle"><span class="doctor-color-dot" style="background: {{ $doctorColor }};"></span><span class="doctor-name-sidebar">{{ $dokterName }}</span></td>
                     <td class="align-middle text-muted small">{{ $jamMulai }}{{ ($jamMulai || $jamSelesai) ? ' - ' : '' }}{{ $jamSelesai }}</td>
                   </tr>
                 @endforeach
@@ -100,6 +102,11 @@
                     <div class="form-group">
                       <label>Jam Selesai</label>
                       <input type="time" name="jam_selesai" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                      <label>Warna Dokter</label>
+                      <input type="color" name="color_hex" id="addColorHex" class="form-control" value="#64B5F6" style="height: 44px;">
+                      <small class="text-muted">Warna ini dipakai di jadwal dokter dan modul jadwal di mainmenu.</small>
                     </div>
                   </div>
                   <div class="modal-footer">
@@ -229,14 +236,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.doctor-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1px solid rgba(0,0,0,0.15);
+}
 .doctor-card {
   margin-bottom: 0.5rem;
   box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   border-radius: 0.5rem;
-  border: 1px solid #1976d2;
-  /* background: #fff; */
+  border: 1px solid var(--doctor-card-accent, #1976d2);
+  background: var(--doctor-card-tint, rgba(25, 118, 210, 0.08));
   padding: 0.5rem 0.7rem 0.2rem 0.7rem;
   position: relative;
+  color: inherit;
 }
 .schedule-draggable {
   cursor: pointer;
@@ -308,7 +325,7 @@
 .doctor-name {
   font-weight: 600;
   font-size: 1.05em;
-  /* color: #343a40; */
+  color: inherit;
   margin-bottom: 2px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -318,7 +335,8 @@
 }
 .doctor-time {
   font-size: 0.95em;
-  color: #6c757d;
+  color: inherit;
+  opacity: 0.85;
   display: block;
 }
 </style>
@@ -328,6 +346,7 @@
 <script>
 $(document).ready(function() {
   window.__isDraggingSchedule = false;
+  window.__doctorColorMap = @json($doctorColorMap ?? []);
 
   $('#printScheduleBtn').on('click', function() {
     var month = $('#monthPicker').val();
@@ -540,6 +559,7 @@ $(document).ready(function() {
     $('#addDokterId').val('');
     $('#addShiftForm input[name="jam_mulai"]').val('');
     $('#addShiftForm input[name="jam_selesai"]').val('');
+    $('#addColorHex').val('#64B5F6');
     $('#addShiftModal .modal-title').text('Tambah Shift Dokter');
     $('#addShiftModal button[type="submit"]').text('Simpan');
     $('#addShiftModal').modal('show');
@@ -554,10 +574,12 @@ $(document).ready(function() {
     var dokterId = row.attr('data-dokter-id') || '';
     var jamMulai = row.attr('data-jam-mulai') || '';
     var jamSelesai = row.attr('data-jam-selesai') || '';
+    var colorHex = row.attr('data-color-hex') || '#64B5F6';
     $('#addShiftId').val(shiftId);
     $('#addDokterId').val(dokterId);
     $('#addShiftForm input[name="jam_mulai"]').val(jamMulai);
     $('#addShiftForm input[name="jam_selesai"]').val(jamSelesai);
+    $('#addColorHex').val(colorHex);
     $('#addShiftModal .modal-title').text(shiftId ? 'Edit Shift Dokter' : 'Tambah Shift Dokter');
     $('#addShiftModal button[type="submit"]').text(shiftId ? 'Simpan Perubahan' : 'Simpan');
     $('#addShiftModal').modal('show');
@@ -584,9 +606,11 @@ $(document).ready(function() {
           var dokterName = (dokter.user && dokter.user.name) ? dokter.user.name : (dokter.name || dokterId);
           var jamMulai = s.jam_mulai || '';
           var jamSelesai = s.jam_selesai || '';
+          var colorHex = s.color_hex || '#64B5F6';
+          window.__doctorColorMap[String(dokterId)] = colorHex;
           var rowSelector = '#availableDoctorsTable tbody tr[data-dokter-id="' + dokterId + '"]';
-          var rowHtml = '<tr class="doctor-draggable" draggable="true" data-shift-id="' + (s.id || '') + '" data-dokter-id="' + dokterId + '" data-dokter-name="' + dokterName + '" data-clinic-id="" data-jam-mulai="' + jamMulai + '" data-jam-selesai="' + jamSelesai + '">'
-            + '<td class="align-middle"><span class="doctor-name-sidebar">' + dokterName + '</span></td>'
+          var rowHtml = '<tr class="doctor-draggable" draggable="true" data-shift-id="' + (s.id || '') + '" data-dokter-id="' + dokterId + '" data-dokter-name="' + dokterName + '" data-clinic-id="" data-color-hex="' + colorHex + '" data-jam-mulai="' + jamMulai + '" data-jam-selesai="' + jamSelesai + '">'
+            + '<td class="align-middle"><span class="doctor-color-dot" style="background:' + colorHex + ';"></span><span class="doctor-name-sidebar">' + dokterName + '</span></td>'
             + '<td class="align-middle text-muted small">' + jamMulai + (jamMulai || jamSelesai ? ' - ' : '') + jamSelesai + '</td>'
             + '</tr>';
           if ($(rowSelector).length) {
@@ -679,6 +703,10 @@ function getDaysInMonth(year, month) {
 
 // return a consistent vibrant color per dokter id
 function colorForDokter(dokterId) {
+  var customColor = (window.__doctorColorMap || {})[String(dokterId)];
+  if (customColor) {
+    return customColor;
+  }
   const palette = [
     '#ffffff',
     '#FFD54F',
@@ -693,6 +721,18 @@ function colorForDokter(dokterId) {
   let id = parseInt(dokterId);
   if (isNaN(id) || id < 1) return palette[0];
   return palette[(id % (palette.length - 1)) + 1];
+}
+
+function hexToRgba(hexColor, alpha) {
+  var hex = String(hexColor || '').replace('#', '');
+  if (hex.length !== 6) {
+    return 'rgba(25, 118, 210, ' + alpha + ')';
+  }
+
+  var red = parseInt(hex.substring(0, 2), 16);
+  var green = parseInt(hex.substring(2, 4), 16);
+  var blue = parseInt(hex.substring(4, 6), 16);
+  return 'rgba(' + red + ', ' + green + ', ' + blue + ', ' + alpha + ')';
 }
 
 function renderCalendar(month) {
@@ -715,8 +755,10 @@ function renderCalendar(month) {
         let nama = j.dokter ? j.dokter.user?.name : '-';
         let jamMulai = j.jam_mulai ? j.jam_mulai : '';
         let jamSelesai = j.jam_selesai ? j.jam_selesai : '';
+        let doctorColor = j.doctor_color || colorForDokter(j.dokter_id);
+        let doctorTint = hexToRgba(doctorColor, 0.12);
         return `<div class='card doctor-card shadow-sm mb-2 schedule-draggable'
-          style='background-color: ${colorForDokter(j.dokter_id)}; border-color: ${colorForDokter(j.dokter_id)}; color: #222; background-image: none;'
+          style='--doctor-card-accent: ${doctorColor}; --doctor-card-tint: ${doctorTint}; background-image: none;'
             draggable='true'
             data-schedule-id='${j.id}'
             data-dokter-id='${j.dokter_id || ''}'

@@ -12,6 +12,7 @@ class ShiftDokter extends Model
         'dokter_id',
         'jam_mulai',
         'jam_selesai',
+        'color_hex',
     ];
 
     public function dokter()

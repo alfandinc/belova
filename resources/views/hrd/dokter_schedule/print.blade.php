@@ -107,30 +107,20 @@
         @endif
     </div>
     @php
-        // Build a map of dokter_id => color. Use a deterministic palette so colors are stable between runs.
-        $palette = [
-            '#e3f2fd', // light blue
-            '#fce4ec', // pink
-            '#e8f5e9', // light green
-            '#fff3e0', // light orange
-            '#ede7f6', // light purple
-            '#f3e5f5', // lavender
-            '#e0f7fa', // cyan
-            '#fffde7', // yellow
-            '#fbe9e7', // salmon
-            '#f9fbe7', // lime
-        ];
-        $paletteText = [
-            '#1565c0', '#ad1457', '#2e7d32', '#ef6c00', '#5e35b1', '#6a1b9a', '#00796b', '#f9a825', '#d84315', '#827717'
-        ];
-        $doctorColors = [];
-        $allDoctors = $schedules->map(function($s){ return $s->dokter; })->filter()->unique('id')->values();
-        foreach($allDoctors as $i => $dokter){
-            $id = $dokter->id ?? $i;
-            $color = $palette[$i % count($palette)];
-            $text = $paletteText[$i % count($paletteText)];
-            $doctorColors[$id] = ['bg' => $color, 'text' => $text];
-        }
+        $resolvedDoctorColors = $doctorColors ?? [];
+        $textColorForBackground = function ($hexColor) {
+            $hex = ltrim((string) $hexColor, '#');
+            if (strlen($hex) !== 6) {
+                return '#222';
+            }
+
+            $red = hexdec(substr($hex, 0, 2));
+            $green = hexdec(substr($hex, 2, 2));
+            $blue = hexdec(substr($hex, 4, 2));
+            $brightness = (($red * 299) + ($green * 587) + ($blue * 114)) / 1000;
+
+            return $brightness >= 160 ? '#222' : '#fff';
+        };
     @endphp
     <table class="calendar-table">
         <thead>
@@ -168,14 +158,15 @@
                     if($count === 1){
                         $j = $entries[0];
                         $doc = $j->dokter;
-                        $c = $doctorColors[$doc->id] ?? ['bg' => '#e3f2fd','text'=>'#1565c0'];
-                        $tdStyle = "background: {$c['bg']};";
-                        $dayTextColor = $c['text'];
+                        $bg = $resolvedDoctorColors[$doc->id] ?? '#64B5F6';
+                        $text = $textColorForBackground($bg);
+                        $tdStyle = "background: {$bg};";
+                        $dayTextColor = $text;
                     } elseif($count > 1) {
                         $stops = [];
                         foreach($entries as $idx => $entry){
                             $doc = $entry->dokter;
-                            $col = $doctorColors[$doc->id]['bg'] ?? '#e3f2fd';
+                            $col = $resolvedDoctorColors[$doc->id] ?? '#64B5F6';
                             $start = intval($idx / $count * 100);
                             $end = intval((($idx + 1) / $count) * 100);
                             $stops[] = "$col $start% $end%";
@@ -184,18 +175,18 @@
                         $tdStyle = "background: {$gradient};";
                         // Use first doctor's text color for labels
                         $firstDoc = $entries[0]->dokter;
-                        $dayTextColor = $doctorColors[$firstDoc->id]['text'] ?? '#222';
+                        $dayTextColor = $textColorForBackground($resolvedDoctorColors[$firstDoc->id] ?? '#64B5F6');
                     }
                 @endphp
                 <td style="{{ $tdStyle }}">
                     <div class="calendar-day-number" style="color: {{ $dayTextColor }};">{{ $d }}</div>
                     <div class="doctor-list">
                         @if($count === 1)
-                            @php $j = $entries[0]; $doc = $j->dokter; $c = $doctorColors[$doc->id] ?? ['bg' => '#e3f2fd','text'=>'#1565c0']; @endphp
-                            <div class="doctor-entry" style="background: transparent; color: {{ $c['text'] }}; border-radius:6px; box-shadow:none; padding:0;">
+                            @php $j = $entries[0]; $doc = $j->dokter; $bg = $resolvedDoctorColors[$doc->id] ?? '#64B5F6'; $text = $textColorForBackground($bg); @endphp
+                            <div class="doctor-entry" style="background: transparent; color: {{ $text }}; border-radius:6px; box-shadow:none; padding:0;">
                                 <div style="padding:6px 0 0 0;">
-                                    <div class="doctor-name" style="color: {{ $c['text'] }};">{{ $j->dokter->user->name ?? '-' }}</div>
-                                    <div class="doctor-time" style="color: {{ $c['text'] }};">{{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
+                                    <div class="doctor-name" style="color: {{ $text }};">{{ $j->dokter->user->name ?? '-' }}</div>
+                                    <div class="doctor-time" style="color: {{ $text }};">{{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
                                 </div>
                             </div>
                         @elseif($count > 1)
@@ -205,8 +196,8 @@
                             <div class="doctor-entry" style="background: transparent; box-shadow:none; padding:0; border-radius:6px;">
                                 <div style="width:100%; padding:6px; border-radius:6px; background: transparent;">
                                     @foreach($entries as $j)
-                                        @php $doc = $j->dokter; $c = $doctorColors[$doc->id] ?? ['text'=>'#1565c0']; @endphp
-                                        <div style="color: {{ $c['text'] }}; padding:4px 6px;">{{ $j->dokter->user->name ?? '-' }} — {{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
+                                        @php $doc = $j->dokter; $text = $textColorForBackground($resolvedDoctorColors[$doc->id] ?? '#64B5F6'); @endphp
+                                        <div style="color: {{ $text }}; padding:4px 6px;">{{ $j->dokter->user->name ?? '-' }} — {{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
                                     @endforeach
                                 </div>
                             </div>
