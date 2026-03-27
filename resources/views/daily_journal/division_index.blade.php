@@ -1583,7 +1583,7 @@
                             </div>
 
                             <div class="task-action-cell">
-                                @if(!$task->reported)
+                                @if($canAssignTasks && !$task->reported)
                                     <form method="POST" action="{{ route('daily-journal.report', $task) }}" class="report-form">
                                         @csrf
                                         <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
@@ -1597,7 +1597,7 @@
                                             <span>Report</span>
                                         </button>
                                     </form>
-                                @else
+                                @elseif($task->reported)
                                     <span class="reported-badge">
                                         <i class="fas fa-paper-plane"></i>
                                         <span>Reported</span>
@@ -1617,6 +1617,7 @@
                 <span class="journal-request-text" id="journalRequestText">Processing...</span>
             </div>
         </div>
+        @if($canAssignTasks)
         <div class="assign-overlay{{ $assignFormHasErrors ? ' active' : '' }}" id="assignOverlay"></div>
         <button type="button" class="assign-toggle-btn" id="assignToggleBtn">
             <i class="fas fa-plus"></i>
@@ -1720,6 +1721,7 @@
                 <button type="submit" class="submit-button">Give Task</button>
             </form>
         </div>
+        @endif
     @endif
     </div>
 @endsection
@@ -1895,7 +1897,7 @@
                             cancelButtonText: 'Batal',
                             reverseButtons: true
                         }).then(function (result) {
-                            if (!result.value) {
+                            if (!(result.isConfirmed || result.value)) {
                                 return;
                             }
 

@@ -169,7 +169,7 @@ Route::middleware(['auth'])->group(function () {
     // Daily Journal (accessible for all authenticated users)
     Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
     Route::get('/daily-journal/division', [DailyJournalController::class, 'divisionIndex'])
-        ->middleware('role:Manager')
+        ->middleware('role:Manager|Hrd|Admin')
         ->name('daily-journal.division.index');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
     Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');

@@ -87,7 +87,11 @@ class DailyJournalController extends Controller
 
     public function divisionIndex(Request $request): View
     {
-        abort_unless(Auth::user()?->hasRole('Manager'), 403);
+        $actor = Auth::user();
+        $canAssignTasks = $actor?->hasRole('Manager');
+        $canViewAllTasks = $actor?->hasRole('Hrd') || $actor?->hasRole('Admin');
+
+        abort_unless($canAssignTasks || $canViewAllTasks, 403);
 
         $selectedDate = $this->resolveSelectedDate($request->query('date'));
         $filter = in_array($request->query('filter'), self::FILTERS, true) ? $request->query('filter') : 'today';
@@ -100,9 +104,10 @@ class DailyJournalController extends Controller
         });
         [$rangeStart, $rangeEnd] = $this->resolveDateRange($request, $selectedDate, $filter);
 
-        $manager = Auth::user();
-        $divisionId = optional($manager->employee)->division_id;
-        $divisionName = optional(optional($manager->employee)->division)->name;
+        $divisionId = optional($actor->employee)->division_id;
+        $divisionName = $canViewAllTasks
+            ? 'All Divisions'
+            : optional(optional($actor->employee)->division)->name;
 
         $divisionMembers = collect();
         $selectedUserId = null;
@@ -115,13 +120,16 @@ class DailyJournalController extends Controller
             'skipped' => 0,
         ];
 
-        if ($divisionId) {
+        if ($canViewAllTasks || $divisionId) {
             $divisionMembers = Employee::query()
-                ->where('division_id', $divisionId)
+                ->when(!$canViewAllTasks, function ($query) use ($divisionId) {
+                    $query->where('division_id', $divisionId);
+                })
                 ->whereNotNull('user_id')
                 ->with('user:id,name')
                 ->get()
                 ->filter(fn (Employee $employee) => $employee->user !== null)
+                ->unique('user_id')
                 ->sortBy(fn (Employee $employee) => strtolower($employee->user->name))
                 ->values();
 
@@ -129,46 +137,47 @@ class DailyJournalController extends Controller
             $requestedUserId = (int) $request->query('user_id', 0);
             $selectedUserId = $memberUserIds->contains($requestedUserId) ? $requestedUserId : null;
 
-            if ($memberUserIds->isNotEmpty()) {
-                $tasksQuery = DailyJournalTask::query()
-                    ->with([
-                        'user:id,name',
-                        'fromUser:id,name',
-                        'fromUser.employee:id,user_id,photo',
-                    ])
-                    ->whereIn('user_id', $memberUserIds->all())
-                    ->where(function ($query) use ($rangeStart, $rangeEnd) {
-                        $query->whereBetween('task_date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
-                            ->orWhere(function ($deadlineQuery) {
-                                $deadlineQuery->whereNotNull('deadline_date')
-                                    ->where('status', '!=', 'done');
-                            });
-                    });
+            $tasksQuery = DailyJournalTask::query()
+                ->with([
+                    'user:id,name',
+                    'user.employee:id,user_id,photo',
+                    'fromUser:id,name',
+                    'fromUser.employee:id,user_id,photo',
+                ])
+                ->when(!$canViewAllTasks, function ($query) use ($memberUserIds) {
+                    $query->whereIn('user_id', $memberUserIds->all());
+                })
+                ->where(function ($query) use ($rangeStart, $rangeEnd) {
+                    $query->whereBetween('task_date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                        ->orWhere(function ($deadlineQuery) {
+                            $deadlineQuery->whereNotNull('deadline_date')
+                                ->where('status', '!=', 'done');
+                        });
+                });
 
-                if ($selectedUserId) {
-                    $tasksQuery->where('user_id', $selectedUserId);
-                }
-
-                $totalCount = (clone $tasksQuery)->count();
-
-                $statusCounts = [
-                    'todo' => (clone $tasksQuery)->where('status', 'todo')->count(),
-                    'in_progress' => (clone $tasksQuery)->where('status', 'in_progress')->count(),
-                    'done' => (clone $tasksQuery)->where('status', 'done')->count(),
-                    'skipped' => (clone $tasksQuery)->where('status', 'skipped')->count(),
-                ];
-
-                if ($selectedStatus) {
-                    $tasksQuery->where('status', $selectedStatus);
-                }
-
-                $tasks = $tasksQuery
-                    ->orderByDesc('task_date')
-                    ->orderByRaw('CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END')
-                    ->orderBy('scheduled_time')
-                    ->orderByDesc('id')
-                    ->get();
+            if ($selectedUserId) {
+                $tasksQuery->where('user_id', $selectedUserId);
             }
+
+            $totalCount = (clone $tasksQuery)->count();
+
+            $statusCounts = [
+                'todo' => (clone $tasksQuery)->where('status', 'todo')->count(),
+                'in_progress' => (clone $tasksQuery)->where('status', 'in_progress')->count(),
+                'done' => (clone $tasksQuery)->where('status', 'done')->count(),
+                'skipped' => (clone $tasksQuery)->where('status', 'skipped')->count(),
+            ];
+
+            if ($selectedStatus) {
+                $tasksQuery->where('status', $selectedStatus);
+            }
+
+            $tasks = $tasksQuery
+                ->orderByDesc('task_date')
+                ->orderByRaw('CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('scheduled_time')
+                ->orderByDesc('id')
+                ->get();
         }
 
         return view('daily_journal.division_index', [
@@ -188,6 +197,7 @@ class DailyJournalController extends Controller
             'divisionMembers' => $divisionMembers,
             'selectedUserId' => $selectedUserId,
             'divisionName' => $divisionName,
+            'canAssignTasks' => $canAssignTasks,
         ]);
     }
 
@@ -266,7 +276,10 @@ class DailyJournalController extends Controller
 
         $validated = $request->validate([
             'status' => [$request->exists('status') ? 'required' : 'nullable', Rule::in(DailyJournalTask::STATUSES)],
+            'title' => [$request->exists('title') ? 'required' : 'nullable', 'string', 'max:120'],
             'note' => ['nullable', 'string', 'max:180'],
+            'icon' => ['nullable', 'string', 'max:16'],
+            'color_theme' => [$request->exists('color_theme') ? 'required' : 'nullable', Rule::in(DailyJournalTask::THEMES)],
         ]);
 
         $updates = [];
@@ -277,9 +290,24 @@ class DailyJournalController extends Controller
             $successMessage = 'Status task berhasil diperbarui.';
         }
 
+        if ($request->exists('title')) {
+            $updates['title'] = $validated['title'];
+            $successMessage = 'Task berhasil diperbarui.';
+        }
+
         if ($request->exists('note')) {
             $updates['note'] = $validated['note'] ?? null;
-            $successMessage = 'Catatan task berhasil diperbarui.';
+            $successMessage = 'Task berhasil diperbarui.';
+        }
+
+        if ($request->exists('icon')) {
+            $updates['icon'] = $validated['icon'] ?: '📝';
+            $successMessage = 'Task berhasil diperbarui.';
+        }
+
+        if ($request->exists('color_theme')) {
+            $updates['color_theme'] = $validated['color_theme'];
+            $successMessage = 'Task berhasil diperbarui.';
         }
 
         abort_if($updates === [], 422);

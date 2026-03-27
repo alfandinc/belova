@@ -296,77 +296,7 @@
             box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
             overflow: visible;
             transition: box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
-        }
-
-        .task-card.is-deletable {
-            cursor: grab;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        .task-card.is-deletable:active {
-            cursor: grabbing;
-        }
-
-        .task-card.is-dragging {
-            position: fixed;
-            margin: 0;
-            z-index: 60;
-            pointer-events: none;
-            transform: rotate(2deg) scale(0.98);
-            box-shadow: 0 24px 44px rgba(15, 23, 42, 0.2);
-        }
-
-        .task-card-placeholder {
-            border-radius: 22px;
-        }
-
-        body.task-delete-dragging {
-            overflow: hidden;
-            user-select: none;
-        }
-
-        .drag-trash-zone {
-            position: fixed;
-            left: 50%;
-            bottom: 96px;
-            width: 92px;
-            height: 92px;
-            border-radius: 28px;
-            background: linear-gradient(135deg, #ff7a7a, #e03131);
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            box-shadow: 0 18px 34px rgba(224, 49, 49, 0.28);
-            transform: translate(-50%, 18px) scale(0.92);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-            z-index: 50;
-        }
-
-        .drag-trash-zone.active {
-            opacity: 1;
-            transform: translate(-50%, 0) scale(1);
-        }
-
-        .drag-trash-zone.is-over {
-            transform: translate(-50%, -4px) scale(1.08);
-            box-shadow: 0 22px 42px rgba(224, 49, 49, 0.36);
-        }
-
-        .drag-trash-zone i {
-            font-size: 28px;
-        }
-
-        .drag-trash-zone span {
-            font-size: 11px;
-            font-weight: 700;
-            line-height: 1;
+            cursor: pointer;
         }
 
         .assigned-manager-badge {
@@ -897,6 +827,33 @@
             box-shadow: 0 14px 32px rgba(255, 107, 138, 0.24);
         }
 
+        .sheet-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .sheet-actions.is-single {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .sheet-actions.is-single .submit-button {
+            width: auto;
+            min-width: 168px;
+        }
+
+        .delete-button {
+            border: 0;
+            border-radius: 18px;
+            padding: 14px 16px;
+            background: linear-gradient(135deg, #fb7185, #ef4444);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+            box-shadow: 0 14px 32px rgba(239, 68, 68, 0.22);
+        }
+
         .back-link {
             display: inline-flex;
             align-items: center;
@@ -1215,12 +1172,14 @@
                                 && $task->status !== 'done';
                         @endphp
                         <article
-                            class="task-card js-note-card theme-{{ $task->color_theme }} {{ $task->status !== 'done' ? 'is-deletable' : '' }}"
-                            data-note-form-id="note-task-{{ $task->id }}"
+                            class="task-card js-note-card theme-{{ $task->color_theme }}"
+                            data-task-id="{{ $task->id }}"
                             data-task-title="{{ $task->title }}"
-                            @if($task->status !== 'done')
-                                data-delete-form-id="delete-task-{{ $task->id }}"
-                            @endif
+                            data-task-icon="{{ $task->icon ?: '📝' }}"
+                            data-task-note="{{ $task->note ?? '' }}"
+                            data-task-status="{{ $task->status }}"
+                            data-edit-url="{{ route('daily-journal.update', $task) }}"
+                            data-delete-form-id="delete-task-{{ $task->id }}"
                         >
                             @if($task->fromUser)
                                 @php
@@ -1297,16 +1256,14 @@
                                 </div>
                             </div>
 
-                            @if($task->status !== 'done')
-                                <form method="POST" action="{{ route('daily-journal.destroy', $task) }}" class="delete-task-form" id="delete-task-{{ $task->id }}" data-task-title="{{ $task->title }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
-                                    <input type="hidden" name="filter" value="{{ $filter }}">
-                                    <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
-                                    <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
-                                </form>
-                            @endif
+                            <form method="POST" action="{{ route('daily-journal.destroy', $task) }}" class="delete-task-form" id="delete-task-{{ $task->id }}" data-task-title="{{ $task->title }}">
+                                @csrf
+                                @method('DELETE')
+                                <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
+                                <input type="hidden" name="filter" value="{{ $filter }}">
+                                <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
+                                <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
+                            </form>
 
                             <form method="POST" action="{{ route('daily-journal.update', $task) }}" class="note-task-form" id="note-task-{{ $task->id }}">
                                 @csrf
@@ -1315,7 +1272,10 @@
                                 <input type="hidden" name="filter" value="{{ $filter }}">
                                 <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
                                 <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
+                                <input type="hidden" name="title" value="{{ $task->title }}">
                                 <input type="hidden" name="note" value="{{ $task->note ?? '' }}">
+                                <input type="hidden" name="icon" value="{{ $task->icon ?: '📝' }}">
+                                <input type="hidden" name="color_theme" value="{{ $task->color_theme }}">
                             </form>
                         </article>
                     @endforeach
@@ -1327,11 +1287,6 @@
                 <span>Kembali ke Main Menu</span>
             </a> --}}
         </div>
-    </div>
-
-    <div class="drag-trash-zone" id="dragTrashZone" aria-hidden="true">
-        <i class="fas fa-trash-alt"></i>
-        <span>Drop Here</span>
     </div>
 
     <button type="button" class="open-composer js-open-composer" aria-label="Open add task form">
@@ -1424,6 +1379,57 @@
             </div>
 
             <button type="submit" class="submit-button">Simpan Task</button>
+        </form>
+    </div>
+
+    <div class="composer-sheet" id="editTaskSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <h3 class="sheet-title">Edit Task</h3>
+            <button type="button" class="close-sheet" id="closeEditTask">×</button>
+        </div>
+
+        <form method="POST" action="" class="journal-form" id="editTaskForm">
+            @csrf
+            @method('PATCH')
+            <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
+            <input type="hidden" name="filter" value="{{ $filter }}">
+            <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
+            <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
+
+            <div class="form-row">
+                <div>
+                    <label class="form-label" for="edit_task_icon">Emoji</label>
+                    <input type="text" id="edit_task_icon" name="icon" class="journal-input" placeholder="📝" maxlength="16">
+                </div>
+                <div>
+                    <label class="form-label">Warna Card</label>
+                    <input type="hidden" name="color_theme" value="rose" id="editThemeInput">
+                    <div class="theme-grid">
+                        @foreach(['rose', 'lavender', 'mint', 'sky', 'peach'] as $theme)
+                            <label class="theme-option">
+                                <input type="radio" name="edit_theme_picker" value="{{ $theme }}">
+                                <span class="theme-preview {{ $theme }}"></span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="form-label" for="edit_task_title">Nama Task</label>
+                <input type="text" id="edit_task_title" name="title" class="journal-input" maxlength="120" required>
+            </div>
+
+            <div>
+                <label class="form-label" for="edit_task_note">Catatan Ringkas</label>
+                <textarea id="edit_task_note" name="note" class="journal-textarea" placeholder="Jam, target, atau detail kecil lainnya"></textarea>
+            </div>
+
+            <div class="sheet-actions">
+                <button type="button" class="delete-button" id="deleteTaskFromSheet">Hapus Task</button>
+                <button type="submit" class="submit-button">Simpan Task</button>
+            </div>
         </form>
     </div>
     </div>
@@ -1547,322 +1553,52 @@
                 }
             }
 
-            function bindAjaxInteractions(root) {
-                function requestDelete(form) {
-                    const message = 'Task yang dihapus tidak bisa dikembalikan.';
-
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Hapus task?',
-                            text: message,
-                            showCancelButton: true,
-                            confirmButtonText: 'Ya, hapus',
-                            cancelButtonText: 'Batal',
-                            reverseButtons: true
-                        }).then(function (result) {
-                            if (result.value) {
-                                ajaxVisit(form.action, {
-                                    method: 'POST',
-                                    body: new FormData(form)
-                                });
-                            }
-                        });
-
-                        return;
-                    }
-
-                    if (window.confirm(message)) {
-                        ajaxVisit(form.action, {
-                            method: 'POST',
-                            body: new FormData(form)
-                        });
-                    }
+            function requestDelete(form) {
+                if (!form || !form.action) {
+                    return;
                 }
 
-                function bindDragDelete() {
-                    const trashZone = root.querySelector('#dragTrashZone');
+                const message = 'Task yang dihapus tidak bisa dikembalikan.';
 
-                    if (!trashZone || !window.PointerEvent) {
-                        return;
-                    }
-
-                    let pendingPress = null;
-                    let activeDrag = null;
-
-                    function clearPendingPress() {
-                        if (!pendingPress) {
-                            return;
-                        }
-
-                        if (pendingPress.captureOwner && typeof pendingPress.captureOwner.releasePointerCapture === 'function') {
-                            try {
-                                pendingPress.captureOwner.releasePointerCapture(pendingPress.pointerId);
-                            } catch (error) {
-                            }
-                        }
-
-                        window.clearTimeout(pendingPress.timer);
-                        window.removeEventListener('pointermove', pendingPress.onMove);
-                        window.removeEventListener('pointerup', pendingPress.onEnd);
-                        window.removeEventListener('pointercancel', pendingPress.onEnd);
-                        pendingPress = null;
-                    }
-
-                    function resetDragState() {
-                        if (!activeDrag) {
-                            return;
-                        }
-
-                        window.removeEventListener('pointermove', activeDrag.onMove);
-                        window.removeEventListener('pointerup', activeDrag.onEnd);
-                        window.removeEventListener('pointercancel', activeDrag.onEnd);
-
-                        activeDrag.card.classList.remove('is-dragging');
-                        activeDrag.card.style.left = '';
-                        activeDrag.card.style.top = '';
-                        activeDrag.card.style.width = '';
-
-                        if (activeDrag.captureOwner && typeof activeDrag.captureOwner.releasePointerCapture === 'function') {
-                            try {
-                                activeDrag.captureOwner.releasePointerCapture(activeDrag.pointerId);
-                            } catch (error) {
-                            }
-                        }
-
-                        if (activeDrag.placeholder && activeDrag.placeholder.parentNode) {
-                            activeDrag.placeholder.parentNode.removeChild(activeDrag.placeholder);
-                        }
-
-                        document.body.classList.remove('task-delete-dragging');
-                        trashZone.classList.remove('active', 'is-over');
-                        root.dataset.suppressNoteClickUntil = String(Date.now() + 250);
-                        activeDrag = null;
-                    }
-
-                    function isPointerOverTrash(clientX, clientY) {
-                        const rect = trashZone.getBoundingClientRect();
-
-                        return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
-                    }
-
-                    function updateDragPosition(clientX, clientY) {
-                        if (!activeDrag) {
-                            return;
-                        }
-
-                        activeDrag.card.style.left = (clientX - activeDrag.offsetX) + 'px';
-                        activeDrag.card.style.top = (clientY - activeDrag.offsetY) + 'px';
-                        trashZone.classList.toggle('is-over', isPointerOverTrash(clientX, clientY));
-                    }
-
-                    function startDrag(card, pointerId, clientX, clientY) {
-                        const formId = card.dataset.deleteFormId;
-                        const form = formId ? root.querySelector('#' + formId) : null;
-
-                        if (!form) {
-                            clearPendingPress();
-                            return;
-                        }
-
-                        const rect = card.getBoundingClientRect();
-                        const placeholder = document.createElement('div');
-                        placeholder.className = 'task-card-placeholder';
-                        placeholder.style.height = rect.height + 'px';
-
-                        card.insertAdjacentElement('afterend', placeholder);
-                        card.classList.add('is-dragging');
-                        card.style.width = rect.width + 'px';
-                        card.style.left = rect.left + 'px';
-                        card.style.top = rect.top + 'px';
-
-                        document.body.classList.add('task-delete-dragging');
-                        trashZone.classList.add('active');
-
-                        const onMove = function (event) {
-                            if (!activeDrag || event.pointerId !== activeDrag.pointerId) {
-                                return;
-                            }
-
-                            event.preventDefault();
-                            updateDragPosition(event.clientX, event.clientY);
-                        };
-
-                        const onEnd = function (event) {
-                            if (!activeDrag || event.pointerId !== activeDrag.pointerId) {
-                                return;
-                            }
-
-                            const shouldDelete = isPointerOverTrash(event.clientX, event.clientY);
-                            const deleteForm = activeDrag.form;
-
-                            resetDragState();
-
-                            if (shouldDelete) {
-                                requestDelete(deleteForm);
-                            }
-                        };
-
-                        activeDrag = {
-                            card: card,
-                            form: form,
-                            placeholder: placeholder,
-                            captureOwner: card,
-                            pointerId: pointerId,
-                            offsetX: clientX - rect.left,
-                            offsetY: clientY - rect.top,
-                            onMove: onMove,
-                            onEnd: onEnd
-                        };
-
-                        clearPendingPress();
-                        window.addEventListener('pointermove', onMove, { passive: false });
-                        window.addEventListener('pointerup', onEnd);
-                        window.addEventListener('pointercancel', onEnd);
-                        updateDragPosition(clientX, clientY);
-                    }
-
-                    root.querySelectorAll('.task-card.is-deletable').forEach(function (card) {
-                        card.addEventListener('pointerdown', function (event) {
-                            if (event.button !== undefined && event.button !== 0) {
-                                return;
-                            }
-
-                            if (event.target.closest('select, input, textarea, button, a, label')) {
-                                return;
-                            }
-
-                            clearPendingPress();
-
-                            const pointerId = event.pointerId;
-                            const startX = event.clientX;
-                            const startY = event.clientY;
-
-                            if (typeof card.setPointerCapture === 'function') {
-                                try {
-                                    card.setPointerCapture(pointerId);
-                                } catch (error) {
-                                }
-                            }
-
-                            const onMove = function (moveEvent) {
-                                if (!pendingPress || moveEvent.pointerId !== pendingPress.pointerId) {
-                                    return;
-                                }
-
-                                if (Math.abs(moveEvent.clientX - pendingPress.startX) > 10 || Math.abs(moveEvent.clientY - pendingPress.startY) > 10) {
-                                    clearPendingPress();
-                                }
-                            };
-
-                            const onEnd = function (endEvent) {
-                                if (!pendingPress || endEvent.pointerId !== pendingPress.pointerId) {
-                                    return;
-                                }
-
-                                clearPendingPress();
-                            };
-
-                            pendingPress = {
-                                card: card,
-                                captureOwner: card,
-                                pointerId: pointerId,
-                                startX: startX,
-                                startY: startY,
-                                onMove: onMove,
-                                onEnd: onEnd,
-                                timer: window.setTimeout(function () {
-                                    if (!pendingPress || pendingPress.pointerId !== pointerId) {
-                                        return;
-                                    }
-
-                                    startDrag(card, pointerId, startX, startY);
-                                }, 180)
-                            };
-
-                            window.addEventListener('pointermove', onMove, { passive: true });
-                            window.addEventListener('pointerup', onEnd);
-                            window.addEventListener('pointercancel', onEnd);
-                        });
-                    });
-                }
-
-                function bindNoteEditing() {
-                    root.querySelectorAll('.js-note-card').forEach(function (card) {
-                        card.addEventListener('click', function (event) {
-                            if (Date.now() < Number(root.dataset.suppressNoteClickUntil || 0)) {
-                                return;
-                            }
-
-                            if (event.target.closest('select, input, textarea, button, a, label, .assigned-manager-badge')) {
-                                return;
-                            }
-
-                            const formId = card.dataset.noteFormId;
-                            const form = formId ? root.querySelector('#' + formId) : null;
-
-                            if (!form) {
-                                return;
-                            }
-
-                            const noteInput = form.querySelector('input[name="note"]');
-                            const initialValue = noteInput ? noteInput.value : '';
-                            const taskTitle = card.dataset.taskTitle || 'Task';
-
-                            if (typeof Swal !== 'undefined') {
-                                Swal.fire({
-                                    title: 'Edit note',
-                                    text: taskTitle,
-                                    input: 'textarea',
-                                    inputValue: initialValue,
-                                    inputAttributes: {
-                                        maxlength: '180',
-                                        autocapitalize: 'off'
-                                    },
-                                    inputPlaceholder: 'Tulis catatan task',
-                                    showCancelButton: true,
-                                    confirmButtonText: 'Simpan',
-                                    cancelButtonText: 'Batal',
-                                    reverseButtons: true,
-                                    inputValidator: function (value) {
-                                        if (value && value.length > 180) {
-                                            return 'Catatan maksimal 180 karakter.';
-                                        }
-
-                                        return null;
-                                    }
-                                }).then(function (result) {
-                                    if (!result.value) {
-                                        return;
-                                    }
-
-                                    if (noteInput) {
-                                        noteInput.value = result.value;
-                                    }
-
-                                    ajaxVisit(form.action, {
-                                        method: 'POST',
-                                        body: new FormData(form)
-                                    });
-                                });
-
-                                return;
-                            }
-
-                            const updatedNote = window.prompt('Edit note', initialValue);
-
-                            if (updatedNote === null) {
-                                return;
-                            }
-
-                            if (noteInput) {
-                                noteInput.value = updatedNote;
-                            }
-
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Hapus task?',
+                        text: message,
+                        showCancelButton: true,
+                        confirmButtonText: 'Ya, hapus',
+                        cancelButtonText: 'Batal',
+                        reverseButtons: true
+                    }).then(function (result) {
+                        if (result.isConfirmed || result.value) {
                             ajaxVisit(form.action, {
                                 method: 'POST',
                                 body: new FormData(form)
                             });
+                        }
+                    });
+
+                    return;
+                }
+
+                if (window.confirm(message)) {
+                    ajaxVisit(form.action, {
+                        method: 'POST',
+                        body: new FormData(form)
+                    });
+                }
+            }
+
+            function bindAjaxInteractions(root, openEditSheet) {
+
+                function bindTaskEditing(openEditSheet) {
+                    root.querySelectorAll('.js-note-card').forEach(function (card) {
+                        card.addEventListener('click', function (event) {
+                            if (event.target.closest('select, input, textarea, button, a, label, .assigned-manager-badge')) {
+                                return;
+                            }
+
+                            openEditSheet(card);
                         });
                     });
                 }
@@ -1914,8 +1650,7 @@
                     });
                 });
 
-                bindDragDelete();
-                bindNoteEditing();
+                bindTaskEditing(openEditSheet);
             }
 
             window.initMyDailyJournalAjax = function () {
@@ -1926,18 +1661,33 @@
                 }
 
                 const sheet = root.querySelector('#composerSheet');
+                const editSheet = root.querySelector('#editTaskSheet');
                 const overlay = root.querySelector('#composerOverlay');
                 const openButtons = root.querySelectorAll('.js-open-composer');
                 const closeButton = root.querySelector('#closeComposer');
+                const closeEditButton = root.querySelector('#closeEditTask');
                 const themeInput = root.querySelector('#selectedThemeInput');
                 const themeRadios = root.querySelectorAll('input[name="theme_picker"]');
                 const filterToggleBtn = root.querySelector('#filterToggleBtn');
                 const filterPanel = root.querySelector('#filterPanel');
+                const editForm = root.querySelector('#editTaskForm');
+                const editTitleInput = root.querySelector('#edit_task_title');
+                const editNoteInput = root.querySelector('#edit_task_note');
+                const editIconInput = root.querySelector('#edit_task_icon');
+                const editThemeInput = root.querySelector('#editThemeInput');
+                const editThemeRadios = root.querySelectorAll('input[name="edit_theme_picker"]');
+                const deleteTaskFromSheet = root.querySelector('#deleteTaskFromSheet');
+                const editSheetActions = root.querySelector('#editTaskSheet .sheet-actions');
                 let openSheetFrame = null;
+                let activeDeleteForm = null;
 
                 function openSheet() {
                     if (filterPanel) {
                         filterPanel.classList.remove('active');
+                    }
+
+                    if (editSheet) {
+                        editSheet.classList.remove('active');
                     }
 
                     if (openSheetFrame !== null) {
@@ -1969,6 +1719,63 @@
                     }
                 }
 
+                function openEditSheet(card) {
+                    const formId = 'note-task-' + card.dataset.taskId;
+                    const form = formId ? root.querySelector('#' + formId) : null;
+
+                    if (!editSheet || !editForm || !editTitleInput || !editNoteInput || !editIconInput || !form) {
+                        return;
+                    }
+
+                    if (sheet) {
+                        sheet.classList.remove('active');
+                    }
+
+                    activeDeleteForm = card.dataset.deleteFormId ? root.querySelector('#' + card.dataset.deleteFormId) : null;
+                    editForm.action = form.action;
+                    editTitleInput.value = form.querySelector('input[name="title"]')?.value || card.dataset.taskTitle || '';
+                    editNoteInput.value = form.querySelector('input[name="note"]')?.value || card.dataset.taskNote || '';
+                    editIconInput.value = form.querySelector('input[name="icon"]')?.value || card.dataset.taskIcon || '📝';
+
+                    const currentTheme = form.querySelector('input[name="color_theme"]')?.value || 'rose';
+                    const canDeleteTask = card.dataset.taskStatus === 'todo';
+                    if (editThemeInput) {
+                        editThemeInput.value = currentTheme;
+                    }
+                    editThemeRadios.forEach(function (radio) {
+                        radio.checked = radio.value === currentTheme;
+                    });
+
+                    if (deleteTaskFromSheet) {
+                        deleteTaskFromSheet.hidden = !canDeleteTask;
+                        deleteTaskFromSheet.disabled = !canDeleteTask || !activeDeleteForm;
+                    }
+
+                    if (editSheetActions) {
+                        editSheetActions.classList.toggle('is-single', !canDeleteTask);
+                    }
+
+                    if (overlay) {
+                        overlay.classList.add('active');
+                    }
+
+                    window.requestAnimationFrame(function () {
+                        editSheet.classList.add('active');
+                    });
+                }
+
+                function closeEditSheet() {
+                    if (editSheet) {
+                        editSheet.classList.remove('active');
+                    }
+
+                    activeDeleteForm = null;
+
+                    if (overlay && !(sheet && sheet.classList.contains('active'))) {
+                        overlay.classList.remove('active');
+                    }
+                }
+
                 openButtons.forEach(function (button) {
                     button.addEventListener('click', openSheet);
                 });
@@ -1977,8 +1784,25 @@
                     closeButton.addEventListener('click', closeSheet);
                 }
 
+                if (closeEditButton) {
+                    closeEditButton.addEventListener('click', closeEditSheet);
+                }
+
                 if (overlay) {
-                    overlay.addEventListener('click', closeSheet);
+                    overlay.addEventListener('click', function () {
+                        closeSheet();
+                        closeEditSheet();
+                    });
+                }
+
+                if (deleteTaskFromSheet) {
+                    deleteTaskFromSheet.addEventListener('click', function () {
+                        if (activeDeleteForm) {
+                            const deleteForm = activeDeleteForm;
+                            closeEditSheet();
+                            requestDelete(deleteForm);
+                        }
+                    });
                 }
 
                 if (filterToggleBtn && filterPanel) {
@@ -1995,11 +1819,19 @@
                     });
                 });
 
+                editThemeRadios.forEach(function (radio) {
+                    radio.addEventListener('change', function () {
+                        if (editThemeInput) {
+                            editThemeInput.value = this.value;
+                        }
+                    });
+                });
+
                 if (sheet && sheet.classList.contains('active') && overlay) {
                     overlay.classList.add('active');
                 }
 
-                bindAjaxInteractions(root);
+                bindAjaxInteractions(root, openEditSheet);
 
                 if (root.dataset.success) {
                     Swal.fire({
