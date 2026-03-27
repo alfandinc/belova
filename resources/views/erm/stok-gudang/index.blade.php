@@ -584,42 +584,37 @@ $(document).ready(function() {
 
     
 
-    // Handle batch details button click
-    $(document).on('click', '.show-batch-details', function() {
-        var obatId = $(this).data('obat-id');
-        var gudangId = $(this).data('gudang-id');
-        
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.batch-details") }}',
-            type: 'GET',
-            data: {
-                obat_id: obatId,
-                gudang_id: gudangId
-            },
-            success: function(response) {
-                $('#batchDetailsTitle').text('Detail Batch - ' + response.obat + ' (' + response.gudang + ')');
-                
-                var tableHtml = '<div class="table-responsive">';
-                tableHtml += '<table class="table table-bordered" id="batch-table">';
-                tableHtml += '<thead>';
-                tableHtml += '<tr>';
-                tableHtml += '<th width="20%">Batch</th>';
-                tableHtml += '<th width="20%">Stok</th>';
-                tableHtml += '<th width="20%">Tanggal Expired</th>';
-                tableHtml += '<th width="20%">Status</th>';
-                tableHtml += '<th width="20%">Aksi</th>';
-                tableHtml += '</tr>';
-                tableHtml += '</thead>';
-                tableHtml += '<tbody>';
-                
-                response.data.forEach(function(item, index) {
+
+        function renderBatchDetailsTable(response, showAll) {
+            var allItems = Array.isArray(response.data) ? response.data : [];
+            var positiveItems = allItems.filter(function(item) {
+                return parseFloat(item.stok || 0) > 0;
+            });
+            var itemsToShow = showAll ? allItems : positiveItems.slice(0, 5);
+            var hiddenCount = allItems.length - itemsToShow.length;
+
+            var tableHtml = '<div class="table-responsive">';
+            tableHtml += '<table class="table table-bordered" id="batch-table">';
+            tableHtml += '<thead>';
+            tableHtml += '<tr>';
+            tableHtml += '<th width="20%">Batch</th>';
+            tableHtml += '<th width="20%">Stok</th>';
+            tableHtml += '<th width="20%">Tanggal Expired</th>';
+            tableHtml += '<th width="20%">Status</th>';
+            tableHtml += '<th width="20%">Aksi</th>';
+            tableHtml += '</tr>';
+            tableHtml += '</thead>';
+            tableHtml += '<tbody>';
+
+            if (itemsToShow.length === 0) {
+                tableHtml += '<tr><td colspan="5" class="text-center text-muted py-4">Tidak ada batch dengan stok lebih dari 0 pada tampilan ringkas.</td></tr>';
+            } else {
+                itemsToShow.forEach(function(item) {
                     tableHtml += '<tr data-id="' + item.id + '">';
-                    tableHtml += '<td>' + item.batch + '</td>';
+                    tableHtml += '<td>' + (item.batch === null ? 'null' : item.batch) + '</td>';
                     tableHtml += '<td>';
                     tableHtml += '<span class="stok-display">' + item.stok_display + '</span>';
-                    // Use decimal step and allow decimal input (2 decimals)
                     tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="0.01" min="0">';
-                    // Keterangan input (hidden until edit) - required when performing an edit that changes stok
                     tableHtml += '<input type="text" class="form-control form-control-sm mt-2 keterangan-input" placeholder="Keterangan (wajib saat edit)" style="display:none;">';
                     tableHtml += '</td>';
                     tableHtml += '<td>' + item.expiration_date + '</td>';
@@ -637,35 +632,63 @@ $(document).ready(function() {
                     tableHtml += '</td>';
                     tableHtml += '</tr>';
                 });
-                
-                tableHtml += '</tbody></table></div>';
-                tableHtml += '<div class="alert alert-info">';
-                tableHtml += '<i class="fas fa-info-circle"></i> Klik tombol "Edit" untuk mengubah stok batch. Perubahan akan dicatat di kartu stok.';
+            }
+
+            tableHtml += '</tbody></table></div>';
+
+            if (!showAll && hiddenCount > 0) {
+                tableHtml += '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">';
+                tableHtml += '<small class="text-muted">Menampilkan ' + itemsToShow.length + ' batch dengan stok > 0 dari total ' + allItems.length + ' batch.</small>';
+                tableHtml += '<button type="button" class="btn btn-outline-primary btn-sm mt-2 mt-md-0" id="btn-show-all-batches">Tampilkan Semua Batch</button>';
                 tableHtml += '</div>';
-                
-                $('#batchDetailsContent').html(tableHtml);
-                // Normalize stok input/display values to integers (strip formatting like "1,00" or thousand separators)
-                $('#batchDetailsContent').find('tr').each(function() {
-                    var row = $(this);
-                    var stokDisplayEl = row.find('.stok-display');
-                    var stokInputEl = row.find('.stok-input');
-                    if (stokDisplayEl.length && stokInputEl.length) {
-                        // Take the displayed text and normalize to a float (handle thousand separators and comma decimals)
-                            var displayed = stokDisplayEl.text().trim();
-                            // Convert Indonesian formatting: remove thousands separators (.) and replace decimal comma with dot
-                            var numeric = displayed.replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
-                            var floatVal = 0.0;
-                            if (numeric !== '') {
-                                floatVal = parseFloat(numeric);
-                                if (isNaN(floatVal)) floatVal = 0.0;
-                            }
-                            // Round to 2 decimals
-                            floatVal = Math.round(floatVal * 100) / 100;
-                            // Update input value and display formatted with 2 decimals
-                            stokInputEl.val(floatVal);
-                            stokDisplayEl.text(floatVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+            } else if (showAll && allItems.length > 5) {
+                tableHtml += '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">';
+                tableHtml += '<small class="text-muted">Menampilkan semua ' + allItems.length + ' batch.</small>';
+                tableHtml += '<button type="button" class="btn btn-outline-secondary btn-sm mt-2 mt-md-0" id="btn-show-active-batches">Tampilkan 5 Batch Aktif</button>';
+                tableHtml += '</div>';
+            }
+
+            tableHtml += '<div class="alert alert-info">';
+            tableHtml += '<i class="fas fa-info-circle"></i> Klik tombol "Edit" untuk mengubah stok batch. Perubahan akan dicatat di kartu stok.';
+            tableHtml += '</div>';
+
+            $('#batchDetailsContent').html(tableHtml);
+
+            $('#batchDetailsContent').find('tr').each(function() {
+                var row = $(this);
+                var stokDisplayEl = row.find('.stok-display');
+                var stokInputEl = row.find('.stok-input');
+                if (stokDisplayEl.length && stokInputEl.length) {
+                    var displayed = stokDisplayEl.text().trim();
+                    var numeric = displayed.replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+                    var floatVal = 0.0;
+                    if (numeric !== '') {
+                        floatVal = parseFloat(numeric);
+                        if (isNaN(floatVal)) floatVal = 0.0;
                     }
-                });
+                    floatVal = Math.round(floatVal * 100) / 100;
+                    stokInputEl.val(floatVal);
+                    stokDisplayEl.text(floatVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+                }
+            });
+        }
+
+    // Handle batch details button click
+    $(document).on('click', '.show-batch-details', function() {
+        var obatId = $(this).data('obat-id');
+        var gudangId = $(this).data('gudang-id');
+        
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.batch-details") }}',
+            type: 'GET',
+            data: {
+                obat_id: obatId,
+                gudang_id: gudangId
+            },
+            success: function(response) {
+                $('#batchDetailsTitle').text('Detail Batch - ' + response.obat + ' (' + response.gudang + ')');
+                $('#batchDetailsModal').data('batch-response', response);
+                renderBatchDetailsTable(response, false);
 
                 $('#btn-save-batch-changes').hide();
                 $('#batchDetailsModal').modal('show');
@@ -674,6 +697,20 @@ $(document).ready(function() {
                 alert('Terjadi kesalahan saat mengambil data batch');
             }
         });
+    });
+
+    $(document).on('click', '#btn-show-all-batches', function() {
+        var response = $('#batchDetailsModal').data('batch-response');
+        if (response) {
+            renderBatchDetailsTable(response, true);
+        }
+    });
+
+    $(document).on('click', '#btn-show-active-batches', function() {
+        var response = $('#batchDetailsModal').data('batch-response');
+        if (response) {
+            renderBatchDetailsTable(response, false);
+        }
     });
 
     // Handle kartu stok button click - load kartu stok detail into right panel
