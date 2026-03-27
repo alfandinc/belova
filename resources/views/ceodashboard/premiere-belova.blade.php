@@ -51,21 +51,109 @@
             var chart = null;
 
             function renderChart(data) {
+                var lastIndex = (data.series || []).length - 1;
+
+                // build annotations for latest series points so we can style arrows green/red
+                var annotationsPoints = [];
+                try {
+                    var seriesAll = data.series || [];
+                    var labelsAll = data.labels || [];
+                    var currIdx = seriesAll.length - 1;
+                    var prevIdx = currIdx - 1;
+                    if (currIdx >= 0) {
+                        for (var i = 0; i < labelsAll.length; i++) {
+                            var curr = (seriesAll[currIdx].data && typeof seriesAll[currIdx].data[i] !== 'undefined') ? seriesAll[currIdx].data[i] : 0;
+                            var prev = (prevIdx >= 0 && seriesAll[prevIdx].data && typeof seriesAll[prevIdx].data[i] !== 'undefined') ? seriesAll[prevIdx].data[i] : null;
+                            var arrow = '';
+                            if (prev !== null) {
+                                if (curr > prev) arrow = '▲';
+                                else if (curr < prev) arrow = '▼';
+                            }
+                            var pctText = '';
+                            if (prev !== null && prev !== 0) {
+                                var change = Math.round(((curr - prev) / prev) * 100);
+                                pctText = ' (' + (change > 0 ? '+' : '') + change + '%)';
+                            }
+
+                            var labelText = String(curr) + (pctText || '');
+                            var clr = '#6c757d';
+                            if (arrow === '▲') clr = '#28a745';
+                            else if (arrow === '▼') clr = '#dc3545';
+
+                            annotationsPoints.push({
+                                x: labelsAll[i],
+                                y: curr,
+                                marker: { size: 0 },
+                                label: {
+                                    text: labelText + (arrow ? (' ' + arrow) : ''),
+                                    borderColor: clr,
+                                    // use styled background so text is readable and arrow color is visible
+                                    style: { color: '#ffffff', background: clr },
+                                    // small offset to position above the point
+                                    offsetY: -18
+                                }
+                            });
+                        }
+                    }
+                } catch(e) { annotationsPoints = []; }
+
+                // determine colors per-series: latest (this year) = blue, previous (last year) = grey
+                var seriesCount = (data.series || []).length;
+                var seriesColors = [];
+                for (var i = 0; i < seriesCount; i++) {
+                    if (i === lastIndex) seriesColors.push('#1f77b4');
+                    else if (i === lastIndex - 1) seriesColors.push('#6c757d');
+                    else seriesColors.push(colors[i % colors.length]);
+                }
+
                 var opts = {
                     chart: { type: 'area', height: 420, toolbar: { show: false } },
                     stroke: { curve: 'smooth', width: 2 },
                     series: data.series || [],
-                    colors: colors.slice(0, (data.series || []).length),
+                    colors: seriesColors,
                     fill: {
                         type: 'gradient',
                         gradient: { shade: 'light', type: 'vertical', shadeIntensity: 1, opacityFrom: 0.55, opacityTo: 0.08, stops: [0,50,100] }
                     },
                     xaxis: { categories: data.labels || [], labels: { rotate: 0 } },
-                    dataLabels: { enabled: false },
+                    // disable built-in dataLabels for latest series; we'll use annotations for colored labels
+                    dataLabels: {
+                        enabled: false,
+                        formatter: function(val, opts) {
+                            try {
+                                // only show labels for the latest year series
+                                if (opts.seriesIndex !== lastIndex) return '';
+                                var idx = opts.dataPointIndex;
+                                var series = data.series || [];
+                                var curr = series[lastIndex] && series[lastIndex].data ? series[lastIndex].data[idx] : 0;
+                                var prev = (lastIndex >= 1 && series[lastIndex-1] && series[lastIndex-1].data) ? (series[lastIndex-1].data[idx] || 0) : null;
+                                var arrow = '';
+                                if (prev !== null) {
+                                    if (curr > prev) { arrow = '▲'; }
+                                    else if (curr < prev) { arrow = '▼'; }
+                                }
+                                var pct = '';
+                                if (prev !== null && prev !== 0) {
+                                    var change = Math.round(((curr - prev) / prev) * 100);
+                                    pct = ' (' + (change > 0 ? '+' : '') + change + '%)';
+                                }
+                                // return text using SVG <tspan> for colored arrow (ApexCharts renders tspan)
+                                if (arrow) {
+                                    var clr = (arrow === '▲') ? '#28a745' : '#dc3545';
+                                    return String(curr) + ' ' + '<tspan fill="' + clr + '">' + arrow + '</tspan>' + pct;
+                                }
+                                return String(curr) + pct;
+                            } catch(e) { return String(val); }
+                        },
+                        style: { fontSize: '11px', colors: ['#333333'] },
+                        offsetY: -18,
+                        background: { enabled: true, foreColor: '#ffffff', padding: 6, borderRadius: 4 }
+                    },
+                    annotations: { points: annotationsPoints },
                     yaxis: { labels: { formatter: function(v){ return Math.round(v); } }, min: 0 },
                     tooltip: { shared: true, intersect: false, y: { formatter: function(v){ return Math.round(v); } } },
                     legend: { position: 'top' },
-                    markers: { size: 4 }
+                    markers: { size: 4, hover: { size: 6 } }
                 };
 
                 var el = document.getElementById('statisticContent');
@@ -88,6 +176,61 @@
                     .fail(function(xhr){
                         console.error('Failed to load premiere belova data', xhr);
                     });
+            }
+
+            function renderComparisons(data) {
+                var container = document.getElementById('monthComparisons');
+                if (!container) return;
+                container.innerHTML = '';
+                var labels = data.labels || [];
+                var series = data.series || [];
+                if (!series.length) return;
+
+                var currIdx = series.length - 1;
+                var prevIdx = series.length >= 2 ? series.length - 2 : null;
+
+                var row = document.createElement('div');
+                row.className = 'd-flex flex-wrap';
+                for (var i = 0; i < labels.length; i++) {
+                    var month = labels[i];
+                    var currVal = (series[currIdx].data && series[currIdx].data[i]) ? series[currIdx].data[i] : 0;
+                    var prevVal = prevIdx !== null ? ((series[prevIdx].data && series[prevIdx].data[i]) ? series[prevIdx].data[i] : 0) : null;
+
+                    var badge = document.createElement('div');
+                    badge.className = 'p-2 mr-2 mb-2';
+                    badge.style.minWidth = '110px';
+
+                    var title = document.createElement('div');
+                    title.className = 'small text-muted';
+                    title.textContent = month;
+
+                    var valueLine = document.createElement('div');
+                    valueLine.className = 'font-weight-bold';
+                    var arrow = '';
+                    var arrowClass = '';
+                    if (prevVal !== null) {
+                        if (currVal > prevVal) { arrow = ' ▲'; arrowClass = 'text-success'; }
+                        else if (currVal < prevVal) { arrow = ' ▼'; arrowClass = 'text-danger'; }
+                        else { arrow = ''; }
+                    }
+
+                    var valSpan = document.createElement('span');
+                    valSpan.textContent = currVal + (arrow ? '' : '');
+                    valueLine.appendChild(valSpan);
+
+                    if (arrow) {
+                        var arrSpan = document.createElement('span');
+                        arrSpan.textContent = arrow;
+                        arrSpan.className = 'ml-2 ' + arrowClass;
+                        valueLine.appendChild(arrSpan);
+                    }
+
+                    badge.appendChild(title);
+                    badge.appendChild(valueLine);
+                    row.appendChild(badge);
+                }
+
+                container.appendChild(row);
             }
 
             // auto-load default = 2 years (this year + last year)
