@@ -1,6 +1,6 @@
 @extends('layouts.erm.app')
 
-@section('title', 'CEO Dashboard - Daily Task Report')
+@section('title', 'CEO Dashboard - Daily Tasks')
 
 @section('navbar')
     @include('layouts.ceodashboard.navbar')
@@ -14,8 +14,8 @@
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
                             <div>
-                                <h4 class="card-title mb-1">Daily Task Report</h4>
-                                <p class="text-muted mb-0">Menampilkan task harian dengan status report = true.</p>
+                                <h4 class="card-title mb-1">Daily Tasks</h4>
+                                <p class="text-muted mb-0">Menampilkan semua task harian dari Daily Journal.</p>
                             </div>
                             <div class="d-flex align-items-center" style="gap:8px;">
                                 <div class="form-group mb-0">

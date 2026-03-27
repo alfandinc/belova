@@ -17,14 +17,13 @@ class CeoDashboardController extends Controller
     }
 
     /**
-     * Show reported daily tasks for CEO review in a DataTable.
+     * Show daily journal tasks for CEO review in a DataTable.
      */
     public function reportedDailyTasks(Request $request)
     {
         if ($request->ajax()) {
             $query = DailyJournalTask::query()
                 ->with(['user.employee.division', 'fromUser'])
-                ->where('reported', true)
                 ->select('daily_journal_tasks.*');
 
             // Apply date range filter (task_date) when provided
@@ -106,15 +105,10 @@ class CeoDashboardController extends Controller
 
                     return '<span class="badge badge-soft-' . $badgeClass . '">' . e($label) . '</span>';
                 })
-                ->addColumn('reported_badge', function (DailyJournalTask $task) {
-                    return $task->reported
-                        ? '<span class="badge badge-soft-success">True</span>'
-                        : '<span class="badge badge-soft-secondary">False</span>';
-                })
                 ->addColumn('updated_at_display', function (DailyJournalTask $task) {
                     return optional($task->updated_at)->format('d M Y H:i') ?: '-';
                 })
-                ->rawColumns(['status', 'reported_badge'])
+                ->rawColumns(['status'])
                 ->make(true);
         }
 

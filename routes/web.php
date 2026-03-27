@@ -182,9 +182,6 @@ Route::middleware(['auth'])->group(function () {
         ->name('daily-journal.division.index');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
     Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');
-    Route::post('/daily-journal/{dailyJournalTask}/report', [DailyJournalController::class, 'report'])
-        ->middleware('role:Manager')
-        ->name('daily-journal.report');
     Route::delete('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
 
     // Hanya user dengan role ERM yang bisa akses modul ERM

@@ -618,7 +618,7 @@
         .task-table-head,
         .task-row {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 230px 150px 130px;
+            grid-template-columns: minmax(0, 1fr) 230px 150px;
             gap: 10px;
             align-items: center;
         }
@@ -761,15 +761,8 @@
         }
 
         .task-user-cell,
-        .task-date-cell,
-        .task-action-cell {
+        .task-date-cell {
             min-width: 0;
-        }
-
-        .task-action-cell {
-            display: flex;
-            justify-content: flex-start;
-            align-items: center;
         }
 
         .task-user-badge,
@@ -862,46 +855,6 @@
                 transform: scale(1.05);
                 box-shadow: 0 14px 28px rgba(255, 93, 122, 0.3);
             }
-        }
-
-        .report-form {
-            margin: 0;
-        }
-
-        .report-button,
-        .reported-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            min-height: 32px;
-            padding: 0 10px;
-            border-radius: 11px;
-            font-size: 11px;
-            font-weight: 700;
-            white-space: nowrap;
-        }
-
-        .report-button {
-            border: 0;
-            background: linear-gradient(135deg, #4b8dff, #2f6dff);
-            color: #fff;
-            box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
-            cursor: pointer;
-        }
-
-        .report-button i,
-        .reported-badge i {
-            width: 16px;
-            text-align: center;
-            font-size: 13px;
-            flex-shrink: 0;
-        }
-
-        .reported-badge {
-            background: rgba(220, 252, 231, 0.92);
-            color: #15803d;
-            border: 1px solid rgba(34, 197, 94, 0.18);
         }
 
         .empty-state {
@@ -1006,13 +959,12 @@
 
             .task-table-head,
             .task-row {
-                grid-template-columns: minmax(0, 1fr) 230px 150px 130px;
+                grid-template-columns: minmax(0, 1fr) 230px 150px;
                 gap: 12px;
             }
 
             .task-user-cell,
-            .task-date-cell,
-            .task-action-cell {
+            .task-date-cell {
                 justify-content: flex-start;
             }
 
@@ -1090,7 +1042,7 @@
 
             .task-table-head,
             .task-row {
-                grid-template-columns: minmax(0, 1fr) 260px 165px 140px;
+                grid-template-columns: minmax(0, 1fr) 260px 165px;
             }
         }
 
@@ -1175,7 +1127,7 @@
             }
 
             .task-row {
-                grid-template-columns: auto auto auto;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
                 gap: 12px;
                 padding: 16px;
                 margin-bottom: 12px;
@@ -1187,8 +1139,7 @@
 
             .task-main-cell,
             .task-user-cell,
-            .task-date-cell,
-            .task-action-cell {
+            .task-date-cell {
                 display: flex;
                 justify-content: flex-start;
                 gap: 12px;
@@ -1201,8 +1152,7 @@
             }
 
             .task-user-cell,
-            .task-date-cell,
-            .task-action-cell {
+            .task-date-cell {
                 min-width: 0;
             }
 
@@ -1215,14 +1165,8 @@
                 justify-content: flex-start;
             }
 
-            .task-action-cell {
-                grid-column: 3;
-                justify-content: flex-start;
-            }
-
             .task-user-cell::before,
-            .task-date-cell::before,
-            .task-action-cell::before {
+            .task-date-cell::before {
                 display: none;
             }
 
@@ -1267,31 +1211,6 @@
                 justify-content: flex-start;
             }
 
-            .report-button,
-            .reported-badge {
-                min-height: 32px;
-                padding: 0 10px;
-            }
-
-            .report-button {
-                width: 32px;
-                min-width: 32px;
-                padding: 0;
-                gap: 0;
-            }
-
-            .report-button span,
-            .reported-badge span {
-                display: none;
-            }
-
-            .reported-badge {
-                width: 32px;
-                min-width: 32px;
-                padding: 0;
-                gap: 0;
-            }
-
             .header-stat {
                 min-width: 0;
                 padding: 10px 8px;
@@ -1326,7 +1245,7 @@
             }
 
             .task-row {
-                grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) auto;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
                 gap: 10px;
             }
 
@@ -1361,13 +1280,6 @@
                 font-size: 11px;
                 padding: 0 10px;
                 min-height: 32px;
-            }
-
-            .report-button,
-            .reported-badge {
-                font-size: 11px;
-                min-height: 32px;
-                padding: 0 10px;
             }
 
             .task-user-name {
@@ -1526,7 +1438,6 @@
                         <div class="head-cell">Task</div>
                         <div class="head-cell">User</div>
                         <div class="head-cell">Date</div>
-                        <div class="head-cell">Action</div>
                     </div>
 
                     @foreach($tasks as $task)
@@ -1579,29 +1490,6 @@
                                             {{ $task->deadline_date->translatedFormat('d M Y') }}
                                         </span>
                                     </div>
-                                @endif
-                            </div>
-
-                            <div class="task-action-cell">
-                                @if($canAssignTasks && !$task->reported)
-                                    <form method="POST" action="{{ route('daily-journal.report', $task) }}" class="report-form">
-                                        @csrf
-                                        <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
-                                        <input type="hidden" name="filter" value="{{ $filter }}">
-                                        <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
-                                        <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
-                                        <input type="hidden" name="user_id" value="{{ $selectedUserId }}">
-                                        <input type="hidden" name="status" value="{{ $selectedStatus }}">
-                                        <button type="submit" class="report-button">
-                                            <i class="fas fa-paper-plane"></i>
-                                            <span>Report</span>
-                                        </button>
-                                    </form>
-                                @elseif($task->reported)
-                                    <span class="reported-badge">
-                                        <i class="fas fa-paper-plane"></i>
-                                        <span>Reported</span>
-                                    </span>
                                 @endif
                             </div>
                         </article>
@@ -1755,10 +1643,6 @@
                     return 'Loading...';
                 }
 
-                if (typeof url === 'string' && /daily-journal\/\d+\/report$/i.test(url)) {
-                    return 'Sending report...';
-                }
-
                 return 'Saving task...';
             }
 
@@ -1867,44 +1751,6 @@
                         ajaxVisit(form.action, {
                             method: 'POST',
                             body: new FormData(form)
-                        });
-                    });
-                });
-
-                root.querySelectorAll('form.report-form').forEach(function (form) {
-                    form.addEventListener('submit', function (event) {
-                        event.preventDefault();
-
-                        const taskTitle = form.closest('.task-row')?.querySelector('.task-title')?.textContent?.trim() || 'task ini';
-
-                        if (typeof Swal === 'undefined') {
-                            if (window.confirm('Lapor task ini ke CEO?')) {
-                                ajaxVisit(form.action, {
-                                    method: 'POST',
-                                    body: new FormData(form)
-                                });
-                            }
-
-                            return;
-                        }
-
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Kirim report ke CEO?',
-                            text: 'Task "' + taskTitle + '" akan dikirim agar bisa dibaca CEO.',
-                            showCancelButton: true,
-                            confirmButtonText: 'Ya, kirim',
-                            cancelButtonText: 'Batal',
-                            reverseButtons: true
-                        }).then(function (result) {
-                            if (!(result.isConfirmed || result.value)) {
-                                return;
-                            }
-
-                            ajaxVisit(form.action, {
-                                method: 'POST',
-                                body: new FormData(form)
-                            });
                         });
                     });
                 });

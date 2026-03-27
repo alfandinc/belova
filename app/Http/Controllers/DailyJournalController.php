@@ -337,42 +337,9 @@ class DailyJournalController extends Controller
             ->with('success', 'Task berhasil dihapus.');
     }
 
-    public function report(Request $request, DailyJournalTask $dailyJournalTask): RedirectResponse
-    {
-        $this->authorizeDivisionTask($dailyJournalTask);
-
-        $dailyJournalTask->update([
-            'reported' => true,
-        ]);
-
-        return redirect()
-            ->route('daily-journal.division.index', $this->buildDivisionRedirectParams(
-                $request,
-                $request->input('date', optional($dailyJournalTask->task_date)->toDateString())
-            ))
-            ->with('success', 'Task berhasil dilaporkan.');
-    }
-
     private function authorizeTask(DailyJournalTask $dailyJournalTask): void
     {
         abort_if($dailyJournalTask->user_id !== Auth::id(), 404);
-    }
-
-    private function authorizeDivisionTask(DailyJournalTask $dailyJournalTask): void
-    {
-        $manager = Auth::user();
-
-        abort_unless($manager?->hasRole('Manager'), 403);
-
-        $managerDivisionId = optional($manager->employee)->division_id;
-
-        abort_if(!$managerDivisionId, 403);
-
-        $taskUserDivisionId = Employee::query()
-            ->where('user_id', $dailyJournalTask->user_id)
-            ->value('division_id');
-
-        abort_if((int) $taskUserDivisionId !== (int) $managerDivisionId, 404);
     }
 
     private function resolveSelectedDate(?string $date): Carbon
