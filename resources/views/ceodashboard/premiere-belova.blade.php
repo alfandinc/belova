@@ -106,15 +106,23 @@
                     else seriesColors.push(colors[i % colors.length]);
                 }
 
+                // opacity and stroke per series: make latest series bold/filled, others subtle
+                var seriesOpacities = [];
+                var strokeWidths = [];
+                var markerSizes = [];
+                for (var i = 0; i < seriesCount; i++) {
+                    if (i === lastIndex) { seriesOpacities.push(0.85); strokeWidths.push(3); markerSizes.push(5); }
+                    else if (i === lastIndex - 1) { seriesOpacities.push(0.12); strokeWidths.push(2); markerSizes.push(4); }
+                    else { seriesOpacities.push(0.08); strokeWidths.push(2); markerSizes.push(3); }
+                }
+
                 var opts = {
                     chart: { type: 'area', height: 420, toolbar: { show: false } },
-                    stroke: { curve: 'smooth', width: 2 },
+                    stroke: { curve: 'smooth', width: strokeWidths },
                     series: data.series || [],
                     colors: seriesColors,
-                    fill: {
-                        type: 'gradient',
-                        gradient: { shade: 'light', type: 'vertical', shadeIntensity: 1, opacityFrom: 0.55, opacityTo: 0.08, stops: [0,50,100] }
-                    },
+                    // use solid fill but per-series opacity to make latest series block the chart
+                    fill: { type: 'solid', opacity: seriesOpacities },
                     xaxis: { categories: data.labels || [], labels: { rotate: 0 } },
                     // disable built-in dataLabels for latest series; we'll use annotations for colored labels
                     dataLabels: {
@@ -153,7 +161,7 @@
                     yaxis: { labels: { formatter: function(v){ return Math.round(v); } }, min: 0 },
                     tooltip: { shared: true, intersect: false, y: { formatter: function(v){ return Math.round(v); } } },
                     legend: { position: 'top' },
-                    markers: { size: 4, hover: { size: 6 } }
+                    markers: { size: markerSizes, hover: { size: 6 } }
                 };
 
                 var el = document.getElementById('statisticContent');
