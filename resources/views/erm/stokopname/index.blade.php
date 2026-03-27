@@ -10,7 +10,10 @@
     <div class="row mt-3 mb-3">
         <div class="col-md-12 d-flex align-items-center justify-content-between flex-wrap flex-md-nowrap">
             <h4 class="mb-0">Stok Opname</h4>
-            <button class="btn btn-success" data-toggle="modal" data-target="#stokOpnameModal">Tambah Stok Opname</button>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-warning mr-2" id="openLemburSoModal">Lembur SO</button>
+          <button class="btn btn-success" data-toggle="modal" data-target="#stokOpnameModal">Tambah Stok Opname</button>
+        </div>
         </div>
     </div>
     <div class="row mb-3">
@@ -98,6 +101,49 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
           <button type="submit" class="btn btn-primary">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="lemburSoModal" tabindex="-1" role="dialog" aria-labelledby="lemburSoModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <form id="lemburSoForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="lemburSoModalLabel">Lembur SO</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="lembur_so_employee_ids">Karyawan</label>
+            <select class="form-control" name="employee_ids[]" id="lembur_so_employee_ids" multiple required></select>
+            <small class="form-text text-muted">Pilih satu atau lebih karyawan yang ikut stok opname.</small>
+          </div>
+          <div class="form-group">
+            <label for="lembur_so_tanggal">Tanggal SO</label>
+            <input type="date" class="form-control" name="tanggal" id="lembur_so_tanggal" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label for="lembur_so_jam_mulai">Jam Mulai SO</label>
+              <input type="time" class="form-control" name="jam_mulai" id="lembur_so_jam_mulai" required>
+            </div>
+            <div class="form-group col-md-6">
+              <label for="lembur_so_jam_selesai">Jam Selesai SO</label>
+              <input type="time" class="form-control" name="jam_selesai" id="lembur_so_jam_selesai" required>
+            </div>
+          </div>
+          <div class="alert alert-light border mb-0">
+            Sistem akan memotong jam shift karyawan pada tanggal tersebut. Jika SO berada di luar jam shift, seluruh durasi akan dibuatkan pengajuan lembur.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary">Generate Lembur</button>
         </div>
       </form>
     </div>
@@ -312,6 +358,76 @@ $(function () {
     // Temuan modal & DataTable
     var temuanTable = null;
     var temuanUrlTemplate = "{{ url('erm/stokopname') }}/__ID__/temuan-data";
+    var lemburSoUrl = "{{ route('erm.stokopname.generateLemburSo') }}";
+    var employeeSearchUrl = "{{ url('/api/hrd/employees') }}";
+
+    $('#lembur_so_employee_ids').select2({
+      width: '100%',
+      dropdownParent: $('#lemburSoModal'),
+      placeholder: 'Pilih karyawan',
+      ajax: {
+        url: employeeSearchUrl,
+        dataType: 'json',
+        delay: 250,
+        data: function(params) {
+          return { q: params.term };
+        },
+        processResults: function(data) {
+          return {
+            results: $.map(data, function(item) {
+              return {
+                id: item.id,
+                text: item.nama
+              };
+            })
+          };
+        },
+        cache: true
+      }
+    });
+
+    $('#openLemburSoModal').on('click', function() {
+      var today = new Date().toISOString().split('T')[0];
+      $('#lembur_so_tanggal').val(today);
+      $('#lemburSoModalLabel').text('Lembur SO');
+      $('#lemburSoModal').modal('show');
+    });
+
+    $('#lemburSoModal').on('hidden.bs.modal', function() {
+      $('#lemburSoForm')[0].reset();
+      $('#lembur_so_employee_ids').val(null).trigger('change');
+    });
+
+    $('#lemburSoForm').on('submit', function(e) {
+      e.preventDefault();
+
+      $.ajax({
+        url: lemburSoUrl,
+        method: 'POST',
+        data: $(this).serialize(),
+        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+        success: function(res) {
+          var generated = res.results && res.results.generated ? res.results.generated : [];
+          var skipped = res.results && res.results.skipped ? res.results.skipped : [];
+          var message = 'Pengajuan lembur dibuat: ' + generated.length;
+          if (skipped.length > 0) {
+            message += '\nLewat: ' + skipped.length;
+            message += '\n' + skipped.map(function(item) {
+              return '- ' + item.employee_name + ': ' + item.reason;
+            }).join('\n');
+          }
+          alert(message);
+          $('#lemburSoModal').modal('hide');
+        },
+        error: function(xhr) {
+          var message = 'Gagal generate lembur SO.';
+          if (xhr.responseJSON && xhr.responseJSON.message) {
+            message = xhr.responseJSON.message;
+          }
+          alert(message);
+        }
+      });
+    });
 
     $(document).on('click', '.btn-show-temuan', function(e){
       e.preventDefault();

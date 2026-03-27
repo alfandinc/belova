@@ -1063,6 +1063,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/add-item', [\App\Http\Controllers\ERM\StokOpnameController::class, 'addItem'])->name('erm.stokopname.addItem');
     Route::get('/{id}/available-obats', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getAvailableObats'])->name('erm.stokopname.availableObats');
     Route::post('/{id}/update-stock-from-opname', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFromOpname'])->name('erm.stokopname.updateStockFromOpname');
+    Route::post('/generate-lembur-so', [\App\Http\Controllers\ERM\StokOpnameController::class, 'generateLemburSo'])->name('erm.stokopname.generateLemburSo');
     });
 
     Route::post('/rujuk', [App\Http\Controllers\ERM\VisitationController::class, 'storeRujuk'])->name('erm.rujuk.store');

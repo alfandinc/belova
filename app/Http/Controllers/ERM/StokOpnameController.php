@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
+use App\Models\HRD\Employee;
+use App\Models\HRD\EmployeeSchedule;
+use App\Models\HRD\PengajuanLembur;
 use Illuminate\Http\Request;
 use App\Models\ERM\StokOpname;
 use App\Models\ERM\StokOpnameItem;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
@@ -702,6 +706,166 @@ class StokOpnameController extends Controller
             'created_by' => auth()->id(),
         ]);
         return response()->json(['success' => true, 'id' => $stokOpname->id]);
+    }
+
+    public function generateLemburSo(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'integer|exists:hrd_employee,id',
+            'tanggal' => 'required|date',
+            'jam_mulai' => 'required|date_format:H:i',
+            'jam_selesai' => 'required|date_format:H:i',
+        ]);
+
+        $baseStart = Carbon::parse($validated['tanggal'] . ' ' . $validated['jam_mulai']);
+        $baseEnd = Carbon::parse($validated['tanggal'] . ' ' . $validated['jam_selesai']);
+        if ($baseEnd->lessThanOrEqualTo($baseStart)) {
+            $baseEnd->addDay();
+        }
+
+        $employees = Employee::whereIn('id', $validated['employee_ids'])
+            ->get()
+            ->keyBy('id');
+
+        $scheduleRangeStart = $baseStart->copy()->subDay()->toDateString();
+        $scheduleRangeEnd = $baseEnd->copy()->toDateString();
+
+        $schedules = EmployeeSchedule::with('shift')
+            ->whereIn('employee_id', $validated['employee_ids'])
+            ->whereBetween('date', [$scheduleRangeStart, $scheduleRangeEnd])
+            ->get()
+            ->groupBy('employee_id');
+
+        $results = [
+            'generated' => [],
+            'skipped' => [],
+        ];
+
+        DB::transaction(function () use ($validated, $employees, $schedules, $baseStart, $baseEnd, &$results) {
+            foreach ($validated['employee_ids'] as $employeeId) {
+                $employee = $employees->get($employeeId);
+
+                if (!$employee) {
+                    $results['skipped'][] = [
+                        'employee_id' => $employeeId,
+                        'employee_name' => 'Unknown',
+                        'reason' => 'Karyawan tidak ditemukan.',
+                    ];
+                    continue;
+                }
+
+                $segments = [
+                    [
+                        'start' => $baseStart->copy(),
+                        'end' => $baseEnd->copy(),
+                    ],
+                ];
+
+                $employeeSchedules = collect($schedules->get($employeeId, []))
+                    ->filter(function ($schedule) {
+                        return $schedule->shift;
+                    })
+                    ->sortBy(function ($schedule) {
+                        return $schedule->date . ' ' . $schedule->shift->start_time;
+                    })
+                    ->values();
+
+                foreach ($employeeSchedules as $schedule) {
+                    $shiftStart = Carbon::parse($schedule->date . ' ' . $schedule->shift->start_time);
+                    $shiftEnd = Carbon::parse($schedule->date . ' ' . $schedule->shift->end_time);
+                    if ($shiftEnd->lessThanOrEqualTo($shiftStart)) {
+                        $shiftEnd->addDay();
+                    }
+
+                    $trimmedSegments = [];
+                    foreach ($segments as $segment) {
+                        $trimmedSegments = array_merge(
+                            $trimmedSegments,
+                            $this->subtractShiftInterval($segment['start'], $segment['end'], $shiftStart, $shiftEnd)
+                        );
+                    }
+                    $segments = $trimmedSegments;
+                }
+
+                $segments = array_values(array_filter($segments, function ($segment) {
+                    return $segment['start']->lt($segment['end']);
+                }));
+
+                if (empty($segments)) {
+                    $results['skipped'][] = [
+                        'employee_id' => $employee->id,
+                        'employee_name' => $employee->nama,
+                        'reason' => 'Jam SO seluruhnya masuk ke dalam shift.',
+                    ];
+                    continue;
+                }
+
+                foreach ($segments as $segment) {
+                    $tanggal = $segment['start']->toDateString();
+                    $jamMulai = $segment['start']->format('H:i');
+                    $jamSelesai = $segment['end']->format('H:i');
+
+                    $record = PengajuanLembur::firstOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'tanggal' => $tanggal,
+                            'jam_mulai' => $jamMulai,
+                            'jam_selesai' => $jamSelesai,
+                        ],
+                        [
+                            'alasan' => 'Lembur SO',
+                        ]
+                    );
+
+                    $results['generated'][] = [
+                        'record_id' => $record->id,
+                        'employee_id' => $employee->id,
+                        'employee_name' => $employee->nama,
+                        'tanggal' => $tanggal,
+                        'jam_mulai' => $jamMulai,
+                        'jam_selesai' => $jamSelesai,
+                    ];
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lembur SO berhasil diproses.',
+            'results' => $results,
+        ]);
+    }
+
+    protected function subtractShiftInterval(Carbon $soStart, Carbon $soEnd, Carbon $shiftStart, Carbon $shiftEnd)
+    {
+        $overlapStart = $soStart->copy()->max($shiftStart);
+        $overlapEnd = $soEnd->copy()->min($shiftEnd);
+
+        if ($overlapStart->greaterThanOrEqualTo($overlapEnd)) {
+            return [
+                [
+                    'start' => $soStart->copy(),
+                    'end' => $soEnd->copy(),
+                ],
+            ];
+        }
+
+        $segments = [];
+        if ($soStart->lt($overlapStart)) {
+            $segments[] = [
+                'start' => $soStart->copy(),
+                'end' => $overlapStart->copy(),
+            ];
+        }
+        if ($overlapEnd->lt($soEnd)) {
+            $segments[] = [
+                'start' => $overlapEnd->copy(),
+                'end' => $soEnd->copy(),
+            ];
+        }
+
+        return $segments;
     }
 
     public function create($id)
