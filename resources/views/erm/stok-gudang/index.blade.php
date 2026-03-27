@@ -73,6 +73,9 @@
                         </ol>
                     </div>
                     <div class="col-auto ml-auto d-flex align-items-center">
+                        <button type="button" class="btn btn-outline-info mr-2" id="btn-sync-minmax" title="Sync min dan max ke record gudang yang masih kosong">
+                            <i class="fas fa-sync-alt"></i>&nbsp;Sync Min/Max
+                        </button>
                         <button type="button" class="btn btn-primary mr-2" id="btn-low-stock" title="Tampilkan obat dengan stok di bawah minimum">
                             <i class="fas fa-exclamation-triangle"></i>&nbsp;Stok Habis
                             <span id="low-stock-count" class="notification-badge" style="display:none;">0</span>
@@ -347,7 +350,7 @@
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editMinMaxLabel">Edit Min / Max Stok</h5>
+                <h5 class="modal-title" id="editMinMaxLabel">Edit Min / Max Stok Total</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -355,7 +358,6 @@
             <div class="modal-body">
                 <form id="form-edit-minmax">
                     <input type="hidden" id="minmax_obat_id" name="obat_id" />
-                    <input type="hidden" id="minmax_gudang_id" name="gudang_id" />
                     <div class="form-group">
                         <label for="min_stok">Min Stok</label>
                         <input type="number" step="1" min="0" class="form-control" id="min_stok" name="min_stok" />
@@ -365,6 +367,7 @@
                         <input type="number" step="1" min="0" class="form-control" id="max_stok" name="max_stok" />
                     </div>
                 </form>
+                <small class="text-muted d-block mb-2">Pengaturan ini berlaku untuk total stok obat di semua gudang, bukan per gudang.</small>
                 <div id="minmaxAlert"></div>
             </div>
             <div class="modal-footer">
@@ -531,6 +534,41 @@ $(document).ready(function() {
         searchTimeout = setTimeout(function() {
             table.ajax.reload();
         }, 500); // 500ms delay
+    });
+
+    $('#btn-sync-minmax').on('click', function() {
+        var btn = $(this);
+        if (!confirm('Sync min/max ke semua record gudang yang masih kosong?')) {
+            return;
+        }
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>&nbsp;Syncing...');
+
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.sync-missing-minmax") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(response) {
+                var message = response.message || 'Sync min/max selesai.';
+                message += '\nObat tersinkron: ' + (response.synced_obat_count || 0);
+                message += '\nBaris tersinkron: ' + (response.synced_row_count || 0);
+                alert(message);
+                table.ajax.reload(null, false);
+                updateLowStockCount();
+            },
+            error: function(xhr) {
+                var message = 'Gagal sync min/max.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+                alert(message);
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-sync-alt"></i>&nbsp;Sync Min/Max');
+            }
+        });
     });
 
     // Kategori filter: reload table when changed (server-side filter applied)
@@ -927,12 +965,10 @@ $(document).ready(function() {
     // Handle Edit Min/Max button click (from main table)
     $(document).on('click', '.btn-edit-minmax', function() {
         var obatId = $(this).data('obat-id');
-        var gudangId = $(this).data('gudang-id');
         var minVal = $(this).data('min');
         var maxVal = $(this).data('max');
 
         $('#minmax_obat_id').val(obatId);
-        $('#minmax_gudang_id').val(gudangId);
         $('#min_stok').val(minVal !== undefined ? minVal : '');
         $('#max_stok').val(maxVal !== undefined ? maxVal : '');
         $('#minmaxAlert').html('');
@@ -946,7 +982,6 @@ $(document).ready(function() {
         var data = {
             _token: '{{ csrf_token() }}',
             obat_id: $('#minmax_obat_id').val(),
-            gudang_id: $('#minmax_gudang_id').val(),
             min_stok: $('#min_stok').val(),
             max_stok: $('#max_stok').val()
         };

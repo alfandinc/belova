@@ -56,16 +56,29 @@ class StokGudangController extends Controller {
         // Compute aggregated totals and status in SQL so status immediately reflects min/max changes
         // Join obat and gudang tables so we can support server-side ordering by obat name / kode
         $table = (new ObatStokGudang())->getTable();
+        $globalTotals = DB::table($table . ' as global_stock')
+            ->select(
+                'global_stock.obat_id',
+                DB::raw('SUM(global_stock.stok) as global_total_stok'),
+                DB::raw('MIN(global_stock.min_stok) as global_min_stok'),
+                DB::raw('MAX(global_stock.max_stok) as global_max_stok')
+            )
+            ->groupBy('global_stock.obat_id');
+
         $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
             ->leftJoin('erm_gudang as g', 'g.id', $table . '.gudang_id')
+            ->leftJoinSub($globalTotals, 'gt', function ($join) use ($table) {
+                $join->on('gt.obat_id', '=', $table . '.obat_id');
+            })
             ->select(
                 $table . '.obat_id',
                 $table . '.gudang_id',
                 DB::raw('SUM(' . $table . '.stok) as total_stok'),
-                DB::raw('MIN(' . $table . '.min_stok) as min_stok'),
-                DB::raw('MAX(' . $table . '.max_stok) as max_stok'),
-                // status_stok: 'minimum' if total <= min, 'maksimum' if total >= max, otherwise 'normal'
-                DB::raw("CASE WHEN SUM(" . $table . ".stok) <= COALESCE(MIN(" . $table . ".min_stok),0) THEN 'minimum' WHEN SUM(" . $table . ".stok) >= COALESCE(MAX(" . $table . ".max_stok),0) THEN 'maksimum' ELSE 'normal' END as status_stok"),
+                DB::raw('COALESCE(gt.global_min_stok, 0) as min_stok'),
+                DB::raw('COALESCE(gt.global_max_stok, 0) as max_stok'),
+                DB::raw('COALESCE(gt.global_total_stok, 0) as global_total_stok'),
+                // status_stok now compares against total stock across all gudang for the obat
+                DB::raw("CASE WHEN COALESCE(gt.global_total_stok, 0) <= COALESCE(gt.global_min_stok,0) THEN 'minimum' WHEN COALESCE(gt.global_total_stok, 0) >= COALESCE(gt.global_max_stok,0) AND COALESCE(gt.global_max_stok,0) > 0 THEN 'maksimum' ELSE 'normal' END as status_stok"),
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
                 'o.satuan as obat_satuan',
@@ -403,20 +416,19 @@ class StokGudangController extends Controller {
     {
         $request->validate([
             'obat_id' => 'required|integer|exists:erm_obat,id',
-            'gudang_id' => 'required|integer|exists:erm_gudang,id',
+            'gudang_id' => 'nullable|integer|exists:erm_gudang,id',
             'min_stok' => 'nullable|numeric|min:0',
             'max_stok' => 'nullable|numeric|min:0'
         ]);
 
         $obatId = $request->obat_id;
-        $gudangId = $request->gudang_id;
         $min = $request->min_stok !== null ? $request->min_stok : 0;
         $max = $request->max_stok !== null ? $request->max_stok : 0;
 
         try {
-            $rows = ObatStokGudang::where('obat_id', $obatId)->where('gudang_id', $gudangId)->get();
+            $rows = ObatStokGudang::where('obat_id', $obatId)->get();
             if ($rows->isEmpty()) {
-                return response()->json(['success' => false, 'message' => 'Tidak ada baris stok untuk obat/gudang tersebut'], 404);
+                return response()->json(['success' => false, 'message' => 'Tidak ada baris stok untuk obat tersebut'], 404);
             }
 
             foreach ($rows as $r) {
@@ -425,9 +437,89 @@ class StokGudangController extends Controller {
                 $r->save();
             }
 
-            return response()->json(['success' => true, 'message' => 'Min/Max stok berhasil disimpan']);
+            return response()->json(['success' => true, 'message' => 'Min/Max stok total semua gudang berhasil disimpan']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Gagal menyimpan min/max: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Sync min/max values to obat stock rows in other gudang that still have no values.
+     * Missing values are treated as both min_stok and max_stok equal to 0.
+     */
+    public function syncMissingMinMax()
+    {
+        try {
+            DB::beginTransaction();
+
+            $syncedObatCount = 0;
+            $syncedRowCount = 0;
+            $skippedObatCount = 0;
+
+            $obatIds = ObatStokGudang::query()
+                ->select('obat_id')
+                ->distinct()
+                ->pluck('obat_id');
+
+            foreach ($obatIds as $obatId) {
+                $source = ObatStokGudang::where('obat_id', $obatId)
+                    ->where(function ($query) {
+                        $query->where('min_stok', '>', 0)
+                            ->orWhere('max_stok', '>', 0);
+                    })
+                    ->orderByRaw('CASE WHEN min_stok > 0 AND max_stok > 0 THEN 0 ELSE 1 END')
+                    ->first();
+
+                if (!$source) {
+                    $skippedObatCount++;
+                    continue;
+                }
+
+                $targetRows = ObatStokGudang::where('obat_id', $obatId)
+                    ->where(function ($query) {
+                        $query->where(function ($sub) {
+                            $sub->where('min_stok', '=', 0)
+                                ->where('max_stok', '=', 0);
+                        })
+                        ->orWhereNull('min_stok')
+                        ->orWhereNull('max_stok');
+                    })
+                    ->get();
+
+                if ($targetRows->isEmpty()) {
+                    continue;
+                }
+
+                $updatedForObat = 0;
+                foreach ($targetRows as $row) {
+                    $row->min_stok = $source->min_stok;
+                    $row->max_stok = $source->max_stok;
+                    $row->save();
+                    $updatedForObat++;
+                }
+
+                if ($updatedForObat > 0) {
+                    $syncedObatCount++;
+                    $syncedRowCount += $updatedForObat;
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sync min/max selesai.',
+                'synced_obat_count' => $syncedObatCount,
+                'synced_row_count' => $syncedRowCount,
+                'skipped_obat_count' => $skippedObatCount,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal sync min/max: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
