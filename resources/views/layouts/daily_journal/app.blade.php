@@ -801,6 +801,7 @@
         });
     </script>
 
+    @include('partials.global_emotion_heartbeat')
     @yield('scripts')
 </body>
 </html>

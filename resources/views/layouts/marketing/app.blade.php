@@ -149,6 +149,7 @@
         });
     </script>
 
+    @include('partials.global_emotion_heartbeat')
     @yield('scripts')
     @stack('scripts')  <!-- Add this line -->
 

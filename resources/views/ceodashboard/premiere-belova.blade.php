@@ -9,7 +9,7 @@
 @section('content')
     <div class="container-fluid mt-3">
         <div class="row">
-            <div class="col-12">
+            <div class="col-md-9">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex align-items-center justify-content-between mb-3">
@@ -27,7 +27,58 @@
                             </div>
                         </div>
 
-                        <div id="statisticContent"></div>
+                        <div id="visitationChartArea">
+                            <div id="visitationChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="mb-3">Patient Summary</h6>
+                        <div id="visitationStats">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                <tr>
+                                    <th>New Patients</th>
+                                    <td id="stat-new">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Returning Patients</th>
+                                    <td id="stat-returning">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Retention Rate</th>
+                                    <td id="stat-retention">-</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="mb-3">Jenis Kunjungan</h6>
+                        <div id="jenisSummary">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                <tr>
+                                    <th>Konsultasi</th>
+                                    <td id="jenis-konsultasi">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Beli Produk</th>
+                                    <td id="jenis-beli">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Lab</th>
+                                    <td id="jenis-lab">-</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -53,49 +104,56 @@
             function renderChart(data) {
                 var lastIndex = (data.series || []).length - 1;
 
-                // build annotations for latest series points so we can style arrows green/red
+                // build annotations for latest series points: top = count+pct, bottom = revenue
                 var annotationsPoints = [];
-                try {
-                    var seriesAll = data.series || [];
-                    var labelsAll = data.labels || [];
-                    var currIdx = seriesAll.length - 1;
-                    var prevIdx = currIdx - 1;
-                    if (currIdx >= 0) {
-                        for (var i = 0; i < labelsAll.length; i++) {
-                            var curr = (seriesAll[currIdx].data && typeof seriesAll[currIdx].data[i] !== 'undefined') ? seriesAll[currIdx].data[i] : 0;
-                            var prev = (prevIdx >= 0 && seriesAll[prevIdx].data && typeof seriesAll[prevIdx].data[i] !== 'undefined') ? seriesAll[prevIdx].data[i] : null;
-                            var arrow = '';
-                            if (prev !== null) {
-                                if (curr > prev) arrow = '▲';
-                                else if (curr < prev) arrow = '▼';
-                            }
-                            var pctText = '';
-                            if (prev !== null && prev !== 0) {
-                                var change = Math.round(((curr - prev) / prev) * 100);
-                                pctText = ' (' + (change > 0 ? '+' : '') + change + '%)';
-                            }
+                var seriesAll = data.series || [];
+                var labelsAll = data.labels || [];
+                var revenuesAll = data.revenues || [];
+                var currIdx = seriesAll.length - 1;
+                var prevIdx = currIdx - 1;
 
-                            var labelText = String(curr) + (pctText || '');
-                            var clr = '#6c757d';
-                            if (arrow === '▲') clr = '#28a745';
-                            else if (arrow === '▼') clr = '#dc3545';
+                if (currIdx >= 0) {
+                    for (var i = 0; i < labelsAll.length; i++) {
+                        var curr = (seriesAll[currIdx].data && typeof seriesAll[currIdx].data[i] !== 'undefined') ? seriesAll[currIdx].data[i] : 0;
+                        var prev = (prevIdx >= 0 && seriesAll[prevIdx].data && typeof seriesAll[prevIdx].data[i] !== 'undefined') ? seriesAll[prevIdx].data[i] : null;
+                        var rev = (revenuesAll[currIdx] && typeof revenuesAll[currIdx][i] !== 'undefined') ? revenuesAll[currIdx][i] : 0;
 
-                            annotationsPoints.push({
-                                x: labelsAll[i],
-                                y: curr,
-                                marker: { size: 0 },
-                                label: {
-                                    text: labelText + (arrow ? (' ' + arrow) : ''),
-                                    borderColor: clr,
-                                    // use styled background so text is readable and arrow color is visible
-                                    style: { color: '#ffffff', background: clr },
-                                    // small offset to position above the point
-                                    offsetY: -18
-                                }
-                            });
+                        var arrow = '';
+                        if (prev !== null) {
+                            if (curr > prev) arrow = '▲';
+                            else if (curr < prev) arrow = '▼';
                         }
+
+                        var pctText = '';
+                        if (prev !== null && prev !== 0) {
+                            var change = Math.round(((curr - prev) / prev) * 100);
+                            pctText = ' (' + (change > 0 ? '+' : '') + change + '%)';
+                        }
+
+                        var topText = String(curr) + (pctText || '') + (arrow ? (' ' + arrow) : '');
+                        var revText = '';
+                        try { revText = 'Rp ' + Number(rev || 0).toLocaleString('id-ID'); } catch (e) { revText = 'Rp ' + (rev || 0); }
+                        var clr = '#6c757d';
+                        if (arrow === '▲') clr = '#28a745';
+                        else if (arrow === '▼') clr = '#dc3545';
+
+                        // top annotation (above point)
+                        annotationsPoints.push({
+                            x: labelsAll[i],
+                            y: curr,
+                            marker: { size: 0 },
+                            label: { text: topText, borderColor: clr, style: { color: '#ffffff', background: clr, fontSize: '12px' }, offsetY: -22 }
+                        });
+
+                        // bottom annotation (below point)
+                        annotationsPoints.push({
+                            x: labelsAll[i],
+                            y: curr,
+                            marker: { size: 0 },
+                            label: { text: revText, borderColor: '#e9ecef', style: { color: '#000000', background: '#ffffff', fontSize: '11px' }, offsetY: 18 }
+                        });
                     }
-                } catch(e) { annotationsPoints = []; }
+                }
 
                 // determine colors per-series: latest (this year) = blue, previous (last year) = grey
                 var seriesCount = (data.series || []).length;
@@ -121,42 +179,9 @@
                     stroke: { curve: 'smooth', width: strokeWidths },
                     series: data.series || [],
                     colors: seriesColors,
-                    // use solid fill but per-series opacity to make latest series block the chart
                     fill: { type: 'solid', opacity: seriesOpacities },
                     xaxis: { categories: data.labels || [], labels: { rotate: 0 } },
-                    // disable built-in dataLabels for latest series; we'll use annotations for colored labels
-                    dataLabels: {
-                        enabled: false,
-                        formatter: function(val, opts) {
-                            try {
-                                // only show labels for the latest year series
-                                if (opts.seriesIndex !== lastIndex) return '';
-                                var idx = opts.dataPointIndex;
-                                var series = data.series || [];
-                                var curr = series[lastIndex] && series[lastIndex].data ? series[lastIndex].data[idx] : 0;
-                                var prev = (lastIndex >= 1 && series[lastIndex-1] && series[lastIndex-1].data) ? (series[lastIndex-1].data[idx] || 0) : null;
-                                var arrow = '';
-                                if (prev !== null) {
-                                    if (curr > prev) { arrow = '▲'; }
-                                    else if (curr < prev) { arrow = '▼'; }
-                                }
-                                var pct = '';
-                                if (prev !== null && prev !== 0) {
-                                    var change = Math.round(((curr - prev) / prev) * 100);
-                                    pct = ' (' + (change > 0 ? '+' : '') + change + '%)';
-                                }
-                                // return text using SVG <tspan> for colored arrow (ApexCharts renders tspan)
-                                if (arrow) {
-                                    var clr = (arrow === '▲') ? '#28a745' : '#dc3545';
-                                    return String(curr) + ' ' + '<tspan fill="' + clr + '">' + arrow + '</tspan>' + pct;
-                                }
-                                return String(curr) + pct;
-                            } catch(e) { return String(val); }
-                        },
-                        style: { fontSize: '11px', colors: ['#333333'] },
-                        offsetY: -18,
-                        background: { enabled: true, foreColor: '#ffffff', padding: 6, borderRadius: 4 }
-                    },
+                    dataLabels: { enabled: false },
                     annotations: { points: annotationsPoints },
                     yaxis: { labels: { formatter: function(v){ return Math.round(v); } }, min: 0 },
                     tooltip: { shared: true, intersect: false, y: { formatter: function(v){ return Math.round(v); } } },
@@ -164,14 +189,28 @@
                     markers: { size: markerSizes, hover: { size: 6 } }
                 };
 
-                var el = document.getElementById('statisticContent');
-                if (!el) return;
-                el.innerHTML = '<div id="visitationChart"></div>';
+                var chartEl = document.getElementById('visitationChart');
+                if (!chartEl) return;
 
                 try {
                     if (chart) { try { chart.destroy(); } catch(e){} chart = null; }
-                    chart = new ApexCharts(document.querySelector('#visitationChart'), opts);
+                    chart = new ApexCharts(chartEl, opts);
                     chart.render();
+                } catch(e) { console.error(e); }
+            }
+
+            function renderStats(stats) {
+                try {
+                    if (!stats) return;
+                    document.getElementById('stat-new').textContent = (typeof stats.new !== 'undefined') ? stats.new : '-';
+                    document.getElementById('stat-returning').textContent = (typeof stats.returning !== 'undefined') ? stats.returning : '-';
+                    document.getElementById('stat-retention').textContent = (typeof stats.retention_rate !== 'undefined') ? (stats.retention_rate + '%') : '-';
+                    // render jenis kunjungan if present
+                    if (stats.jenis) {
+                        document.getElementById('jenis-konsultasi').textContent = stats.jenis.konsultasi ?? 0;
+                        document.getElementById('jenis-beli').textContent = stats.jenis.beli_produk ?? 0;
+                        document.getElementById('jenis-lab').textContent = stats.jenis.lab ?? 0;
+                    }
                 } catch(e) { console.error(e); }
             }
 
@@ -180,6 +219,7 @@
                 $.getJSON(url, { years: years })
                     .done(function(resp){
                         renderChart(resp);
+                        if (resp.stats) renderStats(resp.stats);
                     })
                     .fail(function(xhr){
                         console.error('Failed to load premiere belova data', xhr);

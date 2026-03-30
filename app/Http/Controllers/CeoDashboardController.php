@@ -182,7 +182,7 @@ class CeoDashboardController extends Controller
         // determine years parameter: numeric (2,5, etc) or 'all'
         $yearsParam = $request->query('years', null);
 
-        // helper to build labels and series for given startYear..endYear
+        // helper to build labels, series and revenues for given startYear..endYear
         $buildSeries = function($startYear, $endYear) use ($currentYear) {
             // labels: month full names
             $labels = [];
@@ -191,6 +191,7 @@ class CeoDashboardController extends Controller
             }
 
             $series = [];
+            $revenues = [];
             for ($y = $startYear; $y <= $endYear; $y++) {
                 $rows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
                     ->selectRaw('MONTH(v.tanggal_visitation) as m, count(*) as total')
@@ -202,14 +203,35 @@ class CeoDashboardController extends Controller
                     ->toArray();
 
                 $data = [];
+                $revData = [];
                 for ($m = 1; $m <= 12; $m++) {
                     $data[] = isset($rows[$m]) ? (int)$rows[$m] : 0;
                 }
 
+                // compute revenue for that year/month using finance_invoices linked to visitations
+                try {
+                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
+                        ->selectRaw('MONTH(v.tanggal_visitation) as m, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue')
+                        ->where('v.klinik_id', 1)
+                        ->where('v.status_kunjungan', 2)
+                        ->whereYear('v.tanggal_visitation', $y)
+                        ->groupBy('m')
+                        ->pluck('revenue', 'm')
+                        ->toArray();
+                } catch (\Exception $e) {
+                    $revRows = [];
+                }
+
+                for ($m = 1; $m <= 12; $m++) {
+                    $revData[] = isset($revRows[$m]) ? (float)$revRows[$m] : 0.0;
+                }
+
                 $series[] = ['name' => (string) $y, 'data' => $data];
+                $revenues[] = $revData;
             }
 
-            return ['labels' => $labels, 'series' => $series];
+            return ['labels' => $labels, 'series' => $series, 'revenues' => $revenues];
         };
 
         if ($yearsParam === 'all') {
@@ -226,8 +248,89 @@ class CeoDashboardController extends Controller
             $initial = $buildSeries($startYear, $currentYear);
         }
 
+        // determine startYear and endYear for stats calculation (used by AJAX consumers)
+        if (isset($startYear) && isset($endYear)) {
+            // already set in numeric branch
+        } else {
+            // derive from earlier branches
+            if (isset($minYear)) {
+                $startYear = $minYear;
+            } else {
+                $startYear = $currentYear - 1;
+            }
+            $endYear = $currentYear;
+        }
+
+        // compute simple patient retention/new stats for klinik_id = 1 within the selected period
+        $stats = ['total_patients' => 0, 'new' => 0, 'returning' => 0, 'retention_rate' => 0.0];
+        try {
+            $startDate = sprintf('%04d-01-01', (int)$startYear);
+            $endDate = sprintf('%04d-12-31', (int)$endYear);
+
+            $visQ = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                ->where('klinik_id', 1)
+                ->where('status_kunjungan', 2)
+                ->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+
+            $patientIds = $visQ->pluck('pasien_id')->unique()->filter()->values()->all();
+            $total = count($patientIds);
+            $stats['total_patients'] = (int)$total;
+
+            $newCount = 0;
+            $returningCount = 0;
+            if ($total > 0) {
+                $firstDates = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->selectRaw('pasien_id, MIN(tanggal_visitation) as first_date')
+                    ->where('klinik_id', 1)
+                    ->where('status_kunjungan', 2)
+                    ->whereIn('pasien_id', $patientIds)
+                    ->groupBy('pasien_id')
+                    ->pluck('first_date', 'pasien_id')
+                    ->toArray();
+
+                foreach ($patientIds as $pid) {
+                    $fd = isset($firstDates[$pid]) ? $firstDates[$pid] : null;
+                    if (!$fd) { $newCount++; continue; }
+                    try {
+                        $firstDt = \Illuminate\Support\Carbon::parse($fd)->toDateString();
+                        if ($firstDt >= $startDate) $newCount++; else $returningCount++;
+                    } catch (\Exception $e) { $newCount++; }
+                }
+            }
+
+            $stats['new'] = (int)$newCount;
+            $stats['returning'] = (int)$returningCount;
+            $ret = 0.0;
+            if ($total > 0) {
+                $ret = ($returningCount / $total) * 100.0;
+                $ret = round($ret, 1);
+            }
+            $stats['retention_rate'] = $ret;
+            // compute jenis_kunjungan breakdown for the same period (Konsultasi=1, Beli Produk=2, Lab=3)
+            try {
+                $jenisRows = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->selectRaw('jenis_kunjungan, count(*) as cnt')
+                    ->where('klinik_id', 1)
+                    ->where('status_kunjungan', 2)
+                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('jenis_kunjungan')
+                    ->pluck('cnt', 'jenis_kunjungan')
+                    ->toArray();
+
+                $stats['jenis'] = [
+                    'konsultasi' => isset($jenisRows[1]) ? (int)$jenisRows[1] : 0,
+                    'beli_produk' => isset($jenisRows[2]) ? (int)$jenisRows[2] : 0,
+                    'lab' => isset($jenisRows[3]) ? (int)$jenisRows[3] : 0,
+                ];
+            } catch (\Exception $e) {
+                $stats['jenis'] = ['konsultasi' => 0, 'beli_produk' => 0, 'lab' => 0];
+            }
+        } catch (\Exception $e) {
+            // ignore and keep zeros
+        }
+
         if ($request->ajax() || $request->wantsJson()) {
-            return response()->json($initial);
+            return response()->json(['labels' => $initial['labels'], 'series' => $initial['series'], 'revenues' => ($initial['revenues'] ?? []), 'stats' => $stats]);
         }
 
         return view('ceodashboard.premiere-belova', compact('initial'));
