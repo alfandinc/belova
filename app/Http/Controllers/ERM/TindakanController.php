@@ -284,6 +284,7 @@ class TindakanController extends Controller
             'nama_pasien' => 'nullable|string',
             'nama_saksi' => 'nullable|string',
             'paket_id' => 'nullable|exists:erm_paket_tindakan,id',
+            'reuse_existing_inform_consent' => 'nullable|boolean',
         ];
         $data = $request->validate($rules);
 
@@ -421,6 +422,27 @@ class TindakanController extends Controller
                 'riwayat_tindakan_id' => $riwayatTindakan->id,
                 'created_at' => now(),
             ]);
+        } elseif ($request->boolean('reuse_existing_inform_consent')) {
+            $existingInformConsent = InformConsent::where('visitation_id', $data['visitation_id'])
+                ->where('tindakan_id', $data['tindakan_id'])
+                ->whereNotNull('file_path')
+                ->where('riwayat_tindakan_id', '!=', $riwayatTindakan->id)
+                ->latest('id')
+                ->first();
+
+            if ($existingInformConsent) {
+                $informConsent = InformConsent::create([
+                    'visitation_id' => $data['visitation_id'],
+                    'tindakan_id' => $data['tindakan_id'],
+                    'file_path' => $existingInformConsent->file_path,
+                    'before_image_path' => $existingInformConsent->before_image_path,
+                    'after_image_path' => $existingInformConsent->after_image_path,
+                    'paket_id' => $data['paket_id'] ?? $existingInformConsent->paket_id,
+                    'riwayat_tindakan_id' => $riwayatTindakan->id,
+                    'allow_post' => $existingInformConsent->allow_post,
+                    'created_at' => now(),
+                ]);
+            }
         }
 
         // Automatically create SPK record
@@ -617,36 +639,48 @@ class TindakanController extends Controller
         $patientVisitations = Visitation::where('pasien_id', $patientId)
             ->pluck('id')->toArray();
 
-        // Get all riwayat tindakan for all visitations of this patient
-            $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
-                ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
-                ->get()
-                ->map(function ($item) use ($visitationId) {
-                    $tanggalRaw = $item->visitation->tanggal_visitation ?? null;
-                    $tanggalFormatted = '-';
-                    if ($tanggalRaw) {
-                        $tanggalFormatted = Carbon::parse($tanggalRaw)
-                            ->locale('id')
-                            ->isoFormat('D MMMM YYYY');
-                    }
-                    return (object) [
-                        'id' => $item->id,
-                        'visitation_id' => $item->visitation_id,
-                        'tanggal' => $tanggalFormatted,
-                        'tanggal_raw' => $tanggalRaw,
-                        'tindakan' => $item->tindakan->nama ?? '-',
-                        'paket' => $item->paketTindakan->nama ?? '-',
-                        'dokter' => $item->visitation->dokter->user->name ?? '-',
-                        'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
-                        'inform_consent' => $item->informConsent,
-                        'current' => ($item->visitation_id == $visitationId) ? true : false
-                    ];
-                })
-                ->sortByDesc(function ($item) {
-                    // Sort by raw visitation date (string, so convert to timestamp)
-                    return $item->tanggal_raw ? strtotime($item->tanggal_raw) : 0;
-                })
-                ->values();
+        // Get all riwayat tindakan for all visitations of this patient and collapse
+        // duplicate tindakan within the same visit into one row with a count badge.
+        $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
+            ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
+            ->get()
+            ->groupBy(function ($item) {
+                return $item->visitation_id . '-' . ($item->tindakan_id ?? 0);
+            })
+            ->map(function ($group) use ($visitationId) {
+                $representative = $group->sortByDesc('id')->first();
+                $informConsentSource = $group->sortByDesc('id')->first(function ($candidate) {
+                    return !empty($candidate->informConsent);
+                }) ?: $representative;
+
+                $tanggalRaw = $representative->visitation->tanggal_visitation ?? null;
+                $tanggalFormatted = '-';
+                if ($tanggalRaw) {
+                    $tanggalFormatted = Carbon::parse($tanggalRaw)
+                        ->locale('id')
+                        ->isoFormat('D MMMM YYYY');
+                }
+
+                return (object) [
+                    'id' => $representative->id,
+                    'visitation_id' => $representative->visitation_id,
+                    'tindakan_id' => $representative->tindakan_id,
+                    'tanggal' => $tanggalFormatted,
+                    'tanggal_raw' => $tanggalRaw,
+                    'tindakan' => $representative->tindakan->nama ?? '-',
+                    'paket' => $representative->paketTindakan->nama ?? '-',
+                    'dokter' => $representative->visitation->dokter->user->name ?? '-',
+                    'spesialisasi' => $representative->visitation->dokter->spesialisasi->nama ?? '-',
+                    'inform_consent' => $informConsentSource->informConsent,
+                    'duplicate_count' => $group->count(),
+                    'current' => ($representative->visitation_id == $visitationId)
+                ];
+            })
+            ->sortByDesc(function ($item) {
+                // Sort by raw visitation date (string, so convert to timestamp)
+                return $item->tanggal_raw ? strtotime($item->tanggal_raw) : 0;
+            })
+            ->values();
 
         return datatables()->of($history)
             ->addColumn('dokumen', function ($row) {

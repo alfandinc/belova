@@ -1358,14 +1358,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             try {
                 $latestInvoice = Invoice::where('visitation_id', $visitation_id)->latest()->first();
                 if ($latestInvoice) {
-                    $maxBillingUpdatedAt = null;
+                    $maxBillingChangedAt = null;
                     try {
-                        $maxBillingUpdatedAt = $billings->max('updated_at');
+                        $maxBillingChangedAt = Billing::withTrashed()
+                            ->where('visitation_id', $visitation_id)
+                            ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
+                            ->value('max_changed_at');
                     } catch (\Exception $e) {
-                        $maxBillingUpdatedAt = null;
+                        $maxBillingChangedAt = null;
                     }
-                    if ($maxBillingUpdatedAt && $latestInvoice->updated_at) {
-                        $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingUpdatedAt)->gt($latestInvoice->updated_at);
+                    if ($maxBillingChangedAt && $latestInvoice->updated_at) {
+                        $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($latestInvoice->updated_at);
                     }
                 }
             } catch (\Exception $e) {
@@ -1743,9 +1746,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     $invoiceNeedsUpdate = false;
     try {
         if ($invoice) {
-            $maxBillingUpdatedAt = Billing::where('visitation_id', $visitation_id)->max('updated_at');
-            if ($maxBillingUpdatedAt && $invoice->updated_at) {
-                $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingUpdatedAt)->gt($invoice->updated_at);
+            $maxBillingChangedAt = Billing::withTrashed()
+                ->where('visitation_id', $visitation_id)
+                ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
+                ->value('max_changed_at');
+            if ($maxBillingChangedAt && $invoice->updated_at) {
+                $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($invoice->updated_at);
             }
         }
     } catch (\Exception $e) {
@@ -3179,12 +3185,44 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $user = Auth::user();
         $isAdmin = $user && method_exists($user, 'hasRole') && $user->hasRole('Admin');
 
-        // Authorization: only Admin may delete billing items.
-        if (!empty($request->deleted_items) && !$isAdmin) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda tidak memiliki akses untuk menghapus item billing.'
-            ], 403);
+        $deletedIds = collect($request->input('deleted_items', []))
+            ->filter(function ($id) {
+                return is_numeric($id);
+            })
+            ->map(function ($id) {
+                return (int) $id;
+            })
+            ->values();
+        $request->merge(['deleted_items' => $deletedIds->all()]);
+
+        $namedKonsultasiBillableIds = \App\Models\ERM\Konsultasi::query()
+            ->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%'])
+            ->pluck('id')
+            ->map(function ($id) {
+                return (string) $id;
+            })
+            ->values();
+
+        $newItems = collect($request->input('new_items', []));
+        $incomingNamedKonsultasiItems = $newItems->filter(function ($item) {
+            return ($item['billable_type'] ?? null) === 'App\\Models\\ERM\\Konsultasi'
+                && stripos((string) ($item['nama_item'] ?? ''), 'konsultasi') !== false;
+        });
+        $lastIncomingNamedKonsultasiKey = $incomingNamedKonsultasiItems->keys()->last();
+
+        // Non-admin users may only delete consultation billing rows from the current visitation.
+        if ($deletedIds->isNotEmpty() && !$isAdmin) {
+            $allowedDeletedCount = Billing::where('visitation_id', $request->visitation_id)
+                ->whereIn('id', $deletedIds->all())
+                ->where('billable_type', 'App\\Models\\ERM\\Konsultasi')
+                ->count();
+
+            if ($allowedDeletedCount !== $deletedIds->count()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda hanya dapat menghapus item billing konsultasi.'
+                ], 403);
+            }
         }
 
         DB::beginTransaction();
@@ -3192,7 +3230,37 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Process deleted items
             if (!empty($request->deleted_items)) {
                 // Log::info('Processing deleted items: ' . json_encode($request->deleted_items));
-                Billing::whereIn('id', $request->deleted_items)->delete();
+                $namedKonsultasiDeleteIds = Billing::withTrashed()
+                    ->where('visitation_id', $request->visitation_id)
+                    ->whereIn('id', $request->deleted_items)
+                    ->where('billable_type', 'App\\Models\\ERM\\Konsultasi')
+                    ->when($namedKonsultasiBillableIds->isNotEmpty(), function ($query) use ($namedKonsultasiBillableIds) {
+                        $query->whereIn('billable_id', $namedKonsultasiBillableIds->all());
+                    }, function ($query) {
+                        $query->whereRaw('1 = 0');
+                    })
+                    ->pluck('id')
+                    ->all();
+
+                if (!empty($namedKonsultasiDeleteIds)) {
+                    Billing::withTrashed()
+                        ->where('visitation_id', $request->visitation_id)
+                        ->whereIn('id', $namedKonsultasiDeleteIds)
+                        ->forceDelete();
+                }
+
+                $remainingDeletedIds = collect($request->deleted_items)
+                    ->reject(function ($id) use ($namedKonsultasiDeleteIds) {
+                        return in_array((int) $id, array_map('intval', $namedKonsultasiDeleteIds), true);
+                    })
+                    ->values()
+                    ->all();
+
+                if (!empty($remainingDeletedIds)) {
+                    Billing::where('visitation_id', $request->visitation_id)
+                        ->whereIn('id', $remainingDeletedIds)
+                        ->delete();
+                }
             }
 
             // Process edited items
@@ -3344,12 +3412,27 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Process new items (added through dropdowns)
             if (!empty($request->new_items)) {
                 // Log::info('Processing new items: ' . json_encode($request->new_items));
-                foreach ($request->new_items as $item) {
+                if ($lastIncomingNamedKonsultasiKey !== null && $namedKonsultasiBillableIds->isNotEmpty()) {
+                    Billing::withTrashed()
+                        ->where('visitation_id', $request->visitation_id)
+                        ->where('billable_type', 'App\\Models\\ERM\\Konsultasi')
+                        ->whereIn('billable_id', $namedKonsultasiBillableIds->all())
+                        ->forceDelete();
+                }
+
+                foreach ($request->new_items as $newItemIndex => $item) {
                     // Log::info('Processing new item: ' . json_encode($item));
                     
                     // Skip if this item was marked as deleted (check for both boolean and string)
                     if ((isset($item['deleted']) && ($item['deleted'] === true || $item['deleted'] === 'true'))) {
                         // Log::info('Skipping deleted new item: ' . $item['id']);
+                        continue;
+                    }
+
+                    $isNamedKonsultasiItem = ($item['billable_type'] ?? null) === 'App\\Models\\ERM\\Konsultasi'
+                        && stripos((string) ($item['nama_item'] ?? ''), 'konsultasi') !== false;
+
+                    if ($isNamedKonsultasiItem && $lastIncomingNamedKonsultasiKey !== null && (int) $newItemIndex !== (int) $lastIncomingNamedKonsultasiKey) {
                         continue;
                     }
 
@@ -3382,6 +3465,38 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             } else {
                 // Log::info('No new items to process');
+            }
+
+            if ($namedKonsultasiBillableIds->isNotEmpty()) {
+                $namedKonsultasiRows = Billing::withTrashed()
+                    ->where('visitation_id', $request->visitation_id)
+                    ->where('billable_type', 'App\\Models\\ERM\\Konsultasi')
+                    ->whereIn('billable_id', $namedKonsultasiBillableIds->all())
+                    ->orderByDesc('id')
+                    ->get();
+
+                $activeNamedKonsultasiRows = $namedKonsultasiRows->filter(function ($row) {
+                    return !$row->trashed();
+                })->values();
+
+                if ($activeNamedKonsultasiRows->count() > 1) {
+                    $keepId = $activeNamedKonsultasiRows->first()->id;
+                    $namedKonsultasiRows
+                        ->filter(function ($row) use ($keepId) {
+                            return (int) $row->id !== (int) $keepId;
+                        })
+                        ->each(function ($row) {
+                            $row->forceDelete();
+                        });
+                } else {
+                    $namedKonsultasiRows
+                        ->filter(function ($row) {
+                            return $row->trashed();
+                        })
+                        ->each(function ($row) {
+                            $row->forceDelete();
+                        });
+                }
             }
 
             DB::commit();

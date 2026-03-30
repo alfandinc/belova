@@ -429,6 +429,9 @@
                 { data: 'tanggal', name: 'tanggal', visible: false },
                 { data: 'tindakan', name: 'tindakan', render: function(data, type, row) {
                         var name = data ? data : '';
+                        if (parseInt(row.duplicate_count || 1) > 1) {
+                            name += ' <span class="badge badge-info ml-2">' + row.duplicate_count + 'x</span>';
+                        }
                         if (row.current) {
                             name += ' <span class="badge badge-success blink-new ml-2">Current visit</span>';
                         }
@@ -764,6 +767,87 @@
             }, 100);
         };
 
+        function loadInformConsentModal(tindakanId, visitationId) {
+            $.get(`/erm/tindakan/inform-consent/${tindakanId}?visitation_id=${visitationId}`)
+                .done(function (html) {
+                    $('#modalInformConsentBody').html(html);
+                    (function injectPriceSelector(tid) {
+                        $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
+                            if (!res.success) return;
+                            const harga = res.harga || 0;
+                            const harga3 = res.harga_3_kali || null;
+                            const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
+                            const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                            const $form = $('#modalInformConsentBody').find('#informConsentForm');
+                            if ($form.length) {
+                                const preferred = window.preferredHargaType || 'normal';
+                                const checkedNormal = preferred === 'normal' ? 'checked' : '';
+                                const checked3x = preferred === '3x' ? 'checked' : '';
+                                let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
+                                html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
+                                if (formattedHarga3) {
+                                    html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
+                                }
+                                html += '</div></div>';
+                                $form.prepend(html);
+                                window.preferredHargaType = null;
+                            }
+                        }).fail(function(){/* ignore */});
+                    })(tindakanId);
+                    $('#modalInformConsentBody').append(`
+                        <div class="text-center mt-4">
+                            <button id="saveInformConsent" class="btn btn-success">Simpan</button>
+                        </div>
+                    `);
+                    $('#modalInformConsent').modal('show');
+                })
+                .fail(function (jqXHR, textStatus, errorThrown) {
+                    console.error('AJAX Error:', textStatus, errorThrown);
+                    alert('Error loading inform consent form');
+                });
+        }
+
+        function saveDuplicateTindakanDirectly(tindakanId, visitationId) {
+            const formData = new FormData();
+            formData.append('tindakan_id', tindakanId);
+            formData.append('visitation_id', visitationId);
+            formData.append('tanggal', new Date().toISOString().split('T')[0]);
+            formData.append('harga_type', window.preferredHargaType || 'normal');
+            formData.append('reuse_existing_inform_consent', '1');
+
+            Swal.fire({
+                title: 'Saving...',
+                text: 'Please wait while the data is being saved.',
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+            });
+
+            $.ajax({
+                url: '/erm/tindakan/inform-consent/save',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    window.preferredHargaType = null;
+                    if (response.success) {
+                        Swal.fire('Success', 'Tindakan berhasil ditambahkan.', 'success').then(() => {
+                            $('#historyTindakanTable').DataTable().ajax.reload();
+                        });
+                    } else {
+                        Swal.fire('Error', 'Failed to save tindakan.', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    window.preferredHargaType = null;
+                    console.error('Error:', xhr.responseJSON || xhr);
+                    Swal.fire('Error', 'Failed to save. Please try again.', 'error');
+                }
+            });
+        }
+
             // Fungsi buat-tindakan
         $(document).on('click', '.buat-tindakan', function () {
             window.lastTindakanIdClicked = $(this).data('id'); // Always set this first!
@@ -783,96 +867,25 @@
                     .done(function(check) {
                         if (check && check.success && check.exists) {
                             Swal.fire({
-                                title: 'Duplicate Tindakan',
-                                text: 'Tindakan ini sudah ditambahkan pada kunjungan saat ini.',
-                                icon: 'warning'
+                                title: 'Tindakan ini sudah ditambahkan',
+                                text: 'Tambahkan lagi?',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Ya, tambahkan',
+                                cancelButtonText: 'Batal'
+                            }).then(function(result) {
+                                if (result.isConfirmed || result.value) {
+                                    saveDuplicateTindakanDirectly(id, visitationId);
+                                } else {
+                                    window.preferredHargaType = null;
+                                }
                             });
                             return;
                         }
-                        // Not exists -> proceed to load inform consent form
-                        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
-                            .done(function (html) {
-                            $('#modalInformConsentBody').html(html);
-                            // Inject price selector UI into the loaded inform consent form (if present)
-                            (function injectPriceSelector(tid) {
-                                $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
-                                    if (!res.success) return;
-                                    const harga = res.harga || 0;
-                                    const harga3 = res.harga_3_kali || null;
-                                    const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
-                                    const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
-                                    const $form = $('#modalInformConsentBody').find('#informConsentForm');
-                                    if ($form.length) {
-                                        const preferred = window.preferredHargaType || 'normal';
-                                        const checkedNormal = preferred === 'normal' ? 'checked' : '';
-                                        const checked3x = preferred === '3x' ? 'checked' : '';
-                                        let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
-                                        html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
-                                        if (formattedHarga3) {
-                                            html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
-                                        }
-                                        html += '</div></div>';
-                                        // Insert at the top of form body
-                                        $form.prepend(html);
-                                        // Clear the preferred flag after applying
-                                        window.preferredHargaType = null;
-                                    }
-                                }).fail(function(){/* ignore */});
-                            })(id);
-                        $('#modalInformConsentBody').append(`
-                            <div class="text-center mt-4">
-                                <button id="saveInformConsent" class="btn btn-success">Simpan</button>
-                            </div>
-                        `);
-                        $('#modalInformConsent').modal('show');
-                            })
-                            .fail(function (jqXHR, textStatus, errorThrown) {
-                                console.error('AJAX Error:', textStatus, errorThrown);
-                                alert('Error loading inform consent form');
-                            });
+                        loadInformConsentModal(id, visitationId);
                     })
                     .fail(function() {
-                        // If check endpoint failed, be conservative and allow loading (or optionally block).
-                        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
-                            .done(function (html) {
-                                $('#modalInformConsentBody').html(html);
-                                // existing injection and show logic continues below
-                                (function injectPriceSelector(tid) {
-                                    $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
-                                        if (!res.success) return;
-                                        const harga = res.harga || 0;
-                                        const harga3 = res.harga_3_kali || null;
-                                        const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
-                                        const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
-                                        const $form = $('#modalInformConsentBody').find('#informConsentForm');
-                                        if ($form.length) {
-                                            const preferred = window.preferredHargaType || 'normal';
-                                            const checkedNormal = preferred === 'normal' ? 'checked' : '';
-                                            const checked3x = preferred === '3x' ? 'checked' : '';
-                                            let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
-                                            html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
-                                            if (formattedHarga3) {
-                                                html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
-                                            }
-                                            html += '</div></div>';
-                                            // Insert at the top of form body
-                                            $form.prepend(html);
-                                            // Clear the preferred flag after applying
-                                            window.preferredHargaType = null;
-                                        }
-                                    }).fail(function(){/* ignore */});
-                                })(id);
-                                $('#modalInformConsentBody').append(`
-                                    <div class="text-center mt-4">
-                                        <button id="saveInformConsent" class="btn btn-success">Simpan</button>
-                                    </div>
-                                `);
-                                $('#modalInformConsent').modal('show');
-                            })
-                            .fail(function () {
-                                console.error('AJAX Error: failed to load inform consent after fallback check');
-                                alert('Error loading inform consent form');
-                            });
+                        loadInformConsentModal(id, visitationId);
                     });
             }
         });

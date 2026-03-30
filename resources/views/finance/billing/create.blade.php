@@ -796,6 +796,15 @@
             invoiceNeedsUpdateServer = false;
         }
 
+        function isKonsultasiBillingType(billableType) {
+            return (billableType || '').toString() === 'App\\Models\\ERM\\Konsultasi';
+        }
+
+        function canDeleteBillingRow(row) {
+            if (!row) return !!canDeleteBilling;
+            return !!canDeleteBilling || isKonsultasiBillingType(row.billable_type);
+        }
+
         function isTempBillingId(id) {
             try {
                 const s = (id || '').toString();
@@ -1352,9 +1361,10 @@
                         if (billingLocked) {
                             return '<span class="text-muted">-</span>';
                         }
-                        const deleteBtnHtml = canDeleteBilling ? `
+                        const deleteBtnHtml = canDeleteBillingRow(row) ? `
                                 <button class="btn btn-sm btn-outline-danger delete-btn"
                                     data-id="${row.id}"
+                                    data-billable-type="${row.billable_type || ''}"
                                     data-row-index="${meta.row}">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -1811,7 +1821,11 @@
         
         // Fix: Use document delegation for delete button
         $(document).on('click', '.delete-btn', function() {
-            if (!canDeleteBilling) {
+            const id = $(this).data('id');
+            const currentItem = (Array.isArray(billingData) ? billingData.find(function(item) { return item && item.id == id; }) : null);
+            const canDeleteThisRow = canDeleteBillingRow(currentItem || { billable_type: $(this).data('billable-type') });
+
+            if (!canDeleteThisRow) {
                 Swal.fire({
                     title: 'Tidak Bisa Dihapus',
                     text: 'Anda tidak memiliki akses untuk menghapus item billing.',
@@ -1827,7 +1841,6 @@
                 });
                 return;
             }
-            const id = $(this).data('id');
             Swal.fire({
                 title: 'Konfirmasi Hapus',
                 text: 'Apakah Anda yakin ingin menghapus item ini?',
@@ -1847,6 +1860,14 @@
                             // Only push numeric IDs (real DB items)
                             if (!isNaN(Number(billingData[idx].id))) {
                                 deletedItems.push(billingData[idx].id);
+                            }
+                            try {
+                                if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked) {
+                                    invoiceNeedsUpdateServer = true;
+                                    updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+                                }
+                            } catch (e) {
+                                // ignore
                             }
                             updateTable();
                             calculateTotals();
@@ -2153,12 +2174,9 @@
             calculateTotals();
         }
 
-        function billingItemHasKonsultasiName(item) {
+        function billingItemMatchesKonsultasiReplacement(item) {
             if (!item) return false;
-
-            const billableType = (item.billable_type || '').toString();
-            if (billableType !== 'App\\Models\\ERM\\Konsultasi') return false;
-
+            if (!isKonsultasiBillingType(item.billable_type)) return false;
             const itemName = (item.nama_item || item.name || '').toString().trim().toLowerCase();
             return itemName.includes('konsultasi');
         }
@@ -2175,7 +2193,7 @@
 
             (Array.isArray(billingData) ? billingData : []).forEach(function(item) {
                 if (!item || item.deleted) return;
-                if (!billingItemHasKonsultasiName(item)) return;
+                if (!billingItemMatchesKonsultasiReplacement(item)) return;
 
                 item.deleted = true;
                 pushDeletedBillingIdIfNeeded(item.id);
