@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 
 use App\Models\BCL\renter;
 use App\Models\BCL\renter_document;
+use App\Models\BCL\tr_renter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -156,6 +157,61 @@ class RenterController extends Controller
         } catch (\Throwable $th) {
             return redirect()->route('bcl.renter.index')->with(['error' => 'Data gagal dihapus!']);
         }
+    }
+
+    public function detail($id)
+    {
+        $renter = renter::with(['document', 'current_room'])->findOrFail($id);
+        $transactions = tr_renter::with(['room', 'jurnal', 'tambahan'])
+            ->where('id_renter', $renter->id)
+            ->orderByDesc('tgl_mulai')
+            ->limit(12)
+            ->get()
+            ->map(function ($transaction) {
+                $paidTotal = (float) $transaction->jurnal->sum('kredit');
+                $extraTotal = (float) $transaction->tambahan->sum('harga');
+                $grandTotal = (float) $transaction->harga + $extraTotal;
+
+                return [
+                    'trans_id' => $transaction->trans_id,
+                    'room_name' => optional($transaction->room)->room_name,
+                    'tgl_mulai' => $transaction->tgl_mulai,
+                    'tgl_selesai' => $transaction->tgl_selesai,
+                    'harga' => (float) $transaction->harga,
+                    'extra_total' => $extraTotal,
+                    'paid_total' => $paidTotal,
+                    'remaining_total' => max($grandTotal - $paidTotal, 0),
+                    'notes' => $transaction->catatan,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'renter' => [
+                'id' => $renter->id,
+                'nama' => $renter->nama,
+                'alamat' => $renter->alamat,
+                'phone' => $renter->phone,
+                'phone2' => $renter->phone2,
+                'birthday' => $renter->birthday,
+                'identitas' => $renter->identitas,
+                'no_identitas' => $renter->no_identitas,
+                'kendaraan' => $renter->kendaraan,
+                'nopol' => $renter->nopol,
+                'deposit_balance' => $renter->deposit_balance,
+                'current_room_name' => optional($renter->current_room)->room_name,
+                'current_room_end' => optional($renter->current_room)->tgl_selesai,
+            ],
+            'documents' => $renter->document->map(function ($document) {
+                return [
+                    'id' => $document->id,
+                    'type' => $document->document_type,
+                    'img' => $document->img,
+                    'url' => $document->img ? asset('storage/renter/' . $document->img) : null,
+                ];
+            })->values(),
+            'transactions' => $transactions,
+        ]);
     }
 
     /**

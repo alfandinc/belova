@@ -153,7 +153,7 @@ $inv = $data;
                                 <?php
                                 foreach ($rooms as $value) {
                                 ?>
-                                    <option value="<?= $value->id ?>"><?= $value->room_name ?> (<?= $value->category_name ?>)</option>
+                                    <option value="<?= $value->id ?>"><?= ($value->floor ? 'Lantai ' . $value->floor . ' - ' : '') . $value->room_name ?> (<?= $value->category_name ?>)</option>
                                 <?php
                                 }
                                 ?>
@@ -216,7 +216,7 @@ $inv = $data;
                                 <label>Pilih Kamar</label>
                                 <select id="export_rooms" name="rooms[]" class="form-control select2" multiple style="width:100%" data-placeholder="Pilih kamar...">
                                     @foreach($rooms as $r)
-                                    <option value="{{ $r->id }}">{{ $r->room_name }} ({{ $r->category_name }})</option>
+                                    <option value="{{ $r->id }}">{{ ($r->floor ? 'Lantai ' . $r->floor . ' - ' : '') . $r->room_name }} ({{ $r->category_name }})</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -269,7 +269,7 @@ $inv = $data;
                                 <?php
                                 foreach ($rooms as $value) {
                                 ?>
-                                    <option value="<?= $value->id ?>"><?= $value->room_name ?> (<?= $value->category_name ?>)</option>
+                                    <option value="<?= $value->id ?>"><?= ($value->floor ? 'Lantai ' . $value->floor . ' - ' : '') . $value->room_name ?> (<?= $value->category_name ?>)</option>
                                 <?php
                                 }
                                 ?>

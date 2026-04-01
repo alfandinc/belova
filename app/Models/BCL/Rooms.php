@@ -13,6 +13,7 @@ class Rooms extends Model
     // protected $primaryKey = 'id';
     protected $fillable = [
         'room_name',
+        'floor',
         'room_category',
         'notes',
     ];
@@ -21,8 +22,20 @@ class Rooms extends Model
     //     'tgl_mulai' => 'date:Y-m-d',
     //     'tgl_selesai' => 'date:Y-m-d'
     // ];
+    protected $casts = [
+        'floor' => 'integer',
+    ];
+
     protected $table = 'bcl_rooms';
     protected $primaryKey = 'id';
+
+    public function scopeOrderedForMapping($query)
+    {
+        return $query
+            ->orderByRaw('CASE WHEN ' . $this->qualifyColumn('floor') . ' IS NULL THEN 1 ELSE 0 END')
+            ->orderBy($this->qualifyColumn('floor'))
+            ->orderBy($this->qualifyColumn('room_name'));
+    }
 
     public function category()
     {

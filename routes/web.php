@@ -435,11 +435,18 @@ Route::post('/satusehat/pasiens/{visitation}/send-medication', [SatusehatPasienC
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
+    Route::get('/rooms/data', [RoomsController::class, 'data'])->name('bcl.rooms.data');
+    Route::get('/rooms/form-data', [RoomsController::class, 'formData'])->name('bcl.rooms.form_data');
+    Route::get('/rooms/deleted-data', [RoomsController::class, 'deletedData'])->name('bcl.rooms.deleted_data');
+    Route::get('/rooms/unpaid-data', [RoomsController::class, 'unpaidData'])->name('bcl.rooms.unpaid_data');
+    Route::get('/rooms/{id}/booking-queue', [RoomsController::class, 'bookingQueue'])->name('bcl.rooms.booking_queue');
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
     Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
     Route::get('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
     Route::get('/rooms/restore/{id}', [RoomsController::class, 'restore'])->name('bcl.rooms.restore');
     Route::get('/rooms', [RoomsController::class, 'index'])->name('bcl.rooms');
+    Route::get('/rooms/{id}/wifi', [RoomsController::class, 'wifi'])->name('bcl.rooms.wifi');
+    Route::get('/rooms/{id}/history', [RoomsController::class, 'history'])->name('bcl.rooms.history');
     Route::get('/rooms/{id}', [PricelistController::class, 'get_room_pricelist'])->name('bcl.pricelist.get_pl_room');
     Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');
     Route::get('/tambahanpl/edit/{id}', [pricelist_tambahanController::class, 'edit'])->name('bcl.extra_pl.edit');
@@ -459,6 +466,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
 
     Route::get('/renter', [RenterController::class, 'index'])->name('bcl.renter.index');
     Route::post('/renter/store', [RenterController::class, 'store'])->name('bcl.renter.store');
+    Route::get('/renter/detail/{id}', [RenterController::class, 'detail'])->name('bcl.renter.detail');
     Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
     Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
     Route::get('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');

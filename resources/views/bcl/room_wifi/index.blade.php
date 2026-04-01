@@ -74,7 +74,7 @@
                     <select name="room_id" id="room_id" class="form-control" required>
                         <option value="">-- Pilih Room --</option>
                         @foreach($rooms as $room)
-                            <option value="{{ $room->id }}">{{ $room->room_name }}</option>
+                            <option value="{{ $room->id }}">{{ ($room->floor ? 'Lantai ' . $room->floor . ' - ' : '') . $room->room_name }}</option>
                         @endforeach
                     </select>
                 </div>

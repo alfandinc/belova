@@ -80,7 +80,8 @@ class InventoriesController extends Controller
         }
         // return response()->json($data);
 
-        $rooms = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+        $rooms = Rooms::orderedForMapping()
+            ->leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
             ->select('bcl_rooms.*', 'room_category.category_name')
             ->get();
         $no_inv = $this->get_no_inv();
@@ -388,14 +389,14 @@ class InventoriesController extends Controller
         $groups = [];
         if (!empty($roomsInput)) {
             $roomsModel = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
-                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'room_category.category_name')
+                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name')
                 ->whereIn('bcl_rooms.id', $roomsInput)
                 ->orderByRaw("FIELD(bcl_rooms.id, " . implode(',', array_map('intval', $roomsInput)) . ")")
                 ->get();
         } else {
-            $roomsModel = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
-                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'room_category.category_name')
-                ->orderBy('bcl_rooms.room_name')
+            $roomsModel = Rooms::orderedForMapping()
+                ->leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name')
                 ->get();
         }
 
@@ -404,6 +405,7 @@ class InventoriesController extends Controller
             $groups[] = [
                 'room_id' => $r->id,
                 'room_name' => $r->room_name,
+                'floor' => $r->floor,
                 'category_name' => $r->category_name,
                 'items' => $items
             ];

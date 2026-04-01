@@ -24,7 +24,7 @@
 
     <div class="content">
         @foreach($groups as $gindex => $group)
-            <h3 class="pdf-title">Daftar Barang Kamar {{ $group['room_name'] }}{{ $group['category_name'] ? ' (' . $group['category_name'] . ')' : '' }}</h3>
+            <h3 class="pdf-title">Daftar Barang Kamar {{ $group['floor'] ? 'Lantai ' . $group['floor'] . ' - ' : '' }}{{ $group['room_name'] }}{{ $group['category_name'] ? ' (' . $group['category_name'] . ')' : '' }}</h3>
 
             <table>
                 <thead>

@@ -12,7 +12,7 @@ class RoomWifiController extends Controller
 {
     public function index()
     {
-        $rooms = Rooms::orderBy('room_name')->get();
+        $rooms = Rooms::orderedForMapping()->get();
         return view('bcl.room_wifi.index', compact('rooms'));
     }
 
@@ -21,7 +21,11 @@ class RoomWifiController extends Controller
         $query = RoomWifi::with('room')->select('bcl_room_wifi.*');
         return DataTables::of($query)
             ->addColumn('room_name', function ($row) {
-                return $row->room ? $row->room->room_name : '-';
+                if (!$row->room) {
+                    return '-';
+                }
+
+                return ($row->room->floor ? 'Lantai ' . $row->room->floor . ' - ' : '') . $row->room->room_name;
             })
             ->addColumn('actions', function ($row) {
                 $edit = "<button class='btn btn-sm btn-primary btn-edit' data-id='{$row->id}'>Edit</button>";

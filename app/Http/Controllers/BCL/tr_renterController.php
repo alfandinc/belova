@@ -35,7 +35,7 @@ class tr_renterController extends Controller
         // return response()->json($data);
     $category = DB::table('bcl_room_category')->get();
         // $rooms = Rooms::with('category')->get();
-        $rooms = Rooms::with('category')->with('renter')->get();
+        $rooms = Rooms::with('category')->with('renter')->orderedForMapping()->get();
         // return response()->json($rooms);
         $renter = renter::all();
         $belum_lunas = Fin_jurnal::leftjoin('bcl_tr_renter as tr_renter', 'tr_renter.trans_id', '=', 'bcl_fin_jurnal.doc_id')
@@ -383,6 +383,21 @@ class tr_renterController extends Controller
             $periode_normal = date('Y-m-d', strtotime("+$pl->jangka_waktu $jangka_sewa", strtotime($request->tgl_masuk)));
             $periode_bonus = date('Y-m-d', strtotime("+$pl->bonus_waktu $bonus_sewa", strtotime($periode_normal)));
             $Kamar = Rooms::findorfail($request->kamar);
+            $requestedStart = Carbon::parse($request->tgl_masuk)->startOfDay();
+            $requestedEnd = Carbon::parse($periode_bonus)->startOfDay();
+
+            $hasOverlap = tr_renter::where('room_id', $request->kamar)
+                ->whereDate('tgl_mulai', '<=', $requestedEnd->format('Y-m-d'))
+                ->whereDate('tgl_selesai', '>=', $requestedStart->format('Y-m-d'))
+                ->exists();
+
+            if ($hasOverlap) {
+                DB::rollBack();
+                return back()->with([
+                    'error' => 'Kamar ' . $Kamar->room_name . ' sudah memiliki sewa atau antrian booking pada rentang tanggal tersebut.'
+                ]);
+            }
+
             tr_renter::create([
                 'trans_id' => $no_trans,
                 'identity' => 'Baru',
@@ -491,7 +506,11 @@ class tr_renterController extends Controller
             }
             DB::commit();
             // return response()->json($request);
-            return back()->with(['success' => 'Kamar berhasil disewa']);
+            $successMessage = Carbon::parse($request->tgl_masuk)->isFuture()
+                ? 'Antrian booking berhasil dibuat'
+                : 'Kamar berhasil disewa';
+
+            return back()->with(['success' => $successMessage]);
         } catch (\Throwable $th) {
             DB::rollBack();
             return back()->with(['error' => $th->getMessage()]);
@@ -857,6 +876,7 @@ class tr_renterController extends Controller
         // Showing all rooms regardless of occupation status
         $rooms = Rooms::with('category')
             ->with(['renter'=>function($q){ /* already filters active renter in model */ }])
+            ->orderedForMapping()
             ->get();
 
         // For each room find pricelist with same duration (lama & jangka)
