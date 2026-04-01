@@ -217,6 +217,15 @@
         }
     }
 
+    @keyframes room-card-expiry-outline {
+        0%, 100% {
+            box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.72), 0 8px 18px rgba(15, 23, 42, 0.08);
+        }
+        50% {
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.98), 0 12px 24px rgba(220, 38, 38, 0.22);
+        }
+    }
+
     .room-card.room-card--occupied {
         background: linear-gradient(135deg, #edf9f0 0%, #dff2e4 100%);
     }
@@ -227,6 +236,11 @@
 
     .room-card.room-card--queued {
         background: linear-gradient(135deg, #fff7d6 0%, #ffeaa7 100%);
+    }
+
+    .room-card.room-card--expiring {
+        box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.72), 0 8px 18px rgba(15, 23, 42, 0.08);
+        animation: room-card-expiry-outline 1s ease-in-out infinite;
     }
 
     .room-card--editable {
@@ -2157,6 +2171,7 @@
         let periodHtml = 'Belum ada penyewa aktif';
         let durationText = '';
         let alertHtml = '';
+        let isExpiringSoon = false;
 
         if (isOccupied) {
             status = 'Terisi';
@@ -2172,8 +2187,10 @@
                 const daysLeft = selesai.diff(now, 'days');
 
                 if (daysLeft < 0) {
+                    isExpiringSoon = true;
                     alertHtml = ' <i class="fas fa-exclamation-triangle faa faa-flash animated text-danger" title="Periode berakhir"></i>';
                 } else if (daysLeft <= 7) {
+                    isExpiringSoon = true;
                     alertHtml = ' <i class="fas fa-exclamation-triangle faa faa-flash animated text-warning" title="Periode hampir berakhir"></i>';
                 }
             }
@@ -2191,6 +2208,7 @@
             periodHtml: periodHtml,
             durationText: durationText,
             alertHtml: alertHtml,
+            isExpiringSoon: isExpiringSoon,
         };
     }
 
@@ -2288,6 +2306,7 @@
                 const moveDisabled = statusMeta.isOccupied ? '' : 'room-card__quick-btn--disabled';
                 const historyWarning = statusMeta.kurang ? 'room-card__quick-btn--warning' : '';
                 const historyTitle = statusMeta.kurang ? 'Riwayat Transaksi - Belum Lunas' : 'Riwayat Transaksi';
+                const expiryCardClass = statusMeta.isExpiringSoon ? ' room-card--expiring' : '';
                 const tenantHtml = statusMeta.isOccupied
                     ? '<p class="room-card__tenant">' +
                         '<i data-feather="user" class="room-card__icon"></i>' +
@@ -2311,7 +2330,7 @@
                     '</p>'
                     : '';
 
-                return '<article class="room-card room-card--editable ' + (statusMeta.isOccupied ? 'room-card--occupied' : (statusMeta.hasBookingQueue ? 'room-card--queued' : 'room-card--vacant')) + ' edit_kamar" data-id="' + escapeHtml(room.id) + '" tabindex="0" role="button" aria-label="Edit kamar ' + escapeHtml(room.room_name) + '">' +
+                return '<article class="room-card room-card--editable ' + (statusMeta.isOccupied ? 'room-card--occupied' : (statusMeta.hasBookingQueue ? 'room-card--queued' : 'room-card--vacant')) + expiryCardClass + ' edit_kamar" data-id="' + escapeHtml(room.id) + '" tabindex="0" role="button" aria-label="Edit kamar ' + escapeHtml(room.room_name) + '">' +
                     '<div class="room-card__header">' +
                         '<h2 class="room-card__name" title="' + escapeHtml(room.room_name) + '">' + escapeHtml(roomNameDisplay(room.room_name)) + '</h2>' +
                         '<div class="room-card__header-side">' +
