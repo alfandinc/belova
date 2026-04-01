@@ -2892,6 +2892,31 @@
         }
     }
 
+    function initModalDatePickers($scope) {
+        const $container = $scope && $scope.length ? $scope : $(document);
+
+        $container.find('.datePicker').each(function() {
+            const $input = $(this);
+
+            if ($.fn.daterangepicker) {
+                if (!$input.data('daterangepicker')) {
+                    $input.daterangepicker({
+                        singleDatePicker: true,
+                        showDropdowns: true,
+                        locale: { format: 'YYYY-MM-DD' },
+                        autoApply: true,
+                    });
+                }
+
+                return;
+            }
+
+            if ($input.attr('type') !== 'date') {
+                $input.attr('type', 'date');
+            }
+        });
+    }
+
     function syncRoomIncomePaymentSelection() {
         const $selected = $('#room_income_transaksi').find(':selected');
         const kurang = parseFloat($selected.data('kurang') || 0);
@@ -3073,6 +3098,7 @@
 
         $('#md_sewa, #md_extra, #md_filter').on('show.bs.modal', function() {
             ensureRoomFormData();
+            initModalDatePickers($(this));
         });
 
         $('#md_deleted').on('show.bs.modal', function() {
@@ -3085,6 +3111,7 @@
 
         $('#md_room_income_payment').on('shown.bs.modal', function() {
             initRoomIncomePaymentModal();
+            initModalDatePickers($(this));
         });
 
         $('#room_income_transaksi').on('select2:select', function() {
