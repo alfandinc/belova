@@ -1491,7 +1491,7 @@
                     <span aria-hidden="true"><i class="la la-times text-white"></i></span>
                 </button>
             </div>
-            <form method="POST" action="{{ route('bcl.income.store') }}">
+            <form method="POST" action="{{ route('bcl.income.store') }}" id="room_income_payment_form">
                 @csrf
                 <input type="hidden" id="room_income_section" name="section" value="">
                 <div class="modal-body">
@@ -1543,7 +1543,7 @@
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{route('bcl.rooms.store')}}" method="POST">
+            <form action="{{route('bcl.rooms.store')}}" method="POST" id="room_create_form">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -1575,7 +1575,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="room_create_submit">Simpan</button>
                 </div>
             </form>
         </div>
@@ -1590,7 +1590,7 @@
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{route('bcl.rooms.update')}}" method="POST">
+            <form action="{{route('bcl.rooms.update')}}" method="POST" id="room_edit_form">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -1623,7 +1623,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="room_edit_submit">Simpan</button>
                 </div>
             </form>
         </div>
@@ -2239,6 +2239,13 @@
         renderRoomSections(getFilteredRooms((roomsDashboardPayload || {}).rooms || []));
     }
 
+    function compareRoomNames(leftRoomName, rightRoomName) {
+        return (leftRoomName || '').toString().localeCompare((rightRoomName || '').toString(), undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+    }
+
     function renderRoomSections(rooms) {
         const grouped = {};
         const sortedRooms = (rooms || []).slice().sort(function(left, right) {
@@ -2249,7 +2256,7 @@
                 return leftFloor - rightFloor;
             }
 
-            return (left.room_name || '').localeCompare(right.room_name || '');
+            return compareRoomNames(left.room_name, right.room_name);
         });
 
         sortedRooms.forEach(function(room) {
@@ -2430,7 +2437,7 @@
                 '<td>' + escapeHtml(room.floor == null ? '-' : room.floor) + '</td>' +
                 '<td>' + escapeHtml(room.notes || '') + '</td>' +
                 '<td>' + escapeHtml(room.deleted_at || '-') + '</td>' +
-                '<td class="text-right"><a href="' + escapeHtml(room.restore_url) + '" class="btn btn-xs btn-success">Aktifkan</a></td>' +
+                '<td class="text-right"><button type="button" class="btn btn-xs btn-success js-room-restore" data-url="' + escapeHtml(room.restore_url) + '">Aktifkan</button></td>' +
             '</tr>';
         }).join('');
 
@@ -2548,6 +2555,24 @@
             });
 
         return roomUnpaidDataPromise;
+    }
+
+    function refreshRoomsPageData() {
+        roomsDashboardPromise = null;
+        roomFormDataPromise = null;
+        roomExportReady = false;
+
+        return loadRoomsDashboardData();
+    }
+
+    function refreshDeletedRoomsData() {
+        roomDeletedDataPromise = null;
+        return ensureDeletedRoomsData();
+    }
+
+    function refreshUnpaidTransactionsData() {
+        roomUnpaidDataPromise = null;
+        return ensureUnpaidTransactionsData(true);
     }
 
     function ensureRoomExportTable() {
@@ -3516,6 +3541,147 @@
                 });
         });
     });
+
+    $('#room_edit_form').on('submit', function(e) {
+        e.preventDefault();
+
+        const $form = $(this);
+        const $submit = $('#room_edit_submit');
+        const originalText = $submit.text();
+
+        $submit.prop('disabled', true).text('Menyimpan...');
+
+        $.ajax({
+            url: $form.attr('action'),
+            type: 'POST',
+            data: $form.serialize(),
+            headers: {
+                Accept: 'application/json'
+            }
+        }).done(function(response) {
+            $('#md_edit').modal('hide');
+            refreshRoomsPageData();
+            showRoomToast((response || {}).message || 'Data kamar berhasil diubah.', 'success');
+        }).fail(function(xhr) {
+            let message = 'Gagal memperbarui data kamar.';
+
+            if (xhr.responseJSON && xhr.responseJSON.errors) {
+                message = Object.values(xhr.responseJSON.errors).flat().join(' ');
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+
+            showRoomToast(message, 'error');
+        }).always(function() {
+            $submit.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $('#room_create_form').on('submit', function(e) {
+        e.preventDefault();
+
+        const $form = $(this);
+        const $submit = $('#room_create_submit');
+        const originalText = $submit.text();
+
+        $submit.prop('disabled', true).text('Menyimpan...');
+
+        $.ajax({
+            url: $form.attr('action'),
+            type: 'POST',
+            data: $form.serialize(),
+            headers: {
+                Accept: 'application/json'
+            }
+        }).done(function(response) {
+            $('#md_filter').modal('hide');
+            $form.trigger('reset');
+            $form.find('select.select2').val('').trigger('change');
+            refreshRoomsPageData();
+            showRoomToast((response || {}).message || 'Data kamar berhasil ditambahkan.', 'success');
+        }).fail(function(xhr) {
+            let message = 'Gagal menambahkan data kamar.';
+
+            if (xhr.responseJSON && xhr.responseJSON.errors) {
+                message = Object.values(xhr.responseJSON.errors).flat().join(' ');
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+
+            showRoomToast(message, 'error');
+        }).always(function() {
+            $submit.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $('#room_income_payment_form').on('submit', function(e) {
+        e.preventDefault();
+
+        const $form = $(this);
+        const $submit = $form.find('button[type="submit"]');
+        const originalText = $submit.text();
+
+        $form.find('.datePicker').each(function() {
+            const $date = $(this);
+            $date.val(normalizeDatePickerValue($date.val()));
+        });
+
+        $form.find('input.inputmask').each(function() {
+            const $input = $(this);
+            $input.val(unformatNumber($input.val()));
+        });
+
+        $submit.prop('disabled', true).text('Menyimpan...');
+
+        $.ajax({
+            url: $form.attr('action'),
+            type: 'POST',
+            data: $form.serialize(),
+            headers: {
+                Accept: 'application/json'
+            }
+        }).done(function(response) {
+            $('#md_room_income_payment').modal('hide');
+            $form.trigger('reset');
+            $('#room_income_transaksi').val('').trigger('change');
+            $.when(refreshUnpaidTransactionsData(), refreshRoomsPageData()).always(function() {
+                showRoomToast((response || {}).message || 'Pembayaran berhasil disimpan.', 'success');
+            });
+        }).fail(function(xhr) {
+            let message = 'Gagal menyimpan pembayaran.';
+
+            if (xhr.responseJSON && xhr.responseJSON.errors) {
+                message = Object.values(xhr.responseJSON.errors).flat().join(' ');
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+
+            showRoomToast(message, 'error');
+        }).always(function() {
+            $submit.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $(document).on('click', '.js-room-restore', function() {
+        const url = $(this).data('url');
+
+        $.ajax({
+            url: url,
+            type: 'GET',
+            headers: {
+                Accept: 'application/json'
+            }
+        }).done(function(response) {
+            $.when(refreshDeletedRoomsData(), refreshRoomsPageData()).always(function() {
+                showRoomToast((response || {}).message || 'Data berhasil dikembalikan.', 'success');
+            });
+        }).fail(function(xhr) {
+            const message = xhr.responseJSON && xhr.responseJSON.message
+                ? xhr.responseJSON.message
+                : 'Data gagal dikembalikan.';
+            showRoomToast(message, 'error');
+        });
+    });
     $(document).on('click', '.edit_kamar', function(e) {
         if ($(e.target).closest('.js-room-action, .js-room-pricelist, .js-room-renter, .js-room-print, .js-room-menu, .js-room-menu-toggle, .room-card__quick-menu').length) {
             return;
@@ -3553,6 +3719,7 @@
     function deletes(e) {
         e.preventDefault();
         var url = e.currentTarget.getAttribute('href');
+        var isRoomDelete = /\/rooms\/delete\//.test(url || '');
         $.confirm({
             title: 'Hapus data ini?',
             content: 'Aksi ini tidak dapat diurungkan',
@@ -3562,6 +3729,26 @@
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
+                        if (isRoomDelete) {
+                            $.ajax({
+                                url: url,
+                                type: 'GET',
+                                headers: {
+                                    Accept: 'application/json'
+                                }
+                            }).done(function(response) {
+                                $.when(refreshDeletedRoomsData(), refreshRoomsPageData()).always(function() {
+                                    showRoomToast((response || {}).message || 'Data berhasil dihapus.', 'success');
+                                });
+                            }).fail(function(xhr) {
+                                const message = xhr.responseJSON && xhr.responseJSON.message
+                                    ? xhr.responseJSON.message
+                                    : 'Data gagal dihapus.';
+                                showRoomToast(message, 'error');
+                            });
+                            return;
+                        }
+
                         window.location.href = url;
                     },
                 },

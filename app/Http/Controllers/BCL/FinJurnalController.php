@@ -216,9 +216,23 @@ class FinJurnalController extends Controller
                 }
             }
             DB::commit();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Pembayaran Berhasil'
+                ]);
+            }
+
             return back()->with('success', 'Pembayaran Berhasil');
         } catch (\Throwable $th) {
             DB::rollBack();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => $th->getMessage()
+                ], 500);
+            }
+
             return back()->with('error', $th->getMessage());
         }
     }

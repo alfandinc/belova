@@ -289,19 +289,63 @@ class RoomsController extends Controller
                 'room_category'     => $request->kategori,
                 'notes'   => $request->catatan
             ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data Kamar berhasil ditambahkan!',
+                    'data' => [
+                        'id' => $result->id,
+                        'room_name' => $result->room_name,
+                        'floor' => $result->floor,
+                        'room_category' => $result->room_category,
+                        'notes' => $result->notes,
+                    ],
+                ]);
+            }
+
             return redirect()->route('bcl.rooms')->with(['success' => 'Data Kamar berhasil ditambahkan!']);
         } catch (\Throwable $th) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => $th->getMessage(),
+                ], 500);
+            }
+
             return redirect()->route('bcl.rooms')->with(['error' => $th->getMessage()]);
         }
     }
 
-    public function restore($id)
+    public function restore($id, Request $request)
     {
         try {
             $data = Rooms::onlyTrashed()->find($id);
+
+            if (!$data) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'message' => 'Data kamar tidak ditemukan.'
+                    ], 404);
+                }
+
+                return back()->with('error', 'Data kamar tidak ditemukan');
+            }
+
             $data->restore();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data berhasil dikembalikan',
+                ]);
+            }
+
             return back()->with('success', 'Data berhasil dikembalikan');
         } catch (\Throwable $th) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data gagal dikembalikan',
+                ], 500);
+            }
+
             return back()->with('error', 'Data gagal dikembalikan');
         }
     }
@@ -432,14 +476,45 @@ class RoomsController extends Controller
                 'kategori'     => 'required|numeric'
             ]);
             $room = Rooms::find($request->id);
+
+            if (!$room) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'message' => 'Data kamar tidak ditemukan.'
+                    ], 404);
+                }
+
+                return redirect()->route('bcl.rooms')->with(['error' => 'Data tidak ditemukan!']);
+            }
+
             $result = $room->update([
                 'room_name'     => $request->no_kamar,
                 'floor'         => $request->floor,
                 'room_category'     => $request->kategori,
                 'notes'   => $request->catatan
             ]);
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data Berhasil diubah!',
+                    'data' => [
+                        'id' => $room->id,
+                        'room_name' => $room->room_name,
+                        'floor' => $room->floor,
+                        'room_category' => $room->room_category,
+                        'notes' => $room->notes,
+                    ],
+                ]);
+            }
+
             return redirect()->route('bcl.rooms')->with(['success' => 'Data Berhasil diubah!']);
         } catch (\Throwable $th) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => $th->getMessage(),
+                ], 500);
+            }
+
             return redirect()->route('bcl.rooms')->with(['error' => $th->getMessage()]);
         }
     }
@@ -451,9 +526,33 @@ class RoomsController extends Controller
     {
         try {
             $room = Rooms::find($request->id);
+
+            if (!$room) {
+                if ($request->ajax()) {
+                    return response()->json([
+                        'message' => 'Data kamar tidak ditemukan.'
+                    ], 404);
+                }
+
+                return redirect()->route('bcl.rooms')->with(['error' => 'Data tidak ditemukan!']);
+            }
+
             $result = $room->delete();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data berhasil dihapus!',
+                ]);
+            }
+
             return redirect()->route('bcl.rooms')->with(['success' => 'Data berhasil dihapus!']);
         } catch (\Throwable $th) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'message' => 'Data gagal dihapus!',
+                ], 500);
+            }
+
             return redirect()->route('bcl.rooms')->with(['error' => 'Data gagal dihapus!']);
         }
     }
