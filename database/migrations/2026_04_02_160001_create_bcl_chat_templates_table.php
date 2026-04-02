@@ -1,0 +1,33 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        if (Schema::hasTable('bcl_chat_templates')) {
+            return;
+        }
+
+        Schema::create('bcl_chat_templates', function (Blueprint $table) {
+            $table->bigIncrements('id');
+            $table->string('name');
+            $table->string('context', 100)->nullable();
+            $table->text('content');
+            $table->timestamps();
+            $table->softDeletes();
+        });
+    }
+
+    public function down()
+    {
+        if (!Schema::hasTable('bcl_chat_templates')) {
+            return;
+        }
+
+        Schema::dropIfExists('bcl_chat_templates');
+    }
+};

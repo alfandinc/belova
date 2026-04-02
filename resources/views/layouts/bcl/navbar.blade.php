@@ -66,6 +66,7 @@
             <a href="javascript: void(0);"><i data-feather="users" class="align-self-center menu-icon"></i><span>Penyewa</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
             <ul class="nav-second-level" aria-expanded="false">
                 <li class="nav-item"><a class="nav-link" href="{{route('bcl.renter.index')}}"><i class="ti-control-record"></i>Daftar Penyewa</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{route('bcl.chat_template.index')}}"><i class="ti-control-record"></i>Templating Chat</a></li>
             </ul>
         </li>
         <li>

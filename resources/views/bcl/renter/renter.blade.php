@@ -16,6 +16,9 @@ $pricelist = [];
                     <span>{{config('app.name')}}</span>
                 </div><!--end col-->
                 <div class="col-auto align-self-center">
+                    <a href="{{ route('bcl.chat_template.index') }}" class="btn btn-sm btn-info waves-effect waves-light mr-2">
+                        <i class="mdi mdi-message-text-outline"></i> Templating Chat
+                    </a>
                     {{-- @can('Tambah Penyewa') --}}
                     <button class="btn btn-sm btn-danger waves-effect waves-light" data-toggle="modal" data-target="#md_tambah">
                         <i class="mdi mdi-plus"></i> Tambah Penyewa

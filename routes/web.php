@@ -80,6 +80,7 @@ use App\Http\Controllers\Insiden\LaporanInsidenController;
 use App\Http\Controllers\LaporanDashboardController;
 
 use App\Http\Controllers\BCL\{
+    ChatTemplateController,
     HomeController,
     PricelistController,
     RoomsController,
@@ -471,6 +472,13 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
     Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
     Route::get('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');
+
+    Route::get('/chat-template', [ChatTemplateController::class, 'index'])->name('bcl.chat_template.index');
+    Route::get('/chat-template/data', [ChatTemplateController::class, 'data'])->name('bcl.chat_template.data');
+    Route::post('/chat-template/store', [ChatTemplateController::class, 'store'])->name('bcl.chat_template.store');
+    Route::get('/chat-template/edit/{id}', [ChatTemplateController::class, 'edit'])->name('bcl.chat_template.edit');
+    Route::post('/chat-template/update/{id}', [ChatTemplateController::class, 'update'])->name('bcl.chat_template.update');
+    Route::get('/chat-template/delete/{id}', [ChatTemplateController::class, 'destroy'])->name('bcl.chat_template.delete');
 
     Route::get('/inventories', [InventoriesController::class, 'index'])->name('bcl.inventories.index');
     Route::post('/inventories/store', [InventoriesController::class, 'store'])->name('bcl.inventories.store');
