@@ -105,16 +105,16 @@
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-danger" data-status="dibatalkan">
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-purple" data-status="lab_permintaan">
                 <div class="card-body stat-pill-body">
                     <div class="stat-icon-shell">
                         <div class="stat-icon">
-                            <i class="fas fa-times"></i>
+                            <i class="fas fa-vials"></i>
                         </div>
                     </div>
                     <div class="stat-pill-content">
-                        <div class="stat-label">Batal</div>
-                            <div class="stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</div>
+                        <div class="stat-label">Lab</div>
+                            <div class="stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</div>
                     </div>
                 </div>
             </div>
@@ -135,16 +135,16 @@
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-teal" data-status="lab_permintaan">
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-danger" data-status="dibatalkan">
                 <div class="card-body stat-pill-body">
                     <div class="stat-icon-shell">
                         <div class="stat-icon">
-                            <i class="fas fa-vials"></i>
+                            <i class="fas fa-times"></i>
                         </div>
                     </div>
                     <div class="stat-pill-content">
-                        <div class="stat-label">Lab</div>
-                            <div class="stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</div>
+                        <div class="stat-label">Batal</div>
+                            <div class="stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</div>
                     </div>
                 </div>
             </div>
