@@ -105,7 +105,7 @@
             </div>
         </div>
         <div class="stat-col">
-            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-purple" data-status="lab_permintaan">
+            <div class="card shadow-sm stat-card stat-card-clickable stat-theme-info" data-status="lab_permintaan">
                 <div class="card-body stat-pill-body">
                     <div class="stat-icon-shell">
                         <div class="stat-icon">
