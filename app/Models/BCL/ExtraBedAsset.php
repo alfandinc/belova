@@ -37,8 +37,8 @@ class ExtraBedAsset extends Model
             ->active()
             ->whereDoesntHave('assignments.extraRent', function ($assignmentQuery) use ($startDate, $endDate) {
                 $assignmentQuery
-                    ->whereDate('tgl_mulai', '<=', $endDate)
-                    ->whereDate('tgl_selesai', '>=', $startDate);
+                    ->whereDate('tgl_mulai', '<', $endDate)
+                    ->whereDate('tgl_selesai', '>', $startDate);
             });
     }
 

@@ -63,7 +63,7 @@ class tr_renterController extends Controller
                     $activeTransaction = tr_renter::with('room', 'renter')
                         ->where('id_renter', $parentTransaction->id_renter)
                         ->whereDate('tgl_mulai', '<=', $today)
-                        ->whereDate('tgl_selesai', '>=', $today)
+                        ->whereDate('tgl_selesai', '>', $today)
                         ->orderByDesc('tgl_mulai')
                         ->first();
                 }
@@ -471,8 +471,8 @@ class tr_renterController extends Controller
             $requestedEnd = Carbon::parse($periode_bonus)->startOfDay();
 
             $hasOverlap = tr_renter::where('room_id', $request->kamar)
-                ->whereDate('tgl_mulai', '<=', $requestedEnd->format('Y-m-d'))
-                ->whereDate('tgl_selesai', '>=', $requestedStart->format('Y-m-d'))
+                ->whereDate('tgl_mulai', '<', $requestedEnd->format('Y-m-d'))
+                ->whereDate('tgl_selesai', '>', $requestedStart->format('Y-m-d'))
                 ->exists();
 
             if ($hasOverlap) {

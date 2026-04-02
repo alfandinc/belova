@@ -26,7 +26,7 @@ class RoomsController extends Controller
             'parentTransaction',
         ])
             ->whereDate('tgl_mulai', '<=', $today)
-            ->whereDate('tgl_selesai', '>=', $today)
+            ->whereDate('tgl_selesai', '>', $today)
             ->get();
 
         $renterIds = $activeExtraRents
@@ -40,7 +40,7 @@ class RoomsController extends Controller
         $activeTransactionsByRenter = tr_renter::with('room')
             ->whereIn('id_renter', $renterIds)
             ->whereDate('tgl_mulai', '<=', $today)
-            ->whereDate('tgl_selesai', '>=', $today)
+            ->whereDate('tgl_selesai', '>', $today)
             ->orderByDesc('tgl_mulai')
             ->get()
             ->groupBy('id_renter');
@@ -88,7 +88,7 @@ class RoomsController extends Controller
             ->leftjoin('bcl_tr_renter as tr_renter', function ($join) {
                 $join->on('bcl_rooms.id', '=', 'tr_renter.room_id')
                     ->where('tr_renter.tgl_mulai', '<=', Carbon::now()->format('Y-m-d'))
-                    ->where('tr_renter.tgl_selesai', '>=', Carbon::now()->format('Y-m-d'));
+                    ->where('tr_renter.tgl_selesai', '>', Carbon::now()->format('Y-m-d'));
             })->leftJoin('bcl_renter as renter', 'tr_renter.id_renter', '=', 'renter.id')
             ->leftjoin('bcl_fin_jurnal as fin_jurnal', function ($join2) {
                 $join2->on('tr_renter.trans_id', '=', 'fin_jurnal.doc_id')
@@ -356,7 +356,7 @@ class RoomsController extends Controller
                 $totalHarga = (float) $item->harga * (float) $item->lama_sewa * (float) $item->qty;
                 $dibayar = (float) ($item->total_kredit ?? 0);
                 $kurang = max($totalHarga - $dibayar, 0);
-                $isActive = $item->tgl_mulai <= $today && $item->tgl_selesai >= $today;
+                $isActive = $item->tgl_mulai <= $today && $item->tgl_selesai > $today;
 
                 return [
                     'kode' => $item->kode,

@@ -58,7 +58,7 @@ class tb_extra_rent extends Model
         $activeTransaction = tr_renter::with('room')
             ->where('id_renter', $parentTransaction->id_renter)
             ->whereDate('tgl_mulai', '<=', Carbon::today()->format('Y-m-d'))
-            ->whereDate('tgl_selesai', '>=', Carbon::today()->format('Y-m-d'))
+            ->whereDate('tgl_selesai', '>', Carbon::today()->format('Y-m-d'))
             ->orderByDesc('tgl_mulai')
             ->first();
 

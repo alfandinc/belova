@@ -67,7 +67,7 @@ class renter extends Model
         return $this->hasOne(tr_renter::class, 'id_renter')
             ->leftjoin('bcl_rooms', 'bcl_tr_renter.room_id', '=', 'bcl_rooms.id')
             ->where('bcl_tr_renter.tgl_mulai', '<=', Carbon::now())
-            ->where('bcl_tr_renter.tgl_selesai', '>=', Carbon::now());
+            ->where('bcl_tr_renter.tgl_selesai', '>', Carbon::now());
     }
 
 
