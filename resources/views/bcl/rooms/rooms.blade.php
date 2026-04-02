@@ -286,6 +286,37 @@
         color: #050505;
     }
 
+    .room-card__name-wrap {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.45rem;
+        min-width: 0;
+    }
+
+    .room-card__extra-bed-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.2rem;
+        min-width: 2rem;
+        height: 2rem;
+        padding: 0 0.5rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #fff;
+        font-size: 0.76rem;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 6px 12px rgba(37, 99, 235, 0.22);
+        cursor: default;
+        flex-shrink: 0;
+    }
+
+    .room-card__extra-bed-badge i {
+        font-size: 0.82rem;
+        line-height: 1;
+    }
+
     .room-card__category {
         display: inline-flex;
         align-items: center;
@@ -949,6 +980,10 @@
                         <i class="mdi mdi-cash-clock mr-1"></i> Belum Lunas
                         <span class="rooms-action-button-badge__count" id="bt_belum_lunas_count">0</span>
                     </button>
+                    <button type="button" class="btn btn-sm btn-info waves-effect waves-light ml-2 rooms-action-button-badge" data-toggle="modal" data-target="#md_extra_bed" id="bt_extra_bed">
+                        <i class="mdi mdi-bed-queen-outline mr-1"></i> Extra Bed
+                        <span class="rooms-action-button-badge__count" id="bt_extra_bed_count">0</span>
+                    </button>
                 </div><!--end col-->
             </div><!--end row-->
         </div><!--end page-title-box-->
@@ -1449,6 +1484,11 @@
                             </select>
                         </div>
                     </div>
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div id="extra_bed_availability" class="alert alert-info d-none mb-0"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
@@ -1488,6 +1528,94 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="md_extra_bed" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info">
+                <h6 class="modal-title m-0 text-white">Info Extra Bed</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-4 col-sm-12 mb-2 mb-md-0">
+                        <div class="alert alert-light border mb-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Total Asset</span>
+                                <strong id="extra_bed_total">0</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-12 mb-2 mb-md-0">
+                        <div class="alert alert-success mb-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Tersedia</span>
+                                <strong id="extra_bed_available">0</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-12">
+                        <div class="alert alert-warning mb-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>Dipakai</span>
+                                <strong id="extra_bed_in_use">0</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-lg-4 mb-3 mb-lg-0">
+                        <h6 class="mb-2">Ketersediaan Saat Ini</h6>
+                        <div class="table-responsive-sm">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="thead-secondary bg-light">
+                                    <tr>
+                                        <th>Kode</th>
+                                        <th>Status</th>
+                                        <th>Kamar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="extra_bed_assets_body">
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted">Memuat data extra bed...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <h6 class="mb-2">Semua Transaksi Extra Bed</h6>
+                        <div class="table-responsive-sm">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="thead-secondary bg-light">
+                                    <tr>
+                                        <th>No</th>
+                                        <th>Kode</th>
+                                        <th>Item</th>
+                                        <th>Asset</th>
+                                        <th>Kamar</th>
+                                        <th>Penyewa</th>
+                                        <th>Periode</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="extra_bed_transactions_body">
+                                    <tr>
+                                        <td colspan="8" class="text-center text-muted">Memuat transaksi extra bed...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -2096,6 +2224,7 @@
     const roomFormDataUrl = "{{ route('bcl.rooms.form_data') }}";
     const roomDeletedDataUrl = "{{ route('bcl.rooms.deleted_data') }}";
     const roomUnpaidDataUrl = "{{ route('bcl.rooms.unpaid_data') }}";
+    const roomExtraBedDataUrl = "{{ route('bcl.rooms.extra_bed_data') }}";
     const roomWifiUrlTemplate = "{{ route('bcl.rooms.wifi', ':id') }}";
     const roomHistoryUrlTemplate = "{{ route('bcl.rooms.history', ':id') }}";
     const roomBookingUrlTemplate = "{{ route('bcl.rooms.booking_queue', ':id') }}";
@@ -2121,9 +2250,11 @@
     let roomFormDataPromise = null;
     let roomDeletedDataPromise = null;
     let roomUnpaidDataPromise = null;
+    let roomExtraBedDataPromise = null;
     let roomExportReady = false;
     let activeRoomFilter = null;
     let roomUnpaidPayload = null;
+    let roomExtraBedPayload = null;
 
     function roomActionUrl(template, id) {
         return template.replace(':id', id);
@@ -2307,6 +2438,11 @@
                 const historyWarning = statusMeta.kurang ? 'room-card__quick-btn--warning' : '';
                 const historyTitle = statusMeta.kurang ? 'Riwayat Transaksi - Belum Lunas' : 'Riwayat Transaksi';
                 const expiryCardClass = statusMeta.isExpiringSoon ? ' room-card--expiring' : '';
+                const extraBedCount = parseInt(room.extra_bed_count || 0, 10) || 0;
+                const extraBedCodes = (room.extra_bed_asset_codes || []).join(', ');
+                const extraBedBadge = extraBedCount > 0
+                    ? '<span class="room-card__extra-bed-badge" title="Extra bed di kamar ini: ' + escapeHtml(extraBedCodes || (extraBedCount + ' unit')) + '"><i class="mdi mdi-bed-queen-outline"></i>' + extraBedCount + '</span>'
+                    : '';
                 const tenantHtml = statusMeta.isOccupied
                     ? '<p class="room-card__tenant">' +
                         '<i data-feather="user" class="room-card__icon"></i>' +
@@ -2332,7 +2468,7 @@
 
                 return '<article class="room-card room-card--editable ' + (statusMeta.isOccupied ? 'room-card--occupied' : (statusMeta.hasBookingQueue ? 'room-card--queued' : 'room-card--vacant')) + expiryCardClass + ' edit_kamar" data-id="' + escapeHtml(room.id) + '" tabindex="0" role="button" aria-label="Edit kamar ' + escapeHtml(room.room_name) + '">' +
                     '<div class="room-card__header">' +
-                        '<h2 class="room-card__name" title="' + escapeHtml(room.room_name) + '">' + escapeHtml(roomNameDisplay(room.room_name)) + '</h2>' +
+                        '<div class="room-card__name-wrap"><h2 class="room-card__name" title="' + escapeHtml(room.room_name) + '">' + escapeHtml(roomNameDisplay(room.room_name)) + '</h2>' + extraBedBadge + '</div>' +
                         '<div class="room-card__header-side">' +
                             '<button type="button" class="room-card__category ' + categoryBadgeClass + ' js-room-pricelist" data-category-id="' + escapeHtml(room.room_category) + '" data-category-name="' + escapeHtml(room.category_name || '-') + '" title="Lihat pricelist ' + escapeHtml(room.category_name || '-') + '">' + escapeHtml(categoryLabel) + '</button>' +
                             '<div class="room-card__quick-actions">' +
@@ -2437,7 +2573,7 @@
 
     function renderExtraPricelistOptions(extraPricelist) {
         const options = ['<option value=""></option>'].concat((extraPricelist || []).map(function(item) {
-            return '<option data-lama="' + escapeHtml(item.jangka_sewa) + '" value="' + escapeHtml(item.id) + '">' + escapeHtml(item.nama + ' (' + $.number(item.harga || 0, 2) + '/' + (item.jangka_sewa || '-') + ')') + '</option>';
+            return '<option data-lama="' + escapeHtml(item.jangka_sewa) + '" data-tracked="' + (item.tracked_inventory ? 'true' : 'false') + '" value="' + escapeHtml(item.id) + '">' + escapeHtml(item.nama + ' (' + $.number(item.harga || 0, 2) + '/' + (item.jangka_sewa || '-') + ')') + '</option>';
         }));
 
         $('#pricelist_extra').html(options.join(''));
@@ -2508,6 +2644,70 @@
         populateUnpaidPaymentOptions(roomUnpaidPayload.items || []);
     }
 
+    function renderExtraBedBadgeCount(summary) {
+        const count = parseInt((summary || {}).available || 0, 10) || 0;
+
+        $('#bt_extra_bed_count')
+            .text(count)
+            .toggleClass('is-visible', count > 0);
+    }
+
+    function renderExtraBedAssets(items) {
+        if (!items || !items.length) {
+            $('#extra_bed_assets_body').html('<tr><td colspan="3" class="text-center text-muted">Belum ada asset extra bed.</td></tr>');
+            return;
+        }
+
+        const rows = items.map(function(item) {
+            return '<tr>' +
+                '<td>' + escapeHtml(item.asset_code || '-') + '</td>' +
+                '<td><span class="badge badge-' + (item.status === 'Dipakai' ? 'warning' : 'success') + '">' + escapeHtml(item.status || '-') + '</span></td>' +
+                '<td>' + escapeHtml(item.room_name || '-') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        $('#extra_bed_assets_body').html(rows);
+    }
+
+    function renderExtraBedTransactions(items) {
+        if (!items || !items.length) {
+            $('#extra_bed_transactions_body').html('<tr><td colspan="8" class="text-center text-muted">Belum ada transaksi extra bed.</td></tr>');
+            return;
+        }
+
+        const rows = items.map(function(item, index) {
+            const assetCodes = (item.asset_codes || []).length ? item.asset_codes.join(', ') : '-';
+            const itemLabel = [item.nama || '-', 'x' + (item.qty || 0), (item.lama_sewa || 0) + ' ' + (item.jangka_sewa || '')].join(' ');
+            const period = [item.tgl_mulai || '-', 's/d', item.tgl_selesai || '-'].join(' ');
+
+            return '<tr>' +
+                '<td>' + (index + 1) + '</td>' +
+                '<td>' + escapeHtml(item.kode || '-') + '</td>' +
+                '<td>' + escapeHtml(itemLabel.trim()) + '</td>' +
+                '<td>' + escapeHtml(assetCodes) + '</td>' +
+                '<td>' + escapeHtml(item.room_name || '-') + '</td>' +
+                '<td>' + escapeHtml(item.renter_name || '-') + '</td>' +
+                '<td>' + escapeHtml(period) + '</td>' +
+                '<td><span class="badge badge-' + (item.status === 'Aktif' ? 'warning' : 'secondary') + '">' + escapeHtml(item.status || '-') + '</span></td>' +
+            '</tr>';
+        }).join('');
+
+        $('#extra_bed_transactions_body').html(rows);
+    }
+
+    function populateExtraBedData(payload) {
+        roomExtraBedPayload = payload || {};
+        const summary = roomExtraBedPayload.summary || {};
+
+        $('#extra_bed_total').text(summary.total || 0);
+        $('#extra_bed_available').text(summary.available || 0);
+        $('#extra_bed_in_use').text(summary.in_use || 0);
+
+        renderExtraBedBadgeCount(summary);
+        renderExtraBedAssets(roomExtraBedPayload.assets || []);
+        renderExtraBedTransactions(roomExtraBedPayload.transactions || []);
+    }
+
     function populateRoomsDashboard(payload) {
         roomsDashboardPayload = payload || {};
         renderRoomStats(roomsDashboardPayload.stats || {});
@@ -2576,6 +2776,28 @@
         return roomUnpaidDataPromise;
     }
 
+    function ensureExtraBedData(forceReload) {
+        if (forceReload) {
+            roomExtraBedDataPromise = null;
+        }
+
+        if (roomExtraBedDataPromise) {
+            return roomExtraBedDataPromise;
+        }
+
+        roomExtraBedDataPromise = $.getJSON(roomExtraBedDataUrl)
+            .done(function(response) {
+                populateExtraBedData(response || {});
+            })
+            .fail(function() {
+                $('#extra_bed_assets_body').html('<tr><td colspan="3" class="text-center text-danger">Gagal memuat data extra bed.</td></tr>');
+                $('#extra_bed_transactions_body').html('<tr><td colspan="8" class="text-center text-danger">Gagal memuat transaksi extra bed.</td></tr>');
+                showRoomToast('Gagal memuat data extra bed.', 'error');
+            });
+
+        return roomExtraBedDataPromise;
+    }
+
     function refreshRoomsPageData() {
         roomsDashboardPromise = null;
         roomFormDataPromise = null;
@@ -2592,6 +2814,11 @@
     function refreshUnpaidTransactionsData() {
         roomUnpaidDataPromise = null;
         return ensureUnpaidTransactionsData(true);
+    }
+
+    function refreshExtraBedData() {
+        roomExtraBedDataPromise = null;
+        return ensureExtraBedData(true);
     }
 
     function ensureRoomExportTable() {
@@ -3095,6 +3322,7 @@
         });
 
         ensureUnpaidTransactionsData();
+        ensureExtraBedData();
 
         $('#md_sewa, #md_extra, #md_filter').on('show.bs.modal', function() {
             ensureRoomFormData();
@@ -3107,6 +3335,10 @@
 
         $('#md_unpaid_transactions').on('show.bs.modal', function() {
             ensureUnpaidTransactionsData();
+        });
+
+        $('#md_extra_bed').on('show.bs.modal', function() {
+            ensureExtraBedData();
         });
 
         $('#md_room_income_payment').on('shown.bs.modal', function() {
@@ -3147,12 +3379,63 @@
             });
         });
 
+        var extraRentAvailabilityUrl = "{{ route('bcl.extrarent.availability') }}";
+
+        function renderExtraBedAvailability(message, tone) {
+            var $box = $('#extra_bed_availability');
+            $box.removeClass('d-none alert-info alert-success alert-warning alert-danger');
+
+            if (!message) {
+                $box.addClass('d-none').text('');
+                return;
+            }
+
+            $box.addClass('alert-' + (tone || 'info')).text(message);
+        }
+
+        function refreshExtraBedAvailability() {
+            var $selected = $('#pricelist_extra').find(':selected');
+            var isTracked = String($selected.data('tracked')) === 'true';
+            var pricelistId = $selected.val();
+            var tglSewa = $('#tgl_sewa').val();
+            var lamaSewa = ($('#lama_sewa').val() || '').toString().replace(/[^0-9]/g, '');
+
+            if (!isTracked) {
+                renderExtraBedAvailability('', 'info');
+                return;
+            }
+
+            if (!pricelistId || !tglSewa || !lamaSewa) {
+                renderExtraBedAvailability('Pilih tanggal sewa dan lama sewa untuk cek ketersediaan extra bed.', 'info');
+                return;
+            }
+
+            $.getJSON(extraRentAvailabilityUrl, {
+                pricelist: pricelistId,
+                tgl_sewa: tglSewa,
+                lama_sewa: lamaSewa
+            }).done(function(response) {
+                var available = response.available_count || 0;
+                var total = response.total_count || 0;
+                var codes = (response.available_asset_codes || []).join(', ');
+                var message = 'Extra bed tersedia ' + available + ' dari ' + total + ' unit';
+                if (codes) {
+                    message += ' [' + codes + ']';
+                }
+                renderExtraBedAvailability(message, available > 0 ? 'success' : 'danger');
+            }).fail(function() {
+                renderExtraBedAvailability('Gagal cek ketersediaan extra bed.', 'warning');
+            });
+        }
+
         $('#pricelist_extra').on('select2:select', function() {
             var data = $(this).find(':selected');
             var lamaSewa = data.data('lama');
 
             $('#lama_sewa').attr('data-inputmask-suffix', ' ' + lamaSewa);
+            refreshExtraBedAvailability();
         });
+        $('#tgl_sewa, #lama_sewa').on('change input', refreshExtraBedAvailability);
 
         $(document).on('click', '.js-room-menu-toggle, .room-card__quick-menu', function(e) {
             e.stopPropagation();

@@ -439,6 +439,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/rooms/form-data', [RoomsController::class, 'formData'])->name('bcl.rooms.form_data');
     Route::get('/rooms/deleted-data', [RoomsController::class, 'deletedData'])->name('bcl.rooms.deleted_data');
     Route::get('/rooms/unpaid-data', [RoomsController::class, 'unpaidData'])->name('bcl.rooms.unpaid_data');
+    Route::get('/rooms/extra-bed-data', [RoomsController::class, 'extraBedData'])->name('bcl.rooms.extra_bed_data');
     Route::get('/rooms/{id}/booking-queue', [RoomsController::class, 'bookingQueue'])->name('bcl.rooms.booking_queue');
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
     Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
@@ -509,6 +510,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
     // Refund/Refund-print route for downgrade refunds (optional renter_id helps associate receipt)
     Route::get('/transaksi/refund/cetak/{doc_id}/{renter_id?}', [tr_renterController::class, 'cetakRefund'])->name('bcl.transaksi.cetak_refund');
+    Route::get('/extrarent/availability', [extra_rentController::class, 'availability'])->name('bcl.extrarent.availability');
     Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
     // Room Wifi management (AJAX + Datatables)
     Route::get('/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');

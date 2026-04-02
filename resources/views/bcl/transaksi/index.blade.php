@@ -106,6 +106,56 @@ $data = $data;
     </div>
 </div>
 @endif
+<div class="row mb-2">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-info">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h4 class="card-title text-white mb-0">Tracking Extra Bed</h4>
+                    </div>
+                    <div class="col-auto text-white">
+                        Dipakai: {{ $extra_bed_tracking['summary']['in_use'] }} / {{ $extra_bed_tracking['summary']['total'] }}
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive-sm">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="bg-soft-info">
+                            <tr>
+                                <th>Kode Bed</th>
+                                <th>Status</th>
+                                <th>Kamar Saat Ini</th>
+                                <th>Penyewa</th>
+                                <th>Referensi</th>
+                                <th>Periode</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($extra_bed_tracking['assets'] as $asset)
+                            <tr>
+                                <td>{{ $asset['asset_code'] }}</td>
+                                <td>
+                                    <span class="badge badge-{{ $asset['status'] === 'Dipakai' ? 'warning' : 'success' }}">{{ $asset['status'] }}</span>
+                                </td>
+                                <td>{{ $asset['room_name'] ?? '-' }}</td>
+                                <td>{{ $asset['renter_name'] ?? '-' }}</td>
+                                <td>{{ $asset['extra_rent_code'] ?? '-' }}</td>
+                                <td>{{ $asset['period'] ?? '-' }}</td>
+                            </tr>
+                            @empty
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Belum ada data extra bed.</td>
+                            </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
@@ -442,7 +492,7 @@ $data = $data;
                             <select class="mb-3 select2" name="pricelist" id="pricelist_extra" required style="width: 100%" data-placeholder="Pilih">
                                 <option value=""></option>
                                 @foreach($extra_pricelist as $pl_xtra)
-                                <option data-lama="{{$pl_xtra->jangka_sewa}}" value="{{$pl_xtra->id}}">{{$pl_xtra->nama.' ('.number_format($pl_xtra->harga,2).'/'.$pl_xtra->jangka_sewa.')'}}</option>
+                                <option data-lama="{{$pl_xtra->jangka_sewa}}" data-tracked="{{ $pl_xtra->requiresExtraBedTracking() ? 'true' : 'false' }}" value="{{$pl_xtra->id}}">{{$pl_xtra->nama.' ('.number_format($pl_xtra->harga,2).'/'.$pl_xtra->jangka_sewa.')'}}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -472,6 +522,11 @@ $data = $data;
                             @endforeach
                         </select>
                     </div>
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div id="extra_bed_availability" class="alert alert-info d-none mb-0"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
@@ -486,6 +541,7 @@ $data = $data;
 <script>
     var t = moment('<?= $start ?>', 'YYYY-MM-DD'),
         a = moment('<?= $end ?>', 'YYYY-MM-DD');
+    var extraRentAvailabilityUrl = "{{ route('bcl.extrarent.availability') }}";
     $(document).ready(function() {
         $('#pricelist_extra').on('select2:select', function() {
             var data = $(this).find(':selected');
@@ -493,7 +549,9 @@ $data = $data;
             console.log(lama_sewa);
             $('#lama_sewa').attr('data-inputmask-suffix', " " + lama_sewa);
             init_component();
+            refreshExtraBedAvailability();
         });
+        $('#tgl_sewa, #lama_sewa').on('change input', refreshExtraBedAvailability);
         var table_bb = $("#tb_kamar").DataTable({
             order: [
                 [1, 'DESC']
@@ -639,6 +697,61 @@ $data = $data;
         console.log($(this).val());
         $('#f_filter_tgl').submit();
     });
+
+    function renderExtraBedAvailability(message, tone) {
+        var $box = $('#extra_bed_availability');
+        $box.removeClass('d-none alert-info alert-success alert-warning alert-danger');
+
+        if (!message) {
+            $box.addClass('d-none').text('');
+            return;
+        }
+
+        $box.addClass('alert-' + (tone || 'info')).text(message);
+    }
+
+    function refreshExtraBedAvailability() {
+        var $selected = $('#pricelist_extra').find(':selected');
+        var isTracked = String($selected.data('tracked')) === 'true';
+        var pricelistId = $selected.val();
+        var tglSewa = $('#tgl_sewa').val();
+        var lamaSewa = unformatNumber($('#lama_sewa').val());
+
+        if (!isTracked) {
+            renderExtraBedAvailability('', 'info');
+            return;
+        }
+
+        if (!pricelistId || !tglSewa || !lamaSewa) {
+            renderExtraBedAvailability('Pilih tanggal sewa dan lama sewa untuk cek ketersediaan extra bed.', 'info');
+            return;
+        }
+
+        $.getJSON(extraRentAvailabilityUrl, {
+            pricelist: pricelistId,
+            tgl_sewa: tglSewa,
+            lama_sewa: lamaSewa
+        }).done(function(response) {
+            var available = response.available_count || 0;
+            var total = response.total_count || 0;
+            var codes = (response.available_asset_codes || []).join(', ');
+            var message = 'Extra bed tersedia ' + available + ' dari ' + total + ' unit';
+            if (codes) {
+                message += ' [' + codes + ']';
+            }
+            if (response.end_date) {
+                message += ' untuk periode ' + response.start_date + ' s/d ' + response.end_date;
+            }
+            renderExtraBedAvailability(message, available > 0 ? 'success' : 'danger');
+        }).fail(function(xhr) {
+            var message = 'Gagal cek ketersediaan extra bed.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+            renderExtraBedAvailability(message, 'warning');
+        });
+    }
+
     $('#kamar').on('select2:select', function() {
         var id = $(this).find(':selected').data('room_category');
         $.ajax({
@@ -708,8 +821,16 @@ $data = $data;
             var total_tbh = 0;
             var total_dibayar = 0;
             $.each(data.tambahan, function(index, value) {
-                $('#tb_tr tbody').append('<tr><td>' + value.tgl_mulai + '</td><td>' + value.nama + '</td><td class="text-right">Rp ' + $.number(value.harga, 2) + '</td></tr>');
-                total_tbh += parseInt(value.harga);
+                var totalTambahan = (parseFloat(value.harga) || 0) * (parseInt(value.qty, 10) || 0) * (parseInt(value.lama_sewa, 10) || 0);
+                var extraLabel = value.nama + ' x' + (value.qty || 0);
+                if (value.assigned_asset_codes && value.assigned_asset_codes.length) {
+                    extraLabel += ' [' + value.assigned_asset_codes.join(', ') + ']';
+                }
+                if (value.current_room_name) {
+                    extraLabel += ' - Lokasi: ' + value.current_room_name;
+                }
+                $('#tb_tr tbody').append('<tr><td>' + value.tgl_mulai + '</td><td>' + extraLabel + '</td><td class="text-right">Rp ' + $.number(totalTambahan, 2) + '</td></tr>');
+                total_tbh += totalTambahan;
                 $.each(value.jurnal, function(index, val) {
                     total_dibayar += parseInt(val.kredit);
                 });

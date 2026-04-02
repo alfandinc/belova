@@ -4,6 +4,7 @@ namespace App\Http\Controllers\BCL;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\BCL\FinJurnalController as ControllersFinJurnalController;
 use App\Models\BCL\extra_pricelist;
+use App\Models\BCL\ExtraBedAsset;
 use App\Models\BCL\Fin_jurnal;
 use App\Models\BCL\Pricelist;
 use App\Models\BCL\renter;
@@ -17,6 +18,80 @@ use Carbon\Carbon;
 
 class tr_renterController extends Controller
 {
+    protected function buildExtraBedTracking(): array
+    {
+        ExtraBedAsset::ensureDefaultAssets();
+
+        $today = Carbon::today()->format('Y-m-d');
+
+        $assets = ExtraBedAsset::with([
+            'assignments.extraRent.parentTransaction.room',
+            'assignments.extraRent.parentTransaction.renter',
+        ])
+            ->orderBy('asset_code')
+            ->get()
+            ->map(function ($asset) use ($today) {
+                $currentAssignment = $asset->assignments
+                    ->filter(function ($assignment) use ($today) {
+                        $extraRent = $assignment->extraRent;
+
+                        return $extraRent
+                            && $extraRent->tgl_mulai <= $today
+                            && $extraRent->tgl_selesai >= $today;
+                    })
+                    ->sortByDesc(function ($assignment) {
+                        return optional($assignment->extraRent)->tgl_mulai;
+                    })
+                    ->first();
+
+                if (!$currentAssignment || !$currentAssignment->extraRent) {
+                    return [
+                        'asset_code' => $asset->asset_code,
+                        'status' => 'Tersedia',
+                        'room_name' => null,
+                        'renter_name' => null,
+                        'extra_rent_code' => null,
+                        'period' => null,
+                    ];
+                }
+
+                $extraRent = $currentAssignment->extraRent;
+                $parentTransaction = $extraRent->parentTransaction;
+                $activeTransaction = null;
+
+                if ($parentTransaction && $parentTransaction->id_renter) {
+                    $activeTransaction = tr_renter::with('room', 'renter')
+                        ->where('id_renter', $parentTransaction->id_renter)
+                        ->whereDate('tgl_mulai', '<=', $today)
+                        ->whereDate('tgl_selesai', '>=', $today)
+                        ->orderByDesc('tgl_mulai')
+                        ->first();
+                }
+
+                $room = optional($activeTransaction)->room ?: optional($parentTransaction)->room;
+                $renter = optional($activeTransaction)->renter ?: optional($parentTransaction)->renter;
+
+                return [
+                    'asset_code' => $asset->asset_code,
+                    'status' => 'Dipakai',
+                    'room_name' => optional($room)->room_name,
+                    'renter_name' => optional($renter)->nama,
+                    'extra_rent_code' => $extraRent->kode,
+                    'period' => $extraRent->tgl_mulai . ' s/d ' . $extraRent->tgl_selesai,
+                ];
+            })
+            ->values();
+
+        return [
+            'summary' => [
+                'total' => $assets->count(),
+                'in_use' => $assets->where('status', 'Dipakai')->count(),
+                'available' => $assets->where('status', 'Tersedia')->count(),
+            ],
+            'assets' => $assets,
+        ];
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -67,6 +142,7 @@ class tr_renterController extends Controller
             $val->renter = $detail->renter;
         }            // return response()->json($belum_lunas_extra);
         $extra_pricelist = extra_pricelist::all();
+        $extra_bed_tracking = $this->buildExtraBedTracking();
         // return response()->json($extra_pricelist);
         return view('bcl.transaksi.index', compact(
             'belum_lunas',
@@ -77,7 +153,8 @@ class tr_renterController extends Controller
             'renter',
             'start',
             'end',
-            'extra_pricelist'
+            'extra_pricelist',
+            'extra_bed_tracking'
         ));
     }
 
@@ -106,7 +183,11 @@ class tr_renterController extends Controller
             ->with('jurnal', function ($query) {
                 $query->leftjoin('users', 'users.id', '=', 'bcl_fin_jurnal.user_id');
                 $query->orderby('bcl_fin_jurnal.tanggal', 'ASC');
-            })->with('tambahan')
+            })->with([
+                'tambahan.jurnal',
+                'tambahan.assetAssignments.asset',
+                'tambahan.parentTransaction.room',
+            ])
             ->where('trans_id', '=', $request->id)->first();
         return response()->json($transaksi);
     }
@@ -121,7 +202,10 @@ class tr_renterController extends Controller
                 $query->leftjoin('users', 'users.id', '=', 'bcl_fin_jurnal.user_id');
                 $query->orderby('bcl_fin_jurnal.tanggal', 'ASC');
             })
-            ->with('tambahan')
+            ->with([
+                'tambahan.jurnal',
+                'tambahan.assetAssignments.asset',
+            ])
             ->where('trans_id', '=', $request->id)->first();
 
         return view('bcl.transaksi.cetak', compact('transaksi'));

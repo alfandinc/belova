@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\BCL;
 use App\Http\Controllers\Controller;
 use App\Models\BCL\extra_pricelist;
+use App\Models\BCL\ExtraBedAsset;
 use App\Models\BCL\Fin_jurnal;
 use App\Models\BCL\renter;
 use App\Models\BCL\room_category;
@@ -16,6 +17,71 @@ use Illuminate\Support\Facades\DB;
 
 class RoomsController extends Controller
 {
+    protected function buildActiveExtraBedByRoom(): array
+    {
+        $today = Carbon::today()->format('Y-m-d');
+
+        $activeExtraRents = tb_extra_rent::with([
+            'assetAssignments.asset',
+            'parentTransaction',
+        ])
+            ->whereDate('tgl_mulai', '<=', $today)
+            ->whereDate('tgl_selesai', '>=', $today)
+            ->get();
+
+        $renterIds = $activeExtraRents
+            ->map(function ($item) {
+                return optional($item->parentTransaction)->id_renter;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $activeTransactionsByRenter = tr_renter::with('room')
+            ->whereIn('id_renter', $renterIds)
+            ->whereDate('tgl_mulai', '<=', $today)
+            ->whereDate('tgl_selesai', '>=', $today)
+            ->orderByDesc('tgl_mulai')
+            ->get()
+            ->groupBy('id_renter');
+
+        $byRoom = [];
+
+        foreach ($activeExtraRents as $extraRent) {
+            $parentTransaction = $extraRent->parentTransaction;
+            if (!$parentTransaction || !$parentTransaction->id_renter) {
+                continue;
+            }
+
+            $activeTransaction = optional($activeTransactionsByRenter->get($parentTransaction->id_renter))->first();
+            $roomId = optional($activeTransaction)->room_id ?: $parentTransaction->room_id;
+
+            if (!$roomId) {
+                continue;
+            }
+
+            if (!isset($byRoom[$roomId])) {
+                $byRoom[$roomId] = [
+                    'count' => 0,
+                    'asset_codes' => [],
+                ];
+            }
+
+            $codes = $extraRent->assetAssignments
+                ->map(function ($assignment) {
+                    return optional($assignment->asset)->asset_code;
+                })
+                ->filter()
+                ->values()
+                ->all();
+
+            $byRoom[$roomId]['count'] += count($codes) ?: (int) $extraRent->qty;
+            $byRoom[$roomId]['asset_codes'] = array_values(array_unique(array_merge($byRoom[$roomId]['asset_codes'], $codes)));
+        }
+
+        return $byRoom;
+    }
+
     protected function buildDashboardPayload(): array
     {
         $data = Rooms::leftjoin('bcl_room_category as room_category', 'bcl_rooms.room_category', '=', 'room_category.id_category')
@@ -47,6 +113,7 @@ class RoomsController extends Controller
             ->get();
 
         $today = Carbon::now()->format('Y-m-d');
+        $extraBedByRoom = $this->buildActiveExtraBedByRoom();
 
         $futureBookings = tr_renter::with('renter')
             ->whereDate('tgl_mulai', '>', $today)
@@ -54,7 +121,7 @@ class RoomsController extends Controller
             ->get()
             ->groupBy('room_id');
 
-        $rooms = $data->map(function ($room) use ($futureBookings) {
+        $rooms = $data->map(function ($room) use ($futureBookings, $extraBedByRoom) {
             $bookings = ($futureBookings->get($room->id) ?? collect())->values();
             $nextBooking = $bookings->first();
             $isOccupied = !empty($room->jangka_sewa);
@@ -84,6 +151,8 @@ class RoomsController extends Controller
                 'next_booking_end' => optional($nextBooking)->tgl_selesai,
                 'is_occupied' => $isOccupied,
                 'has_booking_queue' => $hasBookingQueue,
+                'extra_bed_count' => (int) ($extraBedByRoom[$room->id]['count'] ?? 0),
+                'extra_bed_asset_codes' => array_values($extraBedByRoom[$room->id]['asset_codes'] ?? []),
             ];
         })->values();
 
@@ -134,6 +203,7 @@ class RoomsController extends Controller
                 'nama' => $item->nama,
                 'harga' => (float) $item->harga,
                 'jangka_sewa' => $item->jangka_sewa,
+                'tracked_inventory' => $item->requiresExtraBedTracking(),
             ];
         })->values();
 
@@ -236,6 +306,90 @@ class RoomsController extends Controller
         ];
     }
 
+    protected function buildExtraBedPayload(): array
+    {
+        ExtraBedAsset::ensureDefaultAssets();
+
+        $today = Carbon::today()->format('Y-m-d');
+
+        $assets = ExtraBedAsset::with([
+            'assignments.extraRent.parentTransaction.room',
+            'assignments.extraRent.parentTransaction.renter',
+        ])
+            ->orderBy('asset_code')
+            ->get()
+            ->map(function ($asset) use ($today) {
+                $currentAssignment = $asset->assignments
+                    ->filter(function ($assignment) use ($today) {
+                        $extraRent = $assignment->extraRent;
+
+                        return $extraRent
+                            && $extraRent->tgl_mulai <= $today
+                            && $extraRent->tgl_selesai >= $today;
+                    })
+                    ->sortByDesc('assigned_from')
+                    ->first();
+
+                $extraRent = optional($currentAssignment)->extraRent;
+                $parentTransaction = optional($extraRent)->parentTransaction;
+
+                return [
+                    'asset_code' => $asset->asset_code,
+                    'status' => $extraRent ? 'Dipakai' : 'Tersedia',
+                    'room_name' => optional(optional($parentTransaction)->room)->room_name,
+                    'renter_name' => optional(optional($parentTransaction)->renter)->nama,
+                    'extra_rent_code' => optional($extraRent)->kode,
+                    'period' => $extraRent ? ($extraRent->tgl_mulai . ' s/d ' . $extraRent->tgl_selesai) : null,
+                ];
+            })
+            ->values();
+
+        $transactions = tb_extra_rent::withSum('jurnal as total_kredit', 'kredit')
+            ->with([
+                'assetAssignments.asset',
+                'parentTransaction.room',
+                'parentTransaction.renter',
+            ])
+            ->orderByDesc('tgl_mulai')
+            ->get()
+            ->map(function ($item) use ($today) {
+                $totalHarga = (float) $item->harga * (float) $item->lama_sewa * (float) $item->qty;
+                $dibayar = (float) ($item->total_kredit ?? 0);
+                $kurang = max($totalHarga - $dibayar, 0);
+                $isActive = $item->tgl_mulai <= $today && $item->tgl_selesai >= $today;
+
+                return [
+                    'kode' => $item->kode,
+                    'nama' => $item->nama,
+                    'qty' => (int) $item->qty,
+                    'lama_sewa' => (int) $item->lama_sewa,
+                    'jangka_sewa' => $item->jangka_sewa,
+                    'tgl_mulai' => $item->tgl_mulai,
+                    'tgl_selesai' => $item->tgl_selesai,
+                    'room_name' => optional(optional($item->parentTransaction)->room)->room_name,
+                    'renter_name' => optional(optional($item->parentTransaction)->renter)->nama,
+                    'asset_codes' => $item->assetAssignments->map(function ($assignment) {
+                        return optional($assignment->asset)->asset_code;
+                    })->filter()->values()->all(),
+                    'total' => $totalHarga,
+                    'dibayar' => $dibayar,
+                    'kurang' => $kurang,
+                    'status' => $isActive ? 'Aktif' : 'Selesai',
+                ];
+            })
+            ->values();
+
+        return [
+            'summary' => [
+                'total' => $assets->count(),
+                'available' => $assets->where('status', 'Tersedia')->count(),
+                'in_use' => $assets->where('status', 'Dipakai')->count(),
+            ],
+            'assets' => $assets,
+            'transactions' => $transactions,
+        ];
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -262,6 +416,11 @@ class RoomsController extends Controller
     public function unpaidData()
     {
         return response()->json($this->buildUnpaidTransactionsPayload());
+    }
+
+    public function extraBedData()
+    {
+        return response()->json($this->buildExtraBedPayload());
     }
 
     /**

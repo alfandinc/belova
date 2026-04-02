@@ -170,7 +170,12 @@ try {
                                             ?>
                                             <tr>
                                                 <td>{{$no}}</td>
-                                                <td>Tambahan {{$tbh->nama}}</td>
+                                                <td>
+                                                    Tambahan {{$tbh->nama}}
+                                                    @if(!empty($tbh->assigned_asset_codes))
+                                                        ({{ implode(', ', $tbh->assigned_asset_codes) }})
+                                                    @endif
+                                                </td>
                                                 <td>{{$transaksi->room->category->category_name}}</td>
                                                 <td>{{$tbh->lama_sewa.' '.$tbh->jangka_sewa}}</td>
                                                 <td class="text-center">{{$tbh->tgl_mulai}}</td>
