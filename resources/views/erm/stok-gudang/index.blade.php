@@ -17,8 +17,8 @@
         #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 10%; white-space: nowrap; text-align: right; }
         #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
         #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
-        /* Make actions column slightly wider and allow wrapping so follow-up button fits */
-        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: normal; text-align: center; overflow: visible; }
+        /* Keep actions grouped on a single line */
+        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 14%; white-space: nowrap; text-align: center; overflow: visible; }
         /* Ensure button itself doesn't wrap and displays correctly */
         #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
         #stok-table td { vertical-align: middle; }
@@ -60,10 +60,14 @@
             width: 95%;
         }
         #stok-table .action-buttons {
-            gap: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
         }
+        #stok-table .action-buttons .btn-group { flex-wrap: nowrap; }
         #stok-table .action-buttons .btn {
-            margin: 2px;
+            min-width: 32px;
         }
     </style>
 

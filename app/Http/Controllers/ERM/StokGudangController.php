@@ -208,15 +208,15 @@ class StokGudangController extends Controller {
                     && (int) $gudangId === (int) $expiredGudangId
                     && (float) $row->total_stok > 0;
 
-                $btn = '<div class="d-flex justify-content-center flex-wrap action-buttons">';
-                $btn .= '<button class="btn btn-sm btn-primary btn-kartu-stok mr-1" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Kartu Stok"><i class="fas fa-book-open"></i></button>';
+                $btn = '<div class="action-buttons"><div class="btn-group btn-group-sm" role="group" aria-label="Aksi stok gudang">';
+                $btn .= '<button class="btn btn-primary btn-kartu-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Kartu Stok"><i class="fas fa-book-open"></i></button>';
                 if ($canFollowUpExpired) {
-                    $btn .= '<button class="btn btn-sm btn-warning btn-expired-follow-up mr-1" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" data-obat-nama="'.e($row->obat_nama ?: 'Obat').'" title="Tindak Lanjut Expired"><i class="fas fa-clipboard-check"></i> Tindak Lanjut</button>';
+                    $btn .= '<button class="btn btn-warning btn-expired-follow-up" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" data-obat-nama="'.e($row->obat_nama ?: 'Obat').'" title="Tindak Lanjut"><i class="fas fa-clipboard-check"></i></button>';
                 }
                 if ($canDeleteStok) {
-                    $btn .= '<button class="btn btn-sm btn-danger btn-delete-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Hapus Stok"><i class="fas fa-trash"></i></button>';
+                    $btn .= '<button class="btn btn-danger btn-delete-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Hapus Stok"><i class="fas fa-trash"></i></button>';
                 }
-                $btn .= '</div>';
+                $btn .= '</div></div>';
                 return $btn;
             })
             
