@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -71,5 +72,15 @@ class User extends Authenticatable
     public function pengajuanDanas()
     {
         return $this->hasMany(\App\Models\Finance\FinancePengajuanDana::class, 'employee_id');
+    }
+
+    public function sentChatMessages(): HasMany
+    {
+        return $this->hasMany(UserChatMessage::class, 'sender_id');
+    }
+
+    public function receivedChatMessages(): HasMany
+    {
+        return $this->hasMany(UserChatMessage::class, 'recipient_id');
     }
 }

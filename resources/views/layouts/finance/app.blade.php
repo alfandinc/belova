@@ -160,6 +160,7 @@
     </script>
 
     @include('partials.global_emotion_heartbeat')
+    @include('partials.global_chat_widget')
     @yield('scripts')
     {{-- @include('partials.farmasi-notif') --}}
     @if(Auth::user() && Auth::user()->hasRole('Kasir'))

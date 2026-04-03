@@ -802,6 +802,7 @@
     </script>
 
     @include('partials.global_emotion_heartbeat')
+    @include('partials.global_chat_widget', ['chatLauncherBottom' => 94])
     @yield('scripts')
 </body>
 </html>

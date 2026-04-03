@@ -150,6 +150,7 @@
     </script>
 
     @include('partials.global_emotion_heartbeat')
+    @include('partials.global_chat_widget')
     @yield('scripts')
     @stack('scripts')  <!-- Add this line -->
 
