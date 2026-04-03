@@ -11,6 +11,7 @@ use App\Models\ERM\Gudang;
 use App\Models\ERM\StokOpname;
 use App\Models\ERM\KartuStok;
 use App\Models\ERM\StokOpnameItem;
+use App\Models\ERM\ObatExpiredTindakLanjut;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -53,9 +54,20 @@ class StokGudangController extends Controller {
 
     public function getData(Request $request)
     {
+        $expiredGudangId = GudangMapping::getDefaultGudangId('expired');
+
         // Compute aggregated totals and status in SQL so status immediately reflects min/max changes
         // Join obat and gudang tables so we can support server-side ordering by obat name / kode
         $table = (new ObatStokGudang())->getTable();
+        $latestExpiredFollowUps = DB::table('erm_obat_expired_tindak_lanjut as eotl')
+            ->join($table . ' as followup_stock', 'followup_stock.id', '=', 'eotl.obat_stok_gudang_id')
+            ->select(
+                'followup_stock.obat_id',
+                'followup_stock.gudang_id',
+                DB::raw('MAX(eotl.id) as latest_follow_up_id')
+            )
+            ->groupBy('followup_stock.obat_id', 'followup_stock.gudang_id');
+
         $globalTotals = DB::table($table . ' as global_stock')
             ->select(
                 'global_stock.obat_id',
@@ -70,6 +82,11 @@ class StokGudangController extends Controller {
             ->leftJoinSub($globalTotals, 'gt', function ($join) use ($table) {
                 $join->on('gt.obat_id', '=', $table . '.obat_id');
             })
+            ->leftJoinSub($latestExpiredFollowUps, 'lfu', function ($join) use ($table) {
+                $join->on('lfu.obat_id', '=', $table . '.obat_id')
+                    ->on('lfu.gudang_id', '=', $table . '.gudang_id');
+            })
+            ->leftJoin('erm_obat_expired_tindak_lanjut as latest_follow_up', 'latest_follow_up.id', '=', 'lfu.latest_follow_up_id')
             ->select(
                 $table . '.obat_id',
                 $table . '.gudang_id',
@@ -84,18 +101,19 @@ class StokGudangController extends Controller {
                 'o.satuan as obat_satuan',
                 // Use a numeric alias for HPP (fallback to hpp_jual) for reliable calculations
                 DB::raw('COALESCE(o.hpp, o.hpp_jual, 0) as hpp_val'),
-                'g.nama as gudang_nama'
+                'g.nama as gudang_nama',
+                'latest_follow_up.tindak_lanjut as latest_tindak_lanjut'
             )
-            ->groupBy($table . '.obat_id', $table . '.gudang_id', 'o.nama', 'o.kode_obat', 'g.nama');
+            ->groupBy($table . '.obat_id', $table . '.gudang_id', 'o.nama', 'o.kode_obat', 'g.nama', 'latest_follow_up.tindak_lanjut');
 
         // Filter by gudang
         if ($request->gudang_id) {
-            $query->where('gudang_id', $request->gudang_id);
+            $query->where($table . '.gudang_id', $request->gudang_id);
         } else {
             // If no gudang selected, use the first one
             $defaultGudang = Gudang::first();
             if ($defaultGudang) {
-                $query->where('gudang_id', $defaultGudang->id);
+                $query->where($table . '.gudang_id', $defaultGudang->id);
             }
         }
 
@@ -154,6 +172,13 @@ class StokGudangController extends Controller {
 
                 // Show kode under the name (status icon moved to stok column)
                 $link .= '<div class="mt-1 text-muted small">' . $kode . '</div>';
+
+                if (!empty($row->latest_tindak_lanjut)) {
+                    $followUpLabel = $row->latest_tindak_lanjut === 'diretur' ? 'Diretur' : 'Dimusnahkan';
+                    $followUpBadgeClass = $row->latest_tindak_lanjut === 'diretur' ? 'badge-warning' : 'badge-danger';
+                    $link .= '<div class="mt-1"><span class="badge ' . $followUpBadgeClass . '">' . e($followUpLabel) . '</span></div>';
+                }
+
                 return $link;
             })
             ->addColumn('nama_gudang', function ($row) {
@@ -170,17 +195,27 @@ class StokGudangController extends Controller {
                 $nilai = $total * $hpp;
                 return 'Rp ' . number_format($nilai, 0, ',', '.');
             })
-            ->addColumn('actions', function ($row) use ($request) {
+            ->addColumn('actions', function ($row) use ($request, $expiredGudangId) {
                 // Render the Kartu Stok button in the actions column
                 // Use obat id and gudang id present in the aggregated row
                 $obatId = $row->obat_id;
                 $gudangId = $row->gudang_id;
                 if (!$obatId) return '';
 
-                $btn = '<div class="text-center">';
+                $user = Auth::user();
+                $canDeleteStok = $user && $user->hasAnyRole(['Admin', 'admin']);
+                $canFollowUpExpired = $expiredGudangId
+                    && (int) $gudangId === (int) $expiredGudangId
+                    && (float) $row->total_stok > 0;
+
+                $btn = '<div class="d-flex justify-content-center flex-wrap action-buttons">';
                 $btn .= '<button class="btn btn-sm btn-primary btn-kartu-stok mr-1" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Kartu Stok"><i class="fas fa-book-open"></i></button>';
-                // Icon-only trash button with tooltip/title
-                $btn .= '<button class="btn btn-sm btn-danger btn-delete-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Hapus Stok"><i class="fas fa-trash"></i></button>';
+                if ($canFollowUpExpired) {
+                    $btn .= '<button class="btn btn-sm btn-warning btn-expired-follow-up mr-1" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" data-obat-nama="'.e($row->obat_nama ?: 'Obat').'" title="Tindak Lanjut Expired"><i class="fas fa-clipboard-check"></i> Tindak Lanjut</button>';
+                }
+                if ($canDeleteStok) {
+                    $btn .= '<button class="btn btn-sm btn-danger btn-delete-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Hapus Stok"><i class="fas fa-trash"></i></button>';
+                }
                 $btn .= '</div>';
                 return $btn;
             })
@@ -528,6 +563,14 @@ class StokGudangController extends Controller {
      */
     public function deleteObatFromGudang(Request $request)
     {
+        $user = Auth::user();
+        if (!$user || !$user->hasAnyRole(['Admin', 'admin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk menghapus stok.'
+            ], 403);
+        }
+
         $request->validate([
             'obat_id' => 'required|integer|exists:erm_obat,id',
             'gudang_id' => 'required|integer|exists:erm_gudang,id'
@@ -1259,6 +1302,100 @@ class StokGudangController extends Controller {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal memindahkan batch ke gudang expired: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function storeExpiredFollowUp(Request $request)
+    {
+        $request->validate([
+            'obat_id' => 'required|integer|exists:erm_obat,id',
+            'gudang_id' => 'required|integer|exists:erm_gudang,id',
+            'tindak_lanjut' => 'required|in:diretur,dimusnahkan',
+            'notes' => 'required|string|max:5000',
+        ]);
+
+        $expiredGudangId = GudangMapping::getDefaultGudangId('expired');
+        if (!$expiredGudangId || (int) $request->gudang_id !== (int) $expiredGudangId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tindak lanjut hanya bisa dilakukan pada gudang expired.'
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $stokRows = ObatStokGudang::where('obat_id', $request->obat_id)
+                ->where('gudang_id', $request->gudang_id)
+                ->where('stok', '>', 0)
+                ->lockForUpdate()
+                ->get();
+
+            if ($stokRows->isEmpty()) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ada stok aktif di gudang expired untuk ditindaklanjuti.'
+                ], 422);
+            }
+
+            $userId = Auth::id();
+            $actionLabel = $request->tindak_lanjut === 'diretur' ? 'Diretur' : 'Dimusnahkan';
+            $processedBatches = 0;
+            $processedQty = 0;
+
+            foreach ($stokRows as $stokRow) {
+                $qty = (float) $stokRow->stok;
+                if ($qty <= 0) {
+                    continue;
+                }
+
+                ObatExpiredTindakLanjut::create([
+                    'obat_id' => $stokRow->obat_id,
+                    'obat_stok_gudang_id' => $stokRow->id,
+                    'jumlah' => $qty,
+                    'expiration_date' => $stokRow->expiration_date,
+                    'tindak_lanjut' => $request->tindak_lanjut,
+                    'notes' => $request->notes,
+                    'created_by' => $userId,
+                ]);
+
+                $stokRow->stok = 0;
+                $stokRow->save();
+
+                KartuStok::create([
+                    'obat_id' => $stokRow->obat_id,
+                    'gudang_id' => $stokRow->gudang_id,
+                    'tanggal' => now(),
+                    'tipe' => 'keluar',
+                    'qty' => $qty,
+                    'stok_setelah' => 0,
+                    'batch' => $stokRow->batch,
+                    'keterangan' => 'Tindak lanjut expired: ' . $actionLabel . '. ' . $request->notes,
+                    'ref_type' => 'expired_tindak_lanjut',
+                    'ref_id' => $stokRow->id,
+                    'user_id' => $userId,
+                ]);         
+
+                $processedBatches++;
+                $processedQty += $qty;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => $actionLabel . ' berhasil dicatat untuk ' . $processedBatches . ' batch.',
+                'processed_batches' => $processedBatches,
+                'processed_qty' => $processedQty,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan tindak lanjut expired: ' . $e->getMessage(),
             ], 500);
         }
     }

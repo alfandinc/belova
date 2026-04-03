@@ -17,8 +17,8 @@
         #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 10%; white-space: nowrap; text-align: right; }
         #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
         #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
-        /* Make actions column slightly wider and allow overflow so buttons are not clipped */
-        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: nowrap; text-align: center; overflow: visible; }
+        /* Make actions column slightly wider and allow wrapping so follow-up button fits */
+        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: normal; text-align: center; overflow: visible; }
         /* Ensure button itself doesn't wrap and displays correctly */
         #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
         #stok-table td { vertical-align: middle; }
@@ -58,6 +58,12 @@
         .modal-dialog.modal-xl {
             max-width: 1400px;
             width: 95%;
+        }
+        #stok-table .action-buttons {
+            gap: 4px;
+        }
+        #stok-table .action-buttons .btn {
+            margin: 2px;
         }
     </style>
 
@@ -397,6 +403,47 @@
                 <button type="button" class="btn btn-success" id="btn-save-batch-changes" style="display: none;">
                     <i class="fas fa-save"></i> Simpan Perubahan
                 </button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="expiredFollowUpModal" tabindex="-1" role="dialog" aria-labelledby="expiredFollowUpModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="expiredFollowUpModalLabel">Tindak Lanjut Stok Expired</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="expired-follow-up-form">
+                    <input type="hidden" id="expired_follow_up_obat_id" name="obat_id">
+                    <input type="hidden" id="expired_follow_up_gudang_id" name="gudang_id">
+                    <div class="mb-3">
+                        <div class="small text-muted">Obat</div>
+                        <div class="font-weight-bold" id="expired_follow_up_obat_nama">-</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="expired_follow_up_action">Tindak Lanjut</label>
+                        <select class="form-control" id="expired_follow_up_action" name="tindak_lanjut" required>
+                            <option value="">-- Pilih Tindak Lanjut --</option>
+                            <option value="diretur">Diretur</option>
+                            <option value="dimusnahkan">Dimusnahkan</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="expired_follow_up_notes">Notes</label>
+                        <textarea class="form-control" id="expired_follow_up_notes" name="notes" rows="4" placeholder="Isi catatan tindak lanjut expired..." required></textarea>
+                        <small class="form-text text-muted">Semua batch aktif untuk obat ini di gudang expired akan dicatat dan stoknya dikeluarkan dari gudang expired.</small>
+                    </div>
+                </form>
+                <div id="expiredFollowUpAlert" class="mt-3"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="save-expired-follow-up-btn"><i class="fas fa-save"></i> Simpan</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -816,6 +863,68 @@ $(document).ready(function() {
             complete: function() {
                 // Restore icon-only trash button
                 btn.prop('disabled', false).html('<i class="fas fa-trash"></i>');
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-expired-follow-up', function() {
+        var button = $(this);
+        $('#expired_follow_up_obat_id').val(button.data('obat-id'));
+        $('#expired_follow_up_gudang_id').val(button.data('gudang-id'));
+        $('#expired_follow_up_obat_nama').text(button.data('obat-nama') || '-');
+        $('#expired_follow_up_action').val('');
+        $('#expired_follow_up_notes').val('');
+        $('#expiredFollowUpAlert').html('');
+        $('#expiredFollowUpModal').modal('show');
+    });
+
+    $('#save-expired-follow-up-btn').on('click', function() {
+        var btn = $(this);
+        var action = $('#expired_follow_up_action').val();
+        var notes = ($('#expired_follow_up_notes').val() || '').trim();
+        var data = {
+            _token: '{{ csrf_token() }}',
+            obat_id: $('#expired_follow_up_obat_id').val(),
+            gudang_id: $('#expired_follow_up_gudang_id').val(),
+            tindak_lanjut: action,
+            notes: notes
+        };
+
+        if (!action) {
+            $('#expiredFollowUpAlert').html('<div class="alert alert-danger">Pilih tindak lanjut terlebih dahulu.</div>');
+            return;
+        }
+
+        if (!notes) {
+            $('#expiredFollowUpAlert').html('<div class="alert alert-danger">Notes wajib diisi.</div>');
+            return;
+        }
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.expired-follow-up") }}',
+            type: 'POST',
+            data: data,
+            success: function(response) {
+                $('#expiredFollowUpAlert').html('<div class="alert alert-success">' + (response.message || 'Tindak lanjut berhasil disimpan.') + '</div>');
+                table.ajax.reload(null, false);
+                updateNilaiStok();
+                updateLowStockCount();
+                updateExpiringCount();
+                setTimeout(function() {
+                    $('#expiredFollowUpModal').modal('hide');
+                }, 800);
+            },
+            error: function(xhr) {
+                var message = 'Gagal menyimpan tindak lanjut expired.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+                $('#expiredFollowUpAlert').html('<div class="alert alert-danger">' + message + '</div>');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
             }
         });
     });
