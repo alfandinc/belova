@@ -48,8 +48,10 @@
                     <label for="filter_payment_status">Status Pembayaran</label>
                     <select id="filter_payment_status" class="form-control">
                         <option value="all">Semua</option>
-                        <option value="paid">Sudah Dibayar</option>
-                        <option value="unpaid">Belum Dibayar</option>
+                        <option value="belum">Belum Transaksi</option>
+                        <option value="belum_lunas">Belum Lunas</option>
+                        <option value="sudah">Lunas</option>
+                        <option value="piutang">Piutang</option>
                     </select>
                 </div>
             </div>
@@ -215,12 +217,10 @@ $(document).ready(function () {
                     return String(data);
                 }
             },
-            { data: 'nominal', searchable: false, orderable: false, render: function(data, type, row) {
-                    // data is numeric nominal (sum of harga). Format to 'Rp 1.000' and append paid/unpaid badge
+                { data: 'nominal', searchable: false, orderable: false, render: function(data, type, row) {
                     let amount = (data && !isNaN(Number(data))) ? 'Rp ' + Number(data).toLocaleString('id-ID') : 'Rp 0';
-                    // Determine paid status: prefer explicit row.is_paid, otherwise check row.invoice.amount_paid
-                    let paid = row.is_paid || (row.invoice && row.invoice.amount_paid && Number(row.invoice.amount_paid) > 0);
-                    let badge = paid ? '<span class="badge badge-success ml-2">Sudah Dibayar</span>' : '<span class="badge badge-danger ml-2">Belum Dibayar</span>';
+                    let paymentStatus = getBillingStatusMeta(row);
+                    let badge = '<span class="badge ' + paymentStatus.badgeClass + ' ml-2">' + paymentStatus.label + '</span>';
                     return amount + ' ' + badge;
                 }
             },
@@ -278,6 +278,45 @@ $(document).ready(function () {
     function formatRupiah(number) {
         if (!number) return 'Rp 0';
         return 'Rp ' + Number(number).toLocaleString('id-ID');
+    }
+
+    function getBillingStatusMeta(row) {
+        let invoice = row && row.invoice ? row.invoice : null;
+
+        if (!invoice) {
+            return { label: 'Belum Transaksi', badgeClass: 'badge-danger' };
+        }
+
+        let amountPaid = Number(invoice.amount_paid || 0);
+        let totalAmount = Number(invoice.total_amount || 0);
+        let paymentMethod = String(invoice.payment_method || '').toLowerCase();
+        let piutangs = Array.isArray(invoice.piutangs) ? invoice.piutangs : [];
+        let firstPiutang = piutangs.length ? piutangs[0] : null;
+        let piutangStatus = firstPiutang && firstPiutang.payment_status
+            ? String(firstPiutang.payment_status).toLowerCase()
+            : '';
+
+        if (totalAmount > 0 && amountPaid >= totalAmount) {
+            return { label: 'Lunas', badgeClass: 'badge-success' };
+        }
+
+        if (paymentMethod === 'piutang') {
+            if (piutangStatus === 'paid') {
+                return { label: 'Lunas', badgeClass: 'badge-success' };
+            }
+
+            if (piutangStatus === 'partial') {
+                return { label: 'Belum Lunas', badgeClass: 'badge-warning' };
+            }
+
+            return { label: 'Piutang', badgeClass: 'badge-info' };
+        }
+
+        if (amountPaid > 0 && amountPaid < totalAmount) {
+            return { label: 'Belum Lunas', badgeClass: 'badge-warning' };
+        }
+
+        return { label: 'Belum Transaksi', badgeClass: 'badge-danger' };
     }
 
     // Small helper to escape HTML to avoid XSS when inserting strings as HTML

@@ -35,7 +35,14 @@ class ElabController extends Controller
                 ->groupBy('erm_lab_permintaan.visitation_id');
 
             // Eager-load labPermintaan and their labTest so we can include per-test timestamps
-            $visitations = Visitation::with(['pasien', 'metodeBayar', 'labPermintaan.labTest', 'invoice'])
+            $visitations = Visitation::with([
+                'pasien',
+                'metodeBayar',
+                'labPermintaan.labTest',
+                'invoice' => function ($query) {
+                    $query->with('piutangs');
+                },
+            ])
                 ->select('erm_visitations.*')
                 ->leftJoinSub($subQuery, 'lp', function($join) {
                     $join->on('lp.visitation_id', '=', 'erm_visitations.id');
@@ -67,19 +74,50 @@ class ElabController extends Controller
             // Only include visitations with status_kunjungan 1 or 2 (open or in-progress)
             $visitations->whereIn('status_kunjungan', [1, 2]);
 
-            // Filter by payment status if requested (paid/unpaid)
+            // Filter by payment status using the same categories as the billing index.
             if ($request->filled('payment_status')) {
                 $status = $request->payment_status;
-                if ($status === 'paid') {
+                if (in_array($status, ['sudah', 'paid'], true)) {
                     $visitations->whereHas('invoice', function($q) {
-                        $q->whereNotNull('amount_paid')->where('amount_paid', '>', 0);
+                        $q->where(function ($qq) {
+                            $qq->whereColumn('amount_paid', '>=', 'total_amount')
+                                ->orWhere(function ($pq) {
+                                    $pq->where('payment_method', 'piutang')
+                                        ->whereHas('piutangs', function ($piutangQuery) {
+                                            $piutangQuery->where('payment_status', 'paid');
+                                        });
+                                });
+                        });
                     });
-                } elseif ($status === 'unpaid') {
-                    // unpaid: either no invoice or invoice with null/zero amount_paid
+                } elseif ($status === 'belum_lunas') {
+                    $visitations->whereHas('invoice', function($q) {
+                        $q->where(function($qq) {
+                            $qq->where(function($n) {
+                                $n->where('amount_paid', '>', 0)
+                                  ->whereColumn('amount_paid', '<', 'total_amount');
+                            })->orWhere(function($p) {
+                                $p->where('payment_method', 'piutang')
+                                  ->whereHas('piutangs', function($pq) {
+                                      $pq->where('payment_status', 'partial');
+                                  });
+                            });
+                        });
+                    });
+                } elseif ($status === 'piutang') {
+                    $visitations->whereHas('invoice', function($q) {
+                        $q->where('payment_method', 'piutang');
+                    });
+                } elseif (in_array($status, ['belum', 'unpaid'], true)) {
                     $visitations->where(function($q){
                         $q->whereDoesntHave('invoice')
                           ->orWhereHas('invoice', function($q2){
-                              $q2->whereNull('amount_paid')->orWhere('amount_paid', '=', 0);
+                              $q2->where(function ($invoiceQuery) {
+                                  $invoiceQuery->where('amount_paid', '<=', 0)
+                                      ->orWhereNull('amount_paid');
+                              })->where(function ($paymentMethodQuery) {
+                                  $paymentMethodQuery->whereNull('payment_method')
+                                      ->orWhere('payment_method', '!=', 'piutang');
+                              });
                           });
                     });
                 }
