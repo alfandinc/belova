@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\PaketTindakan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -66,6 +67,9 @@ class TindakanController extends Controller
     {
         $spesialisId = $request->input('spesialis_id');
         $status = $request->input('status');
+        $canDelete = Auth::check()
+            && method_exists(Auth::user(), 'hasAnyRole')
+            && Auth::user()->hasAnyRole(['Admin', 'admin']);
 
         $query = Tindakan::with('spesialis')->withCount(['sop', 'kodeTindakans']);
         if ($spesialisId) {
@@ -88,14 +92,21 @@ class TindakanController extends Controller
                 }
                 return $nama;
             })
-            ->addColumn('action', function ($row) {
-                return '
+            ->addColumn('action', function ($row) use ($canDelete) {
+                $deleteButton = $canDelete ? '
                     <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-edit"></i> Edit
                     </button>
                     <button type="button" class="btn btn-danger btn-sm delete-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-trash"></i> Delete
                     </button>
+                ' : '
+                    <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                ';
+
+                return $deleteButton . '
                     <button type="button" class="btn btn-info btn-sm galeri-before-after" data-id="'.$row->id.'">
                         <i class="fas fa-images"></i> Galeri Before After
                     </button>
