@@ -412,6 +412,27 @@
             gap: 12px;
         }
 
+        .profile-trigger {
+            cursor: pointer;
+        }
+
+        .profile-trigger:focus {
+            outline: none;
+        }
+
+        .profile-trigger-info {
+            min-width: 120px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .profile-trigger-info:hover,
+        .profile-trigger-info:focus {
+            background: rgba(255,255,255,0.06);
+            transform: translateY(-1px);
+        }
+
         .avatar {
             width: 44px;
             height: 44px;
@@ -853,7 +874,7 @@
                         <input id="menuFilter" placeholder="Cari modul" aria-label="Cari modul" />
                     </div>
                     <div class="user-area">
-                        <div class="info" style="min-width:120px;">
+                        <div class="info profile-trigger profile-trigger-info js-open-profile-modal" tabindex="0" role="button" aria-label="Buka profil karyawan">
                             <div style="font-size:13px; font-weight:700;">{{ Auth::user()->name ?? '' }}</div>
                             <div style="font-size:12px; opacity:0.8;">{{ Auth::user()->email ?? '' }}</div>
                         </div>
@@ -875,11 +896,11 @@
                         @endphp
 
                         @if(!empty($photoUrl))
-                            <div class="avatar clickable-avatar js-open-emotion-picker" title="Klik untuk ganti mood">
+                            <div class="avatar clickable-avatar profile-trigger js-open-profile-modal" title="Klik untuk edit profil" tabindex="0" role="button" aria-label="Buka profil karyawan">
                                 <img src="{{ $photoUrl }}" alt="{{ Auth::user()->name ?? '' }}" />
                             </div>
                         @else
-                            <div class="avatar-initials clickable-avatar js-open-emotion-picker" title="Klik untuk ganti mood">
+                            <div class="avatar-initials clickable-avatar profile-trigger js-open-profile-modal" title="Klik untuk edit profil" tabindex="0" role="button" aria-label="Buka profil karyawan">
                                 {{ $initials ?: 'U' }}
                             </div>
                         @endif
@@ -1242,6 +1263,17 @@
                     </div>
                 </div>
             </div>
+            <div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content" id="profileModalContent">
+                        <div class="text-center p-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Jadwal Modal -->
                         <!-- Jadwal Improved Modal -->
                                     <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
@@ -1449,6 +1481,131 @@
         var currentUserId = {{ (int) Auth::id() }};
         var currentUserEmotion = @json($currentUserEmotion ?? 'calm');
         var emotionCatalog = @json($emotionOptions ?? []);
+        var hasEmployeeProfile = {{ Auth::user()->employee ? 'true' : 'false' }};
+        var profileModalUrl = '{{ route('hrd.employee.profile.modal') }}';
+
+        function defaultProfileModalState() {
+            return '<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>';
+        }
+
+        function bindCustomFileInputLabels(scope) {
+            $(scope).find('.custom-file-input').off('change.profile').on('change.profile', function() {
+                var fileName = $(this).val().split('\\').pop();
+                $(this).siblings('.custom-file-label').addClass('selected').html(fileName || 'Pilih file...');
+            });
+        }
+
+        function initProfileFormSubmission() {
+            var $form = $('#profileUpdateForm');
+            if (!$form.length) {
+                return;
+            }
+
+            $form.off('submit.profile').on('submit.profile', function(e) {
+                e.preventDefault();
+
+                var formData = new FormData(this);
+                var $submitButton = $form.find('button[type="submit"]');
+
+                $.ajax({
+                    url: $form.attr('action'),
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    beforeSend: function() {
+                        $submitButton.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...');
+                        $submitButton.attr('disabled', true);
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            $('#editProfileModal').modal('hide');
+
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil!',
+                                text: response.message,
+                                confirmButtonText: 'OK',
+                                timer: 2000,
+                                timerProgressBar: true,
+                                willClose: function() {
+                                    window.location.reload();
+                                }
+                            }).then(function(result) {
+                                if (result.value) {
+                                    window.location.reload();
+                                }
+                            });
+                            return;
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: response.message || 'Gagal memperbarui profil.'
+                        });
+                    },
+                    error: function(xhr) {
+                        var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+                        var messages = [];
+
+                        $.each(errors, function(key, value) {
+                            if (Array.isArray(value) && value.length) {
+                                messages.push(value[0]);
+                            }
+                        });
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Validation Error',
+                            html: messages.length ? messages.join('<br>') : 'Terjadi kesalahan saat menyimpan profil.'
+                        });
+                    },
+                    complete: function() {
+                        $submitButton.html('Simpan Perubahan');
+                        $submitButton.attr('disabled', false);
+                    }
+                });
+            });
+        }
+
+        function openProfileModal() {
+            if (!hasEmployeeProfile) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Profil tidak tersedia',
+                    text: 'Data karyawan tidak ditemukan',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+
+            $('#profileModalContent').html(defaultProfileModalState());
+
+            $.ajax({
+                url: profileModalUrl,
+                type: 'GET',
+                success: function(response) {
+                    $('#profileModalContent').html(response);
+                    bindCustomFileInputLabels('#profileModalContent');
+                    initProfileFormSubmission();
+                    $('#editProfileModal').modal('show');
+                },
+                error: function(xhr) {
+                    var message = 'Form profil gagal dimuat. Silakan coba lagi.';
+                    if (xhr.status === 404 && xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Profil tidak tersedia',
+                        text: message,
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
+        }
 
         function renderEmotionBoard(items) {
             var $board = $('#user-emotion-board');
@@ -1521,6 +1678,18 @@
         $(document).on('click', '.js-open-emotion-picker', function() {
             setSelectedEmotion(currentUserEmotion || $('#selected-emotion-input').val() || 'calm');
             $('#emotionPickerModal').modal('show');
+        });
+
+        $(document).on('click', '.js-open-profile-modal', function(e) {
+            e.preventDefault();
+            openProfileModal();
+        });
+
+        $(document).on('keydown', '.js-open-profile-modal', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openProfileModal();
+            }
         });
 
         $(document).on('click', '.emotion-picker-option', function() {
