@@ -87,6 +87,9 @@
                 </a>
             </li>
             <li>
+                <a href="{{ route('marketing.before_after_gallery.index') }}"> <i data-feather="image" class="align-self-center menu-icon"></i><span>Before After Gallery</span></a>
+            </li>
+            <li>
                 <a href="/marketing/promo"> <i data-feather="tag" class="align-self-center menu-icon"></i><span>Promo</span></a>
             </li>
             <li>

@@ -1624,8 +1624,6 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);
     // AJAX search for kode tindakan (for Select2 in tindakan modal)
     Route::get('kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
-    // Galeri Before After gallery for tindakan
-    Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
 
     // Kode Tindakan CRUD & DataTable
     Route::get('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
@@ -1659,6 +1657,11 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
     // AJAX search for SOPs
     Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
+
+    // Before After Gallery
+    Route::get('/before-after-gallery', [App\Http\Controllers\Marketing\BeforeAfterGalleryController::class, 'index'])->name('marketing.before_after_gallery.index');
+    Route::get('/before-after-gallery/search', [App\Http\Controllers\Marketing\BeforeAfterGalleryController::class, 'search'])->name('marketing.before_after_gallery.search');
+    Route::get('/before-after-gallery/pasien/search', [App\Http\Controllers\Marketing\BeforeAfterGalleryController::class, 'pasienSearch'])->name('marketing.before_after_gallery.pasien.search');
     
     // Tindakan Management
     Route::get('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'index'])->name('marketing.tindakan.index');
