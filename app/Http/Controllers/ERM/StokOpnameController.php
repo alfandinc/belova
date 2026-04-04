@@ -1066,6 +1066,8 @@ class StokOpnameController extends Controller
      */
     public function temuanData(Request $request, $id)
     {
+        $stokOpname = StokOpname::find($id);
+
         $data = \App\Models\ERM\StokOpnameTemuan::with(['item.obat'])
             ->where('stok_opname_id', $id)
             ->orderBy('created_at', 'desc');
@@ -1086,15 +1088,16 @@ class StokOpnameController extends Controller
                 }
                 return '<span class="badge badge-warning">Belum Diproses</span>';
             })
-            ->addColumn('aksi', function($r) {
+            ->addColumn('aksi', function($r) use ($stokOpname) {
                 $btn = '';
-                // show "Proses" button only when not yet processed (process_status falsy/0)
-                if (empty($r->process_status) || $r->process_status == 0) {
+                // show "Proses" button only when opname is completed and temuan not yet processed
+                if ($stokOpname && $stokOpname->status === 'selesai' && (empty($r->process_status) || $r->process_status == 0)) {
                     $btn .= '<button class="btn btn-success btn-sm process-temuan" data-id="'.$r->id.'">Proses</button> ';
                 }
                 $btn .= '<button class="btn btn-danger btn-sm delete-temuan" data-id="'.$r->id.'">Hapus</button>';
                 return $btn;
             })
+            ->with(['opname_status' => $stokOpname ? $stokOpname->status : null])
             ->rawColumns(['aksi','process_status'])
             ->make(true);
     }

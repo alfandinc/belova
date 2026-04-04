@@ -520,6 +520,23 @@ $(function () {
         });
       }
       $('#temuanModal').modal('show');
+      // show/hide bulk process button depending on opname status returned by server
+      if (temuanTable) {
+        temuanTable.off('xhr.temuanStatus').on('xhr.temuanStatus', function() {
+          try {
+            var json = temuanTable.ajax.json();
+            var opnameStatus = json && json.opname_status ? json.opname_status : '';
+            if (opnameStatus === 'selesai') {
+              $('#process-selected').show();
+            } else {
+              $('#process-selected').hide();
+            }
+          } catch (e) {
+            console.error('Failed to read temuanTable xhr json', e);
+            $('#process-selected').hide();
+          }
+        });
+      }
     });
 
     // handle select-all checkbox
