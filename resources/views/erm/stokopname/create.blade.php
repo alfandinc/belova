@@ -717,18 +717,13 @@ $(function () {
                                 : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Plus' : '-');
                             var actionBtn = '';
                             if (r.process_status && parseInt(r.process_status) === 1) {
-                                // Already processed: show disabled 'Diproses' and do not allow deletion
                                 actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
                             } else {
-                                // Not processed: allow process and delete actions
-                                actionBtn = `<button class="btn btn-sm btn-primary proses-temuan-btn mr-1" data-id="${r.id}">Proses Stok</button>` +
-                                            `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
+                                actionBtn = `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
                             }
                             var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
                             $('#temuanRecordsTable tbody').append(tr);
-                            // bind handlers (if buttons exist)
                             var row = $('#temuanRecordsTable').find(`tr[data-id="${r.id}"]`);
-                            row.find('.proses-temuan-btn').on('click', prosesTemuanHandler);
                             row.find('.delete-temuan-btn').on('click', deleteTemuanHandler);
                         });
                     } else {
@@ -987,8 +982,7 @@ $(function () {
                     if (r.process_status && parseInt(r.process_status) === 1) {
                         actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
                     } else {
-                        actionBtn = `<button class="btn btn-sm btn-primary proses-temuan-btn mr-1" data-id="${r.id}">Proses Stok</button>` +
-                                    `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
+                        actionBtn = `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
                     }
                     var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
                     // if table previously had 'no data' row, remove it
@@ -997,9 +991,7 @@ $(function () {
                         $('#temuanRecordsTable tbody').empty();
                     }
                     $('#temuanRecordsTable tbody').prepend(tr);
-                    // attach button handlers for the newly created row (if present)
                     var newRow = $('#temuanRecordsTable').find(`tr[data-id="${r.id}"]`);
-                    newRow.find('.proses-temuan-btn').on('click', prosesTemuanHandler);
                     newRow.find('.delete-temuan-btn').on('click', deleteTemuanHandler);
                     // reload main DataTable so Total Temuan updates immediately
                     if (typeof table !== 'undefined') table.ajax.reload(null, false);
@@ -1022,36 +1014,6 @@ $(function () {
             }
         });
     });
-
-    // Handler to process temuan into actual stok
-    function prosesTemuanHandler(e) {
-        var btn = $(this);
-        var temuanId = btn.data('id');
-        btn.prop('disabled', true).text('Processing...');
-        $.ajax({
-            url: '/erm/stokopname-temuan/' + temuanId + '/process',
-            method: 'POST',
-            data: { _token: '{{ csrf_token() }}' },
-            success: function(res) {
-                if (res.success) {
-                    Swal.fire({ icon: 'success', title: res.message || 'Berhasil diproses', timer: 1200, showConfirmButton: false });
-                    btn.removeClass('btn-primary').addClass('btn-secondary').text('Diproses').prop('disabled', true);
-                    // refresh main table totals so Total Temuan updates
-                    if (typeof table !== 'undefined') table.ajax.reload();
-                    try { syncTotals(); } catch(e) {}
-                } else {
-                    Swal.fire({ icon: 'error', title: res.message || 'Gagal memproses', timer: 1500, showConfirmButton: false });
-                    btn.prop('disabled', false).text('Proses Stok');
-                }
-            },
-            error: function(xhr) {
-                var msg = 'Gagal memproses temuan';
-                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                Swal.fire({ icon: 'error', title: msg, timer: 1500, showConfirmButton: false });
-                btn.prop('disabled', false).text('Proses Stok');
-            }
-        });
-    }
 
     function deleteTemuanHandler(e) {
         var btn = $(this);
