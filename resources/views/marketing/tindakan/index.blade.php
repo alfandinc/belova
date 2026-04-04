@@ -40,12 +40,14 @@
                         <button type="button" class="btn btn-primary waves-effect waves-light add-tindakan">
                             <i class="fas fa-plus mr-2"></i> Add Tindakan
                         </button>
+                        @hasanyrole('Admin|admin')
                         <button type="button" id="btnImportTindakan" class="btn btn-info waves-effect waves-light ml-2">
                             <i class="fas fa-file-import mr-2"></i> Import CSV
                         </button>
                         <button type="button" id="btnImportRelations" class="btn btn-secondary waves-effect waves-light ml-2">
                             <i class="fas fa-link mr-2"></i> Import Relations
                         </button>
+                        @endhasanyrole
                     </div>
                 </div>
             </div>
@@ -66,11 +68,13 @@
                         <label for="filter_status" class="ml-3 mr-2 mb-0">Status</label>
                         <select id="filter_status" class="form-control" style="min-width:150px">
                             <option value="">All</option>
-                            <option value="active">Active</option>
+                            <option value="active" selected>Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
+                        @hasanyrole('Admin|admin')
                         <button type="button" id="makeAllActiveBtn" class="btn btn-success btn-sm ml-3">Activate All</button>
                         <button type="button" id="makeAllInactiveBtn" class="btn btn-warning btn-sm ml-2">Deactivate All</button>
+                        @endhasanyrole
                     </div>
                 </div>
                 <div class="card-body">
