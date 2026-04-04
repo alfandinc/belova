@@ -669,7 +669,12 @@ class StokOpnameController extends Controller
             }
             return datatables()->of($data)
                 ->addColumn('selisih_count', function($row) {
-                    return $row->items()->whereRaw('ABS(selisih) > 0')->count();
+                    $recordNetQuery = "SELECT COALESCE(SUM(CASE WHEN t.jenis IN ('lebih','minus') THEN t.qty WHEN t.jenis IN ('kurang','plus') THEN -t.qty ELSE 0 END),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id";
+
+                    return DB::table('erm_stok_opname_items')
+                        ->where('stok_opname_id', $row->id)
+                        ->whereRaw("ABS(((COALESCE(erm_stok_opname_items.stok_fisik,0) - COALESCE(erm_stok_opname_items.stok_sistem,0)) + COALESCE(({$recordNetQuery}),0))) > 0.000001")
+                        ->count();
                 })
                 ->addColumn('aksi', function($row) {
                     $lihatBtn = '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Stok Opname</a>';
