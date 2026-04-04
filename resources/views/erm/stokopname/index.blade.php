@@ -35,8 +35,8 @@
         <thead>
       <tr>
         <th>No</th>
-        <th>Tanggal Opname</th>
         <th>Periode</th>
+        <th>Tanggal Opname</th>
         <th>Status</th>
         <th>Obat Selisih</th>
         <th>Aksi</th>
@@ -322,6 +322,15 @@ $(function () {
           return meta.row + meta.settings._iDisplayStart + 1;
         }
       },
+      {data: null, render: function(data) {
+        var bulan = data.periode_bulan || '';
+        var tahun = data.periode_tahun || '';
+        var bulanNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        var bulanText = (bulan && typeof bulan === 'number') || (!isNaN(parseInt(bulan))) ? bulanNames[parseInt(bulan)] || bulan : (bulanNames[bulan] || bulan);
+        var gudangName = (data.gudang && data.gudang.nama) ? data.gudang.nama : '';
+        var out = gudangName ? (gudangName + ' - ' + (bulanText || '') + ' ' + (tahun || '')) : ((bulanText || '') + ' ' + (tahun || ''));
+        return '<strong>' + escapeHtml(out.trim()) + '</strong>';
+      }},
       {
         data: 'tanggal_opname',
         name: 'tanggal_opname',
@@ -345,19 +354,6 @@ $(function () {
           return txt + createdBy;
         }
       },
-      {data: null, render: function(data) {
-        var bulan = data.periode_bulan || '';
-        var tahun = data.periode_tahun || '';
-        var periode = bulan + '/' + tahun;
-        var gudangBadge = '';
-        if (data.gudang && data.gudang.nama) {
-          var badgeClasses = ['primary','secondary','success','info','warning','danger','dark'];
-          var gid = (data.gudang.id && Number(data.gudang.id)) ? Number(data.gudang.id) : 0;
-          var cls = badgeClasses[gid % badgeClasses.length];
-          gudangBadge = '<br><span class="badge badge-' + cls + '">' + data.gudang.nama + '</span>';
-        }
-        return periode + gudangBadge;
-      }},
       {
         data: 'status',
         name: 'status',
