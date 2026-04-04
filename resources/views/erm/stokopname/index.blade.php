@@ -205,6 +205,70 @@
 </style>
 <script>
 $(function () {
+  function formatTemuanQty(value) {
+    var number = parseFloat(value);
+    if (isNaN(number)) {
+      return value;
+    }
+    if (Math.abs(number - Math.round(number)) < 0.0000001) {
+      return String(Math.round(number));
+    }
+    return number.toFixed(4).replace(/\.?0+$/, '');
+  }
+
+  function getTemuanProcessInfo(jenis) {
+    if (jenis === 'lebih' || jenis === 'minus') {
+      return {
+        action: 'tambah',
+        label: 'Menambah stok',
+        preposition: 'ke stok'
+      };
+    }
+
+    return {
+      action: 'kurang',
+      label: 'Mengurangi stok',
+      preposition: 'dari stok'
+    };
+  }
+
+  function escapeHtml(text) {
+    return $('<div>').text(text == null ? '' : String(text)).html();
+  }
+
+  function confirmTemuanProcess(options) {
+    if (typeof Swal === 'undefined') {
+      return Promise.resolve(window.confirm(options.fallbackText));
+    }
+
+    return Swal.fire({
+      title: options.title,
+      html: options.html,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: options.confirmText || 'Proses',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#28a745'
+    }).then(function(result) {
+      return result.value || result.value === true;
+    });
+  }
+
+  function showTemuanNotification(icon, title, text) {
+    if (typeof Swal === 'undefined') {
+      alert(title + (text ? '\n' + text : ''));
+      return;
+    }
+
+    Swal.fire({
+      icon: icon,
+      title: title,
+      text: text || '',
+      timer: icon === 'success' ? 1800 : undefined,
+      showConfirmButton: icon !== 'success'
+    });
+  }
+
   // Set default year for periode_tahun input
   var now = new Date();
   $('#periode_tahun_input').val(now.getFullYear());
@@ -449,11 +513,7 @@ $(function () {
             { data: null, orderable: false, searchable: false, render: function(data, type, row, meta){ return meta.row + meta.settings._iDisplayStart + 1; } },
             { data: 'obat', name: 'obat' },
             { data: 'qty', name: 'qty', render: function(data, type, row){
-              var n = parseFloat(data);
-              if (isNaN(n)) return data;
-              // show integer without decimals, otherwise up to 4 decimals trimmed
-              if (Math.abs(n - Math.round(n)) < 0.0000001) return String(Math.round(n));
-              return n.toFixed(4).replace(/\.?0+$/,'');
+              return formatTemuanQty(data);
             } },
             { data: 'jenis', name: 'jenis' },
             { data: 'process_status', name: 'process_status' },
@@ -480,43 +540,136 @@ $(function () {
     // Process selected bulk
     $('#process-selected').on('click', function(){
       var ids = [];
-      $('.temuan-select:checked').each(function(){ ids.push($(this).data('id')); });
-      if (ids.length === 0) { alert('Pilih minimal 1 temuan untuk diproses'); return; }
-      if (!confirm('Proses ' + ids.length + ' temuan ke stok?')) return;
-      $.ajax({
-        url: '/erm/stokopname-temuan/bulk-process',
-        method: 'POST',
-        data: { ids: ids },
-        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
-        success: function(res){
-          if (res.success) {
-            var ok = res.results.processed.length;
-            var fail = Object.keys(res.results.failed).length;
-            alert('Selesai: diproses=' + ok + ', gagal=' + fail);
-            temuanTable.ajax.reload();
-            table.ajax.reload(null, false);
-          } else {
-            alert('Bulk proses gagal');
+      var selectedRows = [];
+      $('.temuan-select:checked').each(function(){
+        ids.push($(this).data('id'));
+        if (temuanTable) {
+          var rowData = temuanTable.row($(this).closest('tr')).data();
+          if (rowData) {
+            selectedRows.push(rowData);
           }
-        },
-        error: function(xhr){ alert('Gagal melakukan bulk proses'); }
+        }
+      });
+      if (ids.length === 0) {
+        showTemuanNotification('warning', 'Belum ada temuan dipilih', 'Pilih minimal 1 temuan untuk diproses.');
+        return;
+      }
+
+      var summary = {
+        tambahCount: 0,
+        tambahQty: 0,
+        kurangCount: 0,
+        kurangQty: 0
+      };
+
+      selectedRows.forEach(function(row) {
+        var info = getTemuanProcessInfo(row.jenis);
+        var qty = parseFloat(row.qty) || 0;
+        if (info.action === 'tambah') {
+          summary.tambahCount += 1;
+          summary.tambahQty += qty;
+        } else {
+          summary.kurangCount += 1;
+          summary.kurangQty += qty;
+        }
+      });
+
+      var bulkHtml = '<div class="text-left">' +
+        '<p>Proses <strong>' + ids.length + '</strong> temuan terpilih ke stok?</p>' +
+        '<p class="mb-1 text-success"><strong>Menambah stok:</strong> ' + summary.tambahCount + ' temuan (qty ' + formatTemuanQty(summary.tambahQty) + ')</p>' +
+        '<p class="mb-0 text-danger"><strong>Mengurangi stok:</strong> ' + summary.kurangCount + ' temuan (qty ' + formatTemuanQty(summary.kurangQty) + ')</p>' +
+        '</div>';
+      var bulkText = 'Proses ' + ids.length + ' temuan ke stok?\n' +
+        'Menambah stok: ' + summary.tambahCount + ' temuan (qty ' + formatTemuanQty(summary.tambahQty) + ')\n' +
+        'Mengurangi stok: ' + summary.kurangCount + ' temuan (qty ' + formatTemuanQty(summary.kurangQty) + ')';
+
+      confirmTemuanProcess({
+        title: 'Proses Temuan Terpilih?',
+        html: bulkHtml,
+        fallbackText: bulkText,
+        confirmText: 'Ya, Proses'
+      }).then(function(confirmed) {
+        if (!confirmed) {
+          return;
+        }
+
+        $.ajax({
+          url: '/erm/stokopname-temuan/bulk-process',
+          method: 'POST',
+          data: { ids: ids },
+          headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+          success: function(res){
+            if (res.success) {
+              var ok = res.results.processed.length;
+              var fail = Object.keys(res.results.failed).length;
+              showTemuanNotification('success', 'Proses temuan selesai', 'Berhasil diproses: ' + ok + ', gagal: ' + fail + '.');
+              temuanTable.ajax.reload();
+              table.ajax.reload(null, false);
+            } else {
+              showTemuanNotification('error', 'Bulk proses gagal', 'Temuan terpilih tidak berhasil diproses.');
+            }
+          },
+          error: function(xhr){
+            var message = 'Gagal melakukan bulk proses.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+              message = xhr.responseJSON.message;
+            }
+            showTemuanNotification('error', 'Bulk proses gagal', message);
+          }
+        });
       });
     });
 
     // process temuan
     $(document).on('click', '.process-temuan', function(){
       var id = $(this).data('id');
-      if (!confirm('Proses temuan ini ke stok?')) return;
-      $.ajax({
-        url: '/erm/stokopname-temuan/' + id + '/process',
-        method: 'POST',
-        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
-        success: function(res){
-          temuanTable.ajax.reload();
-          // reload main table to update selisih counts
-          table.ajax.reload(null, false);
-        },
-        error: function(xhr){ alert('Gagal memproses temuan'); }
+      var rowData = temuanTable ? temuanTable.row($(this).closest('tr')).data() : null;
+      var info = getTemuanProcessInfo(rowData ? rowData.jenis : null);
+      var obatName = rowData && rowData.obat ? rowData.obat : 'obat ini';
+      var qtyText = formatTemuanQty(rowData ? rowData.qty : '');
+      var jenisText = rowData && rowData.jenis ? rowData.jenis : '-';
+
+      var singleHtml = '<div class="text-left">' +
+        '<p>Temuan ini akan diproses ke stok.</p>' +
+        '<p class="mb-1"><strong>Obat:</strong> ' + escapeHtml(obatName) + '</p>' +
+        '<p class="mb-1"><strong>Qty:</strong> ' + escapeHtml(qtyText) + '</p>' +
+        '<p class="mb-1"><strong>Jenis Selisih:</strong> ' + escapeHtml(jenisText) + '</p>' +
+        '<p class="mb-0 ' + (info.action === 'tambah' ? 'text-success' : 'text-danger') + '"><strong>' + info.label + ':</strong> qty ' + escapeHtml(qtyText) + ' ' + info.preposition + '</p>' +
+        '</div>';
+      var singleText = 'Proses temuan ini ke stok?\n' +
+        'Obat: ' + obatName + '\n' +
+        'Qty: ' + qtyText + '\n' +
+        'Jenis Selisih: ' + jenisText + '\n' +
+        info.label + ': qty ' + qtyText + ' ' + info.preposition;
+
+      confirmTemuanProcess({
+        title: 'Proses Temuan Ini?',
+        html: singleHtml,
+        fallbackText: singleText,
+        confirmText: 'Ya, Proses'
+      }).then(function(confirmed) {
+        if (!confirmed) {
+          return;
+        }
+
+        $.ajax({
+          url: '/erm/stokopname-temuan/' + id + '/process',
+          method: 'POST',
+          headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+          success: function(res){
+            showTemuanNotification('success', 'Temuan berhasil diproses', res.message || 'Stok berhasil diperbarui dari temuan ini.');
+            temuanTable.ajax.reload();
+            // reload main table to update selisih counts
+            table.ajax.reload(null, false);
+          },
+          error: function(xhr){
+            var message = 'Gagal memproses temuan.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+              message = xhr.responseJSON.message;
+            }
+            showTemuanNotification('error', 'Proses temuan gagal', message);
+          }
+        });
       });
     });
 
