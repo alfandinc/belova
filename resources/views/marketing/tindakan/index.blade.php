@@ -285,11 +285,6 @@
                             <button type="button" class="btn btn-sm btn-success" id="addKodeTindakanRow">Add Kode Tindakan</button>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="obat_ids">Bundled Obat/BHP</label>
-                        <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
-                        <div class="invalid-feedback" id="obat_ids-error"></div>
-                    </div>
                     {{-- <div class="form-group">
                         <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
                         <ul id="tindakanSopList" class="list-group mb-2"></ul>
@@ -597,30 +592,6 @@
         // Initialize Select2 for Specialist (no AJAX, no minimumInputLength)
         $('#spesialis_id').select2({
             width: '100%',
-            dropdownParent: $('#tindakanModal')
-        });
-
-        // Initialize Select2 for bundled obat (with AJAX and minimumInputLength)
-        $('#obat_ids').select2({
-            width: '100%',
-            placeholder: 'Select Obat...',
-            minimumInputLength: 2,
-            ajax: {
-                url: "{{ route('obat.search') }}",
-                dataType: 'json',
-                delay: 250,
-                data: function(params) {
-                    return { q: params.term };
-                },
-                processResults: function(data) {
-                    return {
-                        results: data.results.map(function(obat) {
-                            return { id: obat.id, text: obat.nama };
-                        })
-                    };
-                },
-                cache: true
-            },
             dropdownParent: $('#tindakanModal')
         });
 
@@ -1050,24 +1021,6 @@
                            $('#is_active').prop('checked', false);
                        }
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
-                    // Populate bundled obat
-                    if (data.obat_ids && Array.isArray(data.obat_ids)) {
-                        // Clear any existing options first
-                        $('#obat_ids').empty();
-                        // If backend returned full obat objects, use their names to create options
-                        if (data.obats && Array.isArray(data.obats) && data.obats.length) {
-                            data.obats.forEach(function(obat) {
-                                var label = obat.nama || obat.name || ('Obat ' + obat.id);
-                                var option = new Option(label, obat.id, true, true);
-                                $('#obat_ids').append(option);
-                            });
-                            // Notify Select2 of change
-                            $('#obat_ids').trigger('change');
-                        } else {
-                            // Fallback: set by ids only (may not show labels until user searches)
-                            $('#obat_ids').val(data.obat_ids).trigger('change');
-                        }
-                    }
                     // Populate kode tindakan table rows using kode_tindakans array
                     $('#kodeTindakanTable tbody').empty();
                     if (data.kode_tindakans && Array.isArray(data.kode_tindakans)) {
@@ -1196,13 +1149,6 @@
                 sopNames.push($(this).find('.sop-name').text());
             });
             formData.push({name: 'sop_names', value: sopNames});
-            // Collect bundled obat
-            var obatIds = $('#obat_ids').val();
-            if (Array.isArray(obatIds)) {
-                obatIds.forEach(function(id) {
-                    formData.push({name: 'obat_ids[]', value: id});
-                });
-            }
                 // Collect kode tindakan from table rows
                 $('#kodeTindakanTable tbody tr').each(function() {
                     var kodeId = $(this).find('.kode-tindakan-id').val();
@@ -1259,8 +1205,6 @@
             resetErrors();
             $('#tindakan_id').val('');
             $('.select2').val('').trigger('change');
-            // Ensure obat Select2 is fully cleared (remove any appended option elements)
-            $('#obat_ids').empty().val(null).trigger('change');
                 $('#kode_tindakan_ids').val('').trigger('change');
         }
         
