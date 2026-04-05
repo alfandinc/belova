@@ -3034,17 +3034,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
 
                 if ($amountPaidNumeric > 0) {
+                    $invoiceReference = $invoice->invoice_number ?? $invoice->id;
                     $paymentDescription = $shortageAmount > 0
-                        ? 'Pembayaran awal billing invoice ' . ($invoice->invoice_number ?? $invoice->id)
-                        : 'Pembayaran billing invoice ' . ($invoice->invoice_number ?? $invoice->id);
+                        ? 'Pembayaran awal billing invoice ' . $invoiceReference
+                        : 'Pembayaran billing invoice ' . $invoiceReference;
 
-                    app(TransactionRecorderService::class)->recordInvoicePayment(
+                    $changeDescription = $changeAmount > 0
+                        ? 'Kembalian billing invoice ' . $invoiceReference
+                        : null;
+
+                    app(TransactionRecorderService::class)->recordInvoiceSettlement(
                         $invoice,
                         $amountPaidNumeric,
+                        $changeAmount,
                         $paymentMethod,
                         $paymentDescription,
-                        $paymentDate,
-                        'in'
+                        $changeDescription,
+                        $paymentDate
                     );
                 }
 

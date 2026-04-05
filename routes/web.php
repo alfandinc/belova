@@ -1213,6 +1213,8 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
         Route::get('/transactions/stats', [FinanceTransactionController::class, 'stats'])->name('finance.transactions.stats');
         Route::get('/transactions/download', [FinanceTransactionController::class, 'downloadExcel'])->name('finance.transactions.download');
+        Route::get('/transactions/backfill-change/preview', [FinanceTransactionController::class, 'previewBackfillChangeTransactions'])->name('finance.transactions.backfill.preview');
+        Route::post('/transactions/backfill-change/process', [FinanceTransactionController::class, 'processBackfillChangeTransactions'])->name('finance.transactions.backfill.process');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');

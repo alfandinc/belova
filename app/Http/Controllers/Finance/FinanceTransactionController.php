@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\Invoice;
 use App\Models\Finance\FinanceTransaction;
+use App\Services\Finance\TransactionRecorderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 class FinanceTransactionController extends Controller
@@ -119,6 +122,128 @@ class FinanceTransactionController extends Controller
             ->make(true);
     }
 
+    public function previewBackfillChangeTransactions(Request $request)
+    {
+        abort_unless($request->user() && $request->user()->hasAnyRole(['Admin']), 403);
+
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'cash_only' => ['nullable', 'boolean'],
+        ]);
+
+        $cashOnly = (bool) ($validated['cash_only'] ?? false);
+
+        $invoices = $this->buildBackfillChangeQuery($validated['start_date'], $validated['end_date'], $cashOnly)
+            ->orderByRaw('COALESCE(payment_date, created_at) asc')
+            ->orderBy('id')
+            ->get();
+
+        $rows = $invoices->map(function (Invoice $invoice) {
+            $pasien = optional(optional($invoice->visitation)->pasien);
+
+            return [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number ?: '-',
+                'visitation_id' => $invoice->visitation_id,
+                'patient_name' => $pasien && !empty($pasien->nama) ? $pasien->nama : '-',
+                'patient_id' => $pasien && !empty($pasien->id) ? $pasien->id : null,
+                'payment_method' => $invoice->payment_method ?: '-',
+                'payment_date_display' => optional($invoice->payment_date ?: $invoice->created_at)->format('d M Y H:i'),
+                'change_amount' => (float) ($invoice->change_amount ?? 0),
+                'description' => 'Kembalian billing invoice ' . ($invoice->invoice_number ?? $invoice->id),
+            ];
+        })->values();
+
+        return response()->json([
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
+            'cash_only' => $cashOnly,
+            'total_count' => $rows->count(),
+            'total_change_amount' => (float) $rows->sum('change_amount'),
+            'transactions' => $rows,
+        ]);
+    }
+
+    public function processBackfillChangeTransactions(Request $request)
+    {
+        abort_unless($request->user() && $request->user()->hasAnyRole(['Admin']), 403);
+
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'cash_only' => ['nullable', 'boolean'],
+            'invoice_ids' => ['required', 'array', 'min:1'],
+            'invoice_ids.*' => ['integer'],
+        ]);
+
+        $cashOnly = (bool) ($validated['cash_only'] ?? false);
+
+        $invoiceIds = collect($validated['invoice_ids'])
+            ->map(function ($value) {
+                return (int) $value;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($invoiceIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada invoice valid untuk diproses.',
+            ], 422);
+        }
+
+        $invoices = $this->buildBackfillChangeQuery($validated['start_date'], $validated['end_date'], $cashOnly)
+            ->whereIn('id', $invoiceIds->all())
+            ->orderBy('id')
+            ->get();
+
+        if ($invoices->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'created_count' => 0,
+                'total_change_amount' => 0,
+                'message' => 'Tidak ada transaksi kembalian yang perlu dibackfill.',
+            ]);
+        }
+
+        $createdCount = 0;
+        $createdTotal = 0.0;
+
+        DB::transaction(function () use ($invoices, &$createdCount, &$createdTotal) {
+            $recorder = app(TransactionRecorderService::class);
+
+            foreach ($invoices as $invoice) {
+                $changeAmount = (float) ($invoice->change_amount ?? 0);
+                if ($changeAmount <= 0) {
+                    continue;
+                }
+
+                $created = $recorder->recordInvoicePayment(
+                    $invoice,
+                    $changeAmount,
+                    $invoice->payment_method,
+                    'Kembalian billing invoice ' . ($invoice->invoice_number ?? $invoice->id),
+                    $invoice->payment_date ?: $invoice->created_at,
+                    'out'
+                );
+
+                if ($created) {
+                    $createdCount++;
+                    $createdTotal += $changeAmount;
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'created_count' => $createdCount,
+            'total_change_amount' => (float) $createdTotal,
+            'message' => 'Backfill kembalian berhasil diproses.',
+        ]);
+    }
+
     private function buildFilteredQuery(Request $request)
     {
         $query = FinanceTransaction::query()
@@ -139,6 +264,27 @@ class FinanceTransactionController extends Controller
         $metode = trim((string) $request->input('metode_bayar', ''));
         if ($metode !== '') {
             $query->where('metode_bayar', $metode);
+        }
+
+        return $query;
+    }
+
+    private function buildBackfillChangeQuery(string $startDate, string $endDate, bool $cashOnly = false)
+    {
+        $query = Invoice::query()
+            ->with(['visitation.pasien'])
+            ->where('change_amount', '>', 0)
+            ->whereBetween(DB::raw('COALESCE(payment_date, created_at)'), [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('finance_transactions')
+                    ->whereColumn('finance_transactions.invoice_id', 'finance_invoices.id')
+                    ->where('finance_transactions.jenis_transaksi', 'out')
+                    ->whereRaw('ABS(finance_transactions.jumlah - finance_invoices.change_amount) < 0.01');
+            });
+
+        if ($cashOnly) {
+            $query->where('payment_method', 'cash');
         }
 
         return $query;
