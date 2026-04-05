@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\{
 };
 use App\Http\Controllers\Finance\{
     BillingController,
+    FinanceReportController,
     FinanceTransactionController,
     InvoiceController,
     PiutangController,
@@ -1215,6 +1216,11 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/transactions/download', [FinanceTransactionController::class, 'downloadExcel'])->name('finance.transactions.download');
         Route::get('/transactions/backfill-change/preview', [FinanceTransactionController::class, 'previewBackfillChangeTransactions'])->name('finance.transactions.backfill.preview');
         Route::post('/transactions/backfill-change/process', [FinanceTransactionController::class, 'processBackfillChangeTransactions'])->name('finance.transactions.backfill.process');
+        Route::middleware('role:Admin|Finance')->group(function () {
+            Route::get('/laporan-keuangan', [FinanceReportController::class, 'index'])->name('finance.laporan-keuangan.index');
+            Route::get('/laporan-keuangan/daily-data', [FinanceReportController::class, 'dailyData'])->name('finance.laporan-keuangan.daily-data');
+            Route::get('/laporan-keuangan/monthly-data', [FinanceReportController::class, 'monthlyData'])->name('finance.laporan-keuangan.monthly-data');
+        });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');

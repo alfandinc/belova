@@ -66,6 +66,12 @@
                             <span>Rekap Penjualan</span>
                         </a>
                     </li>
+                    <li>
+                        <a href="{{ route('finance.laporan-keuangan.index') }}">
+                            <i class="fas fa-chart-bar align-self-center menu-icon"></i>
+                            <span>Laporan Keuangan</span>
+                        </a>
+                    </li>
                     @endhasanyrole
 
                     @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
