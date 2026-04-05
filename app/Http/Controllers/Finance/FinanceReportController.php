@@ -309,27 +309,57 @@ class FinanceReportController extends Controller
 
         $rows = $query
             ->orderBy('transaction.tanggal')
-            ->selectRaw("DATE_FORMAT(transaction.tanggal, '%d/%m/%Y %H:%i') as tanggal")
+            ->select('transaction.tanggal')
+            ->addSelect('transaction.invoice_id')
+            ->addSelect('transaction.visitation_id')
             ->selectRaw("COALESCE(pasien.nama, '-') as nama")
             ->selectRaw("COALESCE(invoice.invoice_number, '-') as invoice_number")
-            ->selectRaw("CASE WHEN LOWER(COALESCE(transaction.jenis_transaksi, 'in')) = 'out' THEN 'Out' ELSE 'In' END as jenis")
-            ->selectRaw("CONCAT('Rp ', FORMAT(transaction.jumlah, 0, 'de_DE')) as jumlah")
+            ->selectRaw("LOWER(COALESCE(transaction.jenis_transaksi, 'in')) as jenis")
+            ->addSelect('transaction.jumlah')
             ->selectRaw("COALESCE(transaction.deskripsi, '-') as deskripsi")
             ->get()
-            ->map(function ($row) {
+            ->groupBy(function ($row) {
+                $tanggalKey = $row->tanggal ? Carbon::parse($row->tanggal)->format('Y-m-d H:i:s') : 'no-date';
+
+                return implode('|', [
+                    $tanggalKey,
+                    $row->invoice_id ?? 'no-invoice',
+                    $row->visitation_id ?? 'no-visitation',
+                ]);
+            })
+            ->map(function ($group) {
+                $first = $group->first();
+                $netAmount = $group->sum(function ($item) {
+                    return ($item->jenis ?? 'in') === 'out'
+                        ? -1 * (float) ($item->jumlah ?? 0)
+                        : (float) ($item->jumlah ?? 0);
+                });
+
+                $mergedDescription = $group
+                    ->pluck('deskripsi')
+                    ->filter(function ($value) {
+                        return $value !== null && trim((string) $value) !== '' && trim((string) $value) !== '-';
+                    })
+                    ->map(function ($value) {
+                        return trim((string) $value);
+                    })
+                    ->unique()
+                    ->values()
+                    ->implode(' | ');
+
                 return [
-                    $row->tanggal,
-                    $row->nama,
-                    $row->invoice_number,
-                    $row->jenis,
-                    $row->jumlah,
-                    $row->deskripsi,
+                    $first->tanggal ? Carbon::parse($first->tanggal)->format('d/m/Y H:i') : '-',
+                    $first->nama,
+                    $first->invoice_number,
+                    'Rp ' . number_format($netAmount, 0, ',', '.'),
+                    $mergedDescription !== '' ? $mergedDescription : '-',
                 ];
             })
+            ->values()
             ->all();
 
         return [
-            'headers' => ['Tanggal', 'Pasien', 'Invoice', 'Jenis', 'Jumlah', 'Deskripsi'],
+            'headers' => ['Tanggal', 'Pasien', 'Invoice', 'Jumlah', 'Deskripsi'],
             'rows' => $rows,
         ];
     }
