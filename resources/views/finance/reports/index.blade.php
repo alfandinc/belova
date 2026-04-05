@@ -57,6 +57,15 @@
         border-color: #475569;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
+
+    .report-summary-clickable {
+        cursor: pointer;
+        transition: background-color 0.18s ease;
+    }
+
+    .report-summary-clickable:hover td {
+        background-color: rgba(37, 99, 235, 0.06);
+    }
 </style>
 <div class="container-fluid">
     <div class="row mb-3">
@@ -121,6 +130,27 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-report-detail" tabindex="-1" role="dialog" aria-labelledby="modal-report-detail-label" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-report-detail-label">Detail Laporan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped mb-0">
+                        <thead id="report-detail-head"></thead>
+                        <tbody id="report-detail-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -170,7 +200,15 @@
                     '</tr>';
                 }
 
-                return '<tr>' +
+                var isClickable = row.metric_key === 'pendapatan' || row.metric_key === 'piutang';
+                var rowClass = isClickable ? 'report-summary-clickable' : '';
+                var dataAttributes = isClickable
+                    ? ' data-metric-key="' + escapeHtml(row.metric_key || '') + '"' +
+                      ' data-clinic-key="' + escapeHtml(row.clinic_key || '') + '"' +
+                      ' data-clinic-name="' + escapeHtml(row.clinic_name || '') + '"'
+                    : '';
+
+                return '<tr class="' + rowClass + '"' + dataAttributes + '>' +
                     '<td class="font-weight-bold">' + escapeHtml(row.metric_label || '-') + '</td>' +
                     '<td class="text-right font-weight-bold">' + escapeHtml(row.metric_value_display || '-') + '</td>' +
                 '</tr>';
@@ -203,6 +241,50 @@
             });
         }
 
+        function renderDetailModal(headers, rows) {
+            var headHtml = '<tr>' + (headers || []).map(function(header) {
+                return '<th>' + escapeHtml(header) + '</th>';
+            }).join('') + '</tr>';
+
+            $('#report-detail-head').html(headHtml);
+
+            if (!Array.isArray(rows) || !rows.length) {
+                $('#report-detail-body').html('<tr><td colspan="' + Math.max((headers || []).length, 1) + '" class="text-center text-muted">Tidak ada data detail</td></tr>');
+                return;
+            }
+
+            var bodyHtml = rows.map(function(row) {
+                return '<tr>' + row.map(function(cell) {
+                    return '<td>' + escapeHtml(cell) + '</td>';
+                }).join('') + '</tr>';
+            }).join('');
+
+            $('#report-detail-body').html(bodyHtml);
+        }
+
+        function openDetailModal(mode, clinicKey, clinicName, metricKey) {
+            $('#modal-report-detail-label').text((metricKey === 'piutang' ? 'Detail Piutang' : 'Detail Pendapatan') + ' - ' + clinicName);
+            $('#report-detail-head').html('');
+            $('#report-detail-body').html('<tr><td class="text-center text-muted">Memuat detail...</td></tr>');
+            $('#modal-report-detail').modal('show');
+
+            $.get('{{ route("finance.laporan-keuangan.detail-data") }}', {
+                mode: mode,
+                metric: metricKey,
+                clinic_key: clinicKey,
+                clinic_name: clinicName,
+                report_date: reportDate,
+                report_month: reportMonth
+            }).done(function(res) {
+                $('#modal-report-detail-label').text((res && res.title) ? res.title : 'Detail Laporan');
+                renderDetailModal(res && res.headers ? res.headers : [], res && res.rows ? res.rows : []);
+            }).fail(function(xhr) {
+                var message = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal memuat detail laporan';
+                $('#report-detail-head').html('');
+                $('#report-detail-body').html('<tr><td class="text-center text-danger">' + escapeHtml(message) + '</td></tr>');
+            });
+        }
+
         $('#filter-report-date').on('change', function() {
             reportDate = $('#filter-report-date').val() || moment().format('YYYY-MM-DD');
             loadDailySummary();
@@ -211,6 +293,14 @@
         $('#filter-report-month').on('change', function() {
             reportMonth = $('#filter-report-month').val() || moment().format('YYYY-MM');
             loadMonthlySummary();
+        });
+
+        $('#table-laporan-harian-body').on('click', 'tr.report-summary-clickable', function() {
+            openDetailModal('daily', $(this).data('clinic-key'), $(this).data('clinic-name'), $(this).data('metric-key'));
+        });
+
+        $('#table-laporan-bulanan-body').on('click', 'tr.report-summary-clickable', function() {
+            openDetailModal('monthly', $(this).data('clinic-key'), $(this).data('clinic-name'), $(this).data('metric-key'));
         });
 
         loadDailySummary();

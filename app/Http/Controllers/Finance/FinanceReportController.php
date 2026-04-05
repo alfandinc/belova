@@ -46,6 +46,39 @@ class FinanceReportController extends Controller
         ]);
     }
 
+    public function detailData(Request $request)
+    {
+        $validated = $request->validate([
+            'mode' => ['required', 'in:daily,monthly'],
+            'metric' => ['required', 'in:pendapatan,piutang'],
+            'clinic_key' => ['required', 'string'],
+            'clinic_name' => ['nullable', 'string'],
+            'report_date' => ['nullable', 'date'],
+            'report_month' => ['nullable', 'date_format:Y-m'],
+        ]);
+
+        $mode = $validated['mode'];
+        $metric = $validated['metric'];
+        $clinicKey = $validated['clinic_key'];
+        $clinicName = $validated['clinic_name'] ?? $clinicKey;
+
+        if ($clinicKey === 'bcl') {
+            $payload = $metric === 'piutang'
+                ? $this->buildBclPiutangDetails($mode, $validated)
+                : $this->buildBclPendapatanDetails($mode, $validated);
+        } else {
+            $payload = $metric === 'piutang'
+                ? $this->buildFinancePiutangDetails($mode, $clinicKey, $validated)
+                : $this->buildFinancePendapatanDetails($mode, $clinicKey, $validated);
+        }
+
+        return response()->json([
+            'title' => ucfirst($metric) . ' - ' . $clinicName,
+            'headers' => $payload['headers'],
+            'rows' => $payload['rows'],
+        ]);
+    }
+
     private function buildSummaryRows(string $mode, array $filters = []): array
     {
         $monthStart = null;
@@ -153,21 +186,30 @@ class FinanceReportController extends Controller
 
             $rows[] = [
                 'row_type' => 'metric',
+                'clinic_key' => $clinicRow['clinic_key'],
+                'clinic_name' => $clinicRow['clinic_name'],
                 'metric_label' => 'Total Visit',
+                'metric_key' => 'total_visit',
                 'metric_value' => $clinicRow['total_visit'],
                 'metric_value_display' => number_format($clinicRow['total_visit'], 0, ',', '.'),
             ];
 
             $rows[] = [
                 'row_type' => 'metric',
+                'clinic_key' => $clinicRow['clinic_key'],
+                'clinic_name' => $clinicRow['clinic_name'],
                 'metric_label' => 'Pendapatan',
+                'metric_key' => 'pendapatan',
                 'metric_value' => $clinicRow['total_pendapatan'],
                 'metric_value_display' => 'Rp ' . number_format($clinicRow['total_pendapatan'], 0, ',', '.'),
             ];
 
             $rows[] = [
                 'row_type' => 'metric',
+                'clinic_key' => $clinicRow['clinic_key'],
+                'clinic_name' => $clinicRow['clinic_name'],
                 'metric_label' => 'Piutang',
+                'metric_key' => 'piutang',
                 'metric_value' => $clinicRow['total_piutang'],
                 'metric_value_display' => 'Rp ' . number_format($clinicRow['total_piutang'], 0, ',', '.'),
             ];
@@ -208,25 +250,201 @@ class FinanceReportController extends Controller
 
         $rows[] = [
             'row_type' => 'metric',
+            'clinic_key' => 'bcl',
+            'clinic_name' => 'Belova Center Living',
             'metric_label' => 'Total Transaksi',
+            'metric_key' => 'total_transaksi',
             'metric_value' => (int) ($bclSummary->total_transaksi ?? 0),
             'metric_value_display' => number_format((int) ($bclSummary->total_transaksi ?? 0), 0, ',', '.'),
         ];
 
         $rows[] = [
             'row_type' => 'metric',
+            'clinic_key' => 'bcl',
+            'clinic_name' => 'Belova Center Living',
             'metric_label' => 'Pendapatan',
+            'metric_key' => 'pendapatan',
             'metric_value' => (float) ($bclSummary->total_pendapatan ?? 0),
             'metric_value_display' => 'Rp ' . number_format((float) ($bclSummary->total_pendapatan ?? 0), 0, ',', '.'),
         ];
 
         $rows[] = [
             'row_type' => 'metric',
+            'clinic_key' => 'bcl',
+            'clinic_name' => 'Belova Center Living',
             'metric_label' => 'Piutang',
+            'metric_key' => 'piutang',
             'metric_value' => (float) ($bclPiutang ?? 0),
             'metric_value_display' => 'Rp ' . number_format((float) ($bclPiutang ?? 0), 0, ',', '.'),
         ];
 
         return $rows;
+    }
+
+    private function applyModeDateFilter($query, string $mode, string $column, array $filters)
+    {
+        if ($mode === 'daily') {
+            $query->whereDate($column, $filters['report_date'] ?? now()->toDateString());
+
+            return;
+        }
+
+        $reportMonth = $filters['report_month'] ?? now()->format('Y-m');
+        $monthStart = Carbon::createFromFormat('Y-m', $reportMonth)->startOfMonth()->toDateString();
+        $monthEnd = Carbon::createFromFormat('Y-m', $reportMonth)->endOfMonth()->toDateString();
+
+        $query->whereBetween(DB::raw('DATE(' . $column . ')'), [$monthStart, $monthEnd]);
+    }
+
+    private function buildFinancePendapatanDetails(string $mode, string $clinicKey, array $filters): array
+    {
+        $query = DB::table('finance_transactions as transaction')
+            ->leftJoin('erm_visitations as visitation', 'visitation.id', '=', 'transaction.visitation_id')
+            ->leftJoin('erm_pasiens as pasien', 'pasien.id', '=', 'visitation.pasien_id')
+            ->leftJoin('finance_invoices as invoice', 'invoice.id', '=', 'transaction.invoice_id')
+            ->whereRaw("COALESCE(CAST(visitation.klinik_id AS CHAR), 'unknown') = ?", [$clinicKey])
+            ->whereNotNull('transaction.tanggal');
+
+        $this->applyModeDateFilter($query, $mode, 'transaction.tanggal', $filters);
+
+        $rows = $query
+            ->orderByDesc('transaction.tanggal')
+            ->selectRaw("DATE_FORMAT(transaction.tanggal, '%d/%m/%Y %H:%i') as tanggal")
+            ->selectRaw("COALESCE(pasien.nama, '-') as nama")
+            ->selectRaw("COALESCE(invoice.invoice_number, '-') as invoice_number")
+            ->selectRaw("CASE WHEN LOWER(COALESCE(transaction.jenis_transaksi, 'in')) = 'out' THEN 'Out' ELSE 'In' END as jenis")
+            ->selectRaw("CONCAT('Rp ', FORMAT(transaction.jumlah, 0, 'de_DE')) as jumlah")
+            ->selectRaw("COALESCE(transaction.deskripsi, '-') as deskripsi")
+            ->get()
+            ->map(function ($row) {
+                return [
+                    $row->tanggal,
+                    $row->nama,
+                    $row->invoice_number,
+                    $row->jenis,
+                    $row->jumlah,
+                    $row->deskripsi,
+                ];
+            })
+            ->all();
+
+        return [
+            'headers' => ['Tanggal', 'Pasien', 'Invoice', 'Jenis', 'Jumlah', 'Deskripsi'],
+            'rows' => $rows,
+        ];
+    }
+
+    private function buildFinancePiutangDetails(string $mode, string $clinicKey, array $filters): array
+    {
+        $query = DB::table('finance_piutangs as piutang')
+            ->leftJoin('erm_visitations as visitation', 'visitation.id', '=', 'piutang.visitation_id')
+            ->leftJoin('erm_pasiens as pasien', 'pasien.id', '=', 'visitation.pasien_id')
+            ->leftJoin('finance_invoices as invoice', 'invoice.id', '=', 'piutang.invoice_id')
+            ->whereRaw("COALESCE(CAST(visitation.klinik_id AS CHAR), 'unknown') = ?", [$clinicKey])
+            ->where(function ($query) {
+                $query->whereNull('piutang.payment_status')
+                    ->orWhereRaw('LOWER(piutang.payment_status) != ?', ['paid'])
+                    ->orWhereRaw('COALESCE(piutang.paid_amount, 0) < COALESCE(piutang.amount, 0)');
+            });
+
+        $this->applyModeDateFilter($query, $mode, 'visitation.tanggal_visitation', $filters);
+
+        $rows = $query
+            ->orderByDesc('visitation.tanggal_visitation')
+            ->selectRaw("DATE_FORMAT(visitation.tanggal_visitation, '%d/%m/%Y') as tanggal")
+            ->selectRaw("COALESCE(pasien.nama, '-') as nama")
+            ->selectRaw("COALESCE(invoice.invoice_number, '-') as invoice_number")
+            ->selectRaw("CONCAT('Rp ', FORMAT(piutang.amount, 0, 'de_DE')) as nominal")
+            ->selectRaw("CONCAT('Rp ', FORMAT(COALESCE(piutang.paid_amount, 0), 0, 'de_DE')) as dibayar")
+            ->selectRaw("CONCAT('Rp ', FORMAT(GREATEST(piutang.amount - COALESCE(piutang.paid_amount, 0), 0), 0, 'de_DE')) as sisa")
+            ->get()
+            ->map(function ($row) {
+                return [
+                    $row->tanggal,
+                    $row->nama,
+                    $row->invoice_number,
+                    $row->nominal,
+                    $row->dibayar,
+                    $row->sisa,
+                ];
+            })
+            ->all();
+
+        return [
+            'headers' => ['Tanggal', 'Pasien', 'Invoice', 'Nominal', 'Dibayar', 'Sisa Piutang'],
+            'rows' => $rows,
+        ];
+    }
+
+    private function buildBclPendapatanDetails(string $mode, array $filters): array
+    {
+        $query = DB::table('bcl_tr_renter as renter')
+            ->leftJoin('bcl_renter as customer', 'customer.id', '=', 'renter.id_renter')
+            ->whereNotNull('renter.tanggal');
+
+        $this->applyModeDateFilter($query, $mode, 'renter.tanggal', $filters);
+
+        $rows = $query
+            ->orderByDesc('renter.tanggal')
+            ->selectRaw("DATE_FORMAT(renter.tanggal, '%d/%m/%Y') as tanggal")
+            ->selectRaw('COALESCE(renter.trans_id, \'-\') as trans_id')
+            ->selectRaw("COALESCE(customer.nama, '-') as nama")
+            ->selectRaw("CONCAT('Rp ', FORMAT(renter.harga, 0, 'de_DE')) as jumlah")
+            ->get()
+            ->map(function ($row) {
+                return [
+                    $row->tanggal,
+                    $row->trans_id,
+                    $row->nama,
+                    $row->jumlah,
+                ];
+            })
+            ->all();
+
+        return [
+            'headers' => ['Tanggal', 'Transaksi', 'Renter', 'Pendapatan'],
+            'rows' => $rows,
+        ];
+    }
+
+    private function buildBclPiutangDetails(string $mode, array $filters): array
+    {
+        $query = DB::table('bcl_tr_renter as renter')
+            ->leftJoin('bcl_renter as customer', 'customer.id', '=', 'renter.id_renter')
+            ->leftJoin('bcl_fin_jurnal as jurnal', function ($join) {
+                $join->on('jurnal.doc_id', '=', 'renter.trans_id')
+                    ->where('jurnal.kode_akun', '=', '4-10101');
+            })
+            ->whereNotNull('renter.tanggal');
+
+        $this->applyModeDateFilter($query, $mode, 'renter.tanggal', $filters);
+
+        $rows = $query
+            ->groupBy('renter.trans_id', 'renter.tanggal', 'customer.nama')
+            ->havingRaw('GREATEST(COALESCE(MAX(renter.harga), 0) - COALESCE(SUM(jurnal.kredit), 0), 0) > 0')
+            ->orderByDesc('renter.tanggal')
+            ->selectRaw("DATE_FORMAT(renter.tanggal, '%d/%m/%Y') as tanggal")
+            ->selectRaw('COALESCE(renter.trans_id, \'-\') as trans_id')
+            ->selectRaw("COALESCE(customer.nama, '-') as nama")
+            ->selectRaw("CONCAT('Rp ', FORMAT(COALESCE(MAX(renter.harga), 0), 0, 'de_DE')) as nominal")
+            ->selectRaw("CONCAT('Rp ', FORMAT(COALESCE(SUM(jurnal.kredit), 0), 0, 'de_DE')) as dibayar")
+            ->selectRaw("CONCAT('Rp ', FORMAT(GREATEST(COALESCE(MAX(renter.harga), 0) - COALESCE(SUM(jurnal.kredit), 0), 0), 0, 'de_DE')) as sisa")
+            ->get()
+            ->map(function ($row) {
+                return [
+                    $row->tanggal,
+                    $row->trans_id,
+                    $row->nama,
+                    $row->nominal,
+                    $row->dibayar,
+                    $row->sisa,
+                ];
+            })
+            ->all();
+
+        return [
+            'headers' => ['Tanggal', 'Transaksi', 'Renter', 'Nominal', 'Dibayar', 'Sisa Piutang'],
+            'rows' => $rows,
+        ];
     }
 }

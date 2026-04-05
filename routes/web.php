@@ -1220,6 +1220,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/laporan-keuangan', [FinanceReportController::class, 'index'])->name('finance.laporan-keuangan.index');
             Route::get('/laporan-keuangan/daily-data', [FinanceReportController::class, 'dailyData'])->name('finance.laporan-keuangan.daily-data');
             Route::get('/laporan-keuangan/monthly-data', [FinanceReportController::class, 'monthlyData'])->name('finance.laporan-keuangan.monthly-data');
+            Route::get('/laporan-keuangan/detail-data', [FinanceReportController::class, 'detailData'])->name('finance.laporan-keuangan.detail-data');
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
