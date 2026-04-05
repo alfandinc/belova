@@ -308,7 +308,7 @@ class FinanceReportController extends Controller
         $this->applyModeDateFilter($query, $mode, 'transaction.tanggal', $filters);
 
         $rows = $query
-            ->orderByDesc('transaction.tanggal')
+            ->orderBy('transaction.tanggal')
             ->selectRaw("DATE_FORMAT(transaction.tanggal, '%d/%m/%Y %H:%i') as tanggal")
             ->selectRaw("COALESCE(pasien.nama, '-') as nama")
             ->selectRaw("COALESCE(invoice.invoice_number, '-') as invoice_number")
@@ -350,7 +350,7 @@ class FinanceReportController extends Controller
         $this->applyModeDateFilter($query, $mode, 'visitation.tanggal_visitation', $filters);
 
         $rows = $query
-            ->orderByDesc('visitation.tanggal_visitation')
+            ->orderBy('visitation.tanggal_visitation')
             ->selectRaw("DATE_FORMAT(visitation.tanggal_visitation, '%d/%m/%Y') as tanggal")
             ->selectRaw("COALESCE(pasien.nama, '-') as nama")
             ->selectRaw("COALESCE(invoice.invoice_number, '-') as invoice_number")
@@ -385,7 +385,7 @@ class FinanceReportController extends Controller
         $this->applyModeDateFilter($query, $mode, 'renter.tanggal', $filters);
 
         $rows = $query
-            ->orderByDesc('renter.tanggal')
+            ->orderBy('renter.tanggal')
             ->selectRaw("DATE_FORMAT(renter.tanggal, '%d/%m/%Y') as tanggal")
             ->selectRaw('COALESCE(renter.trans_id, \'-\') as trans_id')
             ->selectRaw("COALESCE(customer.nama, '-') as nama")
@@ -422,7 +422,7 @@ class FinanceReportController extends Controller
         $rows = $query
             ->groupBy('renter.trans_id', 'renter.tanggal', 'customer.nama')
             ->havingRaw('GREATEST(COALESCE(MAX(renter.harga), 0) - COALESCE(SUM(jurnal.kredit), 0), 0) > 0')
-            ->orderByDesc('renter.tanggal')
+            ->orderBy('renter.tanggal')
             ->selectRaw("DATE_FORMAT(renter.tanggal, '%d/%m/%Y') as tanggal")
             ->selectRaw('COALESCE(renter.trans_id, \'-\') as trans_id')
             ->selectRaw("COALESCE(customer.nama, '-') as nama")
