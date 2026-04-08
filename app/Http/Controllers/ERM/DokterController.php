@@ -14,7 +14,7 @@ class DokterController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $dokters = Dokter::with('user', 'spesialisasi')
+            $dokters = Dokter::with('user', 'spesialisasi', 'kliniks')
                 ->orderByRaw("CASE WHEN due_date_sip <= CURDATE() THEN 0 ELSE 1 END, due_date_sip DESC");
             return datatables()->of($dokters)
                 ->addColumn('nama_dokter', function ($d) {
@@ -22,6 +22,15 @@ class DokterController extends Controller
                 })
                 ->addColumn('spesialisasi', function ($d) {
                     return $d->spesialisasi->nama;
+                })
+                ->addColumn('kliniks', function ($d) {
+                    $names = $d->kliniks->pluck('nama')->filter()->unique()->values();
+
+                    if ($names->isEmpty() && $d->klinik) {
+                        $names = collect([$d->klinik->nama]);
+                    }
+
+                    return $names->isNotEmpty() ? e($names->implode(', ')) : '-';
                 })
                 ->addColumn('sip', function ($d) {
                     $sip = $d->sip ?: '-';
@@ -85,7 +94,7 @@ class DokterController extends Controller
 
     public function edit($id)
     {
-        $dokter = Dokter::with(['user', 'spesialisasi', 'klinik'])->findOrFail($id);
+        $dokter = Dokter::with(['user', 'spesialisasi', 'klinik', 'kliniks'])->findOrFail($id);
         $users = User::role('dokter')->where(function($q) use ($dokter) {
             $q->doesntHave('dokter')->orWhere('id', $dokter->user_id);
         })->get();
@@ -105,6 +114,8 @@ class DokterController extends Controller
             'sip' => 'required|string|max:255',
             'spesialisasi_id' => 'required|exists:erm_spesialisasis,id',
             'klinik_id' => 'required|exists:erm_klinik,id',
+            'klinik_ids' => 'nullable|array',
+            'klinik_ids.*' => 'exists:erm_klinik,id',
             'due_date_sip' => 'nullable|date',
             'photo' => 'nullable|file|image|max:5120',
             'ttd' => 'nullable|file|image|max:5120',
@@ -164,6 +175,16 @@ class DokterController extends Controller
             ['id' => $request->id],
             $data
         );
+
+        $klinikIds = collect($request->input('klinik_ids', []))
+            ->push((int) $request->klinik_id)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $dokter->kliniks()->sync($klinikIds);
 
         return response()->json([
             'success' => true,

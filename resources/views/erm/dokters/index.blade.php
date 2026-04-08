@@ -21,6 +21,7 @@
                         <tr>
                             <th>Nama Dokter</th>
                             <th>Spesialisasi</th>
+                            <th>Klinik</th>
                             <th>SIP</th>
                             <th>STR</th>
                             <th>Aksi</th>
@@ -72,6 +73,7 @@ $(function () {
         columns: [
             { data: 'nama_dokter', name: 'user.name' },
             { data: 'spesialisasi', name: 'spesialisasi.nama' },
+            { data: 'kliniks', name: 'kliniks', orderable: false, searchable: false },
             { data: 'sip', name: 'sip', orderable: false, searchable: false },
             { data: 'str', name: 'str', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }

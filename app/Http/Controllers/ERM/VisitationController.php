@@ -212,6 +212,9 @@ class VisitationController extends Controller
         // \Log::info("Number of doctors found: " . $count);
 
         $dokters = Dokter::where('klinik_id', $klinikId)
+            ->orWhereHas('kliniks', function ($query) use ($klinikId) {
+                $query->where('erm_klinik.id', $klinikId);
+            })
             ->with(['spesialisasi', 'user'])
             ->get();
 

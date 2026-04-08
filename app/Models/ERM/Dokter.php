@@ -3,6 +3,7 @@
 namespace App\Models\ERM;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Dokter extends Model
 {
@@ -37,6 +38,13 @@ class Dokter extends Model
     {
         return $this->belongsTo(Klinik::class);
     }
+
+    public function kliniks(): BelongsToMany
+    {
+        return $this->belongsToMany(Klinik::class, 'erm_dokter_kliniks', 'dokter_id', 'klinik_id')
+            ->withTimestamps();
+    }
+
     public function mapping()
     {
         return $this->hasOne(\App\Models\Satusehat\DokterMapping::class, 'dokter_id');
