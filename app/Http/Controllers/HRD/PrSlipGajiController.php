@@ -13,6 +13,87 @@ use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
 {
+    protected function normalizeSlipStatus($status)
+    {
+        $normalized = strtolower(trim((string) $status));
+
+        if ($normalized === 'diapprove') {
+            return 'approved';
+        }
+
+        return $normalized !== '' ? $normalized : 'draft';
+    }
+
+    protected function isCeoSlipApprover($user)
+    {
+        return $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['Ceo', 'CEO']);
+    }
+
+    protected function isPayrollOperator($user)
+    {
+        return $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['Hrd', 'Admin', 'Manager']);
+    }
+
+    protected function validateSlipStatusTransition($user, $currentStatus, $nextStatus)
+    {
+        $current = $this->normalizeSlipStatus($currentStatus);
+        $next = $this->normalizeSlipStatus($nextStatus);
+
+        if (!in_array($next, ['draft', 'submitted', 'approved', 'rejected', 'paid'], true)) {
+            return 'Status slip gaji tidak valid.';
+        }
+
+        if ($current === $next) {
+            return null;
+        }
+
+        if ($current === 'paid') {
+            return 'Slip sudah Paid dan tidak bisa diubah statusnya.';
+        }
+
+        if ($this->isCeoSlipApprover($user)) {
+            if ($current === 'submitted' && in_array($next, ['approved', 'rejected'], true)) {
+                return null;
+            }
+
+            return 'CEO hanya dapat mengubah status slip dari Submitted menjadi Approved atau Rejected.';
+        }
+
+        if ($this->isPayrollOperator($user)) {
+            if (in_array($current, ['draft', 'rejected'], true) && $next === 'submitted') {
+                return null;
+            }
+
+            if ($current === 'approved' && $next === 'paid') {
+                return null;
+            }
+
+            return 'HRD hanya dapat mengubah status slip dari Draft/Rejected menjadi Submitted atau dari Approved menjadi Paid.';
+        }
+
+        return 'Anda tidak memiliki izin untuk mengubah status slip gaji.';
+    }
+
+    protected function isBulkStatusEligible($currentStatus, $targetStatus)
+    {
+        $current = $this->normalizeSlipStatus($currentStatus);
+        $target = $this->normalizeSlipStatus($targetStatus);
+
+        if ($target === 'paid') {
+            return $current === 'approved';
+        }
+
+        if ($target === 'submitted') {
+            return in_array($current, ['draft', 'rejected'], true);
+        }
+
+        return false;
+    }
+
     // Get and print current user's latest slip gaji
     public function mySlip(Request $request)
     {
@@ -105,10 +186,8 @@ class PrSlipGajiController extends Controller
             $allowed = true;
         }
         // If spatie/roles available, use hasAnyRole
-        if (!$allowed && method_exists($user, 'hasAnyRole')) {
-            if ($user->hasAnyRole(['Hrd', 'Admin', 'Manager', 'Ceo'])) {
-                $allowed = true;
-            }
+        if (!$allowed && is_callable([$user, 'hasAnyRole'])) {
+            $allowed = (bool) call_user_func([$user, 'hasAnyRole'], ['Hrd', 'Admin', 'Manager', 'Ceo']);
         }
 
         if (!$allowed) {
@@ -277,16 +356,55 @@ class PrSlipGajiController extends Controller
     public function update(Request $request, $id)
     {
         $slip = PrSlipGaji::findOrFail($id);
+        $user = Auth::user();
+        $currentStatus = $this->normalizeSlipStatus($slip->status_gaji);
+
+        $payloadKeys = array_keys($request->except(['_token', '_method']));
+        $nonStatusKeys = array_values(array_diff($payloadKeys, ['status_gaji']));
+
+        if ($this->isCeoSlipApprover($user) && !empty($nonStatusKeys)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'CEO hanya dapat melakukan approval status slip gaji.'
+            ], 403);
+        }
+
+        if (!$this->isCeoSlipApprover($user) && !$this->isPayrollOperator($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk mengubah slip gaji.'
+            ], 403);
+        }
 
         // Safety: paid slips are read-only
-        if (strtolower((string) $slip->status_gaji) === 'paid') {
+        if ($currentStatus === 'paid') {
             return response()->json([
                 'success' => false,
                 'message' => 'Slip dengan status Paid tidak bisa diedit.'
             ], 403);
         }
+
+        if (!empty($nonStatusKeys) && !in_array($currentStatus, ['draft', 'rejected'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya slip dengan status Draft atau Rejected yang bisa diedit.'
+            ], 403);
+        }
+
+        $nextStatus = $currentStatus;
+        if ($request->has('status_gaji')) {
+            $nextStatus = $this->normalizeSlipStatus($request->input('status_gaji'));
+            $transitionError = $this->validateSlipStatusTransition($user, $currentStatus, $nextStatus);
+            if ($transitionError) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $transitionError,
+                ], 403);
+            }
+        }
+
         // Accept basic editable fields
-        $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji);
+        $slip->status_gaji = $nextStatus;
         $slip->total_hari_masuk = $request->input('total_hari_masuk', $slip->total_hari_masuk);
         $slip->kpi_poin = $request->input('kpi_poin', $slip->kpi_poin);
         $slip->gaji_pokok = $request->input('gaji_pokok', $slip->gaji_pokok);
@@ -1022,23 +1140,47 @@ class PrSlipGajiController extends Controller
 
     public function data(Request $request)
     {
-        $bulan = $request->get('bulan');
-        $status = $request->get('status');
+        $bulan = $request->get('bulan') ?: date('Y-m');
+        $rawStatus = trim((string) $request->get('status', ''));
+        $status = $rawStatus !== '' ? $this->normalizeSlipStatus($rawStatus) : '';
         $divisionId = $request->get('division_id');
+        $user = Auth::user();
+
+        if ($status === '' && $this->isCeoSlipApprover($user)) {
+            $status = 'submitted';
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $bulan)) {
+            $bulan = substr($bulan, 0, 7);
+        } elseif (!preg_match('/^\d{4}-\d{2}$/', (string) $bulan)) {
+            $bulan = date('Y-m', strtotime((string) $bulan));
+        }
+
+        $previousBulan = \Carbon\Carbon::createFromFormat('Y-m', $bulan)->subMonth()->format('Y-m');
+
         $query = PrSlipGaji::query()
             ->leftJoin('hrd_employee as e', 'e.id', '=', 'pr_slip_gaji.employee_id')
             ->leftJoin('hrd_division as d', 'd.id', '=', 'e.division_id')
+            ->leftJoin('pr_slip_gaji as prev_slip', function ($join) use ($previousBulan) {
+                $join->on('prev_slip.employee_id', '=', 'pr_slip_gaji.employee_id')
+                    ->where('prev_slip.bulan', '=', $previousBulan);
+            })
             ->select([
                 'pr_slip_gaji.*',
                 'e.no_induk as employee_no_induk',
                 'e.nama as employee_nama',
                 'd.name as division_name_join',
+                'prev_slip.total_gaji as last_month_total_gaji',
             ]);
         if ($bulan) {
-            $query->where('bulan', $bulan);
+            $query->where('pr_slip_gaji.bulan', $bulan);
         }
-        if ($status && in_array($status, ['draft', 'diapprove', 'paid'], true)) {
-            $query->where('pr_slip_gaji.status_gaji', $status);
+        if ($status && in_array($status, ['draft', 'submitted', 'approved', 'rejected', 'paid'], true)) {
+            if ($status === 'approved') {
+                $query->whereIn('pr_slip_gaji.status_gaji', ['approved', 'diapprove']);
+            } else {
+                $query->where('pr_slip_gaji.status_gaji', $status);
+            }
         }
         if ($divisionId !== null && $divisionId !== '' && is_numeric($divisionId)) {
             $query->where('e.division_id', intval($divisionId));
@@ -1137,7 +1279,7 @@ class PrSlipGajiController extends Controller
                 return number_format($sum, 2);
             })
             ->addColumn('status', function($row) {
-                return $row->status_gaji;
+                return $this->normalizeSlipStatus($row->status_gaji);
             })
             ->addColumn('action', function($row) {
                 return '<button class="btn btn-info btn-sm btn-detail">Detail Slip</button> '
@@ -1310,15 +1452,19 @@ class PrSlipGajiController extends Controller
     public function changeStatus(Request $request, $id)
     {
     $slip = PrSlipGaji::findOrFail($id);
+    $user = Auth::user();
+    $currentStatus = $this->normalizeSlipStatus($slip->status_gaji);
+    $nextStatus = $this->normalizeSlipStatus($request->input('status_gaji', $currentStatus));
 
-    if (strtolower((string)($slip->status_gaji ?? '')) === 'paid') {
+    $transitionError = $this->validateSlipStatusTransition($user, $currentStatus, $nextStatus);
+    if ($transitionError) {
         return response()->json([
             'success' => false,
-            'message' => 'Slip sudah Paid dan tidak bisa diubah statusnya.',
+            'message' => $transitionError,
         ], 403);
     }
 
-    $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji == 'draft' ? 'final' : 'draft');
+    $slip->status_gaji = $nextStatus;
     $slip->save();
     return response()->json(['success' => true]);
     }
@@ -1326,7 +1472,7 @@ class PrSlipGajiController extends Controller
     public function bulkStatus(Request $request)
     {
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
-            'status_gaji' => 'required|in:draft,diapprove,paid',
+            'status_gaji' => 'required|in:submitted,approved,rejected,paid',
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer',
         ]);
@@ -1339,14 +1485,16 @@ class PrSlipGajiController extends Controller
             ], 422);
         }
 
-        $status = strtolower((string) $request->input('status_gaji'));
+        $status = $this->normalizeSlipStatus($request->input('status_gaji'));
         $ids = array_values(array_unique($request->input('ids', [])));
+        $user = Auth::user();
 
         $slips = PrSlipGaji::whereIn('id', $ids)->get()->keyBy('id');
 
         $updated = 0;
         $unchanged = 0;
         $skippedPaid = 0;
+        $skippedTransition = 0;
         $missing = 0;
 
         foreach ($ids as $id) {
@@ -1356,13 +1504,26 @@ class PrSlipGajiController extends Controller
                 continue;
             }
 
-            if (strtolower((string) ($slip->status_gaji ?? '')) === 'paid') {
+            $currentStatus = $this->normalizeSlipStatus($slip->status_gaji);
+
+            if ($currentStatus === 'paid') {
                 $skippedPaid++;
                 continue;
             }
 
-            if (strtolower((string) ($slip->status_gaji ?? '')) === $status) {
+            if ($currentStatus === $status) {
                 $unchanged++;
+                continue;
+            }
+
+            if (!$this->isBulkStatusEligible($currentStatus, $status)) {
+                $skippedTransition++;
+                continue;
+            }
+
+            $transitionError = $this->validateSlipStatusTransition($user, $currentStatus, $status);
+            if ($transitionError) {
+                $skippedTransition++;
                 continue;
             }
 
@@ -1376,8 +1537,9 @@ class PrSlipGajiController extends Controller
             'updated' => $updated,
             'unchanged' => $unchanged,
             'skipped_paid' => $skippedPaid,
+            'skipped_transition' => $skippedTransition,
             'missing' => $missing,
-            'message' => "Bulk status selesai. Updated: {$updated}, Unchanged: {$unchanged}, Skipped paid: {$skippedPaid}, Missing: {$missing}.",
+            'message' => "Bulk status selesai. Updated: {$updated}, Unchanged: {$unchanged}, Skipped paid: {$skippedPaid}, Skipped invalid transition: {$skippedTransition}, Missing: {$missing}.",
         ]);
     }
 

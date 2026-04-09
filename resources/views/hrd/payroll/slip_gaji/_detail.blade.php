@@ -1,10 +1,45 @@
 @php
-    $isPaid = strtolower((string)($slip->status_gaji ?? '')) === 'paid';
+    $normalizedStatus = strtolower(trim((string)($slip->status_gaji ?? 'draft')));
+    if ($normalizedStatus === 'diapprove') {
+        $normalizedStatus = 'approved';
+    }
+
+    $isPaid = $normalizedStatus === 'paid';
+    $isCeoSlipView = auth()->check()
+        && method_exists(auth()->user(), 'hasAnyRole')
+        && auth()->user()->hasAnyRole(['Ceo', 'CEO']);
+
+    if ($normalizedStatus === 'rejected') {
+        $statusOptions = [
+            'rejected' => 'Rejected',
+            'submitted' => 'Submitted',
+        ];
+    } elseif ($normalizedStatus === 'draft' || $normalizedStatus === 'submitted') {
+        $statusOptions = [
+            'draft' => 'Draft',
+            'submitted' => 'Submitted',
+        ];
+    } elseif ($normalizedStatus === 'approved') {
+        $statusOptions = [
+            'approved' => 'Approved',
+            'paid' => 'Paid',
+        ];
+    } else {
+        $statusOptions = [
+            'paid' => 'Paid',
+        ];
+    }
 @endphp
 
 @if($isPaid)
     <div class="alert alert-info">
         Slip ini sudah berstatus <strong>Paid</strong>. Data tidak bisa diedit.
+    </div>
+@endif
+
+@if($isCeoSlipView)
+    <div class="alert alert-secondary">
+        Mode CEO hanya untuk review dan approval status slip gaji.
     </div>
 @endif
 
@@ -18,10 +53,10 @@
             <tr><th>Divisi</th><td><input type="text" class="form-control" name="divisi" value="{{ $slip->employee->division->name ?? '-' }}" readonly></td></tr>
             <tr><th>Bulan</th><td><input type="text" class="form-control" name="bulan" value="{{ $slip->bulan }}" readonly></td></tr>
             <tr><th>Status</th><td>
-                <select class="form-control" name="status_gaji" {{ $isPaid ? 'disabled' : '' }}>
-                    <option value="draft" {{ $slip->status_gaji == 'draft' ? 'selected' : '' }}>Draft</option>
-                    <option value="diapprove" {{ $slip->status_gaji == 'diapprove' ? 'selected' : '' }}>Diapprove</option>
-                    <option value="paid" {{ $slip->status_gaji == 'paid' ? 'selected' : '' }}>Paid</option>
+                <select class="form-control" name="status_gaji" {{ ($isPaid || $isCeoSlipView) ? 'disabled' : '' }}>
+                    @foreach($statusOptions as $statusValue => $statusLabel)
+                        <option value="{{ $statusValue }}" {{ $normalizedStatus === $statusValue ? 'selected' : '' }}>{{ $statusLabel }}</option>
+                    @endforeach
                 </select>
             </td></tr>
             <tr>

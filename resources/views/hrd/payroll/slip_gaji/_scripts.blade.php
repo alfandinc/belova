@@ -118,6 +118,43 @@ $(function() {
         return isNaN(num) ? 0 : num;
     }
 
+    function normalizeStatus(status) {
+        var value = String(status || 'draft').toLowerCase().trim();
+        return value === 'diapprove' ? 'approved' : value;
+    }
+
+    function getStatusLabel(status) {
+        var normalized = normalizeStatus(status);
+        var labels = {
+            draft: 'Draft',
+            submitted: 'Submitted',
+            approved: 'Approved',
+            rejected: 'Rejected',
+            paid: 'Paid'
+        };
+
+        return labels[normalized] || normalized;
+    }
+
+    function isEditableStatus(status) {
+        var normalized = normalizeStatus(status);
+        return normalized === 'draft' || normalized === 'rejected';
+    }
+
+    function getAvailableStatusTransitions(status) {
+        var normalized = normalizeStatus(status);
+
+        if (normalized === 'draft' || normalized === 'rejected') {
+            return ['submitted'];
+        }
+
+        if (normalized === 'approved') {
+            return ['paid'];
+        }
+
+        return [];
+    }
+
     function updateTotalBebanGaji(api) {
         var $el = $('#slipTotalBeban');
         if (!$el.length) return;
@@ -169,7 +206,8 @@ $(function() {
     var COL_ID = 0;
     var COL_NAMA = 1;
     var COL_TOTAL_GAJI = 15;
-    var COL_CHECKBOX = 16;
+    var COL_ACTION = 16;
+    var COL_CHECKBOX = 17;
 
     var table = $('#slipGajiTable').DataTable({
         processing: true,
@@ -190,8 +228,11 @@ $(function() {
         scrollX: true,
         scrollCollapse: true,
         autoWidth: false,
+        fixedColumns: {
+            left: 1,
+            right: 3
+        },
         initComplete: function() {
-            // Pin right columns (Total Gaji + checkbox) on the right
             var api = this.api();
             var $container = $(api.table().container());
 
@@ -203,77 +244,40 @@ $(function() {
                 $holder.remove();
             }
 
-            var visibleIndexCheckbox = api.column(COL_CHECKBOX).index('visible');
-            var visibleIndexTotalGaji = api.column(COL_TOTAL_GAJI).index('visible');
             var visibleIndexNama = api.column(COL_NAMA).index('visible');
-
-            // Original header
-            $(api.column(COL_CHECKBOX).header()).addClass('dt-sticky-right dt-sticky-right-0 bg-white');
-            $(api.column(COL_TOTAL_GAJI).header()).addClass('dt-sticky-right dt-sticky-right-36 bg-white');
-            $(api.column(COL_NAMA).header()).addClass('dt-col-nama dt-sticky-left bg-white');
-
-            // DataTables scrollX clones header into .dataTables_scrollHead
+            $(api.column(COL_NAMA).header()).addClass('dt-col-nama bg-white');
             $container.find('.dataTables_scrollHead thead tr').each(function() {
-                $(this).find('th').eq(visibleIndexCheckbox).addClass('dt-sticky-right dt-sticky-right-0 bg-white');
-                $(this).find('th').eq(visibleIndexTotalGaji).addClass('dt-sticky-right dt-sticky-right-36 bg-white');
-                $(this).find('th').eq(visibleIndexNama).addClass('dt-col-nama dt-sticky-left bg-white');
+                $(this).find('th').eq(visibleIndexNama).addClass('dt-col-nama bg-white');
             });
 
             bindSwipeScroll(api);
 
+            api.columns.adjust();
             updateTotalBebanGaji(api);
         },
         drawCallback: function() {
             // Re-apply on redraw (safety for column sizing / header rebuild)
             var api = this.api();
             var $container = $(api.table().container());
-            var visibleIndexCheckbox = api.column(COL_CHECKBOX).index('visible');
-            var visibleIndexTotalGaji = api.column(COL_TOTAL_GAJI).index('visible');
             var visibleIndexNama = api.column(COL_NAMA).index('visible');
             $container.find('.dataTables_scrollHead thead tr').each(function() {
-                $(this).find('th').eq(visibleIndexCheckbox).addClass('dt-sticky-right dt-sticky-right-0 bg-white');
-                $(this).find('th').eq(visibleIndexTotalGaji).addClass('dt-sticky-right dt-sticky-right-36 bg-white');
-                $(this).find('th').eq(visibleIndexNama).addClass('dt-col-nama dt-sticky-left bg-white');
+                $(this).find('th').eq(visibleIndexNama).addClass('dt-col-nama bg-white');
             });
 
             // reset header select-all each draw
             $('#slipChkAll').prop('checked', false);
             updateBulkStatusUi();
 
+            api.columns.adjust();
             updateTotalBebanGaji(api);
 
             bindSwipeScroll(api);
         },
         columnDefs: [
             {
-                targets: COL_TOTAL_GAJI,
-                createdCell: function(td, cellData, rowData) {
-                    var status = (rowData && rowData.status) ? String(rowData.status).toLowerCase() : 'draft';
-
-                    $(td)
-                        .addClass('dt-sticky-right dt-sticky-right-36')
-                        .removeClass('bg-success bg-warning bg-white text-white text-dark');
-
-                    if (status === 'paid') {
-                        $(td).addClass('bg-success text-white');
-                    } else if (status === 'diapprove') {
-                        $(td).addClass('bg-warning text-dark');
-                    } else {
-                        // draft / fallback
-                        $(td).addClass('bg-white');
-                    }
-                }
-            },
-            {
                 targets: COL_NAMA,
                 createdCell: function(td) {
-                    $(td).addClass('dt-col-nama dt-sticky-left bg-white');
-                }
-            },
-            {
-                targets: COL_CHECKBOX,
-                createdCell: function(td) {
-                    $(td).addClass('dt-sticky-right dt-sticky-right-0 bg-white');
+                    $(td).addClass('dt-col-nama bg-white');
                 }
             }
         ],
@@ -294,8 +298,7 @@ $(function() {
             },
             { data: 'jumlah_hari_masuk', name: 'pr_slip_gaji.total_hari_masuk', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         var v = (row.jumlah_hari_masuk !== undefined && row.jumlah_hari_masuk !== null) ? row.jumlah_hari_masuk : (data || 0);
                         return '<input type="number" step="1" min="0" class="form-control form-control-sm slip-inline-edit" ' + dis + ' data-id="' + row.id + '" data-field="total_hari_masuk" value="' + (v || 0) + '">';
                     }
@@ -304,8 +307,7 @@ $(function() {
             },
             { data: 'gaji_pokok', name: 'pr_slip_gaji.gaji_pokok', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="gaji_pokok" value="' + (row.gaji_pokok || 0) + '">';
                     }
                     return data;
@@ -313,8 +315,7 @@ $(function() {
             },
             { data: 'tunjangan_jabatan', name: 'pr_slip_gaji.tunjangan_jabatan', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_jabatan" value="' + (row.tunjangan_jabatan || 0) + '">';
                     }
                     return data;
@@ -322,8 +323,7 @@ $(function() {
             },
             { data: 'tunjangan_masa_kerja', name: 'pr_slip_gaji.tunjangan_masa_kerja', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_masa_kerja" value="' + (row.tunjangan_masa_kerja || 0) + '">';
                     }
                     return data;
@@ -331,8 +331,7 @@ $(function() {
             },
             { data: 'uang_makan', name: 'pr_slip_gaji.uang_makan', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_makan" value="' + (row.uang_makan || 0) + '">';
                     }
                     return data;
@@ -340,8 +339,7 @@ $(function() {
             },
             { data: 'uang_kpi', name: 'pr_slip_gaji.uang_kpi', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_kpi" value="' + (row.uang_kpi || 0) + '">';
                     }
                     return data;
@@ -349,8 +347,7 @@ $(function() {
             },
             { data: 'total_jam_lembur', name: 'pr_slip_gaji.total_jam_lembur', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         // Stored as minutes; show/edit as hours
                         var minutes = (row.total_jam_lembur !== undefined && row.total_jam_lembur !== null) ? row.total_jam_lembur : (data || 0);
                         var n = parseFloat(minutes);
@@ -363,8 +360,7 @@ $(function() {
             },
             { data: 'uang_lembur', name: 'pr_slip_gaji.uang_lembur', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_lembur" value="' + (row.uang_lembur || 0) + '">';
                     }
                     return data;
@@ -372,8 +368,7 @@ $(function() {
             },
             { data: 'jasa_medis', name: 'pr_slip_gaji.jasa_medis', render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
-                        var dis = isPaid ? 'disabled' : '';
+                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         var inputHtml = '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="jasa_medis" value="' + (row.jasa_medis || 0) + '">';
                         var hasFile = !!(row && row.jasmed_file);
                         var iconClass = hasFile ? 'fa fa-upload text-success' : 'fa fa-upload';
@@ -415,46 +410,65 @@ $(function() {
                     return data;
                 }
             },
-            { data: 'total_gaji', name: 'pr_slip_gaji.total_gaji', className: 'dt-sticky-right dt-sticky-right-36 text-right', render: function(data, type, row) {
+            { data: 'total_gaji', name: 'pr_slip_gaji.total_gaji', width: '160px', className: 'text-right', render: function(data, type, row) {
                     if (type === 'display') {
-                        var current = row.status || 'draft';
-                        var isPaid = String(current).toLowerCase() === 'paid';
                         var amount = (row.total_gaji !== undefined && row.total_gaji !== null) ? row.total_gaji : data;
-                        var formattedAmount = formatRupiah(amount);
-                        var statusLabelMap = {
-                            'draft': 'Draft',
-                            'diapprove': 'Diapprove',
-                            'paid': 'Paid'
-                        };
-                        var currentLabel = statusLabelMap[current] || current;
+                        var current = normalizeStatus(row.status || 'draft');
+                        var badgeClass = 'badge-secondary';
 
-                        var actionsHtml = '' +
-                            '<div class="btn-group dropleft">' +
-                            '  <button type="button" class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' +
-                            '    <i class="fa fa-ellipsis-v"></i>' +
-                            '  </button>' +
-                            '  <div class="dropdown-menu dropdown-menu-right p-2" style="min-width: 220px;">' +
-                            '    <div class="small text-muted mb-1">Status Saat Ini</div>' +
-                            '    <div class="mb-2"><span class="badge badge-secondary">' + currentLabel + '</span></div>' +
-                            (isPaid ? '' : (
-                                '    <div class="dropdown-divider"></div>' +
-                                '    <div class="small text-muted mb-1">Ubah Status</div>' +
-                                '    <button type="button" class="dropdown-item action-set-status" data-id="' + row.id + '" data-status="draft">Draft</button>' +
-                                '    <button type="button" class="dropdown-item action-set-status" data-id="' + row.id + '" data-status="diapprove">Diapprove</button>' +
-                                '    <button type="button" class="dropdown-item action-set-status" data-id="' + row.id + '" data-status="paid">Paid</button>'
-                            )) +
-                            '    <div class="dropdown-divider"></div>' +
-                            '    <button type="button" class="dropdown-item btn-detail">Detail Slip</button>' +
-                            '    <button type="button" class="dropdown-item btn-print">Print</button>' +
-                            '  </div>' +
-                            '</div>';
+                        if (current === 'submitted') {
+                            badgeClass = 'badge-info';
+                        } else if (current === 'approved') {
+                            badgeClass = 'badge-warning';
+                        } else if (current === 'rejected') {
+                            badgeClass = 'badge-danger';
+                        } else if (current === 'paid') {
+                            badgeClass = 'badge-success';
+                        }
 
-                        return '<div class="d-flex align-items-center">' +
-                            '<div class="flex-grow-1 text-right pr-2 font-weight-bold text-nowrap">' + formattedAmount + '</div>' +
-                            '<div>' + actionsHtml + '</div>' +
-                            '</div>';
+                        return '<div class="font-weight-bold text-nowrap">' + formatRupiah(amount) + '</div>' +
+                            '<div class="mt-1"><span class="badge ' + badgeClass + '">' + getStatusLabel(current) + '</span></div>';
                     }
                     return data;
+                }
+            },
+            {
+                data: null,
+                name: 'action',
+                orderable: false,
+                searchable: false,
+                width: '116px',
+                className: 'text-nowrap',
+                render: function(data, type, row) {
+                    if (type !== 'display') {
+                        return '';
+                    }
+
+                    var current = normalizeStatus(row.status || 'draft');
+                    var transitions = getAvailableStatusTransitions(current);
+                    var nextStatus = transitions.length ? transitions[0] : null;
+                    var primaryActionHtml = '';
+
+                    if (nextStatus) {
+                        var actionTitle = nextStatus === 'submitted' ? 'Submit Slip' : getStatusLabel(nextStatus);
+                        var actionContent = nextStatus === 'submitted'
+                            ? '<i class="fa fa-paper-plane mr-1"></i>Submit'
+                            : '<i class="fas fa-coins mr-1"></i>Pay';
+                        primaryActionHtml = '<button type="button" class="btn btn-sm btn-success mr-2 action-set-status" data-id="' + row.id + '" data-status="' + nextStatus + '" title="' + actionTitle + '" aria-label="' + actionTitle + '">' + actionContent + '</button>';
+                    }
+
+                    var dropdownHtml = '' +
+                        '<div class="btn-group dropleft">' +
+                        '  <button type="button" class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">' +
+                        '    <i class="fa fa-ellipsis-v"></i>' +
+                        '  </button>' +
+                        '  <div class="dropdown-menu dropdown-menu-right p-2" style="min-width: 180px;">' +
+                        '    <button type="button" class="dropdown-item btn-detail">Detail Slip</button>' +
+                        '    <button type="button" class="dropdown-item btn-print">Print</button>' +
+                        '  </div>' +
+                        '</div>';
+
+                    return '<div class="d-flex align-items-center justify-content-center">' + primaryActionHtml + dropdownHtml + '</div>';
                 }
             },
             {
@@ -462,10 +476,11 @@ $(function() {
                 name: null,
                 orderable: false,
                 searchable: false,
-                className: 'dt-sticky-right dt-sticky-right-0 text-center',
+                width: '36px',
+                className: 'text-center',
                 render: function(data, type, row) {
                     if (type === 'display') {
-                        var isPaid = String((row && row.status) ? row.status : '').toLowerCase() === 'paid';
+                        var isPaid = normalizeStatus((row && row.status) ? row.status : '') === 'paid';
                         var dis = isPaid ? 'disabled' : '';
                         var title = isPaid ? 'title="Paid (tidak bisa diubah)"' : '';
                         return '<input type="checkbox" class="slip-row-check" value="' + row.id + '" ' + dis + ' ' + title + '>';
@@ -482,6 +497,37 @@ $(function() {
             var v = $(this).val();
             if (v) ids.push(v);
         });
+        return ids;
+    }
+
+    function getBulkEligibleStatuses(targetStatus) {
+        var target = normalizeStatus(targetStatus);
+
+        if (target === 'paid') {
+            return ['approved'];
+        }
+
+        if (target === 'submitted') {
+            return ['draft', 'rejected'];
+        }
+
+        return [];
+    }
+
+    function getSelectedEligibleSlipIds(targetStatus) {
+        var eligibleStatuses = getBulkEligibleStatuses(targetStatus);
+        var ids = [];
+
+        $('#slipGajiTable').find('input.slip-row-check:checked').each(function() {
+            var $checkbox = $(this);
+            var rowData = table.row($checkbox.closest('tr')).data();
+            var rowStatus = normalizeStatus(rowData && rowData.status ? rowData.status : 'draft');
+
+            if (eligibleStatuses.indexOf(rowStatus) !== -1) {
+                ids.push(String($checkbox.val()));
+            }
+        });
+
         return ids;
     }
 
@@ -515,17 +561,25 @@ $(function() {
     $(document).on('click', '#btnBulkStatus', function(e) {
         e.preventDefault();
         var status = String($('#bulkStatus').val() || '').toLowerCase();
-        var ids = getSelectedSlipIds();
+        var selectedIds = getSelectedSlipIds();
+        var ids = getSelectedEligibleSlipIds(status);
         if (!status) {
             Swal.fire('Info', 'Pilih status terlebih dahulu.', 'info');
             return;
         }
-        if (!ids.length) {
+        if (!selectedIds.length) {
             Swal.fire('Info', 'Pilih minimal 1 slip.', 'info');
             return;
         }
+        if (!ids.length) {
+            var ruleText = status === 'paid'
+                ? 'Bulk Paid hanya berlaku untuk slip dengan status Approved.'
+                : 'Bulk Submit hanya berlaku untuk slip dengan status Draft atau Rejected.';
+            Swal.fire('Info', ruleText, 'info');
+            return;
+        }
 
-        var statusLabelMap = { draft: 'Draft', diapprove: 'Diapprove', paid: 'Paid' };
+        var statusLabelMap = { submitted: 'Submitted', approved: 'Approved', rejected: 'Rejected', paid: 'Paid' };
         var nextLabel = statusLabelMap[status] || status;
         var confirmText = 'Ubah status ' + ids.length + ' slip menjadi ' + nextLabel + '?';
         if (status === 'paid') {
@@ -630,8 +684,8 @@ $(function() {
         try {
             rowData = table.row($tr).data();
         } catch (e) {}
-        if (rowData && String(rowData.status || '').toLowerCase() === 'paid') {
-            Swal.fire('Info', 'Slip dengan status Paid tidak bisa diedit.', 'info');
+        if (rowData && !isEditableStatus(rowData.status)) {
+            Swal.fire('Info', 'Hanya slip dengan status Draft yang bisa diedit.', 'info');
             return;
         }
         var id = $el.data('id');
@@ -853,7 +907,7 @@ $(function() {
         try {
             rowData = table.row($(this).closest('tr')).data();
         } catch (err) {}
-        if (rowData && String(rowData.status || '').toLowerCase() === 'paid') {
+        if (rowData && normalizeStatus(rowData.status) === 'paid') {
             Swal.fire('Info', 'Slip dengan status Paid tidak bisa diubah.', 'info');
             return;
         }
@@ -864,20 +918,24 @@ $(function() {
         }
 
         var nextStatus = String(status || '').toLowerCase();
-        var statusLabelMap = {
-            'draft': 'Draft',
-            'diapprove': 'Diapprove',
-            'paid': 'Paid'
-        };
-        var nextLabel = statusLabelMap[nextStatus] || nextStatus;
+        var nextLabel = getStatusLabel(nextStatus);
+        if (rowData && getAvailableStatusTransitions(rowData.status).indexOf(nextStatus) === -1) {
+            Swal.fire('Info', 'Transisi status slip gaji tidak valid.', 'info');
+            return;
+        }
 
+        var employeeName = rowData && rowData.nama ? rowData.nama : 'ini';
+        var confirmTitle = 'Konfirmasi';
         var confirmText = 'Ubah status slip gaji menjadi ' + nextLabel + '?';
-        if (nextStatus === 'paid') {
+        if (nextStatus === 'submitted') {
+            confirmTitle = 'Submit Slip Gaji ' + employeeName + ' to CEO?';
+            confirmText = 'Slip gaji yang sudah disubmit tidak bisa dibatalkan.';
+        } else if (nextStatus === 'paid') {
             confirmText = 'Ubah status slip gaji menjadi Paid? Setelah Paid, slip tidak bisa diedit lagi.';
         }
 
         Swal.fire({
-            title: 'Konfirmasi',
+            title: confirmTitle,
             text: confirmText,
             icon: (nextStatus === 'paid') ? 'warning' : 'question',
             showCancelButton: true,
@@ -917,10 +975,9 @@ $(function() {
             $('#slipGajiDetailBody').html(res);
             $('#modalSlipGajiDetail').modal('show');
 
-            // If paid, lock the modal fields + disable save
-            var isPaid = data && String(data.status || '').toLowerCase() === 'paid';
-            $('#btnSimpanSlipGaji').prop('disabled', isPaid);
-            if (isPaid) {
+            var isReadOnly = data && !isEditableStatus(data.status);
+            $('#btnSimpanSlipGaji').prop('disabled', isReadOnly);
+            if (isReadOnly) {
                 $('#slipGajiDetailBody').find('input,select,textarea,button').not('[data-dismiss="modal"], .close').prop('disabled', true);
             }
         });
@@ -948,8 +1005,8 @@ $(function() {
             $('#modalPotongan').find('#potongan_penalty').val(data.potongan_penalty || '');
             $('#modalPotongan').find('#potongan_lain').val(data.potongan_lain || '');
 
-            var isPaid = String(data.status || '').toLowerCase() === 'paid';
-            if (isPaid) {
+            var isReadOnly = !isEditableStatus(data.status);
+            if (isReadOnly) {
                 $('#modalPotongan').find('input,select,textarea').prop('disabled', true);
                 $('#modalPotongan').find('#btnSimpanPotongan').prop('disabled', true).hide();
             }
@@ -979,8 +1036,8 @@ $(function() {
             $('#modalBenefit').find('#benefit_jkk').val(data.benefit_jkk || '');
             $('#modalBenefit').find('#benefit_jkm').val(data.benefit_jkm || '');
 
-            var isPaid = String(data.status || '').toLowerCase() === 'paid';
-            if (isPaid) {
+            var isReadOnly = !isEditableStatus(data.status);
+            if (isReadOnly) {
                 $('#modalBenefit').find('input,select,textarea').prop('disabled', true);
                 $('#modalBenefit').find('#btnSimpanBenefit').prop('disabled', true).hide();
             }
@@ -1007,8 +1064,8 @@ $(function() {
             // set slip id; rows are rendered server-side from $slip->pendapatan_tambahan
             $('#modalPendapatan').find('#pendapatan_slip_id').val(data.id);
 
-            var isPaid = String(data.status || '').toLowerCase() === 'paid';
-            if (isPaid) {
+            var isReadOnly = !isEditableStatus(data.status);
+            if (isReadOnly) {
                 $('#modalPendapatan').find('input,select,textarea').prop('disabled', true);
                 $('#modalPendapatan').find('#btnAddPendapatanRow').prop('disabled', true).hide();
                 $('#modalPendapatan').find('#btnSimpanPendapatan').prop('disabled', true).hide();
@@ -1162,11 +1219,11 @@ $(function() {
     });
 
     // Prevent dropdown menu in sticky Total Gaji cell from being covered by other sticky cells
-    $(document).on('show.bs.dropdown', '#slipGajiTable td.dt-sticky-right .btn-group, #slipGajiTable td.dt-sticky-right .dropdown', function() {
-        $(this).closest('td.dt-sticky-right').addClass('dt-dropdown-open');
+    $(document).on('show.bs.dropdown', '#slipGajiTable td .btn-group, #slipGajiTable td .dropdown', function() {
+        $(this).closest('td').addClass('dt-dropdown-open');
     });
-    $(document).on('hide.bs.dropdown', '#slipGajiTable td.dt-sticky-right .btn-group, #slipGajiTable td.dt-sticky-right .dropdown', function() {
-        $(this).closest('td.dt-sticky-right').removeClass('dt-dropdown-open');
+    $(document).on('hide.bs.dropdown', '#slipGajiTable td .btn-group, #slipGajiTable td .dropdown', function() {
+        $(this).closest('td').removeClass('dt-dropdown-open');
     });
 
 });
