@@ -214,6 +214,23 @@ class RenterController extends Controller
         ]);
     }
 
+    public function rulesPreview($id)
+    {
+        $renter = renter::with(['current_room', 'document'])->findOrFail($id);
+
+        $latestTransaction = tr_renter::with('room')
+            ->where('id_renter', $renter->id)
+            ->orderByDesc('tgl_mulai')
+            ->first();
+
+        $roomTransaction = $renter->current_room ?: $latestTransaction;
+
+        return view('bcl.renter.rules_preview')->with([
+            'renter' => $renter,
+            'roomTransaction' => $roomTransaction,
+        ]);
+    }
+
     /**
      * Update the specified resource in storage.
      */

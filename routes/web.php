@@ -474,6 +474,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/renter', [RenterController::class, 'index'])->name('bcl.renter.index');
     Route::post('/renter/store', [RenterController::class, 'store'])->name('bcl.renter.store');
     Route::get('/renter/detail/{id}', [RenterController::class, 'detail'])->name('bcl.renter.detail');
+    Route::get('/renter/rules/{id}', [RenterController::class, 'rulesPreview'])->name('bcl.renter.rules');
     Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
     Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
     Route::get('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');

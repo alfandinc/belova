@@ -126,6 +126,10 @@ $pricelist = [];
                                                 <a href="#" data-id="{{$renter->id}}" class="btn btn-xs btn-warning edit">
                                                     <i data-feather="edit" class="align-self-center icon-xs"></i>
                                                 </a>
+                                                &nbsp;
+                                                <a href="#" data-preview-url="{{ route('bcl.renter.rules', $renter->id) }}" class="btn btn-xs btn-secondary rules_preview" title="Rules">
+                                                    <i data-feather="file-text" class="align-self-center icon-xs"></i>
+                                                </a>
                                                 {{-- @endcan --}}
                                                 {{-- @can('Hapus Penyewa') --}}
                                                 <a href="{{route('bcl.renter.delete',$renter->id)}}" onclick="deletes(event)" class="btn btn-xs btn-danger">
@@ -282,6 +286,26 @@ $pricelist = [];
         </div>
     </div>
 </div>
+<div class="modal fade" id="md_rules_preview" tabindex="-1" role="dialog" aria-labelledby="rulesPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h6 class="modal-title m-0 text-white" id="rulesPreviewLabel">Preview Rules Penyewa</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                </button>
+            </div>
+            <div class="modal-body p-2 bg-light">
+                <iframe id="rulesPreviewFrame" src="about:blank" frameborder="0" style="width:100%;height:78vh;background:#dfe3e7;border:0;border-radius:4px;"></iframe>
+            </div>
+            <div class="modal-footer">
+                <a href="#" target="_blank" class="btn btn-outline-primary btn-sm" id="open_rules_new_tab">Buka Tab Baru</a>
+                <button type="button" class="btn btn-primary btn-sm" id="print_rules_preview">Print</button>
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade bd-example-modal-xl" id="md_edit" tabindex="-1" role="dialog" aria-labelledby="myExtraLargeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -434,6 +458,27 @@ $pricelist = [];
                 // fallback: redirect to renter edit or show page
                 alert('Topup modal tidak tersedia di halaman ini. Silakan buka transaksi -> Sewa atau halaman Keuangan.');
             }
+        });
+
+        $(document).on('click', '.rules_preview', function(e) {
+            e.preventDefault();
+            var previewUrl = $(this).data('preview-url');
+            $('#rulesPreviewFrame').attr('src', previewUrl);
+            $('#open_rules_new_tab').attr('href', previewUrl);
+            $('#md_rules_preview').modal('show');
+        });
+
+        $(document).on('click', '#print_rules_preview', function() {
+            var frame = document.getElementById('rulesPreviewFrame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            }
+        });
+
+        $('#md_rules_preview').on('hidden.bs.modal', function() {
+            $('#rulesPreviewFrame').attr('src', 'about:blank');
+            $('#open_rules_new_tab').attr('href', '#');
         });
         var buttonCommon = {
             exportOptions: {
