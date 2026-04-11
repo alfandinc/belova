@@ -1,6 +1,6 @@
 @extends('layouts.erm.app')
 
-@section('title', 'Premiere Belova - Statistik Kunjungan')
+@section('title', 'Belova Dental - Statistik Kunjungan')
 
 @section('navbar')
     @include('layouts.ceodashboard.navbar')
@@ -18,8 +18,8 @@
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:12px;">
                     <div>
-                        <h4 class="card-title mb-1">Premiere Belova</h4>
-                        <p class="text-muted mb-0">Statistik kunjungan untuk Klinik ID = 1 (status_kunjungan = 2).</p>
+                        <h4 class="card-title mb-1">Belova Dental</h4>
+                        <p class="text-muted mb-0">Statistik kunjungan untuk Klinik ID = 3 / Belova Dental Care (status_kunjungan = 2).</p>
                     </div>
                     <div class="d-flex flex-wrap align-items-end" style="gap:8px;">
                         <div>
@@ -299,7 +299,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="text-muted small">Menggunakan date range filter Premiere Belova.</div>
+                            <div class="text-muted small">Menggunakan date range filter Belova Dental.</div>
                         </div>
 
                         <div class="row">
@@ -327,7 +327,7 @@
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center mb-3">
                                             <div id="doctorTabHeading" style="font-weight:700; color:#2c2f45; font-size:1.05rem;">Visitation</div>
-                                            <div class="text-muted" style="font-size:0.9rem;">Filter mengikuti date range Premiere Belova</div>
+                                            <div class="text-muted" style="font-size:0.9rem;">Filter mengikuti date range Belova Dental</div>
                                         </div>
                                         <div id="doctorTabVisitationChart"></div>
 
@@ -481,7 +481,7 @@
                                     <div class="card-body">
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <h4 class="mb-0" style="font-weight:700; color:#2c2f45;">Statistik Pasien Dokter</h4>
-                                            <div class="text-muted" style="font-size:0.9rem;">Periode mengikuti filter Premiere Belova.</div>
+                                            <div class="text-muted" style="font-size:0.9rem;">Periode mengikuti filter Belova Dental.</div>
                                         </div>
                                         <div class="row">
                                             <div class="col-md-4 mb-3">
@@ -1481,7 +1481,7 @@
 
             function loadData(params, options) {
                 options = options || {};
-                var url = "{{ route('ceo-dashboard.premiere_belova.index') }}";
+                var url = "{{ route('ceo-dashboard.belova_dental.index') }}";
                 $.getJSON(url, params)
                     .done(function(resp){
                         if (!options.skipZoomSync && resp.filters) {
@@ -1495,7 +1495,7 @@
                         refreshDoctorTab();
                     })
                     .fail(function(xhr){
-                        console.error('Failed to load premiere belova data', xhr);
+                        console.error('Failed to load belova dental data', xhr);
                     });
             }
 

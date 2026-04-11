@@ -376,10 +376,7 @@ Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role
         ->name('daily-tasks.index');
     // Future CEO Dashboard routes (e.g. reports) should go here, e.g.:
     // Route::get('/reports', [CeoDashboardController::class, 'reports'])->name('reports');
-    // Doctor analytics
-    Route::get('/dokter', [\App\Http\Controllers\CeoDashboardController::class, 'dokter'])->name('dokter.index');
-    Route::get('/dokter/{id}', [\App\Http\Controllers\CeoDashboardController::class, 'dokter'])->name('dokter.show');
-    // JSON endpoint used by AJAX to load dokter data without full page reload
+    // Doctor analytics JSON endpoints used by the Premiere Belova doctor tab
     Route::get('/dokter/{id}/data', [\App\Http\Controllers\CeoDashboardController::class, 'dokterData'])->name('dokter.data');
     // Visitation statistics (JSON) for a dokter
     Route::get('/dokter/{id}/visitation-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterVisitationStats'])->name('dokter.visits');
@@ -396,6 +393,10 @@ Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role
     Route::get('/dokter/{id}/lab-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterLabStats'])->name('dokter.lab_stats');
     // Premiere Belova statistics (clinic id = 1)
     Route::get('/premiere-belova', [\App\Http\Controllers\CeoDashboardController::class, 'premiereBelova'])->name('premiere_belova.index');
+    // Belova Skin statistics (clinic id = 2)
+    Route::get('/belova-skin', [\App\Http\Controllers\CeoDashboardController::class, 'belovaSkin'])->name('belova_skin.index');
+    // Belova Dental statistics (clinic id = 3)
+    Route::get('/belova-dental', [\App\Http\Controllers\CeoDashboardController::class, 'belovaDental'])->name('belova_dental.index');
 });
 
 // SatuSehat dashboard (uses ERM layout with custom navbar)

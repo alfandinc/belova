@@ -118,170 +118,321 @@ class CeoDashboardController extends Controller
     }
 
     /**
-     * Show the doctor analytics page for the CEO Dashboard.
-     */
-    public function dokter(Request $request, $id = null)
-    {
-        $dokter = null;
-        try {
-            if ($id) {
-                $dokter = \App\Models\ERM\Dokter::with(['user','spesialisasi','klinik','mapping'])->find($id);
-            } else {
-                // Prefer the authenticated user's dokter record if available
-                $user = \Illuminate\Support\Facades\Auth::user();
-                if ($user && method_exists($user, 'dokter') && $user->dokter) {
-                    $dokter = \App\Models\ERM\Dokter::with(['user','spesialisasi','klinik','mapping'])->find($user->dokter->id);
-                }
-                // Fallback to first dokter if none found yet
-                if (!$dokter) {
-                    $dokter = \App\Models\ERM\Dokter::with(['user','spesialisasi','klinik','mapping'])->first();
-                }
-            }
-            // also load list of doctors for filter/select
-            $dokterList = \App\Models\ERM\Dokter::with(['user','spesialisasi','klinik'])->orderBy('id')->get();
-
-            // prepare initial visitation stats for the selected dokter (for immediate render)
-            $initialLabels = [];
-            $initialSeries = [];
-            $now = \Illuminate\Support\Carbon::now();
-            for ($i = 11; $i >= 0; $i--) {
-                $m = $now->copy()->subMonths($i);
-                $initialLabels[] = $m->format('Y-m');
-            }
-            $start = $now->copy()->subMonths(11)->startOfMonth()->toDateString();
-            $end = $now->copy()->endOfMonth()->toDateString();
-                        if ($dokter) {
-                        $results = \App\Models\ERM\Visitation::selectRaw("DATE_FORMAT(tanggal_visitation, '%Y-%m') as ym, count(*) as total")
-                            ->where('dokter_id', $dokter->id)
-                            ->where('status_kunjungan', 2)
-                            ->whereBetween('tanggal_visitation', [$start, $end])
-                            ->groupBy('ym')
-                            ->pluck('total', 'ym')
-                            ->toArray();
-                foreach ($initialLabels as $m) {
-                    $initialSeries[] = isset($results[$m]) ? (int)$results[$m] : 0;
-                }
-            }
-        } catch (\Exception $e) {
-            $dokter = null;
-            $dokterList = collect();
-        }
-
-        $initialVisits = ['labels' => $initialLabels ?? [], 'series' => $initialSeries ?? []];
-        return view('ceodashboard.dokter', compact('dokter','dokterList','initialVisits'));
-    }
-
-    /**
      * Premiere Belova statistics (visits where klinik_id = 1)
      */
     public function premiereBelova(Request $request)
     {
+        return $this->renderClinicDashboard($request, 1, 'Premiere Belova', 'ceodashboard.premiere-belova');
+    }
+
+    public function belovaSkin(Request $request)
+    {
+        return $this->renderClinicDashboard($request, 2, 'Belova Skin', 'ceodashboard.belova-skin');
+    }
+
+    public function belovaDental(Request $request)
+    {
+        return $this->renderClinicDashboard($request, 3, 'Belova Dental Care', 'ceodashboard.belova-dental');
+    }
+
+    private function renderClinicDashboard(Request $request, int $clinicId, string $socialBrand, string $viewName)
+    {
         $now = \Illuminate\Support\Carbon::now();
         $currentYear = (int) $now->format('Y');
 
-        // determine years parameter: numeric (2,5, etc) or 'all'
-        $yearsParam = $request->query('years', null);
+        $startDateInput = $request->query('start_date');
+        $endDateInput = $request->query('end_date');
 
-        // helper to build labels, series and revenues for given startYear..endYear
-        $buildSeries = function($startYear, $endYear) use ($currentYear) {
-            // labels: month full names
-            $labels = [];
-            for ($m = 1; $m <= 12; $m++) {
-                $labels[] = \Illuminate\Support\Carbon::create($currentYear, $m, 1)->format('F');
+        $rangeStart = null;
+        $rangeEnd = null;
+        if ($startDateInput && $endDateInput) {
+            try {
+                $rangeStart = \Illuminate\Support\Carbon::parse($startDateInput)->startOfDay();
+                $rangeEnd = \Illuminate\Support\Carbon::parse($endDateInput)->endOfDay();
+                if ($rangeStart->gt($rangeEnd)) {
+                    [$rangeStart, $rangeEnd] = [$rangeEnd->copy()->startOfDay(), $rangeStart->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $rangeStart = null;
+                $rangeEnd = null;
+            }
+        }
+
+        if (!$rangeStart || !$rangeEnd) {
+            $rangeStart = $now->copy()->startOfYear();
+            $rangeEnd = $now->copy()->endOfDay();
+        }
+
+        $buildGroupedPayload = function ($rangeStart, $rangeEnd) use ($clinicId) {
+            $seriesData = [];
+            $revData = [];
+            $bucketLabels = [];
+            $bucketRanges = [];
+            $rangeDays = $rangeStart->copy()->startOfDay()->diffInDays($rangeEnd->copy()->startOfDay()) + 1;
+
+            if ($rangeDays <= 14) {
+                $groupBy = 'day';
+            } elseif ($rangeDays <= 60) {
+                $groupBy = 'week';
+            } else {
+                $groupBy = 'month';
             }
 
-            $series = [];
-            $revenues = [];
-            for ($y = $startYear; $y <= $endYear; $y++) {
+            if ($groupBy === 'day') {
+                $periodStart = $rangeStart->copy()->startOfDay();
+                $periodEnd = $rangeEnd->copy()->startOfDay();
+
                 $rows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
-                    ->selectRaw('MONTH(v.tanggal_visitation) as m, count(*) as total')
-                    ->where('v.klinik_id', 1)
+                    ->selectRaw('DATE(v.tanggal_visitation) as bucket, COUNT(*) as total')
+                    ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereYear('v.tanggal_visitation', $y)
-                    ->groupBy('m')
-                    ->pluck('total', 'm')
+                    ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                    ->groupBy('bucket')
+                    ->orderBy('bucket')
+                    ->pluck('total', 'bucket')
                     ->toArray();
 
-                $data = [];
-                $revData = [];
-                for ($m = 1; $m <= 12; $m++) {
-                    $data[] = isset($rows[$m]) ? (int)$rows[$m] : 0;
-                }
-
-                // compute revenue for that year/month using finance_invoices linked to visitations
                 try {
                     $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
                         ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
-                        ->selectRaw('MONTH(v.tanggal_visitation) as m, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue')
-                        ->where('v.klinik_id', 1)
+                        ->selectRaw('DATE(v.tanggal_visitation) as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue')
+                        ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                        ->whereYear('v.tanggal_visitation', $y)
-                        ->groupBy('m')
-                        ->pluck('revenue', 'm')
+                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                        ->groupBy('bucket')
+                        ->orderBy('bucket')
+                        ->pluck('revenue', 'bucket')
                         ->toArray();
                 } catch (\Exception $e) {
                     $revRows = [];
                 }
 
-                for ($m = 1; $m <= 12; $m++) {
-                    $revData[] = isset($revRows[$m]) ? (float)$revRows[$m] : 0.0;
+                $cursor = $periodStart->copy();
+                while ($cursor->lte($periodEnd)) {
+                    $bucketKey = $cursor->format('Y-m-d');
+                    $seriesData[] = isset($rows[$bucketKey]) ? (int) $rows[$bucketKey] : 0;
+                    $revData[] = isset($revRows[$bucketKey]) ? (float) $revRows[$bucketKey] : 0.0;
+                    $bucketLabels[] = $cursor->format('d M Y');
+                    $bucketRanges[] = [
+                        'start' => $bucketKey,
+                        'end' => $bucketKey,
+                    ];
+                    $cursor->addDay();
+                }
+            } elseif ($groupBy === 'week') {
+                $periodStart = $rangeStart->copy()->startOfWeek();
+                $periodEnd = $rangeEnd->copy()->endOfWeek();
+
+                $rows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->selectRaw("YEARWEEK(v.tanggal_visitation, 3) as bucket, MIN(DATE(v.tanggal_visitation)) as bucket_date, COUNT(*) as total")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                    ->groupBy('bucket')
+                    ->orderBy('bucket_date')
+                    ->get()
+                    ->keyBy('bucket');
+
+                try {
+                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
+                        ->selectRaw("YEARWEEK(v.tanggal_visitation, 3) as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue")
+                        ->where('v.klinik_id', $clinicId)
+                        ->where('v.status_kunjungan', 2)
+                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                        ->groupBy('bucket')
+                        ->pluck('revenue', 'bucket')
+                        ->toArray();
+                } catch (\Exception $e) {
+                    $revRows = [];
                 }
 
-                $series[] = ['name' => (string) $y, 'data' => $data];
-                $revenues[] = $revData;
+                $cursor = $periodStart->copy();
+                while ($cursor->lte($periodEnd)) {
+                    $bucketKey = (int) $cursor->format('oW');
+                    $weekEnd = $cursor->copy()->endOfWeek();
+                    $displayStart = $cursor->copy()->lt($rangeStart) ? $rangeStart->copy() : $cursor->copy();
+                    $displayEnd = $weekEnd->copy()->gt($rangeEnd) ? $rangeEnd->copy() : $weekEnd->copy();
+
+                    $seriesData[] = isset($rows[$bucketKey]) ? (int) $rows[$bucketKey]->total : 0;
+                    $revData[] = isset($revRows[$bucketKey]) ? (float) $revRows[$bucketKey] : 0.0;
+                    $bucketLabels[] = $displayStart->format('d M') . ' - ' . $displayEnd->format('d M');
+                    $bucketRanges[] = [
+                        'start' => $displayStart->toDateString(),
+                        'end' => $displayEnd->toDateString(),
+                    ];
+                    $cursor->addWeek();
+                }
+            } else {
+                $periodStart = $rangeStart->copy()->startOfMonth();
+                $periodEnd = $rangeEnd->copy()->endOfMonth();
+
+                $rows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->selectRaw("DATE_FORMAT(v.tanggal_visitation, '%Y-%m-01') as bucket, COUNT(*) as total")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                    ->groupBy('bucket')
+                    ->orderBy('bucket')
+                    ->pluck('total', 'bucket')
+                    ->toArray();
+
+                try {
+                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
+                        ->selectRaw("DATE_FORMAT(v.tanggal_visitation, '%Y-%m-01') as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue")
+                        ->where('v.klinik_id', $clinicId)
+                        ->where('v.status_kunjungan', 2)
+                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                        ->groupBy('bucket')
+                        ->orderBy('bucket')
+                        ->pluck('revenue', 'bucket')
+                        ->toArray();
+                } catch (\Exception $e) {
+                    $revRows = [];
+                }
+
+                $cursor = $periodStart->copy();
+                while ($cursor->lte($periodEnd)) {
+                    $bucketKey = $cursor->format('Y-m-01');
+                    $monthEnd = $cursor->copy()->endOfMonth();
+                    $displayStart = $cursor->copy()->lt($rangeStart) ? $rangeStart->copy() : $cursor->copy();
+                    $displayEnd = $monthEnd->copy()->gt($rangeEnd) ? $rangeEnd->copy() : $monthEnd->copy();
+
+                    $seriesData[] = isset($rows[$bucketKey]) ? (int) $rows[$bucketKey] : 0;
+                    $revData[] = isset($revRows[$bucketKey]) ? (float) $revRows[$bucketKey] : 0.0;
+                    $bucketLabels[] = $displayStart->format('d M') . ' - ' . $displayEnd->format('d M');
+                    $bucketRanges[] = [
+                        'start' => $displayStart->toDateString(),
+                        'end' => $displayEnd->toDateString(),
+                    ];
+                    $cursor->addMonth();
+                }
             }
 
-            return ['labels' => $labels, 'series' => $series, 'revenues' => $revenues];
+            return [
+                'series' => [[
+                    'name' => ucfirst($groupBy) . 'ly Visits',
+                    'data' => $seriesData,
+                ]],
+                'revenues' => [$revData],
+                'bucket_labels' => $bucketLabels,
+                'bucket_ranges' => $bucketRanges,
+                'start_date' => $rangeStart->toDateString(),
+                'end_date' => $rangeEnd->toDateString(),
+                'filters' => [
+                    'start_date' => $rangeStart->toDateString(),
+                    'end_date' => $rangeEnd->toDateString(),
+                    'group_by' => $groupBy,
+                ],
+            ];
         };
 
-        if ($yearsParam === 'all') {
-            // determine earliest year with visits
-            $minYear = \Illuminate\Support\Facades\DB::table('erm_visitations')
-                ->where('klinik_id', 1)
-                ->where('status_kunjungan', 2)
-                ->min(\Illuminate\Support\Facades\DB::raw('YEAR(tanggal_visitation)'));
-            $minYear = $minYear ? (int)$minYear : ($currentYear - 4);
-            $initial = $buildSeries($minYear, $currentYear);
-        } else {
-            $n = is_null($yearsParam) ? 2 : ((int)$yearsParam ?: 2);
-            $startYear = $currentYear - ($n - 1);
-            $initial = $buildSeries($startYear, $currentYear);
-        }
+        $initial = $buildGroupedPayload($rangeStart, $rangeEnd);
+        $startDate = $initial['start_date'];
+        $endDate = $initial['end_date'];
 
-        // determine startYear and endYear for stats calculation (used by AJAX consumers)
-        if (isset($startYear) && isset($endYear)) {
-            // already set in numeric branch
-        } else {
-            // derive from earlier branches
-            if (isset($minYear)) {
-                $startYear = $minYear;
-            } else {
-                $startYear = $currentYear - 1;
-            }
-            $endYear = $currentYear;
-        }
-
-        // compute simple patient retention/new stats for klinik_id = 1 within the selected period
-        $stats = ['total_patients' => 0, 'new' => 0, 'returning' => 0, 'retention_rate' => 0.0];
+        // compute simple patient retention/new stats for the selected clinic within the selected period
+        $stats = [
+            'total_patients' => 0,
+            'new' => 0,
+            'returning' => 0,
+            'retention_rate' => 0.0,
+            'payment_methods' => [],
+            'revenue_total' => 0.0,
+            'avg_revenue_per_visit' => 0.0,
+            'total_visits' => 0,
+            'avg_per_day' => 0.0,
+            'avg_per_week' => 0.0,
+            'peak_day' => null,
+            'peak_week' => null,
+            'peak_month' => null,
+            'top_doctors' => [],
+            'patient_demographics' => [
+                'gender' => ['male' => 0, 'female' => 0, 'other' => 0],
+                'age' => [
+                    'buckets' => ['0-17' => 0, '18-30' => 0, '31-45' => 0, '46-60' => 0, '61+' => 0],
+                    'average' => null,
+                ],
+            ],
+            'medicine' => [
+                'total_prescription_items' => 0,
+                'total_medicine_qty' => 0,
+                'top_obats' => [],
+            ],
+            'tindakan' => [
+                'total_tindakan' => 0,
+                'top_tindakans' => [],
+            ],
+            'laboratorium' => [
+                'total_requests' => 0,
+                'completed_requests' => 0,
+                'top_labs' => [],
+            ],
+            'social_media' => [
+                'total_plans' => 0,
+                'published_plans' => 0,
+                'scheduled_plans' => 0,
+                'total_reports' => 0,
+                'total_interactions' => 0,
+                'total_reach' => 0,
+                'total_impressions' => 0,
+                'avg_eri' => 0.0,
+                'avg_err' => 0.0,
+                'status_breakdown' => [],
+                'platform_breakdown' => [],
+                'jenis_breakdown' => [],
+                'publish_trend' => [
+                    'labels' => [],
+                    'counts' => [],
+                ],
+                'interaction_trend' => [
+                    'labels' => [],
+                    'interactions' => [],
+                    'reach' => [],
+                ],
+                'top_content' => [],
+            ],
+        ];
         try {
-            $startDate = sprintf('%04d-01-01', (int)$startYear);
-            $endDate = sprintf('%04d-12-31', (int)$endYear);
-
             $visQ = \Illuminate\Support\Facades\DB::table('erm_visitations')
-                ->where('klinik_id', 1)
+                ->where('klinik_id', $clinicId)
                 ->where('status_kunjungan', 2)
                 ->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+
+            $rangeStartCarbon = \Illuminate\Support\Carbon::parse($startDate)->startOfDay();
+            $rangeEndCarbon = \Illuminate\Support\Carbon::parse($endDate)->endOfDay();
+            $rangeDays = $rangeStartCarbon->diffInDays($rangeEndCarbon) + 1;
 
             $patientIds = $visQ->pluck('pasien_id')->unique()->filter()->values()->all();
             $total = count($patientIds);
             $stats['total_patients'] = (int)$total;
+
+            $totalVisits = (clone $visQ)->count();
+            $stats['total_visits'] = (int) $totalVisits;
+            $stats['avg_per_day'] = $rangeDays > 0 ? round($totalVisits / $rangeDays, 1) : 0.0;
+            $totalRevenue = 0.0;
+            foreach (($initial['revenues'][0] ?? []) as $value) {
+                $totalRevenue += (float) $value;
+            }
+            $stats['revenue_total'] = round($totalRevenue, 2);
+            $stats['avg_revenue_per_visit'] = $totalVisits > 0 ? round($totalRevenue / $totalVisits, 2) : 0.0;
+
+            $weekCursor = $rangeStartCarbon->copy()->startOfWeek();
+            $weekEndBoundary = $rangeEndCarbon->copy()->endOfWeek();
+            $weekBuckets = 0;
+            while ($weekCursor->lte($weekEndBoundary)) {
+                $weekBuckets++;
+                $weekCursor->addWeek();
+            }
+            $stats['avg_per_week'] = $weekBuckets > 0 ? round($totalVisits / $weekBuckets, 1) : 0.0;
 
             $newCount = 0;
             $returningCount = 0;
             if ($total > 0) {
                 $firstDates = \Illuminate\Support\Facades\DB::table('erm_visitations')
                     ->selectRaw('pasien_id, MIN(tanggal_visitation) as first_date')
-                    ->where('klinik_id', 1)
+                    ->where('klinik_id', $clinicId)
                     ->where('status_kunjungan', 2)
                     ->whereIn('pasien_id', $patientIds)
                     ->groupBy('pasien_id')
@@ -298,6 +449,55 @@ class CeoDashboardController extends Controller
                 }
             }
 
+            $genderCounts = ['male' => 0, 'female' => 0, 'other' => 0];
+            $ageBuckets = [
+                '0-17' => 0,
+                '18-30' => 0,
+                '31-45' => 0,
+                '46-60' => 0,
+                '61+' => 0,
+            ];
+            $ages = [];
+
+            if (!empty($patientIds)) {
+                $pasiens = \App\Models\ERM\Pasien::whereIn('id', $patientIds)->get(['id', 'tanggal_lahir', 'gender']);
+                foreach ($pasiens as $pasien) {
+                    $gender = strtolower(trim((string) $pasien->gender));
+                    $maleValues = ['l', 'm', 'male', 'man', 'laki-laki', 'laki laki', 'laki', 'pria'];
+                    $femaleValues = ['p', 'f', 'female', 'woman', 'perempuan', 'wanita'];
+
+                    if (in_array($gender, $maleValues, true)) {
+                        $genderCounts['male']++;
+                    } elseif (in_array($gender, $femaleValues, true)) {
+                        $genderCounts['female']++;
+                    } else {
+                        $genderCounts['other']++;
+                    }
+
+                    if ($pasien->tanggal_lahir) {
+                        try {
+                            $age = \Illuminate\Support\Carbon::parse($pasien->tanggal_lahir)->age;
+                            $ages[] = $age;
+                            if ($age <= 17) $ageBuckets['0-17']++;
+                            elseif ($age <= 30) $ageBuckets['18-30']++;
+                            elseif ($age <= 45) $ageBuckets['31-45']++;
+                            elseif ($age <= 60) $ageBuckets['46-60']++;
+                            else $ageBuckets['61+']++;
+                        } catch (\Exception $e) {
+                            // ignore invalid tanggal_lahir
+                        }
+                    }
+                }
+            }
+
+            $stats['patient_demographics'] = [
+                'gender' => $genderCounts,
+                'age' => [
+                    'buckets' => $ageBuckets,
+                    'average' => !empty($ages) ? round(array_sum($ages) / count($ages), 1) : null,
+                ],
+            ];
+
             $stats['new'] = (int)$newCount;
             $stats['returning'] = (int)$returningCount;
             $ret = 0.0;
@@ -310,7 +510,7 @@ class CeoDashboardController extends Controller
             try {
                 $jenisRows = \Illuminate\Support\Facades\DB::table('erm_visitations')
                     ->selectRaw('jenis_kunjungan, count(*) as cnt')
-                    ->where('klinik_id', 1)
+                    ->where('klinik_id', $clinicId)
                     ->where('status_kunjungan', 2)
                     ->whereBetween('tanggal_visitation', [$startDate, $endDate])
                     ->groupBy('jenis_kunjungan')
@@ -325,15 +525,450 @@ class CeoDashboardController extends Controller
             } catch (\Exception $e) {
                 $stats['jenis'] = ['konsultasi' => 0, 'beli_produk' => 0, 'lab' => 0];
             }
+
+            try {
+                $paymentRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->leftJoin('erm_metode_bayar as mb', 'v.metode_bayar_id', '=', 'mb.id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(mb.nama), ''), 'Tanpa Metode') as metode, COUNT(*) as cnt")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('metode')
+                    ->orderByDesc('cnt')
+                    ->orderBy('metode')
+                    ->get();
+
+                $stats['payment_methods'] = $paymentRows->map(function ($row) {
+                    return [
+                        'name' => (string) ($row->metode ?? 'Tanpa Metode'),
+                        'count' => (int) ($row->cnt ?? 0),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['payment_methods'] = [];
+            }
+
+            try {
+                $medicineBase = \Illuminate\Support\Facades\DB::table('erm_resepfarmasi as r')
+                    ->join('erm_visitations as v', 'r.visitation_id', '=', 'v.id')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $stats['medicine']['total_prescription_items'] = (int) (clone $medicineBase)->count();
+                $stats['medicine']['total_medicine_qty'] = (int) ((clone $medicineBase)->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(r.jumlah, 0)')) ?: 0);
+
+                $topObatRows = (clone $medicineBase)
+                    ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
+                    ->selectRaw('r.obat_id as obat_id, COALESCE(NULLIF(TRIM(o.nama), \'\'), CONCAT(\'Obat \' , r.obat_id)) as name, SUM(COALESCE(r.jumlah,0)) as total')
+                    ->groupBy('r.obat_id', 'o.nama')
+                    ->orderByRaw('SUM(COALESCE(r.jumlah,0)) desc')
+                    ->orderBy('name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['medicine']['top_obats'] = $topObatRows->map(function ($row) {
+                    return [
+                        'id' => $row->obat_id,
+                        'name' => (string) ($row->name ?? 'Obat'),
+                        'qty' => (int) ($row->total ?? 0),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['medicine'] = ['total_prescription_items' => 0, 'total_medicine_qty' => 0, 'top_obats' => []];
+            }
+
+            try {
+                $tindakanBase = \Illuminate\Support\Facades\DB::table('erm_riwayat_tindakan as r')
+                    ->join('erm_visitations as v', 'r.visitation_id', '=', 'v.id')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $stats['tindakan']['total_tindakan'] = (int) (clone $tindakanBase)->count();
+
+                $topTindakanRows = (clone $tindakanBase)
+                    ->join('erm_tindakan as t', 'r.tindakan_id', '=', 't.id')
+                    ->selectRaw('r.tindakan_id as tindakan_id, COALESCE(NULLIF(TRIM(t.nama), \'\'), CONCAT(\'Tindakan \' , r.tindakan_id)) as name, COUNT(*) as total')
+                    ->groupBy('r.tindakan_id', 't.nama')
+                    ->orderByRaw('COUNT(*) desc')
+                    ->orderBy('name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['tindakan']['top_tindakans'] = $topTindakanRows->map(function ($row) {
+                    return [
+                        'id' => $row->tindakan_id,
+                        'name' => (string) ($row->name ?? 'Tindakan'),
+                        'count' => (int) ($row->total ?? 0),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['tindakan'] = ['total_tindakan' => 0, 'top_tindakans' => []];
+            }
+
+            try {
+                $labBase = \Illuminate\Support\Facades\DB::table('erm_lab_permintaan as lp')
+                    ->join('erm_visitations as v', 'lp.visitation_id', '=', 'v.id')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $stats['laboratorium']['total_requests'] = (int) (clone $labBase)->count();
+                $stats['laboratorium']['completed_requests'] = (int) ((clone $labBase)->where('lp.status', 'completed')->count());
+
+                $topLabRows = (clone $labBase)
+                    ->leftJoin('erm_lab_test as lt', 'lp.lab_test_id', '=', 'lt.id')
+                    ->selectRaw('lp.lab_test_id as lab_test_id, COALESCE(NULLIF(TRIM(lt.nama), \'\'), CONCAT(\'Lab \' , lp.lab_test_id)) as name, COUNT(*) as total')
+                    ->groupBy('lp.lab_test_id', 'lt.nama')
+                    ->orderByRaw('COUNT(*) desc')
+                    ->orderBy('name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['laboratorium']['top_labs'] = $topLabRows->map(function ($row) {
+                    return [
+                        'id' => $row->lab_test_id,
+                        'name' => (string) ($row->name ?? 'Lab'),
+                        'count' => (int) ($row->total ?? 0),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['laboratorium'] = ['total_requests' => 0, 'completed_requests' => 0, 'top_labs' => []];
+            }
+
+            try {
+                $peakDayRow = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->selectRaw('DATE(tanggal_visitation) as bucket, COUNT(*) as total')
+                    ->where('klinik_id', $clinicId)
+                    ->where('status_kunjungan', 2)
+                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('bucket')
+                    ->orderByDesc('total')
+                    ->orderBy('bucket')
+                    ->first();
+
+                if ($peakDayRow) {
+                    $stats['peak_day'] = [
+                        'label' => \Illuminate\Support\Carbon::parse($peakDayRow->bucket)->format('d M Y'),
+                        'count' => (int) $peakDayRow->total,
+                    ];
+                }
+            } catch (\Exception $e) {
+                $stats['peak_day'] = null;
+            }
+
+            try {
+                $weekRows = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->selectRaw("YEARWEEK(tanggal_visitation, 3) as bucket, MIN(DATE(tanggal_visitation)) as first_date, COUNT(*) as total")
+                    ->where('klinik_id', $clinicId)
+                    ->where('status_kunjungan', 2)
+                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('bucket')
+                    ->orderByDesc('total')
+                    ->orderBy('first_date')
+                    ->first();
+
+                if ($weekRows) {
+                    $weekStart = \Illuminate\Support\Carbon::parse($weekRows->first_date)->startOfWeek();
+                    $weekEnd = $weekStart->copy()->endOfWeek();
+                    if ($weekStart->lt($rangeStartCarbon)) {
+                        $weekStart = $rangeStartCarbon->copy();
+                    }
+                    if ($weekEnd->gt($rangeEndCarbon)) {
+                        $weekEnd = $rangeEndCarbon->copy();
+                    }
+
+                    $stats['peak_week'] = [
+                        'label' => $weekStart->format('d M') . ' - ' . $weekEnd->format('d M Y'),
+                        'count' => (int) $weekRows->total,
+                    ];
+                }
+            } catch (\Exception $e) {
+                $stats['peak_week'] = null;
+            }
+
+            try {
+                $monthRows = \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->selectRaw("DATE_FORMAT(tanggal_visitation, '%Y-%m-01') as bucket, COUNT(*) as total")
+                    ->where('klinik_id', $clinicId)
+                    ->where('status_kunjungan', 2)
+                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('bucket')
+                    ->orderByDesc('total')
+                    ->orderBy('bucket')
+                    ->first();
+
+                if ($monthRows) {
+                    $monthStart = \Illuminate\Support\Carbon::parse($monthRows->bucket)->startOfMonth();
+                    $monthEnd = $monthStart->copy()->endOfMonth();
+                    if ($monthStart->lt($rangeStartCarbon)) {
+                        $monthStart = $rangeStartCarbon->copy();
+                    }
+                    if ($monthEnd->gt($rangeEndCarbon)) {
+                        $monthEnd = $rangeEndCarbon->copy();
+                    }
+
+                    $stats['peak_month'] = [
+                        'label' => $monthStart->format('d M') . ' - ' . $monthEnd->format('d M Y'),
+                        'count' => (int) $monthRows->total,
+                    ];
+                }
+            } catch (\Exception $e) {
+                $stats['peak_month'] = null;
+            }
+
+            try {
+                $doctorRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+                    ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as dokter_name, COUNT(*) as cnt")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate])
+                    ->groupBy('v.dokter_id', 'u.name')
+                    ->orderByDesc('cnt')
+                    ->orderBy('dokter_name')
+                    ->limit(5)
+                    ->get();
+
+                $stats['top_doctors'] = $doctorRows->map(function ($row) {
+                    return [
+                        'name' => (string) ($row->dokter_name ?? 'Dokter Tidak Diketahui'),
+                        'count' => (int) ($row->cnt ?? 0),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['top_doctors'] = [];
+            }
+
+            try {
+                $socialPlans = \App\Models\Marketing\ContentPlan::query()
+                    ->with(['reports' => function ($query) use ($rangeStartCarbon, $rangeEndCarbon) {
+                        $query->whereBetween('recorded_at', [
+                            $rangeStartCarbon->copy()->startOfDay(),
+                            $rangeEndCarbon->copy()->endOfDay(),
+                        ])->orderByDesc('recorded_at');
+                    }])
+                    ->where(function ($query) use ($socialBrand) {
+                        $query->whereJsonContains('brand', $socialBrand)
+                            ->orWhere('brand', 'like', '%' . $socialBrand . '%');
+                    })
+                    ->whereBetween('tanggal_publish', [
+                        $rangeStartCarbon->copy()->startOfDay(),
+                        $rangeEndCarbon->copy()->endOfDay(),
+                    ])
+                    ->orderBy('tanggal_publish')
+                    ->get();
+
+                $socialReports = $socialPlans->flatMap(function ($plan) {
+                    return $plan->reports;
+                })->values();
+
+                $statusCounts = $socialPlans
+                    ->map(function ($plan) {
+                        $label = trim((string) ($plan->status ?? ''));
+                        return $label !== '' ? ucwords(strtolower($label)) : 'Unknown';
+                    })
+                    ->countBy()
+                    ->sortDesc();
+
+                $platformCounts = $socialPlans
+                    ->flatMap(function ($plan) {
+                        $platforms = $plan->platform;
+                        if (is_string($platforms)) {
+                            $platforms = strpos($platforms, ',') !== false
+                                ? array_map('trim', explode(',', $platforms))
+                                : [trim($platforms)];
+                        }
+
+                        return collect(is_array($platforms) ? $platforms : [])
+                            ->map(function ($platform) {
+                                return trim((string) $platform);
+                            })
+                            ->filter();
+                    })
+                    ->countBy()
+                    ->sortDesc();
+
+                $jenisCounts = $socialPlans
+                    ->flatMap(function ($plan) {
+                        $jenis = $plan->jenis_konten;
+                        if (is_string($jenis)) {
+                            $jenis = strpos($jenis, ',') !== false
+                                ? array_map('trim', explode(',', $jenis))
+                                : [trim($jenis)];
+                        }
+
+                        return collect(is_array($jenis) ? $jenis : [])
+                            ->map(function ($item) {
+                                return trim((string) $item);
+                            })
+                            ->filter();
+                    })
+                    ->countBy()
+                    ->sortDesc();
+
+                $publishLabels = [];
+                $publishCounts = [];
+                $publishMap = $socialPlans
+                    ->groupBy(function ($plan) {
+                        return optional($plan->tanggal_publish)->format('Y-m');
+                    })
+                    ->map(function ($items) {
+                        return $items->count();
+                    });
+
+                $publishCursor = $rangeStartCarbon->copy()->startOfMonth();
+                $publishEnd = $rangeEndCarbon->copy()->startOfMonth();
+                while ($publishCursor->lte($publishEnd)) {
+                    $key = $publishCursor->format('Y-m');
+                    $publishLabels[] = $key;
+                    $publishCounts[] = (int) ($publishMap->get($key, 0));
+                    $publishCursor->addMonth();
+                }
+
+                $interactionLabels = [];
+                $interactionCounts = [];
+                $interactionReach = [];
+                $interactionMap = $socialReports
+                    ->groupBy(function ($report) {
+                        return optional($report->recorded_at)->format('Y-m');
+                    })
+                    ->map(function ($items) {
+                        return [
+                            'interactions' => (int) $items->sum(function ($report) {
+                                return (int) ($report->likes ?? 0)
+                                    + (int) ($report->comments ?? 0)
+                                    + (int) ($report->saves ?? 0)
+                                    + (int) ($report->shares ?? 0);
+                            }),
+                            'reach' => (int) $items->sum('reach'),
+                        ];
+                    });
+
+                $interactionCursor = $rangeStartCarbon->copy()->startOfMonth();
+                $interactionEnd = $rangeEndCarbon->copy()->startOfMonth();
+                while ($interactionCursor->lte($interactionEnd)) {
+                    $key = $interactionCursor->format('Y-m');
+                    $interactionLabels[] = $key;
+                    $monthStats = $interactionMap->get($key, ['interactions' => 0, 'reach' => 0]);
+                    $interactionCounts[] = (int) ($monthStats['interactions'] ?? 0);
+                    $interactionReach[] = (int) ($monthStats['reach'] ?? 0);
+                    $interactionCursor->addMonth();
+                }
+
+                $topContent = $socialPlans
+                    ->map(function ($plan) {
+                        $reports = $plan->reports;
+                        $likes = (int) $reports->sum('likes');
+                        $comments = (int) $reports->sum('comments');
+                        $saves = (int) $reports->sum('saves');
+                        $shares = (int) $reports->sum('shares');
+
+                        $platforms = $plan->platform;
+                        if (is_string($platforms)) {
+                            $platforms = strpos($platforms, ',') !== false
+                                ? array_map('trim', explode(',', $platforms))
+                                : [trim($platforms)];
+                        }
+
+                        return [
+                            'title' => (string) ($plan->judul ?? 'Untitled'),
+                            'status' => trim((string) ($plan->status ?? 'Unknown')) ?: 'Unknown',
+                            'publish_date' => optional($plan->tanggal_publish)->format('Y-m-d H:i:s'),
+                            'platforms' => array_values(array_filter(is_array($platforms) ? $platforms : [])),
+                            'reports_count' => (int) $reports->count(),
+                            'interactions' => $likes + $comments + $saves + $shares,
+                            'reach' => (int) $reports->sum('reach'),
+                            'impressions' => (int) $reports->sum('impressions'),
+                        ];
+                    })
+                    ->sortByDesc('interactions')
+                    ->take(10)
+                    ->values()
+                    ->all();
+
+                $stats['social_media'] = [
+                    'total_plans' => (int) $socialPlans->count(),
+                    'published_plans' => (int) ($statusCounts->get('Published', 0)),
+                    'scheduled_plans' => (int) ($statusCounts->get('Scheduled', 0)),
+                    'total_reports' => (int) $socialReports->count(),
+                    'total_interactions' => (int) $socialReports->sum(function ($report) {
+                        return (int) ($report->likes ?? 0)
+                            + (int) ($report->comments ?? 0)
+                            + (int) ($report->saves ?? 0)
+                            + (int) ($report->shares ?? 0);
+                    }),
+                    'total_reach' => (int) $socialReports->sum('reach'),
+                    'total_impressions' => (int) $socialReports->sum('impressions'),
+                    'avg_eri' => $socialReports->count() ? round((float) $socialReports->avg('eri'), 4) : 0.0,
+                    'avg_err' => $socialReports->count() ? round((float) $socialReports->avg('err'), 4) : 0.0,
+                    'status_breakdown' => $statusCounts->map(function ($count, $name) {
+                        return ['name' => (string) $name, 'count' => (int) $count];
+                    })->values()->all(),
+                    'platform_breakdown' => $platformCounts->map(function ($count, $name) {
+                        return ['name' => (string) $name, 'count' => (int) $count];
+                    })->values()->all(),
+                    'jenis_breakdown' => $jenisCounts->map(function ($count, $name) {
+                        return ['name' => (string) $name, 'count' => (int) $count];
+                    })->values()->all(),
+                    'publish_trend' => [
+                        'labels' => $publishLabels,
+                        'counts' => $publishCounts,
+                    ],
+                    'interaction_trend' => [
+                        'labels' => $interactionLabels,
+                        'interactions' => $interactionCounts,
+                        'reach' => $interactionReach,
+                    ],
+                    'top_content' => $topContent,
+                ];
+            } catch (\Exception $e) {
+                $stats['social_media'] = [
+                    'total_plans' => 0,
+                    'published_plans' => 0,
+                    'scheduled_plans' => 0,
+                    'total_reports' => 0,
+                    'total_interactions' => 0,
+                    'total_reach' => 0,
+                    'total_impressions' => 0,
+                    'avg_eri' => 0.0,
+                    'avg_err' => 0.0,
+                    'status_breakdown' => [],
+                    'platform_breakdown' => [],
+                    'jenis_breakdown' => [],
+                    'publish_trend' => ['labels' => [], 'counts' => []],
+                    'interaction_trend' => ['labels' => [], 'interactions' => [], 'reach' => []],
+                    'top_content' => [],
+                ];
+            }
         } catch (\Exception $e) {
             // ignore and keep zeros
         }
 
+        $initial['stats'] = $stats;
+
         if ($request->ajax() || $request->wantsJson()) {
-            return response()->json(['labels' => $initial['labels'], 'series' => $initial['series'], 'revenues' => ($initial['revenues'] ?? []), 'stats' => $stats]);
+            return response()->json([
+                'series' => $initial['series'],
+                'revenues' => ($initial['revenues'] ?? []),
+                'bucket_labels' => ($initial['bucket_labels'] ?? []),
+                'bucket_ranges' => ($initial['bucket_ranges'] ?? []),
+                'stats' => $stats,
+                'filters' => $initial['filters'],
+            ]);
         }
 
-        return view('ceodashboard.premiere-belova', compact('initial'));
+        $dokterList = \App\Models\ERM\Dokter::where('klinik_id', $clinicId)
+            ->orWhereHas('kliniks', function ($query) use ($clinicId) {
+                $query->where('erm_klinik.id', $clinicId);
+            })
+            ->with(['user', 'spesialisasi', 'klinik'])
+            ->orderBy('id')
+            ->get();
+
+        return view($viewName, compact('initial', 'currentYear', 'dokterList'));
     }
 
     /**

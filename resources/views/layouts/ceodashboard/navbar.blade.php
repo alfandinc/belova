@@ -28,23 +28,37 @@
             </div>
 
             <div class="menu-content h-100" data-simplebar>
+                @php
+                    $isClinicMenuOpen = request()->routeIs('ceo-dashboard.premiere_belova.index')
+                        || request()->routeIs('ceo-dashboard.belova_skin.index')
+                        || request()->routeIs('ceo-dashboard.belova_dental.index');
+                @endphp
                 <ul class="metismenu left-sidenav-menu">
                     <!-- Dashboard -->
                     <li>
                         <a href="{{ route('ceo-dashboard.index') }}"><i data-feather="home" class="align-self-center menu-icon"></i><span>CEO Dashboard</span></a>
                     </li>
-
-                    <!-- Statistik Dokter -->
-                    <li>
-                        <a href="{{ route('ceo-dashboard.dokter.index') }}"><i data-feather="user" class="align-self-center menu-icon"></i><span>Statistik Dokter</span></a>
-                    </li>
-
                     <li>
                         <a href="{{ route('ceo-dashboard.daily-tasks.index') }}"><i data-feather="check-square" class="align-self-center menu-icon"></i><span>Daily Task Report</span></a>
                     </li>
 
-                    <li>
-                        <a href="{{ route('ceo-dashboard.premiere_belova.index') }}"><i data-feather="award" class="align-self-center menu-icon"></i><span>Premiere Belova</span></a>
+                    <li class="{{ $isClinicMenuOpen ? 'mm-active' : '' }}">
+                        <a href="javascript: void(0);">
+                            <i data-feather="grid" class="align-self-center menu-icon"></i>
+                            <span>Klinik</span>
+                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                        </a>
+                        <ul class="nav-second-level" aria-expanded="{{ $isClinicMenuOpen ? 'true' : 'false' }}">
+                            <li>
+                                <a href="{{ route('ceo-dashboard.premiere_belova.index') }}"><i data-feather="award" class="align-self-center menu-icon"></i>Premiere Belova</a>
+                            </li>
+                            <li>
+                                <a href="{{ route('ceo-dashboard.belova_skin.index') }}"><i data-feather="layers" class="align-self-center menu-icon"></i>Belova Skin</a>
+                            </li>
+                            <li>
+                                <a href="{{ route('ceo-dashboard.belova_dental.index') }}"><i data-feather="shield" class="align-self-center menu-icon"></i>Belova Dental</a>
+                            </li>
+                        </ul>
                     </li>
 
                     <!-- Reports (placeholder for future) -->
