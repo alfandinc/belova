@@ -27,6 +27,7 @@ class ObatController extends Controller
             'dosis' => 'nullable|string',
             'satuan' => 'nullable|string',
             'kategori' => 'nullable|string',
+            'is_generik' => 'nullable|boolean',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
@@ -43,7 +44,7 @@ class ObatController extends Controller
             $up = [];
             $fields = [
                 'nama','kode_obat','dosis','satuan','harga_net','harga_fornas','harga_nonfornas',
-                'stok','kategori','metode_bayar_id','status_aktif','hpp','hpp_jual'
+                'stok','kategori','is_generik','metode_bayar_id','status_aktif','hpp','hpp_jual'
             ];
             foreach ($fields as $f) {
                 if ($request->has($f)) {
@@ -263,6 +264,7 @@ class ObatController extends Controller
             'dosis' => 'nullable|string',
             'satuan' => 'nullable|string',
             'kategori' => 'nullable|string',
+            'is_generik' => 'nullable|boolean',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
@@ -300,6 +302,7 @@ class ObatController extends Controller
                     'harga_nonfornas' => $request->harga_nonfornas,
                     'stok' => $request->stok ?? 0,
                     'kategori' => $request->kategori,
+                    'is_generik' => $request->boolean('is_generik'),
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
@@ -317,6 +320,7 @@ class ObatController extends Controller
                     'harga_nonfornas' => $request->harga_nonfornas,
                     'stok' => $request->stok ?? 0,
                     'kategori' => $request->kategori,
+                    'is_generik' => $request->boolean('is_generik'),
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
@@ -377,6 +381,7 @@ class ObatController extends Controller
                 'harga_nonfornas' => $obat->harga_nonfornas,
                 'metode_bayar_id' => $obat->metode_bayar_id,
                 'kategori' => $obat->kategori,
+                'is_generik' => $obat->is_generik,
                 'zataktif_id' => $obat->zatAktifs->pluck('id')->toArray(),
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,

@@ -149,6 +149,13 @@
                                                 </div>
                                             </div>
                                             <div class="form-group">
+                                                <label for="is_generik">Jenis Obat</label>
+                                                <select class="form-control" id="is_generik" name="is_generik">
+                                                    <option value="0">Obat Paten</option>
+                                                    <option value="1">Obat Generik</option>
+                                                </select>
+                                            </div>
+                                            <div class="form-group">
                                                 <label for="status_aktif">Status</label>
                                                 <select class="form-control" id="status_aktif" name="status_aktif">
                                                     <option value="1">Aktif</option>
@@ -516,6 +523,7 @@
         $('#zat_aktif_id').val(null).trigger('change');
         $('#metode_bayar_id').val('').trigger('change');
         $('#kategori').val('').trigger('change');
+        $('#is_generik').val('0');
         $('#status_aktif').val('1'); // Set default to Aktif
         $('#obatModal').modal('show');
     });
@@ -542,6 +550,7 @@
                 $('#zat_aktif_id').val(data.zataktif_id).trigger('change');
                 $('#dosis').val(data.dosis);
                 $('#satuan').val(data.satuan).trigger('change');
+                $('#is_generik').val(String(data.is_generik ?? 0));
                 $('#status_aktif').val(data.status_aktif);
                 $('#obatModalLabel').text('Edit Obat');
                 $('#obatModal').modal('show');
