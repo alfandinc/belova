@@ -61,10 +61,14 @@
                         </ul>
                     </li>
 
-                    <!-- Reports (placeholder for future) -->
                     <li>
-                        <a href="/ceo-dashboard/reports"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Reports</span></a>
+                        <a href="{{ route('ceo-dashboard.bcl.index') }}"><i data-feather="briefcase" class="align-self-center menu-icon"></i><span>Belova Center Living</span></a>
                     </li>
+
+                    <!-- Reports (placeholder for future) -->
+                    {{-- <li>
+                        <a href="/ceo-dashboard/reports"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Reports</span></a>
+                    </li> --}}
 
                 </ul>
             </div>

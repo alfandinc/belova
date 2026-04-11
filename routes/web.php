@@ -397,6 +397,8 @@ Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role
     Route::get('/belova-skin', [\App\Http\Controllers\CeoDashboardController::class, 'belovaSkin'])->name('belova_skin.index');
     // Belova Dental statistics (clinic id = 3)
     Route::get('/belova-dental', [\App\Http\Controllers\CeoDashboardController::class, 'belovaDental'])->name('belova_dental.index');
+    // Belova Center Living statistics
+    Route::get('/belova-center-living', [\App\Http\Controllers\CeoDashboardController::class, 'belovaCenterLiving'])->name('bcl.index');
 });
 
 // SatuSehat dashboard (uses ERM layout with custom navbar)

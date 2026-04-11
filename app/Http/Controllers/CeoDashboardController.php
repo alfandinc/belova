@@ -135,6 +135,292 @@ class CeoDashboardController extends Controller
         return $this->renderClinicDashboard($request, 3, 'Belova Dental Care', 'ceodashboard.belova-dental');
     }
 
+    public function belovaCenterLiving(Request $request)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        $currentYear = (int) $now->format('Y');
+        $selectedYear = (int) $request->query('year', $currentYear);
+
+        if ($selectedYear < 2020 || $selectedYear > ($currentYear + 1)) {
+            $selectedYear = $currentYear;
+        }
+
+        $today = $now->copy()->startOfDay();
+        $next30Days = $today->copy()->addDays(30)->endOfDay();
+
+        $rooms = \App\Models\BCL\Rooms::with(['category', 'renter'])->get();
+        $roomTotal = $rooms->count();
+        $occupiedRooms = $rooms->filter(function ($room) {
+            return $room->renter !== null;
+        })->count();
+        $vacantRooms = max(0, $roomTotal - $occupiedRooms);
+        $occupancyRate = $roomTotal > 0 ? round(($occupiedRooms / $roomTotal) * 100, 1) : 0.0;
+
+        $activeRentalQuery = \App\Models\BCL\tr_renter::with(['renter', 'room'])
+            ->whereDate('tgl_mulai', '<=', $today->toDateString())
+            ->whereDate('tgl_selesai', '>', $today->toDateString());
+
+        $activeRenters = (clone $activeRentalQuery)->distinct('id_renter')->count('id_renter');
+        $totalRenters = \App\Models\BCL\renter::count();
+        $totalDepositBalance = (float) (\App\Models\BCL\renter::sum('deposit_balance') ?: 0);
+
+        $upcomingCheckouts = \App\Models\BCL\tr_renter::with(['renter', 'room'])
+            ->whereBetween('tgl_selesai', [$today->toDateString(), $next30Days->toDateString()])
+            ->orderBy('tgl_selesai')
+            ->limit(10)
+            ->get()
+            ->map(function ($transaction) use ($today) {
+                $checkoutDate = \Illuminate\Support\Carbon::parse($transaction->tgl_selesai);
+                return [
+                    'renter_name' => optional($transaction->renter)->nama ?: '-',
+                    'room_name' => optional($transaction->room)->room_name ?: '-',
+                    'checkout_date' => $checkoutDate->format('Y-m-d'),
+                    'days_left' => max(0, $today->diffInDays($checkoutDate, false)),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $longestRenters = \Illuminate\Support\Facades\DB::table('bcl_tr_renter')
+            ->select('id_renter', \Illuminate\Support\Facades\DB::raw('SUM(DATEDIFF(tgl_selesai, tgl_mulai)) AS total_lama_sewa'))
+            ->groupBy('id_renter')
+            ->orderByDesc('total_lama_sewa')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                $renter = \App\Models\BCL\renter::find($row->id_renter);
+                return [
+                    'renter_name' => $renter?->nama ?: 'Renter #' . $row->id_renter,
+                    'total_days' => (int) ($row->total_lama_sewa ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $unpaidTransactions = \App\Models\BCL\Fin_jurnal::leftJoin('bcl_tr_renter', 'bcl_tr_renter.trans_id', '=', 'bcl_fin_jurnal.doc_id')
+            ->leftJoin('bcl_renter', 'bcl_renter.id', '=', 'bcl_tr_renter.id_renter')
+            ->select(
+                \Illuminate\Support\Facades\DB::raw('bcl_fin_jurnal.doc_id as doc_id'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_fin_jurnal.tanggal) as tanggal'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_renter.nama) as renter_name'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_tr_renter.harga) as harga'),
+                \Illuminate\Support\Facades\DB::raw('IFNULL(SUM(kredit),0) AS dibayar'),
+                \Illuminate\Support\Facades\DB::raw('IFNULL(MAX(bcl_tr_renter.harga) - SUM(kredit),0) AS kurang')
+            )
+            ->where('bcl_fin_jurnal.identity', 'regexp', 'pemasukan|sewa kamar|upgrade kamar')
+            ->groupBy('bcl_fin_jurnal.doc_id')
+            ->havingRaw('(MAX(bcl_tr_renter.harga) - SUM(kredit)) > 0')
+            ->orderByRaw('MAX(bcl_fin_jurnal.tanggal) DESC')
+            ->get();
+
+        $unpaidSummary = [
+            'count' => (int) $unpaidTransactions->count(),
+            'outstanding_total' => (float) $unpaidTransactions->sum('kurang'),
+            'items' => $unpaidTransactions->take(10)->map(function ($row) {
+                return [
+                    'doc_id' => $row->doc_id,
+                    'tanggal' => $row->tanggal,
+                    'renter_name' => $row->renter_name ?: '-',
+                    'kurang' => (float) ($row->kurang ?? 0),
+                ];
+            })->values()->all(),
+        ];
+
+        $inventoryRows = \App\Models\BCL\Inventory::leftJoin('bcl_rooms', 'bcl_rooms.id', '=', 'bcl_inventories.assigned_to')
+            ->leftJoin('bcl_fin_jurnal', function ($join) {
+                $join->on('bcl_fin_jurnal.kode_subledger', 'like', 'bcl_inventories.inv_number');
+            })
+            ->select(
+                \Illuminate\Support\Facades\DB::raw('bcl_inventories.inv_number as inv_number'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_inventories.id) as inventory_id'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_inventories.name) as inv_name'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_inventories.assigned_to) as assigned_to'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_rooms.room_name) as room_name'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_inventories.maintanance_cycle) as maintanance_cycle'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_inventories.maintanance_period) as maintanance_period'),
+                \Illuminate\Support\Facades\DB::raw('MAX(bcl_fin_jurnal.tanggal) as last_maintanance')
+            )
+            ->groupBy('bcl_inventories.inv_number')
+            ->get();
+
+        $maintenanceDueItems = [];
+        foreach ($inventoryRows as $item) {
+            $nextMaintenance = null;
+            $daysLeft = null;
+            if ($item->last_maintanance && $item->maintanance_cycle && $item->maintanance_period) {
+                $period = (int) $item->maintanance_period;
+                $baseDate = \Illuminate\Support\Carbon::parse($item->last_maintanance);
+
+                if ($item->maintanance_cycle === 'Minggu') {
+                    $nextMaintenance = $baseDate->copy()->addWeeks($period);
+                } elseif ($item->maintanance_cycle === 'Bulan') {
+                    $nextMaintenance = $baseDate->copy()->addMonths($period);
+                } elseif ($item->maintanance_cycle === 'Tahun') {
+                    $nextMaintenance = $baseDate->copy()->addYears($period);
+                }
+
+                if ($nextMaintenance) {
+                    $daysLeft = $today->diffInDays($nextMaintenance, false);
+                }
+            }
+
+            if ($nextMaintenance && $daysLeft <= 7) {
+                $maintenanceDueItems[] = [
+                    'name' => $item->inv_name ?: ('Inventory ' . $item->inv_number),
+                    'room_name' => $item->room_name ?: 'Unassigned',
+                    'next_maintenance' => $nextMaintenance->format('Y-m-d'),
+                    'days_left' => (int) $daysLeft,
+                ];
+            }
+        }
+
+        usort($maintenanceDueItems, function ($left, $right) {
+            return $left['days_left'] <=> $right['days_left'];
+        });
+
+        $totalInventories = \App\Models\BCL\Inventory::count();
+        $assignedInventories = \App\Models\BCL\Inventory::whereNotNull('assigned_to')->count();
+        $unassignedInventories = max(0, $totalInventories - $assignedInventories);
+
+        $roomRevenueRows = \App\Models\BCL\Rooms::leftJoin('bcl_tr_renter', function ($join) use ($selectedYear) {
+            $join->on('bcl_tr_renter.room_id', '=', 'bcl_rooms.id');
+            $join->where(\Illuminate\Support\Facades\DB::raw('YEAR(bcl_tr_renter.tgl_mulai)'), '=', $selectedYear);
+        })
+            ->select('bcl_rooms.id', 'bcl_rooms.room_name', \Illuminate\Support\Facades\DB::raw('COALESCE(SUM(bcl_tr_renter.harga),0) as total_value'))
+            ->groupBy('bcl_rooms.id', 'bcl_rooms.room_name')
+            ->orderByDesc('total_value')
+            ->orderBy('bcl_rooms.room_name')
+            ->get();
+
+        $revenueChart = [
+            'labels' => [],
+            'income' => [],
+            'expense' => [],
+            'net' => [],
+        ];
+        $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        $incomeRows = \App\Models\BCL\Fin_jurnal::selectRaw('MONTH(tanggal) as month_num, SUM(COALESCE(kredit,0)) as total')
+            ->whereYear('tanggal', $selectedYear)
+            ->where(function ($query) {
+                $query->where('identity', 'regexp', 'pemasukan|sewa kamar|upgrade kamar')
+                    ->orWhere('kode_akun', '4-10101');
+            })
+            ->groupBy('month_num')
+            ->pluck('total', 'month_num')
+            ->toArray();
+
+        $expenseRows = \App\Models\BCL\Fin_jurnal::selectRaw('MONTH(tanggal) as month_num, SUM(COALESCE(debet,0)) as total')
+            ->whereYear('tanggal', $selectedYear)
+            ->where(function ($query) {
+                $query->where('identity', 'Pengeluaran')
+                    ->orWhereIn('kode_akun', ['5-10101', '5-10102']);
+            })
+            ->groupBy('month_num')
+            ->pluck('total', 'month_num')
+            ->toArray();
+
+        for ($month = 1; $month <= 12; $month++) {
+            $income = (float) ($incomeRows[$month] ?? 0);
+            $expense = (float) ($expenseRows[$month] ?? 0);
+            $revenueChart['labels'][] = $monthNames[$month - 1];
+            $revenueChart['income'][] = $income;
+            $revenueChart['expense'][] = $expense;
+            $revenueChart['net'][] = $income - $expense;
+        }
+
+        $totalIncome = array_sum($revenueChart['income']);
+        $totalExpense = array_sum($revenueChart['expense']);
+        $netRevenue = $totalIncome - $totalExpense;
+
+        $roomFloorStats = $rooms->groupBy(function ($room) {
+            return $room->floor !== null ? 'Floor ' . $room->floor : 'Unknown';
+        })->map(function ($items, $floor) {
+            $occupied = $items->filter(function ($room) {
+                return $room->renter !== null;
+            })->count();
+
+            return [
+                'floor' => $floor,
+                'total' => $items->count(),
+                'occupied' => $occupied,
+                'vacant' => max(0, $items->count() - $occupied),
+            ];
+        })->values()->all();
+
+        $roomCategoryStats = $rooms->groupBy(function ($room) {
+            return optional($room->category)->category_name ?: 'Uncategorized';
+        })->map(function ($items, $category) {
+            return [
+                'name' => $category,
+                'count' => $items->count(),
+            ];
+        })->sortByDesc('count')->values()->all();
+
+        $inventoryByRoom = \App\Models\BCL\Inventory::leftJoin('bcl_rooms', 'bcl_rooms.id', '=', 'bcl_inventories.assigned_to')
+            ->selectRaw("COALESCE(NULLIF(TRIM(bcl_rooms.room_name), ''), 'Unassigned') as room_name, COUNT(*) as total")
+            ->groupBy('room_name')
+            ->orderByDesc('total')
+            ->orderBy('room_name')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'name' => (string) $row->room_name,
+                    'count' => (int) $row->total,
+                ];
+            })->values()->all();
+
+        $renterMoveInRows = \App\Models\BCL\tr_renter::selectRaw('MONTH(tgl_mulai) as month_num, COUNT(*) as total')
+            ->whereYear('tgl_mulai', $selectedYear)
+            ->groupBy('month_num')
+            ->pluck('total', 'month_num')
+            ->toArray();
+
+        $renterMoveInChart = ['labels' => $monthNames, 'counts' => []];
+        for ($month = 1; $month <= 12; $month++) {
+            $renterMoveInChart['counts'][] = (int) ($renterMoveInRows[$month] ?? 0);
+        }
+
+        return view('ceodashboard.belova-center-living', [
+            'selectedYear' => $selectedYear,
+            'currentYear' => $currentYear,
+            'overview' => [
+                'room_total' => $roomTotal,
+                'occupied_rooms' => $occupiedRooms,
+                'vacant_rooms' => $vacantRooms,
+                'occupancy_rate' => $occupancyRate,
+                'active_renters' => $activeRenters,
+                'total_renters' => $totalRenters,
+                'total_income' => $totalIncome,
+                'total_expense' => $totalExpense,
+                'net_revenue' => $netRevenue,
+                'total_deposit_balance' => $totalDepositBalance,
+                'unpaid_count' => $unpaidSummary['count'],
+                'unpaid_total' => $unpaidSummary['outstanding_total'],
+                'inventories_total' => $totalInventories,
+                'inventories_assigned' => $assignedInventories,
+                'inventories_unassigned' => $unassignedInventories,
+                'maintenance_due_count' => count($maintenanceDueItems),
+            ],
+            'revenueChart' => $revenueChart,
+            'roomRevenueRows' => $roomRevenueRows->take(10)->map(function ($row) {
+                return [
+                    'room_name' => $row->room_name,
+                    'total_value' => (float) ($row->total_value ?? 0),
+                ];
+            })->values()->all(),
+            'roomFloorStats' => $roomFloorStats,
+            'roomCategoryStats' => $roomCategoryStats,
+            'longestRenters' => $longestRenters,
+            'upcomingCheckouts' => $upcomingCheckouts,
+            'unpaidSummary' => $unpaidSummary,
+            'maintenanceDueItems' => array_slice($maintenanceDueItems, 0, 10),
+            'inventoryByRoom' => $inventoryByRoom,
+            'renterMoveInChart' => $renterMoveInChart,
+        ]);
+    }
+
     private function renderClinicDashboard(Request $request, int $clinicId, string $socialBrand, string $viewName)
     {
         $now = \Illuminate\Support\Carbon::now();
