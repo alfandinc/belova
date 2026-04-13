@@ -58,21 +58,23 @@
                         </a>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Admin|Finance')
+                    
                     <li class="menu-label">Laporan</li>
+                    @hasanyrole('Admin|Finance')
                     <li>
                         <a href="{{ route('finance.rekap-penjualan.form') }}">
                             <i class="fas fa-chart-line align-self-center menu-icon"></i>
                             <span>Rekap Penjualan</span>
                         </a>
                     </li>
+                    @endhasanyrole
                     <li>
                         <a href="{{ route('finance.laporan-keuangan.index') }}">
                             <i class="fas fa-chart-bar align-self-center menu-icon"></i>
                             <span>Laporan Keuangan</span>
                         </a>
                     </li>
-                    @endhasanyrole
+                    
 
                     @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
                     <li class="menu-label">Pengajuan</li>
