@@ -21,7 +21,7 @@
                         <h4 class="card-title mb-1">Premiere Belova</h4>
                         <p class="text-muted mb-0">Statistik kunjungan untuk Klinik ID = 1 (status_kunjungan = 2).</p>
                     </div>
-                    <div class="d-flex flex-wrap align-items-end" style="gap:8px;">
+                    <div class="d-flex flex-wrap align-items-end justify-content-end" style="gap:8px;">
                         <div>
                             <label class="mb-1 small text-muted d-block">Date Range</label>
                             <input
@@ -34,6 +34,7 @@
                         </div>
 
                         <button type="button" id="reset-zoom" class="btn btn-sm btn-outline-secondary">Reset View</button>
+                        @include('ceodashboard.partials.back-to-main-menu')
                     </div>
                 </div>
 

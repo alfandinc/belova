@@ -16,18 +16,21 @@
                 'description' => 'Executive view for clinic visitation, revenue, doctor, patient, and social media performance.',
                 'route' => route('ceo-dashboard.premiere_belova.index'),
                 'theme' => 'theme-premiere',
+                'image' => asset('img/bg-premiere.jpg'),
             ],
             [
                 'title' => 'Belova Skin',
                 'description' => 'Skin and beauty center dashboard with the same executive modules, ready for future custom flows.',
                 'route' => route('ceo-dashboard.belova_skin.index'),
                 'theme' => 'theme-skin',
+                'image' => asset('img/bg-belovaskin.jpg'),
             ],
             [
                 'title' => 'Belova Dental',
                 'description' => 'Dental clinic analytics for visits, revenue, doctors, patients, and operational trends.',
                 'route' => route('ceo-dashboard.belova_dental.index'),
                 'theme' => 'theme-dental',
+                'image' => asset('img/bg-dental.jpg'),
             ],
         ];
 
@@ -58,7 +61,16 @@
 
     <style>
         .ceo-home-shell {
-            padding: 12px 0 24px;
+            padding: 16px 0 24px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .ceo-home-panel {
+            background: linear-gradient(180deg, #ffffff 0%, #f6f8fb 100%);
+            border: 1px solid #e5eaf1;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 16px 40px rgba(43, 57, 79, 0.08);
         }
 
         .ceo-home-grid {
@@ -67,16 +79,41 @@
             gap: 18px;
         }
 
+        .ceo-page-header {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 2px;
+        }
+
+        .ceo-page-title {
+            margin: 0;
+            font-size: 1.85rem;
+            line-height: 1.15;
+            font-weight: 700;
+            color: #233041;
+        }
+
+        .ceo-page-subtitle {
+            margin: 0;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: #627080;
+            max-width: 760px;
+        }
+
         .ceo-clinic-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 18px;
+            align-items: stretch;
         }
 
         .ceo-bottom-grid {
             display: grid;
             grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
             gap: 18px;
+            align-items: start;
         }
 
         .ceo-card-link,
@@ -84,6 +121,7 @@
             text-decoration: none;
             color: inherit;
             display: block;
+            min-width: 0;
         }
 
         .ceo-quick-link.is-disabled {
@@ -93,32 +131,33 @@
         .ceo-card {
             position: relative;
             min-height: 328px;
+            height: 100%;
             border-radius: 22px;
             overflow: hidden;
             padding: 18px;
             color: #fff;
-            background: linear-gradient(180deg, #124cab 0%, #0f4aa6 100%);
-            box-shadow: 0 18px 42px rgba(17, 69, 146, 0.18);
+            background: linear-gradient(180deg, #2f7de1 0%, #1450ad 100%);
+            box-shadow: 0 18px 42px rgba(20, 80, 173, 0.2);
             transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
 
         .ceo-card:hover,
         .ceo-quick-link:hover .ceo-quick-card {
             transform: translateY(-4px);
-            box-shadow: 0 22px 48px rgba(17, 69, 146, 0.22);
+            box-shadow: 0 22px 48px rgba(46, 66, 94, 0.2);
         }
 
         .ceo-card-title {
-            font-size: 2rem;
-            line-height: 1.05;
-            font-weight: 800;
+            font-size: 1.6rem;
+            line-height: 1.1;
+            font-weight: 700;
             letter-spacing: -0.03em;
             margin-bottom: 14px;
         }
 
         .ceo-card-copy {
-            font-size: 0.95rem;
-            line-height: 1.35;
+            font-size: 0.88rem;
+            line-height: 1.45;
             color: rgba(255, 255, 255, 0.92);
             margin-top: 14px;
             max-width: 90%;
@@ -129,14 +168,14 @@
             align-items: center;
             gap: 8px;
             margin-top: 18px;
-            font-size: 0.95rem;
-            font-weight: 700;
+            font-size: 0.86rem;
+            font-weight: 600;
             letter-spacing: 0.01em;
         }
 
         .ceo-card-cta::after {
             content: '>'; 
-            font-size: 0.95rem;
+            font-size: 0.86rem;
         }
 
         .ceo-card-visual {
@@ -144,52 +183,33 @@
             height: 146px;
             border-radius: 18px;
             overflow: hidden;
-            background: linear-gradient(180deg, #bee4ff 0%, #d9f1ff 100%);
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
         }
 
-        .ceo-card-visual::before,
         .ceo-card-visual::after {
             content: '';
             position: absolute;
-            background: rgba(255, 255, 255, 0.92);
-            border-radius: 999px;
-        }
-
-        .ceo-card-visual::before {
-            width: 52px;
-            height: 24px;
-            top: 18px;
-            left: 78px;
-            box-shadow: -36px 12px 0 -8px rgba(255, 255, 255, 0.82), 32px 6px 0 -10px rgba(255, 255, 255, 0.88);
-        }
-
-        .ceo-card-visual::after {
-            left: -8%;
-            right: -8%;
-            bottom: -22px;
-            height: 66px;
-            background: radial-gradient(circle at 18% 0, #c4df6a 0 18%, transparent 19%),
-                radial-gradient(circle at 42% 0, #b1cf3d 0 19%, transparent 20%),
-                radial-gradient(circle at 70% 0, #9ec300 0 18%, transparent 19%),
-                linear-gradient(180deg, #9bbd00 0%, #7fa400 100%);
-            border-radius: 56% 44% 0 0 / 34% 34% 0 0;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(15, 23, 42, 0.08) 100%);
         }
 
         .ceo-card.theme-skin {
-            background: linear-gradient(180deg, #0e7285 0%, #0d6271 100%);
-            box-shadow: 0 18px 42px rgba(10, 97, 113, 0.2);
+            background: linear-gradient(180deg, #9a5de2 0%, #6d37b8 100%);
+            box-shadow: 0 18px 42px rgba(109, 55, 184, 0.2);
         }
 
         .ceo-card.theme-dental {
-            background: linear-gradient(180deg, #0d5b9f 0%, #084987 100%);
-            box-shadow: 0 18px 42px rgba(8, 73, 135, 0.2);
+            background: linear-gradient(180deg, #f5a13d 0%, #df6d17 100%);
+            box-shadow: 0 18px 42px rgba(223, 109, 23, 0.22);
         }
 
         .ceo-card.theme-bcl {
             min-height: 212px;
-            background: linear-gradient(180deg, #147b63 0%, #0f6954 100%);
-            box-shadow: 0 18px 42px rgba(15, 105, 84, 0.2);
+            background: linear-gradient(180deg, #ef89b0 0%, #d94d8d 100%);
+            box-shadow: 0 18px 42px rgba(217, 77, 141, 0.22);
         }
 
         .ceo-card.theme-bcl .ceo-card-inner {
@@ -209,9 +229,10 @@
             border-radius: 16px;
             padding: 16px 18px;
             min-height: 60px;
-            color: #fff;
-            background: linear-gradient(180deg, #174f9d 0%, #14488e 100%);
-            box-shadow: 0 14px 30px rgba(20, 72, 142, 0.16);
+            height: 100%;
+            color: #253140;
+            background: linear-gradient(180deg, #f3f5f8 0%, #dfe4ea 100%);
+            box-shadow: 0 14px 30px rgba(90, 100, 114, 0.12);
             transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
 
@@ -221,35 +242,40 @@
         }
 
         .ceo-quick-title {
-            font-size: 1.4rem;
-            font-weight: 800;
+            font-size: 1.15rem;
+            font-weight: 700;
             letter-spacing: -0.02em;
-            line-height: 1.05;
+            line-height: 1.15;
+            color: #253140;
         }
 
         .ceo-quick-copy {
             margin-top: 6px;
-            font-size: 0.87rem;
-            line-height: 1.3;
-            color: rgba(255, 255, 255, 0.88);
+            font-size: 0.81rem;
+            line-height: 1.4;
+            color: #5f6c7b;
         }
 
         .theme-hrd .ceo-quick-card {
-            background: linear-gradient(180deg, #8b3f12 0%, #77350e 100%);
-            box-shadow: 0 14px 30px rgba(139, 63, 18, 0.18);
+            background: linear-gradient(180deg, #f4f5f7 0%, #dde2e8 100%);
+            box-shadow: 0 14px 30px rgba(90, 100, 114, 0.12);
         }
 
         .theme-task .ceo-quick-card {
-            background: linear-gradient(180deg, #5c2b9b 0%, #4d2383 100%);
-            box-shadow: 0 14px 30px rgba(92, 43, 155, 0.18);
+            background: linear-gradient(180deg, #f4f5f7 0%, #dde2e8 100%);
+            box-shadow: 0 14px 30px rgba(90, 100, 114, 0.12);
         }
 
         .theme-workdoc .ceo-quick-card {
-            background: linear-gradient(180deg, #3b5d21 0%, #314d1b 100%);
-            box-shadow: 0 14px 30px rgba(59, 93, 33, 0.18);
+            background: linear-gradient(180deg, #f4f5f7 0%, #dde2e8 100%);
+            box-shadow: 0 14px 30px rgba(90, 100, 114, 0.12);
         }
 
         @media (max-width: 1199.98px) {
+            .ceo-home-panel {
+                padding: 22px;
+            }
+
             .ceo-clinic-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -260,6 +286,22 @@
         }
 
         @media (max-width: 767.98px) {
+            .ceo-home-shell {
+                padding: 12px 0 20px;
+            }
+
+            .ceo-home-panel {
+                padding: 16px;
+                border-radius: 18px;
+            }
+
+            .ceo-home-grid,
+            .ceo-clinic-grid,
+            .ceo-bottom-grid,
+            .ceo-quick-stack {
+                gap: 14px;
+            }
+
             .ceo-clinic-grid {
                 grid-template-columns: minmax(0, 1fr);
             }
@@ -273,61 +315,74 @@
                 grid-template-columns: minmax(0, 1fr);
             }
 
-            .ceo-card-title,
+            .ceo-page-title {
+                font-size: 1.55rem;
+            }
+
+            .ceo-card-title {
+                font-size: 1.4rem;
+            }
+
             .ceo-quick-title {
-                font-size: 1.7rem;
+                font-size: 1.05rem;
             }
         }
     </style>
 
     <div class="container-fluid ceo-home-shell">
-        <div class="ceo-home-grid">
-            <div class="ceo-clinic-grid">
-                @foreach ($clinicCards as $card)
-                    <a href="{{ $card['route'] }}" class="ceo-card-link" aria-label="{{ $card['title'] }}">
-                        <article class="ceo-card {{ $card['theme'] }}">
-                            <div class="ceo-card-title">{{ $card['title'] }}</div>
-                            <div class="ceo-card-visual" aria-hidden="true"></div>
-                            <div class="ceo-card-copy">{{ $card['description'] }}</div>
-                            <div class="ceo-card-cta">View Dashboard</div>
-                        </article>
-                    </a>
-                @endforeach
-            </div>
+        <div class="ceo-home-panel">
+            <div class="ceo-home-grid">
+                <div class="ceo-page-header">
+                    <h1 class="ceo-page-title">CEO Dashboard</h1>
+                    <p class="ceo-page-subtitle">Ringkasan akses cepat untuk seluruh unit Belova, mulai dari dashboard klinik, kos BCL, hingga modul operasional pendukung.</p>
+                </div>
 
-            <div class="ceo-bottom-grid">
-                <a href="{{ route('ceo-dashboard.bcl.index') }}" class="ceo-card-link" aria-label="Belova Center Living">
-                    <article class="ceo-card theme-bcl">
-                        <div class="ceo-card-inner">
-                            <div>
-                                <div class="ceo-card-title">Kos BCL</div>
-                                <div class="ceo-card-copy">Monitor room occupancy, renter movement, cashflow, and inventory maintenance for Belova Center Living.</div>
+                <div class="ceo-clinic-grid">
+                    @foreach ($clinicCards as $card)
+                        <a href="{{ $card['route'] }}" class="ceo-card-link" aria-label="{{ $card['title'] }}">
+                            <article class="ceo-card {{ $card['theme'] }}">
+                                <div class="ceo-card-title">{{ $card['title'] }}</div>
+                                <div class="ceo-card-visual" style="background-image: url('{{ $card['image'] }}');" aria-hidden="true"></div>
+                                <div class="ceo-card-copy">{{ $card['description'] }}</div>
                                 <div class="ceo-card-cta">View Dashboard</div>
-                            </div>
-                            <div class="ceo-card-visual" aria-hidden="true"></div>
-                        </div>
-                    </article>
-                </a>
-
-                <div class="ceo-quick-stack">
-                    @foreach ($quickLinks as $link)
-                        @if (! empty($link['disabled']))
-                            <div class="ceo-quick-link is-disabled {{ $link['theme'] }}" aria-label="{{ $link['title'] }}">
-                                <article class="ceo-quick-card">
-                                    <div class="ceo-quick-title">{{ $link['title'] }}</div>
-                                    <div class="ceo-quick-copy">{{ $link['description'] }}</div>
-                                </article>
-                            </div>
-                        @else
-                            <a href="{{ $link['route'] }}" class="ceo-quick-link {{ $link['theme'] }}" aria-label="{{ $link['title'] }}">
-                                <article class="ceo-quick-card">
-                                    <div class="ceo-quick-title">{{ $link['title'] }}</div>
-                                    <div class="ceo-quick-copy">{{ $link['description'] }}</div>
-                                </article>
-                            </a>
-                        @endif
+                            </article>
+                        </a>
                     @endforeach
                 </div>
+
+                <div class="ceo-bottom-grid">
+                    <a href="{{ route('ceo-dashboard.bcl.index') }}" class="ceo-card-link" aria-label="Belova Center Living">
+                        <article class="ceo-card theme-bcl">
+                            <div class="ceo-card-inner">
+                                <div>
+                                    <div class="ceo-card-title">Kos BCL</div>
+                                    <div class="ceo-card-copy">Monitor room occupancy, renter movement, cashflow, and inventory maintenance for Belova Center Living.</div>
+                                    <div class="ceo-card-cta">View Dashboard</div>
+                                </div>
+                                <div class="ceo-card-visual" style="background-image: url('{{ asset('img/bg-bcl.jpg') }}');" aria-hidden="true"></div>
+                            </div>
+                        </article>
+                    </a>
+
+                    <div class="ceo-quick-stack">
+                        @foreach ($quickLinks as $link)
+                            @if (! empty($link['disabled']))
+                                <div class="ceo-quick-link is-disabled {{ $link['theme'] }}" aria-label="{{ $link['title'] }}">
+                                    <article class="ceo-quick-card">
+                                        <div class="ceo-quick-title">{{ $link['title'] }}</div>
+                                        <div class="ceo-quick-copy">{{ $link['description'] }}</div>
+                                    </article>
+                                </div>
+                            @else
+                                <a href="{{ $link['route'] }}" class="ceo-quick-link {{ $link['theme'] }}" aria-label="{{ $link['title'] }}">
+                                    <article class="ceo-quick-card">
+                                        <div class="ceo-quick-title">{{ $link['title'] }}</div>
+                                        <div class="ceo-quick-copy">{{ $link['description'] }}</div>
+                                    </article>
+                                </a>
+                            @endif
+                        @endforeach
+                    </div>
             </div>
         </div>
     </div>

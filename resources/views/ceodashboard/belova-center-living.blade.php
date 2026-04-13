@@ -15,16 +15,19 @@
                         <h4 class="card-title mb-1">Belova Center Living</h4>
                         <p class="text-muted mb-0">Statistik operasional BCL untuk rooms, renter, revenue, dan inventaris.</p>
                     </div>
-                    <form method="GET" action="{{ route('ceo-dashboard.bcl.index') }}" class="d-flex align-items-end" style="gap:8px;">
-                        <div>
-                            <label class="mb-1 small text-muted d-block">Year</label>
-                            <select name="year" class="form-control form-control-sm" onchange="this.form.submit()">
-                                @for($year = $currentYear; $year >= max(2020, $currentYear - 5); $year--)
-                                    <option value="{{ $year }}" {{ $selectedYear === $year ? 'selected' : '' }}>{{ $year }}</option>
-                                @endfor
-                            </select>
-                        </div>
-                    </form>
+                    <div class="d-flex flex-wrap align-items-end justify-content-end" style="gap:8px;">
+                        <form method="GET" action="{{ route('ceo-dashboard.bcl.index') }}" class="d-flex align-items-end" style="gap:8px;">
+                            <div>
+                                <label class="mb-1 small text-muted d-block">Year</label>
+                                <select name="year" class="form-control form-control-sm" onchange="this.form.submit()">
+                                    @for($year = $currentYear; $year >= max(2020, $currentYear - 5); $year--)
+                                        <option value="{{ $year }}" {{ $selectedYear === $year ? 'selected' : '' }}>{{ $year }}</option>
+                                    @endfor
+                                </select>
+                            </div>
+                        </form>
+                        @include('ceodashboard.partials.back-to-main-menu')
+                    </div>
                 </div>
 
                 <ul class="nav nav-tabs mb-3" id="bclTabs" role="tablist">

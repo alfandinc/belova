@@ -17,7 +17,7 @@
                                 <h4 class="card-title mb-1">Daily Tasks</h4>
                                 <p class="text-muted mb-0">Menampilkan semua task harian dari Daily Journal.</p>
                             </div>
-                            <div class="d-flex align-items-center" style="gap:8px;">
+                            <div class="d-flex flex-wrap align-items-center justify-content-end" style="gap:8px;">
                                 <div class="form-group mb-0">
                                     <input type="text" id="filter-daterange" class="form-control form-control-sm" placeholder="Pilih rentang tanggal" autocomplete="off">
                                 </div>
@@ -32,6 +32,7 @@
                                 <div>
                                     <button id="filter-clear" class="btn btn-sm btn-light">Reset</button>
                                 </div>
+                                @include('ceodashboard.partials.back-to-main-menu')
                             </div>
                         </div>
 
