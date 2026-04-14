@@ -514,6 +514,70 @@
     
     // Declare table variable globally
     let table;
+    const rupiahInputSelectors = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
+
+    function normalizeNumericInput(value) {
+        var raw = (value || '').toString().replace(/[^0-9.,-]/g, '').trim();
+        if (!raw) {
+            return '';
+        }
+
+        var lastComma = raw.lastIndexOf(',');
+        var lastDot = raw.lastIndexOf('.');
+        var decimalIndex = Math.max(lastComma, lastDot);
+
+        if (decimalIndex === -1) {
+            return raw.replace(/[.,]/g, '');
+        }
+
+        var trailingPartLength = raw.length - decimalIndex - 1;
+
+        // Treat a single separator followed by more than 2 digits as a thousands separator.
+        // This keeps inputs like 1.500.000 or 1,5000000 from being misread as decimals.
+        if (lastComma === -1 || lastDot === -1) {
+            if (trailingPartLength > 2) {
+                return raw.replace(/[.,]/g, '');
+            }
+        }
+
+        var integerPart = raw.slice(0, decimalIndex).replace(/[.,]/g, '');
+        var decimalPart = raw.slice(decimalIndex + 1).replace(/[.,]/g, '');
+
+        if (!integerPart && decimalPart) {
+            integerPart = '0';
+        }
+
+        return decimalPart ? integerPart + '.' + decimalPart : integerPart;
+    }
+
+    function formatNumericToRupiah(value) {
+        var normalized = normalizeNumericInput(value);
+        if (!normalized) {
+            return '';
+        }
+
+        var parts = normalized.split('.');
+        var integerPart = parts[0] || '0';
+        var decimalPart = parts[1] || '';
+        var formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+        return decimalPart ? 'Rp ' + formattedInteger + ',' + decimalPart : 'Rp ' + formattedInteger;
+    }
+
+    function formatRupiahInput($input) {
+        if (!$input || !$input.length) {
+            return;
+        }
+
+        var formatted = formatNumericToRupiah($input.val());
+        $input.val(formatted);
+    }
+
+    function formatAllRupiahInputs() {
+        rupiahInputSelectors.forEach(function(selector) {
+            formatRupiahInput($(selector));
+        });
+    }
     
     // Buka modal tambah obat
     $(document).on('click', '.btn-tambah-obat', function() {
@@ -525,6 +589,7 @@
         $('#kategori').val('').trigger('change');
         $('#is_generik').val('0');
         $('#status_aktif').val('1'); // Set default to Aktif
+        formatAllRupiahInputs();
         $('#obatModal').modal('show');
     });
 
@@ -541,10 +606,10 @@
                 $('#obat_id').val(data.id);
                 $('#kode_obat').val(data.kode_obat);
                 $('#nama').val(data.nama);
-                $('#hpp').val(data.hpp);
-                $('#hpp_jual').val(data.hpp_jual);
-                $('#harga_net').val(data.harga_net);
-                $('#harga_nonfornas').val(data.harga_nonfornas);
+                $('#hpp').val(formatNumericToRupiah(data.hpp));
+                $('#hpp_jual').val(formatNumericToRupiah(data.hpp_jual));
+                $('#harga_net').val(formatNumericToRupiah(data.harga_net));
+                $('#harga_nonfornas').val(formatNumericToRupiah(data.harga_nonfornas));
                 $('#metode_bayar_id').val(data.metode_bayar_id).trigger('change');
                 $('#kategori').val(data.kategori).trigger('change');
                 $('#zat_aktif_id').val(data.zataktif_id).trigger('change');
@@ -572,6 +637,11 @@
             width: '100%',
             minimumInputLength: 2,
             placeholder: 'Cari zat aktif...'
+        });
+        formatAllRupiahInputs();
+
+        $(document).on('input blur', '.numeric-input', function() {
+            formatRupiahInput($(this));
         });
         
         // Set filter_status to 'Aktif' by default
@@ -809,23 +879,8 @@
             decimalIds.forEach(function(sel){
                 var $el = $(sel);
                 if ($el.length) {
-                    var v = ($el.val() || '').toString().trim();
-                    if (v.length) {
-                        var normalized;
-                        var hasComma = v.indexOf(',') !== -1;
-                        var hasDot = v.indexOf('.') !== -1;
-                        if (hasComma && hasDot) {
-                            // Assume format like 1.234,56 -> remove dots (thousands) and convert comma to dot
-                            normalized = v.replace(/\./g, '').replace(/,/g, '.');
-                        } else if (hasComma && !hasDot) {
-                            // e.g. 1234,56 -> convert comma to dot
-                            normalized = v.replace(/,/g, '.');
-                        } else {
-                            // e.g. 1234.56 or plain integer -> keep dots as decimal separator
-                            normalized = v;
-                        }
-                        // Remove any non-digit except dot and minus
-                        normalized = normalized.replace(/[^0-9.\-]/g, '');
+                    var normalized = normalizeNumericInput($el.val());
+                    if (normalized.length) {
                         $el.val(normalized);
                     }
                 }
@@ -863,6 +918,7 @@
                 error: function(xhr) {
                     console.log('AJAX error:', xhr);
                     let msg = xhr.responseJSON?.message || xhr.responseText || 'Gagal menyimpan data.';
+                    formatAllRupiahInputs();
                     if(typeof Swal !== 'undefined'){
                         Swal.fire({
                             title: 'Gagal!',

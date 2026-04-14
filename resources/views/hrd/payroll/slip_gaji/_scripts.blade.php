@@ -96,6 +96,34 @@ $(function() {
         });
     }
 
+    function formatMoneyInputValue(value) {
+        var num = parseMoneyInputValue(value);
+        return 'Rp ' + num.toLocaleString('id-ID', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        });
+    }
+
+    function parseMoneyInputValue(value) {
+        if (value === null || value === undefined || value === '') {
+            return 0;
+        }
+        var digits = String(value).replace(/\D/g, '');
+        if (!digits.length) {
+            return 0;
+        }
+        var num = parseInt(digits, 10);
+        return isNaN(num) ? 0 : num;
+    }
+
+    function applyMoneyInputFormatting(scope) {
+        var $scope = scope ? $(scope) : $(document);
+        $scope.find('.slip-money').each(function() {
+            var $input = $(this);
+            $input.val(formatMoneyInputValue($input.val()));
+        });
+    }
+
     function parseToNumber(value) {
         if (value === null || value === undefined || value === '') {
             return 0;
@@ -272,6 +300,7 @@ $(function() {
             updateTotalBebanGaji(api);
 
             bindSwipeScroll(api);
+            applyMoneyInputFormatting(api.table().container());
         },
         columnDefs: [
             {
@@ -308,7 +337,7 @@ $(function() {
             { data: 'gaji_pokok', name: 'pr_slip_gaji.gaji_pokok', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="gaji_pokok" value="' + (row.gaji_pokok || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="gaji_pokok" value="' + formatMoneyInputValue(row.gaji_pokok || 0) + '">';
                     }
                     return data;
                 }
@@ -316,7 +345,7 @@ $(function() {
             { data: 'tunjangan_jabatan', name: 'pr_slip_gaji.tunjangan_jabatan', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_jabatan" value="' + (row.tunjangan_jabatan || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_jabatan" value="' + formatMoneyInputValue(row.tunjangan_jabatan || 0) + '">';
                     }
                     return data;
                 }
@@ -324,7 +353,7 @@ $(function() {
             { data: 'tunjangan_masa_kerja', name: 'pr_slip_gaji.tunjangan_masa_kerja', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_masa_kerja" value="' + (row.tunjangan_masa_kerja || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_masa_kerja" value="' + formatMoneyInputValue(row.tunjangan_masa_kerja || 0) + '">';
                     }
                     return data;
                 }
@@ -332,7 +361,7 @@ $(function() {
             { data: 'uang_makan', name: 'pr_slip_gaji.uang_makan', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_makan" value="' + (row.uang_makan || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_makan" value="' + formatMoneyInputValue(row.uang_makan || 0) + '">';
                     }
                     return data;
                 }
@@ -340,7 +369,7 @@ $(function() {
             { data: 'uang_kpi', name: 'pr_slip_gaji.uang_kpi', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_kpi" value="' + (row.uang_kpi || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_kpi" value="' + formatMoneyInputValue(row.uang_kpi || 0) + '">';
                     }
                     return data;
                 }
@@ -361,7 +390,7 @@ $(function() {
             { data: 'uang_lembur', name: 'pr_slip_gaji.uang_lembur', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        return '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_lembur" value="' + (row.uang_lembur || 0) + '">';
+                        return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_lembur" value="' + formatMoneyInputValue(row.uang_lembur || 0) + '">';
                     }
                     return data;
                 }
@@ -369,7 +398,7 @@ $(function() {
             { data: 'jasa_medis', name: 'pr_slip_gaji.jasa_medis', render: function(data, type, row) {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
-                        var inputHtml = '<input type="number" step="0.01" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="jasa_medis" value="' + (row.jasa_medis || 0) + '">';
+                        var inputHtml = '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="jasa_medis" value="' + formatMoneyInputValue(row.jasa_medis || 0) + '">';
                         var hasFile = !!(row && row.jasmed_file);
                         var iconClass = hasFile ? 'fa fa-upload text-success' : 'fa fa-upload';
                         var uploadBtn = '' +
@@ -694,14 +723,17 @@ $(function() {
         var unit = $el.data('unit');
 
         function parseNum(v) {
-            if (v === null || v === undefined) return 0;
-            var n = parseFloat(v);
-            return isNaN(n) ? 0 : n;
+            return parseToNumber(v);
         }
 
         function getRowVal($row, fieldName) {
             var $inp = $row.find('.slip-inline-edit[data-field="' + fieldName + '"]');
-            if ($inp.length) return parseNum($inp.val());
+            if ($inp.length) {
+                if ($inp.hasClass('slip-money')) {
+                    return parseMoneyInputValue($inp.val());
+                }
+                return parseNum($inp.val());
+            }
             return 0;
         }
 
@@ -743,6 +775,9 @@ $(function() {
         if (field === 'total_hari_masuk') {
             var intVal = parseInt(value, 10);
             value = isNaN(intVal) ? 0 : intVal;
+        } else if ($el.hasClass('slip-money')) {
+            value = parseMoneyInputValue(value);
+            $el.val(formatMoneyInputValue(value));
         }
 
         var extraPayload = {};
@@ -761,7 +796,7 @@ $(function() {
             // Update uang lembur input UI immediately
             var $uangInp = $row.find('.slip-inline-edit[data-field="uang_lembur"]');
             if ($uangInp.length) {
-                $uangInp.val(uangLembur);
+                $uangInp.val(formatMoneyInputValue(uangLembur));
             }
         }
 
@@ -802,6 +837,10 @@ $(function() {
         });
     });
 
+    $('#slipGajiTable').on('input blur', '.slip-money', function() {
+        $(this).val(formatMoneyInputValue($(this).val()));
+    });
+
     // Live update uang lembur as user types jam lembur (no save yet)
     $('#slipGajiTable').on('input', '.slip-inline-edit[data-field="total_jam_lembur"][data-unit="hours"]', function() {
         var $el = $(this);
@@ -809,13 +848,17 @@ $(function() {
         if (isNaN(hoursVal)) hoursVal = 0;
 
         function parseNum(v) {
-            var n = parseFloat(v);
-            return isNaN(n) ? 0 : n;
+            return parseToNumber(v);
         }
 
         function getRowVal($row, fieldName) {
             var $inp = $row.find('.slip-inline-edit[data-field="' + fieldName + '"]');
-            if ($inp.length) return parseNum($inp.val());
+            if ($inp.length) {
+                if ($inp.hasClass('slip-money')) {
+                    return parseMoneyInputValue($inp.val());
+                }
+                return parseNum($inp.val());
+            }
             return 0;
         }
 
@@ -849,7 +892,7 @@ $(function() {
         var uangLembur = calcUangLemburFromHours(hoursVal, gajiPokok, totalHariMasuk);
         var $uangInp = $row.find('.slip-inline-edit[data-field="uang_lembur"]');
         if ($uangInp.length) {
-            $uangInp.val(uangLembur);
+            $uangInp.val(formatMoneyInputValue(uangLembur));
         }
     });
 
