@@ -10,6 +10,7 @@ use App\Models\HRD\Division;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use ZipArchive;
 
 class DocumentController extends Controller
 {
@@ -163,6 +164,57 @@ class DocumentController extends Controller
         
         return response()->download(storage_path('app/public/' . $document->file_path), $document->name);
     }
+
+    /**
+     * Download all accessible documents in a folder as ZIP
+     */
+    public function downloadFolder($id)
+    {
+        $folder = Folder::findOrFail($id);
+        $user = Auth::user();
+        $userDivision = $user->employee->division_id ?? null;
+
+        if (!$this->canAccessFolder($folder, $user, $userDivision)) {
+            return redirect()->back()->with('error', 'You do not have permission to download this folder.');
+        }
+
+        $documents = $this->getDownloadableDocuments($folder, $user, $userDivision);
+
+        if ($documents->isEmpty()) {
+            return redirect()->back()->with('error', 'No downloadable files were found in this folder.');
+        }
+
+        $zipFileName = $this->sanitizeFileName($folder->name) . '-' . now()->format('YmdHis') . '.zip';
+        $zipPath = storage_path('app/temp/' . $zipFileName);
+        $zipDirectory = dirname($zipPath);
+
+        if (!is_dir($zipDirectory)) {
+            mkdir($zipDirectory, 0755, true);
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            return redirect()->back()->with('error', 'Failed to create the download archive.');
+        }
+
+        foreach ($documents as $documentEntry) {
+            $fullPath = storage_path('app/public/' . $documentEntry['document']->file_path);
+
+            if (!file_exists($fullPath)) {
+                continue;
+            }
+
+            $zip->addFile($fullPath, $documentEntry['zip_path']);
+        }
+
+        $zip->close();
+
+        if (!file_exists($zipPath)) {
+            return redirect()->back()->with('error', 'Failed to prepare the download archive.');
+        }
+
+        return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+    }
     
     /**
      * Delete a document
@@ -206,6 +258,65 @@ class DocumentController extends Controller
         }
         
         return $breadcrumbs;
+    }
+
+    private function canAccessFolder(Folder $folder, $user, $userDivision)
+    {
+        if (!$folder->is_private) {
+            return true;
+        }
+
+        return $folder->division_id == $userDivision
+            || $folder->created_by == $user->id
+            || $user->hasRole(['admin', 'super admin']);
+    }
+
+    private function canAccessDocument(Document $document, $user, $userDivision)
+    {
+        if (!$document->is_private) {
+            return true;
+        }
+
+        return $document->division_id == $userDivision
+            || $document->created_by == $user->id
+            || $user->hasRole(['admin', 'super admin']);
+    }
+
+    private function getDownloadableDocuments(Folder $folder, $user, $userDivision, $relativePath = '')
+    {
+        $documents = collect();
+        $currentPath = ltrim($relativePath . '/' . $folder->name, '/');
+
+        foreach ($folder->documents as $document) {
+            if (!$this->canAccessDocument($document, $user, $userDivision)) {
+                continue;
+            }
+
+            $documents->push([
+                'document' => $document,
+                'zip_path' => $currentPath . '/' . $document->name,
+            ]);
+        }
+
+        foreach ($folder->subfolders as $subfolder) {
+            if (!$this->canAccessFolder($subfolder, $user, $userDivision)) {
+                continue;
+            }
+
+            $documents = $documents->merge(
+                $this->getDownloadableDocuments($subfolder, $user, $userDivision, $currentPath)
+            );
+        }
+
+        return $documents;
+    }
+
+    private function sanitizeFileName($name)
+    {
+        $sanitized = preg_replace('/[^A-Za-z0-9\-_ ]/', '', $name);
+        $sanitized = preg_replace('/\s+/', '-', trim($sanitized));
+
+        return $sanitized ?: 'folder-download';
     }
 
     /**

@@ -23,6 +23,9 @@
                     </div>
                     <div class="col-auto">
                         <div class="button-items">
+                            <a href="{{ route('workdoc.folders.download', $folder->id) }}" class="btn btn-success btn-sm">
+                                <i class="fas fa-file-archive mr-2"></i>Download All
+                            </a>
                             @if(auth()->user()->can('create', \App\Models\Workdoc\Document::class))
                                 <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#uploadFileModal" 
                                     data-folder-id="{{ $folder->id }}">
