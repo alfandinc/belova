@@ -1021,6 +1021,72 @@
             
             return icons[extension] || 'mdi-file-outline';
         }
+
+        function loadFolderContent(folderId, targetPane) {
+            if (!folderId || !targetPane || !targetPane.length) return;
+
+            targetPane.html(`
+                <div class="ajax-loading text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading content...</p>
+                </div>
+            `);
+
+            $.ajax({
+                url: '/workdoc/documents/folder/' + folderId + '/contents',
+                type: 'GET',
+                success: function(response) {
+                    targetPane.html(response.html);
+                    initFolderClickHandlers();
+                    initActionButtons(folderId);
+                    enhanceIcons();
+                },
+                error: function(xhr) {
+                    let errorMessage = 'An error occurred while loading the folder contents.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMessage = xhr.responseJSON.error;
+                    }
+
+                    targetPane.html(`
+                        <div class="alert alert-danger m-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i> ${errorMessage}
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function activateFolderTab(folderId) {
+            const tabLink = $('#folder-tab-' + folderId);
+
+            if (!tabLink.length) {
+                return false;
+            }
+
+            tabLink.tab('show');
+            loadFolderContent(folderId, $(tabLink.attr('href')));
+
+            return true;
+        }
+
+        function reloadCurrentFolderView(folderId) {
+            const activePane = $('.tab-pane.show.active').first();
+
+            if (folderId && activePane.length) {
+                loadFolderContent(folderId, activePane);
+                return;
+            }
+
+            if ($('.nav-link.active[data-folder-id]').length) {
+                $('.nav-link.active[data-folder-id]').trigger('click');
+                return;
+            }
+
+            $('.nav-link[data-folder-id]').first().trigger('click');
+        }
         
         // Initialize folder tab click handlers
         function initFolderTabs() {
@@ -1028,52 +1094,11 @@
                 e.preventDefault();
                 
                 const folderId = $(this).data('folder-id');
-                const tabId = $(this).attr('href');
                 
                 // If folder ID is empty, don't proceed
                 if (!folderId) return;
-                
-                // Show loading indicator
-                $(tabId).html(`
-                    <div class="ajax-loading text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="sr-only">Loading...</span>
-                        </div>
-                        <p class="mt-2">Loading content...</p>
-                    </div>
-                `);
-                
-                // Load folder contents via AJAX
-                $.ajax({
-                    url: '/workdoc/documents/folder/' + folderId + '/contents',
-                    type: 'GET',
-                    success: function(response) {
-                        // Update the tab content
-                        $(tabId).html(response.html);
-                        
-                        // Initialize folder click handlers within the loaded content
-                        initFolderClickHandlers();
-                        
-                        // Re-initialize action buttons
-                        initActionButtons(folderId);
-                        
-                        // Re-enhance icons
-                        enhanceIcons();
-                    },
-                    error: function(xhr) {
-                        let errorMessage = 'An error occurred while loading the folder contents.';
-                        
-                        if (xhr.responseJSON && xhr.responseJSON.error) {
-                            errorMessage = xhr.responseJSON.error;
-                        }
-                        
-                        $(tabId).html(`
-                            <div class="alert alert-danger m-3">
-                                <i class="fas fa-exclamation-triangle mr-2"></i> ${errorMessage}
-                            </div>
-                        `);
-                    }
-                });
+
+                loadFolderContent(folderId, $($(this).attr('href')));
             });
         }
         
@@ -1083,56 +1108,15 @@
                 e.preventDefault();
                 
                 const folderId = $(this).data('folder-id');
-                const tabSelector = `#folder-tab-${folderId}`;
                 
-                // If the tab exists, activate it
-                if ($(tabSelector).length) {
-                    $(tabSelector).tab('show');
+                // If the tab exists, activate it and load its content
+                if (activateFolderTab(folderId)) {
+                    return;
                 } else {
                     // Otherwise, load the folder contents directly
                     const currentTabPane = $(this).closest('.tab-pane');
-                    
-                    // Show loading indicator
-                    currentTabPane.html(`
-                        <div class="ajax-loading text-center py-5">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="sr-only">Loading...</span>
-                            </div>
-                            <p class="mt-2">Loading content...</p>
-                        </div>
-                    `);
-                    
-                    // Load folder contents via AJAX
-                    $.ajax({
-                        url: '/workdoc/documents/folder/' + folderId + '/contents',
-                        type: 'GET',
-                        success: function(response) {
-                            // Update the tab content
-                            currentTabPane.html(response.html);
-                            
-                            // Initialize folder click handlers within the loaded content
-                            initFolderClickHandlers();
-                            
-                            // Re-initialize action buttons
-                            initActionButtons(folderId);
-                            
-                            // Re-enhance icons
-                            enhanceIcons();
-                        },
-                        error: function(xhr) {
-                            let errorMessage = 'An error occurred while loading the folder contents.';
-                            
-                            if (xhr.responseJSON && xhr.responseJSON.error) {
-                                errorMessage = xhr.responseJSON.error;
-                            }
-                            
-                            currentTabPane.html(`
-                                <div class="alert alert-danger m-3">
-                                    <i class="fas fa-exclamation-triangle mr-2"></i> ${errorMessage}
-                                </div>
-                            `);
-                        }
-                    });
+
+                    loadFolderContent(folderId, currentTabPane);
                 }
             });
         }
@@ -1167,6 +1151,7 @@
                 
                 const form = $(this);
                 const formData = new FormData(form[0]);
+                const targetFolderId = formData.get('folder_id') || formData.get('parent_id') || $('#upload-file-folder-id').val() || $('#create-folder-parent-id').val();
                 const submitButton = form.find('button[type="submit"]');
                 const originalButtonText = submitButton.html();
                 
@@ -1187,7 +1172,7 @@
                         showAlert(response.message || 'Operation completed successfully.');
                         
                         // Reload current folder content
-                        $('.nav-link.active[data-folder-id]').trigger('click');
+                        reloadCurrentFolderView(targetFolderId);
                         
                         // Reset form
                         form[0].reset();
@@ -1239,10 +1224,7 @@
                             // Reload the parent folder's tab content (not just the active tab)
                             var parentId = $('#create-folder-parent-id').val();
                             if (parentId && $('#folder-tab-' + parentId).length) {
-                                $('#folder-tab-' + parentId).tab('show');
-                                setTimeout(function() {
-                                    $('#folder-tab-' + parentId).trigger('click');
-                                }, 100); // Ensure tab is shown before triggering click
+                                activateFolderTab(parentId);
                             } else {
                                 // Fallback: reload the first tab
                                 $('.nav-link[data-folder-id]').first().trigger('click');
