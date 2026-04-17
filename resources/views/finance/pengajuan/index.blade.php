@@ -775,7 +775,7 @@ $(document).ready(function() {
         $('#bukti_files_label').val('Tidak ada file terpilih');
         $('#bukti_preview').hide();
         $('#bukti_preview img').attr('src', '');
-        $('#grand_total_display').val('0.00');
+        setRupiahValue($('#grand_total_display'), 0);
         $('#items_json').val('');
         // set tanggal_pengajuan default to today
         var today = new Date().toISOString().slice(0,10);
@@ -811,7 +811,7 @@ $(document).ready(function() {
         $('#bukti_files_label').val('Tidak ada file terpilih');
         $('#bukti_preview').hide();
         $('#bukti_preview img').attr('src', '');
-        $('#grand_total_display').val('0.00');
+        setRupiahValue($('#grand_total_display'), 0);
         $('#items_json').val('');
         $('#itemsTable tbody').empty();
         addItemRow();
@@ -859,17 +859,79 @@ $(document).ready(function() {
     });
 
     // Items table management
+    function parseRupiah(value) {
+        if (value === null || value === undefined) return 0;
+        var normalized = value.toString().replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+        var parsed = parseFloat(normalized);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+
+    function formatRupiah(value) {
+        var amount = Number(value || 0);
+        if (isNaN(amount)) amount = 0;
+        return 'Rp ' + amount.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function setRupiahValue($input, value) {
+        $input.val(formatRupiah(value));
+    }
+
+    function formatEditableRupiah(value) {
+        var amount = Number(value || 0);
+        if (isNaN(amount) || amount === 0) return '';
+
+        var fixed = amount.toFixed(2);
+        if (fixed.slice(-3) === '.00') {
+            return fixed.slice(0, -3);
+        }
+
+        return fixed.replace('.', ',');
+    }
+
+    function sanitizeEditableRupiah(raw) {
+        if (raw === null || raw === undefined) return '';
+
+        var cleaned = raw.toString().replace(/\s+/g, '').replace(/^rp/i, '');
+        var negative = cleaned.indexOf('-') === 0 ? '-' : '';
+        cleaned = cleaned.replace(/-/g, '');
+
+        var hasComma = cleaned.indexOf(',') !== -1;
+        if (hasComma) {
+            var parts = cleaned.split(',');
+            var integerPart = (parts.shift() || '').replace(/[^\d]/g, '');
+            var decimalPart = parts.join('').replace(/[^\d]/g, '').slice(0, 2);
+            if (integerPart === '' && decimalPart === '') return '';
+            return negative + integerPart + (decimalPart !== '' ? ',' + decimalPart : ',');
+        }
+
+        var digits = cleaned.replace(/[^\d]/g, '');
+        return digits === '' ? '' : negative + digits;
+    }
+
+    function getEffectiveQty($tr) {
+        var qtyRaw = ($tr.find('.item-qty').val() || '').toString().trim();
+        var qty = parseFloat(qtyRaw || 0);
+        if (qty > 0) return qty;
+
+        var price = parseRupiah($tr.find('.item-price').val() || 0);
+        return price > 0 ? 1 : 0;
+    }
+
     function recalcItems() {
         var grand = 0;
         $('#itemsTable tbody tr').each(function(i, tr) {
-            var qty = parseFloat($(tr).find('.item-qty').val() || 0);
-            var price = parseFloat($(tr).find('.item-price').val() || 0);
+            var $tr = $(tr);
+            var qty = getEffectiveQty($tr);
+            var price = parseRupiah($tr.find('.item-price').val() || 0);
             var total = (qty * price) || 0;
-            $(tr).find('.item-total').val(total.toFixed(2));
+            if (qty > 0 && (($tr.find('.item-qty').val() || '').toString().trim() === '') && price > 0) {
+                $tr.find('.item-qty').val(qty);
+            }
+            setRupiahValue($tr.find('.item-total'), total);
             grand += total;
-            $(tr).find('td:first').text(i+1);
+            $tr.find('td:first').text(i+1);
         });
-        $('#grand_total_display').val(grand.toFixed(2));
+        setRupiahValue($('#grand_total_display'), grand);
     }
 
     function addItemRow(data) {
@@ -881,8 +943,8 @@ $(document).ready(function() {
     // notes input (replaces per-item employee select)
     $tr.append('<td><input type="text" class="form-control item-notes" name="item_notes[]" placeholder="Catatan" value="'+(data.notes||'')+'"></td>');
         $tr.append('<td><input type="number" min="0" step="1" class="form-control item-qty" value="'+(data.qty||'')+'"></td>');
-        $tr.append('<td><input type="number" min="0" step="0.01" class="form-control item-price" value="'+(data.price||0)+'"></td>');
-        $tr.append('<td><input type="text" readonly class="form-control item-total" value="0.00"></td>');
+        $tr.append('<td><input type="text" inputmode="decimal" class="form-control item-price" value="'+formatRupiah(data.price||0)+'"></td>');
+        $tr.append('<td><input type="text" readonly class="form-control item-total" value="'+formatRupiah(0)+'"></td>');
         // nicer remove button with icon; we handle last-row protection below
         $tr.append('<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Hapus item"><i class="fa fa-trash"></i></button></td>');
         $('#itemsTable tbody').append($tr);
@@ -909,8 +971,8 @@ $(document).ready(function() {
             // clear the inputs in the last row instead of removing it
             $tr.find('.item-desc').val('');
             $tr.find('.item-qty').val(1);
-            $tr.find('.item-price').val(0);
-            $tr.find('.item-total').val('0.00');
+            setRupiahValue($tr.find('.item-price'), 0);
+            setRupiahValue($tr.find('.item-total'), 0);
             recalcItems();
             // subtle highlight to show cleared
             $tr.addClass('table-warning');
@@ -924,8 +986,28 @@ $(document).ready(function() {
         });
     });
 
-    // recalc on qty/price changes
-    $(document).on('input', '.item-qty, .item-price', function(){ recalcItems(); });
+    // recalc on qty changes
+    $(document).on('input', '.item-qty', function(){ recalcItems(); });
+
+    $(document).on('input', '.item-price', function(){
+        $(this).val(sanitizeEditableRupiah($(this).val()));
+        recalcItems();
+    });
+
+    $(document).on('focus', '.item-price', function(){
+        var value = parseRupiah($(this).val());
+        if (value === 0) {
+            $(this).val('');
+        } else {
+            $(this).val(formatEditableRupiah(value));
+        }
+    });
+
+    $(document).on('blur', '.item-price', function(){
+        var value = parseRupiah($(this).val());
+        setRupiahValue($(this), value);
+        recalcItems();
+    });
 
     // keyboard UX: Enter in desc jumps to qty, Enter in qty jumps to price, Enter in price adds new row
     $(document).on('keydown', '.item-desc', function(e){
@@ -961,7 +1043,20 @@ $(document).ready(function() {
         var $last = $rows.last();
         // check if last row has any content
         var filled = false;
-        $last.find('input').each(function(){ if ($(this).val() && $(this).val().toString().trim() !== '' && $(this).val() !== '0' && $(this).val() !== '0.00') filled = true; });
+        $last.find('input').each(function(){
+            var $input = $(this);
+            var rawValue = ($input.val() || '').toString().trim();
+            if (rawValue === '') return;
+            if ($input.hasClass('item-price') || $input.hasClass('item-total')) {
+                if (parseRupiah(rawValue) > 0) filled = true;
+                return;
+            }
+            if ($input.hasClass('item-qty')) {
+                if (parseFloat(rawValue || 0) > 0) filled = true;
+                return;
+            }
+            filled = true;
+        });
         if (filled) {
             // add a new blank row if none exists after a short delay (allow recalc)
             if ($rows.length === 0 || $rows.last().find('.item-desc').val() !== '') {
@@ -984,8 +1079,8 @@ $(document).ready(function() {
             var $tr = $(this);
             var desc = $tr.find('.item-desc').val();
             var descTrim = desc ? desc.toString().trim() : '';
-            var qty = parseFloat($tr.find('.item-qty').val()||0);
-            var price = parseFloat($tr.find('.item-price').val()||0);
+            var qty = getEffectiveQty($tr);
+            var price = parseRupiah($tr.find('.item-price').val()||0);
             var notes = $tr.find('.item-notes').val() || null;
             // If the row is a faktur row, we embed fakturbeli_id into payload
             var fakturId = $tr.data('fakturbeli-id') || null;
@@ -1242,7 +1337,7 @@ $(document).ready(function() {
                     addItemRow();
                 }
                 // set grand total display if available
-                $('#grand_total_display').val(parseFloat(res.grand_total || 0).toFixed(2));
+                setRupiahValue($('#grand_total_display'), parseFloat(res.grand_total || 0));
                 recalcItems();
 
                 $('#pengajuanModal').modal('show');
@@ -1674,8 +1769,9 @@ $(document).ready(function() {
                                 // populate the empty row; store full description and also set title for full view
                                 $empty.find('.item-desc').val(desc).prop('readonly', true).attr('title', desc);
                                 $empty.find('.item-qty').val(1).prop('readonly', true);
-                                $empty.find('.item-price').val(price).prop('readonly', true);
-                                $empty.find('.item-total').val((1 * price).toFixed(2));
+                                setRupiahValue($empty.find('.item-price'), price);
+                                $empty.find('.item-price').prop('readonly', true);
+                                setRupiahValue($empty.find('.item-total'), (1 * price));
                                 $empty.data('fakturbeli-id', res.id);
                             } else {
                                 // no empty row; append a new faktur row (do not default per-item employee)
@@ -1684,7 +1780,8 @@ $(document).ready(function() {
                                 $new.data('fakturbeli-id', res.id);
                                 $new.find('.item-desc').prop('readonly', true).attr('title', desc);
                                 $new.find('.item-qty').prop('readonly', true).val(1);
-                                $new.find('.item-price').prop('readonly', true).val(price);
+                                $new.find('.item-price').prop('readonly', true);
+                                setRupiahValue($new.find('.item-price'), price);
                             }
 
                             recalcItems();

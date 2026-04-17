@@ -178,13 +178,14 @@ class FinancePengajuanDanaController extends Controller
 
         return DataTables::of($query)
             ->filter(function($q) use ($request) {
-                // global search: allow matching kode, perusahaan, sumber_dana,
-                // employee name (user.name or employee.nama), division.name, and item.nama_item
+                // global search: mirror the visible table content as closely as possible,
+                // including detail fields, rekening text, and item-related text.
                 $search = $request->input('search.value');
                 if ($search && trim($search) !== '') {
                     $s = trim($search);
                     $q->where(function($qq) use ($s) {
                         $qq->where('kode_pengajuan', 'like', "%{$s}%")
+                           ->orWhere('jenis_pengajuan', 'like', "%{$s}%")
                            ->orWhere('perusahaan', 'like', "%{$s}%")
                            ->orWhere('sumber_dana', 'like', "%{$s}%")
                            ->orWhereHas('employee', function($qe) use ($s) {
@@ -202,7 +203,8 @@ class FinancePengajuanDanaController extends Controller
                                   ->orWhere('atas_nama', 'like', "%{$s}%");
                            })
                            ->orWhereHas('items', function($qi) use ($s) {
-                               $qi->where('nama_item', 'like', "%{$s}%");
+                               $qi->where('nama_item', 'like', "%{$s}%")
+                                  ->orWhere('notes', 'like', "%{$s}%");
                            });
                     });
                 }
