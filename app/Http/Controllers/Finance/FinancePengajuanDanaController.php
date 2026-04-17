@@ -918,6 +918,34 @@ class FinancePengajuanDanaController extends Controller
         $fakturs = [];
         if (!empty($fakturIds)) {
             $fakturs = FakturBeli::with(['items.obat', 'items.gudang', 'pemasok'])->whereIn('id', $fakturIds)->get();
+            foreach ($fakturs as $faktur) {
+                $faktur->pdf_bukti_image_data = null;
+                $buktiPath = $faktur->bukti ?? null;
+                if (empty($buktiPath)) {
+                    continue;
+                }
+
+                try {
+                    $publicStoragePath = public_path('storage/' . ltrim($buktiPath, '/'));
+                    if (!file_exists($publicStoragePath)) {
+                        continue;
+                    }
+
+                    $mimeType = @mime_content_type($publicStoragePath);
+                    if (!$mimeType || stripos($mimeType, 'image/') !== 0) {
+                        continue;
+                    }
+
+                    $imageData = @file_get_contents($publicStoragePath);
+                    if ($imageData === false || $imageData === '') {
+                        continue;
+                    }
+
+                    $faktur->pdf_bukti_image_data = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+                } catch (\Exception $e) {
+                    $faktur->pdf_bukti_image_data = null;
+                }
+            }
         }
         // locate a logo asset if present
         $logoCandidates = [

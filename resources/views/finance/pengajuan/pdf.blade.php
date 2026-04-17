@@ -39,6 +39,9 @@
     .small { font-size:11px; color:#666; }
     .page-break { page-break-before: always; }
     .faktur-header { text-align:center; margin-bottom:8px; }
+    .faktur-lampiran { margin-top: 18px; page-break-inside: avoid; }
+    .faktur-lampiran-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .faktur-lampiran-image { width: 100%; height: auto; display: block; }
     </style>
 </head>
 <body>
@@ -211,6 +214,13 @@
                 </table>
 
                 <div style="margin-top:20px;">Catatan: {{ $faktur->notes ?? '-' }}</div>
+
+                @if(!empty($faktur->pdf_bukti_image_data))
+                    <div class="faktur-lampiran">
+                        <div class="faktur-lampiran-title">Lampiran Bukti Faktur</div>
+                        <img src="{{ $faktur->pdf_bukti_image_data }}" alt="Bukti Faktur {{ $faktur->no_faktur }}" class="faktur-lampiran-image">
+                    </div>
+                @endif
             </div>
         @endforeach
     @endif
