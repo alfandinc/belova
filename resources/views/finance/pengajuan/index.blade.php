@@ -60,6 +60,40 @@
         #pengajuanModal label { text-transform: capitalize !important; }
         /* show red asterisk for required fields */
         #pengajuanModal label.required:after { content: " *"; color: #e74c3c; margin-left: 4px; }
+        #buktiModalPreview {
+            display: block;
+            width: 100%;
+        }
+        #buktiModalPreview img {
+            display: block;
+            width: 100%;
+            height: auto;
+            margin-bottom: 12px;
+            object-fit: contain;
+            cursor: zoom-in;
+        }
+        #buktiZoomModal .modal-content {
+            background: #111;
+            border: 0;
+        }
+        #buktiZoomModal .modal-header {
+            border-bottom: 0;
+            color: #fff;
+        }
+        #buktiZoomModal .close {
+            color: #fff;
+            opacity: 0.9;
+        }
+        #buktiZoomModal .modal-body {
+            padding-top: 0;
+        }
+        #buktiZoomImage {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: calc(100vh - 120px);
+            object-fit: contain;
+        }
     </style>
 <div class="page-content">
     <div class="container-fluid">
@@ -191,10 +225,10 @@
                         <div class="modal-body">
                             <div class="mb-2">
                                 <strong>Gambar tersimpan:</strong>
-                                <div id="buktiModalPreview" class="mt-2 d-flex flex-wrap"></div>
+                                <div id="buktiModalPreview" class="mt-2"></div>
                             </div>
-                            <hr />
-                            <div class="mb-2">
+                            <hr id="buktiModalUploadDivider" />
+                            <div class="mb-2" id="buktiModalUploadSection">
                                 <label class="form-label">Tambah file</label>
                                 <div class="d-flex align-items-center">
                                     <input type="file" id="buktiModalInput" name="bukti_transaksi[]" accept="image/*" multiple style="display:block">
@@ -206,6 +240,20 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                             <button type="button" id="buktiModalUpload" class="btn btn-primary">Upload</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="buktiZoomModal" tabindex="-1" aria-labelledby="buktiZoomModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="buktiZoomModalLabel">Preview Bukti Transaksi</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <img id="buktiZoomImage" src="" alt="Bukti transaksi">
                         </div>
                     </div>
                 </div>
@@ -425,6 +473,70 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    function setBuktiModalMode(mode) {
+        var isViewOnly = mode === 'view';
+        $('#buktiModal').data('mode', mode);
+        $('#buktiModalLabel').text(isViewOnly ? 'Lihat Bukti Transaksi' : 'Upload Bukti Transaksi');
+        $('#buktiModalUploadSection, #buktiModalUploadDivider').toggle(!isViewOnly);
+        $('#buktiModalUpload').toggle(!isViewOnly);
+        if (isViewOnly) {
+            $('#buktiModalInput').val('');
+            $('#buktiModalFilesLabel').text('Tidak ada file terpilih');
+            $('#buktiModalNewPreview').empty();
+        }
+    }
+
+    function openBuktiModal(id, mode) {
+        if (!id) return;
+
+        setBuktiModalMode(mode || 'upload');
+        $('#buktiModal').data('id', id);
+        $('#buktiModalPreview').empty();
+        $('#buktiModalInput').val('');
+        $('#buktiModalFilesLabel').text('Tidak ada file terpilih');
+        $('#buktiModalNewPreview').empty();
+
+        $.ajax({
+            url: '/finance/pengajuan-dana/' + id,
+            method: 'GET',
+            success: function(res){
+                if (!res) return;
+                var preview = $('#buktiModalPreview');
+                preview.empty();
+                try {
+                    var arr = null;
+                    if (res.bukti_transaksi) {
+                        arr = (typeof res.bukti_transaksi === 'string') ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
+                    }
+                    if (Array.isArray(arr)) {
+                        arr.forEach(function(p){ if (!p) return; var $img = $('<img>').attr('src','/storage/' + p); preview.append($img); });
+                    } else if (res.bukti_transaksi) {
+                        var url = '/storage/' + res.bukti_transaksi;
+                        preview.append($('<img>').attr('src', url));
+                    }
+                } catch(e) {
+                    if (res.bukti_transaksi) {
+                        var url = '/storage/' + res.bukti_transaksi;
+                        preview.append($('<img>').attr('src', url));
+                    }
+                }
+
+                if (!preview.children().length) {
+                    preview.append('<div class="text-muted">Belum ada bukti transaksi.</div>');
+                }
+
+                $('#buktiModal').modal('show');
+            },
+            error: function(){ Swal.fire('Error', 'Gagal memuat bukti', 'error'); }
+        });
+    }
+
+    function openBuktiZoom(src) {
+        if (!src) return;
+        $('#buktiZoomImage').attr('src', src);
+        $('#buktiZoomModal').modal('show');
+    }
+
     // server-provided current employee id (logged-in user) to default main employee select
     var __currentEmployeeId = '{{ auth()->check() && optional(auth()->user()->employee)->id ? auth()->user()->employee->id : '' }}';
     if (typeof $.fn.select2 === 'function') {
@@ -1332,44 +1444,24 @@ $(document).ready(function() {
         });
     });
 
-    // Upload bukti handler - open file picker and POST files to upload endpoint
+    // Upload bukti handler - open modal in upload mode
     $('#pengajuanTable').on('click', '.upload-bukti', function() {
-        // open Bukti modal and load existing images; allow uploading more
         var id = $(this).data('id');
-        if (!id) return;
-        // clear modal state
-        $('#buktiModal').data('id', id);
-        $('#buktiModalPreview').empty();
-        $('#buktiModalInput').val('');
-        $('#buktiModalFilesLabel').text('Tidak ada file terpilih');
+        openBuktiModal(id, 'upload');
+    });
 
-        // fetch existing bukti via the pengajuan GET endpoint (same used for edit)
-        $.ajax({
-            url: '/finance/pengajuan-dana/' + id,
-            method: 'GET',
-            success: function(res){
-                if (!res) return;
-                var preview = $('#buktiModalPreview');
-                preview.empty();
-                try {
-                    var arr = null;
-                    if (res.bukti_transaksi) {
-                        arr = (typeof res.bukti_transaksi === 'string') ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
-                    }
-                    if (Array.isArray(arr)) {
-                        arr.forEach(function(p){ if (!p) return; var $img = $('<img>').attr('src','/storage/' + p).css({'max-width':'160px','max-height':'120px','margin-right':'8px','margin-bottom':'8px'}); preview.append($img); });
-                    } else if (res.bukti_transaksi) {
-                        var url = '/storage/' + res.bukti_transaksi;
-                        preview.append($('<img>').attr('src', url).css({'max-width':'160px','max-height':'120px'}));
-                    }
-                } catch(e) {
-                    var url = '/storage/' + res.bukti_transaksi;
-                    preview.append($('<img>').attr('src', url).css({'max-width':'160px','max-height':'120px'}));
-                }
-                $('#buktiModal').modal('show');
-            },
-            error: function(){ Swal.fire('Error', 'Gagal memuat bukti', 'error'); }
-        });
+    // View bukti handler - open modal in read-only mode
+    $('#pengajuanTable').on('click', '.show-bukti', function() {
+        var id = $(this).data('id');
+        openBuktiModal(id, 'view');
+    });
+
+    $(document).on('click', '#buktiModalPreview img', function() {
+        openBuktiZoom($(this).attr('src'));
+    });
+
+    $('#buktiZoomModal').on('hidden.bs.modal', function() {
+        $('#buktiZoomImage').attr('src', '');
     });
 
     // file input change inside bukti modal - update label and preview of selected files

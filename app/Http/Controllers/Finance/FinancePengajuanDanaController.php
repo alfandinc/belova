@@ -281,8 +281,25 @@ class FinancePengajuanDanaController extends Controller
                         $btns .= '<button class="btn btn-sm btn-danger delete-pengajuan" data-id="' . $row->id . '" title="Delete"><i class="fa fa-trash"></i></button>';
                     }
 
-                    // Upload bukti button: visible to everyone (icon)
-                    $btns .= '<button class="btn btn-sm btn-outline-secondary upload-bukti ms-1" data-id="' . $row->id . '" title="Upload Bukti"><i class="fa fa-upload"></i></button>';
+                        $hasBukti = false;
+                        $buktiRaw = $row->bukti_transaksi;
+                        if (is_array($buktiRaw)) {
+                            $hasBukti = count(array_filter($buktiRaw)) > 0;
+                        } elseif (!empty($buktiRaw)) {
+                            $decodedBukti = json_decode($buktiRaw, true);
+                            if (json_last_error() === JSON_ERROR_NONE && is_array($decodedBukti)) {
+                                $hasBukti = count(array_filter($decodedBukti)) > 0;
+                            } else {
+                                $normalizedBukti = trim((string) $buktiRaw);
+                                $hasBukti = !in_array($normalizedBukti, ['', '[]', 'null'], true);
+                            }
+                        }
+
+                        if ($hasBukti) {
+                            $btns .= '<button class="btn btn-sm btn-outline-info show-bukti ms-1" data-id="' . $row->id . '" title="Lihat Bukti"><i class="fa fa-image"></i></button>';
+                        } else {
+                            $btns .= '<button class="btn btn-sm btn-outline-secondary upload-bukti ms-1" data-id="' . $row->id . '" title="Upload Bukti"><i class="fa fa-upload"></i></button>';
+                        }
 
                 // render approve button only if current user is an approver, it's their jenis, and it's their turn
                 if ($user) {
