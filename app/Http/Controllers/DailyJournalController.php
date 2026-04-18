@@ -88,8 +88,8 @@ class DailyJournalController extends Controller
     public function divisionIndex(Request $request): View
     {
         $actor = Auth::user();
-        $canAssignTasks = $actor?->hasRole('Manager');
         $canViewAllTasks = $actor?->hasRole('Hrd') || $actor?->hasRole('Admin');
+        $canAssignTasks = $actor?->hasRole('Manager') || $canViewAllTasks;
 
         abort_unless($canAssignTasks || $canViewAllTasks, 403);
 
@@ -218,8 +218,12 @@ class DailyJournalController extends Controller
         $actor = Auth::user();
         $userId = Auth::id();
         $fromUserId = null;
+        $canViewAllTasks = $actor?->hasRole('Hrd') || $actor?->hasRole('Admin');
 
-        if ($actor?->hasRole('Manager') && !empty($validated['user_id'])) {
+        if ($canViewAllTasks && !empty($validated['user_id'])) {
+            $userId = (int) $validated['user_id'];
+            $fromUserId = $actor->id;
+        } elseif ($actor?->hasRole('Manager') && !empty($validated['user_id'])) {
             $managerDivisionId = optional($actor->employee)->division_id;
 
             $divisionMemberIds = Employee::query()
@@ -262,7 +266,7 @@ class DailyJournalController extends Controller
                     'user_id' => $request->input('redirect_user_id', $request->input('user_id')),
                     'status' => $request->input('redirect_status', $request->input('status_filter')),
                 ])
-                ->with('success', 'Task berhasil diberikan ke employee divisi.');
+                ->with('success', 'Task berhasil diberikan ke employee.');
         }
 
         return redirect()

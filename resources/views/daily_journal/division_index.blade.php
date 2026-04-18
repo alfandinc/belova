@@ -1516,7 +1516,7 @@
             <div class="assign-panel-head">
                 <div>
                     <h2 class="assign-panel-title">Give Task</h2>
-                    <p class="assign-panel-copy">Manager dapat membuat task untuk employee dalam divisi yang sama.</p>
+                    <p class="assign-panel-copy">Manager dapat membuat task untuk employee dalam divisi yang sama, sementara Admin dan HRD dapat assign lintas divisi.</p>
                 </div>
                 <button type="button" class="close-assign-panel" id="closeAssignPanel">×</button>
             </div>
