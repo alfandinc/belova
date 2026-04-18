@@ -226,6 +226,12 @@
             color: #666;
             margin-top: 2px;
         }
+        .item-discount {
+            font-size: 9pt;
+            color: #666;
+            margin-top: 3px;
+            line-height: 1.2;
+        }
         .items-table tr:nth-child(even) {
             background-color: #f9f9f9;
         }
@@ -727,11 +733,11 @@
                         @if($showDiscount)
                             @if($promoDisplay && $lineDisc > 0 && $lineNoDisc > 0)
                                 @if(isset($promoDisplay['gap']) && $promoDisplay['gap'] > 0)
-                                    <div style="font-size: 8px; color: #666; margin-top: 3px;">Diskon: -Rp {{ number_format($promoDisplay['gap'], 0, ',', '.') }}</div>
+                                    <div class="item-discount">Diskon: -Rp {{ number_format($promoDisplay['gap'], 0, ',', '.') }}</div>
                                 @endif
-                                <div style="font-size: 8px; color: #666;">Diskon Promo: -Rp {{ number_format($promoDisplay['percent_nominal'], 0, ',', '.') }}</div>
+                                <div class="item-discount">Diskon Promo: -Rp {{ number_format($promoDisplay['percent_nominal'], 0, ',', '.') }}</div>
                             @else
-                                <div style="font-size: 8px; color: #666; margin-top: 3px;">
+                                <div class="item-discount">
                                     @if($displayPercent !== null && floatval($displayPercent) > 0)
                                         Diskon: -{{ rtrim(rtrim(number_format($displayPercent, 2, ',', '.'), '0'), ',') }}% @if($lineDisc > 0) (-Rp {{ number_format($lineDisc, 0, ',', '.') }}) @endif
                                     @elseif($lineDisc > 0)
