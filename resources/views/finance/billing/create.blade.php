@@ -820,6 +820,32 @@
             }
         }
 
+        function isGroupedExistingBillingRow(item) {
+            return !!(item && Array.isArray(item.group_member_ids) && item.group_member_ids.length > 1);
+        }
+
+        function getExistingBillingIdsForItem(item) {
+            if (!item) return [];
+            if (Array.isArray(item.group_member_ids) && item.group_member_ids.length) {
+                return item.group_member_ids
+                    .map(function(id) { return Number(id); })
+                    .filter(function(id) { return !isNaN(id); });
+            }
+            const idNum = Number(item.id);
+            return isNaN(idNum) ? [] : [idNum];
+        }
+
+        function getGroupedRiwayatTindakanIds(item) {
+            if (!item) return [];
+            if (Array.isArray(item.grouped_billable_ids) && item.grouped_billable_ids.length) {
+                return item.grouped_billable_ids
+                    .map(function(id) { return Number(id); })
+                    .filter(function(id) { return !isNaN(id); });
+            }
+            const billableIdNum = Number(item.billable_id);
+            return isNaN(billableIdNum) ? [] : [billableIdNum];
+        }
+
         function hasLocalBillingChanges() {
             try {
                 if (!Array.isArray(billingData)) return false;
@@ -1518,6 +1544,69 @@
                 });
         }
 
+        function getGroupedRiwayatTindakanObatRowsCached(riwayatTindakanIds) {
+            const ids = (Array.isArray(riwayatTindakanIds) ? riwayatTindakanIds : [riwayatTindakanIds])
+                .map(function(id) { return Number(id); })
+                .filter(function(id) { return !isNaN(id); })
+                .sort(function(a, b) { return a - b; });
+
+            if (!ids.length) {
+                return $.Deferred().resolve({ rows: [], suggestedGudangId: null }).promise();
+            }
+
+            if (ids.length === 1) {
+                return getRiwayatTindakanObatRowsCached(ids[0]);
+            }
+
+            const key = 'group:' + ids.join(',');
+            const cached = tindakanObatRowsCache.get(key);
+            const now = Date.now();
+            if (cached && cached.at && (now - cached.at) <= TINDAKAN_ROWS_TTL_MS) {
+                return $.Deferred().resolve({ rows: cached.rows || [], suggestedGudangId: cached.suggestedGudangId || null }).promise();
+            }
+
+            const requests = ids.map(function(id) {
+                return getRiwayatTindakanObatRowsCached(id);
+            });
+
+            return $.when.apply($, requests).then(function() {
+                const responses = (requests.length === 1)
+                    ? [arguments[0]]
+                    : Array.prototype.slice.call(arguments);
+                const mergedByObatId = new Map();
+                let suggestedGudangId = null;
+
+                responses.forEach(function(resp) {
+                    const rows = resp && resp.rows ? resp.rows : [];
+                    if (!suggestedGudangId && resp && resp.suggestedGudangId) {
+                        suggestedGudangId = resp.suggestedGudangId;
+                    }
+
+                    rows.forEach(function(row) {
+                        if (!row || !row.obatId) return;
+                        const rowKey = String(row.obatId);
+                        const existing = mergedByObatId.get(rowKey) || {
+                            obatId: row.obatId,
+                            name: row.name || ('Obat #' + row.obatId),
+                            needed: 0
+                        };
+                        existing.needed += Number(row.needed) || 0;
+                        mergedByObatId.set(rowKey, existing);
+                    });
+                });
+
+                const merged = {
+                    rows: Array.from(mergedByObatId.values()),
+                    suggestedGudangId: suggestedGudangId || null
+                };
+
+                tindakanObatRowsCache.set(key, Object.assign({ at: Date.now() }, merged));
+                return merged;
+            }, function() {
+                return { rows: [], suggestedGudangId: null };
+            });
+        }
+
         function isItemOutOfStock(itemId, item) {
             if (!itemId || !item) {
                 return $.Deferred().resolve(false).promise();
@@ -1539,8 +1628,9 @@
             const baseRows = buildObatRowsForStockModal(item);
 
             // Special-case tindakan: pull obat needs from pivot table
-            if ((!baseRows || !baseRows.length) && isTindakan && item.billable_id) {
-                return getRiwayatTindakanObatRowsCached(item.billable_id)
+            if ((!baseRows || !baseRows.length) && isTindakan) {
+                const riwayatTindakanIds = getGroupedRiwayatTindakanIds(item);
+                return getGroupedRiwayatTindakanObatRowsCached(riwayatTindakanIds)
                     .then(function(resp) {
                         const pivotRows = resp && resp.rows ? resp.rows : [];
                         const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
@@ -1771,6 +1861,7 @@
             const currentItem = (Array.isArray(billingData) ? billingData.find(i => i && i.id == id) : null);
             const diskonRaw = (currentItem && typeof currentItem.diskon_raw !== 'undefined') ? currentItem.diskon_raw : diskon;
             const diskonTypeRaw = (currentItem && typeof currentItem.diskon_type !== 'undefined') ? currentItem.diskon_type : diskon_type;
+            const isGroupedExistingRow = isGroupedExistingBillingRow(currentItem);
 
             // Parse localized numeric strings like "10.000" or "10000,00"
             function parseNumericValue(value) {
@@ -1798,6 +1889,7 @@
             $('#diskon').val(diskonRaw);
             $('#diskon_type').val(normalizedDiskonType).trigger('change');
             $('#edit_qty').val(qty);
+            $('#edit_qty').prop('disabled', $('#edit_qty').prop('disabled') || isGroupedExistingRow);
 
             // Extra safety: if diskon already filled and type is empty, flip it to nominal
             if (diskonValue > 0 && !$('#diskon_type').val()) {
@@ -1817,6 +1909,12 @@
             if (diskonValue > 0 && !currentType) {
                 $('#diskon_type').val('nominal').trigger('change');
             }
+        });
+
+        const editQtyInitiallyDisabled = $('#edit_qty').prop('disabled');
+
+        $('#editModal').on('hidden.bs.modal', function() {
+            $('#edit_qty').prop('disabled', editQtyInitiallyDisabled);
         });
         
         // Fix: Use document delegation for delete button
@@ -1857,10 +1955,11 @@
                         const idx = billingData.findIndex(item => item.id == id);
                         if (idx !== -1) {
                             billingData[idx].deleted = true;
-                            // Only push numeric IDs (real DB items)
-                            if (!isNaN(Number(billingData[idx].id))) {
-                                deletedItems.push(billingData[idx].id);
-                            }
+                            getExistingBillingIdsForItem(billingData[idx]).forEach(function(existingId) {
+                                if (!deletedItems.includes(existingId)) {
+                                    deletedItems.push(existingId);
+                                }
+                            });
                             try {
                                 if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked) {
                                     invoiceNeedsUpdateServer = true;
@@ -2483,20 +2582,30 @@ $('#saveAllChangesBtn').on('click', function() {
                 return isTempBillingId(item.id);
             });
 
-            const editedItemsPayload = editedItems.map(function(it) {
-                if (!it) return it;
-                return {
-                    id: it.id,
-                    jumlah_raw: (typeof it.jumlah_raw !== 'undefined') ? it.jumlah_raw : null,
-                    diskon_raw: (typeof it.diskon_raw !== 'undefined') ? it.diskon_raw : null,
-                    // Avoid sending empty-string to enum column
-                    diskon_type: (typeof it.diskon_type !== 'undefined' && it.diskon_type !== '') ? it.diskon_type : null,
-                    qty: (typeof it.qty !== 'undefined') ? it.qty : null,
-                    is_racikan: (typeof it.is_racikan !== 'undefined') ? it.is_racikan : null,
-                    racikan_ke: (typeof it.racikan_ke !== 'undefined') ? it.racikan_ke : null,
-                    racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
-                };
-            });
+            const editedItemsPayload = editedItems.reduce(function(acc, it) {
+                if (!it) return acc;
+                const targetIds = getExistingBillingIdsForItem(it);
+                targetIds.forEach(function(targetId) {
+                    const payload = {
+                        id: targetId,
+                        jumlah_raw: (typeof it.jumlah_raw !== 'undefined') ? it.jumlah_raw : null,
+                        diskon_raw: (typeof it.diskon_raw !== 'undefined') ? it.diskon_raw : null,
+                        // Avoid sending empty-string to enum column
+                        diskon_type: (typeof it.diskon_type !== 'undefined' && it.diskon_type !== '') ? it.diskon_type : null,
+                        qty: (typeof it.qty !== 'undefined') ? it.qty : null,
+                        is_racikan: (typeof it.is_racikan !== 'undefined') ? it.is_racikan : null,
+                        racikan_ke: (typeof it.racikan_ke !== 'undefined') ? it.racikan_ke : null,
+                        racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
+                    };
+
+                    if (isGroupedExistingBillingRow(it) && !it.is_racikan) {
+                        payload.qty = null;
+                    }
+
+                    acc.push(payload);
+                });
+                return acc;
+            }, []);
 
             return {
                 _token: "{{ csrf_token() }}",

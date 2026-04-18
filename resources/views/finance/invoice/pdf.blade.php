@@ -615,6 +615,7 @@
         </div>
         
         <!-- Items Table -->
+        @php $printItems = $printItems ?? $invoice->items; @endphp
         <table class="items-table">
             <thead>
                 <tr>
@@ -625,7 +626,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($invoice->items as $index => $item)
+                @foreach($printItems as $index => $item)
                 <tr>
                     <td>
                         <div class="item-desc">{{ $item->name }}</div>

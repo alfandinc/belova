@@ -612,7 +612,7 @@ class BillingController extends Controller
                 \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
                 \App\Models\ERM\LabPermintaan::class => ['labTest:id,nama'],
                 \App\Models\ERM\RadiologiPermintaan::class => ['radiologiTest:id,nama'],
-                \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,spesialis_id'],
+                \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,nama,spesialis_id'],
             ]);
         } catch (\Exception $e) {
             // Non-fatal: fallback to lazy-loading if morph eager-loading fails.
@@ -1096,6 +1096,125 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $processedBillings[] = $pharmacyServiceItem;
         }
 
+        // Group identical tindakan rows into a single display row with aggregated qty.
+        // The original billing IDs remain attached so frontend edit/delete can fan out safely.
+        $getBillingDisplayQty = function ($row) {
+            if (!$row) return 1.0;
+
+            if (isset($row->qty) && $row->qty !== null && $row->qty !== '') {
+                $qty = (float) $row->qty;
+                return $qty > 0 ? $qty : 1.0;
+            }
+
+            if (($row->billable_type ?? null) === 'App\\Models\\ERM\\ResepFarmasi') {
+                $qty = (float) (optional($row->billable)->jumlah ?? 1);
+                return $qty > 0 ? $qty : 1.0;
+            }
+
+            $qty = (float) (optional($row->billable)->qty ?? 1);
+            return $qty > 0 ? $qty : 1.0;
+        };
+
+        $buildDuplicateTindakanGroupKey = function ($row) {
+            if (!$row) return null;
+            if (!empty($row->is_racikan) || !empty($row->is_pharmacy_fee)) return null;
+
+            $billableType = (string) ($row->billable_type ?? '');
+            if ($billableType !== 'App\\Models\\ERM\\RiwayatTindakan' && $billableType !== 'App\Models\ERM\RiwayatTindakan') {
+                return null;
+            }
+
+            $unitPrice = round((float) ($row->jumlah ?? 0), 2);
+            $diskonType = trim((string) ($row->diskon_type ?? ''));
+            $diskonValue = round((float) ($row->diskon ?? 0), 4);
+            if ($diskonValue > 0 && $diskonType !== '%') {
+                return null;
+            }
+            $promoPriceBase = isset($row->promo_price_base) ? round((float) $row->promo_price_base, 2) : null;
+
+            $tindakanId = null;
+            $tindakanName = null;
+            try {
+                $tindakanId = optional($row->billable)->tindakan_id ?? optional(optional($row->billable)->tindakan)->id;
+                $tindakanName = optional(optional($row->billable)->tindakan)->nama;
+            } catch (\Exception $e) {
+                $tindakanId = null;
+                $tindakanName = null;
+            }
+
+            $namaItem = trim((string) ($row->nama_item ?? $tindakanName ?? $row->keterangan ?? ''));
+            $keterangan = trim((string) ($row->keterangan ?? ''));
+
+            return implode('|', [
+                $tindakanId ?: $namaItem,
+                $namaItem,
+                $keterangan,
+                number_format($unitPrice, 2, '.', ''),
+                $diskonType,
+                number_format($diskonValue, 4, '.', ''),
+                $promoPriceBase !== null ? number_format($promoPriceBase, 2, '.', '') : '',
+            ]);
+        };
+
+        $groupedProcessedBillings = [];
+        $groupedTindakanIndexByKey = [];
+
+        foreach ($processedBillings as $row) {
+            $groupKey = $buildDuplicateTindakanGroupKey($row);
+            if (!$groupKey) {
+                $groupedProcessedBillings[] = $row;
+                continue;
+            }
+
+            $rowQty = $getBillingDisplayQty($row);
+            if (!array_key_exists($groupKey, $groupedTindakanIndexByKey)) {
+                $groupedRow = clone $row;
+                $groupedRow->qty = $rowQty;
+                $groupedRow->group_member_ids = array_values(array_unique(array_filter([
+                    isset($row->id) ? (int) $row->id : null,
+                ])));
+                $groupedRow->grouped_billable_ids = array_values(array_unique(array_filter([
+                    isset($row->billable_id) ? (int) $row->billable_id : null,
+                ])));
+                $groupedRow->group_existing_count = 1;
+                $groupedRow->is_grouped_tindakan = 0;
+                $groupedProcessedBillings[] = $groupedRow;
+                $groupedTindakanIndexByKey[$groupKey] = count($groupedProcessedBillings) - 1;
+                continue;
+            }
+
+            $groupIndex = $groupedTindakanIndexByKey[$groupKey];
+            $existingRow = $groupedProcessedBillings[$groupIndex];
+
+            $existingRow->qty = (float) ($existingRow->qty ?? 0) + $rowQty;
+            $existingRow->group_existing_count = (int) ($existingRow->group_existing_count ?? 1) + 1;
+            $existingRow->is_grouped_tindakan = 1;
+
+            $existingMemberIds = isset($existingRow->group_member_ids) && is_array($existingRow->group_member_ids)
+                ? $existingRow->group_member_ids
+                : [];
+            if (isset($row->id)) {
+                $existingMemberIds[] = (int) $row->id;
+            }
+            $existingRow->group_member_ids = array_values(array_unique(array_filter($existingMemberIds)));
+
+            $existingBillableIds = isset($existingRow->grouped_billable_ids) && is_array($existingRow->grouped_billable_ids)
+                ? $existingRow->grouped_billable_ids
+                : [];
+            if (isset($row->billable_id)) {
+                $existingBillableIds[] = (int) $row->billable_id;
+            }
+            $existingRow->grouped_billable_ids = array_values(array_unique(array_filter($existingBillableIds)));
+
+            if (($existingRow->diskon_type ?? null) !== '%') {
+                $existingRow->diskon = (float) ($existingRow->diskon ?? 0) + (float) ($row->diskon ?? 0);
+            }
+
+            $groupedProcessedBillings[$groupIndex] = $existingRow;
+        }
+
+        $processedBillings = $groupedProcessedBillings;
+
         // Pre-compute out-of-stock flags for fast initial UI rendering (obat/racikan/tindakan)
         // This mirrors the frontend stock modal logic: sum ObatStokGudang across batches.
         // NOTE: This is expensive; skip it in `light=1` (polling refresh), and cache briefly otherwise.
@@ -1142,7 +1261,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $defaultKodeTindakanGudangId = $fallbackGudang ? $fallbackGudang->id : null;
                         }
 
-                        $tindakanBillingToRiwayat = []; // billing_id => riwayat_tindakan_id
+                        $tindakanBillingToRiwayat = []; // billing_id => [riwayat_tindakan_id, ...]
                         $riwayatIds = [];
 
                         foreach ($processedBillings as $row) {
@@ -1178,10 +1297,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                             // Tindakan: resolve from pivot table later
                             if (isset($row->billable_type) && $row->billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
-                                $riwayatId = $row->billable_id ?? null;
-                                if ($riwayatId) {
-                                    $tindakanBillingToRiwayat[$billingId] = intval($riwayatId);
-                                    $riwayatIds[] = intval($riwayatId);
+                                $rowRiwayatIds = [];
+                                if (isset($row->grouped_billable_ids) && is_array($row->grouped_billable_ids) && !empty($row->grouped_billable_ids)) {
+                                    $rowRiwayatIds = $row->grouped_billable_ids;
+                                } elseif (!empty($row->billable_id)) {
+                                    $rowRiwayatIds = [$row->billable_id];
+                                }
+
+                                $rowRiwayatIds = array_values(array_unique(array_map('intval', array_filter($rowRiwayatIds))));
+                                if (!empty($rowRiwayatIds)) {
+                                    $tindakanBillingToRiwayat[$billingId] = $rowRiwayatIds;
+                                    $riwayatIds = array_merge($riwayatIds, $rowRiwayatIds);
                                 }
                                 continue;
                             }
@@ -1256,14 +1382,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                             // Invert mapping: riwayat_id -> billing_id
                             $billingByRiwayat = [];
-                            foreach ($tindakanBillingToRiwayat as $billingId => $riwayatId) {
-                                $billingByRiwayat[intval($riwayatId)] = intval($billingId);
+                            foreach ($tindakanBillingToRiwayat as $billingId => $rowRiwayatIds) {
+                                foreach ((array) $rowRiwayatIds as $riwayatId) {
+                                    $riwayatId = intval($riwayatId);
+                                    if (!$riwayatId) continue;
+                                    if (!isset($billingByRiwayat[$riwayatId])) {
+                                        $billingByRiwayat[$riwayatId] = [];
+                                    }
+                                    $billingByRiwayat[$riwayatId][] = intval($billingId);
+                                }
                             }
 
                             foreach ($pivotRows as $p) {
                                 $riwayatId = intval($p->riwayat_tindakan_id ?? 0);
-                                $billingId = $billingByRiwayat[$riwayatId] ?? null;
-                                if (!$billingId) continue;
+                                $billingIds = $billingByRiwayat[$riwayatId] ?? [];
+                                if (empty($billingIds)) continue;
                                 $obatId = intval($p->obat_id ?? 0);
                                 if (!$obatId) continue;
                                 $needed = abs(floatval($p->qty ?? 0));
@@ -1272,11 +1405,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 $gudangId = $resolveKodeTindakanGudangForRiwayat($riwayatId);
                                 if (!$gudangId) continue;
 
-                                $requirementsByBillingId[$billingId][] = [
-                                    'obat_id' => $obatId,
-                                    'gudang_id' => intval($gudangId),
-                                    'needed' => floatval($needed),
-                                ];
+                                foreach ($billingIds as $billingId) {
+                                    $requirementsByBillingId[$billingId][] = [
+                                        'obat_id' => $obatId,
+                                        'gudang_id' => intval($gudangId),
+                                        'needed' => floatval($needed),
+                                    ];
+                                }
                                 $allObatIds[] = $obatId;
                                 $allGudangIds[] = intval($gudangId);
                             }
@@ -1423,6 +1558,33 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // ignore
                 }
                 return null;
+            })
+            ->addColumn('group_member_ids', function ($row) {
+                try {
+                    if (isset($row->group_member_ids) && is_array($row->group_member_ids)) {
+                        return array_values(array_map('intval', array_filter($row->group_member_ids)));
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return [];
+            })
+            ->addColumn('grouped_billable_ids', function ($row) {
+                try {
+                    if (isset($row->grouped_billable_ids) && is_array($row->grouped_billable_ids)) {
+                        return array_values(array_map('intval', array_filter($row->grouped_billable_ids)));
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return [];
+            })
+            ->addColumn('is_grouped_tindakan', function ($row) {
+                try {
+                    return !empty($row->is_grouped_tindakan) ? 1 : 0;
+                } catch (\Exception $e) {
+                    return 0;
+                }
             })
             ->addColumn('obat_id', function ($row) {
                 try {

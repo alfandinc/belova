@@ -253,9 +253,13 @@ function openStockInfoModalForItem(itemId, item) {
     }
 
     // Special case: tindakan (RiwayatTindakan) should resolve its obat needs from pivot table
-    if (!rows.length && item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan' && item.billable_id) {
+    if (!rows.length && item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
         $('#stockInfoContent').html('<div class="text-muted">Memuat stok tindakan...</div>');
-        loadRiwayatTindakanObatRows(item.billable_id)
+        getGroupedRiwayatTindakanObatRowsCached(
+            (Array.isArray(item.grouped_billable_ids) && item.grouped_billable_ids.length)
+                ? item.grouped_billable_ids
+                : [item.billable_id]
+        )
             .then(function(resp) {
                 const pivotRows = resp && resp.rows ? resp.rows : [];
                 const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;

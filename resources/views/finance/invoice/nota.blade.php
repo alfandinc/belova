@@ -229,8 +229,10 @@
         </table>
     </div>
 
+    @php $printItems = $printItems ?? $invoice->items; @endphp
+
     <div class="items-section">
-        @foreach($invoice->items as $item)
+        @foreach($printItems as $item)
 
         {{-- Skip rendering administrative/shipping items in the itemized list; they are shown separately in totals --}}
         @php $__name_lower = strtolower(trim($item->name ?? $item->nama_item ?? '')); @endphp
@@ -395,7 +397,7 @@
         $adminFee = 0;
         $shippingFee = 0;
 
-        foreach ($invoice->items as $it) {
+        foreach ($printItems as $it) {
             $name = strtolower(trim($it->name ?? $it->nama_item ?? ''));
 
                 // Determine the line totals:
@@ -471,7 +473,7 @@
                 $itemDiscountTotal = 0;
                 $itemDiscountBaseSum = 0; // sum of line totals used to compute percent for item discounts
                 $subtotalLineTotals = 0; // sum of all line totals (unit * qty) to compute invoice-level discount share
-                foreach ($invoice->items as $it) {
+                foreach ($printItems as $it) {
                     $lineQty = $it->quantity ?? 1;
                     $lineUnit = $it->unit_price ?? 0;
                     $lineNoDisc = $lineUnit * $lineQty;

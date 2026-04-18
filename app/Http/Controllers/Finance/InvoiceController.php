@@ -12,6 +12,57 @@ use Carbon\Carbon;
 
 class InvoiceController extends Controller
 {
+    private function buildPrintItems($items)
+    {
+        $items = collect($items ?? []);
+        $grouped = [];
+        $orderedKeys = [];
+
+        foreach ($items as $item) {
+            if (!$item) {
+                continue;
+            }
+
+            $billableType = (string) ($item->billable_type ?? '');
+            if ($billableType !== 'App\\Models\\ERM\\RiwayatTindakan' && $billableType !== 'App\Models\ERM\RiwayatTindakan') {
+                $orderedKeys[] = 'item:' . spl_object_id($item);
+                $grouped['item:' . spl_object_id($item)] = $item;
+                continue;
+            }
+
+            $key = implode('|', [
+                trim((string) ($item->name ?? '')),
+                number_format((float) ($item->unit_price ?? 0), 2, '.', ''),
+                trim((string) ($item->discount_type ?? '')),
+                number_format((float) ($item->discount ?? 0), 4, '.', ''),
+                trim((string) ($item->description ?? '')),
+            ]);
+
+            if (!array_key_exists($key, $grouped)) {
+                $grouped[$key] = clone $item;
+                $orderedKeys[] = $key;
+                continue;
+            }
+
+            $existing = $grouped[$key];
+            $existing->quantity = (float) ($existing->quantity ?? 1) + (float) ($item->quantity ?? 1);
+            $existing->final_amount = (float) ($existing->final_amount ?? 0) + (float) ($item->final_amount ?? 0);
+
+            $discountType = trim((string) ($existing->discount_type ?? ''));
+            if ($discountType !== '%') {
+                $existing->discount = (float) ($existing->discount ?? 0) + (float) ($item->discount ?? 0);
+            }
+
+            $grouped[$key] = $existing;
+        }
+
+        return collect($orderedKeys)
+            ->map(function ($key) use ($grouped) {
+                return $grouped[$key] ?? null;
+            })
+            ->filter();
+    }
+
     /**
      * Menampilkan form export invoice dan tombol download
      */
@@ -191,6 +242,7 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
+        $printItems = $this->buildPrintItems($invoice->items);
         // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
         if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
             $paid = floatval($invoice->amount_paid ?? 0);
@@ -217,7 +269,7 @@ class InvoiceController extends Controller
             $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
         }
 
-        $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
+        $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64', 'printItems'))
             ->setPaper([0, 0, 120, 1000]) // 57mm width (161.57 points) with dynamic height
             ->setOptions([
                 'defaultFont' => 'helvetica',
@@ -248,6 +300,7 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
+        $printItems = $this->buildPrintItems($invoice->items);
         // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
         if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
             $paid = floatval($invoice->amount_paid ?? 0);
@@ -271,7 +324,7 @@ class InvoiceController extends Controller
         $belovaLogo = public_path('img/header-belova.png');
         $defaultLogo = public_path('img/logo.png');
         
-        $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
+        $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice', 'printItems'))
             ->setPaper('a5', 'portrait')
             ->setOptions([
                 'defaultFont' => 'helvetica',
