@@ -20,6 +20,8 @@ use App\Models\ERM\PasienMerchandise;
 use App\Models\WaMessage;
 use App\Models\WaScheduledMessage;
 use App\Services\VisitationWhatsAppScheduler;
+use App\Notifications\DokterToPerawatNotification;
+use App\Notifications\PerawatToDokterNotification;
 use Carbon\Carbon;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -113,23 +115,98 @@ class RawatJalanController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function sendNotifToDokter(Request $request)
+    {
+        if (!Auth::user()->hasRole('Perawat')) {
+            return response()->json(['success' => false], 403);
+        }
+
+        $request->validate([
+            'visitation_id' => 'required',
+        ]);
+
+        $visitation = Visitation::with(['pasien:id,nama', 'dokter.user:id,name'])->findOrFail($request->visitation_id);
+        $dokterUser = optional($visitation->dokter)->user;
+
+        if (!$dokterUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dokter untuk kunjungan ini tidak ditemukan.',
+            ], 404);
+        }
+
+        $patient = $visitation->pasien;
+        $patientName = optional($patient)->nama ?: 'Pasien';
+        $patientId = optional($patient)->id;
+        $title = trim($patientName . ($patientId ? ' (' . $patientId . ')' : '') . ' Memasuki Ruangan');
+        $message = 'Pasien ' . $patientName . ' memasuki ruangan.';
+        $dokumenUrl = $visitation->status_dokumen === 'cppt'
+            ? route('erm.cppt.create', $visitation->id)
+            : route('erm.asesmendokter.create', $visitation->id);
+
+        $dokterUser->notify(new PerawatToDokterNotification($message, $title, $dokumenUrl));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Notifikasi berhasil dikirim ke dokter.',
+            'dokter_name' => $dokterUser->name,
+        ]);
+    }
+
+    private function notificationClassForUser($user)
+    {
+        if (!$user) {
+            return null;
+        }
+
+        if ($user->hasRole('Perawat')) {
+            return DokterToPerawatNotification::class;
+        }
+
+        if ($user->hasRole('Dokter')) {
+            return PerawatToDokterNotification::class;
+        }
+
+        return null;
+    }
+
+    private function notificationTitleForUser($user)
+    {
+        if (!$user) {
+            return 'Notifikasi';
+        }
+
+        if ($user->hasRole('Perawat')) {
+            return 'Notifikasi dari Dokter';
+        }
+
+        if ($user->hasRole('Dokter')) {
+            return 'Notifikasi dari Perawat';
+        }
+
+        return 'Notifikasi';
+    }
+
     /**
      * Poll for unread notifications for Perawat
      */
     public function getNotif()
     {
         $user = Auth::user();
-        if (!$user->hasRole('Perawat')) {
+        $notificationClass = $this->notificationClassForUser($user);
+
+        if (!$notificationClass) {
             return response()->json(['new' => false, 'unread_count' => 0]);
         }
+
         $notif = $user->unreadNotifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->latest()
             ->first();
         $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
         if ($notif) {
             $unreadCount = $user->unreadNotifications()
-                ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+                ->where('type', $notificationClass)
                 ->count();
 
             if (in_array($notif->id, $deliveredNotificationIds, true)) {
@@ -146,13 +223,15 @@ class RawatJalanController extends Controller
             return response()->json([
                 'new' => true,
                 'id' => $notif->id,
+                'title' => $notif->data['title'] ?? $this->notificationTitleForUser($user),
                 'message' => $notif->data['message'],
                 'sender' => $notif->data['sender'],
+                'dokumen_url' => $notif->data['dokumen_url'] ?? null,
                 'unread_count' => $unreadCount,
             ]);
         }
         $unreadCount = $user->unreadNotifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->count();
         return response()->json(['new' => false, 'unread_count' => $unreadCount]);
     }
@@ -167,10 +246,16 @@ class RawatJalanController extends Controller
             'notification_id' => 'required|string',
         ]);
 
+        $notificationClass = $this->notificationClassForUser(Auth::user());
+
+        if (!$notificationClass) {
+            return response()->json(['message' => 'Notifikasi tidak tersedia'], 403);
+        }
+
         $notification = Auth::user()
             ->notifications()
             ->where('id', $request->notification_id)
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->first();
 
         if (!$notification) {
@@ -195,7 +280,7 @@ class RawatJalanController extends Controller
 
         $unreadCount = Auth::user()
             ->unreadNotifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->count();
 
         return response()->json([
@@ -210,9 +295,15 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        $notificationClass = $this->notificationClassForUser(Auth::user());
+
+        if (!$notificationClass) {
+            return response()->json(['message' => 'Notifikasi tidak tersedia'], 403);
+        }
+
         $notifications = Auth::user()
             ->unreadNotifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->get();
 
         foreach ($notifications as $notification) {
@@ -238,9 +329,17 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        $notificationClass = $this->notificationClassForUser(Auth::user());
+
+        if (!$notificationClass) {
+            return response()->json([
+                'unread_count' => 0,
+            ]);
+        }
+
         $count = Auth::user()
             ->unreadNotifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->count();
 
         return response()->json([
@@ -254,18 +353,28 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        $notificationClass = $this->notificationClassForUser(Auth::user());
+
+        if (!$notificationClass) {
+            return response()->json([
+                'data' => [],
+                'unread_count' => 0,
+            ]);
+        }
+
         $notifications = Auth::user()
             ->notifications()
-            ->where('type', \App\Notifications\DokterToPerawatNotification::class)
+            ->where('type', $notificationClass)
             ->latest()
             ->limit(10)
             ->get()
             ->map(function ($notification) {
                 return [
                     'id' => $notification->id,
-                    'title' => $notification->data['title'] ?? 'Pesan dari Dokter',
+                    'title' => $notification->data['title'] ?? 'Notifikasi',
                     'message' => $notification->data['message'] ?? '-',
                     'sender' => $notification->data['sender'] ?? '-',
+                    'dokumen_url' => $notification->data['dokumen_url'] ?? null,
                     'created_at' => optional($notification->created_at)->format('d/m/Y H:i'),
                     'read_at' => optional($notification->read_at)->format('d/m/Y H:i'),
                     'is_read' => !is_null($notification->read_at),
@@ -544,6 +653,7 @@ class RawatJalanController extends Controller
                         } else {
                             $actionButtons[] = '<button class="btn btn-sm btn-primary screening-btn" style="font-weight:bold;" title="Dokumen" data-visitation-id="' . $visitationId . '"><i class="fas fa-file-alt mr-1"></i>Dokumen</button>';
                         }
+                        $actionButtons[] = '<button class="btn btn-sm btn-info btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien Memasuki Ruangan" data-visitation-id="' . $visitationId . '" data-pasien-nama="' . e($v->nama_pasien ?? 'Pasien') . '"><i class="fas fa-door-open"></i></button>';
                     } elseif ($user->hasRole('Dokter')) {
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);

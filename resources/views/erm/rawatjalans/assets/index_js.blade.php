@@ -72,6 +72,22 @@
             });
     }
 
+    function markRawatJalanNotificationRead(notificationId) {
+        return $.post('{{ route("erm.rawatjalans.notification-mark-read") }}', {
+            _token: '{{ csrf_token() }}',
+            notification_id: notificationId
+        });
+    }
+
+    if (!document.getElementById('rawatjalan-notification-popup-style')) {
+        $('head').append(
+            '<style id="rawatjalan-notification-popup-style">'
+            + '.swal2-icon.swal2-info.swal2-door-icon{border-color:#17a2b8;color:#17a2b8;}'
+            + '.swal2-door-icon .fas{font-size:2.2rem;color:#17a2b8;line-height:1;}'
+            + '</style>'
+        );
+    }
+
     refreshNotificationBadge();
 
     // Dokter: Send 'Perawat Buka Pintu' notification
@@ -110,8 +126,31 @@
         localStorage.setItem('notifSoundType', 'notif');
     });
 
-    // Perawat: Poll for notifications every 5 seconds
-    @if ($role === 'Perawat')
+    $(document).on('click', '.btn-notify-dokter-patient-enter', function() {
+        var visitationId = $(this).data('visitation-id');
+        var pasienNama = $(this).data('pasien-nama') || 'Pasien';
+
+        if (!visitationId) {
+            return;
+        }
+
+        $.post('/erm/send-notif-dokter', {
+            _token: '{{ csrf_token() }}',
+            visitation_id: visitationId
+        }, function(res) {
+            if (res.success) {
+                var dokterName = res.dokter_name || 'dokter tujuan';
+                Swal.fire('Terkirim!', 'Notifikasi pasien masuk untuk ' + pasienNama + ' berhasil dikirim ke dokter ' + dokterName + '.', 'success');
+            } else {
+                Swal.fire('Gagal', res.message || 'Notifikasi gagal dikirim.', 'error');
+            }
+        }).fail(function(xhr) {
+            Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+        });
+    });
+
+    // Dokter/Perawat: Poll for notifications every 2 seconds
+    @if ($role === 'Perawat' || !empty($isDokter))
     // Sound permission popup on page load
     window.soundEnabled = false;
     $(function() {
@@ -147,29 +186,39 @@
                 window.__rawatjalanLastAlertedDokterNotificationId = String(data.id);
                 setLastAlertedDokterNotificationId(data.id);
                 window.__rawatjalanActiveDokterNotificationId = data.id;
+                let shouldPlaySound = !data.dokumen_url;
                 let soundFile = '/sounds/notif.mp3';
                 if (data.message === 'Mohon buka pintu untuk pasien.') {
                     soundFile = '/sounds/bell.wav';
                 }
                 Swal.fire({
-                    title: 'Notifikasi dari Dokter',
-                    text: data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
+                    title: data.title || 'Notifikasi',
+                    text: 'Silakan buka dokumen pasien untuk melanjutkan pemeriksaan.' + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
                     icon: 'info',
-                    confirmButtonText: 'OK'
+                    iconHtml: '<i class="fas fa-door-open"></i>',
+                    customClass: {
+                        icon: 'swal2-door-icon'
+                    },
+                    confirmButtonText: 'OK',
+                    showCancelButton: !!data.dokumen_url,
+                    cancelButtonText: 'Buka Dokumen',
+                    cancelButtonColor: '#28a745',
+                    reverseButtons: true
                 }).then(function(result) {
                     window.__rawatjalanActiveDokterNotificationId = null;
-                    if (result && (result.isConfirmed || result.value === true)) {
-                        $.post('{{ route("erm.rawatjalans.notification-mark-read") }}', {
-                            _token: '{{ csrf_token() }}',
-                            notification_id: data.id
-                        }).done(function(response) {
+                    if (result && (result.isConfirmed || result.dismiss === Swal.DismissReason.cancel || result.value === true)) {
+                        markRawatJalanNotificationRead(data.id).done(function(response) {
                             updateNotificationBadge(response.unread_count || 0);
                         }).fail(function(xhr) {
                             console.error('Failed to mark notification as read', xhr);
+                        }).always(function() {
+                            if (result.dismiss === Swal.DismissReason.cancel && data.dokumen_url) {
+                                window.location.href = data.dokumen_url;
+                            }
                         });
                     }
                 });
-                if (window.soundEnabled) {
+                if (window.soundEnabled && shouldPlaySound) {
                     var audio = new Audio(soundFile);
                     audio.play();
                 }

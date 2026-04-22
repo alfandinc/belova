@@ -594,6 +594,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Dokter to Perawat notification
     Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
+        Route::post('/send-notif-dokter', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToDokter'])->middleware('auth');
             // ...existing ERM routes...
         Route::get('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'index'])->name('erm.fakturretur.index');
         Route::get('fakturretur/create', [\App\Http\Controllers\ERM\FakturReturController::class, 'create'])->name('erm.fakturretur.create');
