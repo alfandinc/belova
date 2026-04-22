@@ -5,6 +5,21 @@
 @endsection
 @section('content')
 
+@php
+    $filteredJenisKonsultasi = collect($jenisKonsultasi)
+        ->filter(fn ($konsultasi) => stripos($konsultasi->nama, 'Konsultasi') !== false)
+        ->values();
+    $defaultJenisKonsultasi = (string) old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2);
+    if (!$filteredJenisKonsultasi->contains('id', (int) $defaultJenisKonsultasi)) {
+        $defaultJenisKonsultasi = (string) optional($filteredJenisKonsultasi->first())->id;
+    }
+    $konsultasiPopupOptions = $filteredJenisKonsultasi
+        ->mapWithKeys(fn ($konsultasi) => [
+            (string) $konsultasi->id => $konsultasi->nama . ' - Rp ' . number_format($konsultasi->harga, 0, ',', '.'),
+        ])
+        ->all();
+@endphp
+
 @include('erm.partials.modal-alergipasien')
 
 <div class="container-fluid">
@@ -98,17 +113,6 @@
     <div class="d-flex align-items-center justify-content-between mb-0 mt-2">
         <div>
             <h3 class="mb-0">Catatan Perkembangan Pasien Terintegrasi</h3>
-        </div>
-        <div style="width: 400px;" class="d-flex align-items-center justify-content-end mt-2">
-            <select class="form-control select2" name="jenis_konsultasi" id="jenis_konsultasi" style="margin-right: 20px; flex-shrink: 0;">
-                <option value="" disabled>Pilih Jenis Konsultasi</option>
-                @foreach ($jenisKonsultasi as $konsultasi)
-                    <option value="{{ $konsultasi->id }}"
-                        {{ old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2) == $konsultasi->id ? 'selected' : '' }}>
-                        {{ $konsultasi->nama }} - Rp {{ $konsultasi->harga }}
-                    </option>
-                @endforeach
-            </select>
         </div>
     </div>
     <!-- Page-Title -->
@@ -480,6 +484,52 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
+    const konsultasiOptions = @json($konsultasiPopupOptions);
+    let selectedJenisKonsultasi = @json($defaultJenisKonsultasi);
+
+    async function promptJenisKonsultasi() {
+        const availableOptions = Object.keys(konsultasiOptions);
+
+        if (!availableOptions.length) {
+            await Swal.fire({
+                title: 'Biaya konsultasi tidak tersedia',
+                text: 'Tidak ada jenis konsultasi dengan nama yang mengandung "Konsultasi".',
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+            return null;
+        }
+
+        if (!availableOptions.includes(String(selectedJenisKonsultasi))) {
+            selectedJenisKonsultasi = availableOptions[0];
+        }
+
+        const result = await Swal.fire({
+            title: 'Pilih Biaya Konsultasi',
+            input: 'select',
+            inputOptions: konsultasiOptions,
+            inputValue: String(selectedJenisKonsultasi),
+            inputPlaceholder: 'Pilih biaya konsultasi',
+            showCancelButton: true,
+            confirmButtonText: 'Lanjut simpan',
+            cancelButtonText: 'Batal',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'Pilih biaya konsultasi terlebih dahulu.';
+                }
+
+                return undefined;
+            }
+        });
+
+        if (!result.value) {
+            return null;
+        }
+
+        selectedJenisKonsultasi = result.value;
+        return result.value;
+    }
+
     // Refresh CPPT history on page load
     var visitationId = $('input[name="visitation_id"]', '#form-cppt-soap').val() || $('input[name="visitation_id"]', '#form-cppt-sbar').val();
     if (visitationId) {
@@ -720,12 +770,16 @@ $(document).ready(function () {
     }
 
     // AJAX Submit - SOAP
-    $('#form-cppt-soap').on('submit', function(e) {
+    $('#form-cppt-soap').on('submit', async function(e) {
         e.preventDefault();
+        const jenisKonsultasi = await promptJenisKonsultasi();
+        if (!jenisKonsultasi) {
+            return;
+        }
+
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
-        // Add konsultasi value from top select
-        formData.set('jenis_konsultasi', $('#jenis_konsultasi').val());
+        formData.set('jenis_konsultasi', jenisKonsultasi);
 
         $.ajax({
             url: $(this).attr('action'),
@@ -750,12 +804,16 @@ $(document).ready(function () {
     });
 
     // AJAX Submit - SBAR
-    $('#form-cppt-sbar').on('submit', function(e) {
+    $('#form-cppt-sbar').on('submit', async function(e) {
         e.preventDefault();
+        const jenisKonsultasi = await promptJenisKonsultasi();
+        if (!jenisKonsultasi) {
+            return;
+        }
+
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
-        // Add konsultasi value from top select
-        formData.set('jenis_konsultasi', $('#jenis_konsultasi').val());
+        formData.set('jenis_konsultasi', jenisKonsultasi);
 
         $.ajax({
             url: $(this).attr('action'),

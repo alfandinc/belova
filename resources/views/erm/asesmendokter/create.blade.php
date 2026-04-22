@@ -5,6 +5,21 @@
 @endsection
 @section('content')
 
+@php
+    $filteredJenisKonsultasi = collect($jenisKonsultasi)
+        ->filter(fn ($konsultasi) => stripos($konsultasi->nama, 'Konsultasi') !== false)
+        ->values();
+    $defaultJenisKonsultasi = (string) old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2);
+    if (!$filteredJenisKonsultasi->contains('id', (int) $defaultJenisKonsultasi)) {
+        $defaultJenisKonsultasi = (string) optional($filteredJenisKonsultasi->first())->id;
+    }
+    $konsultasiPopupOptions = $filteredJenisKonsultasi
+        ->mapWithKeys(fn ($konsultasi) => [
+            (string) $konsultasi->id => $konsultasi->nama . ' - Rp ' . number_format($konsultasi->harga, 0, ',', '.'),
+        ])
+        ->all();
+@endphp
+
 @include('erm.partials.modal-alergipasien')
 
 <div class="container-fluid">
@@ -13,17 +28,7 @@
             <h3 class="mb-0">Asesmen Dokter<strong> {{ $visitation->dokter->spesialisasi->nama }}</h3>
             
         </div>
-        <div style="width: 400px;" class="d-flex align-items-center justify-content-end mt-2">
-
-            <select class="form-control select2" name="jenis_konsultasi" style="margin-right: 20px; flex-shrink: 0;">
-                <option value="" disabled>Pilih Jenis Konsultasi</option>
-                @foreach ($jenisKonsultasi as $konsultasi)
-                    <option value="{{ $konsultasi->id }}" 
-                        {{ old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2) == $konsultasi->id ? 'selected' : '' }}>
-                        {{ $konsultasi->nama }} - Rp {{ $konsultasi->harga }}
-                    </option>
-                @endforeach
-            </select>
+        <div class="d-flex align-items-center justify-content-end mt-2">
             <span id="timer" class="ml-3" style="font-size: 14px; color: white; background-color: #007bff; padding: 5px 10px; border-radius: 5px;">
                 00:00:00
             </span>
@@ -357,19 +362,24 @@
 <script>   
     let timerInterval;
     let secondsElapsed = parseInt(localStorage.getItem('secondsElapsed')) || 0;
+    const timerElement = document.getElementById('timer');
+    const konsultasiOptions = @json($konsultasiPopupOptions);
+    let selectedJenisKonsultasi = @json($defaultJenisKonsultasi);
 
     function updateTimer() {
         const hours = String(Math.floor(secondsElapsed / 3600)).padStart(2, '0');
         const minutes = String(Math.floor((secondsElapsed % 3600) / 60)).padStart(2, '0');
         const seconds = String(secondsElapsed % 60).padStart(2, '0');
-        document.getElementById('timer').textContent = `${hours}:${minutes}:${seconds}`;
+        if (timerElement) {
+            timerElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
         secondsElapsed++;
         localStorage.setItem('secondsElapsed', secondsElapsed);
 
         if (secondsElapsed === 840) {
-            const jenisKonsultasiSelect = document.querySelector('select[name="jenis_konsultasi"]');
-            jenisKonsultasiSelect.value = 2;
-            jenisKonsultasiSelect.dispatchEvent(new Event('change'));
+            if (Object.prototype.hasOwnProperty.call(konsultasiOptions, '2')) {
+                selectedJenisKonsultasi = '2';
+            }
         }
     }
 
@@ -383,6 +393,49 @@
     function startTimer() {
         stopTimer();
         timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    async function promptJenisKonsultasi() {
+        const availableOptions = Object.keys(konsultasiOptions);
+
+        if (!availableOptions.length) {
+            await Swal.fire({
+                title: 'Biaya konsultasi tidak tersedia',
+                text: 'Tidak ada jenis konsultasi dengan nama yang mengandung "Konsultasi".',
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+            return null;
+        }
+
+        if (!availableOptions.includes(String(selectedJenisKonsultasi))) {
+            selectedJenisKonsultasi = availableOptions[0];
+        }
+
+        const result = await Swal.fire({
+            title: 'Pilih Biaya Konsultasi',
+            input: 'select',
+            inputOptions: konsultasiOptions,
+            inputValue: String(selectedJenisKonsultasi),
+            inputPlaceholder: 'Pilih biaya konsultasi',
+            showCancelButton: true,
+            confirmButtonText: 'Lanjut simpan',
+            cancelButtonText: 'Batal',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'Pilih biaya konsultasi terlebih dahulu.';
+                }
+
+                return undefined;
+            }
+        });
+
+        if (!result.value) {
+            return null;
+        }
+
+        selectedJenisKonsultasi = result.value;
+        return result.value;
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -517,13 +570,17 @@
         }
     });
 
-    $('#asesmen-form').on('submit', function (e) {
+    $('#asesmen-form').on('submit', async function (e) {
         e.preventDefault();
+
+        const jenisKonsultasi = await promptJenisKonsultasi();
+        if (!jenisKonsultasi) {
+            return;
+        }
 
         let form = $(this);
         let formData = new FormData(this);
-        let jenisKonsultasi = $('select[name="jenis_konsultasi"]').val();
-            formData.append('jenis_konsultasi', jenisKonsultasi);
+        formData.set('jenis_konsultasi', jenisKonsultasi);
 
         $.ajax({
             url: form.attr('action'),
@@ -544,7 +601,9 @@
                 stopTimer(); // stop interval lama
                 secondsElapsed = 0;
                 localStorage.setItem('secondsElapsed', secondsElapsed);
-                timerElement.textContent = "00:00:00";
+                if (timerElement) {
+                    timerElement.textContent = "00:00:00";
+                }
                 startTimer(); // restart timer baru
             },
             error: function (xhr) {

@@ -469,19 +469,37 @@ class AsesmenController extends Controller
         // Ambil data jasa medis
         $jasa = Konsultasi::findOrFail($jenis_konsultasi);
 
-        $existing = Billing::where('visitation_id', $visitationId)
-            ->where('billable_id', $jasa->id)
+        $consultationBillings = Billing::where('visitation_id', $visitationId)
             ->where('billable_type', Konsultasi::class)
-            ->first();
+            ->whereHasMorph('billable', [Konsultasi::class], function ($query) {
+                $query->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%']);
+            })
+            ->orderBy('id')
+            ->get();
 
-        if (!$existing) {
-            Billing::create([
-                'visitation_id' => $visitationId,
+        $billing = $consultationBillings->first();
+
+        if ($billing) {
+            $billing->update([
                 'billable_id' => $jasa->id,
                 'billable_type' => Konsultasi::class,
                 'jumlah' => $jasa->harga,
                 'keterangan' => 'Tindakan: ' . $jasa->nama,
             ]);
+
+            if ($consultationBillings->count() > 1) {
+                Billing::whereIn('id', $consultationBillings->slice(1)->pluck('id'))->delete();
+            }
+
+            return;
         }
+
+        Billing::create([
+            'visitation_id' => $visitationId,
+            'billable_id' => $jasa->id,
+            'billable_type' => Konsultasi::class,
+            'jumlah' => $jasa->harga,
+            'keterangan' => 'Tindakan: ' . $jasa->nama,
+        ]);
     }
 }

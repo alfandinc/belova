@@ -135,20 +135,38 @@ class CPPTController extends Controller
 
         $jasa = \App\Models\ERM\Konsultasi::findOrFail($jenis_konsultasi);
 
-        $existing = \App\Models\Finance\Billing::where('visitation_id', $visitationId)
-            ->where('billable_id', $jasa->id)
+        $consultationBillings = \App\Models\Finance\Billing::where('visitation_id', $visitationId)
             ->where('billable_type', \App\Models\ERM\Konsultasi::class)
-            ->first();
+            ->whereHasMorph('billable', [\App\Models\ERM\Konsultasi::class], function ($query) {
+                $query->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%']);
+            })
+            ->orderBy('id')
+            ->get();
 
-        if (!$existing) {
-            \App\Models\Finance\Billing::create([
-                'visitation_id' => $visitationId,
+        $billing = $consultationBillings->first();
+
+        if ($billing) {
+            $billing->update([
                 'billable_id' => $jasa->id,
                 'billable_type' => \App\Models\ERM\Konsultasi::class,
                 'keterangan' => 'Tindakan: ' . $jasa->nama,
                 'jumlah' => $jasa->harga,
             ]);
+
+            if ($consultationBillings->count() > 1) {
+                \App\Models\Finance\Billing::whereIn('id', $consultationBillings->slice(1)->pluck('id'))->delete();
+            }
+
+            return;
         }
+
+        \App\Models\Finance\Billing::create([
+            'visitation_id' => $visitationId,
+            'billable_id' => $jasa->id,
+            'billable_type' => \App\Models\ERM\Konsultasi::class,
+            'keterangan' => 'Tindakan: ' . $jasa->nama,
+            'jumlah' => $jasa->harga,
+        ]);
     }
 
 
