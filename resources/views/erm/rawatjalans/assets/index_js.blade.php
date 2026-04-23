@@ -34,6 +34,14 @@
         }
     }
 
+    if (typeof window.__rawatjalanRealtimeNotificationSinceMs === 'undefined') {
+        window.__rawatjalanRealtimeNotificationSinceMs = Date.now();
+    }
+
+    function getRealtimeNotificationSinceMs() {
+        return window.__rawatjalanRealtimeNotificationSinceMs;
+    }
+
     if (!window.__rawatjalanShownDokterNotificationIds) {
         window.__rawatjalanShownDokterNotificationIds = getShownDokterNotificationIds();
     }
@@ -171,7 +179,9 @@
     }
 
     window.__rawatjalanPerawatNotifTimer = setInterval(function() {
-        $.get('/erm/get-notif', function(data) {
+        $.get('/erm/get-notif', {
+            since_ms: getRealtimeNotificationSinceMs()
+        }, function(data) {
             updateNotificationBadge(data.unread_count || 0);
             if (
                 data.new &&

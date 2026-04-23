@@ -190,7 +190,7 @@ class RawatJalanController extends Controller
     /**
      * Poll for unread notifications for Perawat
      */
-    public function getNotif()
+    public function getNotif(Request $request)
     {
         $user = Auth::user();
         $notificationClass = $this->notificationClassForUser($user);
@@ -199,8 +199,19 @@ class RawatJalanController extends Controller
             return response()->json(['new' => false, 'unread_count' => 0]);
         }
 
-        $notif = $user->unreadNotifications()
-            ->where('type', $notificationClass)
+        $latestUnreadQuery = $user->unreadNotifications()
+            ->where('type', $notificationClass);
+
+        if ($request->filled('since_ms')) {
+            try {
+                $since = Carbon::createFromTimestampMs((int) $request->input('since_ms'), config('app.timezone'));
+                $latestUnreadQuery->where('created_at', '>=', $since);
+            } catch (\Throwable $e) {
+                // Ignore invalid client timestamps and fall back to existing behavior.
+            }
+        }
+
+        $notif = $latestUnreadQuery
             ->latest()
             ->first();
         $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
