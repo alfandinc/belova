@@ -42,6 +42,7 @@
                                 <th>Jabatan</th>
                                 <th>Submitted</th>
                                 <th>Pending</th>
+                                <th>CEO</th>
                                 <th>Manager</th>
                                 <th>Head Manager</th>
                                 <th>HRD</th>
@@ -56,6 +57,7 @@
                                     <td>{{ optional($row['employee']->position)->name ?: '-' }}</td>
                                     <td>{{ $row['submitted_count'] }}</td>
                                     <td>{{ $row['pending_count'] }}</td>
+                                    <td>{{ $row['ceo_score'] ?? '-' }}</td>
                                     <td>{{ $row['manager_score'] ?? '-' }}</td>
                                     <td>{{ $row['head_manager_score'] ?? '-' }}</td>
                                     <td>{{ $row['hrd_score'] ?? '-' }}</td>
@@ -63,7 +65,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted">Belum ada assignment pada periode ini.</td>
+                                    <td colspan="10" class="text-center text-muted">Belum ada assignment pada periode ini.</td>
                                 </tr>
                             @endforelse
                         </tbody>

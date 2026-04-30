@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 class KpiAssessmentAssignmentService
 {
+    private const ROLE_CEO = ['Ceo', 'CEO', 'ceo'];
     private const ROLE_HRD = ['Hrd', 'HRD', 'hrd'];
     private const ROLE_MANAGER = ['Manager', 'manager'];
     private const ROLE_HEAD_MANAGER = ['Head Manager', 'HeadManager', 'HEAD MANAGER', 'head manager', 'Head_Manager'];
@@ -65,6 +66,7 @@ class KpiAssessmentAssignmentService
             })
             ->get();
 
+        $ceo = $this->firstByRole($employees, self::ROLE_CEO);
         $hrd = $this->firstByRole($employees, self::ROLE_HRD);
         $headManager = $this->firstHeadManager($employees);
         $divisionManagers = $employees
@@ -74,6 +76,9 @@ class KpiAssessmentAssignmentService
 
         foreach ($employees as $employee) {
             if ($this->isHeadManager($employee)) {
+                if ($ceo) {
+                    $this->createAssignment($period, $employee, $ceo, 'ceo');
+                }
                 if ($hrd) {
                     $this->createAssignment($period, $employee, $hrd, 'hrd');
                 }

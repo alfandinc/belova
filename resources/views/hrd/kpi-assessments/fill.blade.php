@@ -30,7 +30,7 @@
                 <div class="mb-3">
                     <span class="badge badge-info">Role assessor: {{ strtoupper(str_replace('_', ' ', $assessment->evaluator_type)) }}</span>
                     <span class="badge badge-secondary">
-                        {{ $assessment->evaluator_type === 'hrd' ? 'Global Only' : ($assessment->evaluator_type === 'manager' ? 'Technical Only' : 'Global + Technical') }}
+                        {{ in_array($assessment->evaluator_type, ['hrd', 'ceo'], true) ? 'Global Only' : ($assessment->evaluator_type === 'manager' ? 'Technical Only' : 'Global + Technical') }}
                     </span>
                 </div>
 

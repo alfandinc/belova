@@ -206,7 +206,7 @@ class KpiAssessmentIndicatorController extends Controller
 
     private function scopeRequiresGlobal(string $scope): bool
     {
-        return in_array($scope, ['hrd_to_all', 'hrd_to_employee', 'hrd_to_manager', 'hrd_to_head_manager', 'head_manager_to_manager', 'head_manager_to_hrd'], true);
+        return in_array($scope, ['hrd_to_all', 'hrd_to_employee', 'hrd_to_manager', 'hrd_to_head_manager', 'ceo_to_head_manager', 'head_manager_to_manager', 'head_manager_to_hrd'], true);
     }
 
     private function scopeRequiresTechnical(string $scope): bool
@@ -267,6 +267,13 @@ class KpiAssessmentIndicatorController extends Controller
             $headManagerIndicators = $this->filterIndicatorsForPosition($activeIndicators, $position->id, ['head_manager_to_hrd']);
             if ($headManagerIndicators->isNotEmpty()) {
                 $sections->push($this->makePreviewSection('Dinilai Head Manager', $headManagerIndicators, 'Head Manager', $effectiveWeights));
+            }
+        }
+
+        if ($targetRole === 'head_manager') {
+            $ceoIndicators = $this->filterIndicatorsForPosition($activeIndicators, $position->id, ['ceo_to_head_manager']);
+            if ($ceoIndicators->isNotEmpty()) {
+                $sections->push($this->makePreviewSection('Dinilai CEO', $ceoIndicators, 'CEO', $effectiveWeights));
             }
         }
 

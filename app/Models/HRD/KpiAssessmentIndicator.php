@@ -14,6 +14,7 @@ class KpiAssessmentIndicator extends Model
         'hrd_to_employee' => 'HRD -> Employee',
         'hrd_to_manager' => 'HRD -> Manager',
         'hrd_to_head_manager' => 'HRD -> Head Manager',
+        'ceo_to_head_manager' => 'CEO -> Head Manager',
         'manager_to_employee' => 'Manager -> Employee',
         'head_manager_to_manager' => 'Head Manager -> Manager',
         'head_manager_to_hrd' => 'Head Manager -> HRD',

@@ -96,6 +96,7 @@ class KpiAssessmentPeriodController extends Controller
                 'submitted_count' => $group->where('status', 'submitted')->count(),
                 'pending_count' => $group->where('status', 'pending')->count(),
                 'total_score' => $this->calculateFinalScore($group),
+                'ceo_score' => optional($group->firstWhere('evaluator_type', 'ceo'))->total_score,
                 'manager_score' => optional($group->firstWhere('evaluator_type', 'manager'))->total_score,
                 'hrd_score' => optional($group->firstWhere('evaluator_type', 'hrd'))->total_score,
                 'head_manager_score' => optional($group->firstWhere('evaluator_type', 'head_manager'))->total_score,

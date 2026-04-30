@@ -32,7 +32,7 @@ class KpiAssessmentWeightService
     {
         return match ($targetRole) {
             'hrd' => ['head_manager_to_hrd'],
-            'head_manager' => ['hrd_to_all', 'hrd_to_head_manager'],
+            'head_manager' => ['hrd_to_all', 'hrd_to_head_manager', 'ceo_to_head_manager'],
             'manager' => ['hrd_to_all', 'hrd_to_manager', 'head_manager_to_manager'],
             default => ['hrd_to_all', 'hrd_to_employee', 'manager_to_employee'],
         };

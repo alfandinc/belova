@@ -135,6 +135,10 @@ class KpiAssessmentController extends Controller
                 : ['head_manager_to_manager'];
         }
 
+        if ($assessment->evaluator_type === 'ceo') {
+            return ['ceo_to_head_manager'];
+        }
+
         if ($assessment->evaluator_type === 'hrd') {
             if ($this->isHeadManagerTarget($assessment)) {
                 return ['hrd_to_all', 'hrd_to_head_manager'];
