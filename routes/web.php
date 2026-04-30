@@ -67,7 +67,10 @@ use App\Http\Controllers\HRD\{
     PengajuanLiburController,
     PerformanceEvaluationController,
     PerformanceQuestionController,
-    PerformanceScoreController
+    PerformanceScoreController,
+    KpiAssessmentController,
+    KpiAssessmentIndicatorController,
+    KpiAssessmentPeriodController
     ,JobListController
 };
 
@@ -1503,6 +1506,28 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         // Employee Self Service Routes
 
         Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
+
+        Route::prefix('kpi-assessments')->name('hrd.kpi_assessments.')->group(function () {
+            Route::get('/my', [KpiAssessmentController::class, 'myAssessments'])->name('my');
+            Route::get('/assessments/{assessment}', [KpiAssessmentController::class, 'fill'])->name('fill');
+            Route::post('/assessments/{assessment}/submit', [KpiAssessmentController::class, 'submit'])->name('submit');
+
+            Route::middleware('role:Hrd|Admin')->group(function () {
+                Route::get('/periods', [KpiAssessmentPeriodController::class, 'index'])->name('periods.index');
+                Route::post('/periods', [KpiAssessmentPeriodController::class, 'store'])->name('periods.store');
+                Route::get('/periods/{period}', [KpiAssessmentPeriodController::class, 'show'])->name('periods.show');
+                Route::post('/periods/{period}/close', [KpiAssessmentPeriodController::class, 'close'])->name('periods.close');
+            });
+
+            Route::middleware('role:Admin')->group(function () {
+                Route::get('/indicators', [KpiAssessmentIndicatorController::class, 'index'])->name('indicators.index');
+                Route::get('/indicators/preview-data', [KpiAssessmentIndicatorController::class, 'previewData'])->name('indicators.preview.data');
+                Route::get('/indicators/preview/{position}', [KpiAssessmentIndicatorController::class, 'previewShow'])->name('indicators.preview.show');
+                Route::post('/indicators', [KpiAssessmentIndicatorController::class, 'store'])->name('indicators.store');
+                Route::put('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'update'])->name('indicators.update');
+                Route::delete('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'destroy'])->name('indicators.destroy');
+            });
+        });
         Route::get('/profile/edit-modal', [EmployeeSelfServiceController::class, 'getEditProfileModal'])->name('hrd.employee.profile.modal');
         Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
 
