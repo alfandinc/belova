@@ -231,40 +231,6 @@
                 </a>
             </li>
             
-            <!-- Performance Evaluations - Visible to all authenticated users -->
-            <li>
-                <a href="javascript: void(0);"> <i data-feather="award" class="align-self-center menu-icon"></i><span>Penilaian Kinerja</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Saya</a></li>
-                    
-                    {{-- <!-- For Managers: Team Evaluations -->
-                    @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Tim</a></li>
-                    @endif --}}
-                    
-                    <!-- For HRD and CEO: Full Performance Management -->
-                    @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
-                    @php
-                        if (!class_exists('App\\Models\\HRD\\PerformanceEvaluationPeriod')) {
-                            eval('namespace App\\Models\\HRD; class PerformanceEvaluationPeriod extends \\Illuminate\\Database\\Eloquent\\Model {}');
-                        }
-                        $activePeriods = 0;
-                        try {
-                            $activePeriods = \App\Models\HRD\PerformanceEvaluationPeriod::where('status', 'Active')->count();
-                        } catch (Exception $e) {
-                            $activePeriods = 0;
-                        }
-                    @endphp
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.periods.index') }}"><i class="ti-control-record"></i>Periode Penilaian
-                        @if($activePeriods > 0)
-                            <span class="badge badge-success ml-1">{{ $activePeriods }}</span>
-                        @endif
-                    </a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.questions.index') }}"><i class="ti-control-record"></i>Kelola Pertanyaan</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.results.index') }}"><i class="ti-control-record"></i>Hasil Penilaian</a></li>
-                    @endif
-                </ul>
-            </li>
 
             <li>
                 <a href="javascript: void(0);"> <i data-feather="target" class="align-self-center menu-icon"></i><span>KPI Assessment</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
