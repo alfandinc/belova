@@ -14,7 +14,7 @@ class HRDDashboardController extends Controller
 {
     public function index(Request $request)
     {
-        if (!Auth::check() || !Auth::user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Employee')) {
+        if (!Auth::check() || !Auth::user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Head Manager', 'Employee', 'Admin')) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 
@@ -114,7 +114,7 @@ class HRDDashboardController extends Controller
     // AJAX: pending approvals list filtered by date range, no page reload
     public function pendingApprovals(Request $request)
     {
-        if (!Auth::check() || !Auth::user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Employee', 'Admin')) {
+        if (!Auth::check() || !Auth::user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Head Manager', 'Employee', 'Admin')) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
