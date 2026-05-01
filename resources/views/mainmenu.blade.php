@@ -1021,8 +1021,8 @@
                 </a>
 
                 <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
-                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee"
-                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Finance','Admin']))
+                     <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee"
+                         @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Finance','Admin']))
                        onclick="showRoleWarning(event, 'HRD')"
                    @endif>
                     <div class="menu-top">
@@ -1033,8 +1033,8 @@
                     <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
-                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
-                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                     <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
+                         @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
                    @endif>
                     <div class="menu-top">
@@ -1050,8 +1050,8 @@
                     <div class="menu-sub">SOP & Template</div>
                 </a>
 
-                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8" data-filter="laporan reports analytics"
-                   @if(!array_intersect($userRoles, ['Manager','Hrd','Admin','Finance','Farmasi']))
+                     <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8" data-filter="laporan reports analytics"
+                         @if(!array_intersect($userRoles, ['Manager','Head Manager','Hrd','Admin','Finance','Farmasi']))
                        onclick="showRoleWarning(event, 'Laporan')"
                    @endif>
                     <div class="menu-top">
@@ -1100,8 +1100,8 @@
                     <div class="menu-sub">Barang & Persediaan</div>
                 </a>
 
-                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12" data-filter="akreditasi quality compliance"
-                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                     <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12" data-filter="akreditasi quality compliance"
+                         @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Akreditasi')"
                    @endif>
                     <div class="menu-top">
@@ -1113,7 +1113,7 @@
                 </a>
 
                 <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13" data-filter="insiden laporan kecelakaan"
-                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'INSIDEN')"
                     @endif>
                     <div class="menu-top">
@@ -1204,7 +1204,7 @@
                 @php
                     // Allow access only to users with role 'Satusehat' or 'Admin'
                     $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;
-                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Admin'])) > 0;
+                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Head Manager','Admin'])) > 0;
                 @endphp
                 <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
                    @if(!$hasSatusehatAccess)

@@ -24,8 +24,8 @@
                     <div class="mr-3">
                         @php
                             $user = Auth::user();
-                            $isManager = $user && $user->hasRole('Manager');
-                            $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
+                            $isManager = $user && $user->hasAnyRole(['Manager', 'Head Manager']);
+                            $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Head Manager','Admin','Hrd']);
                             $isEmployeeOnly = $user && !$isManager && !$isGlobalRole;
                             $defaultForManager = '';
                             if ($isEmployeeOnly) $defaultForManager = '0';
@@ -38,8 +38,8 @@
                         </select>
                     </div>
                     <div>
-                        @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']); @endphp
-                        @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
+                        @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Head Manager','Admin','Hrd']); @endphp
+                        @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Head Manager','Ceo']))
                             <select id="filter_division" class="form-control form-control-sm">
                                 <option value="" @if($isGlobalRole) selected @endif>Semua Division</option>
                                 @foreach($divisions as $d)
@@ -142,7 +142,7 @@
                 <div class="form-group col-md-6">
                     <label>Division</label>
                     @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; @endphp
-                    @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
+                    @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Head Manager','Ceo']))
                         <select name="divisions[]" id="divisions" class="form-control" multiple style="height:120px;">
                             @foreach($divisions as $d)
                                 <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>

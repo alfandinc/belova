@@ -118,8 +118,8 @@ Route::get('/', function () {
     if (!$user) {
         $inProgressCount = 0;
     } else {
-        // CEO, Admin, and Hrd see all progress items
-            if ($user->hasAnyRole(['Ceo', 'Admin', 'Hrd'])) {
+        // CEO, Head Manager, Admin, and Hrd see all progress items
+            if ($user->hasAnyRole(['Ceo', 'Head Manager', 'Admin', 'Hrd'])) {
             $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')->count();
         }
         // Manager sees items assigned to their division (including all_divisions)
@@ -187,7 +187,7 @@ Route::middleware(['auth'])->group(function () {
     // Daily Journal (accessible for all authenticated users)
     Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
     Route::get('/daily-journal/division', [DailyJournalController::class, 'divisionIndex'])
-        ->middleware('role:Manager|Hrd|Admin')
+        ->middleware('role:Manager|Head Manager|Hrd|Admin')
         ->name('daily-journal.division.index');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
     Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');
@@ -210,7 +210,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
+        ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
     // AJAX: generate next employee `no_induk` in YYMMXXX format
     Route::get('hrd/employee/next-no-induk', [App\Http\Controllers\HRD\EmployeeController::class, 'nextNoInduk'])
@@ -230,20 +230,20 @@ Route::middleware(['auth'])->group(function () {
         ->name('marketing.dashboard');
 
     Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Employee|Admin')
+        ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')
         ->name('workdoc.dashboard');
 
     Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Employee|Admin')
+        ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')
         ->name('akreditasi.dashboard');
 
     // Insiden menu (Admin & Hrd roles)
     Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
-        ->middleware('role:Admin|Hrd|Manager|Employee')
+        ->middleware('role:Admin|Hrd|Manager|Head Manager|Employee')
         ->name('insiden.dashboard');
 
     Route::get('/laporan', [LaporanDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Admin|Kasir|Finance')
+        ->middleware('role:Hrd|Manager|Head Manager|Admin|Kasir|Finance')
         ->name('laporan.dashboard');
 
     Route::get('/bcl', [BCLDashboardController::class, 'index'])
@@ -372,7 +372,7 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->name('running.wa_preview');
 
 // CEO Dashboard - executive analytics module
-Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Admin'])->group(function () {
+Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Head Manager|Admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\CeoDashboardController::class, 'index'])
         ->name('index');
     Route::get('/daily-tasks/reported', [\App\Http\Controllers\CeoDashboardController::class, 'reportedDailyTasks'])
@@ -556,7 +556,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
 
 
 //LAPORAN Routes
-Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin|Finance|Farmasi')->group(function () {
+Route::prefix('laporan')->middleware('role:Hrd|Manager|Head Manager|Admin|Finance|Farmasi')->group(function () {
     // AJAX endpoint for HRD Rekap Kehadiran DataTable
     Route::get('/hrd/rekap-kehadiran/data', [\App\Http\Controllers\Laporan\HRDController::class, 'rekapKehadiranData'])->name('laporan.hrd.rekap-kehadiran.data');
     Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
@@ -1123,7 +1123,7 @@ Route::prefix('erm')->middleware('role:Dokter|Admin|Farmasi')->group(function ()
     Route::get('/aturan-pakai/list/active', [AturanPakaiController::class, 'listActive'])->name('erm.aturan-pakai.list.active');
 });
 
-Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('workdoc')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
     Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
     Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('workdoc.documents.index');
     
@@ -1188,7 +1188,7 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
 });
 
 
-Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
     // BAB CRUD
     Route::get('/bab', [AkreditasiController::class, 'index'])->name('akreditasi.index');
     Route::post('/bab', [AkreditasiController::class, 'storeBab'])->name('akreditasi.bab.store');
@@ -1217,7 +1217,7 @@ Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Employee|Admin')->grou
 });
 
 
-Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Hrd')->group(function () {
+Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
         Route::get('/transactions', [FinanceTransactionController::class, 'index'])->name('finance.transactions.index');
         Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
@@ -1368,7 +1368,7 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
     }
 );
 
-Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(function () {
+Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')->group(function () {
     Route::get('/dokter-schedule/print', [\App\Http\Controllers\HRD\DokterSchedulePrintController::class, 'print'])->name('hrd.dokter-schedule.print');
     // Jadwal Karyawan Print (Employee)
     Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
@@ -1820,7 +1820,7 @@ Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
 });
 
 
-Route::prefix('insiden')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('insiden')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
 
     Route::get('laporan_insiden/division-select2', [LaporanInsidenController::class, 'divisionSelect2'])->name('insiden.laporan_insiden.division-select2');
     Route::get('laporan_insiden', [LaporanInsidenController::class, 'index'])->name('insiden.laporan_insiden.index');
@@ -2016,7 +2016,7 @@ Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliControlle
     Route::get('/erm/division-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'divisionSelect2'])->name('erm.division.select2');
 
     // Payroll Master Routes
-Route::prefix('hrd/payroll/master')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/master')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/gajipokok', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatableGajiPokok']);
     Route::post('/gajipokok', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storeGajiPokok']);
     Route::put('/gajipokok/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updateGajiPokok']);
@@ -2046,7 +2046,7 @@ Route::prefix('hrd/payroll/master')->middleware(['auth', 'role:Hrd|Admin|Manager
 });
 
 // Payroll Insentif Omset Routes
-Route::prefix('hrd/payroll/insentif-omset')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/insentif-omset')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'index'])->name('hrd.payroll.insentif_omset.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'data'])->name('hrd.payroll.insentif_omset.data');
     Route::post('/', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'store'])->name('hrd.payroll.insentif_omset.store');
@@ -2055,7 +2055,7 @@ Route::prefix('hrd/payroll/insentif-omset')->middleware(['auth', 'role:Hrd|Admin
 });
 
 // Payroll KPI Routes
-Route::prefix('hrd/payroll/kpi')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/kpi')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrKpiController::class, 'index'])->name('hrd.payroll.kpi.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrKpiController::class, 'data'])->name('hrd.payroll.kpi.data');
     Route::post('/', [App\Http\Controllers\HRD\PrKpiController::class, 'store'])->name('hrd.payroll.kpi.store');
@@ -2087,14 +2087,14 @@ Route::get('hrd/payroll/slip-gaji/history/data', [App\Http\Controllers\HRD\PrSli
     ->name('hrd.payroll.slip_gaji.history.data');
 
 // Payroll Slip Gaji Routes
-Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manager|Hrd|Admin|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manager|Head Manager|Hrd|Admin|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'index'])->name('hrd.payroll.slip_gaji.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'data'])->name('hrd.payroll.slip_gaji.data');
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
     Route::put('/status/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'changeStatus'])->name('hrd.payroll.slip_gaji.status');
     Route::post('/update/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'update'])->name('hrd.payroll.slip_gaji.update');
     Route::post('/bulk-status', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'bulkStatus'])
-        ->middleware(['role:Hrd|Admin|Manager|Ceo'])
+        ->middleware(['role:Hrd|Admin|Manager|Head Manager|Ceo'])
         ->name('hrd.payroll.slip_gaji.bulk_status');
     Route::post('/sync', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'sync'])->name('hrd.payroll.slip_gaji.sync');
     Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'print']);
@@ -2123,7 +2123,7 @@ Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\Pr
 // WhatsApp integration test/debug routes removed
 
 // Payroll Slip Gaji Dokter (standalone slips for Dokter)
-Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'index'])->name('hrd.payroll.slip_gaji_dokter.index');
     Route::get('/data', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'data'])->name('hrd.payroll.slip_gaji_dokter.data');
     Route::post('/store', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'store'])->name('hrd.payroll.slip_gaji_dokter.store');
@@ -2160,7 +2160,7 @@ Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
 });
 
 // Workdoc - Surat Keluar
-Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('workdoc')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
     Route::get('/surat-keluar', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'index'])->name('workdoc.surat-keluar.index');
     Route::get('/surat-keluar/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'list'])->name('workdoc.surat-keluar.list');
     // generator route (role-protected) - placed before parameterized routes

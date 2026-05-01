@@ -8,7 +8,7 @@
 
 @section('content')
     @php
-        $canOpenWorkdoc = auth()->check() && auth()->user()->hasAnyRole(['Hrd', 'Manager', 'Employee', 'Admin']);
+        $canOpenWorkdoc = auth()->check() && auth()->user()->hasAnyRole(['Hrd', 'Manager', 'Head Manager', 'Employee', 'Admin']);
 
         $clinicCards = [
             [

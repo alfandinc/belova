@@ -65,7 +65,7 @@
                                 </a>
                             </li>
                             @endif
-                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
+                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager','Head Manager'))
                                 <li class="nav-item">
                                     <a class="nav-link" href="{{ route('hrd.dokter-schedule.index') }}">
                                         <i class="ti-control-record"></i>Jadwal Dokter
@@ -77,7 +77,7 @@
                     </li>
                 {{-- @endif --}}
             <!-- Catatan Dosa - New Feature -->
-                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
+                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager','Head Manager'))
                 @php
                     // Query jumlah catatan dosa dengan status 'dalam proses'
                     try {
@@ -106,7 +106,7 @@
                                 $pendingLiburHRD = PengajuanLibur::where('status_manager', 'disetujui')
                                     ->where('status_hrd', 'menunggu')->count();
                             }
-                            if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                            if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
                                 $pendingLiburManager = PengajuanLibur::where('status_manager', 'menunggu')->count();
                             }
                         }
@@ -115,7 +115,7 @@
                         @if($pendingLiburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                             <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
                         @endif
-                        @if($pendingLiburManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                        @if($pendingLiburManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
                             <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
                         @endif
                     </a>
@@ -135,7 +135,7 @@
                               });
                         })->count();
                     }
-                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                    if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
                         $pendingTidakMasukManager = PengajuanTidakMasuk::whereNull('status_manager')->count();
                     }
                 }
@@ -147,7 +147,7 @@
                     @if($pendingTidakMasukHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingTidakMasukHRD }}</span>
                     @endif
-                    @if($pendingTidakMasukManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                    @if($pendingTidakMasukManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
                         <span class="badge badge-info ml-1">{{ $pendingTidakMasukManager }}</span>
                     @endif
                 </a>
@@ -169,7 +169,7 @@
                               });
                         })->count();
                     }
-                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                    if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
                         $pendingLemburManager = \App\Models\HRD\PengajuanLembur::whereNull('status_manager')->count();
                     }
                 }
@@ -181,7 +181,7 @@
                     @if($pendingLemburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
                     @endif
-                    @if($pendingLemburManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                    @if($pendingLemburManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
                         <span class="badge badge-info ml-1">{{ $pendingLemburManager }}</span>
                     @endif
                 </a>
@@ -204,7 +204,7 @@
                                     })->count();
                             }
 
-                            if (Auth::user()->hasAnyRole('Manager','Admin')) {
+                            if (Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
                                 // Pending for Manager: status_manager explicitly 'menunggu' or null
                                 $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::where(function($q){
                                     $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');
@@ -225,7 +225,7 @@
                     @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
                     @endif
-                    @if($pendingGantiShiftManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                    @if($pendingGantiShiftManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
                         <span class="badge badge-info ml-1">{{ $pendingGantiShiftManager }}</span>
                     @endif
                 </a>
@@ -246,7 +246,7 @@
             </li>
             
             <!-- For Managers: Team Management -->
-            @if(Auth::check() && Auth::user()->hasRole('Manager'))
+            @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Head Manager'))
             <li>
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Divisi Saya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
@@ -257,7 +257,7 @@
             @endif
             
             <!-- For HRD and CEO: Employee Management -->
-            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
+            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Head Manager','Admin')))
             <li>
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Kepegawaian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
@@ -272,13 +272,13 @@
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Payroll</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
+                            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Head Manager','Admin')))
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji.index') }}"><i class="ti-control-record"></i>Payroll Karyawan</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji_dokter.index') }}"><i class="ti-control-record"></i>Payroll Dokter</a></li>
                             @endif
 
-                            @if(Auth::check() && (Auth::user()->hasRole('Hrd') || (Auth::user()->hasRole('Manager') && Auth::user()->hasRole('Finance'))))
+                            @if(Auth::check() && (Auth::user()->hasRole('Hrd') || (Auth::user()->hasAnyRole('Manager','Head Manager') && Auth::user()->hasRole('Finance'))))
                             <li class="nav-item"><a class="nav-link" href="#" onclick="checkGajiDokter(event)"><i class="ti-control-record"></i>Gaji Dokter</a></li>
                             @endif
 

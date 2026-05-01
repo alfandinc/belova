@@ -32,7 +32,7 @@
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
             <li class="menu-label mt-0">Main</li>
-            @hasanyrole('Admin|Finance|Manager|Hrd|Farmasi')
+            @hasanyrole('Admin|Finance|Manager|Head Manager|Hrd|Farmasi')
             
             <li>
                 <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
@@ -41,7 +41,7 @@
                 </ul>
             </li>
             @endhasanyrole
-            @hasanyrole('Admin|Finance|Manager|Hrd|Farmasi')
+            @hasanyrole('Admin|Finance|Manager|Head Manager|Hrd|Farmasi')
             <li>
                 <a class="nav-link" href="/laporan/farmasi">
                     <i data-feather="activity" class="align-self-center menu-icon"></i>
@@ -49,7 +49,7 @@
                 </a>
             </li>
             @endhasanyrole
-            @hasanyrole('Admin|Manager|Hrd')
+            @hasanyrole('Admin|Manager|Head Manager|Hrd')
             <li>
                 <a class="nav-link" href="/laporan/laboratorium">
                     <i data-feather="file-text" class="align-self-center menu-icon"></i>
@@ -57,7 +57,7 @@
                 </a>
             </li>
             @endhasanyrole
-            @hasanyrole('Admin|Manager|Hrd')
+            @hasanyrole('Admin|Manager|Head Manager|Hrd')
             <li>
                 <a href="javascript:void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Laporan HRD</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">

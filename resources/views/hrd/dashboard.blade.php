@@ -4,7 +4,7 @@
     @include('layouts.hrd.navbar')
 @endsection  
 @section('content')
-@hasanyrole('Hrd|Admin')
+@hasanyrole('Hrd|Admin|Ceo|Head Manager')
 <div class="container hrd-dashboard">
     <style>
         /* Scoped dashboard tweaks */
