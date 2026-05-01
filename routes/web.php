@@ -218,7 +218,7 @@ Route::middleware(['auth'])->group(function () {
     // Memorandum routes moved to Workdoc section
     // AJAX: Pending approvals filtered by date range (no reload)
     Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
-        ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
+        ->middleware('role:Hrd|Manager|Employee|Admin|Ceo|Head Manager')
         ->name('hrd.dashboard.pending');
 
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])
@@ -1521,8 +1521,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 
             Route::middleware('role:Admin')->group(function () {
                 Route::get('/indicators', [KpiAssessmentIndicatorController::class, 'index'])->name('indicators.index');
-                Route::get('/indicators/preview-data', [KpiAssessmentIndicatorController::class, 'previewData'])->name('indicators.preview.data');
-                Route::get('/indicators/preview/{position}', [KpiAssessmentIndicatorController::class, 'previewShow'])->name('indicators.preview.show');
                 Route::post('/indicators', [KpiAssessmentIndicatorController::class, 'store'])->name('indicators.store');
                 Route::put('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'update'])->name('indicators.update');
                 Route::delete('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'destroy'])->name('indicators.destroy');
