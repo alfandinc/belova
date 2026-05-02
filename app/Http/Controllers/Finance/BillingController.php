@@ -3831,8 +3831,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
                 });
         } elseif ($statusFilter === 'belum') {
-            // "Belum Transaksi": no invoice OR invoice exists but no payment yet (amount_paid == 0)
-            // Exclude pure piutang invoices (payment_method == 'piutang') because those belong to Piutang bucket.
+            // "Belum Transaksi": no invoice OR invoice exists but payment has not been processed yet.
+            // Insurance invoices are processed through piutang-like settlement and should not stay in this bucket.
             // AND ensure they have at least one billing item (respect includeDeleted)
             $visitations->where(function($query) use ($includeDeleted) {
                 $query->where(function($q) {
@@ -3841,7 +3841,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                   $iq->where('amount_paid', 0)
                                      ->where(function($pm) {
                                          $pm->whereNull('payment_method')
-                                            ->orWhere('payment_method', '!=', 'piutang');
+                                            ->orWhere('payment_method', '');
                                      });
                             });
                       })
@@ -3855,7 +3855,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                       });
             });
         } elseif ($statusFilter === 'belum_lunas') {
-            // "Belum Lunas": partially paid (cash/transfer/etc) OR piutang with partial payment
+            // "Belum Lunas": partially paid (cash/transfer/etc) OR insurance/piutang not fully settled
             $visitations->whereHas('invoice', function($q) {
                 $q->where(function($qq) {
                     $qq->where(function($n) {
@@ -3866,13 +3866,38 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                           ->whereHas('piutangs', function($pq) {
                               $pq->where('payment_status', 'partial');
                           });
+                    })->orWhere(function($insurance) {
+                        $insurance->where('payment_method', 'like', 'asuransi_%')
+                            ->where(function($piu) {
+                                $piu->whereDoesntHave('piutangs')
+                                    ->orWhereHas('piutangs', function($pq) {
+                                        $pq->where(function($status) {
+                                            $status->whereNull('payment_status')
+                                                ->orWhereRaw('LOWER(payment_status) in (?, ?)', ['unpaid', 'partial']);
+                                        });
+                                    });
+                            });
                     });
                 });
             });
         } elseif ($statusFilter === 'sudah') {
-            // "Lunas": fully paid invoice (including those originally piutang but later settled)
+            // "Lunas": fully paid invoice (including piutang/insurance invoices settled via piutang record)
             $visitations->whereHas('invoice', function($q) {
-                $q->whereColumn('amount_paid', '>=', 'total_amount');
+                $q->where(function($paid) {
+                    $paid->whereColumn('amount_paid', '>=', 'total_amount')
+                        ->orWhere(function($piu) {
+                            $piu->where('payment_method', 'piutang')
+                                ->whereHas('piutangs', function($pq) {
+                                    $pq->whereRaw('LOWER(payment_status) = ?', ['paid']);
+                                });
+                        })
+                        ->orWhere(function($insurance) {
+                            $insurance->where('payment_method', 'like', 'asuransi_%')
+                                ->whereHas('piutangs', function($pq) {
+                                    $pq->whereRaw('LOWER(payment_status) = ?', ['paid']);
+                                });
+                        });
+                });
             });
         } elseif ($statusFilter === 'piutang') {
             // Visitations where invoice.payment_method is piutang
@@ -3988,14 +4013,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                         $amountPaid = floatval($invoice->amount_paid ?? 0);
                         $totalAmount = floatval($invoice->total_amount ?? 0);
+                        $paymentMethod = strtolower((string)($invoice->payment_method ?? ''));
 
                         // Fully paid (normal or after piutang settlement)
                         if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
                             return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
                         }
 
-                        // Piutang flow: show Piutang / Belum Lunas depending on Piutang.payment_status
-                        if (isset($invoice->payment_method) && $invoice->payment_method === 'piutang') {
+                        // Piutang-like flow: insurance follows piutang settlement status.
+                        if ($paymentMethod === 'piutang' || str_starts_with($paymentMethod, 'asuransi_')) {
                             $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
                             $status = $piutang && isset($piutang->payment_status) ? strtolower((string)$piutang->payment_status) : null;
 
@@ -4006,8 +4032,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
                             }
 
-                            // unpaid/unknown piutang -> Piutang
-                            return '<span style="color: #fff; background: #17a2b8; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Piutang</span>';
+                            if ($paymentMethod === 'piutang') {
+                                return '<span style="color: #fff; background: #17a2b8; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Piutang</span>';
+                            }
+
+                            return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
                         }
 
                         // Partially paid (non-piutang)
@@ -4111,15 +4140,26 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // 2) Has invoice but not fully paid (Belum Transaksi / Belum Lunas / Piutang not paid)
                 ->orWhereHas('invoice', function ($inv) {
                     $inv->where(function ($x) {
-                        // Non-piutang: not fully paid
+                        // Normal non-piutang: not fully paid
                         $x->where(function ($pm) {
                             $pm->whereNull('payment_method')
-                               ->orWhere('payment_method', '!=', 'piutang');
+                               ->orWhere('payment_method', '');
                         })->where(function ($paid) {
                             $paid->whereNull('total_amount')
                                  ->orWhere('total_amount', '<=', 0)
                                  ->orWhereColumn('amount_paid', '<', 'total_amount');
                         });
+                    })->orWhere(function ($insurance) {
+                        $insurance->where('payment_method', 'like', 'asuransi_%')
+                            ->where(function ($ps) {
+                                $ps->whereDoesntHave('piutangs')
+                                   ->orWhereHas('piutangs', function ($pq) {
+                                       $pq->where(function ($s) {
+                                           $s->whereNull('payment_status')
+                                             ->orWhereRaw('LOWER(payment_status) != ?', ['paid']);
+                                       });
+                                   });
+                            });
                     })->orWhere(function ($piu) {
                         // Piutang: include unless status is paid
                         $piu->where('payment_method', 'piutang')

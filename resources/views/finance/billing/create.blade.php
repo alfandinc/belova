@@ -100,7 +100,7 @@
                     const paid = Math.ceil(Number(amountPaid || 0)) >= Math.ceil(Number(totalAmount || 0)) && Number(totalAmount || 0) > 0;
                     const partial = Number(amountPaid || 0) > 0 && Number(totalAmount || 0) > 0 && Number(amountPaid || 0) < Number(totalAmount || 0);
 
-                    if (pm === 'piutang') {
+                    if (pm === 'piutang' || pm.startsWith('asuransi_')) {
                         const ps = (piutangPaymentStatus || '').toString().trim().toLowerCase();
                         if (ps === 'paid') {
                             text = 'Lunas';
@@ -109,8 +109,13 @@
                             text = 'Belum Lunas';
                             bg = '#ffc107';
                         } else {
-                            text = 'Piutang';
-                            bg = '#17a2b8';
+                            if (pm === 'piutang') {
+                                text = 'Piutang';
+                                bg = '#17a2b8';
+                            } else {
+                                text = 'Belum Lunas';
+                                bg = '#ffc107';
+                            }
                         }
                     } else {
                         if (paid) {
@@ -373,7 +378,7 @@
                             } elseif (!$hasInvoice) {
                                 $badgeText = 'Belum Transaksi';
                                 $badgeBg = '#dc3545';
-                            } elseif ($paymentMethod === 'piutang') {
+                            } elseif ($paymentMethod === 'piutang' || str_starts_with($paymentMethod, 'asuransi_')) {
                                 if ($piutangStatus === 'paid') {
                                     $badgeText = 'Lunas';
                                     $badgeBg = '#28a745';
@@ -381,8 +386,13 @@
                                     $badgeText = 'Belum Lunas';
                                     $badgeBg = '#ffc107';
                                 } else {
-                                    $badgeText = 'Piutang';
-                                    $badgeBg = '#17a2b8';
+                                    if ($paymentMethod === 'piutang') {
+                                        $badgeText = 'Piutang';
+                                        $badgeBg = '#17a2b8';
+                                    } else {
+                                        $badgeText = 'Belum Lunas';
+                                        $badgeBg = '#ffc107';
+                                    }
                                 }
                             } else {
                                 $isPaid = ($totalAmount > 0 && $amountPaid >= $totalAmount);
@@ -640,7 +650,7 @@
         try {
             const pm = (window.oldInvoice && window.oldInvoice.payment_method) ? String(window.oldInvoice.payment_method).toLowerCase() : '';
             const ps = (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? String(window.oldInvoice.piutang_payment_status).toLowerCase() : '';
-            if (currentInvoiceId && pm === 'piutang' && ps === 'paid') {
+            if (currentInvoiceId && (pm === 'piutang' || pm.startsWith('asuransi_')) && ps === 'paid') {
                 currentInvoiceIsPaid = true;
             }
         } catch (e) {
@@ -2826,7 +2836,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                             (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? window.oldInvoice.piutang_payment_status :
                                             ''
                                         ).toLowerCase();
-                                        if (pm === 'piutang' && ps === 'paid') {
+                                        if ((pm === 'piutang' || pm.startsWith('asuransi_')) && ps === 'paid') {
                                             currentInvoiceIsPaid = true;
                                         }
                                     } catch (e) {
