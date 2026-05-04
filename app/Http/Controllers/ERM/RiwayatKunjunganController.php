@@ -21,6 +21,7 @@ class RiwayatKunjunganController extends Controller
             'dokter.user',
             'dokter.spesialisasi',
             'asesmenDalam',
+            'asesmenTht',
             'asesmenAnak',
             'asesmenEstetika',
             'asesmenSaraf',
@@ -237,6 +238,7 @@ class RiwayatKunjunganController extends Controller
             'dokter.user', 
             'dokter.spesialisasi', 
             'asesmenDalam', 
+            'asesmenTht',
             'asesmenAnak',
             'asesmenEstetika',
             'asesmenSaraf',
@@ -266,6 +268,8 @@ class RiwayatKunjunganController extends Controller
         // Try to get data from any available asesmen in priority order
         if ($visitation->asesmenDalam) {
             $asesmen = $visitation->asesmenDalam;
+        } elseif ($visitation->asesmenTht) {
+            $asesmen = $visitation->asesmenTht;
         } elseif ($visitation->asesmenAnak) {
             $asesmen = $visitation->asesmenAnak;
         } elseif ($visitation->asesmenEstetika) {

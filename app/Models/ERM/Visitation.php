@@ -60,6 +60,10 @@ class Visitation extends Model
     {
         return $this->hasOne(AsesmenDalam::class);
     }
+    public function asesmenTht()
+    {
+        return $this->hasOne('App\\Models\\ERM\\AsesmenTht');
+    }
     public function asesmenEstetika()
     {
         return $this->hasOne(AsesmenEstetika::class);

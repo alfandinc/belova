@@ -25,6 +25,8 @@ use Illuminate\Support\Facades\Storage;
 
 class AsesmenController extends Controller
 {
+    private const ASESMENT_THT_MODEL = 'App\\Models\\ERM\\AsesmenTht';
+
     public function create($visitationId)
     {
         $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($visitationId);
@@ -35,6 +37,7 @@ class AsesmenController extends Controller
 
         $asesmen = [
             'penyakit_dalam' => AsesmenDalam::where('visitation_id', $visitationId)->first(),
+            'tht' => self::ASESMENT_THT_MODEL::where('visitation_id', $visitationId)->first(),
             'umum' => AsesmenUmum::where('visitation_id', $visitationId)->first(),
             'estetika' => AsesmenEstetika::where('visitation_id', $visitationId)->first(),
             'anak' => AsesmenAnak::where('visitation_id', $visitationId)->first(),
@@ -46,6 +49,7 @@ class AsesmenController extends Controller
         // Lokalis image logic
         $lokalisDefaults = [
             'penyakit_dalam' => 'img/asesmen/dalam.png',
+            'tht' => 'img/asesmen/dalam.png',
             'estetika' => 'img/asesmen/estetika.png',
             'gigi' => 'img/asesmen/gigi.png',
         ];
@@ -66,7 +70,10 @@ class AsesmenController extends Controller
 
         $lastAsesmenDalam = null;
         if ($lastVisitation) {
-            $lastAsesmenDalam = AsesmenDalam::where('visitation_id', $lastVisitation->id)->first();
+            $lastAsesmenDalam = match ($spesialisasi) {
+                'tht' => self::ASESMENT_THT_MODEL::where('visitation_id', $lastVisitation->id)->first(),
+                default => AsesmenDalam::where('visitation_id', $lastVisitation->id)->first(),
+            };
         }
 
         // Prepare prefill values for penyakit_dalam fields
@@ -96,6 +103,8 @@ class AsesmenController extends Controller
         // Call spesialisasi-based save function
         if ($spesialisasi === 'penyakit dalam') {
             $this->storeAsesmenDalam($request);
+        } elseif ($spesialisasi === 'tht') {
+            $this->storeAsesmenTht($request);
         } elseif ($spesialisasi === 'umum') {
             $this->storeAsesmenUmum($request);
         } elseif ($spesialisasi === 'estetika') {
@@ -123,11 +132,21 @@ class AsesmenController extends Controller
 
     private function storeAsesmenDalam(Request $request)
     {
+        $this->storeAsesmenDalamLike($request, AsesmenDalam::class);
+    }
+
+    private function storeAsesmenTht(Request $request)
+    {
+        $this->storeAsesmenDalamLike($request, self::ASESMENT_THT_MODEL);
+    }
+
+    private function storeAsesmenDalamLike(Request $request, string $modelClass)
+    {
         if ($request->has('status_lokalis_image')) {
             $this->saveLokalisImage($request);
         }
 
-        AsesmenDalam::updateOrCreate(
+        $modelClass::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
             [
                 'keluhan_utama' => $request->keluhan_utama,
