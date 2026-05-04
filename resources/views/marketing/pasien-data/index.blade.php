@@ -146,6 +146,58 @@
 @push('scripts')
 <script>
     $(function() {
+        function escapeHtml(unsafe) {
+            if (!unsafe && unsafe !== 0) return '';
+            return String(unsafe)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderStatusBadges(row) {
+            var statusPasien = (row.status_pasien || 'Regular').toString().trim().toLowerCase();
+            var statusAkses = (row.status_akses || 'normal').toString().trim().toLowerCase();
+            var statusReview = (row.status_review || 'belum').toString().trim().toLowerCase();
+
+            function pasienBadge() {
+                if (statusPasien.includes('vip')) {
+                    return '<span class="badge badge-soft-warning badge-pill"><i class="fas fa-crown mr-1"></i>VIP</span>';
+                }
+                if (statusPasien.includes('familia')) {
+                    return '<span class="badge badge-soft-primary badge-pill"><i class="fas fa-users mr-1"></i>Familia</span>';
+                }
+                if (statusPasien.includes('black')) {
+                    return '<span class="badge badge-soft-dark badge-pill"><i class="fas fa-id-card mr-1"></i>Black Card</span>';
+                }
+                if (statusPasien.includes('red')) {
+                    return '<span class="badge badge-soft-danger badge-pill"><i class="fas fa-flag mr-1"></i>Red Flag</span>';
+                }
+                return '<span class="badge badge-soft-secondary badge-pill"><i class="fas fa-user mr-1"></i>Regular</span>';
+            }
+
+            function aksesBadge() {
+                if (statusAkses.includes('akses cepat')) {
+                    return '<span class="badge badge-soft-primary badge-pill"><i class="fas fa-wheelchair mr-1"></i>Akses Cepat</span>';
+                }
+                return '<span class="badge badge-soft-secondary badge-pill"><i class="fas fa-check-circle mr-1"></i>Normal</span>';
+            }
+
+            function reviewBadge() {
+                if (statusReview.includes('sudah')) {
+                    return '<span class="badge badge-soft-success badge-pill"><i class="fas fa-check mr-1"></i>Sudah</span>';
+                }
+                return '<span class="badge badge-soft-secondary badge-pill"><i class="fas fa-times mr-1"></i>Belum</span>';
+            }
+
+            return '<div class="mt-2 d-flex flex-wrap" style="gap:6px;">'
+                + pasienBadge()
+                + aksesBadge()
+                + reviewBadge()
+                + '</div>';
+        }
+
         // Initialize DataTable
         var table = $('#pasien-table').DataTable({
             processing: true,
@@ -159,7 +211,16 @@
             },
             columns: [
                 { data: 'id', name: 'id' },
-                { data: 'nama', name: 'nama' },
+                {
+                    data: 'nama',
+                    name: 'nama',
+                    render: function(data, type, row) {
+                        return '<div class="d-flex flex-column">'
+                            + '<span class="font-weight-medium">' + escapeHtml(data || '-') + '</span>'
+                            + renderStatusBadges(row)
+                            + '</div>';
+                    }
+                },
                 { data: 'tanggal_lahir', name: 'tanggal_lahir' },
                 { data: 'no_hp', name: 'no_hp' },
                 { data: 'kunjungan_terakhir', name: 'kunjungan_terakhir' },
