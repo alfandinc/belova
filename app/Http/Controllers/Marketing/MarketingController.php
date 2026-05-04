@@ -106,7 +106,7 @@ class MarketingController extends Controller
     {
         if ($request->ajax()) {
             $oneWeekAgo = Carbon::now()->subWeek();
-            $data = Pasien::select('id', 'nama', 'nik', 'tanggal_lahir', 'gender', 'agama', 'marital_status', 'pendidikan', 'pekerjaan', 'gol_darah', 'notes', 'alamat', 'no_hp', 'no_hp2', 'email', 'instagram')
+            $data = Pasien::select('id', 'nama', 'nik', 'tanggal_lahir', 'gender', 'agama', 'marital_status', 'pendidikan', 'pekerjaan', 'gol_darah', 'notes', 'alamat', 'no_hp', 'no_hp2', 'email', 'instagram', 'status_pasien', 'status_akses', 'status_review')
                 ->addSelect([
                     'last_visitation_date' => Visitation::select('tanggal_visitation')
                         ->whereColumn('pasien_id', 'erm_pasiens.id')
