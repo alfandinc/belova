@@ -20,7 +20,11 @@ class DivisionController extends Controller
                 ->with('error', 'Data karyawan tidak ditemukan');
         }
 
-        $division = Division::with('employees')->findOrFail($employee->division);
+        $division = Division::with([
+            'employees' => function ($query) {
+                $query->active()->orderBy('nama');
+            }
+        ])->findOrFail($employee->division);
 
         return view('hrd.division.my-division', compact('division'));
     }
@@ -35,7 +39,8 @@ class DivisionController extends Controller
         }
 
         if ($request->ajax()) {
-            $employees = Employee::where('division', $employee->division)
+            $employees = Employee::active()
+                ->where('division', $employee->division)
                 ->where('id', '!=', $employee->id)
                 ->with(['position', 'user']);
 

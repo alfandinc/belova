@@ -25,7 +25,7 @@ class EmployeeController extends Controller
     public function searchForSelect2(Request $request)
         {
             $search = $request->input('q'); // select2 uses 'q' for the search term
-            $query = Employee::query();
+            $query = Employee::active();
             if ($search) {
                 $query->where('nama', 'like', "%$search%");
             }

@@ -80,7 +80,7 @@ class PrKpiController extends Controller
                 $totalOmset += floatval($row->nominal);
             }
         }
-        $employees = \App\Models\HRD\Employee::all();
+        $employees = \App\Models\HRD\Employee::active()->get();
         // Collect kpi_poin for all employees
         $employeeKpiPoin = [];
         foreach ($employees as $employee) {

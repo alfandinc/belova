@@ -16,7 +16,7 @@ class CatatanDosaController extends Controller
             $catatan = CatatanDosa::with('employee')->latest()->get();
             return response()->json(['data' => $catatan]);
         }
-        $employees = Employee::all();
+        $employees = Employee::active()->orderBy('nama')->get();
         return view('hrd.catatan_dosa.index', compact('employees'));
     }
 

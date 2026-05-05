@@ -62,7 +62,9 @@ class BelovaMengajiController extends Controller
     {
         $date = $request->get('date') ?: date('Y-m-d');
 
-        $employees = Employee::with(['position', 'division'])->select('id', 'nama', 'no_induk', 'no_hp', 'email', 'position_id', 'division_id');
+        $employees = Employee::active()
+            ->with(['position', 'division'])
+            ->select('id', 'nama', 'no_induk', 'no_hp', 'email', 'position_id', 'division_id');
 
         // fetch existing ngaji nilai for the given date
         $ngaji = \App\Models\Belova\NgajiNilai::where('date', $date)->get()->keyBy('employee_id');
@@ -215,15 +217,23 @@ class BelovaMengajiController extends Controller
         $avg_panjang = NgajiNilai::whereBetween('date', [$from, $to])->avg('nilai_panjang_pendek');
         $avg_kelancaran = NgajiNilai::whereBetween('date', [$from, $to])->avg('nilai_kelancaran');
 
-        $total_employees = \App\Models\HRD\Employee::count();
+        $total_employees = \App\Models\HRD\Employee::active()->count();
 
         // presence = number of distinct employees who have at least one record in range
-        $present_employees = NgajiNilai::whereBetween('date', [$from, $to])->distinct('employee_id')->count('employee_id');
+        $present_employees = NgajiNilai::whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
+            ->distinct('employee_id')
+            ->count('employee_id');
         $absent_employees = max(0, $total_employees - $present_employees);
 
         // top active (most records) employees in range
         $top_active = NgajiNilai::select('employee_id', DB::raw('count(*) as cnt'))
             ->whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
             ->groupBy('employee_id')
             ->orderByDesc('cnt')
             ->with('employee')
@@ -233,6 +243,9 @@ class BelovaMengajiController extends Controller
         // per-employee average total (small sample: top 10 by average)
         $per_employee_avg = NgajiNilai::select('employee_id', DB::raw('AVG(total_nilai) as avg_total'), DB::raw('COUNT(*) as cnt'))
             ->whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
             ->groupBy('employee_id')
             ->orderByDesc('avg_total')
             ->with('employee')
@@ -259,20 +272,28 @@ class BelovaMengajiController extends Controller
         $avg_panjang = NgajiNilai::whereBetween('date', [$from, $to])->avg('nilai_panjang_pendek');
         $avg_kelancaran = NgajiNilai::whereBetween('date', [$from, $to])->avg('nilai_kelancaran');
 
-        $total_employees = \App\Models\HRD\Employee::count();
-        $present_employees = NgajiNilai::whereBetween('date', [$from, $to])->distinct('employee_id')->count('employee_id');
+        $total_employees = \App\Models\HRD\Employee::active()->count();
+        $present_employees = NgajiNilai::whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
+            ->distinct('employee_id')
+            ->count('employee_id');
         $absent_employees = max(0, $total_employees - $present_employees);
 
         // top active
         $top_active_raw = NgajiNilai::select('employee_id', DB::raw('count(*) as cnt'))
             ->whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
             ->groupBy('employee_id')
             ->orderByDesc('cnt')
             ->take(10)
             ->get();
 
         $employeeIds = $top_active_raw->pluck('employee_id')->unique()->toArray();
-        $names = \App\Models\HRD\Employee::whereIn('id', $employeeIds)->pluck('nama', 'id');
+        $names = \App\Models\HRD\Employee::active()->whereIn('id', $employeeIds)->pluck('nama', 'id');
 
         $top_active = $top_active_raw->map(function($r) use ($names) {
             return [
@@ -285,13 +306,16 @@ class BelovaMengajiController extends Controller
         // per employee avg total
         $per_employee_raw = NgajiNilai::select('employee_id', DB::raw('AVG(total_nilai) as avg_total'), DB::raw('COUNT(*) as cnt'))
             ->whereBetween('date', [$from, $to])
+            ->whereHas('employee', function ($query) {
+                $query->active();
+            })
             ->groupBy('employee_id')
             ->orderByDesc('avg_total')
             ->take(10)
             ->get();
 
         $employeeIds2 = $per_employee_raw->pluck('employee_id')->unique()->toArray();
-        $names2 = \App\Models\HRD\Employee::whereIn('id', $employeeIds2)->pluck('nama', 'id');
+        $names2 = \App\Models\HRD\Employee::active()->whereIn('id', $employeeIds2)->pluck('nama', 'id');
 
         $per_employee_avg = $per_employee_raw->map(function($r) use ($names2) {
             return [

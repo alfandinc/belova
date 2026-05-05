@@ -2,6 +2,7 @@
 
 namespace App\Models\HRD;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -13,13 +14,11 @@ class Employee extends Model
     {
         return $this->hasMany(\App\Models\AttendanceRekap::class, 'employee_id');
     }
-    use HasFactory;
 
     public function pengajuanTidakMasuk()
     {
         return $this->hasMany(PengajuanTidakMasuk::class, 'employee_id');
     }
-    use HasFactory;
 
     protected $table = 'hrd_employee';
 
@@ -79,6 +78,11 @@ class Employee extends Model
         'masa_pensiun' => 'date',
         'instagram' => 'array', // Cast instagram as array for JSON storage
     ];
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
+    }
 
     public function position()
     {

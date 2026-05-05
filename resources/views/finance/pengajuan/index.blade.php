@@ -304,7 +304,7 @@
                             <label for="employee_id" class="required">Nama Pengaju</label>
                             <select id="employee_id" name="employee_id" class="form-control select2" style="width:100%">
                                 <option value="">-- Pilih Employee --</option>
-                                @php $employees = \App\Models\HRD\Employee::with('user')->orderBy('nama')->get(); @endphp
+                                @php $employees = \App\Models\HRD\Employee::active()->with(['user', 'division'])->orderBy('nama')->get(); @endphp
                                 @foreach($employees as $emp)
                                     @php $divId = $emp->division_id ?? '';
                                         $divName = $emp->division->name ?? '';

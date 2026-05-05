@@ -92,7 +92,7 @@ class LaporanInsidenController extends Controller
 
     public function create()
     {
-        $employees = Employee::all();
+        $employees = Employee::active()->orderBy('nama')->get();
         return view('insiden.laporan_insiden.create', compact('employees'));
     }
 

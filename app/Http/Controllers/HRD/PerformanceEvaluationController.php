@@ -258,7 +258,7 @@ class PerformanceEvaluationController extends Controller
     public function initiate(PerformanceEvaluationPeriod $period)
     {
         // Get all employees with their divisions and user roles eager loaded
-        $employees = Employee::with(['division', 'user.roles'])->get();
+        $employees = Employee::active()->with(['division', 'user.roles'])->get();
 
         // Get HRD employees by user role 'Hrd' (case-insensitive)
         $hrdEmployees = $employees->filter(function ($employee) {
@@ -763,7 +763,7 @@ class PerformanceEvaluationController extends Controller
     
     public function periodResultsData(PerformanceEvaluationPeriod $period)
     {
-        $employees = Employee::all();
+        $employees = Employee::active()->get();
         $averageScoresCollection = collect();
 
         foreach ($employees as $employee) {

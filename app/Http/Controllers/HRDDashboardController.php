@@ -26,7 +26,7 @@ class HRDDashboardController extends Controller
 
         // Counts (filtered by date range for pending items)
         $counts = [
-            'employees' => Employee::count(),
+                        'employees' => Employee::active()->count(),
             'pending_leaves' => PengajuanLibur::where(function($q){
                     $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
                       ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
@@ -81,7 +81,8 @@ class HRDDashboardController extends Controller
     // Upcoming birthdays (next 5)
     // Use today (midnight) so time-of-day won't make a birthday that occurs today appear as already passed
     $today = Carbon::today();
-        $birthdays = Employee::whereNotNull('tanggal_lahir')
+        $birthdays = Employee::active()
+            ->whereNotNull('tanggal_lahir')
             ->get()
             ->map(function($e) use ($today) {
                 $dob = Carbon::parse($e->tanggal_lahir);
@@ -95,7 +96,8 @@ class HRDDashboardController extends Controller
             ->take(5);
 
         // Full upcoming birthdays list (all employees with dob), sorted by next occurrence
-        $allBirthdays = Employee::whereNotNull('tanggal_lahir')
+        $allBirthdays = Employee::active()
+            ->whereNotNull('tanggal_lahir')
             ->get()
             ->map(function($e) use ($today) {
                 $dob = Carbon::parse($e->tanggal_lahir);
@@ -182,7 +184,7 @@ class HRDDashboardController extends Controller
 
         // Also return filtered counts for summary cards
         $counts = [
-            'employees' => Employee::count(),
+                        'employees' => Employee::active()->count(),
             'pending_leaves' => PengajuanLibur::where(function($q){
                     $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
                       ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');

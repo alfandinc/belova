@@ -24,7 +24,7 @@
                 <label for="employeeFilter" class="mb-1">Filter Karyawan:</label>
                 <select id="employeeFilter" class="form-control form-control-sm" style="min-width:220px;">
                     <option value="">Semua Karyawan</option>
-                    @foreach(\App\Models\HRD\Employee::orderBy('nama')->get() as $emp)
+                    @foreach(\App\Models\HRD\Employee::active()->orderBy('nama')->get() as $emp)
                         <option value="{{ $emp->id }}">{{ $emp->nama }}</option>
                     @endforeach
                 </select>

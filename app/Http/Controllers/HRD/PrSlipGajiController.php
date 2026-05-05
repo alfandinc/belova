@@ -236,7 +236,7 @@ class PrSlipGajiController extends Controller
                 $totalOmset += floatval($row->nominal);
             }
         }
-        $employees = \App\Models\HRD\Employee::all();
+        $employees = \App\Models\HRD\Employee::active()->get();
         $employeeKpiPoin = [];
         foreach ($employees as $employee) {
             $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
@@ -318,7 +318,7 @@ class PrSlipGajiController extends Controller
         }
 
         // employees
-        $employees = \App\Models\HRD\Employee::all();
+        $employees = \App\Models\HRD\Employee::active()->get();
         $employeeKpiPoin = [];
         foreach ($employees as $employee) {
             $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
@@ -828,12 +828,7 @@ class PrSlipGajiController extends Controller
             return $effectiveStart->diffInDays($effectiveEnd) + 1;
         };
         // Only create slips for active employees (exclude status: 'tidak aktif' with any casing/spacing)
-        $employees = Employee::query()
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhereRaw("LOWER(REPLACE(TRIM(status), ' ', '')) <> ?", ['tidakaktif']);
-            })
-            ->get();
+        $employees = Employee::active()->get();
 
         // Get master tunjangan lain values once
         $uangMakanMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Uang Makan')->first();
@@ -1073,12 +1068,7 @@ class PrSlipGajiController extends Controller
 
         // Then create slip gaji records for all employees
         // Only create slips for active employees (exclude status: 'tidak aktif')
-        $employees = Employee::query()
-            ->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhere('status', '!=', 'tidak aktif');
-            })
-            ->get();
+        $employees = Employee::active()->get();
         foreach ($employees as $employee) {
             // Count total hari scheduled
             $totalHariScheduled = $employee->schedules()

@@ -121,7 +121,7 @@ class DailyJournalController extends Controller
         ];
 
         if ($canViewAllTasks || $divisionId) {
-            $divisionMembers = Employee::query()
+            $divisionMembers = Employee::active()
                 ->when(!$canViewAllTasks, function ($query) use ($divisionId) {
                     $query->where('division_id', $divisionId);
                 })
@@ -226,7 +226,7 @@ class DailyJournalController extends Controller
         } elseif ($actor?->hasRole('Manager') && !empty($validated['user_id'])) {
             $managerDivisionId = optional($actor->employee)->division_id;
 
-            $divisionMemberIds = Employee::query()
+            $divisionMemberIds = Employee::active()
                 ->where('division_id', $managerDivisionId)
                 ->whereNotNull('user_id')
                 ->pluck('user_id')

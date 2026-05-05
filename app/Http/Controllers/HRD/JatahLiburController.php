@@ -144,11 +144,11 @@ class JatahLiburController extends Controller
             Log::info('Employees with jatah libur: ' . count($employeesWithJatahLibur));
             
             // Check if we have any employees at all
-            $allEmployeeCount = Employee::count();
+            $allEmployeeCount = Employee::active()->count();
             Log::info('Total employee count: ' . $allEmployeeCount);
             
             // Query employees without jatah libur
-            $query = Employee::query();
+            $query = Employee::active();
             
             // Only filter by not in if we have any employees with jatah libur
             if (!empty($employeesWithJatahLibur)) {
@@ -195,7 +195,7 @@ class JatahLiburController extends Controller
         try {
             $oneYearAgo = now()->subYear();
 
-            $employees = Employee::all();
+            $employees = Employee::active()->get();
 
             $counts = [
                 'total' => $employees->count(),

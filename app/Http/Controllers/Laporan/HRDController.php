@@ -29,7 +29,9 @@ class HRDController extends Controller
         $length = intval($request->input('length', 10));
         $search = $request->input('search.value', '');
 
-        $employees = \App\Models\HRD\Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $employees = \App\Models\HRD\Employee::active()
+            ->with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])
+            ->get();
 
         // Map and filter data
         $mapped = $employees->map(function ($employee) use ($startDate, $endDate) {
@@ -119,7 +121,9 @@ class HRDController extends Controller
         }
 
         // Get all employees
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $employees = Employee::active()
+            ->with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])
+            ->get();
 
         $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
@@ -259,7 +263,9 @@ class HRDController extends Controller
                 $endDate = $dates[1];
             }
         }
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $employees = Employee::active()
+            ->with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])
+            ->get();
         $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
             $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');
@@ -320,7 +326,9 @@ class HRDController extends Controller
                 $endDate = $dates[1];
             }
         }
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $employees = Employee::active()
+            ->with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])
+            ->get();
         $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
             $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');

@@ -531,6 +531,9 @@ class PengajuanGantiShiftController extends Controller
             $schedules = EmployeeSchedule::where('date', $date)
                 ->where('shift_id', $shiftId)
                 ->where('employee_id', '!=', $currentEmployeeId)
+                ->whereHas('employee', function ($query) {
+                    $query->active();
+                })
                 ->with(['employee.position'])
                 ->get();
             
