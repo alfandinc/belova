@@ -589,25 +589,161 @@ class AbsensiRekapController extends Controller
         $rekap->save();
         return response()->json(['success' => true]);
     }
-    public function data(Request $request)
+
+    private function buildFilteredAttendanceQuery(Request $request)
     {
-    $query = AttendanceRekap::with(['employee']);
+        $query = AttendanceRekap::with(['employee'])
+            ->whereHas('employee', function ($q) {
+                $q->whereNotIn('status', ['freelance', 'tidak aktif']);
+            });
+
         $dateRange = $request->input('date_range');
         if ($dateRange) {
             $dates = explode(' - ', $dateRange);
             if (count($dates) === 2) {
-                // normalize dates to Y-m-d to ensure correct filtering
                 $start = date('Y-m-d', strtotime($dates[0]));
                 $end = date('Y-m-d', strtotime($dates[1]));
                 $query->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
             }
         }
+
         $employeeIds = $request->input('employee_ids');
         if ($employeeIds && is_array($employeeIds)) {
             $query->whereIn('employee_id', $employeeIds);
         } elseif ($employeeIds && !is_array($employeeIds)) {
             $query->where('employee_id', $employeeIds);
         }
+
+        return $query;
+    }
+
+    private function resolveShiftData($row)
+    {
+        $shiftName = '';
+        $shiftStart = $row->shift_start;
+        $shiftEnd = $row->shift_end;
+
+        if (!$shiftStart || !$shiftEnd) {
+            $schedule = EmployeeSchedule::where('employee_id', $row->employee_id)
+                ->where('date', $row->date)
+                ->with('shift')
+                ->first();
+
+            if ($schedule && $schedule->shift) {
+                $shiftName = $schedule->shift->name ?? '';
+                $shiftStart = $schedule->shift->start_time ?? $shiftStart;
+                $shiftEnd = $schedule->shift->end_time ?? $shiftEnd;
+            }
+        }
+
+        return [
+            'name' => $shiftName,
+            'start' => $shiftStart,
+            'end' => $shiftEnd,
+        ];
+    }
+
+    private function getEffectiveLateMinutes($row, $shiftStart = null)
+    {
+        if ($row->ignore_terlambat) {
+            return 0;
+        }
+
+        $jamMasuk = $row->jam_masuk ? (explode(' ', $row->jam_masuk)[1] ?? $row->jam_masuk) : null;
+
+        return $this->calculateMinutesLate($jamMasuk, $shiftStart, $row->date);
+    }
+
+    private function getEffectiveOvertimeMinutes($row, $shiftEnd = null)
+    {
+        if ($row->ignore_overtime) {
+            return 0;
+        }
+
+        $jamKeluar = $row->jam_keluar ? (explode(' ', $row->jam_keluar)[1] ?? $row->jam_keluar) : null;
+
+        return $this->calculateOvertimeMinutes($jamKeluar, $shiftEnd, $row->date);
+    }
+
+    private function getRowMetrics($row)
+    {
+        $shiftData = $this->resolveShiftData($row);
+        $lateMinutes = $this->getEffectiveLateMinutes($row, $shiftData['start']);
+        $overtimeMinutes = $this->getEffectiveOvertimeMinutes($row, $shiftData['end']);
+
+        return [
+            'shift' => $shiftData,
+            'late_minutes' => $lateMinutes,
+            'overtime_minutes' => $overtimeMinutes,
+            'is_late' => $lateMinutes > 0,
+            'has_overtime' => $overtimeMinutes > 0,
+        ];
+    }
+
+    private function buildEmployeeSummaryRows(Request $request)
+    {
+        $recordsByEmployee = $this->buildFilteredAttendanceQuery($request)
+            ->get()
+            ->groupBy('employee_id');
+
+        $employeesQuery = Employee::active()->orderBy('nama');
+        $employeeIds = $request->input('employee_ids');
+        if ($employeeIds && is_array($employeeIds)) {
+            $employeesQuery->whereIn('id', $employeeIds);
+        } elseif ($employeeIds && !is_array($employeeIds)) {
+            $employeesQuery->where('id', $employeeIds);
+        }
+
+        return $employeesQuery->get()->map(function ($employee) use ($recordsByEmployee) {
+            $records = $recordsByEmployee->get($employee->id, collect());
+            $lateCount = 0;
+            $overtimeCount = 0;
+            $onTimeCount = 0;
+            $totalLateMinutes = 0;
+            $totalOvertimeMinutes = 0;
+
+            foreach ($records as $record) {
+                $metrics = $this->getRowMetrics($record);
+                $jamMasuk = $record->jam_masuk ? (explode(' ', $record->jam_masuk)[1] ?? $record->jam_masuk) : null;
+                $jamKeluar = $record->jam_keluar ? (explode(' ', $record->jam_keluar)[1] ?? $record->jam_keluar) : null;
+
+                if ($metrics['is_late']) {
+                    $lateCount++;
+                    $totalLateMinutes += $metrics['late_minutes'];
+                }
+
+                if ($metrics['has_overtime']) {
+                    $overtimeCount++;
+                    $totalOvertimeMinutes += $metrics['overtime_minutes'];
+                }
+
+                if (!$metrics['is_late'] && $jamMasuk && $jamKeluar) {
+                    $onTimeCount++;
+                }
+            }
+
+            return [
+                'employee_id' => $employee->id,
+                'finger_id' => $employee->finger_id,
+                'employee_name' => $employee->nama,
+                'total_records' => $records->count(),
+                'late_count' => $lateCount,
+                'overtime_count' => $overtimeCount,
+                'on_time_count' => $onTimeCount,
+                'formatted_total_late' => $this->formatMinutes($totalLateMinutes),
+                'formatted_total_overtime' => $this->formatMinutes($totalOvertimeMinutes),
+            ];
+        })->values();
+    }
+
+    public function data(Request $request)
+    {
+        if ($request->boolean('summary_mode')) {
+            return datatables()->of($this->buildEmployeeSummaryRows($request))->make(true);
+        }
+
+        $query = $this->buildFilteredAttendanceQuery($request);
+
         return datatables()->of($query)
             ->addColumn('employee_name', function($row) {
                 return $row->employee ? $row->employee->nama : '';
@@ -792,6 +928,67 @@ class AbsensiRekapController extends Controller
             ->make(true);
     }
 
+    public function employeeDetails(Request $request, Employee $employee)
+    {
+        $records = $this->buildFilteredAttendanceQuery($request)
+            ->where('employee_id', $employee->id)
+            ->orderBy('date')
+            ->get()
+            ->map(function ($row) {
+                $metrics = $this->getRowMetrics($row);
+                $shiftData = $metrics['shift'];
+                $jamMasuk = $row->jam_masuk ? (explode(' ', $row->jam_masuk)[1] ?? $row->jam_masuk) : '';
+                $jamKeluar = $row->jam_keluar ? (explode(' ', $row->jam_keluar)[1] ?? $row->jam_keluar) : '';
+
+                if ($shiftData['start'] && $shiftData['end']) {
+                    $shiftDisplay = ($shiftData['name'] ? $shiftData['name'] . ' ' : '') . '(' . $shiftData['start'] . '-' . $shiftData['end'] . ')';
+                } else {
+                    $shiftDisplay = 'No Shift Data';
+                }
+
+                return [
+                    'id' => $row->id,
+                    'date' => $row->date,
+                    'jam_masuk' => $jamMasuk,
+                    'jam_keluar' => $jamKeluar,
+                    'shift' => $shiftDisplay,
+                    'work_hour' => $row->work_hour,
+                    'menit_terlambat' => $metrics['late_minutes'],
+                    'overtime' => $metrics['overtime_minutes'],
+                    'ignore_terlambat' => (bool) $row->ignore_terlambat,
+                    'ignore_overtime' => (bool) $row->ignore_overtime,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'employee' => [
+                'id' => $employee->id,
+                'name' => $employee->nama,
+                'finger_id' => $employee->finger_id,
+            ],
+            'data' => $records,
+        ]);
+    }
+
+    public function updateIgnoreFlags(Request $request, $id)
+    {
+        $rekap = AttendanceRekap::findOrFail($id);
+        $validated = $request->validate([
+            'ignore_terlambat' => 'required|boolean',
+            'ignore_overtime' => 'required|boolean',
+        ]);
+
+        $rekap->ignore_terlambat = $validated['ignore_terlambat'];
+        $rekap->ignore_overtime = $validated['ignore_overtime'];
+        $rekap->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Flag ignore berhasil diperbarui.',
+        ]);
+    }
+
     public function index()
     {
         return view('hrd.absensi_rekap.index');
@@ -853,21 +1050,14 @@ class AbsensiRekapController extends Controller
         $employeeOvertimeMinutes = [];
         
         foreach ($records as $record) {
-            $isLate = false;
-            $hasOvertimeFlag = false;
-            
-            // Check if late using new helper function
+            $metrics = $this->getRowMetrics($record);
             $jamMasuk = $record->jam_masuk ? (explode(' ', $record->jam_masuk)[1] ?? $record->jam_masuk) : null;
-            $shiftStart = $record->shift_start ?? null;
-            
-            if ($this->isLate($jamMasuk, $shiftStart, $record->date)) {
+            $jamKeluar = $record->jam_keluar ? (explode(' ', $record->jam_keluar)[1] ?? $record->jam_keluar) : null;
+
+            if ($metrics['is_late']) {
                 $lateCount++;
-                $isLate = true;
+                $minutesLate = $metrics['late_minutes'];
                 
-                // Calculate minutes late
-                $minutesLate = $this->calculateMinutesLate($jamMasuk, $shiftStart, $record->date);
-                
-                // Track employee late minutes
                 $employeeId = $record->employee_id;
                 $employeeName = $record->employee ? $record->employee->nama : 'Unknown';
                 
@@ -883,16 +1073,10 @@ class AbsensiRekapController extends Controller
                 $employeeLateMinutes[$employeeId]['total_late_minutes'] += $minutesLate;
                 $employeeLateMinutes[$employeeId]['late_instances']++;
             }
-            
-            // Check if overtime using new helper function
-            $jamKeluar = $record->jam_keluar ? (explode(' ', $record->jam_keluar)[1] ?? $record->jam_keluar) : null;
-            $shiftEnd = $record->shift_end ?? null;
-            
-            if ($this->hasOvertime($jamKeluar, $shiftEnd, $record->date)) {
+
+            if ($metrics['has_overtime']) {
                 $overtimeCount++;
-                $hasOvertimeFlag = true;
-                // Calculate overtime minutes
-                $overtimeMinutes = $this->calculateOvertimeMinutes($jamKeluar, $shiftEnd, $record->date);
+                $overtimeMinutes = $metrics['overtime_minutes'];
                 $empId = $record->employee_id;
                 $empName = $record->employee ? $record->employee->nama : 'Unknown';
                 if (!isset($employeeOvertimeMinutes[$empId])) {
@@ -906,9 +1090,8 @@ class AbsensiRekapController extends Controller
                 $employeeOvertimeMinutes[$empId]['total_overtime_minutes'] += $overtimeMinutes;
                 $employeeOvertimeMinutes[$empId]['overtime_instances']++;
             }
-            
-            // Count on-time (not late and has both jam_masuk and jam_keluar)
-            if (!$isLate && $jamMasuk && $jamKeluar) {
+
+            if (!$metrics['is_late'] && $jamMasuk && $jamKeluar) {
                 $onTimeCount++;
             }
         }

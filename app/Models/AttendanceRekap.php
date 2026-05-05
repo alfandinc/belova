@@ -18,6 +18,13 @@ class AttendanceRekap extends Model
         'shift_start',
         'shift_end',
         'work_hour',
+        'ignore_terlambat',
+        'ignore_overtime',
+    ];
+
+    protected $casts = [
+        'ignore_terlambat' => 'boolean',
+        'ignore_overtime' => 'boolean',
     ];
 
     public function employee()

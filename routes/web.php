@@ -1397,7 +1397,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::get('absensi-rekap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'index'])->name('hrd.absensi_rekap.index');
     Route::post('absensi-rekap/upload', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'upload'])->name('hrd.absensi_rekap.upload');
     Route::get('absensi-rekap/data', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'data'])->name('hrd.absensi_rekap.data');
+    Route::get('absensi-rekap/employee/{employee}/details', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'employeeDetails'])->name('hrd.absensi_rekap.employee_details');
     Route::get('absensi-rekap/statistics', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'statistics'])->name('hrd.absensi_rekap.statistics');
+    Route::post('absensi-rekap/{id}/ignore-flags', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'updateIgnoreFlags'])->name('hrd.absensi_rekap.ignore_flags');
     Route::post('absensi-rekap/{id}/update', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'update'])->name('hrd.absensi_rekap.update');
     Route::get('absensi-rekap/sync-shifts', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'syncShiftData'])->name('hrd.absensi_rekap.sync_shifts');
     Route::get('absensi-rekap/debug-shifts', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'debugShiftData'])->name('hrd.absensi_rekap.debug_shifts');

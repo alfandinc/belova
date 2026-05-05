@@ -179,6 +179,28 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="employeeDetailModal" tabindex="-1" role="dialog" aria-labelledby="employeeDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="employeeDetailModalLabel">Detail Absensi Karyawan</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="employeeDetailSummary" class="small text-muted mb-3"></div>
+                    <div id="employeeDetailTableContainer">
+                        <div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     
     <!-- Top 5 Most Late & Overtime Employees Cards -->
@@ -261,13 +283,10 @@
             <tr>
                 <th>Finger ID</th>
                 <th>Nama</th>
-                <th>Tanggal</th>
-                <th>Jam Masuk</th>
-                <th>Jam Keluar</th>
-                <th>Shift</th>
-                <th>Work Hour</th>
-                <th>Terlambat</th>
-                <th>Overtime</th>
+                <th>Total Hari</th>
+                <th>Total Terlambat</th>
+                <th>Total Overtime</th>
+                <th>Tepat Waktu</th>
                 <th>Aksi</th>
             </tr>
 <!-- Edit Modal -->
@@ -534,8 +553,126 @@ hr { margin-top: 0 !important; margin-bottom: .35rem !important; }
 @push('scripts')
 <script>
 $(function() {
+    var activeDetailEmployeeId = null;
+    var activeDetailEmployeeName = '';
+
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char];
+        });
+    }
+
+    function formatWorkHour(value) {
+        if (value == null || value === '') {
+            return '-';
+        }
+
+        var hours = Math.floor(value);
+        var minutes = Math.round((value - hours) * 60);
+        return hours + ' jam ' + minutes + ' menit';
+    }
+
+    function formatMinuteValue(value) {
+        return value > 0 ? value + ' menit' : '-';
+    }
+
+    function buildIgnoreButton(type, row) {
+        var isIgnored = type === 'terlambat' ? row.ignore_terlambat : row.ignore_overtime;
+        var hasValue = type === 'terlambat' ? row.menit_terlambat > 0 : row.overtime > 0;
+
+        if (!isIgnored && !hasValue) {
+            return '';
+        }
+
+        var buttonClass = isIgnored ? 'btn-outline-secondary' : 'btn-outline-danger';
+        var label = isIgnored ? 'Batal Ignore ' : 'Ignore ';
+
+        return '<button type="button" class="btn btn-xs ' + buttonClass + ' toggle-ignore-btn mt-1" data-id="' + row.id + '" data-type="' + type + '" data-current="' + (isIgnored ? 1 : 0) + '">' + label + (type === 'terlambat' ? 'Terlambat' : 'Overtime') + '</button>';
+    }
+
+    function renderMetricCell(type, row) {
+        var value = type === 'terlambat' ? row.menit_terlambat : row.overtime;
+        var isIgnored = type === 'terlambat' ? row.ignore_terlambat : row.ignore_overtime;
+        var badge = isIgnored ? ' <span class="badge badge-secondary">Ignored</span>' : '';
+        return '<div>' + formatMinuteValue(value) + badge + '</div>';
+    }
+
+    function renderActionCell(row) {
+        var actions = '<button class="btn btn-sm btn-warning detail-edit-btn" data-id="' + row.id + '" data-jam-masuk="' + escapeHtml(row.jam_masuk || '') + '" data-jam-keluar="' + escapeHtml(row.jam_keluar || '') + '">Edit</button>';
+        var ignoreTerlambatButton = buildIgnoreButton('terlambat', row);
+        var ignoreOvertimeButton = buildIgnoreButton('overtime', row);
+
+        if (ignoreTerlambatButton) {
+            actions += '<div>' + ignoreTerlambatButton + '</div>';
+        }
+
+        if (ignoreOvertimeButton) {
+            actions += '<div>' + ignoreOvertimeButton + '</div>';
+        }
+
+        return actions;
+    }
+
+    function renderEmployeeDetailTable(records) {
+        if (!records || !records.length) {
+            return '<div class="text-center text-muted">Tidak ada detail absensi untuk filter yang dipilih.</div>';
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+        html += '<thead><tr><th>Tanggal</th><th>Jam Masuk</th><th>Jam Keluar</th><th>Shift</th><th>Work Hour</th><th>Terlambat</th><th>Overtime</th><th>Aksi</th></tr></thead><tbody>';
+
+        records.forEach(function(row) {
+            html += '<tr>' +
+                '<td>' + escapeHtml(row.date) + '</td>' +
+                '<td>' + escapeHtml(row.jam_masuk || '-') + '</td>' +
+                '<td>' + escapeHtml(row.jam_keluar || '-') + '</td>' +
+                '<td>' + escapeHtml(row.shift) + '</td>' +
+                '<td>' + formatWorkHour(row.work_hour) + '</td>' +
+                '<td>' + renderMetricCell('terlambat', row) + '</td>' +
+                '<td>' + renderMetricCell('overtime', row) + '</td>' +
+                '<td>' + renderActionCell(row) + '</td>' +
+                '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function loadEmployeeDetails(employeeId, employeeName) {
+        activeDetailEmployeeId = employeeId;
+        activeDetailEmployeeName = employeeName || '';
+        $('#employeeDetailModalLabel').text('Detail Absensi - ' + activeDetailEmployeeName);
+        $('#employeeDetailSummary').text('Memuat data absensi...');
+        $('#employeeDetailTableContainer').html('<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</div>');
+        $('#employeeDetailModal').modal('show');
+
+        $.ajax({
+            url: '{{ url('/hrd/absensi-rekap/employee') }}/' + employeeId + '/details',
+            type: 'GET',
+            data: {
+                date_range: getDateRangeFromMonth()
+            },
+            success: function(response) {
+                var detailCount = response.data ? response.data.length : 0;
+                var summaryText = 'Finger ID: ' + (response.employee.finger_id || '-') + ' | Total detail: ' + detailCount + ' hari';
+                $('#employeeDetailSummary').text(summaryText);
+                $('#employeeDetailTableContainer').html(renderEmployeeDetailTable(response.data || []));
+            },
+            error: function() {
+                $('#employeeDetailSummary').text('');
+                $('#employeeDetailTableContainer').html('<div class="text-danger">Gagal mengambil detail absensi.</div>');
+            }
+        });
+    }
 
     // Function to update Top 5 Late Employees display
     function updateTop5LateEmployees(employees) {
@@ -816,6 +953,7 @@ $(function() {
         ajax: {
             url: '{{ route('hrd.absensi_rekap.data') }}',
             data: function(d) {
+                d.summary_mode = 1;
                 d.date_range = getDateRangeFromMonth();
                 d.employee_ids = $('#employeeFilter').val();
             }
@@ -823,40 +961,29 @@ $(function() {
         columns: [
             { data: 'finger_id', name: 'finger_id' },
             { data: 'employee_name', name: 'employee_name' },
-            { data: 'date', name: 'date' },
-            { data: 'jam_masuk', name: 'jam_masuk' },
-            { data: 'jam_keluar', name: 'jam_keluar' },
-            { data: 'shift', name: 'shift' },
             {
-                data: 'work_hour',
-                name: 'work_hour',
-                render: function(data, type, row) {
-                    if (data == null) return '';
-                    var hours = Math.floor(data);
-                    var minutes = Math.round((data - hours) * 60);
-                    return hours + ' jam ' + minutes + ' menit';
-                }
+                data: 'total_records',
+                name: 'total_records'
             },
             {
-                data: 'menit_terlambat',
-                name: 'menit_terlambat',
-                render: function(data, type, row) {
-                    return data > 0 ? data + ' menit' : '-';
-                }
+                data: 'formatted_total_late',
+                name: 'formatted_total_late'
             },
             {
-                data: 'overtime',
-                name: 'overtime',
-                render: function(data, type, row) {
-                    return data > 0 ? data + ' menit' : '-';
-                }
+                data: 'formatted_total_overtime',
+                name: 'formatted_total_overtime'
+            },
+            {
+                data: 'on_time_count',
+                name: 'on_time_count'
             },
             {
                 data: null,
                 orderable: false,
                 searchable: false,
                 render: function(data, type, row) {
-                    return '<button class="btn btn-sm btn-warning edit-btn" data-id="'+row.id+'" data-date="'+row.date+'" data-jam-masuk="'+row.jam_masuk+'" data-jam-keluar="'+row.jam_keluar+'">Edit</button>';
+                    var disabled = row.total_records > 0 ? '' : ' disabled';
+                    return '<button class="btn btn-sm btn-info detail-btn" data-employee-id="' + row.employee_id + '" data-employee-name="' + escapeHtml(row.employee_name) + '"' + disabled + '>Detail</button>';
                 }
             }
         ]
@@ -888,7 +1015,11 @@ $(function() {
         loadStatistics();
     });
 
-    $('#rekapTable').on('click', '.edit-btn', function() {
+    $('#rekapTable').on('click', '.detail-btn', function() {
+        loadEmployeeDetails($(this).data('employee-id'), $(this).data('employee-name'));
+    });
+
+    $('#employeeDetailTableContainer').on('click', '.detail-edit-btn', function() {
         var id = $(this).data('id');
         var jamMasuk = $(this).data('jam-masuk');
         var jamKeluar = $(this).data('jam-keluar');
@@ -896,6 +1027,43 @@ $(function() {
         $('#editJamMasuk').val(jamMasuk);
         $('#editJamKeluar').val(jamKeluar);
         $('#editModal').modal('show');
+    });
+
+    $('#employeeDetailTableContainer').on('click', '.toggle-ignore-btn', function() {
+        var button = $(this);
+        var id = button.data('id');
+        var type = button.data('type');
+        var current = Number(button.data('current')) === 1;
+        var payload = {
+            _token: '{{ csrf_token() }}',
+            ignore_terlambat: type === 'terlambat' ? (current ? 0 : 1) : 0,
+            ignore_overtime: type === 'overtime' ? (current ? 0 : 1) : 0
+        };
+
+        var row = button.closest('tr');
+        var terlambatIgnored = row.find('.toggle-ignore-btn[data-type="terlambat"]').data('current');
+        var overtimeIgnored = row.find('.toggle-ignore-btn[data-type="overtime"]').data('current');
+
+        if (type !== 'terlambat') {
+            payload.ignore_terlambat = Number(terlambatIgnored) === 1 ? 1 : 0;
+        }
+        if (type !== 'overtime') {
+            payload.ignore_overtime = Number(overtimeIgnored) === 1 ? 1 : 0;
+        }
+
+        button.prop('disabled', true);
+
+        $.post('/hrd/absensi-rekap/' + id + '/ignore-flags', payload, function() {
+            table.ajax.reload(null, false);
+            loadStatistics();
+            if (activeDetailEmployeeId) {
+                loadEmployeeDetails(activeDetailEmployeeId, activeDetailEmployeeName);
+            }
+        }).fail(function(xhr) {
+            alert('Gagal mengubah ignore flag: ' + (xhr.responseJSON?.message || 'Unknown error'));
+        }).always(function() {
+            button.prop('disabled', false);
+        });
     });
 
     $('#saveEditBtn').on('click', function() {
@@ -913,6 +1081,9 @@ $(function() {
                 $('#editModal').modal('hide');
                 table.ajax.reload(null, false); // force reload and keep paging
                 loadStatistics();
+                if (activeDetailEmployeeId) {
+                    loadEmployeeDetails(activeDetailEmployeeId, activeDetailEmployeeName);
+                }
                 alert('Data berhasil diupdate!');
             },
             error: function(xhr) {
@@ -1159,10 +1330,19 @@ $(function() {
                     alert('Absensi berhasil ditambahkan!');
                     $('#addAbsensiModal').modal('hide');
                     table.ajax.reload(null, false); // force reload and keep paging
+                    loadStatistics();
+                    if (activeDetailEmployeeId) {
+                        loadEmployeeDetails(activeDetailEmployeeId, activeDetailEmployeeName);
+                    }
                 }).fail(function(xhr) {
                     alert('Gagal menambah absensi: ' + (xhr.responseJSON?.error || 'Unknown error'));
                 });
             });
+
+        $('#employeeDetailModal').on('hidden.bs.modal', function() {
+            activeDetailEmployeeId = null;
+            activeDetailEmployeeName = '';
+        });
 });
 </script>
 @endpush
