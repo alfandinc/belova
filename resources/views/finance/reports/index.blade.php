@@ -66,6 +66,45 @@
     .report-summary-clickable:hover td {
         background-color: rgba(37, 99, 235, 0.06);
     }
+
+    .report-cutoff-card {
+        border: 1px solid #dbe7ff;
+        background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 100%);
+    }
+
+    .report-cutoff-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+    }
+
+    .report-cutoff-item {
+        border: 1px solid #d7e3f8;
+        border-radius: 0.75rem;
+        background: #ffffff;
+        padding: 1rem;
+        box-shadow: 0 8px 18px rgba(37, 99, 235, 0.05);
+    }
+
+    .report-cutoff-item label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 700;
+        color: #1e3a8a;
+    }
+
+    .report-cutoff-help {
+        color: #64748b;
+        font-size: 0.85rem;
+    }
+
+    .report-settings-trigger {
+        min-width: 170px;
+    }
+
+    .report-cutoff-feedback {
+        display: none;
+    }
 </style>
 <div class="container-fluid">
     <div class="row mb-3">
@@ -74,12 +113,17 @@
                 <h3 class="mb-0 font-weight-bold">Laporan Keuangan</h3>
                 <div class="text-muted small">Pantau performa harian dan bulanan berdasarkan visit selesai serta pendapatan bersih transaksi.</div>
             </div>
+            <button type="button" class="btn btn-outline-primary report-settings-trigger" data-toggle="modal" data-target="#modal-report-cutoff">
+                Atur Cut Off Klinik
+            </button>
             {{-- <div class="alert alert-light border mb-0 py-2 px-3">
                 <div class="small text-muted mb-1">Rumus pendapatan bersih</div>
                 <div class="font-weight-bold">Total transaksi masuk dikurangi transaksi keluar, termasuk kembalian.</div>
             </div> --}}
         </div>
     </div>
+
+    <div id="report-page-feedback" class="alert border-0 shadow-sm report-cutoff-feedback" role="alert"></div>
 
     <div class="row">
         <div class="col-lg-6 mb-4">
@@ -151,6 +195,48 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modal-report-cutoff" tabindex="-1" role="dialog" aria-labelledby="modal-report-cutoff-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content report-cutoff-card">
+            <form method="POST" action="{{ route('finance.laporan-keuangan.cutoffs.update') }}" id="report-cutoff-form">
+                @csrf
+                <div class="modal-header border-bottom-0">
+                    <div>
+                        <h5 class="modal-title font-weight-bold" id="modal-report-cutoff-label">Cut Off Jam Per Klinik</h5>
+                        <div class="text-muted small">Transaksi sebelum jam cut off akan dihitung ke hari sebelumnya. Isi 02:00 jika praktik yang selesai sebelum jam 2 pagi masih milik hari sebelumnya.</div>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body pt-0">
+                    <div id="report-cutoff-modal-feedback" class="alert report-cutoff-feedback" role="alert"></div>
+                    <div class="report-cutoff-grid mb-3">
+                        @foreach($clinics as $clinic)
+                            <div class="report-cutoff-item">
+                                <label for="cutoff_{{ $clinic->id }}">{{ $clinic->nama }}</label>
+                                <input
+                                    type="time"
+                                    id="cutoff_{{ $clinic->id }}"
+                                    name="cutoffs[{{ $clinic->id }}]"
+                                    class="form-control"
+                                    value="{{ old('cutoffs.' . $clinic->id, \Illuminate\Support\Str::of($clinic->report_cutoff_time ?? '00:00:00')->substr(0, 5)) }}"
+                                >
+                                <div class="report-cutoff-help mt-2">Default 00:00 berarti laporan tetap ganti hari tepat tengah malam.</div>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="report-cutoff-help">Perubahan berlaku ke laporan harian, bulanan, dan detail pendapatan/piutang.</div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="report-cutoff-submit">Simpan Cut Off</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -158,6 +244,37 @@
     $(function() {
         var reportDate = $('#filter-report-date').val() || moment().format('YYYY-MM-DD');
         var reportMonth = $('#filter-report-month').val() || moment().format('YYYY-MM');
+        var $cutoffForm = $('#report-cutoff-form');
+        var $cutoffSubmit = $('#report-cutoff-submit');
+        var cutoffSubmitDefaultLabel = $cutoffSubmit.text();
+
+        function showAlert($element, type, message) {
+            $element
+                .removeClass('alert-success alert-danger alert-info')
+                .addClass('alert-' + type)
+                .html(escapeHtml(message || ''))
+                .stop(true, true)
+                .fadeIn(150);
+        }
+
+        function hideAlert($element) {
+            $element.hide().removeClass('alert-success alert-danger alert-info').html('');
+        }
+
+        function refreshSummaries() {
+            loadDailySummary();
+            loadMonthlySummary();
+        }
+
+        function applyReturnedCutoffs(cutoffs) {
+            if (!cutoffs || typeof cutoffs !== 'object') {
+                return;
+            }
+
+            Object.keys(cutoffs).forEach(function(clinicId) {
+                $('#cutoff_' + clinicId).val(cutoffs[clinicId] || '00:00');
+            });
+        }
 
         function escapeHtml(value) {
             return $('<div>').text(value == null ? '' : String(value)).html();
@@ -301,6 +418,53 @@
 
         $('#table-laporan-bulanan-body').on('click', 'tr.report-summary-clickable', function() {
             openDetailModal('monthly', $(this).data('clinic-key'), $(this).data('clinic-name'), $(this).data('metric-key'));
+        });
+
+        $cutoffForm.on('submit', function(event) {
+            event.preventDefault();
+
+            hideAlert($('#report-cutoff-modal-feedback'));
+            hideAlert($('#report-page-feedback'));
+
+            $cutoffSubmit.prop('disabled', true).text('Menyimpan...');
+
+            $.ajax({
+                url: $cutoffForm.attr('action'),
+                type: 'POST',
+                data: $cutoffForm.serialize(),
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).done(function(res) {
+                applyReturnedCutoffs(res && res.cutoffs ? res.cutoffs : null);
+                showAlert($('#report-page-feedback'), 'success', (res && res.message) ? res.message : 'Cut off jam laporan berhasil diperbarui.');
+                $('#modal-report-cutoff').modal('hide');
+                refreshSummaries();
+            }).fail(function(xhr) {
+                var message = 'Gagal menyimpan cut off jam laporan.';
+
+                if (xhr.responseJSON) {
+                    if (xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    if (xhr.responseJSON.errors) {
+                        var firstKey = Object.keys(xhr.responseJSON.errors)[0];
+                        if (firstKey && xhr.responseJSON.errors[firstKey] && xhr.responseJSON.errors[firstKey][0]) {
+                            message = xhr.responseJSON.errors[firstKey][0];
+                        }
+                    }
+                }
+
+                showAlert($('#report-cutoff-modal-feedback'), 'danger', message);
+            }).always(function() {
+                $cutoffSubmit.prop('disabled', false).text(cutoffSubmitDefaultLabel);
+            });
+        });
+
+        $('#modal-report-cutoff').on('hidden.bs.modal', function() {
+            hideAlert($('#report-cutoff-modal-feedback'));
         });
 
         loadDailySummary();

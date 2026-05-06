@@ -3,15 +3,67 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\ERM\Klinik;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class FinanceReportController extends Controller
 {
+    private const DEFAULT_REPORT_CUTOFF_TIME = '00:00:00';
+
     public function index()
     {
-        return view('finance.reports.index');
+        $clinics = Klinik::query()
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'report_cutoff_time']);
+
+        return view('finance.reports.index', [
+            'clinics' => $clinics,
+        ]);
+    }
+
+    public function updateCutoffs(Request $request)
+    {
+        $validated = $request->validate([
+            'cutoffs' => ['required', 'array'],
+            'cutoffs.*' => ['nullable', 'date_format:H:i'],
+        ]);
+
+        $cutoffs = collect($validated['cutoffs'] ?? [])
+            ->map(function ($value) {
+                if ($value === null || trim((string) $value) === '') {
+                    return self::DEFAULT_REPORT_CUTOFF_TIME;
+                }
+
+                return trim((string) $value) . ':00';
+            });
+
+        Klinik::query()
+            ->whereIn('id', $cutoffs->keys()->all())
+            ->get()
+            ->each(function (Klinik $clinic) use ($cutoffs) {
+                $clinic->report_cutoff_time = $cutoffs->get((string) $clinic->id, self::DEFAULT_REPORT_CUTOFF_TIME);
+                $clinic->save();
+            });
+
+        $message = 'Cut off jam laporan berhasil diperbarui.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'cutoffs' => Klinik::query()
+                    ->orderBy('nama')
+                    ->get(['id', 'report_cutoff_time'])
+                    ->mapWithKeys(function (Klinik $clinic) {
+                        return [$clinic->id => substr((string) $clinic->report_cutoff_time, 0, 5)];
+                    }),
+            ]);
+        }
+
+        return redirect()
+            ->route('finance.laporan-keuangan.index')
+            ->with('status', $message);
     }
 
     public function dailyData(Request $request)
@@ -83,6 +135,8 @@ class FinanceReportController extends Controller
     {
         $monthStart = null;
         $monthEnd = null;
+        $visitReportDateExpression = $this->buildReportDateExpression('visitation.tanggal_visitation', 'klinik.report_cutoff_time');
+        $transactionReportDateExpression = $this->buildReportDateExpression('transaction.tanggal', 'klinik.report_cutoff_time');
 
         $visitAggregate = DB::table('erm_visitations as visitation')
             ->leftJoin('erm_klinik as klinik', 'klinik.id', '=', 'visitation.klinik_id')
@@ -115,17 +169,17 @@ class FinanceReportController extends Controller
         if ($mode === 'daily') {
             $reportDate = $filters['report_date'] ?? now()->toDateString();
 
-            $visitAggregate->whereDate('visitation.tanggal_visitation', $reportDate);
-            $transactionAggregate->whereDate('transaction.tanggal', $reportDate);
-            $piutangAggregate->whereDate('visitation.tanggal_visitation', $reportDate);
+            $visitAggregate->whereRaw($visitReportDateExpression . ' = ?', [$reportDate]);
+            $transactionAggregate->whereRaw($transactionReportDateExpression . ' = ?', [$reportDate]);
+            $piutangAggregate->whereRaw($visitReportDateExpression . ' = ?', [$reportDate]);
         } else {
             $reportMonth = $filters['report_month'] ?? now()->format('Y-m');
             $monthStart = Carbon::createFromFormat('Y-m', $reportMonth)->startOfMonth()->toDateString();
             $monthEnd = Carbon::createFromFormat('Y-m', $reportMonth)->endOfMonth()->toDateString();
 
-            $visitAggregate->whereBetween(DB::raw('DATE(visitation.tanggal_visitation)'), [$monthStart, $monthEnd]);
-            $transactionAggregate->whereBetween(DB::raw('DATE(transaction.tanggal)'), [$monthStart, $monthEnd]);
-            $piutangAggregate->whereBetween(DB::raw('DATE(visitation.tanggal_visitation)'), [$monthStart, $monthEnd]);
+            $visitAggregate->whereBetween(DB::raw($visitReportDateExpression), [$monthStart, $monthEnd]);
+            $transactionAggregate->whereBetween(DB::raw($transactionReportDateExpression), [$monthStart, $monthEnd]);
+            $piutangAggregate->whereBetween(DB::raw($visitReportDateExpression), [$monthStart, $monthEnd]);
         }
 
         $visitByClinic = $visitAggregate
@@ -283,8 +337,10 @@ class FinanceReportController extends Controller
 
     private function applyModeDateFilter($query, string $mode, string $column, array $filters)
     {
+        $reportDateExpression = $this->buildReportDateExpression($column);
+
         if ($mode === 'daily') {
-            $query->whereDate($column, $filters['report_date'] ?? now()->toDateString());
+            $query->whereRaw($reportDateExpression . ' = ?', [$filters['report_date'] ?? now()->toDateString()]);
 
             return;
         }
@@ -293,19 +349,46 @@ class FinanceReportController extends Controller
         $monthStart = Carbon::createFromFormat('Y-m', $reportMonth)->startOfMonth()->toDateString();
         $monthEnd = Carbon::createFromFormat('Y-m', $reportMonth)->endOfMonth()->toDateString();
 
-        $query->whereBetween(DB::raw('DATE(' . $column . ')'), [$monthStart, $monthEnd]);
+        $query->whereBetween(DB::raw($reportDateExpression), [$monthStart, $monthEnd]);
+    }
+
+    private function applyModeDateFilterWithCutoff($query, string $mode, string $column, ?string $cutoffColumn, array $filters): void
+    {
+        $reportDateExpression = $this->buildReportDateExpression($column, $cutoffColumn);
+
+        if ($mode === 'daily') {
+            $query->whereRaw($reportDateExpression . ' = ?', [$filters['report_date'] ?? now()->toDateString()]);
+
+            return;
+        }
+
+        $reportMonth = $filters['report_month'] ?? now()->format('Y-m');
+        $monthStart = Carbon::createFromFormat('Y-m', $reportMonth)->startOfMonth()->toDateString();
+        $monthEnd = Carbon::createFromFormat('Y-m', $reportMonth)->endOfMonth()->toDateString();
+
+        $query->whereBetween(DB::raw($reportDateExpression), [$monthStart, $monthEnd]);
+    }
+
+    private function buildReportDateExpression(string $column, ?string $cutoffColumn = null): string
+    {
+        $cutoffExpression = $cutoffColumn
+            ? 'COALESCE(' . $cutoffColumn . ", '" . self::DEFAULT_REPORT_CUTOFF_TIME . "')"
+            : "'" . self::DEFAULT_REPORT_CUTOFF_TIME . "'";
+
+        return 'DATE(SUBTIME(' . $column . ', ' . $cutoffExpression . '))';
     }
 
     private function buildFinancePendapatanDetails(string $mode, string $clinicKey, array $filters): array
     {
         $query = DB::table('finance_transactions as transaction')
             ->leftJoin('erm_visitations as visitation', 'visitation.id', '=', 'transaction.visitation_id')
+            ->leftJoin('erm_klinik as klinik', 'klinik.id', '=', 'visitation.klinik_id')
             ->leftJoin('erm_pasiens as pasien', 'pasien.id', '=', 'visitation.pasien_id')
             ->leftJoin('finance_invoices as invoice', 'invoice.id', '=', 'transaction.invoice_id')
             ->whereRaw("COALESCE(CAST(visitation.klinik_id AS CHAR), 'unknown') = ?", [$clinicKey])
             ->whereNotNull('transaction.tanggal');
 
-        $this->applyModeDateFilter($query, $mode, 'transaction.tanggal', $filters);
+        $this->applyModeDateFilterWithCutoff($query, $mode, 'transaction.tanggal', 'klinik.report_cutoff_time', $filters);
 
         $rows = $query
             ->orderBy('transaction.tanggal')
@@ -368,6 +451,7 @@ class FinanceReportController extends Controller
     {
         $query = DB::table('finance_piutangs as piutang')
             ->leftJoin('erm_visitations as visitation', 'visitation.id', '=', 'piutang.visitation_id')
+            ->leftJoin('erm_klinik as klinik', 'klinik.id', '=', 'visitation.klinik_id')
             ->leftJoin('erm_pasiens as pasien', 'pasien.id', '=', 'visitation.pasien_id')
             ->leftJoin('finance_invoices as invoice', 'invoice.id', '=', 'piutang.invoice_id')
             ->whereRaw("COALESCE(CAST(visitation.klinik_id AS CHAR), 'unknown') = ?", [$clinicKey])
@@ -377,7 +461,7 @@ class FinanceReportController extends Controller
                     ->orWhereRaw('COALESCE(piutang.paid_amount, 0) < COALESCE(piutang.amount, 0)');
             });
 
-        $this->applyModeDateFilter($query, $mode, 'visitation.tanggal_visitation', $filters);
+        $this->applyModeDateFilterWithCutoff($query, $mode, 'visitation.tanggal_visitation', 'klinik.report_cutoff_time', $filters);
 
         $rows = $query
             ->orderBy('visitation.tanggal_visitation')

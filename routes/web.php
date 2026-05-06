@@ -1227,6 +1227,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::post('/transactions/backfill-change/process', [FinanceTransactionController::class, 'processBackfillChangeTransactions'])->name('finance.transactions.backfill.process');
         Route::middleware('role:Admin|Finance|Kasir')->group(function () {
             Route::get('/laporan-keuangan', [FinanceReportController::class, 'index'])->name('finance.laporan-keuangan.index');
+            Route::post('/laporan-keuangan/cutoffs', [FinanceReportController::class, 'updateCutoffs'])->name('finance.laporan-keuangan.cutoffs.update');
             Route::get('/laporan-keuangan/daily-data', [FinanceReportController::class, 'dailyData'])->name('finance.laporan-keuangan.daily-data');
             Route::get('/laporan-keuangan/monthly-data', [FinanceReportController::class, 'monthlyData'])->name('finance.laporan-keuangan.monthly-data');
             Route::get('/laporan-keuangan/detail-data', [FinanceReportController::class, 'detailData'])->name('finance.laporan-keuangan.detail-data');
