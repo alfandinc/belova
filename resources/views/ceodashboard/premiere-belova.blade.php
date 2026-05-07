@@ -58,6 +58,7 @@
         $initialFilters = $initial['filters'] ?? [
             'start_date' => now()->startOfYear()->toDateString(),
             'end_date' => now()->toDateString(),
+            'visit_type' => 'all',
         ];
     @endphp
     <div class="container-fluid mt-3">
@@ -124,8 +125,21 @@
                             <div class="col-lg-4">
                                 <div class="d-flex flex-column h-100" style="gap:12px;">
                                     <div class="border rounded p-3 d-flex flex-column justify-content-center">
-                                        <div class="small text-muted">Total Revenue</div>
-                                        <div class="h4 mb-0" id="stat-revenue-total">-</div>
+                                        <div class="d-flex align-items-start justify-content-between flex-wrap" style="gap:12px;">
+                                            <div>
+                                                <div class="small text-muted">Total Revenue</div>
+                                                <div class="h4 mb-0" id="stat-revenue-total">-</div>
+                                            </div>
+                                            <div style="min-width:180px;">
+                                                <label for="revenue-visit-type-filter" class="mb-1 small text-muted d-block">Jenis Kunjungan</label>
+                                                <select id="revenue-visit-type-filter" class="form-control form-control-sm">
+                                                    <option value="all">All</option>
+                                                    <option value="1">Konsultasi</option>
+                                                    <option value="2">Beli Produk</option>
+                                                    <option value="3">Lab</option>
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="row mx-0" style="gap:12px;">
                                         <div class="col px-0">
@@ -965,6 +979,7 @@
             var latestData = initialData;
             var selectedStart = "{{ $initialFilters['start_date'] ?? now()->startOfYear()->toDateString() }}";
             var selectedEnd = "{{ $initialFilters['end_date'] ?? now()->toDateString() }}";
+            var selectedVisitType = "{{ $initialFilters['visit_type'] ?? 'all' }}";
             var baseStart = selectedStart;
             var baseEnd = selectedEnd;
             var suppressZoomFetch = false;
@@ -1567,6 +1582,7 @@
                 } else {
                     params.push('all=1');
                 }
+                if (selectedVisitType && selectedVisitType !== 'all') params.push('visit_type=' + encodeURIComponent(selectedVisitType));
                 if (extra) params.push(extra);
                 return params.length ? ('?' + params.join('&')) : '';
             }
@@ -2178,7 +2194,10 @@
                         if (!options.skipZoomSync && resp.filters) {
                             selectedStart = resp.filters.start_date || selectedStart;
                             selectedEnd = resp.filters.end_date || selectedEnd;
+                            selectedVisitType = resp.filters.visit_type || selectedVisitType;
                         }
+
+                        $('#revenue-visit-type-filter').val(selectedVisitType || 'all');
 
                         suppressZoomFetch = !!options.skipZoomSync;
                         latestData = resp;
@@ -2193,7 +2212,8 @@
             function buildRequestParams() {
                 return {
                     start_date: selectedStart,
-                    end_date: selectedEnd
+                    end_date: selectedEnd,
+                    visit_type: selectedVisitType || 'all'
                 };
             }
 
@@ -2234,11 +2254,17 @@
                 }
 
                 if (initialData) {
+                    $('#revenue-visit-type-filter').val(selectedVisitType || 'all');
                     renderAllPanels(initialData);
                     refreshDoctorTab();
                 } else {
                     loadData(buildRequestParams());
                 }
+
+                $('#revenue-visit-type-filter').on('change', function(){
+                    selectedVisitType = $(this).val() || 'all';
+                    loadData(buildRequestParams());
+                });
 
                 $('#premiereDoctorSelect').on('change', function(){
                     refreshDoctorTab();

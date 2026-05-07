@@ -449,7 +449,9 @@ class CeoDashboardController extends Controller
             $rangeEnd = $now->copy()->endOfDay();
         }
 
-        $buildGroupedPayload = function ($rangeStart, $rangeEnd) use ($clinicId) {
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+
+        $buildGroupedPayload = function ($rangeStart, $rangeEnd) use ($clinicId, $visitTypeFilter) {
             $seriesData = [];
             $revData = [];
             $bucketLabels = [];
@@ -479,12 +481,16 @@ class CeoDashboardController extends Controller
                     ->toArray();
 
                 try {
-                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    $revRowsQuery = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
                             ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
                             ->selectRaw("DATE(ft.tanggal) as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()]);
+
+                    $this->applyVisitTypeFilter($revRowsQuery, $visitTypeFilter);
+
+                    $revRows = $revRowsQuery
                         ->groupBy('bucket')
                         ->orderBy('bucket')
                         ->pluck('revenue', 'bucket')
@@ -520,12 +526,16 @@ class CeoDashboardController extends Controller
                     ->keyBy('bucket');
 
                 try {
-                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    $revRowsQuery = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
                             ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
                             ->selectRaw("YEARWEEK(ft.tanggal, 3) as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()]);
+
+                    $this->applyVisitTypeFilter($revRowsQuery, $visitTypeFilter);
+
+                    $revRows = $revRowsQuery
                         ->groupBy('bucket')
                         ->pluck('revenue', 'bucket')
                         ->toArray();
@@ -564,12 +574,16 @@ class CeoDashboardController extends Controller
                     ->toArray();
 
                 try {
-                    $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    $revRowsQuery = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
                             ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
                             ->selectRaw("DATE_FORMAT(ft.tanggal, '%Y-%m-01') as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()]);
+
+                    $this->applyVisitTypeFilter($revRowsQuery, $visitTypeFilter);
+
+                    $revRows = $revRowsQuery
                         ->groupBy('bucket')
                         ->orderBy('bucket')
                         ->pluck('revenue', 'bucket')
@@ -610,6 +624,7 @@ class CeoDashboardController extends Controller
                     'start_date' => $rangeStart->toDateString(),
                     'end_date' => $rangeEnd->toDateString(),
                     'group_by' => $groupBy,
+                    'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
                 ],
             ];
         };
@@ -706,8 +721,19 @@ class CeoDashboardController extends Controller
             foreach (($initial['revenues'][0] ?? []) as $value) {
                 $totalRevenue += (float) $value;
             }
+
+            $revenueVisitCount = $totalVisits;
+            if ($visitTypeFilter !== null) {
+                $revenueVisitCount = (int) \Illuminate\Support\Facades\DB::table('erm_visitations')
+                    ->where('klinik_id', $clinicId)
+                    ->where('status_kunjungan', 2)
+                    ->where('jenis_kunjungan', $visitTypeFilter)
+                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
+                    ->count();
+            }
+
             $stats['revenue_total'] = round($totalRevenue, 2);
-            $stats['avg_revenue_per_visit'] = $totalVisits > 0 ? round($totalRevenue / $totalVisits, 2) : 0.0;
+            $stats['avg_revenue_per_visit'] = $revenueVisitCount > 0 ? round($totalRevenue / $revenueVisitCount, 2) : 0.0;
             $stats['avg_revenue_per_day'] = $rangeDays > 0 ? round($totalRevenue / $rangeDays, 2) : 0.0;
 
             $weekCursor = $rangeStartCarbon->copy()->startOfWeek();
@@ -848,7 +874,11 @@ class CeoDashboardController extends Controller
                     ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()]);
+
+                $this->applyVisitTypeFilter($statusRevenueRows, $visitTypeFilter);
+
+                $statusRevenueRows = $statusRevenueRows
                     ->groupBy('p.status_pasien')
                     ->orderByDesc('revenue')
                     ->get();
@@ -872,7 +902,11 @@ class CeoDashboardController extends Controller
                     ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()]);
+
+                $this->applyVisitTypeFilter($visitRevenueRows, $visitTypeFilter);
+
+                $visitRevenueRows = $visitRevenueRows
                     ->groupBy('v.id')
                     ->get();
 
@@ -1140,7 +1174,11 @@ class CeoDashboardController extends Controller
                     ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()]);
+
+                $this->applyVisitTypeFilter($topDoctorRevenueRows, $visitTypeFilter);
+
+                $topDoctorRevenueRows = $topDoctorRevenueRows
                     ->groupBy('v.dokter_id', 'u.name')
                     ->orderByDesc('revenue')
                     ->orderBy('dokter_name')
@@ -1168,7 +1206,11 @@ class CeoDashboardController extends Controller
                     ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()]);
+
+                $this->applyVisitTypeFilter($topPatientRevenueRows, $visitTypeFilter);
+
+                $topPatientRevenueRows = $topPatientRevenueRows
                     ->groupBy('v.pasien_id', 'p.nama', 'p.status_pasien')
                     ->orderByDesc('revenue')
                     ->orderBy('pasien_name')
@@ -1477,6 +1519,8 @@ class CeoDashboardController extends Controller
             }
         }
 
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+
         $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
             ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
             ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
@@ -1488,7 +1532,11 @@ class CeoDashboardController extends Controller
             ->selectRaw('COALESCE(ft.metode_bayar, \'-\') as metode_bayar')
             ->where('v.dokter_id', $id)
             ->where('v.status_kunjungan', 2)
-            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()]);
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
+
+        $rows = $rows
             ->orderByDesc('ft.tanggal')
             ->orderByDesc('ft.id')
             ->limit(200)
@@ -1514,6 +1562,7 @@ class CeoDashboardController extends Controller
             'filters' => [
                 'start' => $startDt->toDateString(),
                 'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
             ],
             'transactions' => $transactions,
         ]);
@@ -1553,6 +1602,8 @@ class CeoDashboardController extends Controller
             }
         }
 
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+
         $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
             ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
             ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
@@ -1567,7 +1618,11 @@ class CeoDashboardController extends Controller
             ->selectRaw('COALESCE(ft.metode_bayar, \'-\') as metode_bayar')
             ->where('v.pasien_id', $id)
             ->where('v.status_kunjungan', 2)
-            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()]);
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
+
+        $rows = $rows
             ->orderByDesc('ft.tanggal')
             ->orderByDesc('ft.id')
             ->limit(200)
@@ -1603,6 +1658,7 @@ class CeoDashboardController extends Controller
             'filters' => [
                 'start' => $startDt->toDateString(),
                 'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
             ],
             'transactions' => $transactions,
         ]);
@@ -1627,6 +1683,8 @@ class CeoDashboardController extends Controller
             }
         }
 
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+
         $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
             ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
             ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
@@ -1636,7 +1694,11 @@ class CeoDashboardController extends Controller
             ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
             ->where('v.klinik_id', $clinicId)
             ->where('v.status_kunjungan', 2)
-            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()]);
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
+
+        $rows = $rows
             ->groupBy('v.pasien_id', 'p.nama', 'p.status_pasien')
             ->orderByDesc('revenue')
             ->orderBy('pasien_name')
@@ -1657,6 +1719,7 @@ class CeoDashboardController extends Controller
             'filters' => [
                 'start' => $startDt->toDateString(),
                 'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
             ],
             'rankings' => $rankings,
         ]);
@@ -1703,6 +1766,8 @@ class CeoDashboardController extends Controller
             }
         }
 
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+
         $revenueExpr = "SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END)";
 
         $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
@@ -1720,6 +1785,8 @@ class CeoDashboardController extends Controller
             ->where('v.status_kunjungan', 2)
             ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
             ->groupBy('v.id', 'v.tanggal_visitation', 'p.nama', 'v.pasien_id', 'u.name', 'v.dokter_id', 'v.jenis_kunjungan');
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
 
         if ($classKey === 'entry_level') {
             $rows->havingRaw($revenueExpr . ' >= ? AND ' . $revenueExpr . ' < ?', [100000, 350000]);
@@ -1765,9 +1832,32 @@ class CeoDashboardController extends Controller
             'filters' => [
                 'start' => $startDt->toDateString(),
                 'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
             ],
             'visits' => $visits,
         ]);
+    }
+
+    private function parseVisitTypeFilter(Request $request, string $key = 'visit_type'): ?int
+    {
+        $value = $request->query($key);
+
+        if ($value === null || $value === '' || $value === 'all') {
+            return null;
+        }
+
+        $visitType = (int) $value;
+
+        return in_array($visitType, [1, 2, 3], true) ? $visitType : null;
+    }
+
+    private function applyVisitTypeFilter($query, ?int $visitType, string $column = 'v.jenis_kunjungan')
+    {
+        if ($visitType !== null) {
+            $query->where($column, $visitType);
+        }
+
+        return $query;
     }
 
     /**
