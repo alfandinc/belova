@@ -15,7 +15,9 @@
 
         #top-patient-revenue-body tr[data-patient-id],
         #all-patient-revenue-body tr[data-patient-id],
-        #revenue-by-spend-class-body tr[data-spend-class-key] {
+        #revenue-by-spend-class-body tr[data-spend-class-key],
+        #top-obat-revenue-body tr[data-obat-id],
+        #top-treatment-revenue-body tr[data-treatment-id] {
             cursor: pointer;
             transition: background-color 0.15s ease, color 0.15s ease;
         }
@@ -26,7 +28,9 @@
 
         #top-patient-revenue-body tr[data-patient-id]:hover,
         #all-patient-revenue-body tr[data-patient-id]:hover,
-        #revenue-by-spend-class-body tr[data-spend-class-key]:hover {
+        #revenue-by-spend-class-body tr[data-spend-class-key]:hover,
+        #top-obat-revenue-body tr[data-obat-id]:hover,
+        #top-treatment-revenue-body tr[data-treatment-id]:hover {
             background-color: rgba(13, 110, 253, 0.08);
         }
 
@@ -40,7 +44,11 @@
         #all-patient-revenue-body tr[data-patient-id]:hover th,
         #all-patient-revenue-body tr[data-patient-id]:hover td,
         #revenue-by-spend-class-body tr[data-spend-class-key]:hover th,
-        #revenue-by-spend-class-body tr[data-spend-class-key]:hover td {
+        #revenue-by-spend-class-body tr[data-spend-class-key]:hover td,
+        #top-obat-revenue-body tr[data-obat-id]:hover th,
+        #top-obat-revenue-body tr[data-obat-id]:hover td,
+        #top-treatment-revenue-body tr[data-treatment-id]:hover th,
+        #top-treatment-revenue-body tr[data-treatment-id]:hover td {
             color: #0d6efd;
         }
 
@@ -207,6 +215,39 @@
                                     <div class="table-responsive">
                                         <table class="table table-sm mb-0">
                                             <tbody id="top-patient-revenue-body">
+                                            <tr>
+                                                <td colspan="2" class="text-muted">-</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="mb-3">Top Obat Revenue</h6>
+                                    <input type="text" id="top-obat-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search obat revenue...">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm mb-0">
+                                            <tbody id="top-obat-revenue-body">
+                                            <tr>
+                                                <td colspan="2" class="text-muted">-</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="mb-3">Top Treatment Revenue</h6>
+                                    <input type="text" id="top-treatment-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search treatment revenue...">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm mb-0">
+                                            <tbody id="top-treatment-revenue-body">
                                             <tr>
                                                 <td colspan="2" class="text-muted">-</td>
                                             </tr>
@@ -944,6 +985,40 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="itemRevenueModal" tabindex="-1" role="dialog" aria-labelledby="itemRevenueModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemRevenueModalLabel">Item Revenue Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="item-revenue-modal-range">-</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Visit Date</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody id="item-revenue-details-body">
+                                <tr>
+                                    <td colspan="5" class="text-muted">Pilih item untuk melihat detail revenue.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('scripts')
@@ -980,9 +1055,12 @@
             var selectedStart = "{{ $initialFilters['start_date'] ?? now()->startOfYear()->toDateString() }}";
             var selectedEnd = "{{ $initialFilters['end_date'] ?? now()->toDateString() }}";
             var selectedVisitType = "{{ $initialFilters['visit_type'] ?? 'all' }}";
+            var revenueClinicId = 3;
             var baseStart = selectedStart;
             var baseEnd = selectedEnd;
             var suppressZoomFetch = false;
+            var currentRevenueStats = initialData && initialData.stats ? initialData.stats : null;
+            var itemRevenueSearchTimers = { obat: null, treatment: null };
 
             function formatRangeLabel(startDate, endDate) {
                 return startDate + ' - ' + endDate;
@@ -1005,6 +1083,15 @@
                     return Number(value || 0).toLocaleString('id-ID');
                 } catch (e) {
                     return value || 0;
+                }
+            }
+
+            function formatVisitTypeFilterLabel(value) {
+                switch (String(value || 'all')) {
+                    case '1': return 'Konsultasi';
+                    case '2': return 'Beli Produk';
+                    case '3': return 'Lab';
+                    default: return 'All';
                 }
             }
 
@@ -1450,6 +1537,89 @@
                     });
             }
 
+            function renderItemRevenueDetailsModal(payload) {
+                var modalLabel = document.getElementById('itemRevenueModalLabel');
+                var modalRange = document.getElementById('item-revenue-modal-range');
+                var tbody = document.getElementById('item-revenue-details-body');
+                if (!tbody) return;
+
+                if (modalLabel) {
+                    var item = payload && payload.item ? payload.item : {};
+                    var itemType = item.type === 'tindakan' ? 'Treatment Revenue Details' : 'Obat Revenue Details';
+                    modalLabel.textContent = itemType + ' - ' + (item.name || '-');
+                }
+
+                if (modalRange) {
+                    var start = payload && payload.filters ? payload.filters.start : null;
+                    var end = payload && payload.filters ? payload.filters.end : null;
+                    var visitType = payload && payload.filters ? payload.filters.visit_type : 'all';
+                    modalRange.textContent = (start && end ? ('Range: ' + start + ' - ' + end) : '-') + ' | Jenis: ' + formatVisitTypeFilterLabel(visitType);
+                }
+
+                tbody.innerHTML = '';
+                var rows = payload && Array.isArray(payload.details) ? payload.details : [];
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Tidak ada data.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(function(item) {
+                    var tr = document.createElement('tr');
+
+                    var visitDateCell = document.createElement('td');
+                    visitDateCell.textContent = item.visit_date || '-';
+
+                    var patientCell = document.createElement('td');
+                    patientCell.textContent = item.patient_name || '-';
+
+                    var doctorCell = document.createElement('td');
+                    doctorCell.textContent = item.doctor_name || '-';
+
+                    var qtyCell = document.createElement('td');
+                    qtyCell.className = 'text-end';
+                    qtyCell.textContent = formatNumber(item.qty || 0);
+
+                    var revenueCell = document.createElement('td');
+                    revenueCell.className = 'text-end';
+                    revenueCell.textContent = formatCurrency(item.revenue || 0);
+
+                    tr.appendChild(visitDateCell);
+                    tr.appendChild(patientCell);
+                    tr.appendChild(doctorCell);
+                    tr.appendChild(qtyCell);
+                    tr.appendChild(revenueCell);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function fetchItemRevenueDetails(itemType, itemId, itemName) {
+                var modalLabel = document.getElementById('itemRevenueModalLabel');
+                var modalRange = document.getElementById('item-revenue-modal-range');
+                var tbody = document.getElementById('item-revenue-details-body');
+                var itemTitle = itemType === 'tindakan' ? 'Treatment Revenue Details' : 'Obat Revenue Details';
+                var endpoint = itemType === 'tindakan'
+                    ? '/ceo-dashboard/clinic/3/treatment/' + encodeURIComponent(itemId) + '/revenue-details'
+                    : '/ceo-dashboard/clinic/3/obat/' + encodeURIComponent(itemId) + '/revenue-details';
+
+                if (modalLabel) modalLabel.textContent = itemTitle + ' - ' + (itemName || '-');
+                if (modalRange) modalRange.textContent = 'Loading...';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading data...</td></tr>';
+
+                $('#itemRevenueModal').modal('show');
+
+                fetch(endpoint + buildDoctorQuery())
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) throw new Error('Invalid response');
+                        renderItemRevenueDetailsModal(payload);
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load item revenue details', err);
+                        if (modalRange) modalRange.textContent = '-';
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Gagal memuat data.</td></tr>';
+                    });
+            }
+
             function renderSpecialtyTabs(stats) {
                 var medicine = stats && stats.medicine ? stats.medicine : { total_prescription_items: 0, total_medicine_qty: 0, top_obats: [] };
                 var tindakan = stats && stats.tindakan ? stats.tindakan : { total_tindakan: 0, top_tindakans: [] };
@@ -1585,6 +1755,101 @@
                 if (selectedVisitType && selectedVisitType !== 'all') params.push('visit_type=' + encodeURIComponent(selectedVisitType));
                 if (extra) params.push(extra);
                 return params.length ? ('?' + params.join('&')) : '';
+            }
+
+            function renderItemRevenueRows(itemType, items, emptyMessage) {
+                var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
+                var body = document.getElementById(bodyId);
+                if (!body) return;
+
+                body.innerHTML = '';
+                if (!Array.isArray(items) || !items.length) {
+                    body.innerHTML = '<tr><td colspan="2" class="text-muted">' + (emptyMessage || 'Tidak ada data') + '</td></tr>';
+                    return;
+                }
+
+                items.forEach(function(item, index) {
+                    var row = document.createElement('tr');
+                    if (item.id) {
+                        row.style.cursor = 'pointer';
+                        if (itemType === 'obat') {
+                            row.setAttribute('data-obat-id', item.id);
+                            row.setAttribute('data-obat-name', item.name || 'Obat');
+                        } else {
+                            row.setAttribute('data-treatment-id', item.id);
+                            row.setAttribute('data-treatment-name', item.name || 'Tindakan');
+                        }
+                    }
+
+                    var th = document.createElement('th');
+                    th.textContent = (index + 1) + '. ' + (item.name || (itemType === 'obat' ? 'Obat' : 'Tindakan'));
+
+                    var td = document.createElement('td');
+                    td.className = 'text-end';
+                    td.textContent = formatCurrency(item.revenue || 0);
+
+                    row.appendChild(th);
+                    row.appendChild(td);
+                    body.appendChild(row);
+                });
+            }
+
+            function restoreDefaultItemRevenueRows(itemType) {
+                var statsKey = itemType === 'obat' ? 'top_obat_revenue' : 'top_treatment_revenue';
+                var items = currentRevenueStats && Array.isArray(currentRevenueStats[statsKey]) ? currentRevenueStats[statsKey] : [];
+                renderItemRevenueRows(itemType, items, 'Tidak ada data');
+            }
+
+            function fetchItemRevenueRankings(itemType, keyword) {
+                var endpoint = itemType === 'obat'
+                    ? '/ceo-dashboard/clinic/' + revenueClinicId + '/obat-revenue-rankings'
+                    : '/ceo-dashboard/clinic/' + revenueClinicId + '/treatment-revenue-rankings';
+                var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
+                var body = document.getElementById(bodyId);
+                if (body) {
+                    body.innerHTML = '<tr><td colspan="2" class="text-muted">Loading data...</td></tr>';
+                }
+
+                fetch(endpoint + buildDoctorQuery('q=' + encodeURIComponent(keyword) + '&limit=25'))
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) throw new Error('Invalid response');
+                        renderItemRevenueRows(itemType, payload.items || [], 'Tidak ada hasil untuk pencarian ini');
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load item revenue rankings', err);
+                        if (body) {
+                            body.innerHTML = '<tr><td colspan="2" class="text-danger">Gagal memuat data.</td></tr>';
+                        }
+                    });
+            }
+
+            function runItemRevenueSearch(itemType, immediate) {
+                var inputId = itemType === 'obat' ? 'top-obat-revenue-search' : 'top-treatment-revenue-search';
+                var input = document.getElementById(inputId);
+                if (!input) return;
+
+                var keyword = (input.value || '').trim();
+                var execute = function() {
+                    if (!keyword) {
+                        restoreDefaultItemRevenueRows(itemType);
+                        return;
+                    }
+                    fetchItemRevenueRankings(itemType, keyword);
+                };
+
+                clearTimeout(itemRevenueSearchTimers[itemType]);
+                if (immediate) {
+                    execute();
+                    return;
+                }
+
+                itemRevenueSearchTimers[itemType] = setTimeout(execute, 250);
+            }
+
+            function syncItemRevenueSearchResults() {
+                runItemRevenueSearch('obat', true);
+                runItemRevenueSearch('treatment', true);
             }
 
             function populateDoctorCard(data) {
@@ -1985,6 +2250,7 @@
             function renderStats(stats) {
                 try {
                     if (!stats) return;
+                    currentRevenueStats = stats;
                     document.getElementById('stat-total-visits').textContent = (typeof stats.total_visits !== 'undefined') ? stats.total_visits : '-';
                     document.getElementById('stat-avg-day').textContent = (typeof stats.avg_per_day !== 'undefined') ? stats.avg_per_day : '-';
                     document.getElementById('stat-avg-week').textContent = (typeof stats.avg_per_week !== 'undefined') ? stats.avg_per_week : '-';
@@ -2183,6 +2449,18 @@
                             });
                         }
                     }
+
+                    var topObatRevenueBody = document.getElementById('top-obat-revenue-body');
+                    if (topObatRevenueBody) {
+                        restoreDefaultItemRevenueRows('obat');
+                    }
+
+                    var topTreatmentRevenueBody = document.getElementById('top-treatment-revenue-body');
+                    if (topTreatmentRevenueBody) {
+                        restoreDefaultItemRevenueRows('treatment');
+                    }
+
+                    syncItemRevenueSearchResults();
                 } catch(e) { console.error(e); }
             }
 
@@ -2266,6 +2544,14 @@
                     loadData(buildRequestParams());
                 });
 
+                $('#top-obat-revenue-search').on('input', function(){
+                    runItemRevenueSearch('obat', false);
+                });
+
+                $('#top-treatment-revenue-search').on('input', function(){
+                    runItemRevenueSearch('treatment', false);
+                });
+
                 $('#premiereDoctorSelect').on('change', function(){
                     refreshDoctorTab();
                 });
@@ -2304,6 +2590,20 @@
                     var classLabel = $(this).attr('data-spend-class-label') || 'Spend Class';
                     if (!classKey) return;
                     fetchSpendClassVisits(classKey, classLabel);
+                });
+
+                $(document).on('click', '#top-obat-revenue-body tr[data-obat-id]', function(){
+                    var itemId = $(this).attr('data-obat-id');
+                    var itemName = $(this).attr('data-obat-name') || 'Obat';
+                    if (!itemId) return;
+                    fetchItemRevenueDetails('obat', itemId, itemName);
+                });
+
+                $(document).on('click', '#top-treatment-revenue-body tr[data-treatment-id]', function(){
+                    var itemId = $(this).attr('data-treatment-id');
+                    var itemName = $(this).attr('data-treatment-name') || 'Tindakan';
+                    if (!itemId) return;
+                    fetchItemRevenueDetails('tindakan', itemId, itemName);
                 });
 
                 $('#show-all-patient-revenue').on('click', function(){

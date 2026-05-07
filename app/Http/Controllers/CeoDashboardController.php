@@ -654,6 +654,8 @@ class CeoDashboardController extends Controller
             'top_doctors' => [],
             'top_doctor_revenue' => [],
             'top_patient_revenue' => [],
+            'top_obat_revenue' => [],
+            'top_treatment_revenue' => [],
             'patient_demographics' => [
                 'gender' => ['male' => 0, 'female' => 0, 'other' => 0],
                 'age' => [
@@ -977,6 +979,8 @@ class CeoDashboardController extends Controller
                     ->where('v.status_kunjungan', 2)
                     ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
 
+                $this->applyVisitTypeFilter($medicineBase, $visitTypeFilter);
+
                 $stats['medicine']['total_prescription_items'] = (int) (clone $medicineBase)->count();
                 $stats['medicine']['total_medicine_qty'] = (int) ((clone $medicineBase)->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(r.jumlah, 0)')) ?: 0);
 
@@ -996,8 +1000,40 @@ class CeoDashboardController extends Controller
                         'qty' => (int) ($row->total ?? 0),
                     ];
                 })->values()->all();
+
+                $obatRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
+
+                $topObatRevenueBase = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+                    ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+                    ->join('erm_resepfarmasi as r', 'fb.billable_id', '=', 'r.id')
+                    ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
+                    ->where('fb.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $this->applyVisitTypeFilter($topObatRevenueBase, $visitTypeFilter);
+
+                $topObatRevenueRows = $topObatRevenueBase
+                    ->selectRaw('r.obat_id as obat_id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-'))) as obat_name")
+                    ->selectRaw($obatRevenueExpr . ' as revenue')
+                    ->groupBy('r.obat_id', 'o.nama')
+                    ->orderByDesc('revenue')
+                    ->orderBy('obat_name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['top_obat_revenue'] = $topObatRevenueRows->map(function ($row) {
+                    return [
+                        'id' => $row->obat_id,
+                        'name' => (string) ($row->obat_name ?? 'Obat'),
+                        'revenue' => round((float) ($row->revenue ?? 0), 2),
+                    ];
+                })->values()->all();
             } catch (\Exception $e) {
                 $stats['medicine'] = ['total_prescription_items' => 0, 'total_medicine_qty' => 0, 'top_obats' => []];
+                $stats['top_obat_revenue'] = [];
             }
 
             try {
@@ -1006,6 +1042,8 @@ class CeoDashboardController extends Controller
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
                     ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $this->applyVisitTypeFilter($tindakanBase, $visitTypeFilter);
 
                 $stats['tindakan']['total_tindakan'] = (int) (clone $tindakanBase)->count();
 
@@ -1025,8 +1063,40 @@ class CeoDashboardController extends Controller
                         'count' => (int) ($row->total ?? 0),
                     ];
                 })->values()->all();
+
+                $treatmentRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
+
+                $topTreatmentRevenueBase = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+                    ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+                    ->join('erm_riwayat_tindakan as r', 'fb.billable_id', '=', 'r.id')
+                    ->join('erm_tindakan as t', 'r.tindakan_id', '=', 't.id')
+                    ->where('fb.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $this->applyVisitTypeFilter($topTreatmentRevenueBase, $visitTypeFilter);
+
+                $topTreatmentRevenueRows = $topTreatmentRevenueBase
+                    ->selectRaw('r.tindakan_id as tindakan_id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(r.tindakan_id, '-'))) as tindakan_name")
+                    ->selectRaw($treatmentRevenueExpr . ' as revenue')
+                    ->groupBy('r.tindakan_id', 't.nama')
+                    ->orderByDesc('revenue')
+                    ->orderBy('tindakan_name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['top_treatment_revenue'] = $topTreatmentRevenueRows->map(function ($row) {
+                    return [
+                        'id' => $row->tindakan_id,
+                        'name' => (string) ($row->tindakan_name ?? 'Tindakan'),
+                        'revenue' => round((float) ($row->revenue ?? 0), 2),
+                    ];
+                })->values()->all();
             } catch (\Exception $e) {
                 $stats['tindakan'] = ['total_tindakan' => 0, 'top_tindakans' => []];
+                $stats['top_treatment_revenue'] = [];
             }
 
             try {
@@ -1835,6 +1905,308 @@ class CeoDashboardController extends Controller
                 'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
             ],
             'visits' => $visits,
+        ]);
+    }
+
+    public function clinicObatRevenueRankings(Request $request, $clinicId)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+        $search = trim((string) $request->query('q', ''));
+        $limit = max(1, min((int) $request->query('limit', 25), 100));
+        $obatRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
+
+        $query = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+            ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+            ->join('erm_resepfarmasi as r', 'fb.billable_id', '=', 'r.id')
+            ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
+            ->where('fb.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
+
+        $this->applyVisitTypeFilter($query, $visitTypeFilter);
+
+        if ($search !== '') {
+            $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
+        }
+
+        $items = $query
+            ->selectRaw('r.obat_id as obat_id')
+            ->selectRaw("COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-'))) as obat_name")
+            ->selectRaw($obatRevenueExpr . ' as revenue')
+            ->groupBy('r.obat_id', 'o.nama')
+            ->orderByDesc('revenue')
+            ->orderBy('obat_name')
+            ->limit($limit)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->obat_id ?? 0),
+                    'name' => (string) ($row->obat_name ?? 'Obat'),
+                    'revenue' => round((float) ($row->revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
+                'q' => $search,
+            ],
+            'items' => $items,
+        ]);
+    }
+
+    public function clinicTreatmentRevenueRankings(Request $request, $clinicId)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+        $search = trim((string) $request->query('q', ''));
+        $limit = max(1, min((int) $request->query('limit', 25), 100));
+        $treatmentRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
+
+        $query = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+            ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+            ->join('erm_riwayat_tindakan as rt', 'fb.billable_id', '=', 'rt.id')
+            ->join('erm_tindakan as t', 'rt.tindakan_id', '=', 't.id')
+            ->where('fb.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
+
+        $this->applyVisitTypeFilter($query, $visitTypeFilter);
+
+        if ($search !== '') {
+            $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(rt.tindakan_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
+        }
+
+        $items = $query
+            ->selectRaw('rt.tindakan_id as tindakan_id')
+            ->selectRaw("COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(rt.tindakan_id, '-'))) as tindakan_name")
+            ->selectRaw($treatmentRevenueExpr . ' as revenue')
+            ->groupBy('rt.tindakan_id', 't.nama')
+            ->orderByDesc('revenue')
+            ->orderBy('tindakan_name')
+            ->limit($limit)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->tindakan_id ?? 0),
+                    'name' => (string) ($row->tindakan_name ?? 'Tindakan'),
+                    'revenue' => round((float) ($row->revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
+                'q' => $search,
+            ],
+            'items' => $items,
+        ]);
+    }
+
+    public function clinicObatRevenueDetails(Request $request, $clinicId, $id)
+    {
+        $obat = \App\Models\ERM\Obat::find($id);
+        if (!$obat) {
+            return response()->json(['ok' => false, 'message' => 'Obat tidak ditemukan'], 404);
+        }
+
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+        $lineRevenueExpr = "GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END)";
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+            ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+            ->join('erm_resepfarmasi as r', 'fb.billable_id', '=', 'r.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+            ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+            ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+            ->selectRaw('fb.id')
+            ->selectRaw('DATE(v.tanggal_visitation) as visit_date')
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as patient_name")
+            ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as doctor_name")
+            ->selectRaw('COALESCE(NULLIF(fb.qty, 0), 1) as qty')
+            ->selectRaw($lineRevenueExpr . ' as revenue')
+            ->where('fb.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+            ->where('r.obat_id', $id)
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
+
+        $details = $rows
+            ->orderByDesc('v.tanggal_visitation')
+            ->orderByDesc('fb.id')
+            ->limit(300)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->id ?? 0),
+                    'visit_date' => $row->visit_date ? \Illuminate\Support\Carbon::parse($row->visit_date)->format('Y-m-d') : null,
+                    'patient_name' => (string) ($row->patient_name ?? 'Pasien Tidak Diketahui'),
+                    'doctor_name' => (string) ($row->doctor_name ?? 'Dokter Tidak Diketahui'),
+                    'qty' => (float) ($row->qty ?? 1),
+                    'revenue' => round((float) ($row->revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'item' => [
+                'type' => 'obat',
+                'id' => (int) $obat->id,
+                'name' => (string) ($obat->nama ?? ('Obat ' . $obat->id)),
+            ],
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
+            ],
+            'details' => $details,
+        ]);
+    }
+
+    public function clinicTreatmentRevenueDetails(Request $request, $clinicId, $id)
+    {
+        $tindakan = \App\Models\ERM\Tindakan::find($id);
+        if (!$tindakan) {
+            return response()->json(['ok' => false, 'message' => 'Tindakan tidak ditemukan'], 404);
+        }
+
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $visitTypeFilter = $this->parseVisitTypeFilter($request);
+        $lineRevenueExpr = "GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END)";
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
+            ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
+            ->join('erm_riwayat_tindakan as rt', 'fb.billable_id', '=', 'rt.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+            ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+            ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+            ->selectRaw('fb.id')
+            ->selectRaw('DATE(v.tanggal_visitation) as visit_date')
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as patient_name")
+            ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as doctor_name")
+            ->selectRaw('COALESCE(NULLIF(fb.qty, 0), 1) as qty')
+            ->selectRaw($lineRevenueExpr . ' as revenue')
+            ->where('fb.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+            ->where('rt.tindakan_id', $id)
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
+
+        $this->applyVisitTypeFilter($rows, $visitTypeFilter);
+
+        $details = $rows
+            ->orderByDesc('v.tanggal_visitation')
+            ->orderByDesc('fb.id')
+            ->limit(300)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->id ?? 0),
+                    'visit_date' => $row->visit_date ? \Illuminate\Support\Carbon::parse($row->visit_date)->format('Y-m-d') : null,
+                    'patient_name' => (string) ($row->patient_name ?? 'Pasien Tidak Diketahui'),
+                    'doctor_name' => (string) ($row->doctor_name ?? 'Dokter Tidak Diketahui'),
+                    'qty' => (float) ($row->qty ?? 1),
+                    'revenue' => round((float) ($row->revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'item' => [
+                'type' => 'tindakan',
+                'id' => (int) $tindakan->id,
+                'name' => (string) ($tindakan->nama ?? ('Tindakan ' . $tindakan->id)),
+            ],
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+                'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
+            ],
+            'details' => $details,
         ]);
     }
 
