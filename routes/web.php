@@ -394,6 +394,10 @@ Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role
     Route::get('/dokter/{id}/tindakan-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterTindakanStats'])->name('dokter.tindakan_stats');
     Route::get('/dokter/{id}/obat-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterObatStats'])->name('dokter.obat_stats');
     Route::get('/dokter/{id}/lab-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterLabStats'])->name('dokter.lab_stats');
+    Route::get('/dokter/{id}/revenue-transactions', [\App\Http\Controllers\CeoDashboardController::class, 'dokterRevenueTransactions'])->name('dokter.revenue_transactions');
+    Route::get('/pasien/{id}/revenue-transactions', [\App\Http\Controllers\CeoDashboardController::class, 'patientRevenueTransactions'])->name('pasien.revenue_transactions');
+    Route::get('/clinic/{id}/patient-revenue-rankings', [\App\Http\Controllers\CeoDashboardController::class, 'clinicPatientRevenueRankings'])->name('clinic.patient_revenue_rankings');
+    Route::get('/clinic/{id}/spend-class-visits/{classKey}', [\App\Http\Controllers\CeoDashboardController::class, 'clinicSpendClassVisits'])->name('clinic.spend_class_visits');
     // Premiere Belova statistics (clinic id = 1)
     Route::get('/premiere-belova', [\App\Http\Controllers\CeoDashboardController::class, 'premiereBelova'])->name('premiere_belova.index');
     // Belova Skin statistics (clinic id = 2)

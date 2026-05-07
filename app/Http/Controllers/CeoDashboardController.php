@@ -480,11 +480,11 @@ class CeoDashboardController extends Controller
 
                 try {
                     $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
-                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
-                        ->selectRaw('DATE(v.tanggal_visitation) as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue')
+                            ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
+                            ->selectRaw("DATE(ft.tanggal) as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
                         ->groupBy('bucket')
                         ->orderBy('bucket')
                         ->pluck('revenue', 'bucket')
@@ -521,11 +521,11 @@ class CeoDashboardController extends Controller
 
                 try {
                     $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
-                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
-                        ->selectRaw("YEARWEEK(v.tanggal_visitation, 3) as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue")
+                            ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
+                            ->selectRaw("YEARWEEK(ft.tanggal, 3) as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
                         ->groupBy('bucket')
                         ->pluck('revenue', 'bucket')
                         ->toArray();
@@ -565,11 +565,11 @@ class CeoDashboardController extends Controller
 
                 try {
                     $revRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
-                        ->join('finance_invoices as fi', 'fi.visitation_id', '=', 'v.id')
-                        ->selectRaw("DATE_FORMAT(v.tanggal_visitation, '%Y-%m-01') as bucket, SUM(COALESCE(fi.amount_paid, fi.total_amount)) as revenue")
+                            ->join('finance_transactions as ft', 'ft.visitation_id', '=', 'v.id')
+                            ->selectRaw("DATE_FORMAT(ft.tanggal, '%Y-%m-01') as bucket, SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
                         ->where('v.klinik_id', $clinicId)
                         ->where('v.status_kunjungan', 2)
-                        ->whereBetween('v.tanggal_visitation', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+                            ->whereBetween('ft.tanggal', [$rangeStart->toDateTimeString(), $rangeEnd->toDateTimeString()])
                         ->groupBy('bucket')
                         ->orderBy('bucket')
                         ->pluck('revenue', 'bucket')
@@ -627,6 +627,9 @@ class CeoDashboardController extends Controller
             'payment_methods' => [],
             'revenue_total' => 0.0,
             'avg_revenue_per_visit' => 0.0,
+            'avg_revenue_per_day' => 0.0,
+            'revenue_by_patient_status' => [],
+            'revenue_by_spend_class' => [],
             'total_visits' => 0,
             'avg_per_day' => 0.0,
             'avg_per_week' => 0.0,
@@ -634,6 +637,8 @@ class CeoDashboardController extends Controller
             'peak_week' => null,
             'peak_month' => null,
             'top_doctors' => [],
+            'top_doctor_revenue' => [],
+            'top_patient_revenue' => [],
             'patient_demographics' => [
                 'gender' => ['male' => 0, 'female' => 0, 'other' => 0],
                 'age' => [
@@ -703,6 +708,7 @@ class CeoDashboardController extends Controller
             }
             $stats['revenue_total'] = round($totalRevenue, 2);
             $stats['avg_revenue_per_visit'] = $totalVisits > 0 ? round($totalRevenue / $totalVisits, 2) : 0.0;
+            $stats['avg_revenue_per_day'] = $rangeDays > 0 ? round($totalRevenue / $rangeDays, 2) : 0.0;
 
             $weekCursor = $rangeStartCarbon->copy()->startOfWeek();
             $weekEndBoundary = $rangeEndCarbon->copy()->endOfWeek();
@@ -832,6 +838,102 @@ class CeoDashboardController extends Controller
                 })->values()->all();
             } catch (\Exception $e) {
                 $stats['payment_methods'] = [];
+            }
+
+            try {
+                $statusRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                    ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(p.status_pasien), ''), 'Regular') as status_pasien")
+                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->groupBy('p.status_pasien')
+                    ->orderByDesc('revenue')
+                    ->get();
+
+                $stats['revenue_by_patient_status'] = $statusRevenueRows->map(function ($row) use ($totalRevenue) {
+                    $revenue = round((float) ($row->revenue ?? 0), 2);
+                    return [
+                        'status' => (string) ($row->status_pasien ?? 'Regular'),
+                        'revenue' => $revenue,
+                        'percentage' => $totalRevenue > 0 ? round(($revenue / $totalRevenue) * 100, 1) : 0.0,
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['revenue_by_patient_status'] = [];
+            }
+
+            try {
+                $visitRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                    ->selectRaw('v.id as visitation_id')
+                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->groupBy('v.id')
+                    ->get();
+
+                $spendClasses = [
+                    [
+                        'key' => 'entry_level',
+                        'label' => 'Kelas Bawah',
+                        'subtitle' => 'Entry Level',
+                        'range' => 'Rp 100.000 - Rp 350.000',
+                        'min' => 100000,
+                        'max' => 350000,
+                    ],
+                    [
+                        'key' => 'middle_market',
+                        'label' => 'Kelas Menengah',
+                        'subtitle' => 'Middle Market',
+                        'range' => 'Rp 350.000 - Rp 1.500.000',
+                        'min' => 350000,
+                        'max' => 1500000,
+                    ],
+                    [
+                        'key' => 'high_end',
+                        'label' => 'Kelas Atas',
+                        'subtitle' => 'Premium / High-End',
+                        'range' => '> Rp 1.500.000',
+                        'min' => 1500000,
+                        'max' => null,
+                    ],
+                ];
+
+                $counts = [
+                    'entry_level' => 0.0,
+                    'middle_market' => 0.0,
+                    'high_end' => 0.0,
+                ];
+
+                foreach ($visitRevenueRows as $row) {
+                    $revenue = (float) ($row->revenue ?? 0);
+                    if ($revenue >= 100000 && $revenue < 350000) {
+                        $counts['entry_level'] += $revenue;
+                    } elseif ($revenue >= 350000 && $revenue <= 1500000) {
+                        $counts['middle_market'] += $revenue;
+                    } elseif ($revenue > 1500000) {
+                        $counts['high_end'] += $revenue;
+                    }
+                }
+
+                $classifiedRevenue = array_sum($counts);
+                $stats['revenue_by_spend_class'] = array_map(function ($class) use ($counts, $classifiedRevenue) {
+                    $revenue = round((float) ($counts[$class['key']] ?? 0), 2);
+                    return [
+                        'key' => $class['key'],
+                        'label' => $class['label'],
+                        'subtitle' => $class['subtitle'],
+                        'range' => $class['range'],
+                        'revenue' => $revenue,
+                        'percentage' => $classifiedRevenue > 0 ? round(($revenue / $classifiedRevenue) * 100, 1) : 0.0,
+                    ];
+                }, $spendClasses);
+            } catch (\Exception $e) {
+                $stats['revenue_by_spend_class'] = [];
             }
 
             try {
@@ -1026,6 +1128,63 @@ class CeoDashboardController extends Controller
                 })->values()->all();
             } catch (\Exception $e) {
                 $stats['top_doctors'] = [];
+            }
+
+            try {
+                $topDoctorRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                    ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+                    ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+                    ->selectRaw('v.dokter_id as dokter_id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as dokter_name")
+                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->groupBy('v.dokter_id', 'u.name')
+                    ->orderByDesc('revenue')
+                    ->orderBy('dokter_name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['top_doctor_revenue'] = $topDoctorRevenueRows->map(function ($row) {
+                    return [
+                        'id' => isset($row->dokter_id) ? (int) $row->dokter_id : null,
+                        'name' => (string) ($row->dokter_name ?? 'Dokter Tidak Diketahui'),
+                        'revenue' => round((float) ($row->revenue ?? 0), 2),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['top_doctor_revenue'] = [];
+            }
+
+            try {
+                $topPatientRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                    ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+                    ->selectRaw('v.pasien_id as pasien_id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as pasien_name")
+                    ->selectRaw("COALESCE(NULLIF(TRIM(p.status_pasien), ''), 'Regular') as status_pasien")
+                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->groupBy('v.pasien_id', 'p.nama', 'p.status_pasien')
+                    ->orderByDesc('revenue')
+                    ->orderBy('pasien_name')
+                    ->limit(10)
+                    ->get();
+
+                $stats['top_patient_revenue'] = $topPatientRevenueRows->map(function ($row) {
+                    return [
+                        'id' => isset($row->pasien_id) ? (string) $row->pasien_id : null,
+                        'name' => (string) ($row->pasien_name ?? 'Pasien Tidak Diketahui'),
+                        'status_pasien' => (string) ($row->status_pasien ?? 'Regular'),
+                        'revenue' => round((float) ($row->revenue ?? 0), 2),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['top_patient_revenue'] = [];
             }
 
             try {
@@ -1282,6 +1441,333 @@ class CeoDashboardController extends Controller
         ];
 
         return response()->json(['ok' => true, 'data' => $data]);
+    }
+
+    public function dokterRevenueTransactions(Request $request, $id)
+    {
+        $dokter = \App\Models\ERM\Dokter::with('user')->find($id);
+        if (!$dokter) {
+            return response()->json(['ok' => false, 'message' => 'Dokter tidak ditemukan'], 404);
+        }
+
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('all')) {
+            $minDate = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                ->where('v.dokter_id', $id)
+                ->where('v.status_kunjungan', 2)
+                ->min('ft.tanggal');
+
+            if ($minDate) {
+                $startDt = \Illuminate\Support\Carbon::parse($minDate)->startOfDay();
+            }
+        } elseif ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+            ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+            ->selectRaw('ft.id')
+            ->selectRaw('ft.tanggal as transaction_date')
+            ->selectRaw('DATE(v.tanggal_visitation) as visit_date')
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as pasien_name")
+            ->selectRaw("CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END as amount")
+            ->selectRaw('COALESCE(ft.metode_bayar, \'-\') as metode_bayar')
+            ->where('v.dokter_id', $id)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->orderByDesc('ft.tanggal')
+            ->orderByDesc('ft.id')
+            ->limit(200)
+            ->get();
+
+        $transactions = $rows->map(function ($row) {
+            return [
+                'id' => (int) ($row->id ?? 0),
+                'transaction_date' => $row->transaction_date ? \Illuminate\Support\Carbon::parse($row->transaction_date)->format('Y-m-d H:i') : null,
+                'visit_date' => $row->visit_date ? \Illuminate\Support\Carbon::parse($row->visit_date)->format('Y-m-d') : null,
+                'patient_name' => (string) ($row->pasien_name ?? 'Pasien Tidak Diketahui'),
+                'amount' => round((float) ($row->amount ?? 0), 2),
+                'payment_method' => (string) ($row->metode_bayar ?? '-'),
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'ok' => true,
+            'doctor' => [
+                'id' => (int) $dokter->id,
+                'name' => (string) ($dokter->user->name ?? ('Dokter ID ' . $dokter->id)),
+            ],
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+            ],
+            'transactions' => $transactions,
+        ]);
+    }
+
+    public function patientRevenueTransactions(Request $request, $id)
+    {
+        $pasien = \App\Models\ERM\Pasien::find($id);
+        if (!$pasien) {
+            return response()->json(['ok' => false, 'message' => 'Pasien tidak ditemukan'], 404);
+        }
+
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('all')) {
+            $minDate = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                ->where('v.pasien_id', $id)
+                ->where('v.status_kunjungan', 2)
+                ->min('ft.tanggal');
+
+            if ($minDate) {
+                $startDt = \Illuminate\Support\Carbon::parse($minDate)->startOfDay();
+            }
+        } elseif ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+            ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+            ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+            ->selectRaw('ft.id')
+            ->selectRaw('v.id as visitation_id')
+            ->selectRaw('ft.tanggal as transaction_date')
+            ->selectRaw('DATE(v.tanggal_visitation) as visit_date')
+            ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as dokter_name")
+            ->selectRaw('v.jenis_kunjungan as jenis_kunjungan')
+            ->selectRaw("CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END as amount")
+            ->selectRaw('COALESCE(ft.metode_bayar, \'-\') as metode_bayar')
+            ->where('v.pasien_id', $id)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->orderByDesc('ft.tanggal')
+            ->orderByDesc('ft.id')
+            ->limit(200)
+            ->get();
+
+        $transactions = $rows->map(function ($row) {
+            $jenis = match ((int) ($row->jenis_kunjungan ?? 0)) {
+                1 => 'Konsultasi',
+                2 => 'Beli Produk',
+                3 => 'Lab',
+                default => '-',
+            };
+
+            return [
+                'id' => (int) ($row->id ?? 0),
+                'visitation_id' => (int) ($row->visitation_id ?? 0),
+                'transaction_date' => $row->transaction_date ? \Illuminate\Support\Carbon::parse($row->transaction_date)->format('Y-m-d H:i') : null,
+                'visit_date' => $row->visit_date ? \Illuminate\Support\Carbon::parse($row->visit_date)->format('Y-m-d') : null,
+                'doctor_name' => (string) ($row->dokter_name ?? 'Dokter Tidak Diketahui'),
+                'visit_type' => $jenis,
+                'amount' => round((float) ($row->amount ?? 0), 2),
+                'payment_method' => (string) ($row->metode_bayar ?? '-'),
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'ok' => true,
+            'patient' => [
+                'id' => (string) $pasien->id,
+                'name' => (string) ($pasien->nama ?? ('Pasien ID ' . $pasien->id)),
+                'status_pasien' => (string) ($pasien->status_pasien ?? 'Regular'),
+            ],
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+            ],
+            'transactions' => $transactions,
+        ]);
+    }
+
+    public function clinicPatientRevenueRankings(Request $request, $clinicId)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+            ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+            ->selectRaw('v.pasien_id as pasien_id')
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as pasien_name")
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.status_pasien), ''), 'Regular') as status_pasien")
+            ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->groupBy('v.pasien_id', 'p.nama', 'p.status_pasien')
+            ->orderByDesc('revenue')
+            ->orderBy('pasien_name')
+            ->get();
+
+        $rankings = $rows->map(function ($row) {
+            return [
+                'id' => isset($row->pasien_id) ? (string) $row->pasien_id : null,
+                'name' => (string) ($row->pasien_name ?? 'Pasien Tidak Diketahui'),
+                'status_pasien' => (string) ($row->status_pasien ?? 'Regular'),
+                'revenue' => round((float) ($row->revenue ?? 0), 2),
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'ok' => true,
+            'clinic_id' => (int) $clinicId,
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+            ],
+            'rankings' => $rankings,
+        ]);
+    }
+
+    public function clinicSpendClassVisits(Request $request, $clinicId, $classKey)
+    {
+        $classMap = [
+            'entry_level' => [
+                'label' => 'Kelas Bawah',
+                'subtitle' => 'Entry Level',
+                'range' => 'Rp 100.000 - Rp 350.000',
+            ],
+            'middle_market' => [
+                'label' => 'Kelas Menengah',
+                'subtitle' => 'Middle Market',
+                'range' => 'Rp 350.000 - Rp 1.500.000',
+            ],
+            'high_end' => [
+                'label' => 'Kelas Atas',
+                'subtitle' => 'Premium / High-End',
+                'range' => '> Rp 1.500.000',
+            ],
+        ];
+
+        if (!isset($classMap[$classKey])) {
+            return response()->json(['ok' => false, 'message' => 'Spend class tidak ditemukan'], 404);
+        }
+
+        $now = \Illuminate\Support\Carbon::now();
+        $startDt = $now->copy()->startOfYear();
+        $endDt = $now->copy()->endOfDay();
+
+        if ($request->has('start') && $request->has('end')) {
+            try {
+                $startDt = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay();
+                $endDt = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay();
+                if ($startDt->gt($endDt)) {
+                    [$startDt, $endDt] = [$endDt->copy()->startOfDay(), $startDt->copy()->endOfDay()];
+                }
+            } catch (\Exception $e) {
+                $startDt = $now->copy()->startOfYear();
+                $endDt = $now->copy()->endOfDay();
+            }
+        }
+
+        $revenueExpr = "SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END)";
+
+        $rows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+            ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+            ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+            ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+            ->selectRaw('v.id as visitation_id')
+            ->selectRaw('DATE(v.tanggal_visitation) as visit_date')
+            ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as patient_name")
+            ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as doctor_name")
+            ->selectRaw('v.jenis_kunjungan as visit_type_code')
+            ->selectRaw($revenueExpr . ' as revenue')
+            ->where('v.klinik_id', $clinicId)
+            ->where('v.status_kunjungan', 2)
+            ->whereBetween('ft.tanggal', [$startDt->toDateTimeString(), $endDt->toDateTimeString()])
+            ->groupBy('v.id', 'v.tanggal_visitation', 'p.nama', 'v.pasien_id', 'u.name', 'v.dokter_id', 'v.jenis_kunjungan');
+
+        if ($classKey === 'entry_level') {
+            $rows->havingRaw($revenueExpr . ' >= ? AND ' . $revenueExpr . ' < ?', [100000, 350000]);
+        } elseif ($classKey === 'middle_market') {
+            $rows->havingRaw($revenueExpr . ' >= ? AND ' . $revenueExpr . ' <= ?', [350000, 1500000]);
+        } else {
+            $rows->havingRaw($revenueExpr . ' > ?', [1500000]);
+        }
+
+        $visits = $rows
+            ->orderByDesc('revenue')
+            ->orderByDesc('visit_date')
+            ->limit(300)
+            ->get()
+            ->map(function ($row) {
+                $visitType = match ((int) ($row->visit_type_code ?? 0)) {
+                    1 => 'Konsultasi',
+                    2 => 'Beli Produk',
+                    3 => 'Lab',
+                    default => '-',
+                };
+
+                return [
+                    'visitation_id' => (int) ($row->visitation_id ?? 0),
+                    'visit_date' => $row->visit_date ? \Illuminate\Support\Carbon::parse($row->visit_date)->format('Y-m-d') : null,
+                    'patient_name' => (string) ($row->patient_name ?? 'Pasien Tidak Diketahui'),
+                    'doctor_name' => (string) ($row->doctor_name ?? 'Dokter Tidak Diketahui'),
+                    'visit_type' => $visitType,
+                    'revenue' => round((float) ($row->revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'class' => [
+                'key' => $classKey,
+                'label' => $classMap[$classKey]['label'],
+                'subtitle' => $classMap[$classKey]['subtitle'],
+                'range' => $classMap[$classKey]['range'],
+            ],
+            'filters' => [
+                'start' => $startDt->toDateString(),
+                'end' => $endDt->toDateString(),
+            ],
+            'visits' => $visits,
+        ]);
     }
 
     /**

@@ -6,6 +6,53 @@
     @include('layouts.ceodashboard.navbar')
 @endsection
 
+@section('styles')
+    <style>
+        #top-doctor-revenue-body tr[data-doctor-id] {
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        #top-patient-revenue-body tr[data-patient-id],
+        #all-patient-revenue-body tr[data-patient-id],
+        #revenue-by-spend-class-body tr[data-spend-class-key] {
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        #top-doctor-revenue-body tr[data-doctor-id]:hover {
+            background-color: rgba(13, 110, 253, 0.08);
+        }
+
+        #top-patient-revenue-body tr[data-patient-id]:hover,
+        #all-patient-revenue-body tr[data-patient-id]:hover,
+        #revenue-by-spend-class-body tr[data-spend-class-key]:hover {
+            background-color: rgba(13, 110, 253, 0.08);
+        }
+
+        #top-doctor-revenue-body tr[data-doctor-id]:hover th,
+        #top-doctor-revenue-body tr[data-doctor-id]:hover td {
+            color: #0d6efd;
+        }
+
+        #top-patient-revenue-body tr[data-patient-id]:hover th,
+        #top-patient-revenue-body tr[data-patient-id]:hover td,
+        #all-patient-revenue-body tr[data-patient-id]:hover th,
+        #all-patient-revenue-body tr[data-patient-id]:hover td,
+        #revenue-by-spend-class-body tr[data-spend-class-key]:hover th,
+        #revenue-by-spend-class-body tr[data-spend-class-key]:hover td {
+            color: #0d6efd;
+        }
+
+        .patient-status-badge-inline {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+    </style>
+@endsection                                                                                                                                                              
+
 @section('content')
     @php
         $initialFilters = $initial['filters'] ?? [
@@ -40,10 +87,10 @@
 
                 <ul class="nav nav-tabs mb-3" id="premiereBelovaTabs" role="tablist">
                     <li class="nav-item">
-                        <a class="nav-link active" id="tab-visitation-link" data-toggle="tab" href="#tab-visitation" role="tab">Visitation</a>
+                        <a class="nav-link active" id="tab-revenue-link" data-toggle="tab" href="#tab-revenue" role="tab">Revenue</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" id="tab-revenue-link" data-toggle="tab" href="#tab-revenue" role="tab">Revenue</a>
+                        <a class="nav-link" id="tab-visitation-link" data-toggle="tab" href="#tab-visitation" role="tab">Visitation</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" id="tab-doctor-link" data-toggle="tab" href="#tab-doctor" role="tab">Doctor</a>
@@ -66,7 +113,98 @@
                 </ul>
 
                 <div class="tab-content" id="premiereBelovaTabContent">
-                    <div class="tab-pane fade show active" id="tab-visitation" role="tabpanel">
+                    <div class="tab-pane fade show active" id="tab-revenue" role="tabpanel">
+                        <div class="row align-items-stretch mb-3">
+                            <div class="col-lg-8 mb-3 mb-lg-0">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="mb-3">Revenue Trend</h6>
+                                    <div id="revenueChart"></div>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="d-flex flex-column h-100" style="gap:12px;">
+                                    <div class="border rounded p-3 d-flex flex-column justify-content-center">
+                                        <div class="small text-muted">Total Revenue</div>
+                                        <div class="h4 mb-0" id="stat-revenue-total">-</div>
+                                    </div>
+                                    <div class="row mx-0" style="gap:12px;">
+                                        <div class="col px-0">
+                                            <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                                <div class="small text-muted">Avg Revenue / Visit</div>
+                                                <div class="h4 mb-0" id="stat-avg-revenue-per-visit">-</div>
+                                            </div>
+                                        </div>
+                                        <div class="col px-0">
+                                            <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                                <div class="small text-muted">Avg Revenue / Day</div>
+                                                <div class="h4 mb-0" id="stat-avg-revenue-per-day">-</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="border rounded p-3">
+                                        <div class="small text-muted mb-2">Revenue by Patient Status</div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm mb-0">
+                                                <tbody id="revenue-by-status-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="border rounded p-3">
+                                        <div class="small text-muted mb-2">Spend Class per Kunjungan</div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm mb-0">
+                                                <tbody id="revenue-by-spend-class-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-3">
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <h6 class="mb-3">Top Dokter Revenue</h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm mb-0">
+                                            <tbody id="top-doctor-revenue-body">
+                                            <tr>
+                                                <td colspan="2" class="text-muted">-</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex align-items-center justify-content-between mb-3" style="gap:8px;">
+                                        <h6 class="mb-0">Top Patient Revenue</h6>
+                                        <button type="button" id="show-all-patient-revenue" class="btn btn-sm btn-outline-primary">Show All</button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm mb-0">
+                                            <tbody id="top-patient-revenue-body">
+                                            <tr>
+                                                <td colspan="2" class="text-muted">-</td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-visitation" role="tabpanel">
                         <div class="row mb-3">
                             <div class="col-md-4 mb-2">
                                 <div class="border rounded p-3 h-100">
@@ -152,28 +290,6 @@
                                     </table>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="tab-pane fade" id="tab-revenue" role="tabpanel">
-                        <div class="row mb-3">
-                            <div class="col-md-6 mb-2">
-                                <div class="border rounded p-3 h-100">
-                                    <div class="small text-muted">Total Revenue</div>
-                                    <div class="h4 mb-0" id="stat-revenue-total">-</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6 mb-2">
-                                <div class="border rounded p-3 h-100">
-                                    <div class="small text-muted">Avg Revenue / Visit</div>
-                                    <div class="h4 mb-0" id="stat-avg-revenue-per-visit">-</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="border rounded p-3">
-                            <h6 class="mb-3">Revenue Trend</h6>
-                            <div id="revenueChart"></div>
                         </div>
                     </div>
 
@@ -679,6 +795,141 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="doctorRevenueModal" tabindex="-1" role="dialog" aria-labelledby="doctorRevenueModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="doctorRevenueModalLabel">Doctor Revenue Transactions</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="doctor-revenue-modal-range">-</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Transaction Date</th>
+                                    <th>Visit Date</th>
+                                    <th>Patient</th>
+                                    <th>Method</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="doctor-revenue-transactions-body">
+                                <tr>
+                                    <td colspan="5" class="text-muted">Pilih dokter untuk melihat transaksi.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="patientRevenueModal" tabindex="-1" role="dialog" aria-labelledby="patientRevenueModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="patientRevenueModalLabel">Patient Revenue Transactions</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="patient-revenue-modal-range">-</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Transaction Date</th>
+                                    <th>Visit Date</th>
+                                    <th>Doctor</th>
+                                    <th>Visit Type</th>
+                                    <th>Method</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="patient-revenue-transactions-body">
+                                <tr>
+                                    <td colspan="6" class="text-muted">Pilih pasien untuk melihat detail kunjungan.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="allPatientRevenueModal" tabindex="-1" role="dialog" aria-labelledby="allPatientRevenueModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="allPatientRevenueModalLabel">All Patient Revenue</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="all-patient-revenue-modal-range">-</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:72px;">No</th>
+                                    <th>Patient</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody id="all-patient-revenue-body">
+                                <tr>
+                                    <td colspan="3" class="text-muted">Klik Show All untuk melihat semua pasien.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="spendClassVisitsModal" tabindex="-1" role="dialog" aria-labelledby="spendClassVisitsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="spendClassVisitsModalLabel">Spend Class Visits</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="small text-muted mb-3" id="spend-class-visits-modal-range">-</div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Visit Date</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th>Visit Type</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody id="spend-class-visits-body">
+                                <tr>
+                                    <td colspan="5" class="text-muted">Pilih spend class untuk melihat detail kunjungan.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('scripts')
@@ -749,10 +1000,11 @@
                 if (!revenueEl) return;
 
                 var opts = {
-                    chart: { type: 'bar', height: 420, toolbar: { show: false } },
+                    chart: { type: 'line', height: 420, toolbar: { show: false } },
                     series: [{ name: 'Revenue', data: revenues }],
                     colors: ['#198754'],
-                    plotOptions: { bar: { borderRadius: 4, columnWidth: '55%' } },
+                    stroke: { curve: 'smooth', width: 3 },
+                    markers: { size: 4, hover: { size: 6 } },
                     dataLabels: { enabled: false },
                     xaxis: {
                         categories: bucketLabels,
@@ -869,6 +1121,318 @@
                         ageChart.render();
                     } catch (e) { console.error(e); }
                 }
+            }
+
+            function renderDoctorRevenueTransactionsModal(payload) {
+                var modalLabel = document.getElementById('doctorRevenueModalLabel');
+                var modalRange = document.getElementById('doctor-revenue-modal-range');
+                var tbody = document.getElementById('doctor-revenue-transactions-body');
+                if (!tbody) return;
+
+                if (modalLabel) {
+                    var doctorName = payload && payload.doctor ? payload.doctor.name : 'Doctor Revenue Transactions';
+                    modalLabel.textContent = 'Doctor Revenue Transactions - ' + (doctorName || '-');
+                }
+
+                if (modalRange) {
+                    var start = payload && payload.filters ? payload.filters.start : null;
+                    var end = payload && payload.filters ? payload.filters.end : null;
+                    modalRange.textContent = start && end ? ('Range: ' + start + ' - ' + end) : '-';
+                }
+
+                tbody.innerHTML = '';
+                var rows = payload && Array.isArray(payload.transactions) ? payload.transactions : [];
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Tidak ada transaksi.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(function(item) {
+                    var tr = document.createElement('tr');
+
+                    var tdTransactionDate = document.createElement('td');
+                    tdTransactionDate.textContent = item.transaction_date || '-';
+
+                    var tdVisitDate = document.createElement('td');
+                    tdVisitDate.textContent = item.visit_date || '-';
+
+                    var tdPatient = document.createElement('td');
+                    tdPatient.textContent = item.patient_name || '-';
+
+                    var tdMethod = document.createElement('td');
+                    tdMethod.textContent = item.payment_method || '-';
+
+                    var tdAmount = document.createElement('td');
+                    tdAmount.className = 'text-end';
+                    tdAmount.textContent = formatCurrency(item.amount || 0);
+
+                    tr.appendChild(tdTransactionDate);
+                    tr.appendChild(tdVisitDate);
+                    tr.appendChild(tdPatient);
+                    tr.appendChild(tdMethod);
+                    tr.appendChild(tdAmount);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderPatientStatusBadge(statusPasien) {
+                var status = String(statusPasien || 'Regular').trim().toLowerCase();
+                if (status.indexOf('vip') !== -1) {
+                    return '<span class="badge badge-warning patient-status-badge-inline"><i class="fas fa-crown mr-1"></i>VIP</span>';
+                }
+                if (status.indexOf('familia') !== -1) {
+                    return '<span class="badge badge-primary patient-status-badge-inline"><i class="fas fa-users mr-1"></i>Familia</span>';
+                }
+                if (status.indexOf('black') !== -1) {
+                    return '<span class="badge badge-dark patient-status-badge-inline"><i class="fas fa-id-card mr-1"></i>Black</span>';
+                }
+                if (status.indexOf('red') !== -1) {
+                    return '<span class="badge badge-danger patient-status-badge-inline"><i class="fas fa-flag mr-1"></i>Red</span>';
+                }
+                return '';
+            }
+
+            function renderPatientRevenueTransactionsModal(payload) {
+                var modalLabel = document.getElementById('patientRevenueModalLabel');
+                var modalRange = document.getElementById('patient-revenue-modal-range');
+                var tbody = document.getElementById('patient-revenue-transactions-body');
+                if (!tbody) return;
+
+                if (modalLabel) {
+                    var patientName = payload && payload.patient ? payload.patient.name : 'Patient Revenue Transactions';
+                    modalLabel.textContent = 'Patient Revenue Transactions - ' + (patientName || '-');
+                }
+
+                if (modalRange) {
+                    var start = payload && payload.filters ? payload.filters.start : null;
+                    var end = payload && payload.filters ? payload.filters.end : null;
+                    modalRange.textContent = start && end ? ('Range: ' + start + ' - ' + end) : '-';
+                }
+
+                tbody.innerHTML = '';
+                var rows = payload && Array.isArray(payload.transactions) ? payload.transactions : [];
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-muted">Tidak ada transaksi.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(function(item) {
+                    var tr = document.createElement('tr');
+
+                    var tdTransactionDate = document.createElement('td');
+                    tdTransactionDate.textContent = item.transaction_date || '-';
+
+                    var tdVisitDate = document.createElement('td');
+                    tdVisitDate.textContent = item.visit_date || '-';
+
+                    var tdDoctor = document.createElement('td');
+                    tdDoctor.textContent = item.doctor_name || '-';
+
+                    var tdVisitType = document.createElement('td');
+                    tdVisitType.textContent = item.visit_type || '-';
+
+                    var tdMethod = document.createElement('td');
+                    tdMethod.textContent = item.payment_method || '-';
+
+                    var tdAmount = document.createElement('td');
+                    tdAmount.className = 'text-end';
+                    tdAmount.textContent = formatCurrency(item.amount || 0);
+
+                    tr.appendChild(tdTransactionDate);
+                    tr.appendChild(tdVisitDate);
+                    tr.appendChild(tdDoctor);
+                    tr.appendChild(tdVisitType);
+                    tr.appendChild(tdMethod);
+                    tr.appendChild(tdAmount);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function fetchPatientRevenueTransactions(patientId, patientName) {
+                var tbody = document.getElementById('patient-revenue-transactions-body');
+                var modalLabel = document.getElementById('patientRevenueModalLabel');
+                var modalRange = document.getElementById('patient-revenue-modal-range');
+                if (modalLabel) modalLabel.textContent = 'Patient Revenue Transactions - ' + (patientName || '-');
+                if (modalRange) modalRange.textContent = 'Loading...';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-muted">Loading transaksi...</td></tr>';
+
+                $('#patientRevenueModal').modal('show');
+
+                fetch('/ceo-dashboard/pasien/' + patientId + '/revenue-transactions' + buildDoctorQuery())
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) throw new Error('Invalid response');
+                        renderPatientRevenueTransactionsModal(payload);
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load patient revenue transactions', err);
+                        if (modalRange) modalRange.textContent = '-';
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-danger">Gagal memuat transaksi.</td></tr>';
+                    });
+            }
+
+            function renderAllPatientRevenueModal(payload) {
+                var modalRange = document.getElementById('all-patient-revenue-modal-range');
+                var tbody = document.getElementById('all-patient-revenue-body');
+                if (!tbody) return;
+
+                if (modalRange) {
+                    var start = payload && payload.filters ? payload.filters.start : null;
+                    var end = payload && payload.filters ? payload.filters.end : null;
+                    modalRange.textContent = start && end ? ('Range: ' + start + ' - ' + end) : '-';
+                }
+
+                tbody.innerHTML = '';
+                var rankings = payload && Array.isArray(payload.rankings) ? payload.rankings : [];
+                if (!rankings.length) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Tidak ada data.</td></tr>';
+                    return;
+                }
+
+                rankings.forEach(function(item, index) {
+                    var row = document.createElement('tr');
+                    if (item.id) {
+                        row.setAttribute('data-patient-id', item.id);
+                        row.setAttribute('data-patient-name', item.name || 'Pasien Tidak Diketahui');
+                    }
+
+                    var tdNumber = document.createElement('td');
+                    tdNumber.textContent = index + 1;
+
+                    var tdName = document.createElement('td');
+                    tdName.innerHTML = (item.name || 'Pasien Tidak Diketahui') + renderPatientStatusBadge(item.status_pasien || 'Regular');
+
+                    var tdRevenue = document.createElement('td');
+                    tdRevenue.className = 'text-end';
+                    tdRevenue.textContent = formatCurrency(item.revenue || 0);
+
+                    row.appendChild(tdNumber);
+                    row.appendChild(tdName);
+                    row.appendChild(tdRevenue);
+                    tbody.appendChild(row);
+                });
+            }
+
+            function fetchAllPatientRevenue() {
+                var modalRange = document.getElementById('all-patient-revenue-modal-range');
+                var tbody = document.getElementById('all-patient-revenue-body');
+                if (modalRange) modalRange.textContent = 'Loading...';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Loading data...</td></tr>';
+
+                $('#allPatientRevenueModal').modal('show');
+
+                fetch('/ceo-dashboard/clinic/1/patient-revenue-rankings' + buildDoctorQuery())
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) throw new Error('Invalid response');
+                        renderAllPatientRevenueModal(payload);
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load all patient revenue rankings', err);
+                        if (modalRange) modalRange.textContent = '-';
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="text-danger">Gagal memuat data.</td></tr>';
+                    });
+            }
+
+            function fetchDoctorRevenueTransactions(dokterId, dokterName) {
+                var tbody = document.getElementById('doctor-revenue-transactions-body');
+                var modalLabel = document.getElementById('doctorRevenueModalLabel');
+                var modalRange = document.getElementById('doctor-revenue-modal-range');
+                if (modalLabel) modalLabel.textContent = 'Doctor Revenue Transactions - ' + (dokterName || '-');
+                if (modalRange) modalRange.textContent = 'Loading...';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading transaksi...</td></tr>';
+
+                $('#doctorRevenueModal').modal('show');
+
+                fetch('/ceo-dashboard/dokter/' + dokterId + '/revenue-transactions' + buildDoctorQuery())
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) {
+                            throw new Error('Invalid response');
+                        }
+                        renderDoctorRevenueTransactionsModal(payload);
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load doctor revenue transactions', err);
+                        if (modalRange) modalRange.textContent = '-';
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Gagal memuat transaksi.</td></tr>';
+                    });
+            }
+
+            function renderSpendClassVisitsModal(payload) {
+                var modalLabel = document.getElementById('spendClassVisitsModalLabel');
+                var modalRange = document.getElementById('spend-class-visits-modal-range');
+                var tbody = document.getElementById('spend-class-visits-body');
+                if (!tbody) return;
+
+                if (modalLabel) {
+                    var classInfo = payload && payload.class ? payload.class : {};
+                    modalLabel.textContent = 'Spend Class Visits - ' + (classInfo.label || '-') + ' (' + (classInfo.subtitle || '-') + ')';
+                }
+
+                if (modalRange) {
+                    var start = payload && payload.filters ? payload.filters.start : null;
+                    var end = payload && payload.filters ? payload.filters.end : null;
+                    var rangeLabel = payload && payload.class ? payload.class.range : null;
+                    modalRange.textContent = (start && end ? ('Range: ' + start + ' - ' + end) : '-') + (rangeLabel ? (' | Class: ' + rangeLabel) : '');
+                }
+
+                tbody.innerHTML = '';
+                var visits = payload && Array.isArray(payload.visits) ? payload.visits : [];
+                if (!visits.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Tidak ada data.</td></tr>';
+                    return;
+                }
+
+                visits.forEach(function(item) {
+                    var row = document.createElement('tr');
+
+                    var visitDateCell = document.createElement('td');
+                    visitDateCell.textContent = item.visit_date || '-';
+
+                    var patientCell = document.createElement('td');
+                    patientCell.textContent = item.patient_name || '-';
+
+                    var doctorCell = document.createElement('td');
+                    doctorCell.textContent = item.doctor_name || '-';
+
+                    var visitTypeCell = document.createElement('td');
+                    visitTypeCell.textContent = item.visit_type || '-';
+
+                    var revenueCell = document.createElement('td');
+                    revenueCell.className = 'text-end';
+                    revenueCell.textContent = formatCurrency(item.revenue || 0);
+
+                    row.appendChild(visitDateCell);
+                    row.appendChild(patientCell);
+                    row.appendChild(doctorCell);
+                    row.appendChild(visitTypeCell);
+                    row.appendChild(revenueCell);
+                    tbody.appendChild(row);
+                });
+            }
+
+            function fetchSpendClassVisits(classKey, classLabel) {
+                var modalLabel = document.getElementById('spendClassVisitsModalLabel');
+                var modalRange = document.getElementById('spend-class-visits-modal-range');
+                var tbody = document.getElementById('spend-class-visits-body');
+                if (modalLabel) modalLabel.textContent = 'Spend Class Visits - ' + (classLabel || '-');
+                if (modalRange) modalRange.textContent = 'Loading...';
+                if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Loading data...</td></tr>';
+
+                $('#spendClassVisitsModal').modal('show');
+
+                fetch('/ceo-dashboard/clinic/1/spend-class-visits/' + encodeURIComponent(classKey) + buildDoctorQuery())
+                    .then(function(res){ if (!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) throw new Error('Invalid response');
+                        renderSpendClassVisitsModal(payload);
+                    })
+                    .catch(function(err){
+                        console.error('Failed to load spend class visits', err);
+                        if (modalRange) modalRange.textContent = '-';
+                        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-danger">Gagal memuat data.</td></tr>';
+                    });
             }
 
             function renderSpecialtyTabs(stats) {
@@ -1410,6 +1974,71 @@
                     document.getElementById('stat-avg-week').textContent = (typeof stats.avg_per_week !== 'undefined') ? stats.avg_per_week : '-';
                     document.getElementById('stat-revenue-total').textContent = formatCurrency(stats.revenue_total || 0);
                     document.getElementById('stat-avg-revenue-per-visit').textContent = formatCurrency(stats.avg_revenue_per_visit || 0);
+                    document.getElementById('stat-avg-revenue-per-day').textContent = formatCurrency(stats.avg_revenue_per_day || 0);
+                    var revenueByStatusBody = document.getElementById('revenue-by-status-body');
+                    if (revenueByStatusBody) {
+                        revenueByStatusBody.innerHTML = '';
+                        var statusRows = Array.isArray(stats.revenue_by_patient_status) ? stats.revenue_by_patient_status : [];
+
+                        if (!statusRows.length) {
+                            revenueByStatusBody.innerHTML = '<tr><td colspan="3" class="text-muted">Tidak ada data</td></tr>';
+                        } else {
+                            statusRows.forEach(function(item) {
+                                var row = document.createElement('tr');
+
+                                var statusCell = document.createElement('th');
+                                var statusBadge = renderPatientStatusBadge(item.status || 'Regular');
+                                statusCell.innerHTML = statusBadge ? ((item.status || 'Regular') + statusBadge) : (item.status || 'Regular');
+
+                                var revenueCell = document.createElement('td');
+                                revenueCell.className = 'text-end';
+                                revenueCell.textContent = formatCurrency(item.revenue || 0);
+
+                                var percentCell = document.createElement('td');
+                                percentCell.className = 'text-end text-muted';
+                                percentCell.textContent = Number(item.percentage || 0).toFixed(1) + '%';
+
+                                row.appendChild(statusCell);
+                                row.appendChild(revenueCell);
+                                row.appendChild(percentCell);
+                                revenueByStatusBody.appendChild(row);
+                            });
+                        }
+                    }
+
+                    var revenueBySpendClassBody = document.getElementById('revenue-by-spend-class-body');
+                    if (revenueBySpendClassBody) {
+                        revenueBySpendClassBody.innerHTML = '';
+                        var spendClassRows = Array.isArray(stats.revenue_by_spend_class) ? stats.revenue_by_spend_class : [];
+
+                        if (!spendClassRows.length) {
+                            revenueBySpendClassBody.innerHTML = '<tr><td colspan="3" class="text-muted">Tidak ada data</td></tr>';
+                        } else {
+                            spendClassRows.forEach(function(item) {
+                                var row = document.createElement('tr');
+                                if (item.key) {
+                                    row.setAttribute('data-spend-class-key', item.key);
+                                    row.setAttribute('data-spend-class-label', item.label || '-');
+                                }
+
+                                var labelCell = document.createElement('th');
+                                labelCell.innerHTML = (item.label || '-') + ' <span class="text-muted font-italic">(' + (item.subtitle || '-') + ')</span><div class="small text-muted mt-1">' + (item.range || '-') + '</div>';
+
+                                var revenueCell = document.createElement('td');
+                                revenueCell.className = 'text-end';
+                                revenueCell.textContent = formatCurrency(item.revenue || 0);
+
+                                var percentCell = document.createElement('td');
+                                percentCell.className = 'text-end text-muted';
+                                percentCell.textContent = Number(item.percentage || 0).toFixed(1) + '%';
+
+                                row.appendChild(labelCell);
+                                row.appendChild(revenueCell);
+                                row.appendChild(percentCell);
+                                revenueBySpendClassBody.appendChild(row);
+                            });
+                        }
+                    }
                     document.getElementById('stat-new').textContent = (typeof stats.new !== 'undefined') ? stats.new : '-';
                     document.getElementById('stat-returning').textContent = (typeof stats.returning !== 'undefined') ? stats.returning : '-';
                     document.getElementById('stat-retention').textContent = (typeof stats.retention_rate !== 'undefined') ? (stats.retention_rate + '%') : '-';
@@ -1474,6 +2103,67 @@
                                 row.appendChild(th);
                                 row.appendChild(td);
                                 topDoctorsBody.appendChild(row);
+                            });
+                        }
+                    }
+
+                    var topDoctorRevenueBody = document.getElementById('top-doctor-revenue-body');
+                    if (topDoctorRevenueBody) {
+                        topDoctorRevenueBody.innerHTML = '';
+                        var topDoctorRevenue = Array.isArray(stats.top_doctor_revenue) ? stats.top_doctor_revenue : [];
+
+                        if (!topDoctorRevenue.length) {
+                            topDoctorRevenueBody.innerHTML = '<tr><td colspan="2" class="text-muted">Tidak ada data</td></tr>';
+                        } else {
+                            topDoctorRevenue.forEach(function(item, index) {
+                                var row = document.createElement('tr');
+                                row.className = item.id ? 'cursor-pointer' : '';
+                                if (item.id) {
+                                    row.style.cursor = 'pointer';
+                                    row.setAttribute('data-doctor-id', item.id);
+                                    row.setAttribute('data-doctor-name', item.name || 'Dokter Tidak Diketahui');
+                                }
+
+                                var th = document.createElement('th');
+                                th.textContent = (index + 1) + '. ' + (item.name || 'Dokter Tidak Diketahui');
+
+                                var td = document.createElement('td');
+                                td.className = 'text-end';
+                                td.textContent = formatCurrency(item.revenue || 0);
+
+                                row.appendChild(th);
+                                row.appendChild(td);
+                                topDoctorRevenueBody.appendChild(row);
+                            });
+                        }
+                    }
+
+                    var topPatientRevenueBody = document.getElementById('top-patient-revenue-body');
+                    if (topPatientRevenueBody) {
+                        topPatientRevenueBody.innerHTML = '';
+                        var topPatientRevenue = Array.isArray(stats.top_patient_revenue) ? stats.top_patient_revenue : [];
+
+                        if (!topPatientRevenue.length) {
+                            topPatientRevenueBody.innerHTML = '<tr><td colspan="2" class="text-muted">Tidak ada data</td></tr>';
+                        } else {
+                            topPatientRevenue.forEach(function(item, index) {
+                                var row = document.createElement('tr');
+                                if (item.id) {
+                                    row.style.cursor = 'pointer';
+                                    row.setAttribute('data-patient-id', item.id);
+                                    row.setAttribute('data-patient-name', item.name || 'Pasien Tidak Diketahui');
+                                }
+
+                                var th = document.createElement('th');
+                                th.innerHTML = (index + 1) + '. ' + (item.name || 'Pasien Tidak Diketahui') + renderPatientStatusBadge(item.status_pasien || 'Regular');
+
+                                var td = document.createElement('td');
+                                td.className = 'text-end';
+                                td.textContent = formatCurrency(item.revenue || 0);
+
+                                row.appendChild(th);
+                                row.appendChild(td);
+                                topPatientRevenueBody.appendChild(row);
                             });
                         }
                     }
@@ -1559,6 +2249,39 @@
                     selectedEnd = baseEnd;
                     $('#filter-daterange').val(formatRangeLabel(selectedStart, selectedEnd));
                     loadData(buildRequestParams());
+                });
+
+                $(document).on('click', '#top-doctor-revenue-body tr[data-doctor-id]', function(){
+                    var dokterId = $(this).attr('data-doctor-id');
+                    var dokterName = $(this).attr('data-doctor-name') || 'Dokter Tidak Diketahui';
+                    if (!dokterId) return;
+                    fetchDoctorRevenueTransactions(dokterId, dokterName);
+                });
+
+                $(document).on('click', '#top-patient-revenue-body tr[data-patient-id]', function(){
+                    var patientId = $(this).attr('data-patient-id');
+                    var patientName = $(this).attr('data-patient-name') || 'Pasien Tidak Diketahui';
+                    if (!patientId) return;
+                    fetchPatientRevenueTransactions(patientId, patientName);
+                });
+
+                $(document).on('click', '#all-patient-revenue-body tr[data-patient-id]', function(){
+                    var patientId = $(this).attr('data-patient-id');
+                    var patientName = $(this).attr('data-patient-name') || 'Pasien Tidak Diketahui';
+                    if (!patientId) return;
+                    $('#allPatientRevenueModal').modal('hide');
+                    fetchPatientRevenueTransactions(patientId, patientName);
+                });
+
+                $(document).on('click', '#revenue-by-spend-class-body tr[data-spend-class-key]', function(){
+                    var classKey = $(this).attr('data-spend-class-key');
+                    var classLabel = $(this).attr('data-spend-class-label') || 'Spend Class';
+                    if (!classKey) return;
+                    fetchSpendClassVisits(classKey, classLabel);
+                });
+
+                $('#show-all-patient-revenue').on('click', function(){
+                    fetchAllPatientRevenue();
                 });
 
                 $('a[data-toggle="tab"]').on('shown.bs.tab', function(){
