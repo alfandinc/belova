@@ -141,6 +141,10 @@ class KartuStokController extends Controller
                                 $faktur = DB::table('erm_fakturbeli')->where('id', $t->ref_id)->first();
                                 $refNumber = $faktur ? $faktur->no_faktur : '#' . $t->ref_id;
                                 break;
+                            case 'obat_hibah':
+                                $hibah = DB::table('erm_obat_hibah')->where('id', $t->ref_id)->first();
+                                $refNumber = $hibah ? $hibah->nomor_hibah : '#' . $t->ref_id;
+                                break;
                             case 'mutasi_gudang':
                                 $mutasi = DB::table('erm_mutasi_gudang')->where('id', $t->ref_id)->first();
                                 $refNumber = $mutasi ? $mutasi->nomor_mutasi : '#' . $t->ref_id;
@@ -541,6 +545,11 @@ class KartuStokController extends Controller
                                 case 'faktur_pembelian':
                                     $faktur = DB::table('erm_fakturbeli')->where('id', $row->ref_id)->first();
                                     $refNumber = $faktur ? $faktur->no_faktur : '#' . $row->ref_id;
+                                    break;
+
+                                case 'obat_hibah':
+                                    $hibah = DB::table('erm_obat_hibah')->where('id', $row->ref_id)->first();
+                                    $refNumber = $hibah ? $hibah->nomor_hibah : '#' . $row->ref_id;
                                     break;
                                     
                                 case 'mutasi_gudang':

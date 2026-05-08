@@ -90,6 +90,9 @@
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
                             </li>
                             <li>
+                                <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
+                            </li>
+                            <li>
                             <a href="/erm/fakturretur"><i data-feather="rotate-ccw" class="align-self-center menu-icon"></i><span>Retur Pembelian</span></a>
                         </li>
                         </ul>

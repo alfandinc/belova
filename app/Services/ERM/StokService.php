@@ -457,6 +457,42 @@ class StokService {
     }
 
     /**
+     * Khusus untuk obat masuk via hibah tanpa perubahan HPP.
+     *
+     * @param int $obatId
+     * @param int $gudangId
+     * @param float $jumlah
+     * @param int $hibahId
+     * @param string $nomorHibah
+     * @param string|null $batch
+     * @param string|null $expDate
+     * @param string|null $sumber
+     * @return ObatStokGudang
+     */
+    public function masukViaHibah($obatId, $gudangId, $jumlah, $hibahId, $nomorHibah, $batch = null, $expDate = null, $sumber = null)
+    {
+        $keterangan = "Obat hibah: {$nomorHibah}";
+        if ($sumber) {
+            $keterangan .= " dari {$sumber}";
+        }
+
+        return $this->tambahStok(
+            $obatId,
+            $gudangId,
+            $jumlah,
+            $batch,
+            $expDate,
+            null,
+            null,
+            null,
+            null,
+            'obat_hibah',
+            $hibahId,
+            $keterangan
+        );
+    }
+
+    /**
      * Khusus untuk obat keluar via invoice penjualan
      *
      * @param int $obatId
