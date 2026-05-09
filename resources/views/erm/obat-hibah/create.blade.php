@@ -52,7 +52,7 @@
 
     <div class="card">
         <div class="card-body">
-            <form method="POST" action="{{ route('erm.obat-hibah.store') }}">
+            <form method="POST" action="{{ route('erm.obat-hibah.store') }}" enctype="multipart/form-data">
                 @csrf
 
                 <div class="row">
@@ -72,6 +72,13 @@
                         <div class="form-group">
                             <label for="notes">Catatan</label>
                             <input type="text" class="form-control" id="notes" name="notes" value="{{ old('notes') }}" placeholder="Catatan tambahan">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="bukti">Bukti Gambar</label>
+                            <input type="file" class="form-control-file" id="bukti" name="bukti" accept="image/*">
+                            <small class="form-text text-muted">Upload foto bukti hibah sebelum approval.</small>
                         </div>
                     </div>
                 </div>

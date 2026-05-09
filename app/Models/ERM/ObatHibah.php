@@ -16,7 +16,11 @@ class ObatHibah extends Model
         'received_date',
         'sumber',
         'notes',
+        'bukti',
+        'status',
         'created_by',
+        'approved_by',
+        'approved_at',
     ];
 
     public function items()
@@ -27,6 +31,11 @@ class ObatHibah extends Model
     public function creator()
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'approved_by');
     }
 
     public static function generateNomorHibah(): string

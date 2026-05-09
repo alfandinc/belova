@@ -1072,6 +1072,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'index'])->name('erm.obat-hibah.index');
     Route::get('/obat-hibah/create', [\App\Http\Controllers\ERM\ObatHibahController::class, 'create'])->name('erm.obat-hibah.create');
     Route::post('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'store'])->name('erm.obat-hibah.store');
+    Route::post('/obat-hibah/{id}/approve', [\App\Http\Controllers\ERM\ObatHibahController::class, 'approve'])->name('erm.obat-hibah.approve');
     
     // Permintaan Pembelian (New routes)
     Route::get('/fakturpembelian/permintaan/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'createPermintaan'])->name('erm.fakturbeli.createPermintaan');

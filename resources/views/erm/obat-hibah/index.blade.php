@@ -35,10 +35,6 @@
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -49,18 +45,37 @@
                             <th>Nomor Hibah</th>
                             <th>Tanggal Terima</th>
                             <th>Sumber</th>
+                            <th>Bukti</th>
+                            <th>Status</th>
                             <th>Item</th>
                             <th>Input Oleh</th>
                             <th>Catatan</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($hibahs as $hibah)
-                            <tr>
+                            <tr data-hibah-id="{{ $hibah->id }}">
                                 <td>{{ $hibahs->firstItem() + $loop->index }}</td>
                                 <td>{{ $hibah->nomor_hibah }}</td>
                                 <td>{{ \Carbon\Carbon::parse($hibah->received_date)->format('d/m/Y') }}</td>
                                 <td>{{ $hibah->sumber ?: '-' }}</td>
+                                <td>
+                                    @if($hibah->bukti)
+                                        <a href="{{ asset('storage/' . $hibah->bukti) }}" target="_blank">Lihat Bukti</a>
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td class="hibah-status-cell">
+                                    @php
+                                        $badgeClass = $hibah->status === 'diapprove' ? 'badge-success' : 'badge-warning text-dark';
+                                    @endphp
+                                    <span class="badge {{ $badgeClass }}">{{ ucfirst($hibah->status) }}</span>
+                                    @if($hibah->approver)
+                                        <div class="small text-muted mt-1">Approve: {{ $hibah->approver->name }}</div>
+                                    @endif
+                                </td>
                                 <td>
                                     @foreach($hibah->items as $item)
                                         <div>
@@ -76,10 +91,24 @@
                                 </td>
                                 <td>{{ $hibah->creator?->name ?? '-' }}</td>
                                 <td>{{ $hibah->notes ?: '-' }}</td>
+                                <td class="hibah-action-cell">
+                                    @if($hibah->status === 'diterima')
+                                        <button
+                                            type="button"
+                                            class="btn btn-success btn-sm btn-approve-hibah"
+                                            data-id="{{ $hibah->id }}"
+                                            data-approve-url="{{ route('erm.obat-hibah.approve', $hibah->id) }}"
+                                        >
+                                            Approve
+                                        </button>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center text-muted">Belum ada data obat hibah.</td>
+                                <td colspan="10" class="text-center text-muted">Belum ada data obat hibah.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -93,3 +122,86 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(function () {
+    @if(session('success'))
+        Swal.fire('Berhasil', @json(session('success')), 'success');
+    @endif
+
+    @if(session('error'))
+        Swal.fire('Gagal', @json(session('error')), 'error');
+    @endif
+
+    $(document).on('click', '.btn-approve-hibah', function () {
+        var $button = $(this);
+        var approveUrl = $button.data('approve-url');
+        var hibahId = $button.data('id');
+
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: 'Yakin ingin menyetujui obat hibah ini? Stok akan ditambahkan ke gudang.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Setujui',
+            cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.value) {
+                return;
+            }
+
+            Swal.fire({
+                title: 'Memproses...',
+                text: 'Approval obat hibah sedang diproses.',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: function () {
+                    Swal.showLoading();
+                }
+            });
+
+            $.ajax({
+                url: approveUrl,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                beforeSend: function () {
+                    $button.prop('disabled', true).text('Processing...');
+                },
+                success: function (res) {
+                    if (!res.success) {
+                        Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
+                        $button.prop('disabled', false).text('Approve');
+                        return;
+                    }
+
+                    var $row = $('tr[data-hibah-id="' + hibahId + '"]');
+                    var statusHtml = '<span class="badge badge-success">' + (res.data.status_label || 'Diapprove') + '</span>';
+                    if (res.data.approver_name) {
+                        statusHtml += '<div class="small text-muted mt-1">Approve: ' + $('<div>').text(res.data.approver_name).html() + '</div>';
+                    }
+
+                    $row.find('.hibah-status-cell').html(statusHtml);
+                    $row.find('.hibah-action-cell').html('<span class="text-muted">-</span>');
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: res.message,
+                        timer: 1800,
+                        showConfirmButton: false
+                    });
+                },
+                error: function (xhr) {
+                    Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal menyetujui obat hibah.', 'error');
+                    $button.prop('disabled', false).text('Approve');
+                }
+            });
+        });
+    });
+});
+</script>
+@endpush
