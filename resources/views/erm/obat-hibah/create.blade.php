@@ -99,7 +99,7 @@
                             @foreach($oldItems as $index => $item)
                                 <tr>
                                     <td>
-                                        <select class="form-control" name="items[{{ $index }}][obat_id]" required>
+                                        <select class="form-control obat-select" name="items[{{ $index }}][obat_id]" required>
                                             <option value="">Pilih obat</option>
                                             @foreach($obats as $obat)
                                                 <option value="{{ $obat->id }}" @selected(($item['obat_id'] ?? '') == $obat->id)>
@@ -148,6 +148,21 @@
 @push('scripts')
 <script>
     $(function () {
+        function initObatSelect2(context) {
+            $(context).find('.obat-select').each(function () {
+                var $select = $(this);
+
+                if ($select.hasClass('select2-hidden-accessible')) {
+                    $select.select2('destroy');
+                }
+
+                $select.select2({
+                    placeholder: 'Pilih obat aktif',
+                    width: '100%'
+                });
+            });
+        }
+
         function reindexRows() {
             $('#hibah-items-table tbody tr').each(function (index, row) {
                 $(row).find('select, input').each(function () {
@@ -166,7 +181,7 @@
             var rowHtml = `
                 <tr>
                     <td>
-                        <select class="form-control" name="items[${nextIndex}][obat_id]" required>
+                        <select class="form-control obat-select" name="items[${nextIndex}][obat_id]" required>
                             <option value="">Pilih obat</option>
                             @foreach($obats as $obat)
                                 <option value="{{ $obat->id }}">{{ $obat->nama }}</option>
@@ -195,7 +210,9 @@
                     </td>
                 </tr>`;
 
-            $tbody.append(rowHtml);
+            var $row = $(rowHtml);
+            $tbody.append($row);
+            initObatSelect2($row);
         });
 
         $(document).on('click', '.remove-item-row', function () {
@@ -209,6 +226,8 @@
             $(this).closest('tr').remove();
             reindexRows();
         });
+
+        initObatSelect2($('#hibah-items-table'));
     });
 </script>
 @endpush

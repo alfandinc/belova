@@ -56,7 +56,15 @@
                                 </li>
                                 <li>
                                 <a href="/erm/masterfaktur"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
-                            </li>
+                                </li>
+                                <li>
+                                    <a href="/erm/obat-mapping"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat Mapping</span></a>
+                                </li>
+                                
+                                <li>
+                                    <a href="/erm/gudang-mapping"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Gudang Mapping</span></a>
+                                </li>
+                                
                             </ul>
                         </li>
                     @endhasanyrole
@@ -70,9 +78,6 @@
                             <li>
                                 <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Resep</span></a>
                             </li>
-                                <li>
-                                    <a href="/erm/obat-mapping"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat Mapping</span></a>
-                                </li>
                         </ul>
                     </li>
                     @endhasanyrole
@@ -88,9 +93,6 @@
                             </li>
                             <li>
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
-                            </li>
-                            <li>
-                                <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
                             </li>
                             <li>
                             <a href="/erm/fakturretur"><i data-feather="rotate-ccw" class="align-self-center menu-icon"></i><span>Retur Pembelian</span></a>
@@ -124,7 +126,7 @@
                                 <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Antar Gudang</span></a>
                             </li>
                             <li>
-                                <a href="/erm/gudang-mapping"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Mapping Gudang</span></a>
+                                <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
                             </li>
                             <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>

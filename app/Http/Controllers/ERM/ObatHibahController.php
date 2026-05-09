@@ -10,6 +10,7 @@ use App\Services\ERM\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ObatHibahController extends Controller
 {
@@ -42,7 +43,12 @@ class ObatHibahController extends Controller
             'sumber' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'items' => 'required|array|min:1',
-            'items.*.obat_id' => 'required|exists:erm_obat,id',
+            'items.*.obat_id' => [
+                'required',
+                Rule::exists('erm_obat', 'id')->where(function ($query) {
+                    $query->where('status_aktif', 1);
+                }),
+            ],
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.qty' => 'required|numeric|gt:0',
             'items.*.batch' => 'nullable|string|max:255',
@@ -75,7 +81,8 @@ class ObatHibahController extends Controller
                     $hibah->nomor_hibah,
                     $hibahItem->batch,
                     $hibahItem->expiration_date,
-                    $hibah->sumber
+                    $hibah->sumber,
+                    $hibah->notes
                 );
             }
         });

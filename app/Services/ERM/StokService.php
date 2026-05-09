@@ -467,13 +467,20 @@ class StokService {
      * @param string|null $batch
      * @param string|null $expDate
      * @param string|null $sumber
+     * @param string|null $catatan
      * @return ObatStokGudang
      */
-    public function masukViaHibah($obatId, $gudangId, $jumlah, $hibahId, $nomorHibah, $batch = null, $expDate = null, $sumber = null)
+    public function masukViaHibah($obatId, $gudangId, $jumlah, $hibahId, $nomorHibah, $batch = null, $expDate = null, $sumber = null, $catatan = null)
     {
-        $keterangan = "Obat hibah: {$nomorHibah}";
+        $keterangan = 'Obat Hibah';
         if ($sumber) {
             $keterangan .= " dari {$sumber}";
+        }
+        if ($catatan) {
+            $keterangan .= " {$catatan}";
+        }
+        if ($keterangan === 'Obat Hibah') {
+            $keterangan .= ": {$nomorHibah}";
         }
 
         return $this->tambahStok(
