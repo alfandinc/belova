@@ -20,6 +20,54 @@ use Illuminate\Support\Facades\Validator;
 
 class FinancePengajuanDanaController extends Controller
 {
+    private function getPengajuanVisibilityContext(): array
+    {
+        $user = Auth::user();
+        $isAdmin = $user && method_exists($user, 'hasRole') && $user->hasRole('Admin');
+        $isApprover = $user
+            ? FinanceDanaApprover::where('user_id', $user->id)->where('aktif', 1)->exists()
+            : false;
+        $employeeId = ($user && isset($user->employee) && $user->employee)
+            ? $user->employee->id
+            : null;
+
+        return [
+            'user' => $user,
+            'is_admin' => $isAdmin,
+            'is_approver' => $isApprover,
+            'employee_id' => $employeeId,
+            'has_global_access' => $isAdmin || $isApprover,
+        ];
+    }
+
+    private function scopePengajuanVisibility($query)
+    {
+        $context = $this->getPengajuanVisibilityContext();
+        if ($context['has_global_access']) {
+            return $query;
+        }
+
+        if (!$context['employee_id']) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('employee_id', $context['employee_id']);
+    }
+
+    private function authorizePengajuanAccess(FinancePengajuanDana $pengajuan): void
+    {
+        $context = $this->getPengajuanVisibilityContext();
+        if ($context['has_global_access']) {
+            return;
+        }
+
+        abort_unless(
+            $context['employee_id'] && (int) $pengajuan->employee_id === (int) $context['employee_id'],
+            403,
+            'Unauthorized access to pengajuan dana.'
+        );
+    }
+
     /**
      * Internal helper: perform approval checks and create approval record.
      * Returns [bool success, string message]. Does not check user auth/jenis matching.
@@ -125,6 +173,7 @@ class FinancePengajuanDanaController extends Controller
     public function data(Request $request)
     {
         $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user', 'rekening']);
+        $this->scopePengajuanVisibility($query);
         // apply optional date range filter (tanggal_pengajuan)
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
@@ -522,6 +571,7 @@ class FinancePengajuanDanaController extends Controller
     {
         $query = FinancePengajuanDana::with(['items', 'employee.user', 'division', 'rekening'])
             ->where('payment_status', 'paid');
+        $this->scopePengajuanVisibility($query);
 
         // optional date range filter: expect start_date and end_date in request (format: 'DD MMMM YYYY' or 'YYYY-MM-DD')
         $startDate = $request->input('start_date');
@@ -718,6 +768,7 @@ class FinancePengajuanDanaController extends Controller
     public function uploadBukti(Request $request, $id)
     {
         $pengajuan = FinancePengajuanDana::findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
 
         $request->validate([
             'bukti_transaksi' => 'required',
@@ -748,6 +799,11 @@ class FinancePengajuanDanaController extends Controller
 
     public function store(Request $request)
     {
+        $visibility = $this->getPengajuanVisibilityContext();
+        if (!$visibility['has_global_access'] && !$visibility['employee_id']) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         // Server-side required validation matching modal requirements
         $validator = Validator::make($request->all(), [
             'kode_pengajuan' => 'required|string|unique:finance_pengajuan_dana,kode_pengajuan',
@@ -796,6 +852,10 @@ class FinancePengajuanDanaController extends Controller
             return response()->json([ 'message' => 'Validasi gagal', 'errors' => $validator->errors() ], 422);
         }
         $data = $validator->validated();
+
+        if (!$visibility['has_global_access']) {
+            $data['employee_id'] = $visibility['employee_id'];
+        }
 
         // If division_id wasn't provided, attempt to infer it from selected employee
         if (empty($data['division_id']) && !empty($data['employee_id'])) {
@@ -904,6 +964,7 @@ class FinancePengajuanDanaController extends Controller
     public function show($id)
     {
         $pengajuan = FinancePengajuanDana::with(['items', 'approvals', 'employee.user', 'division'])->findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
         return response()->json($pengajuan);
     }
 
@@ -913,6 +974,7 @@ class FinancePengajuanDanaController extends Controller
     public function pdf($id)
     {
         $pengajuan = FinancePengajuanDana::with(['items', 'approvals.approver.user', 'employee.user', 'division', 'rekening'])->findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
         // collect linked faktur IDs from items
         $fakturIds = collect($pengajuan->items)->pluck('fakturbeli_id')->filter()->unique()->values()->all();
         $fakturs = [];
@@ -1064,6 +1126,8 @@ class FinancePengajuanDanaController extends Controller
     public function update(Request $request, $id)
     {
         $pengajuan = FinancePengajuanDana::findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
+        $visibility = $this->getPengajuanVisibilityContext();
         $data = $request->validate([
             'employee_id' => 'nullable|integer',
             'division_id' => 'nullable|integer',
@@ -1076,6 +1140,10 @@ class FinancePengajuanDanaController extends Controller
             'items_json' => 'nullable|json',
             'bukti_transaksi' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
+
+        if (!$visibility['has_global_access']) {
+            $data['employee_id'] = $visibility['employee_id'];
+        }
 
         // If division_id not provided on update, try to infer from employee relation
         if (empty($data['division_id']) && !empty($data['employee_id'])) {
@@ -1195,6 +1263,7 @@ class FinancePengajuanDanaController extends Controller
     public function destroy($id)
     {
         $pengajuan = FinancePengajuanDana::findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
         $pengajuan->delete();
         return response()->json(['success' => true]);
     }
@@ -1205,6 +1274,7 @@ class FinancePengajuanDanaController extends Controller
     public function approvalsDetails($id)
     {
         $pengajuan = FinancePengajuanDana::findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
 
         // determine applicable approvers for this pengajuan's sumber_dana
         $pengajuanSumber = $pengajuan->sumber_dana ?? '';

@@ -1204,7 +1204,7 @@
                 @php
                     // Allow access only to users with role 'Satusehat' or 'Admin'
                     $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;
-                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Head Manager','Admin'])) > 0;
+                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Head Manager','Manager','Hrd','Admin'])) > 0;
                 @endphp
                 <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
                    @if(!$hasSatusehatAccess)
