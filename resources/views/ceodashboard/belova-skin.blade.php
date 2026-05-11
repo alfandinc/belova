@@ -228,7 +228,13 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <div class="border rounded p-3 h-100">
-                                    <h6 class="mb-3">Top Obat Revenue</h6>
+                                    <div class="d-flex align-items-start justify-content-between mb-3" style="gap:12px;">
+                                        <h6 class="mb-0">Top Obat Revenue</h6>
+                                        <div class="text-right text-md-right">
+                                            <div class="small text-muted">Total Revenue</div>
+                                            <div class="font-weight-bold" id="top-obat-revenue-total">Rp 0</div>
+                                        </div>
+                                    </div>
                                     <input type="text" id="top-obat-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search obat revenue...">
                                     <div class="table-responsive">
                                         <table class="table table-sm mb-0">
@@ -243,7 +249,13 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <div class="border rounded p-3 h-100">
-                                    <h6 class="mb-3">Top Treatment Revenue</h6>
+                                    <div class="d-flex align-items-start justify-content-between mb-3" style="gap:12px;">
+                                        <h6 class="mb-0">Top Treatment Revenue</h6>
+                                        <div class="text-right text-md-right">
+                                            <div class="small text-muted">Total Revenue</div>
+                                            <div class="font-weight-bold" id="top-treatment-revenue-total">Rp 0</div>
+                                        </div>
+                                    </div>
                                     <input type="text" id="top-treatment-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search treatment revenue...">
                                     <div class="table-responsive">
                                         <table class="table table-sm mb-0">
@@ -1757,6 +1769,13 @@
                 return params.length ? ('?' + params.join('&')) : '';
             }
 
+            function updateItemRevenueTotal(itemType, totalRevenue) {
+                var totalId = itemType === 'obat' ? 'top-obat-revenue-total' : 'top-treatment-revenue-total';
+                var totalEl = document.getElementById(totalId);
+                if (!totalEl) return;
+                totalEl.textContent = formatCurrency(totalRevenue || 0);
+            }
+
             function renderItemRevenueRows(itemType, items, emptyMessage) {
                 var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
                 var body = document.getElementById(bodyId);
@@ -1796,7 +1815,9 @@
 
             function restoreDefaultItemRevenueRows(itemType) {
                 var statsKey = itemType === 'obat' ? 'top_obat_revenue' : 'top_treatment_revenue';
+                var totalKey = itemType === 'obat' ? 'top_obat_revenue_total' : 'top_treatment_revenue_total';
                 var items = currentRevenueStats && Array.isArray(currentRevenueStats[statsKey]) ? currentRevenueStats[statsKey] : [];
+                updateItemRevenueTotal(itemType, currentRevenueStats ? currentRevenueStats[totalKey] : 0);
                 renderItemRevenueRows(itemType, items, 'Tidak ada data');
             }
 
@@ -1806,6 +1827,7 @@
                     : '/ceo-dashboard/clinic/' + revenueClinicId + '/treatment-revenue-rankings';
                 var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
                 var body = document.getElementById(bodyId);
+                updateItemRevenueTotal(itemType, 0);
                 if (body) {
                     body.innerHTML = '<tr><td colspan="2" class="text-muted">Loading data...</td></tr>';
                 }
@@ -1814,10 +1836,12 @@
                     .then(function(res){ if (!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) throw new Error('Invalid response');
+                        updateItemRevenueTotal(itemType, payload.total_revenue || 0);
                         renderItemRevenueRows(itemType, payload.items || [], 'Tidak ada hasil untuk pencarian ini');
                     })
                     .catch(function(err){
                         console.error('Failed to load item revenue rankings', err);
+                        updateItemRevenueTotal(itemType, 0);
                         if (body) {
                             body.innerHTML = '<tr><td colspan="2" class="text-danger">Gagal memuat data.</td></tr>';
                         }

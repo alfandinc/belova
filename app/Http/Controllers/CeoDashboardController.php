@@ -655,7 +655,9 @@ class CeoDashboardController extends Controller
             'top_doctor_revenue' => [],
             'top_patient_revenue' => [],
             'top_obat_revenue' => [],
+            'top_obat_revenue_total' => 0.0,
             'top_treatment_revenue' => [],
+            'top_treatment_revenue_total' => 0.0,
             'patient_demographics' => [
                 'gender' => ['male' => 0, 'female' => 0, 'other' => 0],
                 'age' => [
@@ -1014,6 +1016,10 @@ class CeoDashboardController extends Controller
 
                 $this->applyVisitTypeFilter($topObatRevenueBase, $visitTypeFilter);
 
+                $stats['top_obat_revenue_total'] = round((float) ((clone $topObatRevenueBase)
+                    ->selectRaw($obatRevenueExpr . ' as total_revenue')
+                    ->value('total_revenue') ?? 0), 2);
+
                 $topObatRevenueRows = $topObatRevenueBase
                     ->selectRaw('r.obat_id as obat_id')
                     ->selectRaw("COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-'))) as obat_name")
@@ -1034,6 +1040,7 @@ class CeoDashboardController extends Controller
             } catch (\Exception $e) {
                 $stats['medicine'] = ['total_prescription_items' => 0, 'total_medicine_qty' => 0, 'top_obats' => []];
                 $stats['top_obat_revenue'] = [];
+                $stats['top_obat_revenue_total'] = 0.0;
             }
 
             try {
@@ -1077,6 +1084,10 @@ class CeoDashboardController extends Controller
 
                 $this->applyVisitTypeFilter($topTreatmentRevenueBase, $visitTypeFilter);
 
+                $stats['top_treatment_revenue_total'] = round((float) ((clone $topTreatmentRevenueBase)
+                    ->selectRaw($treatmentRevenueExpr . ' as total_revenue')
+                    ->value('total_revenue') ?? 0), 2);
+
                 $topTreatmentRevenueRows = $topTreatmentRevenueBase
                     ->selectRaw('r.tindakan_id as tindakan_id')
                     ->selectRaw("COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(r.tindakan_id, '-'))) as tindakan_name")
@@ -1097,6 +1108,7 @@ class CeoDashboardController extends Controller
             } catch (\Exception $e) {
                 $stats['tindakan'] = ['total_tindakan' => 0, 'top_tindakans' => []];
                 $stats['top_treatment_revenue'] = [];
+                $stats['top_treatment_revenue_total'] = 0.0;
             }
 
             try {
@@ -1947,6 +1959,10 @@ class CeoDashboardController extends Controller
             $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
         }
 
+        $totalRevenue = round((float) ((clone $query)
+            ->selectRaw($obatRevenueExpr . ' as total_revenue')
+            ->value('total_revenue') ?? 0), 2);
+
         $items = $query
             ->selectRaw('r.obat_id as obat_id')
             ->selectRaw("COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-'))) as obat_name")
@@ -1974,6 +1990,7 @@ class CeoDashboardController extends Controller
                 'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
                 'q' => $search,
             ],
+            'total_revenue' => $totalRevenue,
             'items' => $items,
         ]);
     }
@@ -2017,6 +2034,10 @@ class CeoDashboardController extends Controller
             $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(rt.tindakan_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
         }
 
+        $totalRevenue = round((float) ((clone $query)
+            ->selectRaw($treatmentRevenueExpr . ' as total_revenue')
+            ->value('total_revenue') ?? 0), 2);
+
         $items = $query
             ->selectRaw('rt.tindakan_id as tindakan_id')
             ->selectRaw("COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(rt.tindakan_id, '-'))) as tindakan_name")
@@ -2044,6 +2065,7 @@ class CeoDashboardController extends Controller
                 'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
                 'q' => $search,
             ],
+            'total_revenue' => $totalRevenue,
             'items' => $items,
         ]);
     }

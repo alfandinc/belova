@@ -372,7 +372,7 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->name('running.wa_preview');
 
 // CEO Dashboard - executive analytics module
-Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Head Manager|Admin'])->group(function () {
+Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Head Manager|Manager|Hrd|Admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\CeoDashboardController::class, 'index'])
         ->name('index');
     Route::get('/daily-tasks/reported', [\App\Http\Controllers\CeoDashboardController::class, 'reportedDailyTasks'])
