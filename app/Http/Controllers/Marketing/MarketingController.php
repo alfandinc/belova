@@ -713,8 +713,9 @@ class MarketingController extends Controller
     {
         $baseQuery = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
             ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
-            ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
-            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->join('erm_riwayat_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_riwayat_tindakan.id')
+            ->join('erm_tindakan', 'erm_riwayat_tindakan.tindakan_id', '=', 'erm_tindakan.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
             ->where('finance_invoices.amount_paid', '>', 0);
 
         if ($startDate && $endDate) {
