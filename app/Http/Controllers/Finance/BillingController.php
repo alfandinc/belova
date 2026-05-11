@@ -1129,9 +1129,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $unitPrice = round((float) ($row->jumlah ?? 0), 2);
             $diskonType = trim((string) ($row->diskon_type ?? ''));
             $diskonValue = round((float) ($row->diskon ?? 0), 4);
-            if ($diskonValue > 0 && $diskonType !== '%') {
-                return null;
-            }
             $promoPriceBase = isset($row->promo_price_base) ? round((float) $row->promo_price_base, 2) : null;
 
             $tindakanId = null;
