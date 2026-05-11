@@ -723,7 +723,7 @@ $(document).ready(function() {
                 // If this pengajuan already has approvals, prevent editing by hiding the Edit button
                 try {
                     var approvalsCount = Number(data.approvals_count || 0);
-                    if (approvalsCount > 0 || (approvalsRaw && approvalsRaw !== '')) {
+                    if (approvalsCount > 0) {
                         // hide any edit controls to prevent modification
                         $(row).find('.edit-pengajuan').each(function() {
                             $(this).addClass('d-none').attr('title', 'Tidak dapat diedit setelah ada persetujuan');

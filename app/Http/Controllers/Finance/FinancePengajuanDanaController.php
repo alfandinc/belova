@@ -172,7 +172,8 @@ class FinancePengajuanDanaController extends Controller
 
     public function data(Request $request)
     {
-        $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user', 'rekening']);
+        $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user', 'rekening'])
+            ->withCount('approvals');
         $this->scopePengajuanVisibility($query);
         // apply optional date range filter (tanggal_pengajuan)
         $startDate = $request->input('start_date');
