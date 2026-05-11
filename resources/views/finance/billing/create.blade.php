@@ -2283,6 +2283,39 @@
             calculateTotals();
         }
 
+        function mergeManualTindakanBillingRow(data) {
+            const tindakanId = data && typeof data.id !== 'undefined' ? String(data.id) : '';
+            if (!tindakanId) return false;
+
+            const harga = parseHarga(data.harga);
+            const qtyToAdd = Math.max(1, parseInt(data.qty, 10) || 1);
+            const existingIndex = (Array.isArray(billingData) ? billingData : []).findIndex(function(item) {
+                if (!item || item.deleted) return false;
+                return String(item.billable_type || '') === 'App\\Models\\ERM\\Tindakan'
+                    && String(item.billable_id || '') === tindakanId
+                    && parseNumberFlexible(item.jumlah_raw) === harga
+                    && Math.max(0, parseNumberFlexible(item.diskon_raw)) === 0
+                    && normalizeDiskonType(item.diskon_raw, item.diskon_type) === 'nominal'
+                    && String(item.deskripsi || '') === '';
+            });
+
+            if (existingIndex === -1) return false;
+
+            const existingItem = billingData[existingIndex];
+            const nextQty = Math.max(1, parseInt(existingItem.qty, 10) || 1) + qtyToAdd;
+            const nextLineTotal = computeLineTotalAfterDiscount(harga, nextQty, existingItem.diskon_raw || 0, existingItem.diskon_type || 'nominal');
+
+            existingItem.qty = nextQty;
+            existingItem.jumlah_raw = harga;
+            existingItem.jumlah = 'Rp ' + formatCurrency(harga);
+            existingItem.harga_akhir_raw = nextLineTotal;
+            existingItem.harga_akhir = 'Rp ' + formatCurrency(nextLineTotal);
+            existingItem.edited = true;
+
+            billingData[existingIndex] = existingItem;
+            return true;
+        }
+
         function billingItemMatchesKonsultasiReplacement(item) {
             if (!item) return false;
             if (!isKonsultasiBillingType(item.billable_type)) return false;
@@ -3360,21 +3393,24 @@ $('#saveAllChangesBtn').on('click', function() {
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
             const total = harga * qty;
-            billingData.push({
-                id: 'tindakan-' + data.id,
-                billable_id: data.id,
-                billable_type: 'App\\Models\\ERM\\Tindakan',
-                nama_item: data.text,
-                jumlah: 'Rp ' + formatCurrency(harga),
-                jumlah_raw: harga,
-                qty: qty,
-                diskon: 0,
-                diskon_type: 'nominal',
-                harga_akhir: 'Rp ' + formatCurrency(total),
-                harga_akhir_raw: total,
-                deleted: false,
-                deskripsi: ''
-            });
+            const mergedExistingRow = mergeManualTindakanBillingRow(data);
+            if (!mergedExistingRow) {
+                billingData.push({
+                    id: 'tindakan-' + data.id,
+                    billable_id: data.id,
+                    billable_type: 'App\\Models\\ERM\\Tindakan',
+                    nama_item: data.text,
+                    jumlah: 'Rp ' + formatCurrency(harga),
+                    jumlah_raw: harga,
+                    qty: qty,
+                    diskon: 0,
+                    diskon_type: 'nominal',
+                    harga_akhir: 'Rp ' + formatCurrency(total),
+                    harga_akhir_raw: total,
+                    deleted: false,
+                    deskripsi: ''
+                });
+            }
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');

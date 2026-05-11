@@ -1120,7 +1120,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             if (!empty($row->is_racikan) || !empty($row->is_pharmacy_fee)) return null;
 
             $billableType = (string) ($row->billable_type ?? '');
-            if ($billableType !== 'App\\Models\\ERM\\RiwayatTindakan' && $billableType !== 'App\Models\ERM\RiwayatTindakan') {
+            $isRiwayatTindakan = $billableType === 'App\\Models\\ERM\\RiwayatTindakan' || $billableType === 'App\Models\ERM\RiwayatTindakan';
+            $isManualTindakan = $billableType === 'App\\Models\\ERM\\Tindakan' || $billableType === 'App\Models\ERM\Tindakan';
+            if (!$isRiwayatTindakan && !$isManualTindakan) {
                 return null;
             }
 
@@ -1135,8 +1137,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $tindakanId = null;
             $tindakanName = null;
             try {
-                $tindakanId = optional($row->billable)->tindakan_id ?? optional(optional($row->billable)->tindakan)->id;
-                $tindakanName = optional(optional($row->billable)->tindakan)->nama;
+                if ($isRiwayatTindakan) {
+                    $tindakanId = optional($row->billable)->tindakan_id ?? optional(optional($row->billable)->tindakan)->id;
+                    $tindakanName = optional(optional($row->billable)->tindakan)->nama;
+                } elseif ($isManualTindakan) {
+                    $tindakanId = $row->billable_id ?? optional($row->billable)->id;
+                    $tindakanName = optional($row->billable)->nama;
+                }
             } catch (\Exception $e) {
                 $tindakanId = null;
                 $tindakanName = null;
