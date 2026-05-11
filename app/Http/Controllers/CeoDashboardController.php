@@ -1537,7 +1537,26 @@ class CeoDashboardController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view($viewName, compact('initial', 'currentYear', 'dokterList'));
+        $treatmentSpecialties = \App\Models\ERM\Spesialisasi::query()
+            ->select(['id', 'nama'])
+            ->whereIn('id', function ($query) {
+                $query->select('spesialis_id')
+                    ->from('erm_tindakan')
+                    ->whereNotNull('spesialis_id');
+            })
+            ->orderBy('nama')
+            ->get();
+
+        $obatCategories = \App\Models\ERM\Obat::query()
+            ->withoutGlobalScopes()
+            ->whereNotNull('kategori')
+            ->where('kategori', '!=', '')
+            ->orderBy('kategori')
+            ->distinct()
+            ->pluck('kategori')
+            ->values();
+
+        return view($viewName, compact('initial', 'currentYear', 'dokterList', 'treatmentSpecialties', 'obatCategories'));
     }
 
     /**
@@ -1941,6 +1960,7 @@ class CeoDashboardController extends Controller
 
         $visitTypeFilter = $this->parseVisitTypeFilter($request);
         $search = trim((string) $request->query('q', ''));
+        $kategori = trim((string) $request->query('kategori', ''));
         $limit = max(1, min((int) $request->query('limit', 25), 100));
         $obatRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
 
@@ -1954,6 +1974,10 @@ class CeoDashboardController extends Controller
             ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
 
         $this->applyVisitTypeFilter($query, $visitTypeFilter);
+
+        if ($kategori !== '') {
+            $query->where('o.kategori', $kategori);
+        }
 
         if ($search !== '') {
             $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(o.nama), ''), CONCAT('Obat ', COALESCE(r.obat_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
@@ -1989,6 +2013,7 @@ class CeoDashboardController extends Controller
                 'end' => $endDt->toDateString(),
                 'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
                 'q' => $search,
+                'kategori' => $kategori,
             ],
             'total_revenue' => $totalRevenue,
             'items' => $items,
@@ -2016,6 +2041,7 @@ class CeoDashboardController extends Controller
 
         $visitTypeFilter = $this->parseVisitTypeFilter($request);
         $search = trim((string) $request->query('q', ''));
+        $spesialisasiId = (int) $request->query('spesialisasi_id', 0);
         $limit = max(1, min((int) $request->query('limit', 25), 100));
         $treatmentRevenueExpr = "SUM(GREATEST(0, (COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) - CASE WHEN fb.diskon_type = '%' THEN ((COALESCE(fb.jumlah, 0) * COALESCE(NULLIF(fb.qty, 0), 1)) * COALESCE(fb.diskon, 0) / 100) ELSE COALESCE(fb.diskon, 0) END))";
 
@@ -2029,6 +2055,10 @@ class CeoDashboardController extends Controller
             ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
 
         $this->applyVisitTypeFilter($query, $visitTypeFilter);
+
+        if ($spesialisasiId > 0) {
+            $query->where('t.spesialis_id', $spesialisasiId);
+        }
 
         if ($search !== '') {
             $query->whereRaw("LOWER(COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(rt.tindakan_id, '-')))) LIKE ?", ['%' . mb_strtolower($search) . '%']);
@@ -2064,6 +2094,7 @@ class CeoDashboardController extends Controller
                 'end' => $endDt->toDateString(),
                 'visit_type' => $visitTypeFilter ? (string) $visitTypeFilter : 'all',
                 'q' => $search,
+                'spesialisasi_id' => $spesialisasiId,
             ],
             'total_revenue' => $totalRevenue,
             'items' => $items,

@@ -8,6 +8,7 @@ use App\Models\ERM\Klinik;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Pasien;
+use App\Models\ERM\Spesialisasi;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\PaketTindakan;
@@ -273,7 +274,25 @@ class MarketingController extends Controller
         $year = $request->input('year', date('Y'));
         $month = $request->input('month');
 
-        return view('marketing.revenue', compact('year', 'month'));
+        $obatCategories = Obat::withInactive()
+            ->whereNotNull('kategori')
+            ->where('kategori', '!=', '')
+            ->orderBy('kategori')
+            ->distinct()
+            ->pluck('kategori')
+            ->values();
+
+        $treatmentSpecialties = Spesialisasi::query()
+            ->select(['id', 'nama'])
+            ->whereIn('id', function ($query) {
+                $query->select('spesialis_id')
+                    ->from('erm_tindakan')
+                    ->whereNotNull('spesialis_id');
+            })
+            ->orderBy('nama')
+            ->get();
+
+        return view('marketing.revenue', compact('year', 'month', 'obatCategories', 'treatmentSpecialties'));
     }
 
     // AJAX endpoints for revenue analytics
@@ -285,6 +304,10 @@ class MarketingController extends Controller
             $startDate = $request->input('start_date');
             $endDate = $request->input('end_date');
             $clinicId = $request->input('clinic_id');
+            $obatSearch = trim((string) $request->input('obat_q', ''));
+            $obatCategory = trim((string) $request->input('obat_kategori', ''));
+            $treatmentSearch = trim((string) $request->input('treatment_q', ''));
+            $treatmentSpecialtyId = (int) $request->input('treatment_spesialisasi_id', 0);
 
             // If no date range provided, default to current year
             if (!$startDate || !$endDate) {
@@ -296,6 +319,8 @@ class MarketingController extends Controller
                 'doctorRevenue' => $this->getDoctorRevenue($year, $startDate, $endDate, $clinicId),
                 'topPatients' => $this->getProfitablePatients($year, $startDate, $endDate, $clinicId),
                 'treatmentRevenue' => $this->getRevenueByTreatmentCategory($year, $startDate, $endDate, $clinicId),
+                'topTreatmentRevenue' => $this->getTopTreatmentRevenueItems($year, $startDate, $endDate, $clinicId, $treatmentSearch, $treatmentSpecialtyId),
+                'topObatRevenue' => $this->getTopObatRevenueItems($year, $startDate, $endDate, $clinicId, $obatSearch, $obatCategory),
                 'paymentMethodAnalysis' => $this->getPaymentMethodAnalysis($year, $startDate, $endDate, $clinicId),
                 'revenueGrowth' => $this->getRevenueGrowthComparison($year, $startDate, $endDate, $clinicId),
                 'dailyRevenue' => $this->getDailyRevenueTrends($year, $month ?: date('m'), $startDate, $endDate, $clinicId)
@@ -682,6 +707,119 @@ class MarketingController extends Controller
                 ];
             }
         }
+    }
+
+    private function getTopTreatmentRevenueItems($year, $startDate = null, $endDate = null, $clinicId = null, $search = '', $specialtyId = 0)
+    {
+        $baseQuery = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($startDate && $endDate) {
+            $baseQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $baseQuery->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        if ($clinicId) {
+            $baseQuery->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        if ($specialtyId > 0) {
+            $baseQuery->where('erm_tindakan.spesialis_id', $specialtyId);
+        }
+
+        if ($search !== '') {
+            $baseQuery->whereRaw('LOWER(erm_tindakan.nama) LIKE ?', ['%' . mb_strtolower($search) . '%']);
+        }
+
+        $totalRevenue = round((float) ((clone $baseQuery)->sum('finance_invoice_items.final_amount') ?: 0), 2);
+
+        $items = (clone $baseQuery)
+            ->select(
+                'erm_tindakan.id as treatment_id',
+                'erm_tindakan.nama as treatment_name',
+                DB::raw('COUNT(*) as total_items'),
+                DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+            )
+            ->groupBy('erm_tindakan.id', 'erm_tindakan.nama')
+            ->orderBy('total_revenue', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->treatment_id ?? 0),
+                    'name' => (string) ($row->treatment_name ?? 'Treatment'),
+                    'count' => (int) ($row->total_items ?? 0),
+                    'revenue' => round((float) ($row->total_revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'total_revenue' => $totalRevenue,
+            'items' => $items,
+        ];
+    }
+
+    private function getTopObatRevenueItems($year, $startDate = null, $endDate = null, $clinicId = null, $search = '', $category = '')
+    {
+        $baseQuery = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_resepfarmasi', 'finance_invoice_items.billable_id', '=', 'erm_resepfarmasi.id')
+            ->join('erm_obat', 'erm_resepfarmasi.obat_id', '=', 'erm_obat.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($startDate && $endDate) {
+            $baseQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $baseQuery->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        if ($clinicId) {
+            $baseQuery->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        if ($category !== '') {
+            $baseQuery->where('erm_obat.kategori', $category);
+        }
+
+        if ($search !== '') {
+            $baseQuery->whereRaw('LOWER(erm_obat.nama) LIKE ?', ['%' . mb_strtolower($search) . '%']);
+        }
+
+        $totalRevenue = round((float) ((clone $baseQuery)->sum('finance_invoice_items.final_amount') ?: 0), 2);
+
+        $items = (clone $baseQuery)
+            ->select(
+                'erm_obat.id as obat_id',
+                'erm_obat.nama as obat_name',
+                DB::raw('SUM(finance_invoice_items.quantity) as total_quantity'),
+                DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+            )
+            ->groupBy('erm_obat.id', 'erm_obat.nama')
+            ->orderBy('total_revenue', 'desc')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'id' => (int) ($row->obat_id ?? 0),
+                    'name' => (string) ($row->obat_name ?? 'Obat'),
+                    'quantity' => (float) ($row->total_quantity ?? 0),
+                    'revenue' => round((float) ($row->total_revenue ?? 0), 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'total_revenue' => $totalRevenue,
+            'items' => $items,
+        ];
     }
 
     private function getPaymentMethodAnalysis($year, $startDate = null, $endDate = null, $clinicId = null)

@@ -235,7 +235,15 @@
                                             <div class="font-weight-bold" id="top-obat-revenue-total">Rp 0</div>
                                         </div>
                                     </div>
-                                    <input type="text" id="top-obat-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search obat revenue...">
+                                    <div class="d-flex flex-wrap align-items-center mb-3" style="gap:8px;">
+                                        <select id="top-obat-revenue-category-filter" class="form-control form-control-sm" style="width:220px;">
+                                            <option value="">Semua kategori obat</option>
+                                            @foreach(($obatCategories ?? []) as $category)
+                                                <option value="{{ $category }}">{{ $category }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" id="top-obat-revenue-search" class="form-control form-control-sm" style="flex:1 1 220px; min-width:220px;" placeholder="Search obat revenue...">
+                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm mb-0">
                                             <tbody id="top-obat-revenue-body">
@@ -256,7 +264,15 @@
                                             <div class="font-weight-bold" id="top-treatment-revenue-total">Rp 0</div>
                                         </div>
                                     </div>
-                                    <input type="text" id="top-treatment-revenue-search" class="form-control form-control-sm mb-3" placeholder="Search treatment revenue...">
+                                    <div class="d-flex flex-wrap align-items-center mb-3" style="gap:8px;">
+                                        <select id="top-treatment-revenue-specialty-filter" class="form-control form-control-sm" style="width:220px;">
+                                            <option value="">Semua spesialisasi</option>
+                                            @foreach(($treatmentSpecialties ?? []) as $specialty)
+                                                <option value="{{ $specialty->id }}">{{ $specialty->nama }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" id="top-treatment-revenue-search" class="form-control form-control-sm" style="flex:1 1 220px; min-width:220px;" placeholder="Search treatment revenue...">
+                                    </div>
                                     <div class="table-responsive">
                                         <table class="table table-sm mb-0">
                                             <tbody id="top-treatment-revenue-body">
@@ -1776,6 +1792,14 @@
                 totalEl.textContent = formatCurrency(totalRevenue || 0);
             }
 
+            function getItemRevenueFilterValue(itemType) {
+                var filterId = itemType === 'obat'
+                    ? 'top-obat-revenue-category-filter'
+                    : 'top-treatment-revenue-specialty-filter';
+                var filterEl = document.getElementById(filterId);
+                return filterEl ? String(filterEl.value || '').trim() : '';
+            }
+
             function renderItemRevenueRows(itemType, items, emptyMessage) {
                 var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
                 var body = document.getElementById(bodyId);
@@ -1827,12 +1851,19 @@
                     : '/ceo-dashboard/clinic/' + revenueClinicId + '/treatment-revenue-rankings';
                 var bodyId = itemType === 'obat' ? 'top-obat-revenue-body' : 'top-treatment-revenue-body';
                 var body = document.getElementById(bodyId);
+                var filterValue = getItemRevenueFilterValue(itemType);
+                var extraParams = ['q=' + encodeURIComponent(keyword), 'limit=25'];
+                if (filterValue) {
+                    extraParams.push(itemType === 'obat'
+                        ? 'kategori=' + encodeURIComponent(filterValue)
+                        : 'spesialisasi_id=' + encodeURIComponent(filterValue));
+                }
                 updateItemRevenueTotal(itemType, 0);
                 if (body) {
                     body.innerHTML = '<tr><td colspan="2" class="text-muted">Loading data...</td></tr>';
                 }
 
-                fetch(endpoint + buildDoctorQuery('q=' + encodeURIComponent(keyword) + '&limit=25'))
+                fetch(endpoint + buildDoctorQuery(extraParams.join('&')))
                     .then(function(res){ if (!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (!payload || !payload.ok) throw new Error('Invalid response');
@@ -1854,8 +1885,9 @@
                 if (!input) return;
 
                 var keyword = (input.value || '').trim();
+                var filterValue = getItemRevenueFilterValue(itemType);
                 var execute = function() {
-                    if (!keyword) {
+                    if (!keyword && !filterValue) {
                         restoreDefaultItemRevenueRows(itemType);
                         return;
                     }
@@ -2572,8 +2604,16 @@
                     runItemRevenueSearch('obat', false);
                 });
 
+                $('#top-obat-revenue-category-filter').on('change', function(){
+                    runItemRevenueSearch('obat', true);
+                });
+
                 $('#top-treatment-revenue-search').on('input', function(){
                     runItemRevenueSearch('treatment', false);
+                });
+
+                $('#top-treatment-revenue-specialty-filter').on('change', function(){
+                    runItemRevenueSearch('treatment', true);
                 });
 
                 $('#premiereDoctorSelect').on('change', function(){

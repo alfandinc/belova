@@ -82,6 +82,27 @@
 .select2-dropdown {
     z-index: 9999 !important;
 }
+
+.revenue-ranking-table tbody tr td,
+.revenue-ranking-table tbody tr th {
+    vertical-align: middle;
+}
+
+.ranking-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
+}
+
+.ranking-filter-row .form-control,
+.ranking-filter-row .form-select {
+    min-width: 220px;
+}
+
+.ranking-filter-row .ranking-search {
+    flex: 1 1 220px;
+}
 </style>
 <div class="container-fluid">
     <!-- Page Title & Filters -->
@@ -233,6 +254,76 @@
         </div>
     </div>
 
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-start">
+                    <h5 class="card-title mb-0">Top Obat Revenue</h5>
+                    <div class="text-end">
+                        <div class="small text-muted">Total Revenue</div>
+                        <div class="font-weight-bold" id="topObatRevenueTotal">Rp 0</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="ranking-filter-row">
+                        <select id="topObatCategoryFilter" class="form-select form-select-sm">
+                            <option value="">Semua kategori obat</option>
+                            @foreach(($obatCategories ?? []) as $category)
+                                <option value="{{ $category }}">{{ $category }}</option>
+                            @endforeach
+                        </select>
+                        <input type="text" id="topObatSearch" class="form-control form-control-sm ranking-search" placeholder="Search obat revenue...">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm revenue-ranking-table mb-0">
+                            <tbody id="topObatRevenueTable">
+                                <tr>
+                                    <td colspan="2" class="text-center">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-start">
+                    <h5 class="card-title mb-0">Top Treatment Revenue</h5>
+                    <div class="text-end">
+                        <div class="small text-muted">Total Revenue</div>
+                        <div class="font-weight-bold" id="topTreatmentRevenueTotal">Rp 0</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="ranking-filter-row">
+                        <select id="topTreatmentSpecialtyFilter" class="form-select form-select-sm">
+                            <option value="">Semua spesialisasi</option>
+                            @foreach(($treatmentSpecialties ?? []) as $specialty)
+                                <option value="{{ $specialty->id }}">{{ $specialty->nama }}</option>
+                            @endforeach
+                        </select>
+                        <input type="text" id="topTreatmentSearch" class="form-control form-control-sm ranking-search" placeholder="Search treatment revenue...">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm revenue-ranking-table mb-0">
+                            <tbody id="topTreatmentRevenueTable">
+                                <tr>
+                                    <td colspan="2" class="text-center">
+                                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Revenue Growth Comparison & Daily Trends -->
     <div class="row">
         <div class="col-lg-8">
@@ -297,6 +388,7 @@
 // Global variables to store chart instances
 var chartInstances = {};
 var dateRangePicker = null;
+var rankingSearchTimer = null;
 
 $(document).ready(function() {
     console.log('Document ready, jQuery version:', $.fn.jquery);
@@ -349,7 +441,11 @@ function loadRevenueData() {
             month: '', // Empty month for all months
             start_date: dateRange.start,
             end_date: dateRange.end,
-            clinic_id: clinicId
+            clinic_id: clinicId,
+            obat_q: $('#topObatSearch').val() || '',
+            obat_kategori: $('#topObatCategoryFilter').val() || '',
+            treatment_q: $('#topTreatmentSearch').val() || '',
+            treatment_spesialisasi_id: $('#topTreatmentSpecialtyFilter').val() || ''
         },
         success: function(response) {
             console.log('AJAX success, response:', response);
@@ -401,6 +497,17 @@ function initializeClinicFilter() {
     // Handle clinic filter change
     $('#clinicFilter').on('change', function() {
         loadRevenueData();
+    });
+
+    $('#topObatCategoryFilter, #topTreatmentSpecialtyFilter').on('change', function() {
+        loadRevenueData();
+    });
+
+    $('#topObatSearch, #topTreatmentSearch').on('input', function() {
+        clearTimeout(rankingSearchTimer);
+        rankingSearchTimer = setTimeout(function() {
+            loadRevenueData();
+        }, 250);
     });
 }
 
@@ -476,6 +583,11 @@ function showLoadingState() {
     
     // Show loading in patients table
     $('#topPatientsTable').html('<tr><td colspan="3" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>');
+
+    $('#topObatRevenueTotal').text('Rp 0');
+    $('#topTreatmentRevenueTotal').text('Rp 0');
+    $('#topObatRevenueTable').html('<tr><td colspan="2" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>');
+    $('#topTreatmentRevenueTable').html('<tr><td colspan="2" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>');
 }
 
 function hideLoadingState() {
@@ -485,6 +597,33 @@ function hideLoadingState() {
 
 function showErrorState() {
     $('.chart-container').html('<div class="text-center text-danger py-5"><i class="fas fa-exclamation-triangle"></i><br>Error loading data</div>');
+    $('#topObatRevenueTable').html('<tr><td colspan="2" class="text-center text-danger">Error loading data</td></tr>');
+    $('#topTreatmentRevenueTable').html('<tr><td colspan="2" class="text-center text-danger">Error loading data</td></tr>');
+}
+
+function formatCurrency(value) {
+    var amount = parseFloat(value || 0);
+    return 'Rp ' + Math.round(amount).toLocaleString('id-ID');
+}
+
+function renderRevenueRankingTable(tableSelector, totalSelector, payload, emptyText) {
+    var rows = payload && payload.items ? payload.items : [];
+    $(totalSelector).text(formatCurrency(payload && payload.total_revenue ? payload.total_revenue : 0));
+
+    if (!rows.length) {
+        $(tableSelector).html('<tr><td colspan="2" class="text-center text-muted">' + (emptyText || 'No data available') + '</td></tr>');
+        return;
+    }
+
+    var html = '';
+    rows.forEach(function(item, index) {
+        html += '<tr>' +
+            '<th>' + (index + 1) + '. ' + (item.name || '-') + '</th>' +
+            '<td class="text-end">' + formatCurrency(item.revenue || 0) + '</td>' +
+        '</tr>';
+    });
+
+    $(tableSelector).html(html);
 }
 
 function updateDashboard(data) {
@@ -554,6 +693,9 @@ function updateDashboard(data) {
         
         $('#topPatientsTable').html(tableHtml);
     }
+
+    renderRevenueRankingTable('#topObatRevenueTable', '#topObatRevenueTotal', data.topObatRevenue, 'No obat revenue data');
+    renderRevenueRankingTable('#topTreatmentRevenueTable', '#topTreatmentRevenueTotal', data.topTreatmentRevenue, 'No treatment revenue data');
     
     // Show/hide daily revenue section based on whether month is selected
     var month = $('select[name="month"]').val();
