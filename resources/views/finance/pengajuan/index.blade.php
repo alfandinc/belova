@@ -503,21 +503,37 @@ $(document).ready(function() {
                 if (!res) return;
                 var preview = $('#buktiModalPreview');
                 preview.empty();
+
+                function appendBuktiItem(path, index) {
+                    if (!path) return;
+
+                    var normalizedPath = String(path).replace(/^\/+/, '');
+                    var imageUrl = '/storage/' + normalizedPath;
+                    var downloadUrl = '/finance/pengajuan-dana/' + id + '/download-bukti/' + index;
+                    var card = $('<div class="d-inline-flex flex-column align-items-center mr-2 mb-2"></div>');
+                    var image = $('<img>').attr('src', imageUrl);
+                    var downloadButton = $('<a class="btn btn-sm btn-outline-primary mt-2" target="_blank"><i class="fa fa-download mr-1"></i>Download</a>')
+                        .attr('href', downloadUrl);
+
+                    card.append(image).append(downloadButton);
+                    preview.append(card);
+                }
+
                 try {
                     var arr = null;
                     if (res.bukti_transaksi) {
                         arr = (typeof res.bukti_transaksi === 'string') ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
                     }
                     if (Array.isArray(arr)) {
-                        arr.forEach(function(p){ if (!p) return; var $img = $('<img>').attr('src','/storage/' + p); preview.append($img); });
+                        arr.forEach(function(p, index){
+                            appendBuktiItem(p, index);
+                        });
                     } else if (res.bukti_transaksi) {
-                        var url = '/storage/' + res.bukti_transaksi;
-                        preview.append($('<img>').attr('src', url));
+                        appendBuktiItem(res.bukti_transaksi, 0);
                     }
                 } catch(e) {
                     if (res.bukti_transaksi) {
-                        var url = '/storage/' + res.bukti_transaksi;
-                        preview.append($('<img>').attr('src', url));
+                        appendBuktiItem(res.bukti_transaksi, 0);
                     }
                 }
 

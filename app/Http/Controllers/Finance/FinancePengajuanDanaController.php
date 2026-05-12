@@ -969,6 +969,42 @@ class FinancePengajuanDanaController extends Controller
         return response()->json($pengajuan);
     }
 
+    public function downloadBukti($id, $index)
+    {
+        $pengajuan = FinancePengajuanDana::findOrFail($id);
+        $this->authorizePengajuanAccess($pengajuan);
+
+        $buktiList = $pengajuan->bukti_transaksi ?: [];
+        if (!is_array($buktiList)) {
+            try {
+                $buktiList = json_decode($buktiList, true) ?: [];
+            } catch (\Exception $e) {
+                $buktiList = [];
+            }
+        }
+
+        $buktiList = array_values(array_filter($buktiList, function ($path) {
+            return is_string($path) && trim($path) !== '';
+        }));
+
+        if (!isset($buktiList[$index])) {
+            abort(404, 'Bukti transaksi tidak ditemukan.');
+        }
+
+        $path = ltrim($buktiList[$index], '/');
+        if (!Storage::disk('public')->exists($path)) {
+            abort(404, 'File bukti transaksi tidak ditemukan.');
+        }
+
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $filename = 'bukti-transaksi-' . ($pengajuan->kode_pengajuan ?: $pengajuan->id) . '-' . ($index + 1);
+        if ($extension) {
+            $filename .= '.' . $extension;
+        }
+
+        return response()->download(Storage::disk('public')->path($path), $filename);
+    }
+
     /**
      * Generate PDF view for a pengajuan dana
      */

@@ -1321,6 +1321,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::get('/pengajuan-dana/generate-kode', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'generateKode'])->name('finance.pengajuan.generate_kode');
     Route::post('/pengajuan-dana', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'store'])->name('finance.pengajuan.store');
     Route::get('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'show'])->name('finance.pengajuan.show');
+    Route::get('/pengajuan-dana/{id}/download-bukti/{index}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'downloadBukti'])->name('finance.pengajuan.download_bukti');
     Route::get('/pengajuan-dana/{id}/pdf', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'pdf'])->name('finance.pengajuan.pdf');
     Route::get('/pengajuan-dana/{id}/approvals', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approvalsDetails'])->name('finance.pengajuan.approvals');
     Route::put('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'update'])->name('finance.pengajuan.update');
