@@ -8,7 +8,7 @@
     <!-- Page-Title -->
     <div class="row mt-3 align-items-center">
         <div class="col-md-12">
-            <h2 class="mb-0">Data Pembelian per Pemasok</h2>
+            <h2 class="mb-0" id="pageTitle">Data Pembelian per Pemasok</h2>
         </div>
     </div>
     <div class="row">
@@ -34,10 +34,17 @@
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <h4 class="card-title mb-0">Ringkasan Pembelian per Pemasok</h4>
-                            <p class="text-muted mb-0">Data pembelian dikelompokkan berdasarkan pemasok dengan total nominal, pembelian terakhir, dan jumlah jenis item.</p>
+                            <h4 class="card-title mb-0" id="summaryTitle">Ringkasan Pembelian per Pemasok</h4>
+                            <p class="text-muted mb-0" id="summaryDescription">Data pembelian dikelompokkan berdasarkan pemasok dengan total nominal, pembelian terakhir, dan jumlah jenis item.</p>
                         </div>
                         <div class="ml-3 d-flex align-items-center">
+                            <div class="mr-3">
+                                <div class="text-muted" style="font-size:12px">Kelompokkan Data</div>
+                                <select id="groupByFilter" class="form-control form-control-sm">
+                                    <option value="pemasok" selected>Pemasok</option>
+                                    <option value="principal">Principal</option>
+                                </select>
+                            </div>
                             <div class="mr-3">
                                 <div class="text-muted" style="font-size:12px">Tanggal Pembelian</div>
                                 <input type="text" id="purchaseDateRange" class="form-control form-control-sm" placeholder="Semua tanggal" autocomplete="off" />
@@ -55,7 +62,7 @@
                             <thead>
                                 <tr>
                                     <th>No</th>
-                                    <th>Nama Pemasok</th>
+                                    <th id="nameColumnLabel">Nama Pemasok</th>
                                     <th>Alamat</th>
                                     <th>Telepon</th>
                                     <th>Total Nominal Pembelian</th>
@@ -139,6 +146,23 @@
 $(function() {
     var selectedStartDate = null;
     var selectedEndDate = null;
+    var currentGroupBy = $('#groupByFilter').val() || 'pemasok';
+
+    function getCurrentEntityLabel() {
+        return currentGroupBy === 'principal' ? 'Principal' : 'Pemasok';
+    }
+
+    function updateGroupingLabels() {
+        var entityLabel = getCurrentEntityLabel();
+        var entityLabelLower = entityLabel.toLowerCase();
+
+        $('#pageTitle').text('Data Pembelian per ' + entityLabel);
+        $('#summaryTitle').text('Ringkasan Pembelian per ' + entityLabel);
+        $('#summaryDescription').text('Data pembelian dikelompokkan berdasarkan ' + entityLabelLower + ' dengan total nominal, pembelian terakhir, dan jumlah jenis item.');
+        $('#nameColumnLabel').text('Nama ' + entityLabel);
+    }
+
+    updateGroupingLabels();
 
     // Initialize date range picker
     $('#purchaseDateRange').daterangepicker({
@@ -164,6 +188,12 @@ $(function() {
         dataPembelianTable.ajax.reload();
     });
 
+    $('#groupByFilter').on('change', function() {
+        currentGroupBy = $(this).val() || 'pemasok';
+        updateGroupingLabels();
+        dataPembelianTable.ajax.reload();
+    });
+
     var dataPembelianTable = $('#data-pembelian-table').DataTable({
         processing: true,
         serverSide: true,
@@ -172,6 +202,7 @@ $(function() {
             data: function(d) {
                 d.start_date = selectedStartDate;
                 d.end_date = selectedEndDate;
+                d.group_by = currentGroupBy;
             }
         },
         order: [[4, 'desc']], // Order by total nominal (descending)
@@ -222,7 +253,9 @@ $(function() {
                 data: 'qty_jenis_item', 
                 name: 'qty_jenis_item',
                 render: function(data, type, row) {
-                    return data + ' item <button class="btn btn-sm btn-outline-info ml-2 btn-view-items" data-items=\'' + JSON.stringify(row.items_detail) + '\' data-pemasok="' + row.nama_pemasok + '"><i class="fa fa-eye"></i> Lihat</button>';
+                    var encodedItems = encodeURIComponent(JSON.stringify(row.items_detail || []));
+                    var encodedEntityName = encodeURIComponent(row.nama_pemasok || '');
+                    return data + ' item <button class="btn btn-sm btn-outline-info ml-2 btn-view-items" data-items="' + encodedItems + '" data-entity-name="' + encodedEntityName + '"><i class="fa fa-eye"></i> Lihat</button>';
                 }
             },
             { 
@@ -236,7 +269,10 @@ $(function() {
                 data: 'action', 
                 name: 'action', 
                 orderable: false, 
-                searchable: false 
+                searchable: false,
+                render: function(data) {
+                    return data || '<span class="text-muted">-</span>';
+                }
             }
         ],
         language: {
@@ -261,18 +297,24 @@ $(function() {
         if (json && typeof json.total_nominal_all !== 'undefined') {
             $('#totalNominalDisplay').text(json.total_nominal_all);
         }
+
+        if (json && json.group_by) {
+            currentGroupBy = json.group_by;
+            $('#groupByFilter').val(currentGroupBy);
+            updateGroupingLabels();
+        }
     });
 
     // Handle view items button click
     $('#data-pembelian-table').on('click', '.btn-view-items', function() {
-        var items = JSON.parse($(this).attr('data-items'));
-        var pemasokName = $(this).attr('data-pemasok');
+        var items = JSON.parse(decodeURIComponent($(this).attr('data-items') || '[]'));
+        var entityName = decodeURIComponent($(this).attr('data-entity-name') || '');
         
         // Store items globally for search functionality
         window.currentModalItems = items;
         
         // Update modal title
-        $('#modalItemListLabel').text('Daftar Item yang Dibeli - ' + pemasokName);
+        $('#modalItemListLabel').text('Daftar Item yang Dibeli - ' + entityName);
         
         // Clear search input
         $('#searchItemInput').val('');
@@ -286,7 +328,7 @@ $(function() {
     });
 
     // Function to populate item table
-        function populateItemTable(items) {
+    function populateItemTable(items) {
         // Clear existing content
         $('#itemListTableBody').empty();
         
@@ -308,7 +350,7 @@ $(function() {
     }
 
     // Search functionality for modal
-        $('#searchItemInput').on('input', function() {
+    $('#searchItemInput').on('input', function() {
         var searchTerm = $(this).val().toLowerCase().trim();
         var visibleRows = 0;
         
