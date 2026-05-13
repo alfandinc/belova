@@ -640,12 +640,14 @@ class PasienController extends Controller
 
         // diagnosis array
         if ($conditionId) {
+            $diagnosisRoleCode = 'DD';
+            $diagnosisRoleDisplay = 'Discharge diagnosis';
             $encounter['diagnosis'] = [[
                 'condition' => ['reference' => 'Condition/' . $conditionId, 'display' => $codingDisplay],
                 'use' => ['coding' => [[
                     'system' => 'http://terminology.hl7.org/CodeSystem/diagnosis-role',
-                    'code' => $codingCode,
-                    'display' => $codingDisplay
+                    'code' => $diagnosisRoleCode,
+                    'display' => $diagnosisRoleDisplay
                 ]]],
                 'rank' => 1
             ]];
