@@ -22,8 +22,9 @@ class DataPembelianController extends Controller
             $data = $groupBy === 'principal'
                 ? $this->getPrincipalPurchaseSummary($startDate, $endDate)
                 : $this->getPemasokPurchaseSummary($startDate, $endDate);
+            $filteredData = $this->applyPurchaseSummarySearch($data, $request->input('search.value'));
 
-            $totalNominalAll = $data->sum(function ($row) {
+            $totalNominalAll = $filteredData->sum(function ($row) {
                 return $row['total_nominal'] ?? 0;
             });
 
@@ -309,5 +310,36 @@ class DataPembelianController extends Controller
         }
 
         return null;
+    }
+
+    private function applyPurchaseSummarySearch(Collection $data, ?string $searchValue): Collection
+    {
+        $searchValue = trim((string) $searchValue);
+        if ($searchValue === '') {
+            return $data;
+        }
+
+        $searchValue = mb_strtolower($searchValue);
+
+        return $data->filter(function ($row) use ($searchValue) {
+            $searchableValues = [
+                $row['nama_pemasok'] ?? '',
+                $row['alamat'] ?? '',
+                $row['telepon'] ?? '',
+                $row['email'] ?? '',
+                $row['pembelian_terakhir'] ?? '',
+                (string) ($row['qty_jenis_item'] ?? ''),
+                (string) ($row['jumlah_faktur'] ?? ''),
+                (string) ($row['total_nominal'] ?? ''),
+            ];
+
+            foreach ($searchableValues as $value) {
+                if (str_contains(mb_strtolower((string) $value), $searchValue)) {
+                    return true;
+                }
+            }
+
+            return false;
+        })->values();
     }
 }
