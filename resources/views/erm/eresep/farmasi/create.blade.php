@@ -362,9 +362,69 @@
 
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
+    let pendingResepMutationCount = 0;
 
     let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
     const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
+
+    function getSubmitButton() {
+        return $('#submit-all');
+    }
+
+    function hasUnsavedRacikanChanges() {
+        let hasUnsaved = false;
+
+        $('#racikan-container .racikan-card').each(function () {
+            const card = $(this);
+            const hasRows = card.find('.resep-table-body tr').not('.no-data').length > 0;
+            const needsCreate = card.find('.tambah-resepracikan:visible').not(':disabled').length > 0;
+            const needsUpdate = card.find('.update-resepracikan:visible').not(':disabled').length > 0;
+
+            if (hasRows && (needsCreate || needsUpdate)) {
+                hasUnsaved = true;
+                return false;
+            }
+        });
+
+        return hasUnsaved;
+    }
+
+    function getSubmitBlockReason() {
+        if (pendingResepMutationCount > 0) {
+            return 'Tunggu hingga penyimpanan racikan selesai, lalu submit ulang.';
+        }
+
+        if (hasUnsavedRacikanChanges()) {
+            return 'Masih ada racikan yang belum disimpan atau belum di-update.';
+        }
+
+        return '';
+    }
+
+    function refreshSubmitButtonState() {
+        const $btn = getSubmitButton();
+        if (!$btn.length) return;
+
+        const isProcessing = $btn.data('processing') === true;
+        const blockReason = getSubmitBlockReason();
+
+        if (isProcessing) {
+            return;
+        }
+
+        $btn.prop('disabled', !!blockReason);
+        $btn.attr('title', blockReason || '');
+    }
+
+    function beginResepMutation() {
+        pendingResepMutationCount += 1;
+        refreshSubmitButtonState();
+    }
+
+    function endResepMutation() {
+        pendingResepMutationCount = Math.max(0, pendingResepMutationCount - 1);
+        refreshSubmitButtonState();
+    }
 
     function showInvoiceLockedMessage() {
         const msg = 'Resep dikunci karena Invoice sudah ditransaksikan.';
@@ -1141,6 +1201,7 @@
 
             // Update totals when a new (empty) racikan card is added
             updateTotalPrice();
+            refreshSubmitButtonState();
 
 
         });
@@ -1189,12 +1250,8 @@
                 card.find('.resep-table-body tr').each(function () {
                     const row = $(this);
                     if (!row.hasClass('no-data')) {
-                        // Prefer explicit attributes; use attr to detect empty strings
-                        let id = row.attr('data-id');
-                        if (!id) {
-                            // maybe server id stored on first td
-                            id = row.find('td').eq(0).attr('data-id') || null;
-                        }
+                        // Only use the persisted resep row id here.
+                        let id = row.attr('data-id') || null;
                         const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
                         const dosis = row.attr('data-dosis') || row.find('td').eq(1).text();
                         const jumlah = row.attr('data-jumlah') || 1;
@@ -1231,6 +1288,7 @@
             console.log('Updating racikan payload:', payload);
 
             // Send AJAX request to update the racikan
+            beginResepMutation();
             $.ajax({
                 url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`,
                 type: 'POST',
@@ -1278,6 +1336,9 @@
                 error: function(xhr, status, error) {
                     console.error('Update failed:', xhr, status, error);
                     Swal.fire('Error', 'Gagal menyimpan perubahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.responseText), 'error');
+                },
+                complete: function() {
+                    endResepMutation();
                 }
             });
         });
@@ -1334,6 +1395,7 @@
             `);
             // Refresh totals after adding a racikan row
             updateTotalPrice();
+            refreshSubmitButtonState();
         });
         // STORE RACIKAN
         $('#racikan-container').on('click', '.tambah-resepracikan', function () {
@@ -1366,6 +1428,7 @@
                 return;
             }
 
+            beginResepMutation();
             $.ajax({
                 url: "{{ route('resepfarmasi.racikan.store') }}",
                 method: "POST",
@@ -1440,6 +1503,9 @@
 
                         // Refresh totals after racikan saved
             updateTotalPrice();
+                },
+                complete: function () {
+                    endResepMutation();
                 }
             });
             });
@@ -1498,6 +1564,7 @@
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="5" class="text-center text-muted">Belum ada data</td></tr>`);
             }
             updateTotalPrice();
+            refreshSubmitButtonState();
         });
         // DELETE RACIKAN
         $(document).on('click', '.hapus-racikan', function () {
@@ -1636,6 +1703,12 @@
         $('#submit-all').on('click', function () {
             const $btn = $(this);
             const visitationId = $('#visitation_id').val();
+            const submitBlockReason = getSubmitBlockReason();
+
+            if (submitBlockReason) {
+                refreshSubmitButtonState();
+                return Swal.fire('Peringatan', submitBlockReason, 'warning');
+            }
 
             // Pre-submit stock validation for non-racikan items
             const stockProblems = [];
@@ -1695,6 +1768,7 @@
             }
             
             function doSubmit(force = false) {
+                $btn.data('processing', true);
                 $btn.prop('disabled', true).text('Memproses...');
                 
                 $.ajax({
@@ -1723,7 +1797,9 @@
                             });
                         } else if (res.status === 'success') {
                             Swal.fire('Sukses', res.message, 'success');
+                            $btn.data('processing', false);
                             $btn.text('Sudah Disubmit').addClass('btn-secondary').removeClass('btn-success').prop('disabled', false);
+                            refreshSubmitButtonState();
                         } else if (res.status === 'error') {
                             Swal.fire('Error', res.message, 'error');
                             resetButton();
@@ -1736,12 +1812,14 @@
                 });
                 
                 function resetButton() {
+                    $btn.data('processing', false);
                     $btn.prop('disabled', false);
                     if (isSubmitted) {
                         $btn.text('Sudah Disubmit').addClass('btn-secondary').removeClass('btn-success');
                     } else {
                         $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
                     }
+                    refreshSubmitButtonState();
                 }
             }
         });
@@ -2389,6 +2467,7 @@
             let visitationId = $('#visitation_id').val();
             if (!bungkus || !aturanPakai) { Swal.fire({ icon: 'warning', title: 'Data Belum Lengkap', text: 'Bungkus dan Aturan Pakai harus diisi', confirmButtonColor: '#3085d6' }); return; }
             $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
+            beginResepMutation();
             $.ajax({ url: "{{ route('erm.paket-racikan.copy.farmasi') }}", method: 'POST', data: { _token: "{{ csrf_token() }}", paket_racikan_id: paketId, visitation_id: visitationId, bungkus: bungkus, aturan_pakai: aturanPakai }, success: function(response) {
                     if (response.success) {
                         $('#gunakanPaketModalFarmasi').addClass('reload-after-close');
@@ -2432,7 +2511,7 @@
                     } else {
                         Swal.fire({ icon: 'error', title: 'Gagal', text: response.message || 'Gagal menerapkan paket racikan', confirmButtonColor: '#3085d6' });
                     }
-                }, error: function(xhr) { let errorMessage = 'Gagal menerapkan paket racikan'; if (xhr.responseJSON && xhr.responseJSON.message) { errorMessage = xhr.responseJSON.message; } Swal.fire({ icon: 'error', title: 'Gagal', text: errorMessage, confirmButtonColor: '#3085d6' }); }, complete: function() { $('#konfirmasiGunakanPaketFarmasi').html('OK').prop('disabled', false); $('#gunakanPaketModalFarmasi').modal('hide'); }
+                }, error: function(xhr) { let errorMessage = 'Gagal menerapkan paket racikan'; if (xhr.responseJSON && xhr.responseJSON.message) { errorMessage = xhr.responseJSON.message; } Swal.fire({ icon: 'error', title: 'Gagal', text: errorMessage, confirmButtonColor: '#3085d6' }); }, complete: function() { endResepMutation(); $('#konfirmasiGunakanPaketFarmasi').html('OK').prop('disabled', false); $('#gunakanPaketModalFarmasi').modal('hide'); }
             });
         });
 
@@ -2749,6 +2828,7 @@
         });
         // After rebuilding the DOM from server response, update totals
         updateTotalPrice();
+        refreshSubmitButtonState();
     });
 }
 
@@ -2915,12 +2995,15 @@ $(document).on('click', '.edit-racikan', function () {
             $sel.on('select2:clear', function(){ $(this).closest('.racikan-card').find('.aturan_pakai').val(''); });
         }
     })();
+
+    refreshSubmitButtonState();
 });
 
 // Apply invoice lock after all handlers are registered
 $(document).ready(function () {
     applyInvoiceLock();
     startInvoiceLockPolling();
+    refreshSubmitButtonState();
 });
 
 
