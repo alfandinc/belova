@@ -32,6 +32,37 @@ use App\Models\ERM\PaketRacikanDetail;
 
 class EresepController extends Controller
 {
+    private function shouldKeepFractionalRacikanStock(?string $wadahNama): bool
+    {
+        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $wadahNama ?? '')));
+
+        return in_array($normalized, ['botol', 'cream / lotion'], true);
+    }
+
+    private function calculateRacikanStockReduction(ResepFarmasi $resep): float
+    {
+        $prescribedDosis = 0.0;
+        $baseDosis = 0.0;
+
+        if (preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis ?? '', $m)) {
+            $prescribedDosis = (float) str_replace(',', '.', $m[1]);
+        }
+        if ($resep->obat && !empty($resep->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $resep->obat->dosis, $m2)) {
+            $baseDosis = (float) str_replace(',', '.', $m2[1]);
+        }
+
+        if ($baseDosis <= 0 || $prescribedDosis <= 0) {
+            return 0.0;
+        }
+
+        $rawReduction = ($prescribedDosis * (float) ($resep->bungkus ?? 1)) / $baseDosis;
+        if ($this->shouldKeepFractionalRacikanStock(optional($resep->wadah)->nama)) {
+            return round($rawReduction, 3);
+        }
+
+        return (float) ceil($rawReduction);
+    }
+
     private function getInvoicePaymentMethodForVisitation(string $visitationId): ?string
     {
         $visitation = Visitation::with(['invoice:id,visitation_id,payment_method'])
@@ -764,48 +795,53 @@ class EresepController extends Controller
         'obats.*.dosis' => 'required|string',
     ]);
 
-    $createdObats = [];
-    foreach ($validated['obats'] as $obat) {
-        do {
-            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
-        } while (ResepFarmasi::where('id', $customId)->exists());
+    $createdObats = DB::transaction(function () use ($validated) {
+        $createdRows = [];
 
-        $obatModel = Obat::findOrFail($obat['obat_id']);
-        $basePrice = $obatModel->harga_nonfornas ?? 0;
-        $prescribedDosisStr = $obat['dosis'];
-        $baseDosisStr = $obatModel->dosis ?? '';
-        preg_match('/(\d+(\.\d+)?)/', $prescribedDosisStr, $prescribedMatches);
-        preg_match('/(\d+(\.\d+)?)/', $baseDosisStr, $baseMatches);
-        $prescribedDosis = !empty($prescribedMatches[1]) ? (float)$prescribedMatches[1] : 0;
-        $baseDosis = !empty($baseMatches[1]) ? (float)$baseMatches[1] : 0;
-        $harga = $basePrice;
-        if ($baseDosis > 0 && $prescribedDosis > 0) {
-            $dosisRatio = $prescribedDosis / $baseDosis;
-            $harga = $basePrice * $dosisRatio;
+        foreach ($validated['obats'] as $obat) {
+            do {
+                $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+            } while (ResepFarmasi::where('id', $customId)->exists());
+
+            $obatModel = Obat::findOrFail($obat['obat_id']);
+            $basePrice = $obatModel->harga_nonfornas ?? 0;
+            $prescribedDosisStr = $obat['dosis'];
+            $baseDosisStr = $obatModel->dosis ?? '';
+            preg_match('/(\d+(\.\d+)?)/', $prescribedDosisStr, $prescribedMatches);
+            preg_match('/(\d+(\.\d+)?)/', $baseDosisStr, $baseMatches);
+            $prescribedDosis = !empty($prescribedMatches[1]) ? (float)$prescribedMatches[1] : 0;
+            $baseDosis = !empty($baseMatches[1]) ? (float)$baseMatches[1] : 0;
+            $harga = $basePrice;
+            if ($baseDosis > 0 && $prescribedDosis > 0) {
+                $dosisRatio = $prescribedDosis / $baseDosis;
+                $harga = $basePrice * $dosisRatio;
+            }
+            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+            $stokGudang = $gudangId ? $obatModel->getStokByGudang($gudangId) : 0;
+            $created = ResepFarmasi::create([
+                'id' => $customId,
+                'visitation_id' => $validated['visitation_id'],
+                'obat_id' => $obat['obat_id'],
+                'aturan_pakai' => $validated['aturan_pakai'],
+                'racikan_ke' => $validated['racikan_ke'],
+                'wadah_id' => $validated['wadah'],
+                'bungkus' => $validated['bungkus'],
+                'dosis' => $obat['dosis'],
+                'harga' => $harga,
+                'created_at' => now(),
+                'user_id' => Auth::id(),
+            ]);
+            $createdRows[] = [
+                'id' => $created->id,
+                'obat_id' => $created->obat_id,
+                'dosis' => $created->dosis,
+                'jumlah' => $created->jumlah ?? 1,
+                'stok_gudang' => (int) $stokGudang
+            ];
         }
-        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-        $stokGudang = $gudangId ? $obatModel->getStokByGudang($gudangId) : 0;
-        $created = ResepFarmasi::create([
-            'id' => $customId,
-            'visitation_id' => $validated['visitation_id'],
-            'obat_id' => $obat['obat_id'],
-            'aturan_pakai' => $validated['aturan_pakai'],
-            'racikan_ke' => $validated['racikan_ke'],
-            'wadah_id' => $validated['wadah'],
-            'bungkus' => $validated['bungkus'],
-            'dosis' => $obat['dosis'],
-            'harga' => $harga,
-            'created_at' => now(),
-            'user_id' => Auth::id(),
-        ]);
-        $createdObats[] = [
-            'id' => $created->id,
-            'obat_id' => $created->obat_id,
-            'dosis' => $created->dosis,
-            'jumlah' => $created->jumlah ?? 1,
-            'stok_gudang' => (int) $stokGudang
-        ];
-    }
+
+        return $createdRows;
+    });
     return response()->json([
         'success' => true,
         'message' => 'Racikan berhasil disimpan.',
@@ -1026,6 +1062,9 @@ class EresepController extends Controller
                 'message' => 'Racikan berhasil diupdate'
             ]);
         } catch (\Exception $e) {
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
             \Illuminate\Support\Facades\Log::error('Error updating racikan: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
         }
@@ -1038,7 +1077,7 @@ class EresepController extends Controller
     $visitationId = $request->input('visitation_id');
     $force = $request->input('force', false);
 
-        $this->guardInvoiceNotLocked($visitationId);
+        if ($resp = $this->guardInvoiceNotLocked($visitationId)) return $resp;
 
     // Check if resep already submitted
     $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->first();
@@ -1061,24 +1100,15 @@ class EresepController extends Controller
             ->forceDelete();
 
         // Fetch all related prescriptions
-        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
-        // For racikan entries, compute stok dikurangi and persist to `jumlah` so billing/stock reduction
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with(['obat', 'wadah'])->get();
+        // For racikan entries, compute stok dikurangi and persist to `jumlah_racikan` so billing/stock reduction
         // can use this value per component while invoice qty remains as `bungkus`.
         foreach ($reseps as $r) {
             if ($r->racikan_ke && $r->racikan_ke > 0) {
-                $prescribedDosis = 0;
-                $baseDosis = 0;
-                if (preg_match('/(\d+(?:[.,]\d+)?)/', $r->dosis ?? '', $m)) {
-                    $prescribedDosis = (float) str_replace(',', '.', $m[1]);
-                }
-                if ($r->obat && !empty($r->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $r->obat->dosis, $m2)) {
-                    $baseDosis = (float) str_replace(',', '.', $m2[1]);
-                }
-                $bungkus = $r->bungkus ?? 1;
-                $stokDikurangi = ($baseDosis > 0) ? ceil(($prescribedDosis * (float)$bungkus) / $baseDosis) : 0;
+                $stokDikurangi = $this->calculateRacikanStockReduction($r);
                 // Only update if different to avoid unnecessary writes
-                if ((int)$r->jumlah !== (int)$stokDikurangi) {
-                    $r->jumlah = (int)$stokDikurangi;
+                if (abs((float) $r->jumlah_racikan - (float) $stokDikurangi) > 0.0001) {
+                    $r->jumlah_racikan = $stokDikurangi;
                     try { $r->save(); } catch (\Exception $ex) { Log::warning('Failed to save stokDikurangi for resep id '.$r->id.': '.$ex->getMessage()); }
                 }
             }

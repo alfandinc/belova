@@ -309,8 +309,15 @@
                                             }
                                             $bungkusGroup = $items->first()->bungkus ?? 1;
                                             $stokDikurangi = ($baseDosis > 0) ? ($prescribedDosis * (float)$bungkusGroup) / $baseDosis : 0;
-                                            // Round up to the next integer (0.2 -> 1, 0.8 -> 1)
-                                            $stokDikurangiDisplay = is_numeric($stokDikurangi) ? (int) ceil($stokDikurangi) : 0;
+                                            $wadahNama = strtolower(trim(optional($items->first()->wadah)->nama ?? ''));
+                                            $isFractionalWadah = in_array($wadahNama, ['botol', 'cream / lotion'], true);
+                                            if (!is_numeric($stokDikurangi)) {
+                                                $stokDikurangiDisplay = '0';
+                                            } elseif ($isFractionalWadah) {
+                                                $stokDikurangiDisplay = rtrim(rtrim(number_format($stokDikurangi, 3, '.', ''), '0'), '.');
+                                            } else {
+                                                $stokDikurangiDisplay = (string) ceil($stokDikurangi);
+                                            }
                                         @endphp
                                         <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
                                             {{ (int) $stokGudang }}
@@ -424,6 +431,100 @@
     function endResepMutation() {
         pendingResepMutationCount = Math.max(0, pendingResepMutationCount - 1);
         refreshSubmitButtonState();
+    }
+
+    function normalizeWadahName(value) {
+        return String(value || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .replace(/\s+\d+(?:[.,]\d+)?$/, '')
+            .toLowerCase();
+    }
+
+    function cardUsesFractionalStockReduction(card) {
+        const wadahSelect = card.find('.wadah, .select2-wadah-racikan').first();
+        let wadahName = '';
+
+        if (wadahSelect.length) {
+            wadahName = wadahSelect.find('option:selected').text() || '';
+            if (!wadahName && wadahSelect.hasClass('select2-hidden-accessible')) {
+                try {
+                    const selectedData = wadahSelect.select2('data') || [];
+                    wadahName = selectedData[0] && (selectedData[0].text || selectedData[0].nama) ? (selectedData[0].text || selectedData[0].nama) : '';
+                } catch (e) {
+                    // Ignore select2 access errors.
+                }
+            }
+        }
+
+        const normalizedWadahName = normalizeWadahName(wadahName);
+
+        return normalizedWadahName === 'botol'
+            || normalizedWadahName.startsWith('botol ')
+            || normalizedWadahName === 'cream / lotion'
+            || normalizedWadahName.startsWith('cream / lotion ');
+    }
+
+    function formatStockReductionValue(value, allowFractional) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue) || numericValue <= 0) {
+            return '0';
+        }
+
+        if (allowFractional) {
+            return numericValue.toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+        }
+
+        return String(Math.ceil(numericValue));
+    }
+
+    function extractDoseNumber(value) {
+        if (value === null || value === undefined) return 0;
+        if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+        const match = String(value).match(/(\d+(?:[.,]\d+)?)/);
+        return match ? parseFloat(match[1].replace(',', '.')) || 0 : 0;
+    }
+
+    function getCurrentRacikanBungkus(card) {
+        return extractDoseNumber(card.find('.jumlah_bungkus').val() || card.find('.bungkus').val()) || 1;
+    }
+
+    function recalculateRacikanRowStock(row, options = {}) {
+        const card = options.card || row.closest('.racikan-card');
+        const dosisRacik = extractDoseNumber(options.dosis ?? row.attr('data-dosis') ?? row.find('td').eq(1).text());
+        let baseDosis = extractDoseNumber(options.baseDosis ?? row.attr('data-base-dosis'));
+
+        if (baseDosis <= 0) {
+            const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
+            const fallbackInfo = options.priceMap && obatId ? options.priceMap[obatId] : null;
+            baseDosis = extractDoseNumber(fallbackInfo ? fallbackInfo.dosis : null);
+            if (baseDosis > 0) {
+                row.attr('data-base-dosis', baseDosis);
+            }
+        }
+
+        const currentBungkus = getCurrentRacikanBungkus(card);
+        const allowFractional = options.allowFractional ?? cardUsesFractionalStockReduction(card);
+        let stokDikurangi = 0;
+        if (baseDosis > 0 && dosisRacik > 0) {
+            const rawReduction = (dosisRacik * currentBungkus) / baseDosis;
+            stokDikurangi = allowFractional ? rawReduction : Math.ceil(rawReduction);
+        }
+
+        const rowStokCell = row.find('.stok-dikurangi');
+        if (rowStokCell.length) {
+            const stokAvailable = extractDoseNumber(row.find('td').eq(2).text());
+            rowStokCell.text(formatStockReductionValue(stokDikurangi, allowFractional));
+            rowStokCell.css('color', stokDikurangi > stokAvailable ? 'red' : 'inherit');
+        }
+
+        return {
+            dosisRacik,
+            baseDosis,
+            currentBungkus,
+            stokDikurangi,
+        };
     }
 
     function showInvoiceLockedMessage() {
@@ -945,44 +1046,21 @@
                             const row = $(this);
                             const obatId = row.data('obat-id') || row.find('td[data-id]').data('id') || null;
                             const dosisStr = (row.data('dosis') || row.find('td').eq(1).text() || '').toString();
-                            // Extract numeric value from dosis string
-                            const dosisMatch = dosisStr.match(/(\d+(?:[.,]\d+)?)/);
-                            const dosisRacik = dosisMatch ? parseFloat(dosisMatch[0].replace(',', '.')) : 0;
+                            const dosisRacik = extractDoseNumber(dosisStr);
 
                             const obatInfo = priceMap[obatId] || { harga: 0, dosis: '' };
-                            const baseDosisStr = (obatInfo.dosis || '').toString();
-                            const baseMatch = baseDosisStr.match(/(\d+(?:[.,]\d+)?)/);
-                            const baseDosis = baseMatch ? parseFloat(baseMatch[0].replace(',', '.')) : 0;
+                            const baseDosisStr = row.attr('data-base-dosis') || (obatInfo.dosis || '').toString();
+                            const baseDosis = extractDoseNumber(baseDosisStr);
+                            if (baseDosis > 0) {
+                                row.attr('data-base-dosis', baseDosis);
+                            }
                             const hargaSatuan = parseCurrencyToNumber(obatInfo.harga) || 0;
+                            const allowFractional = cardUsesFractionalStockReduction(card);
 
                             const hargaAkhir = (baseDosis > 0 && dosisRacik > 0) ? (dosisRacik / baseDosis) * hargaSatuan : 0;
                             racikanTotal += hargaAkhir;
 
-                            // compute stok dikurangi for this row using current bungkus value on the card
-                            const currentBungkus = parseFloat(card.find('.jumlah_bungkus').val() || card.find('.bungkus').val()) || 1;
-                            let stokDikurangi = 0;
-                            if (baseDosis > 0) {
-                                stokDikurangi = (dosisRacik * currentBungkus) / baseDosis;
-                            }
-                            // round up to nearest integer
-                            const stokDikurangiDisplay = Number.isFinite(stokDikurangi) ? Math.ceil(stokDikurangi) : 0;
-                            // update the DOM cell if present
-                            try {
-                                const rowStokCell = row.find('.stok-dikurangi');
-                                if (rowStokCell.length) {
-                                    // Determine stok available for coloring if known
-                                    const stokCellText = row.find('td').eq(2).text().trim();
-                                    const stokAvailable = parseFloat(stokCellText.replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
-                                    rowStokCell.text(stokDikurangiDisplay);
-                                    if (stokDikurangi > stokAvailable) {
-                                        rowStokCell.css('color', 'red');
-                                    } else {
-                                        rowStokCell.css('color', 'inherit');
-                                    }
-                                }
-                            } catch (e) {
-                                // ignore DOM update errors
-                            }
+                            recalculateRacikanRowStock(row, { card, baseDosis, dosis: dosisStr, priceMap, allowFractional });
 
                             cardItems.push({
                                 obatId,
@@ -1355,10 +1433,10 @@
             // Use stok_gudang if available, fallback to stok
             const stokGudang = typeof selectedOption.stok_gudang !== 'undefined' ? parseInt(selectedOption.stok_gudang) : (selectedOption.stok || 0);
             const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
-            const defaultDosis = parseFloat(selectedOption.dosis) || 0; // Ensure it's a number
+            const defaultDosis = extractDoseNumber(selectedOption.dosis);
             const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
 
-            const dosisInput = parseFloat(card.find('.dosis_input').val()) || 0; // Ensure it's a number
+            const dosisInput = extractDoseNumber(card.find('.dosis_input').val());
             const mode = card.find('.mode_dosis').val();
 
             // Calculate the final dosis
@@ -1373,15 +1451,15 @@
             tbody.find('.no-data').remove();
 
             // Determine current bungkus value for this card (may be empty yet)
-            const currentBungkus = parseFloat(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val()) || 1;
-            // Compute stok dikurangi = (dosisAkhir * bungkus) / baseDosis
-            const baseDosis = parseFloat(selectedOption.dosis) || 0;
+            const currentBungkus = getCurrentRacikanBungkus(card);
+            const baseDosis = extractDoseNumber(selectedOption.dosis);
+            const allowFractional = cardUsesFractionalStockReduction(card);
             let stokDikurangi = 0;
             if (baseDosis > 0) {
-                stokDikurangi = (dosisAkhir * currentBungkus) / baseDosis;
+                const rawReduction = (dosisAkhir * currentBungkus) / baseDosis;
+                stokDikurangi = allowFractional ? rawReduction : Math.ceil(rawReduction);
             }
-            // round up to nearest integer for display
-            const stokDikurangiDisplay = Number.isFinite(stokDikurangi) ? String(Math.ceil(stokDikurangi)) : '0';
+            const stokDikurangiDisplay = formatStockReductionValue(stokDikurangi, allowFractional);
 
             // Append the new row to the table (do NOT include empty data-id attribute)
             tbody.append(`
@@ -1396,6 +1474,14 @@
             // Refresh totals after adding a racikan row
             updateTotalPrice();
             refreshSubmitButtonState();
+        });
+
+        $('#racikan-container').on('input change', '.bungkus, .jumlah_bungkus', function () {
+            updateTotalPrice();
+        });
+
+        $('#racikan-container').on('change', '.wadah, .select2-wadah-racikan', function () {
+            updateTotalPrice();
         });
         // STORE RACIKAN
         $('#racikan-container').on('click', '.tambah-resepracikan', function () {
@@ -1536,16 +1622,7 @@
             // Recalculate stok dikurangi for this row if base dose and stok available
             try {
                 const card = row.closest('.racikan-card');
-                const baseDosis = parseFloat(row.attr('data-base-dosis') || row.data('base-dosis') || 0) || 0;
-                const currentBungkus = parseFloat(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val()) || 1;
-                const stokCell = row.find('td').eq(2).text() || row.find('td').eq(2).text();
-                const stokAvailable = parseFloat((stokCell || '').toString().replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
-                if (baseDosis > 0) {
-                    const stokDikurangi = Math.ceil((parseFloat(newDosis) * currentBungkus) / baseDosis) || 0;
-                    const sdCell = row.find('.stok-dikurangi');
-                    sdCell.text(stokDikurangi);
-                    sdCell.css('color', stokDikurangi > stokAvailable ? 'red' : 'inherit');
-                }
+                recalculateRacikanRowStock(row, { card, dosis: newDosis });
             } catch (e) {
                 console.error('Error recalculating stok dikurangi after dosis edit', e);
             }

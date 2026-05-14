@@ -883,8 +883,8 @@ class BillingController extends Controller
                     $components[] = [
                         'obat_id' => $obatId,
                         'nama' => $nama,
-                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components (allow decimals)
-                        'stok_dikurangi' => floatval($rf->jumlah ?? 0),
+                        // stok_dikurangi persisted into ResepFarmasi.jumlah_racikan for racikan components.
+                        'stok_dikurangi' => floatval($rf->jumlah_racikan ?? 0),
                         'bungkus' => isset($rf->bungkus) ? floatval($rf->bungkus) : null,
                         'dosis' => isset($rf->dosis) ? trim((string)$rf->dosis) : null,
                     ];
@@ -994,7 +994,7 @@ class BillingController extends Controller
                         $components[] = [
                             'obat_id' => $obatId,
                             'nama' => $nama,
-                            'stok_dikurangi' => $billable ? floatval($billable->jumlah ?? 0) : 0,
+                            'stok_dikurangi' => $billable ? floatval($billable->jumlah_racikan ?? 0) : 0,
                             'bungkus' => $billable ? (isset($billable->bungkus) ? floatval($billable->bungkus) : null) : null,
                             'dosis' => isset($billable->dosis) ? trim((string)$billable->dosis) : null,
                         ];
@@ -2966,10 +2966,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
                                 $obat = $racikanItem->billable->obat;
 
-                                // For racikan components, prefer using the stored 'jumlah' value
+                                // For racikan components, prefer using the stored 'jumlah_racikan' value
                                 // (which we persist as 'stok_dikurangi' during resep submit). Fall
                                 // back to the racikan group qty diff if not present.
-                                $componentQty = floatval($racikanItem->billable->jumlah ?? 0);
+                                $componentQty = floatval($racikanItem->billable->jumlah_racikan ?? 0);
                                 if ($componentQty <= 0) {
                                     // fallback to group diff
                                     $componentQty = floatval($racikanQtyDiff);

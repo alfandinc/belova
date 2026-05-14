@@ -19,6 +19,7 @@ class ResepFarmasi extends Model
         'visitation_id',
         'obat_id',
         'jumlah',
+        'jumlah_racikan',
         'dosis',
         'bungkus',
         'racikan_ke',
@@ -32,6 +33,10 @@ class ResepFarmasi extends Model
         'dokter_id',
         'created_at',
         'user_id'
+    ];
+
+    protected $casts = [
+        'jumlah_racikan' => 'float',
     ];
 
     // Relasi ke Obat
