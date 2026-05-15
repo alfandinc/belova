@@ -1,5 +1,6 @@
 @php
     $showCopyButton = $showCopyButton ?? true;
+    $racikanPaketNames = $racikanPaketNames ?? [];
     $visitation = $group->first()->visitation ?? null;
     $tanggalRaw = $visitation->tanggal_visitation ?? null;
     $tanggal = $tanggalRaw ? \Carbon\Carbon::parse($tanggalRaw)->translatedFormat('d F Y') : '-';
@@ -52,7 +53,10 @@
     @endif
 
     @foreach ($racikans as $ke => $items)
-        <h6 class="mt-4">Obat Racikan #{{ $ke }}</h6>
+        @php
+            $racikanLabel = $racikanPaketNames[$visitationId][$ke] ?? ('Obat Racikan #' . $ke);
+        @endphp
+        <h6 class="mt-4">{{ $racikanLabel }}</h6>
         <p><strong>Wadah:</strong> {{ $items->first()->wadah->nama ?? '-' }} | <strong>Jumlah Bungkus:</strong> {{ $items->first()->bungkus ?? '-' }}</p>
         <p><strong>Aturan Pakai:</strong> {{ $items->first()->aturan_pakai ?? '-' }}</p>
 

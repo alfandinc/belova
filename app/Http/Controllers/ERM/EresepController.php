@@ -1286,7 +1286,68 @@ class EresepController extends Controller
             ->get()
             ->groupBy('visitation_id');
 
-        return view('erm.partials.resep-riwayatfarmasi', compact('reseps'));
+        $paketRacikans = PaketRacikan::with('details')
+            ->where('is_active', true)
+            ->get();
+        $racikanPaketNames = [];
+
+        foreach ($reseps as $visitationId => $group) {
+            $racikans = $group->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+            foreach ($racikans as $ke => $items) {
+                $compMap = [];
+                foreach ($items as $item) {
+                    if (!$item->obat_id) {
+                        continue;
+                    }
+
+                    $compMap[$item->obat_id . '|' . $this->normalizeDoseValue($item->dosis)] = true;
+                }
+
+                if (empty($compMap)) {
+                    continue;
+                }
+
+                foreach ($paketRacikans as $paket) {
+                    $details = $paket->details;
+                    if (!$details || $details->count() !== count($compMap)) {
+                        continue;
+                    }
+
+                    $allMatch = true;
+                    foreach ($details as $detail) {
+                        $detailKey = ($detail->obat_id ?? '0') . '|' . $this->normalizeDoseValue($detail->dosis);
+                        if (!isset($compMap[$detailKey])) {
+                            $allMatch = false;
+                            break;
+                        }
+                    }
+
+                    if ($allMatch) {
+                        $racikanPaketNames[$visitationId][$ke] = $paket->nama_paket;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return view('erm.partials.resep-riwayatfarmasi', compact('reseps', 'racikanPaketNames'));
+    }
+
+    private function normalizeDoseValue($value)
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $normalized = trim(strtolower((string) $value));
+        $normalized = str_replace(',', '.', $normalized);
+
+        if (preg_match('/\d+(?:\.\d+)?/', $normalized, $matches)) {
+            return rtrim(rtrim($matches[0], '0'), '.') ?: $matches[0];
+        }
+
+        return $normalized;
     }
 
     //Wadah Obat
