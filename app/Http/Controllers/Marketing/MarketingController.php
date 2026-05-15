@@ -340,6 +340,102 @@ class MarketingController extends Controller
         }
     }
 
+    public function getTreatmentVisitations(Request $request, $treatmentId)
+    {
+        try {
+            $year = $request->input('year', date('Y'));
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            $clinicId = $request->input('clinic_id');
+            $specialtyId = (int) $request->input('treatment_spesialisasi_id', 0);
+
+            $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+                ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->join('erm_riwayat_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_riwayat_tindakan.id')
+                ->join('erm_tindakan', 'erm_riwayat_tindakan.tindakan_id', '=', 'erm_tindakan.id')
+                ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
+                ->leftJoin('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
+                ->leftJoin('users', 'erm_dokters.user_id', '=', 'users.id')
+                ->leftJoin('erm_kliniks', 'erm_visitations.klinik_id', '=', 'erm_kliniks.id')
+                ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+                ->where('finance_invoices.amount_paid', '>', 0)
+                ->where('erm_tindakan.id', $treatmentId);
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+            } else {
+                $query->whereYear('erm_visitations.tanggal_visitation', $year);
+            }
+
+            if ($clinicId) {
+                $query->where('erm_visitations.klinik_id', $clinicId);
+            }
+
+            if ($specialtyId > 0) {
+                $query->where('erm_tindakan.spesialis_id', $specialtyId);
+            }
+
+            $treatmentName = (clone $query)->value('erm_tindakan.nama') ?: 'Treatment';
+
+            $visitations = $query
+                ->select(
+                    'erm_visitations.id as visitation_id',
+                    'erm_visitations.pasien_id',
+                    'erm_visitations.tanggal_visitation',
+                    'erm_pasiens.nama as patient_name',
+                    'users.name as doctor_name',
+                    'erm_kliniks.nama as clinic_name',
+                    DB::raw('COUNT(finance_invoice_items.id) as treatment_count'),
+                    DB::raw('SUM(finance_invoice_items.final_amount) as treatment_revenue')
+                )
+                ->groupBy(
+                    'erm_visitations.id',
+                    'erm_visitations.pasien_id',
+                    'erm_visitations.tanggal_visitation',
+                    'erm_pasiens.nama',
+                    'users.name',
+                    'erm_kliniks.nama'
+                )
+                ->orderByDesc('erm_visitations.tanggal_visitation')
+                ->orderByDesc('treatment_revenue')
+                ->limit(20)
+                ->get()
+                ->map(function ($row) {
+                    return [
+                        'visitation_id' => (string) ($row->visitation_id ?? ''),
+                        'patient_id' => (int) ($row->pasien_id ?? 0),
+                        'patient_name' => (string) ($row->patient_name ?? 'Pasien'),
+                        'doctor_name' => (string) ($row->doctor_name ?? '-'),
+                        'clinic_name' => (string) ($row->clinic_name ?? '-'),
+                        'visitation_date' => $row->tanggal_visitation
+                            ? Carbon::parse($row->tanggal_visitation)->format('d/m/Y')
+                            : '-',
+                        'treatment_count' => (int) ($row->treatment_count ?? 0),
+                        'revenue' => round((float) ($row->treatment_revenue ?? 0), 2),
+                        'resume_url' => route('resume.medis', $row->visitation_id),
+                        'history_url' => route('erm.riwayatkunjungan.index', $row->pasien_id),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'treatment_name' => $treatmentName,
+                    'items' => $visitations,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Treatment visitation detail error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load visitation details: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // Get clinics for filter dropdown
     public function getClinics()
     {

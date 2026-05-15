@@ -103,6 +103,18 @@
 .ranking-filter-row .ranking-search {
     flex: 1 1 220px;
 }
+
+.treatment-detail-trigger {
+    color: #2f5aa8;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.treatment-detail-trigger:hover,
+.treatment-detail-trigger:focus {
+    color: #1d3f79;
+    text-decoration: underline;
+}
 </style>
 <div class="container-fluid">
     <!-- Page Title & Filters -->
@@ -380,6 +392,27 @@
         </div>
     </div>
 
+    <div class="modal fade" id="treatmentVisitationDetailModal" tabindex="-1" aria-labelledby="treatmentVisitationDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h5 class="modal-title mb-0" id="treatmentVisitationDetailModalLabel">Visitation Details</h5>
+                        <small class="text-muted" id="treatmentVisitationDetailModalSubtitle">Loading treatment details...</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="treatmentVisitationDetailBody">
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-spinner fa-spin"></i><br>Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -389,6 +422,7 @@
 var chartInstances = {};
 var dateRangePicker = null;
 var rankingSearchTimer = null;
+var treatmentVisitationDetailUrlTemplate = '{{ route("marketing.revenue.analytics.treatment-visitations", ["treatmentId" => "__TREATMENT_ID__"]) }}';
 
 $(document).ready(function() {
     console.log('Document ready, jQuery version:', $.fn.jquery);
@@ -606,8 +640,26 @@ function formatCurrency(value) {
     return 'Rp ' + Math.round(amount).toLocaleString('id-ID');
 }
 
-function renderRevenueRankingTable(tableSelector, totalSelector, payload, emptyText) {
+function escapeHtml(value) {
+    return $('<div>').text(value == null ? '' : String(value)).html();
+}
+
+function renderTreatmentNameCell(item, index) {
+    var label = (index + 1) + '. ' + (item.name || '-');
+
+    if (!item || !item.id) {
+        return escapeHtml(label);
+    }
+
+    return '<button type="button" class="btn btn-link btn-sm p-0 align-baseline treatment-detail-trigger" data-treatment-id="' +
+        escapeHtml(item.id) + '" data-treatment-name="' + escapeHtml(item.name || 'Treatment') + '">' +
+        escapeHtml(label) +
+    '</button>';
+}
+
+function renderRevenueRankingTable(tableSelector, totalSelector, payload, emptyText, options) {
     var rows = payload && payload.items ? payload.items : [];
+    var config = options || {};
     $(totalSelector).text(formatCurrency(payload && payload.total_revenue ? payload.total_revenue : 0));
 
     if (!rows.length) {
@@ -617,8 +669,9 @@ function renderRevenueRankingTable(tableSelector, totalSelector, payload, emptyT
 
     var html = '';
     rows.forEach(function(item, index) {
+        var nameHtml = config.nameRenderer ? config.nameRenderer(item, index) : escapeHtml((index + 1) + '. ' + (item.name || '-'));
         html += '<tr>' +
-            '<th>' + (index + 1) + '. ' + (item.name || '-') + '</th>' +
+            '<th>' + nameHtml + '</th>' +
             '<td class="text-end">' + formatCurrency(item.revenue || 0) + '</td>' +
         '</tr>';
     });
@@ -695,7 +748,9 @@ function updateDashboard(data) {
     }
 
     renderRevenueRankingTable('#topObatRevenueTable', '#topObatRevenueTotal', data.topObatRevenue, 'No obat revenue data');
-    renderRevenueRankingTable('#topTreatmentRevenueTable', '#topTreatmentRevenueTotal', data.topTreatmentRevenue, 'No treatment revenue data');
+    renderRevenueRankingTable('#topTreatmentRevenueTable', '#topTreatmentRevenueTotal', data.topTreatmentRevenue, 'No treatment revenue data', {
+        nameRenderer: renderTreatmentNameCell
+    });
     
     // Show/hide daily revenue section based on whether month is selected
     var month = $('select[name="month"]').val();
@@ -705,6 +760,82 @@ function updateDashboard(data) {
         $('#dailyRevenueSection').hide();
     }
 }
+
+function openTreatmentVisitationDetails(treatmentId, treatmentName) {
+    var modalElement = document.getElementById('treatmentVisitationDetailModal');
+    var modalBody = $('#treatmentVisitationDetailBody');
+    var modalSubtitle = $('#treatmentVisitationDetailModalSubtitle');
+    var detailUrl = treatmentVisitationDetailUrlTemplate.replace('__TREATMENT_ID__', encodeURIComponent(treatmentId));
+    var dateRange = getDateRangeValues();
+
+    $('#treatmentVisitationDetailModalLabel').text('Visitation Details');
+    modalSubtitle.text(treatmentName || 'Treatment');
+    modalBody.html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i><br>Loading...</div>');
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+        window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
+    } else {
+        $('#treatmentVisitationDetailModal').modal('show');
+    }
+
+    $.ajax({
+        url: detailUrl,
+        method: 'GET',
+        data: {
+            year: new Date().getFullYear(),
+            start_date: dateRange.start,
+            end_date: dateRange.end,
+            clinic_id: $('#clinicFilter').val() || '',
+            treatment_spesialisasi_id: $('#topTreatmentSpecialtyFilter').val() || ''
+        },
+        success: function(response) {
+            var data = response.data || response;
+            var items = data.items || [];
+            var subtitle = data.treatment_name || treatmentName || 'Treatment';
+            var html = '';
+
+            modalSubtitle.text(subtitle);
+
+            if (!items.length) {
+                modalBody.html('<div class="text-center py-4 text-muted">No visitation details found for this treatment.</div>');
+                return;
+            }
+
+            html += '<div class="table-responsive">';
+            html += '<table class="table table-sm table-striped align-middle mb-0">';
+            html += '<thead><tr><th>Date</th><th>Patient</th><th>Doctor</th><th>Clinic</th><th class="text-center">Qty</th><th class="text-end">Revenue</th><th class="text-end">Action</th></tr></thead><tbody>';
+
+            items.forEach(function(item) {
+                html += '<tr>' +
+                    '<td>' + escapeHtml(item.visitation_date || '-') + '</td>' +
+                    '<td>' + escapeHtml(item.patient_name || '-') + '</td>' +
+                    '<td>' + escapeHtml(item.doctor_name || '-') + '</td>' +
+                    '<td>' + escapeHtml(item.clinic_name || '-') + '</td>' +
+                    '<td class="text-center">' + escapeHtml(item.treatment_count || 0) + '</td>' +
+                    '<td class="text-end">' + formatCurrency(item.revenue || 0) + '</td>' +
+                    '<td class="text-end">' +
+                        '<a href="' + escapeHtml(item.resume_url || '#') + '" class="btn btn-outline-primary btn-sm me-1" target="_blank" rel="noopener noreferrer">Resume</a>' +
+                        '<a href="' + escapeHtml(item.history_url || '#') + '" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener noreferrer">Riwayat</a>' +
+                    '</td>' +
+                '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            modalBody.html(html);
+        },
+        error: function(xhr) {
+            var message = 'Failed to load visitation details.';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+            modalBody.html('<div class="text-center py-4 text-danger">' + escapeHtml(message) + '</div>');
+        }
+    });
+}
+
+$(document).on('click', '.treatment-detail-trigger', function() {
+    openTreatmentVisitationDetails($(this).data('treatment-id'), $(this).data('treatment-name'));
+});
 
 function initializeCharts(data) {
     // Check if ApexCharts is loaded

@@ -1870,6 +1870,7 @@ Route::get('/marketing/products-analytics-all', [\App\Http\Controllers\Marketing
 
 // AJAX route for revenue analytics charts
 Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');
+Route::get('/marketing/revenue-analytics/treatments/{treatmentId}/visitations', [\App\Http\Controllers\Marketing\MarketingController::class, 'getTreatmentVisitations'])->name('marketing.revenue.analytics.treatment-visitations');
 
 // AJAX route for patient analytics charts
 Route::get('/marketing/analytics/patients-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
