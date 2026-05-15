@@ -363,54 +363,32 @@ class MarketingController extends Controller
      */
     public function riwayatRM($pasienId)
     {
-        // Get all visitations for this pasien, newest first
-        $visitations = \App\Models\ERM\Visitation::where('pasien_id', $pasienId)
+        $visitations = Visitation::with(['dokter.user'])
+            ->where('pasien_id', $pasienId)
             ->orderByDesc('tanggal_visitation')
             ->get();
 
-        $result = [];
-        foreach ($visitations as $visit) {
-            // Resep farmasi for this visitation
-            $resep = \App\Models\ERM\ResepFarmasi::where('visitation_id', $visit->id)
-                ->with('obat')
-                ->get()
-                ->map(function($r) {
-                    return [
-                        'id' => $r->id,
-                        'obat_nama' => $r->obat ? $r->obat->nama : '-',
-                        'jumlah' => $r->jumlah,
-                        'dosis' => $r->dosis,
-                        'bungkus' => $r->bungkus,
-                        'racikan_ke' => $r->racikan_ke,
-                        'aturan_pakai' => $r->aturan_pakai,
-                        'wadah' => $r->wadah ? $r->wadah->nama : null,
-                        // include computed paket name from model accessor
-                        'paket_racikan_name' => $r->paket_racikan_name ?? null,
-                    ];
-                });
-            // Riwayat tindakan for this visitation
-            $tindakan = \App\Models\ERM\RiwayatTindakan::where('visitation_id', $visit->id)
-                ->with('tindakan')
-                ->get()
-                ->map(function($t) {
-                    return [
-                        'tindakan_nama' => $t->tindakan ? $t->tindakan->nama : '-',
-                        'tanggal_tindakan' => $t->tanggal_tindakan ? $t->tanggal_tindakan->format('Y-m-d') : '-',
-                    ];
-                });
-            // Get dokter name (from user if available)
-            $dokterName = '-';
-            if ($visit->dokter) {
-                $dokterName = $visit->dokter->user ? $visit->dokter->user->name : ($visit->dokter->nama ?? '-');
-            }
-            $result[] = [
-                'visitation_info' => ($visit->tanggal_visitation ? $visit->tanggal_visitation : $visit->id),
-                'dokter_nama' => $dokterName,
-                'resep_dokter' => $resep,
-                'riwayat_tindakan' => $tindakan,
-            ];
-        }
-        return response()->json($result);
+        $visitationIds = $visitations->pluck('id');
+
+        $resepsByVisitation = ResepFarmasi::with(['obat', 'wadah'])
+            ->whereIn('visitation_id', $visitationIds)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('visitation_id');
+
+        $tindakanByVisitation = \App\Models\ERM\RiwayatTindakan::with('tindakan')
+            ->whereIn('visitation_id', $visitationIds)
+            ->orderBy('tanggal_tindakan')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('visitation_id');
+
+        return view('marketing.pasien-data.riwayat-rm', [
+            'visitations' => $visitations,
+            'resepsByVisitation' => $resepsByVisitation,
+            'tindakanByVisitation' => $tindakanByVisitation,
+        ]);
     }
 
     public function patients(Request $request)
