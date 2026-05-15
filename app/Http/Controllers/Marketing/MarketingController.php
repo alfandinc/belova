@@ -14,6 +14,7 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\PaketTindakan;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\LabPermintaan;
+use App\Models\ERM\PaketRacikan;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
 use App\Models\Marketing\FollowUp;
@@ -473,6 +474,51 @@ class MarketingController extends Controller
             ->get()
             ->groupBy('visitation_id');
 
+        $activePaketRacikans = PaketRacikan::with('details')
+            ->where('is_active', true)
+            ->get();
+
+        $racikanPaketNames = [];
+        foreach ($resepsByVisitation as $visitationId => $reseps) {
+            $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+            foreach ($racikans as $racikanKe => $items) {
+                $compMap = [];
+                foreach ($items as $item) {
+                    if (!$item->obat_id) {
+                        continue;
+                    }
+
+                    $compMap[$item->obat_id . '|' . $this->normalizeDoseValue($item->dosis)] = true;
+                }
+
+                if (empty($compMap)) {
+                    continue;
+                }
+
+                foreach ($activePaketRacikans as $paket) {
+                    $details = $paket->details;
+                    if (!$details || $details->count() !== count($compMap)) {
+                        continue;
+                    }
+
+                    $allMatch = true;
+                    foreach ($details as $detail) {
+                        $detailKey = ($detail->obat_id ?? '0') . '|' . $this->normalizeDoseValue($detail->dosis);
+                        if (!isset($compMap[$detailKey])) {
+                            $allMatch = false;
+                            break;
+                        }
+                    }
+
+                    if ($allMatch) {
+                        $racikanPaketNames[$visitationId][$racikanKe] = $paket->nama_paket;
+                        break;
+                    }
+                }
+            }
+        }
+
         $tindakanByVisitation = \App\Models\ERM\RiwayatTindakan::with('tindakan')
             ->whereIn('visitation_id', $visitationIds)
             ->orderBy('tanggal_tindakan')
@@ -483,8 +529,25 @@ class MarketingController extends Controller
         return view('marketing.pasien-data.riwayat-rm', [
             'visitations' => $visitations,
             'resepsByVisitation' => $resepsByVisitation,
+            'racikanPaketNames' => $racikanPaketNames,
             'tindakanByVisitation' => $tindakanByVisitation,
         ]);
+    }
+
+    private function normalizeDoseValue($value)
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $normalized = trim(strtolower((string) $value));
+        $normalized = str_replace(',', '.', $normalized);
+
+        if (preg_match('/\d+(?:\.\d+)?/', $normalized, $matches)) {
+            return rtrim(rtrim($matches[0], '0'), '.') ?: $matches[0];
+        }
+
+        return $normalized;
     }
 
     public function patients(Request $request)

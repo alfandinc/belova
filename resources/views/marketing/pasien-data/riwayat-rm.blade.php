@@ -27,13 +27,7 @@
 
                         @foreach ($racikans as $ke => $items)
                             @php
-                                $paketNames = $items
-                                    ->pluck('paket_racikan_name')
-                                    ->filter(fn ($name) => filled($name))
-                                    ->map(fn ($name) => trim((string) $name))
-                                    ->unique()
-                                    ->values();
-                                $racikanLabel = $paketNames->count() === 1 ? $paketNames->first() : 'Racikan #' . $ke;
+                                $racikanLabel = $racikanPaketNames[$visit->id][$ke] ?? ('Racikan #' . $ke);
                                 $obatNames = $items
                                     ->map(fn ($item) => $item->obat->nama ?? 'Obat dihapus')
                                     ->values()
