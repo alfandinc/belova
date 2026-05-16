@@ -28,6 +28,9 @@
 table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
     white-space: normal !important;
 }
+.contentPlanTable th.judul-col {
+    min-width: 220px;
+}
 /* Ensure action buttons have a smaller reserved width so Judul can expand */
 .aksi-col{
     white-space: nowrap !important;
@@ -146,50 +149,120 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 /* Show value (count) before label in header stat */
 .header-stat-card .stat-text { display:flex; align-items:center; gap:8px; text-align:left; }
 .header-stat-card .stat-text .value { font-size:1.25rem; color:#dc3545; }
+.content-workflow-tabs .nav-link {
+    color: #495057;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.55rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+.content-workflow-tabs .nav-link.active {
+    background: #0d6efd;
+    color: #fff;
+}
+.content-list-table td, .content-list-table th {
+    vertical-align: middle;
+}
 </style>
 @endpush
 
 @section('content')
 <div class="container-fluid mt-4">
-    
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Content Plan</h4>
-            <div class="d-flex align-items-center">
-                <!-- left spacer to keep title on the left -->
-                <div></div>
-                <!-- right-side: stat card + nav buttons -->
-                <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:nowrap;">
-                    <div class="header-stat-card header-stat-terlewat" role="button" title="Klik untuk melihat Konten Terlewat">
-                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="stat-text">
-                            <div id="stat_terlewat" class="value">0</div>
-                            <div class="label">Konten Terlewat</div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:12px;">
+        <h4 class="mb-0">Content Plan</h4>
+        <ul class="nav nav-pills content-workflow-tabs" id="contentWorkflowTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <a class="nav-link active" id="schedule-tab" data-toggle="tab" href="#scheduleTab" role="tab" aria-controls="scheduleTab" aria-selected="true"><i class="fas fa-calendar-alt"></i><span>Content Schedule</span></a>
+            </li>
+            <li class="nav-item" role="presentation">
+                <a class="nav-link" id="list-tab" data-toggle="tab" href="#listTab" role="tab" aria-controls="listTab" aria-selected="false"><i class="fas fa-list-ul"></i><span>Content List</span></a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="tab-content" id="contentWorkflowTabContent">
+        <div class="tab-pane fade show active" id="scheduleTab" role="tabpanel" aria-labelledby="schedule-tab">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Content Schedule</h4>
+                    <div class="d-flex align-items-center">
+                        <div></div>
+                        <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:nowrap;">
+                            <div class="header-stat-card header-stat-terlewat" role="button" title="Klik untuk melihat Konten Terlewat">
+                                <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                                <div class="stat-text">
+                                    <div id="stat_terlewat" class="value">0</div>
+                                    <div class="label">Konten Terlewat</div>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center" style="gap:8px; flex-wrap:nowrap;">
+                                <button type="button" class="btn btn-light btn-sm me-2" id="btnPrevWeek" title="Previous week"><i class="fas fa-chevron-left"></i></button>
+                                <div class="input-group input-group-sm" style="min-width:220px;">
+                                    <select id="monthPicker" class="form-control form-control-sm"></select>
+                                    <select id="weekPicker" class="form-control form-control-sm" style="max-width:110px">
+                                        <option value="1">Week 1</option>
+                                        <option value="2">Week 2</option>
+                                        <option value="3">Week 3</option>
+                                        <option value="4">Week 4</option>
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-light btn-sm ms-2" id="btnNextWeek" title="Next week"><i class="fas fa-chevron-right"></i></button>
+                            </div>
                         </div>
                     </div>
-                    <div class="d-flex align-items-center" style="gap:8px; flex-wrap:nowrap;">
-                        <button type="button" class="btn btn-light btn-sm me-2" id="btnPrevWeek" title="Previous week"><i class="fas fa-chevron-left"></i></button>
-                        <div class="input-group input-group-sm" style="min-width:220px;">
-                            <select id="monthPicker" class="form-control form-control-sm"></select>
-                            <select id="weekPicker" class="form-control form-control-sm" style="max-width:110px">
-                                <option value="1">Week 1</option>
-                                <option value="2">Week 2</option>
-                                <option value="3">Week 3</option>
-                                <option value="4">Week 4</option>
-                            </select>
-                        </div>
-                        <button type="button" class="btn btn-light btn-sm ms-2" id="btnNextWeek" title="Next week"><i class="fas fa-chevron-right"></i></button>
-                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="weekTables" class="row"></div>
                 </div>
             </div>
         </div>
-            <div class="card-body">
-            <div id="weekTables" class="row"></div>
+
+        <div class="tab-pane fade" id="listTab" role="tabpanel" aria-labelledby="list-tab">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">Content List</h4>
+                        <small class="text-muted">Draft konten diinput di sini dulu, lalu approve sebelum dijadwalkan ke content schedule.</small>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:10px;">
+                        <select id="contentListStatusFilter" class="form-control form-control-sm" style="width:180px;">
+                            <option value="">Semua Status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                        <button type="button" class="btn btn-primary" id="btnAddContentList"><i class="fas fa-plus mr-1"></i> Tambah Content List</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered content-list-table" id="contentListTable" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Judul</th>
+                                    <th>Brand</th>
+                                    <th>Platform</th>
+                                    <th>Jenis Konten</th>
+                                    <th>Assigned To</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 @include('marketing.content_plan.partials.modal')
+@include('marketing.content_plan.partials.content_list_modal')
 @include('marketing.content_plan.partials.content_report_modal')
 
 <!-- Status picker modal -->
@@ -370,6 +443,7 @@ $(function() {
     // (Removed image reference inputs and preview per UI simplification)
     // Build 7 DataTables, one per day (Monday..Sunday) for the current ISO week
     var contentPlanTables = [];
+    var contentListTable = null;
     // map of assigned_to id => display name (used to show initials on cards)
     var assignedNameMap = {};
     try {
@@ -396,7 +470,7 @@ $(function() {
             var dayFull = d.format('dddd, D MMMM YYYY');
             var key = d.format('YYYY-MM-DD');
             var tableId = 'contentPlanTable-' + i;
-            var col = $('<div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card"><div class="card-header d-flex align-items-center"><div><strong style="display:block">'+dayFull+'</strong></div><div class="ml-auto"><button type="button" class="btn btn-sm btn-outline-primary btn-add-card" data-date="'+key+'" title="Tambah Content Plan"><i class="fas fa-plus"></i></button></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-bordered contentPlanTable" id="'+tableId+'" data-date="'+key+'" style="width:100%"><thead><tr><th class="jam-col">Time</th><th>Description</th></tr></thead></table></div></div></div></div>');
+            var col = $('<div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card"><div class="card-header d-flex align-items-center"><div><strong style="display:block">'+dayFull+'</strong></div><div class="ml-auto"><button type="button" class="btn btn-sm btn-outline-primary btn-add-card" data-date="'+key+'" title="Tambah Content Plan"><i class="fas fa-plus"></i></button></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-bordered contentPlanTable" id="'+tableId+'" data-date="'+key+'" style="width:100%"><thead><tr><th class="jam-col">Time</th><th class="judul-col">Description</th></tr></thead></table></div></div></div></div>');
             $('#weekTables').append(col);
         }
 
@@ -654,6 +728,24 @@ $(function() {
         return params;
     }
 
+    function refreshScheduleTablesLayout() {
+        setTimeout(function() {
+            try {
+                $('.contentPlanTable').each(function() {
+                    if (!$.fn.dataTable.isDataTable(this)) return;
+                    var dt = $(this).DataTable();
+                    dt.columns.adjust();
+                    if (dt.responsive && typeof dt.responsive.recalc === 'function') {
+                        dt.responsive.recalc();
+                    }
+                    dt.draw(false);
+                });
+            } catch (e) {
+                console.error('refreshScheduleTablesLayout', e);
+            }
+        }, 80);
+    }
+
     function updateStatusStats(resp) {
         try {
             // Instead of counting only items in the current week payload, request the global
@@ -669,6 +761,7 @@ $(function() {
                 });
             } catch(e) {
                 console.error('updateStatusStats fetch global count', e);
+            refreshScheduleTablesLayout();
             }
         } catch(e) { console.error('updateStatusStats', e); }
     }
@@ -818,6 +911,144 @@ $(function() {
     // build week tables initially
     buildWeekTables();
 
+    function resetContentListForm() {
+        $('#contentListForm')[0].reset();
+        $('#contentListForm').attr('data-action', 'store');
+        $('#contentListForm').attr('data-id', '');
+        $('#contentListModalLabel').text('Tambah Content List');
+        $('#contentListModal .content-list-select2').val(null).trigger('change');
+    }
+
+    function openContentListModal(id) {
+        resetContentListForm();
+
+        if (!id) {
+            $('#contentListModal').modal('show');
+            return;
+        }
+
+        $.get('/marketing/content-list/' + id, function(res) {
+            $('#contentListForm').attr('data-action', 'update');
+            $('#contentListForm').attr('data-id', id);
+            $('#contentListModalLabel').text('Edit Content List');
+            $('#cl_judul').val(res.judul || '');
+            $('#cl_brand').val(Array.isArray(res.brand) ? res.brand : []).trigger('change');
+            $('#cl_assigned_to').val(res.assigned_to || '').trigger('change');
+            $('#cl_platform').val(Array.isArray(res.platform) ? res.platform : []).trigger('change');
+            $('#cl_jenis_konten').val(Array.isArray(res.jenis_konten) ? res.jenis_konten : []).trigger('change');
+            $('#cl_konten_pilar').val(res.konten_pilar || '').trigger('change');
+            $('#cl_link_referensi').val(res.link_referensi || '');
+            $('#cl_catatan').val(res.catatan || '');
+            $('#contentListModal').modal('show');
+        }).fail(function() {
+            Swal.fire('Error', 'Gagal mengambil data content list.', 'error');
+        });
+    }
+
+    function initContentListTable() {
+        if (!$('#contentListTable').length) return;
+        if ($.fn.dataTable.isDataTable('#contentListTable')) {
+            contentListTable = $('#contentListTable').DataTable();
+            return;
+        }
+
+        contentListTable = $('#contentListTable').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: '{{ route('marketing.content-list.datatable') }}',
+                data: function(d) {
+                    d.filter_status = $('#contentListStatusFilter').val() || '';
+                }
+            },
+            order: [[1, 'asc']],
+            columns: [
+                {
+                    data: null,
+                    name: 'no',
+                    orderable: false,
+                    searchable: false,
+                    className: 'text-center',
+                    render: function(data, type, row, meta) {
+                        return meta.settings._iDisplayStart + meta.row + 1;
+                    }
+                },
+                { data: 'judul', name: 'judul' },
+                { data: 'brand', name: 'brand', orderable: false, searchable: false },
+                { data: 'platform', name: 'platform', orderable: false, searchable: false },
+                { data: 'jenis_konten', name: 'jenis_konten', orderable: false, searchable: false },
+                { data: 'assigned_to_name', name: 'assignedTo.name', defaultContent: '' },
+                { data: 'status_badge', name: 'approval_status', orderable: false, searchable: false },
+                { data: 'action', name: 'action', orderable: false, searchable: false },
+            ]
+        });
+    }
+
+    $('#contentListStatusFilter').on('change', function() {
+        if (contentListTable) {
+            contentListTable.ajax.reload();
+        }
+    });
+
+    function prepareNewPlanModal(opts) {
+        opts = opts || {};
+        var date = opts.date || '';
+        var source = opts.source || null;
+
+        $('#contentPlanForm')[0].reset();
+        $('#contentPlanForm').attr('data-action', 'store');
+        $('#contentPlanForm').attr('data-id', '');
+        $('#contentPlanForm').find('input[name="content_list_id"]').val(source && source.id ? source.id : '');
+        $('#contentPlanModalLabel').text(source ? 'Jadwalkan Content List' : 'Tambah Content Plan');
+        try { $('#tab-edit-tab').trigger('click'); } catch(e){}
+        $('#contentPlanModal .select2').val(null).trigger('change');
+        $('#brand').val(null).trigger('change');
+        $('#assigned_to').val(null).trigger('change');
+        $('#konten_pilar').val(null).trigger('change');
+        try {
+            try { if ($.fn && $.fn.summernote) { $('#cb_isi_konten').summernote('destroy'); } } catch(e) {}
+            $('#cb_content_plan_id').val('');
+            $('#cb_id').val('');
+            $('#cb_headline').val('');
+            $('#cb_sub_headline').val('');
+            $('#cb_isi_konten').val('');
+            $('#cb_preview').empty();
+            $('#cb_visual_references').val('');
+            window._cbLoadedIsi = null;
+            $('#cr_id').val('');
+            $('#cr_content_plan_id').val('');
+            $('#cr_likes, #cr_comments, #cr_saves, #cr_shares, #cr_reach, #cr_impressions').val(0);
+            $('#cr_recorded_at').val('');
+            computeAndShowERIERR();
+            renderHistory([]);
+        } catch(e) {}
+        $('#link_publikasi_wrapper').find('.link-input-row').remove();
+        try { $('#status').val('Scheduled').trigger('change'); } catch(e) {}
+
+        if (source) {
+            $('#judul').val(source.judul || '');
+            $('#brand').val(Array.isArray(source.brand) ? source.brand : []).trigger('change');
+            $('#platform').val(Array.isArray(source.platform) ? source.platform : []).trigger('change');
+            $('#jenis_konten').val(Array.isArray(source.jenis_konten) ? source.jenis_konten : []).trigger('change');
+            $('#konten_pilar').val(source.konten_pilar || '').trigger('change');
+            $('#assigned_to').val(source.assigned_to || '').trigger('change');
+            $('#link_referensi').val(source.link_referensi || '');
+            renderLinkInputs(source.platform || [], null);
+        }
+
+        if (date) {
+            $('#tanggal_publish_date').val(date);
+            $('#tanggal_publish_time').val('09:00');
+        } else {
+            $('#tanggal_publish_date').val(moment().format('YYYY-MM-DD'));
+            $('#tanggal_publish_time').val('09:00');
+        }
+
+        $('#contentPlanModal').modal('show');
+    }
+
+    initContentListTable();
+
     // --- Month & Week picker logic ---
     function populateMonthPicker() {
         var $m = $('#monthPicker'); $m.empty();
@@ -962,43 +1193,7 @@ $(function() {
     // Add Content Plan from a specific day card header
     $(document).on('click', '.btn-add-card', function() {
         var date = $(this).data('date'); // expected YYYY-MM-DD
-        $('#contentPlanForm')[0].reset();
-        $('#contentPlanModalLabel').text('Tambah Content Plan');
-        try { $('#tab-edit-tab').trigger('click'); } catch(e){}
-        $('#contentPlanModal').modal('show');
-        $('#contentPlanForm').attr('data-action', 'store');
-        $('#contentPlanForm').attr('data-id', '');
-        // only reset select2 inputs inside the modal to avoid triggering global filters
-        $('#contentPlanModal .select2').val(null).trigger('change');
-        $('#brand').val(null).trigger('change');
-        $('#assigned_to').val(null).trigger('change');
-        $('#konten_pilar').val(null).trigger('change');
-        // Clear Brief-related fields so previous brief content doesn't persist
-        try {
-            // destroy any existing summernote instance to ensure clean init later
-            try { if ($.fn && $.fn.summernote) { $('#cb_isi_konten').summernote('destroy'); } } catch(e) {}
-            $('#cb_content_plan_id').val('');
-            $('#cb_id').val('');
-            $('#cb_headline').val('');
-            $('#cb_sub_headline').val('');
-            // clear summernote textarea
-            try{ $('#cb_isi_konten').val(''); } catch(e) {}
-            // clear visual preview and file input
-            try { $('#cb_preview').empty(); $('#cb_visual_references').val(''); } catch(e) {}
-            // reset temporary holder
-            window._cbLoadedIsi = null;
-        } catch(e) {}
-        // clear link publikasi inputs
-        $('#link_publikasi_wrapper').find('.link-input-row').remove();
-        // default status to Scheduled when creating a new content plan
-        try { $('#status').val('Scheduled').trigger('change'); } catch(e) {}
-        // set tanggal_publish to the clicked date (default time 09:00)
-        try {
-            if (date) {
-                $('#tanggal_publish_date').val(date);
-                $('#tanggal_publish_time').val('09:00');
-            }
-        } catch(e) { console.error('set date on add-card', e); }
+        prepareNewPlanModal({ date: date });
     });
 
     // Store/Update Content Plan
@@ -1084,6 +1279,7 @@ $(function() {
                 $.when(briefPromise, reportPromise).always(function(){
                     try { $('#contentPlanModal').modal('hide'); } catch(e) {}
                     reloadAllTables();
+                    if (contentListTable) contentListTable.ajax.reload(null, false);
                     Swal.fire('Sukses', 'Data berhasil disimpan!', 'success');
                     $btn.prop('disabled', false);
                     $btn.html(originalText);
@@ -1112,6 +1308,7 @@ $(function() {
             $('#contentPlanModal').modal('show');
             $('#contentPlanForm').attr('data-action', 'update');
             $('#contentPlanForm').attr('data-id', id);
+            $('#contentPlanForm').find('input[name="content_list_id"]').val('');
             $('#judul').val(data.judul);
             if (Array.isArray(data.brand)) {
                 $('#brand').val(data.brand).trigger('change');
@@ -1138,6 +1335,7 @@ $(function() {
             // assigned_to may be null
             try { $('#assigned_to').val(data.assigned_to || '').trigger('change'); } catch(e) {}
             $('#link_asset').val(data.link_asset);
+            $('#link_referensi').val(data.link_referensi || '');
             // render per-platform link inputs
             try { renderLinkInputs(data.platform, data.link_publikasi); } catch(e) {}
             // populate caption and mention if present
@@ -1405,6 +1603,120 @@ $(function() {
     try { if ($.fn && $.fn.select2) { $('#konten_pilar').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', placeholder: 'Pilih Konten Pilar', allowClear: true }); } } catch(e) {}
     // Assigned to select2 (guarded)
     try { if ($.fn && $.fn.select2) { $('#assigned_to').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', placeholder: 'Assign to', allowClear: true }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#cl_brand').select2({ dropdownParent: $('#contentListModal'), width: '100%', placeholder: 'Pilih Brand' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#cl_platform').select2({ dropdownParent: $('#contentListModal'), width: '100%', placeholder: 'Pilih Platform' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#cl_jenis_konten').select2({ dropdownParent: $('#contentListModal'), width: '100%', placeholder: 'Pilih Jenis Konten' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#cl_konten_pilar').select2({ dropdownParent: $('#contentListModal'), width: '100%', placeholder: 'Pilih Konten Pilar', allowClear: true }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#cl_assigned_to').select2({ dropdownParent: $('#contentListModal'), width: '100%', placeholder: 'Assign to', allowClear: true }); } } catch(e) {}
+
+    $('#btnAddContentList').on('click', function() {
+        openContentListModal();
+    });
+
+    $('#contentListForm').on('submit', function(e) {
+        e.preventDefault();
+        var action = $(this).attr('data-action') || 'store';
+        var id = $(this).attr('data-id') || '';
+        var url = action === 'update' ? '/marketing/content-list/' + id : '{{ route('marketing.content-list.store') }}';
+        var $btn = $('#btnSaveContentList');
+        var originalText = $btn.text();
+        var fd = new FormData(this);
+
+        if (action === 'update') {
+            fd.append('_method', 'PUT');
+        }
+
+        $btn.prop('disabled', true).text('Menyimpan...');
+
+        $.ajax({
+            url: url,
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false
+        }).done(function() {
+            $('#contentListModal').modal('hide');
+            if (contentListTable) contentListTable.ajax.reload(null, false);
+            Swal.fire('Sukses', 'Content list berhasil disimpan.', 'success');
+        }).fail(function(xhr) {
+            var msg = 'Terjadi kesalahan.';
+            if (xhr.responseJSON && xhr.responseJSON.errors) {
+                msg = Object.values(xhr.responseJSON.errors).join('<br>');
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            Swal.fire('Error', msg, 'error');
+        }).always(function() {
+            $btn.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $(document).on('click', '.btn-content-list-edit', function() {
+        openContentListModal($(this).data('id'));
+    });
+
+    $(document).on('click', '.btn-content-list-delete', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+
+        Swal.fire({
+            title: 'Hapus content list?',
+            text: 'Data yang dihapus tidak dapat dikembalikan.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+
+            $.ajax({
+                url: '/marketing/content-list/' + id,
+                method: 'POST',
+                data: { _method: 'DELETE' }
+            }).done(function() {
+                if (contentListTable) contentListTable.ajax.reload(null, false);
+                Swal.fire('Sukses', 'Content list berhasil dihapus.', 'success');
+            }).fail(function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menghapus content list.';
+                Swal.fire('Error', msg, 'error');
+            });
+        });
+    });
+
+    $(document).on('click', '.btn-content-list-approve', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+
+        $.post('/marketing/content-list/' + id + '/approve', { approval_status: 'Approved' })
+            .done(function() {
+                if (contentListTable) contentListTable.ajax.reload(null, false);
+                Swal.fire('Sukses', 'Content list berhasil di-approve.', 'success');
+            })
+            .fail(function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menyimpan approval.';
+                Swal.fire('Error', msg, 'error');
+            });
+    });
+
+    $(document).on('click', '.btn-content-list-schedule', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+
+        $.get('/marketing/content-list/' + id + '/schedule-payload', function(res) {
+            prepareNewPlanModal({ source: res });
+        }).fail(function(xhr) {
+            var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal memuat content list untuk dijadwalkan.';
+            Swal.fire('Error', msg, 'error');
+        });
+    });
+
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        if ($(e.target).attr('href') === '#listTab' && contentListTable) {
+            contentListTable.columns.adjust();
+        } else if ($(e.target).attr('href') === '#scheduleTab') {
+            refreshScheduleTablesLayout();
+        }
+    });
 
     // Render link_publikasi inputs for selected platforms inside the modal
     function renderLinkInputs(platforms, existingLinks) {

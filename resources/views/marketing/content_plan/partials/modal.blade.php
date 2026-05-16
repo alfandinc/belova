@@ -2,6 +2,7 @@
   <div class="modal-dialog modal-xl" role="document">
     <div class="modal-content">
       <form id="contentPlanForm">
+        <input type="hidden" name="content_list_id" value="">
         <div class="modal-header">
           <h5 class="modal-title" id="contentPlanModalLabel">Tambah Content Plan</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -87,6 +88,11 @@
                       <div class="mb-2">
                         <label for="link_asset" class="form-label">Link Asset</label>
                         <input type="text" class="form-control" id="link_asset" name="link_asset">
+                      </div>
+
+                      <div class="mb-2">
+                        <label for="link_referensi" class="form-label">Link Referensi</label>
+                        <input type="text" class="form-control" id="link_referensi" name="link_referensi" placeholder="https://...">
                       </div>
 
                       <div class="mb-2">

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
+use App\Models\Marketing\ContentList;
 use Illuminate\Http\Request;
 use App\Models\Marketing\ContentPlan;
 use App\Models\User;
@@ -209,6 +210,7 @@ class ContentPlanController extends Controller
     {
         $data = $request->validate([
             'judul' => 'required|string|max:255',
+            'content_list_id' => 'nullable|integer|exists:marketing_content_lists,id',
             'brand' => 'nullable|array',
             'deskripsi' => 'nullable|string',
             'caption' => 'nullable|string',
@@ -220,12 +222,16 @@ class ContentPlanController extends Controller
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
+            'link_referensi' => 'nullable|string',
             'link_publikasi' => 'nullable|array',
             'link_publikasi.*' => 'nullable|string',
             'catatan' => 'nullable|string',
             'assigned_to' => 'nullable|integer|exists:users,id',
             'gambar_referensi' => 'nullable|file|image|max:5120',
         ]);
+        $contentListId = $data['content_list_id'] ?? null;
+        unset($data['content_list_id']);
+
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
         // Normalize link_publikasi to sequential associative array if provided
@@ -243,6 +249,14 @@ class ContentPlanController extends Controller
             unset($data['gambar_referensi']);
         }
         $plan = ContentPlan::create($data);
+
+        if ($contentListId) {
+            ContentList::whereKey($contentListId)
+                ->where('approval_status', 'Approved')
+                ->whereNull('scheduled_plan_id')
+                ->update(['scheduled_plan_id' => $plan->id]);
+        }
+
         return response()->json(['success' => true, 'data' => $plan]);
     }
 
@@ -286,6 +300,7 @@ class ContentPlanController extends Controller
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
+            'link_referensi' => 'nullable|string',
             'link_publikasi' => 'nullable|array',
             'link_publikasi.*' => 'nullable|string',
             'catatan' => 'nullable|string',

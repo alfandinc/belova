@@ -1775,6 +1775,15 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::post('content-plan/{id}/inline-update', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'inlineUpdate'])->name('marketing.content-plan.inline-update');
     Route::delete('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'destroy'])->name('marketing.content-plan.destroy');
 
+    // Content List Management
+    Route::get('content-list/datatable', [\App\Http\Controllers\Marketing\ContentListController::class, 'datatable'])->name('marketing.content-list.datatable');
+    Route::get('content-list/{id}', [\App\Http\Controllers\Marketing\ContentListController::class, 'show'])->name('marketing.content-list.show');
+    Route::get('content-list/{id}/schedule-payload', [\App\Http\Controllers\Marketing\ContentListController::class, 'schedulePayload'])->name('marketing.content-list.schedule-payload');
+    Route::post('content-list', [\App\Http\Controllers\Marketing\ContentListController::class, 'store'])->name('marketing.content-list.store');
+    Route::put('content-list/{id}', [\App\Http\Controllers\Marketing\ContentListController::class, 'update'])->name('marketing.content-list.update');
+    Route::post('content-list/{id}/approve', [\App\Http\Controllers\Marketing\ContentListController::class, 'approve'])->name('marketing.content-list.approve');
+    Route::delete('content-list/{id}', [\App\Http\Controllers\Marketing\ContentListController::class, 'destroy'])->name('marketing.content-list.destroy');
+
     // Content Report
     Route::get('content-report', [\App\Http\Controllers\Marketing\ContentReportController::class, 'index'])->name('marketing.content-report.index');
     Route::post('content-report', [\App\Http\Controllers\Marketing\ContentReportController::class, 'store'])->name('marketing.content-report.store');

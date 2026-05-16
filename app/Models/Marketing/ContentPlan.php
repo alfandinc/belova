@@ -27,6 +27,7 @@ class ContentPlan extends Model
         'konten_pilar',
         'target_audience',
         'link_asset',
+        'link_referensi',
         'link_publikasi',
         'catatan',
         'gambar_referensi', // Gambar referensi
