@@ -165,6 +165,73 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 .content-list-table td, .content-list-table th {
     vertical-align: middle;
 }
+.content-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.content-list-header__intro,
+.content-list-header__actions {
+    flex: 1 1 260px;
+}
+.content-list-header__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+.content-list-status-stats {
+    flex: 0 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+}
+.content-list-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.content-list-stat-chip .count {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+.content-list-stat-chip:hover {
+    transform: translateY(-1px);
+}
+.content-list-stat-chip.is-active {
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+    border-color: rgba(13, 110, 253, 0.45);
+}
+.content-list-stat-chip.pending { background: rgba(255, 193, 7, 0.16); color: #8a6d00; }
+.content-list-stat-chip.approved { background: rgba(40, 167, 69, 0.14); color: #1f7a35; }
+.content-list-stat-chip.rejected { background: rgba(220, 53, 69, 0.12); color: #b02a37; }
+.content-list-stat-chip.scheduled { background: rgba(23, 162, 184, 0.14); color: #0f6674; }
+@media (max-width: 991px) {
+    .content-list-header {
+        align-items: flex-start;
+    }
+    .content-list-status-stats {
+        order: 3;
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .content-list-header__actions {
+        justify-content: flex-start;
+    }
+}
 </style>
 @endpush
 
@@ -221,19 +288,15 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 
         <div class="tab-pane fade" id="listTab" role="tabpanel" aria-labelledby="list-tab">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
+                <div class="card-header content-list-header">
+                    <div class="content-list-header__intro">
                         <h4 class="mb-0">Content List</h4>
                         <small class="text-muted">Draft konten diinput di sini dulu, lalu approve sebelum dijadwalkan ke content schedule.</small>
                     </div>
-                    <div class="d-flex align-items-center" style="gap:10px;">
-                        <select id="contentListStatusFilter" class="form-control form-control-sm" style="width:180px;">
-                            <option value="">Semua Status</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Scheduled">Scheduled</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
+                    <div class="content-list-status-stats" id="contentListStatusStats">
+                        <span class="text-muted small">Memuat statistik...</span>
+                    </div>
+                    <div class="content-list-header__actions">
                         <button type="button" class="btn btn-primary" id="btnAddContentList"><i class="fas fa-plus mr-1"></i> Tambah Content List</button>
                     </div>
                 </div>
@@ -863,6 +926,7 @@ $(function() {
                 window._latestWeekResp = resp;
                 var grouped = resp && resp.data ? resp.data : {};
                 try { updateStatusStats(resp); } catch(e) {}
+                try { loadContentListStats(); } catch(e) {}
                 // If we have the expected number of table instances (7), update them in-place
                 if (Array.isArray(contentPlanTables) && contentPlanTables.length === 7) {
                     var weekStart = _defaultStart.clone();
@@ -945,10 +1009,13 @@ $(function() {
         });
     }
 
+    var contentListStatusFilter = '';
+
     function initContentListTable() {
         if (!$('#contentListTable').length) return;
         if ($.fn.dataTable.isDataTable('#contentListTable')) {
             contentListTable = $('#contentListTable').DataTable();
+            loadContentListStats();
             return;
         }
 
@@ -958,7 +1025,7 @@ $(function() {
             ajax: {
                 url: '{{ route('marketing.content-list.datatable') }}',
                 data: function(d) {
-                    d.filter_status = $('#contentListStatusFilter').val() || '';
+                    d.filter_status = contentListStatusFilter || '';
                 }
             },
             order: [[1, 'asc']],
@@ -982,9 +1049,44 @@ $(function() {
                 { data: 'action', name: 'action', orderable: false, searchable: false },
             ]
         });
+
+        loadContentListStats();
     }
 
-    $('#contentListStatusFilter').on('change', function() {
+    function renderContentListStats(stats) {
+        var data = stats || {};
+        var items = [
+            { key: 'pending', label: 'Pending' },
+            { key: 'approved', label: 'Approved' },
+            { key: 'rejected', label: 'Rejected' },
+            { key: 'scheduled', label: 'Scheduled' }
+        ];
+
+        var html = items.map(function(item) {
+            var count = Number(data[item.key] || 0);
+            var isActive = contentListStatusFilter.toLowerCase() === item.label.toLowerCase();
+            return '<button type="button" class="content-list-stat-chip ' + item.key + (isActive ? ' is-active' : '') + '" data-status="' + item.label + '"><span>' + item.label + '</span><span class="count">' + count + '</span></button>';
+        }).join('');
+
+        $('#contentListStatusStats').html(html);
+    }
+
+    function loadContentListStats() {
+        if (!$('#contentListStatusStats').length) return;
+
+        $.get('{{ route('marketing.content-list.stats') }}')
+            .done(function(res) {
+                renderContentListStats(res || {});
+            })
+            .fail(function() {
+                $('#contentListStatusStats').html('<span class="text-muted small">Gagal memuat statistik.</span>');
+            });
+    }
+
+    $(document).on('click', '#contentListStatusStats .content-list-stat-chip', function() {
+        var selectedStatus = ($(this).data('status') || '').toString();
+        contentListStatusFilter = contentListStatusFilter === selectedStatus ? '' : selectedStatus;
+        loadContentListStats();
         if (contentListTable) {
             contentListTable.ajax.reload();
         }
@@ -1637,6 +1739,7 @@ $(function() {
         }).done(function() {
             $('#contentListModal').modal('hide');
             if (contentListTable) contentListTable.ajax.reload(null, false);
+            loadContentListStats();
             Swal.fire('Sukses', 'Content list berhasil disimpan.', 'success');
         }).fail(function(xhr) {
             var msg = 'Terjadi kesalahan.';
@@ -1675,6 +1778,7 @@ $(function() {
                 data: { _method: 'DELETE' }
             }).done(function() {
                 if (contentListTable) contentListTable.ajax.reload(null, false);
+                loadContentListStats();
                 Swal.fire('Sukses', 'Content list berhasil dihapus.', 'success');
             }).fail(function(xhr) {
                 var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menghapus content list.';
@@ -1690,10 +1794,27 @@ $(function() {
         $.post('/marketing/content-list/' + id + '/approve', { approval_status: 'Approved' })
             .done(function() {
                 if (contentListTable) contentListTable.ajax.reload(null, false);
+                loadContentListStats();
                 Swal.fire('Sukses', 'Content list berhasil di-approve.', 'success');
             })
             .fail(function(xhr) {
                 var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menyimpan approval.';
+                Swal.fire('Error', msg, 'error');
+            });
+    });
+
+    $(document).on('click', '.btn-content-list-reject', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+
+        $.post('/marketing/content-list/' + id + '/approve', { approval_status: 'Rejected' })
+            .done(function() {
+                if (contentListTable) contentListTable.ajax.reload(null, false);
+                loadContentListStats();
+                Swal.fire('Sukses', 'Content list berhasil di-reject.', 'success');
+            })
+            .fail(function(xhr) {
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menyimpan rejection.';
                 Swal.fire('Error', msg, 'error');
             });
     });

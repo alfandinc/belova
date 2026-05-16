@@ -1777,6 +1777,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
 
     // Content List Management
     Route::get('content-list/datatable', [\App\Http\Controllers\Marketing\ContentListController::class, 'datatable'])->name('marketing.content-list.datatable');
+    Route::get('content-list/stats', [\App\Http\Controllers\Marketing\ContentListController::class, 'stats'])->name('marketing.content-list.stats');
     Route::get('content-list/{id}', [\App\Http\Controllers\Marketing\ContentListController::class, 'show'])->name('marketing.content-list.show');
     Route::get('content-list/{id}/schedule-payload', [\App\Http\Controllers\Marketing\ContentListController::class, 'schedulePayload'])->name('marketing.content-list.schedule-payload');
     Route::post('content-list', [\App\Http\Controllers\Marketing\ContentListController::class, 'store'])->name('marketing.content-list.store');

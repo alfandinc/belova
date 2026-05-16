@@ -10,9 +10,27 @@ use Yajra\DataTables\DataTables;
 
 class ContentListController extends Controller
 {
+    public function stats()
+    {
+        $stats = ContentList::query()
+            ->selectRaw("SUM(CASE WHEN approval_status = 'Pending' AND scheduled_plan_id IS NULL THEN 1 ELSE 0 END) as pending_count")
+            ->selectRaw("SUM(CASE WHEN approval_status = 'Approved' AND scheduled_plan_id IS NULL THEN 1 ELSE 0 END) as approved_count")
+            ->selectRaw("SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) as rejected_count")
+            ->selectRaw("SUM(CASE WHEN scheduled_plan_id IS NOT NULL THEN 1 ELSE 0 END) as scheduled_count")
+            ->first();
+
+        return response()->json([
+            'pending' => (int) ($stats->pending_count ?? 0),
+            'approved' => (int) ($stats->approved_count ?? 0),
+            'rejected' => (int) ($stats->rejected_count ?? 0),
+            'scheduled' => (int) ($stats->scheduled_count ?? 0),
+        ]);
+    }
+
     public function datatable(Request $request)
     {
         $query = ContentList::with(['assignedTo', 'approvedBy', 'scheduledPlan']);
+        $isManager = Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']);
 
         if ($request->filled('filter_status')) {
             $status = strtolower((string) $request->filter_status);
@@ -30,6 +48,24 @@ class ContentListController extends Controller
             }
         } elseif ($request->filled('approval_status')) {
             $query->where('approval_status', $request->approval_status);
+        }
+
+        if ($isManager) {
+            $query->orderByRaw("CASE
+                WHEN approval_status = 'Pending' AND scheduled_plan_id IS NULL THEN 0
+                WHEN approval_status = 'Approved' AND scheduled_plan_id IS NULL THEN 1
+                WHEN approval_status = 'Rejected' THEN 2
+                WHEN scheduled_plan_id IS NOT NULL THEN 3
+                ELSE 4
+            END");
+        } else {
+            $query->orderByRaw("CASE
+                WHEN approval_status = 'Approved' AND scheduled_plan_id IS NULL THEN 0
+                WHEN approval_status = 'Rejected' THEN 1
+                WHEN approval_status = 'Pending' AND scheduled_plan_id IS NULL THEN 2
+                WHEN scheduled_plan_id IS NOT NULL THEN 3
+                ELSE 4
+            END");
         }
 
         return DataTables::of($query)
@@ -89,12 +125,17 @@ class ContentListController extends Controller
             })
             ->addColumn('action', function ($row) {
                 $buttons = [];
+                $canApprove = Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']);
 
                 $status = strtolower($row->approval_status ?? 'pending');
                 $isScheduled = (bool) ($row->scheduled_plan_id && $row->scheduledPlan);
 
-                if ($status !== 'approved' && !$isScheduled) {
+                if ($canApprove && $status !== 'approved' && !$isScheduled) {
                     $buttons[] = '<button type="button" class="btn btn-sm btn-success btn-content-list-approve" data-id="' . $row->id . '"><i class="fas fa-check"></i></button>';
+                }
+
+                if ($canApprove && $status !== 'rejected' && !$isScheduled) {
+                    $buttons[] = '<button type="button" class="btn btn-sm btn-warning btn-content-list-reject" data-id="' . $row->id . '"><i class="fas fa-times"></i></button>';
                 }
 
                 if ($status === 'approved' && !$isScheduled) {
@@ -161,6 +202,8 @@ class ContentListController extends Controller
 
     public function approve(Request $request, $id)
     {
+        abort_unless(Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']), 403);
+
         $list = ContentList::findOrFail($id);
         $payload = $request->validate([
             'approval_status' => 'required|string|in:Pending,Approved,Rejected',
