@@ -49,4 +49,9 @@ class Dokter extends Model
     {
         return $this->hasOne(\App\Models\Satusehat\DokterMapping::class, 'dokter_id');
     }
+
+    public function slimmingRecords()
+    {
+        return $this->hasMany(Slimming::class, 'dokter_id');
+    }
 }

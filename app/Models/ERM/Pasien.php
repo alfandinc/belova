@@ -60,6 +60,11 @@ class Pasien extends Model
         return $this->hasMany(Visitation::class, 'pasien_id');
     }
 
+    public function slimmingRecords()
+    {
+        return $this->hasMany(Slimming::class, 'pasien_id');
+    }
+
     /**
      * Pasien merchandise receipts (pivot records)
      */

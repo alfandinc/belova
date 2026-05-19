@@ -110,6 +110,13 @@
                 </li>
 
                 <li>
+                    <a href="{{ route('erm.slimming.create', $visitation->id) }}" target="_blank">
+                        <i data-feather="sliders" class="align-self-center menu-icon"></i>
+                        <span>Slimming</span>
+                    </a>
+                </li>
+
+                <li>
                     <a href="{{ route('erm.riwayatkunjungan.index', $visitation->pasien_id) }}" target="_blank">
                         <i data-feather="book-open" class="align-self-center menu-icon"></i>
                         <span>Riwayat Kunjungan</span>

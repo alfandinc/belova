@@ -157,4 +157,9 @@ class Visitation extends Model
     {
         return $this->hasMany(SuratMondok::class, 'pasien_id', 'pasien_id');
     }
+
+    public function slimmingRecords()
+    {
+        return $this->hasMany(Slimming::class, 'visitation_id');
+    }
 }

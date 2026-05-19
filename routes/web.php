@@ -993,6 +993,11 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/tindakan/sop/{id}', [TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
 
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
+
+    // Slimming
+    Route::get('/slimming/{visitation_id}/create', [\App\Http\Controllers\ERM\SlimmingController::class, 'create'])->name('erm.slimming.create');
+    Route::post('/slimming/store', [\App\Http\Controllers\ERM\SlimmingController::class, 'store'])->name('erm.slimming.store');
+    Route::get('/slimming/{visitation_id}/data', [\App\Http\Controllers\ERM\SlimmingController::class, 'data'])->name('erm.slimming.data');
     
     // SPK Routes (Old system - keep for backward compatibility)
     Route::get('/tindakan/spk/by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');
