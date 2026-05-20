@@ -27,6 +27,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class RawatJalanController extends Controller
 {
+    private const REALTIME_NOTIFICATION_MAX_AGE_MINUTES = 15;
+
     /**
      * Lazy-loaded modal HTML for common Rawat Jalan modals.
      * Kept server-rendered so the UI markup stays identical to the original Blade.
@@ -202,19 +204,32 @@ class RawatJalanController extends Controller
         $latestUnreadQuery = $user->unreadNotifications()
             ->where('type', $notificationClass);
 
+        $sessionSinceMs = (int) session('rawatjalan_realtime_notification_since_ms', 0);
+        if ($sessionSinceMs <= 0) {
+            $sessionSinceMs = now()->valueOf();
+            session(['rawatjalan_realtime_notification_since_ms' => $sessionSinceMs]);
+        }
+
+        $effectiveSinceMs = $sessionSinceMs;
         if ($request->filled('since_ms')) {
             try {
-                $since = Carbon::createFromTimestampMs((int) $request->input('since_ms'), config('app.timezone'));
-                $latestUnreadQuery->where('created_at', '>=', $since);
+                $clientSinceMs = (int) $request->input('since_ms');
+                if ($clientSinceMs > 0) {
+                    $effectiveSinceMs = max($sessionSinceMs, $clientSinceMs);
+                }
             } catch (\Throwable $e) {
-                // Ignore invalid client timestamps and fall back to existing behavior.
+                // Ignore invalid client timestamps and keep the current session baseline.
             }
         }
+
+        $freshnessFloorMs = now()->subMinutes(self::REALTIME_NOTIFICATION_MAX_AGE_MINUTES)->valueOf();
+        $since = Carbon::createFromTimestampMs(max($effectiveSinceMs, $freshnessFloorMs), config('app.timezone'));
+        $latestUnreadQuery->where('created_at', '>=', $since);
 
         $notif = $latestUnreadQuery
             ->latest()
             ->first();
-        $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
+        $deliveredNotificationIds = (array) session('rawatjalan_delivered_notification_ids', []);
         if ($notif) {
             $unreadCount = $user->unreadNotifications()
                 ->where('type', $notificationClass)
@@ -280,7 +295,7 @@ class RawatJalanController extends Controller
                 ->update(['read_at' => now()]);
         }
 
-        $deliveredNotificationIds = session('rawatjalan_delivered_notification_ids', []);
+        $deliveredNotificationIds = (array) session('rawatjalan_delivered_notification_ids', []);
         if (!empty($deliveredNotificationIds)) {
             session([
                 'rawatjalan_delivered_notification_ids' => array_values(array_filter($deliveredNotificationIds, function ($id) use ($notification) {

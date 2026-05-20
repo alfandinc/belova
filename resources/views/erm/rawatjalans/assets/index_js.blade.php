@@ -92,6 +92,8 @@
             '<style id="rawatjalan-notification-popup-style">'
             + '.swal2-icon.swal2-info.swal2-door-icon{border-color:#17a2b8;color:#17a2b8;}'
             + '.swal2-door-icon .fas{font-size:2.2rem;color:#17a2b8;line-height:1;}'
+            + '.swal2-icon.swal2-info.swal2-call-icon{border-color:#f59e0b;color:#f59e0b;}'
+            + '.swal2-call-icon .fas{font-size:2.2rem;color:#f59e0b;line-height:1;}'
             + '</style>'
         );
     }
@@ -198,17 +200,34 @@
                 window.__rawatjalanActiveDokterNotificationId = data.id;
                 let shouldPlaySound = !data.dokumen_url;
                 let soundFile = '/sounds/notif.mp3';
+                let popupText = data.message || 'Ada notifikasi baru.';
+                let popupIconHtml = null;
+                let popupIcon = 'info';
+                let popupCustomClass = {};
                 if (data.message === 'Mohon buka pintu untuk pasien.') {
                     soundFile = '/sounds/bell.wav';
+                    popupIconHtml = '<i class="fas fa-door-open"></i>';
+                    popupCustomClass = {
+                        icon: 'swal2-door-icon'
+                    };
+                } else if (data.message === 'Mohon datang ke ruang dokter.') {
+                    popupIconHtml = '<i class="fas fa-user-md"></i>';
+                    popupCustomClass = {
+                        icon: 'swal2-call-icon'
+                    };
+                } else if (data.dokumen_url && data.sender) {
+                    popupText = data.message + '\n(Dari: ' + data.sender + ')';
+                }
+
+                if (!data.dokumen_url && data.sender) {
+                    popupText += '\n(Dari: ' + data.sender + ')';
                 }
                 Swal.fire({
                     title: data.title || 'Notifikasi',
-                    text: 'Silakan buka dokumen pasien untuk melanjutkan pemeriksaan.' + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
-                    icon: 'info',
-                    iconHtml: '<i class="fas fa-door-open"></i>',
-                    customClass: {
-                        icon: 'swal2-door-icon'
-                    },
+                    text: popupText,
+                    icon: popupIcon,
+                    iconHtml: popupIconHtml,
+                    customClass: popupCustomClass,
                     confirmButtonText: 'OK',
                     showCancelButton: !!data.dokumen_url,
                     cancelButtonText: 'Buka Dokumen',
