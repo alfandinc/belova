@@ -1545,6 +1545,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
 
             Route::middleware('role:Admin')->group(function () {
                 Route::get('/indicators', [KpiAssessmentIndicatorController::class, 'index'])->name('indicators.index');
+                Route::get('/indicators/preview-data', [KpiAssessmentIndicatorController::class, 'previewData'])->name('indicators.preview.data');
+                Route::get('/indicators/preview/{position}', [KpiAssessmentIndicatorController::class, 'previewShow'])->name('indicators.preview.show');
                 Route::post('/indicators', [KpiAssessmentIndicatorController::class, 'store'])->name('indicators.store');
                 Route::put('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'update'])->name('indicators.update');
                 Route::delete('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'destroy'])->name('indicators.destroy');

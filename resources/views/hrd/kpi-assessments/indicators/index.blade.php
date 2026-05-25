@@ -10,8 +10,17 @@
         <div class="col-lg-4 mb-4">
             <div class="card" id="kpiIndicatorCreateSection">
                 <div class="card-body">
-                    <h4 class="card-title mb-3">Tambah Indikator</h4>
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h4 class="card-title mb-0">Tambah Indikator</h4>
+                        <button type="button" class="btn btn-outline-info btn-sm ml-3" data-toggle="modal" data-target="#kpiIndicatorGuideModal">
+                            Panduan Isi
+                        </button>
+                    </div>
                     <p class="text-muted">Admin menyiapkan indikator, bobot, dan alur applicability. Jadi indikator seperti Kepemimpinan cukup dibuat sekali untuk Head Manager ke Manager, tanpa duplikat per manager.</p>
+
+                    <div class="alert alert-light border small">
+                        Gunakan tombol <strong>Panduan Isi</strong> jika ingin melihat contoh pengisian tipe indikator, applicability, bobot, max score, dan cara perhitungannya.
+                    </div>
 
                     @if(session('success'))
                         <div class="alert alert-success">{{ session('success') }}</div>
@@ -275,6 +284,94 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="kpiIndicatorGuideModal" tabindex="-1" role="dialog" aria-labelledby="kpiIndicatorGuideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="kpiIndicatorGuideModalLabel">Panduan Pengisian Indikator KPI</h5>
+                    <div class="text-muted small">Gunakan panduan ini saat membuat master indikator baru.</div>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <h6>1. Isi field utama</h6>
+                    <div class="small text-muted mb-2">Setiap indikator minimal harus punya nama, tipe, applicability, bobot, dan max score.</div>
+                    <table class="table table-sm table-bordered">
+                        <tbody>
+                            <tr>
+                                <th style="width: 180px;">Nama Indikator</th>
+                                <td>Nama yang akan tampil saat assessor mengisi KPI. Contoh: Kehadiran, SOP Kerja, Kepemimpinan.</td>
+                            </tr>
+                            <tr>
+                                <th>Tipe</th>
+                                <td><strong>Global</strong> untuk indikator umum. <strong>Technical</strong> untuk indikator teknis yang spesifik ke alur penilai tertentu.</td>
+                            </tr>
+                            <tr>
+                                <th>Berlaku Untuk Alur</th>
+                                <td>Tentukan siapa menilai siapa. Contoh: <strong>HRD - Head Manager</strong>, <strong>Manager - Employee</strong>, <strong>CEO - Head Manager</strong>.</td>
+                            </tr>
+                            <tr>
+                                <th>Jabatan</th>
+                                <td>Pilih jabatan jika indikator hanya berlaku untuk posisi tertentu. Kosongkan jika indikator berlaku untuk semua target pada alur tersebut.</td>
+                            </tr>
+                            <tr>
+                                <th>Bobot (%)</th>
+                                <td>Isi bobot mentah indikator. Untuk technical, bobot ini akan dinormalisasi ke sisa porsi setelah global.</td>
+                            </tr>
+                            <tr>
+                                <th>Skor Maksimum</th>
+                                <td>Tentukan nilai tertinggi indikator. Contoh: pilih <strong>3</strong> jika skor hanya boleh 1-3, atau <strong>2</strong> jika hanya 1-2.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mb-4">
+                    <h6>2. Cara pilih tipe indikator</h6>
+                    <div class="small text-muted mb-2">Pilih tipe berdasarkan fungsi indikator dalam struktur KPI.</div>
+                    <div class="alert alert-light border mb-2">
+                        <strong>Global</strong>: dipakai langsung sebagai bagian total KPI. Cocok untuk Kehadiran, Attitude, Disiplin, Social Media Active.
+                    </div>
+                    <div class="alert alert-light border mb-0">
+                        <strong>Technical</strong>: dipakai sebagai distribusi internal pada porsi technical. Cocok untuk Ketepatan Desain, SOP Kerja, Jumlah Revisi, Kepemimpinan Teknis.
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h6>3. Contoh struktur bobot</h6>
+                    <div class="small text-muted mb-2">Misal untuk satu jabatan:</div>
+                    <ul class="mb-2 pl-3">
+                        <li>Kehadiran = global 30%</li>
+                        <li>Social Media Active = global 20%</li>
+                        <li>Technical total internal = 100% dengan rincian Tech 1 = 15%, Tech 2 = 75%, Tech 3 = 10%</li>
+                    </ul>
+                    <div class="small text-muted mb-2">Maka sistem akan menghitung:</div>
+                    <ul class="mb-0 pl-3">
+                        <li>Total global = 50%</li>
+                        <li>Sisa porsi technical = 50%</li>
+                        <li>Tech 1 efektif = 7.5%</li>
+                        <li>Tech 2 efektif = 37.5%</li>
+                        <li>Tech 3 efektif = 5%</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h6>4. Cara hitung skor</h6>
+                    <div class="small text-muted mb-2">Skor akhir indikator dihitung dari:</div>
+                    <div class="alert alert-light border mb-2">
+                        <strong>(nilai input / max score indikator) x bobot efektif</strong>
+                    </div>
+                    <div class="small text-muted">Contoh: jika Kehadiran bobot efektif 30%, max score 3, dan assessor memberi nilai 2.7, maka kontribusinya adalah <strong>(2.7 / 3) x 30 = 27</strong>.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -367,7 +464,12 @@
                     html += '<div class="card mb-3">';
                     html += '<div class="card-body">';
                     html += '<div class="d-flex justify-content-between align-items-center mb-3">';
-                    html += '<div><h6 class="mb-1">' + section.title + '</h6><div class="small text-muted">Subtotal assessor ini: ' + section.total_weight + '</div></div>';
+                    html += '<div><h6 class="mb-1">' + section.title + '</h6>';
+                    html += '<div class="small text-muted">Bobot final assessor ini: ' + section.total_weight + '</div>';
+                    if (section.raw_total_weight !== section.total_weight) {
+                        html += '<div class="small text-muted">Bobot raw sebelum normalisasi: ' + section.raw_total_weight + '</div>';
+                    }
+                    html += '</div>';
                     html += '<span class="badge badge-primary">' + section.short_label + '</span>';
                     html += '</div>';
                     html += '<div class="table-responsive">';
