@@ -323,7 +323,9 @@
                     render: function (data, type, row) {
                         var harga = data ? formatRupiah(data) : '-';
                         var diskon = row.harga_diskon ? formatRupiah(row.harga_diskon) : '-';
-                        var harga3 = row.harga_3_kali ? formatRupiah(row.harga_3_kali) : '-';
+                        var hargaPaketVisit = row.harga_paket_visit ? formatRupiah(row.harga_paket_visit) : '-';
+                        var multiVisitTotal = row.multi_visit_total || 3;
+                        var multiVisitLabel = multiVisitTotal + 'x Visit';
                         var firstRowValue = harga;
                         if (row.harga_diskon && row.harga_diskon !== null && row.harga_diskon !== '') {
                             if (row.diskon_active) {
@@ -335,9 +337,9 @@
 
                         var out = '<div class="price-block">';
                         out += '<div class="row"><div class="label">Normal</div><div class="value">' + firstRowValue + '</div></div>';
-                        // only show Harga 3x Visit when harga_3_kali has a value
-                        if (typeof row.harga_3_kali !== 'undefined' && row.harga_3_kali !== null && String(row.harga_3_kali).trim() !== '') {
-                            out += '<div class="row"><div class="label">3x Visit</div><div class="value">' + harga3 + '</div></div>';
+                        // only show package visit pricing when harga_paket_visit has a value
+                        if (typeof row.harga_paket_visit !== 'undefined' && row.harga_paket_visit !== null && String(row.harga_paket_visit).trim() !== '') {
+                            out += '<div class="row"><div class="label">' + multiVisitLabel + '</div><div class="value">' + hargaPaketVisit + '</div></div>';
                         }
                         out += '</div>';
                         return out;
@@ -354,10 +356,12 @@
                             out += '<div class="row"><div class="label"></div><div class="value">';
                             out += `<button class="btn btn-success btn-sm buat-tindakan" title="Buat Tindakan (Normal)" data-id="${row.id}" data-type="tindakan" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button>`;
                             out += '</div></div>';
-                            // 3x Visit row if available
-                            if (typeof row.harga_3_kali !== 'undefined' && row.harga_3_kali !== null && String(row.harga_3_kali).trim() !== '') {
+                            // package visit row if available
+                            if (typeof row.harga_paket_visit !== 'undefined' && row.harga_paket_visit !== null && String(row.harga_paket_visit).trim() !== '') {
+                                const multiVisitTotal = row.multi_visit_total || 3;
+                                const multiVisitLabel = multiVisitTotal + 'x Visit';
                                 out += '<div class="row"><div class="label"></div><div class="value">';
-                                out += `<button class="btn btn-primary btn-sm buat-tindakan" title="Buat Tindakan (3x Visit)" data-id="${row.id}" data-type="tindakan" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>3x Visit</button>`;
+                                out += `<button class="btn btn-primary btn-sm buat-tindakan" title="Buat Tindakan (${multiVisitLabel})" data-id="${row.id}" data-type="tindakan" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>${multiVisitLabel}</button>`;
                                 out += '</div></div>';
                             }
                             out += '</div>';
@@ -775,9 +779,11 @@
                         $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
                             if (!res.success) return;
                             const harga = res.harga || 0;
-                            const harga3 = res.harga_3_kali || null;
+                            const hargaPaketVisit = res.harga_paket_visit || null;
+                            const multiVisitTotal = res.multi_visit_total || 3;
+                            const multiVisitLabel = multiVisitTotal + 'x Visit';
                             const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
-                            const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                            const formattedHargaPaket = (hargaPaketVisit !== null && hargaPaketVisit !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(hargaPaketVisit) : '';
                             const $form = $('#modalInformConsentBody').find('#informConsentForm');
                             if ($form.length) {
                                 const preferred = window.preferredHargaType || 'normal';
@@ -785,8 +791,8 @@
                                 const checked3x = preferred === '3x' ? 'checked' : '';
                                 let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
                                 html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
-                                if (formattedHarga3) {
-                                    html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
+                                if (formattedHargaPaket) {
+                                    html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">${multiVisitLabel} - ${formattedHargaPaket}</label></div>`;
                                 }
                                 html += '</div></div>';
                                 $form.prepend(html);
@@ -951,18 +957,20 @@
                             $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
                                 if (!res.success) return;
                                 const harga = res.harga || 0;
-                                const harga3 = res.harga_3_kali || null;
+                                const hargaPaketVisit = res.harga_paket_visit || null;
                                 const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
-                                const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                                const formattedHargaPaket = (hargaPaketVisit !== null && hargaPaketVisit !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(hargaPaketVisit) : '';
                                 const $form = $(container).find('#informConsentForm');
                                 if ($form.length) {
                                     const preferred = window.preferredHargaType || 'normal';
                                     const checkedNormal = preferred === 'normal' ? 'checked' : '';
                                     const checked3x = preferred === '3x' ? 'checked' : '';
+                                    const multiVisitTotal = res.multi_visit_total || 3;
+                                    const multiVisitLabel = multiVisitTotal + 'x Visit';
                                     let html2 = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
                                     html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal_step_${stepIdx}" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal_step_${stepIdx}">Normal - ${formattedHarga}</label></div>`;
-                                    if (formattedHarga3) {
-                                        html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x_step_${stepIdx}" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x_step_${stepIdx}">3x Visit - ${formattedHarga3}</label></div>`;
+                                    if (formattedHargaPaket) {
+                                        html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x_step_${stepIdx}" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x_step_${stepIdx}">${multiVisitLabel} - ${formattedHargaPaket}</label></div>`;
                                     }
                                     html2 += '</div></div>';
                                     $form.prepend(html2);

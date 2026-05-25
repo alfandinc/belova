@@ -210,7 +210,8 @@ class TindakanController extends Controller
             'harga' => $tindakan->harga,
             'harga_diskon' => $tindakan->harga_diskon,
             'diskon_active' => (bool)$tindakan->diskon_active,
-            'harga_3_kali' => $tindakan->harga_3_kali
+            'harga_paket_visit' => $tindakan->harga_paket_visit,
+            'multi_visit_total' => $tindakan->multi_visit_total
         ]);
     }
 
@@ -483,8 +484,10 @@ class TindakanController extends Controller
             // Handle normal vs 3x visit pricing & multi-visit usage
             $shouldCreateBilling = true;
             $billingAmount = $tindakan->harga;
+            $multiVisitTotal = max((int) ($tindakan->multi_visit_total ?: 3), 2);
+            $multiVisitLabel = $multiVisitTotal . 'x Visit';
 
-            if ($hargaType === '3x' && !empty($tindakan->harga_3_kali)) {
+            if ($hargaType === '3x' && !empty($tindakan->harga_paket_visit)) {
                 // Check for existing unused multi-visit usage for this patient & tindakan
                 $existingUsage = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
                     ->where('tindakan_id', $tindakan->id)
@@ -502,18 +505,18 @@ class TindakanController extends Controller
                     $billingAmount = 0;
                     $shouldCreateBilling = true;
                 } else {
-                    // create new multi-visit usage record (default total 3)
+                    // create new multi-visit usage record using tindakan-configured total
                     $newUsage = MultiVisitUsage::create([
                         'pasien_id' => $visitation->pasien_id,
                         'tindakan_id' => $tindakan->id,
                         'first_visitation_id' => $data['visitation_id'],
-                        'total' => 3,
+                        'total' => $multiVisitTotal,
                         'used' => 1,
                     ]);
                     $riwayatTindakan->multi_visit_usage_id = $newUsage->id;
                     $riwayatTindakan->save();
-                    // charge the 3x visit price on first use
-                    $billingAmount = $tindakan->harga_3_kali;
+                    // charge the multi-visit package price on first use
+                    $billingAmount = $tindakan->harga_paket_visit;
                     $shouldCreateBilling = true;
                 }
             }
@@ -525,7 +528,7 @@ class TindakanController extends Controller
                     if (isset($existingUsage) && $existingUsage) {
                         $billingKeterangan .= ' (' . ($existingUsage->used ?? 0) . '/' . ($existingUsage->total ?? 3) . ') - No Charge';
                     } elseif (isset($newUsage) && $newUsage) {
-                        $billingKeterangan .= ' (1/' . ($newUsage->total ?? 3) . ') - 3x Charge';
+                        $billingKeterangan .= ' (1/' . ($newUsage->total ?? $multiVisitTotal) . ') - ' . $multiVisitLabel . ' Charge';
                     }
                 }
 

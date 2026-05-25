@@ -25,6 +25,9 @@ class SlimmingController extends Controller
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
         $riwayatTindakanOptions = $visitation->riwayatTindakan()
             ->with('tindakan')
+            ->whereHas('tindakan', function ($query) {
+                $query->where('is_slimming', true);
+            })
             ->orderByDesc('tanggal_tindakan')
             ->get();
 
@@ -38,7 +41,7 @@ class SlimmingController extends Controller
     {
         $data = $request->validate([
             'visitation_id' => ['required', 'string', 'exists:erm_visitations,id'],
-            'riwayat_tindakan_id' => ['nullable', 'integer', 'exists:erm_riwayat_tindakan,id'],
+            'riwayat_tindakan_id' => ['required', 'integer', 'exists:erm_riwayat_tindakan,id'],
             'tb' => ['nullable', 'numeric'],
             'bb' => ['nullable', 'numeric'],
             'target_weight' => ['nullable', 'numeric'],
@@ -70,16 +73,17 @@ class SlimmingController extends Controller
 
         $visitation = Visitation::findOrFail($data['visitation_id']);
 
-        if (!empty($data['riwayat_tindakan_id'])) {
-            $ownsRiwayat = $visitation->riwayatTindakan()
-                ->whereKey($data['riwayat_tindakan_id'])
-                ->exists();
+        $ownsRiwayat = $visitation->riwayatTindakan()
+            ->whereKey($data['riwayat_tindakan_id'])
+            ->whereHas('tindakan', function ($query) {
+                $query->where('is_slimming', true);
+            })
+            ->exists();
 
-            if (!$ownsRiwayat) {
-                return back()
-                    ->withErrors(['riwayat_tindakan_id' => 'Riwayat tindakan tidak cocok dengan visitation ini.'])
-                    ->withInput();
-            }
+        if (!$ownsRiwayat) {
+            return back()
+                ->withErrors(['riwayat_tindakan_id' => 'Riwayat tindakan slimming tidak cocok dengan visitation ini.'])
+                ->withInput();
         }
 
         $pasien = $visitation->pasien;

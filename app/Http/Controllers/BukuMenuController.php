@@ -45,7 +45,7 @@ class BukuMenuController extends Controller
     public function tindakanData(Request $request)
     {
         $query = Tindakan::query()
-            ->select(['id', 'nama', 'harga', 'harga_diskon', 'diskon_active', 'harga_3_kali'])
+            ->select(['id', 'nama', 'harga', 'harga_diskon', 'diskon_active', 'harga_paket_visit', 'multi_visit_total'])
             ->where('is_active', 1)
             ->with('kodeTindakans:id,nama');
 
@@ -61,8 +61,8 @@ class BukuMenuController extends Controller
             ->addColumn('jenis_harga', function ($row) {
                 $lines = [];
                 $lines[] = '<div class="row"><div class="label">Normal</div></div>';
-                if ($row->harga_3_kali !== null && $row->harga_3_kali !== '') {
-                    $lines[] = '<div class="row"><div class="label">3x Visit</div></div>';
+                if ($row->harga_paket_visit !== null && $row->harga_paket_visit !== '') {
+                    $lines[] = '<div class="row"><div class="label">' . (($row->multi_visit_total ?: 3) . 'x Visit') . '</div></div>';
                 }
                 return '<div class="price-block jenis-harga">' . implode('', $lines) . '</div>';
             })
@@ -71,7 +71,7 @@ class BukuMenuController extends Controller
 
                 $harga = $row->harga ?? 0;
                 $harga_diskon = $row->harga_diskon;
-                $harga_3 = $row->harga_3_kali;
+                $harga_paket = $row->harga_paket_visit;
 
                 // Build normal price row: original (crossed) on the left, active price on the right
                 $original = '';
@@ -87,8 +87,8 @@ class BukuMenuController extends Controller
                 $rowsHtml = '';
                 $rowsHtml .= '<div class="price-row"><div class="original-price">' . ($original ? $fmt($harga) : '') . '</div><div class="active-price">' . $active . '</div></div>';
 
-                if ($harga_3 !== null && $harga_3 !== '') {
-                    $rowsHtml .= '<div class="price-row"><div class="original-price"></div><div class="active-price">' . $fmt($harga_3) . '</div></div>';
+                if ($harga_paket !== null && $harga_paket !== '') {
+                    $rowsHtml .= '<div class="price-row"><div class="original-price"></div><div class="active-price">' . $fmt($harga_paket) . '</div></div>';
                 }
 
                 return '<div class="price-block list-harga">' . $rowsHtml . '</div>';

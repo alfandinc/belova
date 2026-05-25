@@ -86,7 +86,9 @@
                                     <th>Name</th>
                                     <th>Harga Normal</th>
                                     <th>Harga Diskon</th>
-                                    <th>Harga 3x</th>
+                                    <th>Harga Paket Visit</th>
+                                    <th>Slimming</th>
+                                    <th>Visit Total</th>
                                     <th>Specialist</th>
                                     <th>Status</th>
                                     <th>Actions</th>
@@ -205,6 +207,12 @@
                                 <label class="form-check-label" for="is_active">Active</label>
                             </div>
                         </div>
+                        <div class="form-group col-md-2 d-flex align-items-center">
+                            <div class="form-check mb-0">
+                                <input type="checkbox" class="form-check-input" id="is_slimming" name="is_slimming" value="1">
+                                <label class="form-check-label" for="is_slimming">Slimming</label>
+                            </div>
+                        </div>
                     </div>
 
                     {{-- <div class="form-group">
@@ -230,9 +238,16 @@
                             <div class="invalid-feedback" id="diskon_active-error"></div>
                         </div>
                         <div class="form-group col-md-4">
-                            <label for="harga_3_kali">Harga 3 Kali</label>
-                            <input type="number" class="form-control" id="harga_3_kali" name="harga_3_kali" step="0.01" placeholder="Optional">
-                            <div class="invalid-feedback" id="harga_3_kali-error"></div>
+                            <label for="harga_paket_visit">Harga Paket Visit</label>
+                            <input type="number" class="form-control" id="harga_paket_visit" name="harga_paket_visit" step="0.01" placeholder="Isi harga paket untuk 3x atau 4x visit">
+                            <div class="invalid-feedback" id="harga_paket_visit-error"></div>
+                            <small class="form-text text-muted">Harga ini dipakai untuk paket visit. Tentukan jumlah paket di field `Jumlah Visit Paket`.</small>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="multi_visit_total">Jumlah Visit Paket</label>
+                            <input type="number" class="form-control" id="multi_visit_total" name="multi_visit_total" step="1" min="2" placeholder="Contoh: 3 atau 4">
+                            <div class="invalid-feedback" id="multi_visit_total-error"></div>
+                            <small class="form-text text-muted">Isi `3` untuk paket 3x atau `4` untuk paket 4x.</small>
                         </div>
                     </div>
                     <div class="form-group">
@@ -285,7 +300,7 @@
                     <div class="form-group">
                         <label for="csvFile">CSV File</label>
                         <input type="file" id="csvFileTindakan" name="csv" accept=".csv,text/csv" class="form-control" required />
-                        <small class="form-text text-muted">Expected columns: name/nama, harga normal, harga diskon, harga 3x, specialist (name or id), is_active (1 or 0). Header row optional.</small>
+                        <small class="form-text text-muted">Expected columns: name/nama, harga normal, harga diskon, harga paket, multi_visit_total, specialist (name or id), is_active (1 or 0), is_slimming (1 or 0). Header row optional.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -740,11 +755,28 @@
                     }
                 },
                 {
-                    data: 'harga_3_kali',
-                    name: 'harga_3_kali',
+                    data: 'harga_paket_visit',
+                    name: 'harga_paket_visit',
                     render: function(data) {
                         if (data == null || data === '') return '-';
                         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(data);
+                    }
+                },
+                {
+                    data: 'is_slimming',
+                    name: 'is_slimming',
+                    render: function(data) {
+                        return data == 1 || data === true
+                            ? '<span class="badge badge-info">Slimming</span>'
+                            : '<span class="badge badge-light">No</span>';
+                    }
+                },
+                {
+                    data: 'multi_visit_total',
+                    name: 'multi_visit_total',
+                    render: function(data) {
+                        if (data == null || data === '') return '-';
+                        return data + 'x';
                     }
                 },
                 {data: 'spesialis_nama', name: 'spesialis_nama'},
@@ -974,12 +1006,14 @@
                     $('#deskripsi').val(data.deskripsi);
                     $('#harga').val(data.harga);
                        $('#harga_diskon').val(data.harga_diskon || '');
-                       $('#harga_3_kali').val(data.harga_3_kali || '');
+                       $('#harga_paket_visit').val(data.harga_paket_visit || '');
+                       $('#multi_visit_total').val(data.multi_visit_total || '');
                        if (data.diskon_active && (data.diskon_active == 1 || data.diskon_active === true)) {
                            $('#diskon_active').prop('checked', true);
                        } else {
                            $('#diskon_active').prop('checked', false);
                        }
+                       $('#is_slimming').prop('checked', !!(data.is_slimming && (data.is_slimming == 1 || data.is_slimming === true)));
                        if (data.is_active && (data.is_active == 1 || data.is_active === true)) {
                            $('#is_active').prop('checked', true);
                        } else {
@@ -1171,6 +1205,7 @@
             $('#tindakan_id').val('');
             $('.select2').val('').trigger('change');
                 $('#kode_tindakan_ids').val('').trigger('change');
+            $('#is_slimming').prop('checked', false);
         }
         
         // Show error alert

@@ -72,6 +72,7 @@
     $pasienBirthDate = optional($visitation->pasien)->tanggal_lahir;
     $pasienGender = strtolower(trim((string) optional($visitation->pasien)->gender));
     $pasienAge = $pasienBirthDate ? \Carbon\Carbon::parse($pasienBirthDate)->age : null;
+    $hasSlimmingRiwayat = $riwayatTindakanOptions->isNotEmpty();
 @endphp
 
 @section('content')
@@ -554,18 +555,22 @@
                             <div class="col-12">
                                 <div class="form-group mb-0">
                                     <label for="riwayat_tindakan_id">Riwayat Tindakan ID</label>
-                                    <select name="riwayat_tindakan_id" id="riwayat_tindakan_id" class="form-control">
-                                        <option value="">Pilih riwayat tindakan</option>
+                                    <select name="riwayat_tindakan_id" id="riwayat_tindakan_id" class="form-control" required>
+                                        <option value="">Pilih riwayat tindakan slimming</option>
                                         @foreach($riwayatTindakanOptions as $riwayatTindakan)
                                             <option value="{{ $riwayatTindakan->id }}" {{ old('riwayat_tindakan_id') == $riwayatTindakan->id ? 'selected' : '' }}>
                                                 {{ $riwayatTindakan->id }} - {{ optional($riwayatTindakan->tindakan)->nama ?? 'Tanpa tindakan' }}
                                             </option>
                                         @endforeach
                                     </select>
+                                    @if(!$hasSlimmingRiwayat)
+                                        <small class="text-danger d-block mt-2">Tambahkan tindakan yang ditandai sebagai slimming di menu Tindakan terlebih dahulu. Setelah riwayat tindakan dibuat, asesmen slimming baru bisa diisi.</small>
+                                    @endif
                                 </div>
                             </div>
                         </div>
 
+                        <fieldset {{ $hasSlimmingRiwayat ? '' : 'disabled' }}>
                         <div class="slimming-sheet mb-4">
                             <div class="row mb-4">
                                 <div class="col-lg-6">
@@ -862,8 +867,9 @@
                         </div>
 
                         <div class="text-right">
-                            <button type="submit" class="btn btn-primary">Simpan Slimming</button>
+                            <button type="submit" class="btn btn-primary" {{ $hasSlimmingRiwayat ? '' : 'disabled' }}>Simpan Slimming</button>
                         </div>
+                        </fieldset>
                     </form>
                 </div>
             </div>

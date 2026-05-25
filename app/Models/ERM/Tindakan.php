@@ -15,10 +15,12 @@ class Tindakan extends Model
         return $this->belongsToMany(KodeTindakan::class, 'erm_tindakan_kode_tindakan', 'tindakan_id', 'kode_tindakan_id');
     }
     protected $table = 'erm_tindakan';
-    protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id', 'harga_diskon', 'diskon_active', 'is_active', 'harga_3_kali'];
+    protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id', 'harga_diskon', 'diskon_active', 'is_active', 'harga_paket_visit', 'is_slimming', 'multi_visit_total'];
     protected $casts = [
         'is_active' => 'boolean',
-        'harga_3_kali' => 'float',
+        'is_slimming' => 'boolean',
+        'harga_paket_visit' => 'float',
+        'multi_visit_total' => 'integer',
     ];
 
     public function paketTindakan()

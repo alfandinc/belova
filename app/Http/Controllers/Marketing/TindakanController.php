@@ -203,7 +203,9 @@ class TindakanController extends Controller
             'kode_tindakan_ids' => 'array',
             'kode_tindakan_ids.*' => 'exists:erm_kode_tindakan,id',
             'is_active' => 'nullable|boolean',
-            'harga_3_kali' => 'nullable|numeric|min:0',
+            'harga_paket_visit' => 'nullable|numeric|min:0',
+            'is_slimming' => 'nullable|boolean',
+            'multi_visit_total' => 'nullable|integer|min:2|max:20',
         ]);
 
         try {
@@ -218,7 +220,9 @@ class TindakanController extends Controller
                     'diskon_active' => $request->diskon_active ?? 0,
                     'spesialis_id' => $request->spesialis_id,
                         'is_active' => $request->input('is_active', 1),
-                        'harga_3_kali' => $request->input('harga_3_kali', null),
+                        'harga_paket_visit' => $request->input('harga_paket_visit', null),
+                        'is_slimming' => $request->boolean('is_slimming'),
+                        'multi_visit_total' => $request->filled('multi_visit_total') ? $request->integer('multi_visit_total') : null,
                 ]
             );
 
@@ -408,7 +412,7 @@ class TindakanController extends Controller
                     if ($rowIndex === 1) {
                         $lowerCols = array_map(function($c){ return strtolower(trim($c)); }, $data);
                         // if first row contains known header keywords, treat as header
-                        $known = ['nama', 'name', 'harga normal', 'harga_normal', 'harga', 'harga diskon', 'harga_diskon', 'harga 3x', 'harga_3_kali', 'spesialis', 'specialist', 'spesialisasi', 'is_active', 'active', 'aktif'];
+                        $known = ['nama', 'name', 'harga normal', 'harga_normal', 'harga', 'harga diskon', 'harga_diskon', 'harga paket', 'harga_paket_visit', 'harga 3x', 'harga_3_kali', 'spesialis', 'specialist', 'spesialisasi', 'is_active', 'active', 'aktif', 'is_slimming', 'slimming', 'multi_visit_total'];
                         $intersect = array_intersect($lowerCols, $known);
                         if (count($intersect) >= 2) {
                             $headers = $lowerCols;
@@ -429,16 +433,20 @@ class TindakanController extends Controller
                         $nama = $get(['nama','name','nama tindakan','nama_tindakan']);
                         $harga = $get(['harga normal','harga_normal','harga']);
                         $harga_diskon = $get(['harga diskon','harga_diskon','diskon']);
-                        $harga_3_kali = $get(['harga 3x','harga_3_kali','harga3x','harga_3x']);
+                        $harga_paket_visit = $get(['harga paket','harga_paket_visit','harga 3x','harga_3_kali','harga3x','harga_3x']);
                         $spesialisRaw = $get(['spesialis','specialist','spesialisasi','spesialis_id']);
+                        $multiVisitTotalRaw = $get(['multi_visit_total','jumlah visit paket','visit total']);
+                        $isSlimmingRaw = $get(['is_slimming','slimming']);
                         $isActiveRaw = $get(['is_active','active','aktif']);
                     } else {
-                        // expected order: nama, harga, harga_diskon, harga_3_kali, spesialis
+                        // expected order: nama, harga, harga_diskon, harga_paket_visit, spesialis
                         $nama = isset($data[0]) ? trim($data[0]) : null;
                         $harga = isset($data[1]) ? trim($data[1]) : null;
                         $harga_diskon = isset($data[2]) ? trim($data[2]) : null;
-                        $harga_3_kali = isset($data[3]) ? trim($data[3]) : null;
+                        $harga_paket_visit = isset($data[3]) ? trim($data[3]) : null;
                         $spesialisRaw = isset($data[4]) ? trim($data[4]) : null;
+                        $multiVisitTotalRaw = isset($data[5]) ? trim($data[5]) : null;
+                        $isSlimmingRaw = isset($data[6]) ? trim($data[6]) : null;
                         $isActiveRaw = isset($data[5]) ? trim($data[5]) : null;
                     }
 
@@ -473,7 +481,12 @@ class TindakanController extends Controller
 
                     $hargaVal = $parseNumber($harga);
                     $hargaDiskonVal = $parseNumber($harga_diskon);
-                    $harga3xVal = $parseNumber($harga_3_kali);
+                    $hargaPaketVisitVal = $parseNumber($harga_paket_visit);
+                    $multiVisitTotalVal = null;
+                    if ($multiVisitTotalRaw !== null && $multiVisitTotalRaw !== '') {
+                        $multiVisitTotalVal = max((int) $multiVisitTotalRaw, 2);
+                    }
+                    $isSlimmingVal = $parseBool($isSlimmingRaw);
 
                     // resolve specialist to id
                     $spesialis_id = null;
@@ -533,7 +546,9 @@ class TindakanController extends Controller
                                 'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
                             'spesialis_id' => $spesialis_id,
                                 'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
-                            'harga_3_kali' => $harga3xVal,
+                            'harga_paket_visit' => $hargaPaketVisitVal,
+                            'multi_visit_total' => $multiVisitTotalVal,
+                            'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
                         ]);
                         $created++;
                         $createdThis = true;
@@ -553,7 +568,9 @@ class TindakanController extends Controller
                                             'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
                                         'spesialis_id' => $spesialis_id,
                                             'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
-                                        'harga_3_kali' => $harga3xVal,
+                                        'harga_paket_visit' => $hargaPaketVisitVal,
+                                        'multi_visit_total' => $multiVisitTotalVal,
+                                        'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
                                     ]);
                                     $created++;
                                     $createdThis = true;
