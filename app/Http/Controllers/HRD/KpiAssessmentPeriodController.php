@@ -132,6 +132,22 @@ class KpiAssessmentPeriodController extends Controller
             ->with('success', 'Periode KPI Assessment ditutup. Data periode ini tetap immutable.');
     }
 
+    public function destroy(Request $request, KpiAssessmentPeriod $period): JsonResponse|RedirectResponse
+    {
+        $this->authorizeManagement();
+
+        $period->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Periode KPI Assessment berhasil dihapus beserta seluruh data di dalamnya.',
+            ]);
+        }
+
+        return redirect()->route('hrd.kpi_assessments.periods.index')
+            ->with('success', 'Periode KPI Assessment berhasil dihapus beserta seluruh data di dalamnya.');
+    }
+
     private function authorizeManagement(): void
     {
         abort_unless(Auth::user()?->hasAnyRole(['Hrd', 'Admin']), 403);

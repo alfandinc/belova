@@ -5,7 +5,9 @@ namespace App\Http\Controllers\HRD;
 use App\Http\Controllers\Controller;
 use App\Models\HRD\Employee;
 use App\Models\HRD\KpiAssessment;
+use App\Models\HRD\KpiAssessmentPeriod;
 use App\Models\HRD\KpiAssessmentPeriodIndicator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,19 +17,32 @@ use Illuminate\View\View;
 
 class KpiAssessmentController extends Controller
 {
-    public function myAssessments(): View|RedirectResponse
+    public function myAssessments(Request $request): View|RedirectResponse
     {
         $employee = $this->currentEmployee();
         if (!$employee) {
             return back()->with('error', 'Akun ini belum terhubung ke data pegawai.');
         }
 
+        $selectedMonth = $request->query('assessment_month', now()->format('Y-m'));
+        $assessmentMonth = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+
+        $availablePeriods = KpiAssessmentPeriod::query()
+            ->whereHas('assessments', function ($query) use ($employee) {
+                $query->where('evaluator_id', $employee->id);
+            })
+            ->orderByDesc('assessment_month')
+            ->get();
+
         $assessments = KpiAssessment::with(['period', 'evaluatee.division', 'evaluatee.position'])
             ->where('evaluator_id', $employee->id)
+            ->whereHas('period', function ($query) use ($assessmentMonth) {
+                $query->whereDate('assessment_month', $assessmentMonth);
+            })
             ->orderByDesc('id')
             ->get();
 
-        return view('hrd.kpi-assessments.my-assessments', compact('assessments'));
+        return view('hrd.kpi-assessments.my-assessments', compact('assessments', 'availablePeriods', 'selectedMonth'));
     }
 
     public function fill(KpiAssessment $assessment): View|RedirectResponse

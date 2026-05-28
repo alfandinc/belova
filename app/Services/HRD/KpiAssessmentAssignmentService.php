@@ -75,6 +75,10 @@ class KpiAssessmentAssignmentService
             ->map(fn (Collection $group) => $group->first());
 
         foreach ($employees as $employee) {
+            if ($this->isCeo($employee)) {
+                continue;
+            }
+
             if ($this->isHeadManager($employee)) {
                 if ($ceo) {
                     $this->createAssignment($period, $employee, $ceo, 'ceo');
@@ -86,6 +90,9 @@ class KpiAssessmentAssignmentService
             }
 
             if ($this->isHrd($employee)) {
+                if ($hrd) {
+                    $this->createAssignment($period, $employee, $hrd, 'hrd');
+                }
                 if ($headManager) {
                     $this->createAssignment($period, $employee, $headManager, 'head_manager');
                 }
@@ -145,6 +152,11 @@ class KpiAssessmentAssignmentService
     private function isHrd(Employee $employee): bool
     {
         return $this->hasAnyRole($employee, self::ROLE_HRD);
+    }
+
+    private function isCeo(Employee $employee): bool
+    {
+        return $this->hasAnyRole($employee, self::ROLE_CEO);
     }
 
     private function isHeadManager(Employee $employee): bool

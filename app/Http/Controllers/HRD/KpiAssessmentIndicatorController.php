@@ -38,6 +38,13 @@ class KpiAssessmentIndicatorController extends Controller
             ->orderBy('name')
             ->get();
 
+        $divisionOptions = $positions
+            ->filter(fn (Position $position) => (bool) $position->division)
+            ->map(fn (Position $position) => $position->division)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
         $activeIndicators = $indicators->where('is_active', true);
         $technicalWeightTotals = $activeIndicators
             ->where('indicator_type', 'technical')
@@ -47,23 +54,40 @@ class KpiAssessmentIndicatorController extends Controller
         return view('hrd.kpi-assessments.indicators.index', [
             'indicators' => $indicators,
             'positions' => $positions,
+            'divisionOptions' => $divisionOptions,
             'applicabilityOptions' => KpiAssessmentIndicator::APPLICABILITY_OPTIONS,
             'globalWeightTotal' => round($activeIndicators->where('indicator_type', 'global')->sum('weight_percentage'), 2),
             'technicalWeightTotals' => $technicalWeightTotals,
         ]);
     }
 
-    public function previewData()
+    public function previewData(Request $request)
     {
         $this->authorizeManagement();
 
-        $previews = $this->buildAllPositionPreviews();
+        $previews = $this->buildAllPositionPreviews()
+            ->when($request->filled('target_role_filter'), function (Collection $collection) use ($request) {
+                return $collection->filter(fn (array $preview) => $preview['target_role'] === $request->string('target_role_filter')->toString())->values();
+            })
+            ->when($request->filled('division_filter'), function (Collection $collection) use ($request) {
+                return $collection->filter(function (array $preview) use ($request) {
+                    return (string) ($preview['position']->division_id ?? '') === $request->string('division_filter')->toString();
+                })->values();
+            });
 
         return DataTables::of($previews)
             ->addColumn('position_name', fn (array $preview) => $preview['position']->name)
             ->addColumn('division_name', fn (array $preview) => $preview['position']->division->name ?? 'Tanpa divisi')
+            ->addColumn('target_role_value', fn (array $preview) => $preview['target_role'])
             ->addColumn('target_role_badge', function (array $preview) {
-                return '<span class="badge badge-info text-uppercase">' . e(str_replace('_', ' ', $preview['target_role'])) . '</span>';
+                $badgeClass = match ($preview['target_role']) {
+                    'head_manager' => 'badge-danger',
+                    'manager' => 'badge-warning',
+                    'hrd' => 'badge-success',
+                    default => 'badge-info',
+                };
+
+                return '<span class="badge ' . $badgeClass . ' text-uppercase">' . e(str_replace('_', ' ', $preview['target_role'])) . '</span>';
             })
             ->addColumn('formula_display', fn (array $preview) => $preview['formula'] ?: 'Belum ada formula aktif')
             ->addColumn('total_weight_display', fn (array $preview) => number_format($preview['total_weight'], 2) . '%')
@@ -238,9 +262,10 @@ class KpiAssessmentIndicatorController extends Controller
         );
 
         $hrdScopes = match ($targetRole) {
+            'ceo' => [],
             'manager' => ['hrd_to_all', 'hrd_to_manager'],
             'head_manager' => ['hrd_to_all', 'hrd_to_head_manager'],
-            'hrd' => ['head_manager_to_hrd'],
+            'hrd' => ['hrd_to_all', 'hrd_to_employee'],
             default => ['hrd_to_all', 'hrd_to_employee'],
         };
 
@@ -321,6 +346,10 @@ class KpiAssessmentIndicatorController extends Controller
     private function determinePositionTargetRole(Position $position): string
     {
         $employees = $position->employees;
+
+        if ($employees->contains(fn (Employee $employee) => $employee->user?->hasAnyRole(['Ceo', 'CEO', 'ceo']))) {
+            return 'ceo';
+        }
 
         if ($employees->contains(fn (Employee $employee) => $employee->user?->hasAnyRole(['Hrd', 'HRD', 'hrd']))) {
             return 'hrd';

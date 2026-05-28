@@ -13,6 +13,10 @@ class KpiAssessmentWeightService
     {
         $user = $employee->user;
 
+        if ($user?->hasAnyRole(['Ceo', 'CEO', 'ceo'])) {
+            return 'ceo';
+        }
+
         if ($user?->hasAnyRole(['Hrd', 'HRD', 'hrd'])) {
             return 'hrd';
         }
@@ -31,7 +35,8 @@ class KpiAssessmentWeightService
     public function applicableScopesForTargetRole(string $targetRole): array
     {
         return match ($targetRole) {
-            'hrd' => ['head_manager_to_hrd'],
+            'ceo' => [],
+            'hrd' => ['hrd_to_all', 'hrd_to_employee', 'head_manager_to_hrd'],
             'head_manager' => ['hrd_to_all', 'hrd_to_head_manager', 'ceo_to_head_manager'],
             'manager' => ['hrd_to_all', 'hrd_to_manager', 'head_manager_to_manager'],
             default => ['hrd_to_all', 'hrd_to_employee', 'manager_to_employee'],

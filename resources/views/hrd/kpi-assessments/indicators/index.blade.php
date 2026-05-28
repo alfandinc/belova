@@ -143,6 +143,28 @@
                         </button>
                     </div>
 
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="previewDivisionFilter">Filter Divisi</label>
+                            <select id="previewDivisionFilter" class="form-control form-control-sm">
+                                <option value="">Semua divisi</option>
+                                @foreach($divisionOptions as $division)
+                                    <option value="{{ $division->id }}">{{ $division->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="previewTargetRoleFilter">Filter Target Role</label>
+                            <select id="previewTargetRoleFilter" class="form-control form-control-sm">
+                                <option value="">Semua target role</option>
+                                <option value="employee">Employee</option>
+                                <option value="manager">Manager</option>
+                                <option value="head_manager">Head Manager</option>
+                                <option value="hrd">HRD</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped" id="positionPreviewTable" style="width:100%;">
                             <thead>
@@ -382,6 +404,10 @@
             serverSide: true,
             ajax: {
                 url: "{{ route('hrd.kpi_assessments.indicators.preview.data') }}",
+                data: function (d) {
+                    d.division_filter = $('#previewDivisionFilter').val();
+                    d.target_role_filter = $('#previewTargetRoleFilter').val();
+                },
                 error: function () {
                     Swal.fire('Error', 'Gagal memuat preview penilaian per jabatan.', 'error');
                 }
@@ -397,6 +423,10 @@
             language: {
                 emptyTable: 'Belum ada preview jabatan yang bisa ditampilkan dari indikator aktif saat ini.'
             }
+        });
+
+        $(document).on('change', '#previewDivisionFilter, #previewTargetRoleFilter', function () {
+            indicatorPreviewTable.ajax.reload();
         });
 
         function refreshIndicatorSections() {

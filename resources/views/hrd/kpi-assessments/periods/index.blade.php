@@ -80,6 +80,11 @@
                                         <td>{{ $period->assessments_count }}</td>
                                         <td>
                                             <a href="{{ route('hrd.kpi_assessments.periods.show', $period) }}" class="btn btn-sm btn-outline-primary">Lihat</a>
+                                            <form method="POST" action="{{ route('hrd.kpi_assessments.periods.destroy', $period) }}" class="d-inline kpi-period-delete-form" onsubmit="return confirm('Hapus periode ini? Semua assignment, skor, dan snapshot indikator pada periode ini akan ikut terhapus.')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Hapus</button>
+                                            </form>
                                         </td>
                                     </tr>
                                 @empty
@@ -133,6 +138,29 @@
                 }
 
                 Swal.fire('Error', 'Gagal membuat periode KPI Assessment.', 'error');
+            });
+        });
+
+        $(document).on('submit', '.kpi-period-delete-form', function (event) {
+            event.preventDefault();
+
+            const $form = $(this);
+
+            $.ajax({
+                url: $form.attr('action'),
+                method: 'DELETE',
+                data: $form.serialize(),
+                headers: {
+                    'Accept': 'application/json'
+                }
+            }).done(function (response) {
+                refreshPeriodIndexSections().done(function () {
+                    Swal.fire('Sukses', response.message, 'success');
+                }).fail(function () {
+                    Swal.fire('Warning', response.message + ' Namun refresh tampilan gagal, silakan muat ulang manual.', 'warning');
+                });
+            }).fail(function () {
+                Swal.fire('Error', 'Gagal menghapus periode KPI Assessment.', 'error');
             });
         });
     });

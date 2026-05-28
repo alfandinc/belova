@@ -1541,6 +1541,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
                 Route::post('/periods', [KpiAssessmentPeriodController::class, 'store'])->name('periods.store');
                 Route::get('/periods/{period}', [KpiAssessmentPeriodController::class, 'show'])->name('periods.show');
                 Route::post('/periods/{period}/close', [KpiAssessmentPeriodController::class, 'close'])->name('periods.close');
+                Route::delete('/periods/{period}', [KpiAssessmentPeriodController::class, 'destroy'])->name('periods.destroy');
             });
 
             Route::middleware('role:Admin')->group(function () {
