@@ -73,6 +73,17 @@ class KpiAssessmentIndicatorController extends Controller
                 return $collection->filter(function (array $preview) use ($request) {
                     return (string) ($preview['position']->division_id ?? '') === $request->string('division_filter')->toString();
                 })->values();
+            })
+            ->when($request->filled('formula_total_filter'), function (Collection $collection) use ($request) {
+                $filter = $request->string('formula_total_filter')->toString();
+
+                return $collection->filter(function (array $preview) use ($filter) {
+                    $isHundred = abs(((float) $preview['total_weight']) - 100.0) < 0.01;
+
+                    return $filter === '100'
+                        ? $isHundred
+                        : !$isHundred;
+                })->values();
             });
 
         return DataTables::of($previews)

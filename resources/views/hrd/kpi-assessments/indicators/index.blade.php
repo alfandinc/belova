@@ -163,6 +163,14 @@
                                 <option value="hrd">HRD</option>
                             </select>
                         </div>
+                        <div class="col-md-4">
+                            <label for="previewFormulaTotalFilter">Filter Formula</label>
+                            <select id="previewFormulaTotalFilter" class="form-control form-control-sm">
+                                <option value="">Semua formula</option>
+                                <option value="100">Total 100%</option>
+                                <option value="not_100">Total tidak 100%</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
@@ -407,6 +415,7 @@
                 data: function (d) {
                     d.division_filter = $('#previewDivisionFilter').val();
                     d.target_role_filter = $('#previewTargetRoleFilter').val();
+                    d.formula_total_filter = $('#previewFormulaTotalFilter').val();
                 },
                 error: function () {
                     Swal.fire('Error', 'Gagal memuat preview penilaian per jabatan.', 'error');
@@ -425,7 +434,7 @@
             }
         });
 
-        $(document).on('change', '#previewDivisionFilter, #previewTargetRoleFilter', function () {
+        $(document).on('change', '#previewDivisionFilter, #previewTargetRoleFilter, #previewFormulaTotalFilter', function () {
             indicatorPreviewTable.ajax.reload();
         });
 
