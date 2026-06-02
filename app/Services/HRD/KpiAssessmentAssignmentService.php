@@ -75,10 +75,6 @@ class KpiAssessmentAssignmentService
             ->map(fn (Collection $group) => $group->first());
 
         foreach ($employees as $employee) {
-            if ($this->isCeo($employee)) {
-                continue;
-            }
-
             if ($this->isHeadManager($employee)) {
                 if ($ceo) {
                     $this->createAssignment($period, $employee, $ceo, 'ceo');
@@ -86,6 +82,10 @@ class KpiAssessmentAssignmentService
                 if ($hrd) {
                     $this->createAssignment($period, $employee, $hrd, 'hrd');
                 }
+                continue;
+            }
+
+            if ($this->isCeo($employee)) {
                 continue;
             }
 

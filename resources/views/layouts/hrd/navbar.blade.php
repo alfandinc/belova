@@ -239,7 +239,7 @@
                     @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.kpi_assessments.periods.index') }}"><i class="ti-control-record"></i>Periode KPI</a></li>
                     @endif
-                    @if(Auth::check() && Auth::user()->hasAnyRole('Admin'))
+                    @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.kpi_assessments.indicators.index') }}"><i class="ti-control-record"></i>Master Indikator</a></li>
                     @endif
                 </ul>

@@ -24,15 +24,24 @@ class KpiAssessmentController extends Controller
             return back()->with('error', 'Akun ini belum terhubung ke data pegawai.');
         }
 
-        $selectedMonth = $request->query('assessment_month', now()->format('Y-m'));
-        $assessmentMonth = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
-
         $availablePeriods = KpiAssessmentPeriod::query()
             ->whereHas('assessments', function ($query) use ($employee) {
                 $query->where('evaluator_id', $employee->id);
             })
             ->orderByDesc('assessment_month')
             ->get();
+
+        $defaultMonth = $availablePeriods->first()?->assessment_month?->format('Y-m')
+            ?: now()->format('Y-m');
+
+        $selectedMonth = $request->query('assessment_month', $defaultMonth);
+
+        try {
+            $assessmentMonth = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+        } catch (\Throwable $exception) {
+            $selectedMonth = $defaultMonth;
+            $assessmentMonth = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
+        }
 
         $assessments = KpiAssessment::with(['period', 'evaluatee.division', 'evaluatee.position'])
             ->where('evaluator_id', $employee->id)

@@ -7,6 +7,7 @@
 @section('content')
 <div class="container-fluid">
     <div class="row">
+        @if($canManageIndicators)
         <div class="col-lg-4 mb-4">
             <div class="card" id="kpiIndicatorCreateSection">
                 <div class="card-body">
@@ -129,8 +130,9 @@
                 </div>
             </div>
         </div>
+        @endif
 
-        <div class="col-lg-8 mb-4">
+        <div class="col-lg-{{ $canManageIndicators ? '8' : '12' }} mb-4">
             <div class="card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -138,10 +140,18 @@
                             <h4 class="card-title mb-1">Preview Penilaian Per Jabatan</h4>
                             <p class="text-muted mb-0">Klik detail untuk melihat indikator yang dinilai HRD, Manager, atau Head Manager untuk setiap jabatan beserta bobot dan struktur perhitungannya.</p>
                         </div>
+                        @if($canManageIndicators)
                         <button class="btn btn-outline-secondary btn-sm" type="button" data-toggle="collapse" data-target="#rawIndicatorTable" aria-expanded="false" aria-controls="rawIndicatorTable">
                             Tampilkan Kelola Indikator
                         </button>
+                        @endif
                     </div>
+
+                    @unless($canManageIndicators)
+                        <div class="alert alert-light border mb-3">
+                            HRD dapat melihat preview formula dan daftar indikator aktif di halaman ini. Perubahan indikator tetap dikelola oleh Admin.
+                        </div>
+                    @endunless
 
                     <div class="row mb-3">
                         <div class="col-md-4">
@@ -231,6 +241,7 @@
                                                     <span class="badge badge-{{ $indicator->is_active ? 'success' : 'secondary' }}">{{ $indicator->is_active ? 'Aktif' : 'Nonaktif' }}</span>
                                                 </td>
                                                 <td>
+                                                    @if($canManageIndicators)
                                                     <form method="POST" action="{{ route('hrd.kpi_assessments.indicators.update', $indicator) }}" class="mb-2 kpi-indicator-update-form">
                                                         @csrf
                                                         @method('PUT')
@@ -263,6 +274,9 @@
                                                         <input type="hidden" name="score_label_5" value="{{ $indicator->score_label_5 }}">
                                                         <input type="hidden" name="is_active" value="{{ $indicator->is_active ? 1 : 0 }}">
                                                     </form>
+                                                    @else
+                                                        <span class="text-muted small">Read only</span>
+                                                    @endif
 
                                                     <div class="small text-muted mb-2">
                                                         @for($score = 1; $score <= 5; $score++)
@@ -273,11 +287,13 @@
                                                         @endfor
                                                     </div>
 
-                                                    <form method="POST" action="{{ route('hrd.kpi_assessments.indicators.destroy', $indicator) }}" class="kpi-indicator-delete-form" onsubmit="return confirm('Hapus indikator ini? Snapshot periode lama tidak akan berubah.')">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger btn-block">Hapus</button>
-                                                    </form>
+                                                    @if($canManageIndicators)
+                                                        <form method="POST" action="{{ route('hrd.kpi_assessments.indicators.destroy', $indicator) }}" class="kpi-indicator-delete-form" onsubmit="return confirm('Hapus indikator ini? Snapshot periode lama tidak akan berubah.')">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger btn-block">Hapus</button>
+                                                        </form>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @empty

@@ -25,7 +25,7 @@ class KpiAssessmentIndicatorController extends Controller
 
     public function index(): View
     {
-        $this->authorizeManagement();
+        $this->authorizeView();
 
         $indicators = KpiAssessmentIndicator::with('position')
             ->orderBy('indicator_type')
@@ -56,6 +56,7 @@ class KpiAssessmentIndicatorController extends Controller
             'positions' => $positions,
             'divisionOptions' => $divisionOptions,
             'applicabilityOptions' => KpiAssessmentIndicator::APPLICABILITY_OPTIONS,
+            'canManageIndicators' => Auth::user()?->hasAnyRole(['Hrd', 'Admin']) ?? false,
             'globalWeightTotal' => round($activeIndicators->where('indicator_type', 'global')->sum('weight_percentage'), 2),
             'technicalWeightTotals' => $technicalWeightTotals,
         ]);
@@ -63,7 +64,7 @@ class KpiAssessmentIndicatorController extends Controller
 
     public function previewData(Request $request)
     {
-        $this->authorizeManagement();
+        $this->authorizeView();
 
         $previews = $this->buildAllPositionPreviews()
             ->when($request->filled('target_role_filter'), function (Collection $collection) use ($request) {
@@ -112,7 +113,7 @@ class KpiAssessmentIndicatorController extends Controller
 
     public function previewShow(Position $position)
     {
-        $this->authorizeManagement();
+        $this->authorizeView();
 
         $position->load(['division', 'employees.user.roles']);
         $preview = $this->buildPositionPreview($position, $this->activeIndicators());
@@ -261,7 +262,12 @@ class KpiAssessmentIndicatorController extends Controller
 
     private function authorizeManagement(): void
     {
-        abort_unless(Auth::user()?->hasAnyRole(['Admin']), 403);
+        abort_unless(Auth::user()?->hasAnyRole(['Hrd', 'Admin']), 403);
+    }
+
+    private function authorizeView(): void
+    {
+        abort_unless(Auth::user()?->hasAnyRole(['Hrd', 'Admin']), 403);
     }
 
     private function buildPositionPreview(Position $position, Collection $activeIndicators): array
