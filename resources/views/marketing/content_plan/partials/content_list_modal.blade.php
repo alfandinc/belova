@@ -80,6 +80,14 @@
           </div>
           <div class="row">
             <div class="col-md-12 mb-3">
+              <label for="cl_gambar_referensi" class="form-label">Visual Reference</label>
+              <input type="file" class="form-control-file" id="cl_gambar_referensi" name="gambar_referensi" accept="image/*">
+              <small class="text-muted d-block mt-1">Opsional. Saat content list yang sudah di-approve dijadwalkan menjadi content plan, gambar ini akan otomatis masuk ke Brief sebagai visual reference.</small>
+              <div id="cl_gambar_referensi_preview" class="mt-2"></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-12 mb-3">
               <label for="cl_catatan" class="form-label">Catatan</label>
               <textarea class="form-control" id="cl_catatan" name="catatan" rows="3"></textarea>
             </div>

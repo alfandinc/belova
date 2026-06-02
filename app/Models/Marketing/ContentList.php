@@ -19,6 +19,7 @@ class ContentList extends Model
         'jenis_konten',
         'konten_pilar',
         'link_referensi',
+        'gambar_referensi',
         'catatan',
         'approval_status',
         'approval_notes',

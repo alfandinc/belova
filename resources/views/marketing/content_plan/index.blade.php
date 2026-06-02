@@ -975,12 +975,41 @@ $(function() {
     // build week tables initially
     buildWeekTables();
 
+    function storageImageUrl(path) {
+        if (!path) return '';
+        if (path.indexOf('http') === 0) return path;
+        return '/storage/' + String(path).replace(/^\/?storage\//, '');
+    }
+
+    function renderContentListReferencePreview(path) {
+        var $preview = $('#cl_gambar_referensi_preview');
+        if (!$preview.length) return;
+
+        $preview.empty();
+
+        if (!path) return;
+
+        var src = storageImageUrl(path);
+        var $wrap = $('<div class="border rounded bg-white p-2 d-inline-block"></div>');
+        var $img = $('<img>').attr('src', src).css({
+            width: '180px',
+            maxWidth: '100%',
+            height: '180px',
+            objectFit: 'cover',
+            borderRadius: '6px'
+        });
+        $wrap.append($img);
+        $preview.append($wrap);
+    }
+
     function resetContentListForm() {
         $('#contentListForm')[0].reset();
         $('#contentListForm').attr('data-action', 'store');
         $('#contentListForm').attr('data-id', '');
         $('#contentListModalLabel').text('Tambah Content List');
         $('#contentListModal .content-list-select2').val(null).trigger('change');
+        $('#cl_gambar_referensi').val('');
+        renderContentListReferencePreview('');
     }
 
     function openContentListModal(id) {
@@ -1003,6 +1032,7 @@ $(function() {
             $('#cl_konten_pilar').val(res.konten_pilar || '').trigger('change');
             $('#cl_link_referensi').val(res.link_referensi || '');
             $('#cl_catatan').val(res.catatan || '');
+            renderContentListReferencePreview(res.gambar_referensi || '');
             $('#contentListModal').modal('show');
         }).fail(function() {
             Swal.fire('Error', 'Gagal mengambil data content list.', 'error');
@@ -1136,6 +1166,14 @@ $(function() {
             $('#assigned_to').val(source.assigned_to || '').trigger('change');
             $('#link_referensi').val(source.link_referensi || '');
             renderLinkInputs(source.platform || [], null);
+            if (source.gambar_referensi) {
+                try {
+                    var briefPreviewSrc = storageImageUrl(source.gambar_referensi);
+                    var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
+                    var $img = $('<img>').attr('src', briefPreviewSrc).attr('data-full', briefPreviewSrc).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
+                    $('#cb_preview').append($wrap.append($img));
+                } catch (e) { console.error('seed brief preview from content list', e); }
+            }
         }
 
         if (date) {
@@ -1713,6 +1751,20 @@ $(function() {
 
     $('#btnAddContentList').on('click', function() {
         openContentListModal();
+    });
+
+    $('#cl_gambar_referensi').on('change', function() {
+        var file = this.files && this.files[0] ? this.files[0] : null;
+        if (!file) {
+            renderContentListReferencePreview('');
+            return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            renderContentListReferencePreview(e.target.result || '');
+        };
+        reader.readAsDataURL(file);
     });
 
     $('#contentListForm').on('submit', function(e) {

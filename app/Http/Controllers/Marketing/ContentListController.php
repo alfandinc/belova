@@ -248,6 +248,7 @@ class ContentListController extends Controller
             'jenis_konten' => $list->jenis_konten,
             'konten_pilar' => $list->konten_pilar,
             'link_referensi' => $list->link_referensi,
+            'gambar_referensi' => $list->gambar_referensi,
             'catatan' => $list->catatan,
         ]);
     }
@@ -269,6 +270,7 @@ class ContentListController extends Controller
             'jenis_konten' => 'required|array',
             'konten_pilar' => 'nullable|string|in:Edukasi,Awareness,Engagement/Interaktif,Promo/Testimoni,Lifestyle/Tips',
             'link_referensi' => 'nullable|string',
+            'gambar_referensi' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
             'catatan' => 'nullable|string',
             'assigned_to' => 'nullable|integer|exists:users,id',
         ]);
@@ -277,6 +279,12 @@ class ContentListController extends Controller
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
         $data['approval_status'] = $defaultApprovalStatus ?: 'Pending';
+
+        if ($request->hasFile('gambar_referensi')) {
+            $data['gambar_referensi'] = $request->file('gambar_referensi')->store('uploads/content_list_visual_references', 'public');
+        } else {
+            unset($data['gambar_referensi']);
+        }
 
         return $data;
     }

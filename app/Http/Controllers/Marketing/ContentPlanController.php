@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\Marketing\ContentList;
+use App\Models\Marketing\ContentBrief;
 use Illuminate\Http\Request;
 use App\Models\Marketing\ContentPlan;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\DataTables;
 
@@ -251,10 +253,22 @@ class ContentPlanController extends Controller
         $plan = ContentPlan::create($data);
 
         if ($contentListId) {
-            ContentList::whereKey($contentListId)
+            $contentList = ContentList::whereKey($contentListId)
                 ->where('approval_status', 'Approved')
                 ->whereNull('scheduled_plan_id')
-                ->update(['scheduled_plan_id' => $plan->id]);
+                ->first();
+
+            if ($contentList) {
+                $contentList->update(['scheduled_plan_id' => $plan->id]);
+
+                if ($contentList->gambar_referensi) {
+                    ContentBrief::create([
+                        'content_plan_id' => $plan->id,
+                        'user_id' => Auth::id(),
+                        'visual_references' => [$contentList->gambar_referensi],
+                    ]);
+                }
+            }
         }
 
         return response()->json(['success' => true, 'data' => $plan]);
