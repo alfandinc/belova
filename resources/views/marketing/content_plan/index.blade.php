@@ -218,6 +218,101 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 .content-list-stat-chip.approved { background: rgba(40, 167, 69, 0.14); color: #1f7a35; }
 .content-list-stat-chip.rejected { background: rgba(220, 53, 69, 0.12); color: #b02a37; }
 .content-list-stat-chip.scheduled { background: rgba(23, 162, 184, 0.14); color: #0f6674; }
+.content-list-reference-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1px dashed rgba(13, 110, 253, 0.28);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfdff 0%, #f4f8ff 100%);
+    padding: 16px 18px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    cursor: pointer;
+}
+.content-list-reference-card:hover,
+.content-list-reference-card:focus {
+    border-color: rgba(13, 110, 253, 0.5);
+    box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.08);
+    outline: none;
+}
+.content-list-reference-card__icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: rgba(13, 110, 253, 0.1);
+    color: #0d6efd;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex: 0 0 auto;
+}
+.content-list-reference-card__body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.content-list-reference-card__title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #212529;
+}
+.content-list-reference-card__hint {
+    font-size: 0.82rem;
+    color: #6c757d;
+    margin-top: 2px;
+}
+.content-list-reference-card__button {
+    flex: 0 0 auto;
+}
+#cl_gambar_referensi_preview {
+    min-height: 0;
+}
+.content-list-reference-preview {
+    width: 220px;
+    max-width: 100%;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 14px;
+    padding: 10px;
+    position: relative;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+.content-list-reference-preview__image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 10px;
+    display: block;
+}
+.content-list-reference-preview__meta {
+    font-size: 0.78rem;
+    color: #6c757d;
+    margin-top: 8px;
+}
+.content-list-reference-preview__remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(220, 53, 69, 0.94);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+@media (max-width: 767px) {
+    .content-list-reference-card {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .content-list-reference-card__button {
+        width: 100%;
+    }
+}
 @media (max-width: 991px) {
     .content-list-header {
         align-items: flex-start;
@@ -977,7 +1072,7 @@ $(function() {
 
     function storageImageUrl(path) {
         if (!path) return '';
-        if (path.indexOf('http') === 0) return path;
+        if (path.indexOf('http') === 0 || path.indexOf('data:') === 0 || path.indexOf('blob:') === 0) return path;
         return '/storage/' + String(path).replace(/^\/?storage\//, '');
     }
 
@@ -990,16 +1085,63 @@ $(function() {
         if (!path) return;
 
         var src = storageImageUrl(path);
-        var $wrap = $('<div class="border rounded bg-white p-2 d-inline-block"></div>');
-        var $img = $('<img>').attr('src', src).css({
-            width: '180px',
-            maxWidth: '100%',
-            height: '180px',
-            objectFit: 'cover',
-            borderRadius: '6px'
+        var $wrap = $('<div class="content-list-reference-preview"></div>');
+        var $remove = $('<button type="button" class="content-list-reference-preview__remove" title="Hapus">×</button>');
+        $remove.on('click', function() {
+            try {
+                var input = $('#cl_gambar_referensi')[0];
+                if (input) input.value = '';
+            } catch (e) {}
+            renderContentListReferencePreview('');
         });
-        $wrap.append($img);
+        var $img = $('<img class="content-list-reference-preview__image">').attr('src', src).css({ cursor: 'zoom-in' });
+        $img.on('click', function() {
+            try {
+                window.open(src, '_blank');
+            } catch (e) {
+                console.error('open content list reference preview', e);
+            }
+        });
+        var $meta = $('<div class="content-list-reference-preview__meta">Klik gambar untuk membuka ukuran penuh.</div>');
+        $wrap.append($img).append($remove).append($meta);
         $preview.append($wrap);
+    }
+
+    function setContentListReferenceFile(file) {
+        if (!file || !(file.type || '').match(/^image\//i)) return;
+
+        try {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            $('#cl_gambar_referensi')[0].files = dt.files;
+        } catch (e) {
+            console.error('setContentListReferenceFile', e);
+            return;
+        }
+
+        var reader = new FileReader();
+        reader.onload = function(evt) {
+            renderContentListReferencePreview(evt.target.result || '');
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function tryPasteContentListReference(e) {
+        var clipboard = e.originalEvent && e.originalEvent.clipboardData ? e.originalEvent.clipboardData : (e.clipboardData || null);
+        if (!clipboard || !clipboard.items || !clipboard.items.length) return false;
+
+        for (var i = 0; i < clipboard.items.length; i++) {
+            var item = clipboard.items[i];
+            if (item && item.type && item.type.indexOf('image/') === 0) {
+                var file = item.getAsFile();
+                if (!file) continue;
+                e.preventDefault();
+                setContentListReferenceFile(file);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function resetContentListForm() {
@@ -1760,11 +1902,39 @@ $(function() {
             return;
         }
 
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            renderContentListReferencePreview(e.target.result || '');
-        };
-        reader.readAsDataURL(file);
+        setContentListReferenceFile(file);
+    });
+
+    $('#cl_gambar_referensi_paste_target').on('paste', function(e) {
+        tryPasteContentListReference(e);
+    });
+
+    $('#cl_gambar_referensi_paste_target').on('click', function() {
+        $('#cl_gambar_referensi').trigger('click');
+    });
+
+    $('#btnContentListReferenceBrowse').on('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $('#cl_gambar_referensi').trigger('click');
+    });
+
+    $('#cl_gambar_referensi_paste_target').on('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            $('#cl_gambar_referensi').trigger('click');
+        }
+    });
+
+    $('#contentListModal').on('shown.bs.modal', function() {
+        $(document).on('paste.contentListReference', function(e) {
+            if (!$('#contentListModal').hasClass('show')) return;
+            tryPasteContentListReference(e);
+        });
+    });
+
+    $('#contentListModal').on('hidden.bs.modal', function() {
+        $(document).off('paste.contentListReference');
     });
 
     $('#contentListForm').on('submit', function(e) {

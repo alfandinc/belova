@@ -81,8 +81,18 @@
           <div class="row">
             <div class="col-md-12 mb-3">
               <label for="cl_gambar_referensi" class="form-label">Visual Reference</label>
-              <input type="file" class="form-control-file" id="cl_gambar_referensi" name="gambar_referensi" accept="image/*">
-              <small class="text-muted d-block mt-1">Opsional. Saat content list yang sudah di-approve dijadwalkan menjadi content plan, gambar ini akan otomatis masuk ke Brief sebagai visual reference.</small>
+              <input type="file" class="d-none" id="cl_gambar_referensi" name="gambar_referensi" accept="image/*">
+              <div id="cl_gambar_referensi_paste_target" class="content-list-reference-card mt-2" tabindex="0" role="button" aria-label="Upload atau paste visual reference">
+                <div class="content-list-reference-card__icon">
+                  <i class="fas fa-image"></i>
+                </div>
+                <div class="content-list-reference-card__body">
+                  <div class="content-list-reference-card__title">Upload atau paste gambar referensi</div>
+                  <div class="content-list-reference-card__hint">Klik area ini untuk pilih file, atau tekan Ctrl+V setelah fokus di sini.</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary content-list-reference-card__button" id="btnContentListReferenceBrowse">Pilih Gambar</button>
+              </div>
+              <small class="text-muted d-block mt-2">Opsional. Setelah content list di-approve dan dijadwalkan, gambar ini otomatis masuk ke Brief sebagai visual reference.</small>
               <div id="cl_gambar_referensi_preview" class="mt-2"></div>
             </div>
           </div>
