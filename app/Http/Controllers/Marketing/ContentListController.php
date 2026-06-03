@@ -84,6 +84,8 @@ class ContentListController extends Controller
             }
         } elseif ($request->filled('approval_status')) {
             $query->where('approval_status', $request->approval_status);
+        } else {
+            $query->whereNull('scheduled_plan_id');
         }
 
         if ($isManager) {
