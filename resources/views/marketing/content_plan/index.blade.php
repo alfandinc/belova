@@ -17,37 +17,7 @@
     word-break: break-word;
     max-width: 600px; /* allow wider Judul column */
 }
-/* Jam (time) column */
-.jam-col{ 
-    white-space: nowrap !important;
-    width: 80px;
-    text-align: center;
 }
-/* Ensure jam time is visually prominent */
-.jam-col div strong { font-weight: 700; font-size: 1rem; }
-table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
-    white-space: normal !important;
-}
-.contentPlanTable th.judul-col {
-    min-width: 220px;
-}
-/* Ensure action buttons have a smaller reserved width so Judul can expand */
-.aksi-col{
-    white-space: nowrap !important;
-    min-width: 60px; /* tighter space for single action button */
-    width:60px;
-}
-/* Normalize badge spacing inside content plan tables */
-.contentPlanTable td .badge, .contentPlanTable th .badge {
-    margin-right: 4px !important;
-    margin-bottom: 4px;
-    display: inline-block;
-}
-/* Subtle separators and cleaner spacing */
-.contentPlanTable { border: none !important; border-collapse: separate !important; }
-.contentPlanTable th, .contentPlanTable td { border: none !important; }
-.contentPlanTable tbody td { border-bottom: 1px solid rgba(0,0,0,0.06) !important; padding: 12px 16px !important; background: transparent; }
-.contentPlanTable tbody tr { background: #ffffff; }
 .contentPlanTable tbody tr:hover { background: #f8f9fa; }
 .table-responsive { padding: 0.5rem; }
 .card .card-body.p-0 { padding: 0.25rem 0.5rem !important; }
@@ -61,18 +31,7 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
     text-decoration: underline;
     color: #0b5ed7;
 }
-.contentPlanTable td.judul-col .judul-clickable:focus {
-    outline: 2px dashed rgba(13,110,253,0.35);
-    outline-offset: 2px;
-}
-.contentPlanTable td.judul-col .judul-clickable .badge { cursor: default; }
-.contentPlanTable .btn-edit { display: none !important; }
-
 /* Small initials badge for Assigned To shown on the right of the title cell */
-.assigned-name { vertical-align: middle; border-radius: 6px; font-size: .78rem; background: rgba(0,0,0,0.04); color: #212529; padding: .18rem .5rem; max-width: 160px; display: inline-block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-
-/* Larger modal for Add/Edit Content Plan */
-@media (min-width: 992px) {
     .modal-dialog.modal-xl { max-width: 1200px; }
 }
 @media (min-width: 1400px) {
@@ -80,6 +39,44 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 }
 /* Prevent horizontal scrollbar inside modal and make inner flex items wrap */
 #contentPlanModal .modal-content, #contentPlanModal .modal-body, #contentPlanModal .tab-content { overflow-x: hidden; }
+    .content-list-toolbar-filters {
+        display: none;
+    }
+    .content-list-filter-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+    }
+    .content-list-filter-control {
+        min-width: 180px;
+    }
+    .content-list-filter-group .select2-container {
+        min-width: 180px;
+    }
+    .dataTables_filter.content-list-searchbar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 12px;
+        flex-wrap: nowrap;
+        width: 100%;
+    }
+    .dataTables_filter.content-list-searchbar #contentListToolbarFilters {
+        display: block;
+        margin-right: auto;
+    }
+    .dataTables_filter.content-list-searchbar > label {
+        margin-bottom: 0;
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+    .dataTables_filter.content-list-searchbar > label input {
+        margin-left: 8px;
+    }
 #contentPlanModal .row { flex-wrap: wrap; }
 /* Override preview min-width which previously forced horizontal scroll */
 #cb_preview { min-width: 0 !important; max-width: 100%; }
@@ -88,6 +85,21 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 
 /* Separator between Judul (title) and badges inside the clickable area */
 .contentPlanTable td.judul-col .judul-clickable > .mt-1 {
+        .content-list-filter-group {
+            flex-wrap: wrap;
+        }
+        .dataTables_filter.content-list-searchbar {
+            align-items: flex-start;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+        .dataTables_filter.content-list-searchbar #contentListToolbarFilters {
+            width: 100%;
+            margin-right: 0;
+        }
+        .dataTables_filter.content-list-searchbar .content-list-filter-group {
+            width: 100%;
+        }
     border-top: 1px solid #e9ecef;
     margin-top: 8px;
     padding-top: 6px;
@@ -196,7 +208,37 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
     gap: 6px;
     border-radius: 999px;
     border: 1px solid transparent;
+.content-list-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.content-list-filter-control {
+    min-width: 180px;
+}
+.content-list-filter-group .select2-container {
+    min-width: 180px;
+}
     padding: 0.35rem 0.75rem;
+.content-list-toolbar-filters {
+    display: none;
+}
+.dataTables_filter.content-list-searchbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    width: 100%;
+}
+.dataTables_filter.content-list-searchbar > label {
+    margin-bottom: 0;
+}
+.dataTables_filter.content-list-searchbar .content-list-filter-group {
+    justify-content: flex-end;
+}
     font-size: 0.82rem;
     font-weight: 600;
     white-space: nowrap;
@@ -210,7 +252,18 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
 .content-list-stat-chip:hover {
     transform: translateY(-1px);
 }
+.dataTables_filter.content-list-searchbar {
+    justify-content: flex-start;
+}
+.dataTables_filter.content-list-searchbar .content-list-filter-group {
+    width: 100%;
+    justify-content: flex-start;
+}
 .content-list-stat-chip.is-active {
+    .content-list-filter-group {
+        width: 100%;
+        justify-content: flex-start;
+    }
     box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
     border-color: rgba(13, 110, 253, 0.45);
 }
@@ -326,6 +379,10 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
     .content-list-header__actions {
         justify-content: flex-start;
     }
+    .dataTables_filter.content-list-searchbar {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
 }
 </style>
 @endpush
@@ -396,6 +453,26 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
                     </div>
                 </div>
                 <div class="card-body">
+                    <div class="content-list-toolbar-filters" id="contentListToolbarFilters">
+                        <div class="content-list-filter-group">
+                            <select class="form-control form-control-sm content-list-filter-control" id="contentListFilterBrand">
+                                <option value="">Semua Brand</option>
+                                <option value="Premiere Belova">Premiere Belova</option>
+                                <option value="Belova Skin">Belova Skin</option>
+                                <option value="Belova Dental Care">Belova Dental Care</option>
+                                <option value="BCL">BCL</option>
+                                <option value="dr Fika">dr Fika</option>
+                            </select>
+                            <select class="form-control form-control-sm content-list-filter-control" id="contentListFilterAssignedTo">
+                                <option value="">Semua Assigned To</option>
+                                @if(isset($users) && $users->count())
+                                    @foreach($users as $u)
+                                        <option value="{{ $u->id }}">{{ $u->name }}</option>
+                                    @endforeach
+                                @endif
+                            </select>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-striped table-bordered content-list-table" id="contentListTable" style="width:100%">
                             <thead>
@@ -1182,6 +1259,8 @@ $(function() {
     }
 
     var contentListStatusFilter = '';
+    var contentListBrandFilter = '';
+    var contentListAssignedToFilter = '';
 
     function initContentListTable() {
         if (!$('#contentListTable').length) return;
@@ -1198,6 +1277,8 @@ $(function() {
                 url: '{{ route('marketing.content-list.datatable') }}',
                 data: function(d) {
                     d.filter_status = contentListStatusFilter || '';
+                    d.filter_brand = contentListBrandFilter || '';
+                    d.filter_assigned_to = contentListAssignedToFilter || '';
                 }
             },
             order: [[1, 'asc']],
@@ -1221,6 +1302,16 @@ $(function() {
                 { data: 'action', name: 'action', orderable: false, searchable: false },
             ]
         });
+
+        try {
+            var $wrapper = $('#contentListTable').closest('.dataTables_wrapper');
+            var $filter = $wrapper.find('.dataTables_filter');
+            var $toolbarFilters = $('#contentListToolbarFilters');
+            if ($filter.length && $toolbarFilters.length) {
+                $filter.addClass('content-list-searchbar');
+                $filter.prepend($toolbarFilters.show());
+            }
+        } catch (e) { console.error('mount content list toolbar filters', e); }
 
         loadContentListStats();
     }
@@ -1246,7 +1337,10 @@ $(function() {
     function loadContentListStats() {
         if (!$('#contentListStatusStats').length) return;
 
-        $.get('{{ route('marketing.content-list.stats') }}')
+        $.get('{{ route('marketing.content-list.stats') }}', {
+            filter_brand: contentListBrandFilter || '',
+            filter_assigned_to: contentListAssignedToFilter || ''
+        })
             .done(function(res) {
                 renderContentListStats(res || {});
             })
@@ -1262,6 +1356,24 @@ $(function() {
         if (contentListTable) {
             contentListTable.ajax.reload();
         }
+    });
+
+    function reloadContentListTable() {
+        if (contentListTable) {
+            contentListTable.ajax.reload();
+        }
+    }
+
+    $('#contentListFilterBrand').on('change', function() {
+        contentListBrandFilter = $(this).val() || '';
+        reloadContentListTable();
+        loadContentListStats();
+    });
+
+    $('#contentListFilterAssignedTo').on('change', function() {
+        contentListAssignedToFilter = $(this).val() || '';
+        reloadContentListTable();
+        loadContentListStats();
     });
 
     function prepareNewPlanModal(opts) {

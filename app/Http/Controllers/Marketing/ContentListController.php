@@ -10,9 +10,28 @@ use Yajra\DataTables\DataTables;
 
 class ContentListController extends Controller
 {
-    public function stats()
+    public function stats(Request $request)
     {
-        $stats = ContentList::query()
+        $query = ContentList::query();
+
+        if ($request->filled('filter_brand')) {
+            $brands = $request->filter_brand;
+            if (is_string($brands)) {
+                $brands = [$brands];
+            }
+
+            $query->where(function ($builder) use ($brands) {
+                foreach ($brands as $brand) {
+                    $builder->orWhereJsonContains('brand', $brand);
+                }
+            });
+        }
+
+        if ($request->filled('filter_assigned_to')) {
+            $query->where('assigned_to', $request->filter_assigned_to);
+        }
+
+        $stats = $query
             ->selectRaw("SUM(CASE WHEN approval_status = 'Pending' AND scheduled_plan_id IS NULL THEN 1 ELSE 0 END) as pending_count")
             ->selectRaw("SUM(CASE WHEN approval_status = 'Approved' AND scheduled_plan_id IS NULL THEN 1 ELSE 0 END) as approved_count")
             ->selectRaw("SUM(CASE WHEN approval_status = 'Rejected' THEN 1 ELSE 0 END) as rejected_count")
@@ -31,6 +50,23 @@ class ContentListController extends Controller
     {
         $query = ContentList::with(['assignedTo', 'approvedBy', 'scheduledPlan']);
         $isManager = Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']);
+
+        if ($request->filled('filter_brand')) {
+            $brands = $request->filter_brand;
+            if (is_string($brands)) {
+                $brands = [$brands];
+            }
+
+            $query->where(function ($builder) use ($brands) {
+                foreach ($brands as $brand) {
+                    $builder->orWhereJsonContains('brand', $brand);
+                }
+            });
+        }
+
+        if ($request->filled('filter_assigned_to')) {
+            $query->where('assigned_to', $request->filter_assigned_to);
+        }
 
         if ($request->filled('filter_status')) {
             $status = strtolower((string) $request->filter_status);
