@@ -9,6 +9,7 @@
                 </button>
             </div>
             <div class="modal-body">
+                <input type="hidden" id="viewRadiologiHasilId">
                 <div class="mb-3">
                     <div class="row">
                         <div class="col-md-6">
@@ -23,7 +24,8 @@
                         <div class="col-12">
                             <p><strong>Deskripsi:</strong></p>
                             <div class="card">
-                                <div class="card-body" id="viewRadiologiDeskripsi">
+                                <div class="card-body">
+                                    <textarea class="form-control" id="viewRadiologiDeskripsi" rows="4" placeholder="Masukkan deskripsi hasil radiologi"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -39,6 +41,9 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btn-update-radiologi-deskripsi">
+                    <i class="fas fa-save"></i> Update Deskripsi
+                </button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>

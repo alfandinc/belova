@@ -611,12 +611,13 @@ let dokumenTable = $('#dokumenRadiologiTable').DataTable({
             success: function(response) {
                 if (response.success) {
                     let hasil = response.data;
+                    $('#viewRadiologiHasilId').val(hasil.id);
                     
                     // Set modal content
                     $('#viewRadiologiNamaPemeriksaan').text(hasil.nama_pemeriksaan);
                     $('#viewRadiologiDokter').text(hasil.dokter_pengirim);
                     $('#viewRadiologiTanggal').text(new Date(hasil.tanggal_pemeriksaan).toLocaleDateString('id-ID'));
-                    $('#viewRadiologiDeskripsi').text(hasil.deskripsi || '-');
+                    $('#viewRadiologiDeskripsi').val(hasil.deskripsi || '');
                     
                     // Set file preview
                     let fileExt = hasil.file_path.split('.').pop().toLowerCase();
@@ -644,6 +645,56 @@ let dokumenTable = $('#dokumenRadiologiTable').DataTable({
                     icon: 'error',
                     title: 'Oops...',
                     text: 'Terjadi kesalahan! Silakan coba lagi.'
+                });
+                console.error(xhr.responseText);
+            }
+        });
+    });
+
+    $('#btn-update-radiologi-deskripsi').on('click', function() {
+        let hasilId = $('#viewRadiologiHasilId').val();
+        let deskripsi = $('#viewRadiologiDeskripsi').val();
+
+        if (!hasilId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Perhatian',
+                text: 'Data hasil radiologi belum dipilih.'
+            });
+            return;
+        }
+
+        $.ajax({
+            url: '/erm/eradiologi/hasil/' + hasilId + '/deskripsi',
+            type: 'PUT',
+            data: {
+                deskripsi: deskripsi,
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(response) {
+                if (response.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+
+                    dokumenTable.ajax.reload(null, false);
+                }
+            },
+            error: function(xhr) {
+                let message = 'Terjadi kesalahan! Silakan coba lagi.';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: message
                 });
                 console.error(xhr.responseText);
             }

@@ -392,4 +392,21 @@ public function getRadiologiHasilDetails($id)
         'data' => $radiologiHasil
     ]);
 }
+
+public function updateRadiologiHasilDescription(Request $request, $id)
+{
+    $validated = $request->validate([
+        'deskripsi' => 'nullable|string',
+    ]);
+
+    $radiologiHasil = RadiologiHasil::findOrFail($id);
+    $radiologiHasil->deskripsi = $validated['deskripsi'] ?? null;
+    $radiologiHasil->save();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Deskripsi hasil radiologi berhasil diperbarui.',
+        'data' => $radiologiHasil,
+    ]);
+}
 }

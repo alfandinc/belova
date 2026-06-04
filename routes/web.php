@@ -939,6 +939,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/eradiologi/{visitation_id}/dokumen/data', [EradiologiController::class, 'getRadiologiDokumenData'])->name('erm.eradiologi.dokumen.data');
     Route::post('/eradiologi/hasil/upload', [EradiologiController::class, 'uploadRadiologiHasil'])->name('erm.eradiologi.hasil.upload');
     Route::get('/eradiologi/hasil/{id}', [EradiologiController::class, 'getRadiologiHasilDetails'])->name('erm.eradiologi.hasil.detail');
+    Route::put('/eradiologi/hasil/{id}/deskripsi', [EradiologiController::class, 'updateRadiologiHasilDescription'])->name('erm.eradiologi.hasil.update-deskripsi');
     
     //Lab
     Route::get('/elab', [ElabController::class, 'index'])->name('erm.elab.index');
