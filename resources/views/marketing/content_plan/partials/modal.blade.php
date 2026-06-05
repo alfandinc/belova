@@ -86,6 +86,11 @@
                       </div>
 
                       <div class="mb-2">
+                        <label for="tanggal_produksi" class="form-label">Tanggal Produksi</label>
+                        <input type="date" class="form-control" id="tanggal_produksi" name="tanggal_produksi">
+                      </div>
+
+                      <div class="mb-2">
                         <label for="link_asset" class="form-label">Link Asset</label>
                         <input type="text" class="form-control" id="link_asset" name="link_asset">
                       </div>

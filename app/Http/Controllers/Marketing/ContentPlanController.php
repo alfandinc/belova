@@ -217,6 +217,7 @@ class ContentPlanController extends Controller
             'deskripsi' => 'nullable|string',
             'caption' => 'nullable|string',
             'mention' => 'nullable|string',
+            'tanggal_produksi' => 'nullable|date',
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',
@@ -280,6 +281,9 @@ class ContentPlanController extends Controller
         // include latest brief data (if any) to make it easier for the front-end to populate the Brief tab
         $latestBrief = $plan->briefs()->orderBy('created_at', 'desc')->first();
         $out = $plan->toArray();
+        $out['tanggal_produksi'] = $plan->tanggal_produksi
+            ? $plan->tanggal_produksi->toDateString()
+            : null;
         if ($latestBrief) {
             $out['brief'] = [
                 'id' => $latestBrief->id,
@@ -307,6 +311,7 @@ class ContentPlanController extends Controller
             'deskripsi' => 'nullable|string',
             'caption' => 'nullable|string',
             'mention' => 'nullable|string',
+            'tanggal_produksi' => 'nullable|date',
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',
@@ -383,12 +388,16 @@ class ContentPlanController extends Controller
      */
     public function week(Request $request)
     {
+        $scheduleBy = $request->input('schedule_by') === 'tanggal_produksi'
+            ? 'tanggal_produksi'
+            : 'tanggal_publish';
+
         $data = ContentPlan::withCount('briefs')->with('assignedTo');
         // Date range filter
         if ($request->filled('date_start') && $request->filled('date_end')) {
             $start = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
             $end = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-            $data->whereBetween('tanggal_publish', [$start, $end]);
+            $data->whereBetween($scheduleBy, [$start, $end]);
         }
         // Brand filter (array)
         if ($request->filled('filter_brand')) {
@@ -417,9 +426,9 @@ class ContentPlanController extends Controller
             $data->where('konten_pilar', $request->filter_konten_pilar);
         }
 
-        $items = $data->orderBy('tanggal_publish')->get();
+        $items = $data->orderBy($scheduleBy)->orderBy('tanggal_publish')->get();
 
-        $rows = $items->map(function($row) {
+        $rows = $items->map(function($row) use ($scheduleBy) {
             // build judul html (keep konten_pilar under title)
             $title = '<strong>' . e(mb_strtoupper($row->judul ?? '', 'UTF-8')) . '</strong>';
             $parts = [];
@@ -520,12 +529,19 @@ class ContentPlanController extends Controller
 
             $actionHtml = view('marketing.content_plan.partials.actions', ['row' => $row])->render();
 
+            $scheduleDate = $scheduleBy === 'tanggal_produksi'
+                ? ($row->tanggal_produksi ? $row->tanggal_produksi->toDateString() : null)
+                : ($row->tanggal_publish ? $row->tanggal_publish->toIso8601String() : null);
+
             return [
                 'id' => $row->id,
                 'judul_html' => $judul_html,
                 'platform_html' => $platform_html,
                 'status' => $row->status,
                 'action_html' => $actionHtml,
+                'schedule_by' => $scheduleBy,
+                'schedule_date' => $scheduleDate,
+                'tanggal_produksi' => $row->tanggal_produksi ? $row->tanggal_produksi->toDateString() : null,
                 'tanggal_publish' => $row->tanggal_publish ? $row->tanggal_publish->toIso8601String() : null,
                 'assigned_to_name' => $row->assignedTo ? $row->assignedTo->name : '',
                 'briefs_count' => $row->briefs_count ?? 0,
@@ -538,7 +554,7 @@ class ContentPlanController extends Controller
 
         // group by date (Y-m-d)
         $grouped = $rows->groupBy(function($r){
-            return $r['tanggal_publish'] ? \Carbon\Carbon::parse($r['tanggal_publish'])->format('Y-m-d') : 'no_date';
+            return $r['schedule_date'] ? \Carbon\Carbon::parse($r['schedule_date'])->format('Y-m-d') : 'no_date';
         })->toArray();
 
         return response()->json(['data' => $grouped]);
@@ -550,12 +566,16 @@ class ContentPlanController extends Controller
      */
     public function statusList(Request $request)
     {
+        $scheduleBy = $request->input('schedule_by') === 'tanggal_produksi'
+            ? 'tanggal_produksi'
+            : 'tanggal_publish';
+
         $data = ContentPlan::with('assignedTo');
         // Date range filter
         if ($request->filled('date_start') && $request->filled('date_end')) {
             $start = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
             $end = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-            $data->whereBetween('tanggal_publish', [$start, $end]);
+            $data->whereBetween($scheduleBy, [$start, $end]);
         }
         // Status filter
         if ($request->filled('status')) {
@@ -563,12 +583,15 @@ class ContentPlanController extends Controller
             if ($statusParam === 'all') {
                 // no-op
             } elseif ($statusParam === 'terlewat' || $statusParam === 'overdue') {
-                // scheduled or draft and tanggal_publish before now
                 $now = \Carbon\Carbon::now();
-                $data->where(function($q) use ($now) {
-                    $q->whereIn('status', ['Scheduled','Draft'])
-                      ->where('tanggal_publish', '<', $now);
+                $data->where(function($q) {
+                    $q->whereIn('status', ['Scheduled','Draft']);
                 });
+                if ($scheduleBy === 'tanggal_produksi') {
+                    $data->whereDate('tanggal_produksi', '<', $now->toDateString());
+                } else {
+                    $data->where('tanggal_publish', '<', $now);
+                }
             } else {
                 $data->where('status', $request->status);
             }
@@ -595,9 +618,9 @@ class ContentPlanController extends Controller
             });
         }
 
-        $items = $data->orderBy('tanggal_publish')->get();
+        $items = $data->orderBy($scheduleBy)->orderBy('tanggal_publish')->get();
 
-        $rows = $items->map(function($row) {
+        $rows = $items->map(function($row) use ($scheduleBy) {
             // plain title (remove any appended tokens like konten_pilar or platform names)
             $title = $row->judul ?? '';
             // remove platform/konten_pilar tokens if present
@@ -612,8 +635,11 @@ class ContentPlanController extends Controller
             // collapse whitespace
             $title = trim(preg_replace('/\s+/', ' ', $title));
 
-            $day = $row->tanggal_publish ? \Carbon\Carbon::parse($row->tanggal_publish)->format('l, j M Y') : '';
-            $time = $row->tanggal_publish ? \Carbon\Carbon::parse($row->tanggal_publish)->format('H.i') : '';
+            $scheduleValue = $scheduleBy === 'tanggal_produksi' ? $row->tanggal_produksi : $row->tanggal_publish;
+            $day = $scheduleValue ? \Carbon\Carbon::parse($scheduleValue)->format('l, j M Y') : '';
+            $time = $scheduleBy === 'tanggal_publish' && $scheduleValue
+                ? \Carbon\Carbon::parse($scheduleValue)->format('H.i')
+                : '';
             $brand = '';
             if ($row->brand) {
                 if (is_array($row->brand)) $brand = implode(', ', $row->brand);

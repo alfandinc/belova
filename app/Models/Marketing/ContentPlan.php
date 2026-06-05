@@ -19,6 +19,7 @@ class ContentPlan extends Model
         'deskripsi',
         'caption',
         'mention',
+        'tanggal_produksi',
         'tanggal_publish',
         'platform',
         'status',
@@ -37,6 +38,7 @@ class ContentPlan extends Model
         'platform' => 'array',
         'jenis_konten' => 'array',
         'brand' => 'array',
+        'tanggal_produksi' => 'date',
         'tanggal_publish' => 'datetime',
         'link_publikasi' => 'array',
     ];

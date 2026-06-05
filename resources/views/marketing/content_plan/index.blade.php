@@ -174,6 +174,41 @@
     background: #0d6efd;
     color: #fff;
 }
+.schedule-board-card {
+    border: 1px solid #dbe5f4;
+}
+.schedule-board-header {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.schedule-board-header.mode-publish {
+    background: linear-gradient(135deg, #e8f1ff 0%, #f5f9ff 100%);
+    border-bottom: 1px solid #cfe0ff;
+    color: #0b3d91;
+}
+.schedule-board-header.mode-production {
+    background: linear-gradient(135deg, #fff4de 0%, #fffaf0 100%);
+    border-bottom: 1px solid #f5d7a1;
+    color: #8a4b08;
+}
+.schedule-mode-title {
+    transition: color 0.2s ease;
+}
+.schedule-mode-title i {
+    margin-right: 10px;
+}
+.schedule-day-card .card-header {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.schedule-day-card.mode-publish .card-header {
+    background: #f4f8ff;
+    border-bottom: 1px solid #d6e5ff;
+    color: #184a9c;
+}
+.schedule-day-card.mode-production .card-header {
+    background: #fff7e8;
+    border-bottom: 1px solid #f1d7aa;
+    color: #8a4b08;
+}
 .content-list-table td, .content-list-table th {
     vertical-align: middle;
 }
@@ -403,9 +438,12 @@
 
     <div class="tab-content" id="contentWorkflowTabContent">
         <div class="tab-pane fade show active" id="scheduleTab" role="tabpanel" aria-labelledby="schedule-tab">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Content Schedule</h4>
+            <div class="card schedule-board-card">
+                <div id="scheduleBoardHeader" class="card-header schedule-board-header mode-publish d-flex justify-content-between align-items-center">
+                    <button type="button" id="scheduleModeTitle" class="btn btn-link p-0 text-left schedule-mode-title" style="font-size:1.5rem;font-weight:600;text-decoration:none;color:inherit;" title="Klik untuk ganti mode schedule">
+                        <i id="scheduleModeIcon" class="fas fa-calendar-check" aria-hidden="true"></i><span id="scheduleModeLabel">Content Publish Schedule</span>
+                    </button>
+                    <input type="hidden" id="scheduleByPicker" value="tanggal_publish">
                     <div class="d-flex align-items-center">
                         <div></div>
                         <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:nowrap;">
@@ -694,9 +732,31 @@ $(function() {
         var b = parseInt(hex.substring(4,6),16);
         return 'rgba('+r+','+g+','+b+','+alpha+')';
     }
+    function getScheduleBy() {
+        return $('#scheduleByPicker').val() === 'tanggal_produksi' ? 'tanggal_produksi' : 'tanggal_publish';
+    }
+    function updateScheduleModeTitle() {
+        var isProduction = getScheduleBy() === 'tanggal_produksi';
+        var label = isProduction ? 'Content Production Schedule' : 'Content Publish Schedule';
+        var iconClass = isProduction ? 'fas fa-tools' : 'fas fa-calendar-check';
+        $('#scheduleModeLabel').text(label);
+        $('#scheduleModeIcon').attr('class', iconClass).attr('aria-hidden', 'true');
+    }
+    function updateScheduleModeColors() {
+        var isProduction = getScheduleBy() === 'tanggal_produksi';
+        $('#scheduleBoardHeader')
+            .toggleClass('mode-production', isProduction)
+            .toggleClass('mode-publish', !isProduction);
+        $('#weekTables .schedule-day-card')
+            .toggleClass('mode-production', isProduction)
+            .toggleClass('mode-publish', !isProduction);
+    }
     function buildWeekTables() {
         $('#weekTables').empty();
         var weekStart = _defaultStart.clone();
+        var scheduleBy = getScheduleBy();
+        var firstColumnLabel = scheduleBy === 'tanggal_produksi' ? 'Produksi' : 'Time';
+        var dayCardModeClass = scheduleBy === 'tanggal_produksi' ? 'mode-production' : 'mode-publish';
 
         // Build empty cards/tables for seven days first
             for (var i=0;i<7;i++){
@@ -705,14 +765,16 @@ $(function() {
             var dayFull = d.format('dddd, D MMMM YYYY');
             var key = d.format('YYYY-MM-DD');
             var tableId = 'contentPlanTable-' + i;
-            var col = $('<div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card"><div class="card-header d-flex align-items-center"><div><strong style="display:block">'+dayFull+'</strong></div><div class="ml-auto"><button type="button" class="btn btn-sm btn-outline-primary btn-add-card" data-date="'+key+'" title="Tambah Content Plan"><i class="fas fa-plus"></i></button></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-bordered contentPlanTable" id="'+tableId+'" data-date="'+key+'" style="width:100%"><thead><tr><th class="jam-col">Time</th><th class="judul-col">Description</th></tr></thead></table></div></div></div></div>');
+            var col = $('<div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card schedule-day-card '+dayCardModeClass+'"><div class="card-header d-flex align-items-center"><div><strong style="display:block">'+dayFull+'</strong></div><div class="ml-auto"><button type="button" class="btn btn-sm btn-outline-primary btn-add-card" data-date="'+key+'" title="Tambah Content Plan"><i class="fas fa-plus"></i></button></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-bordered contentPlanTable" id="'+tableId+'" data-date="'+key+'" style="width:100%"><thead><tr><th class="jam-col">'+firstColumnLabel+'</th><th class="judul-col">Description</th></tr></thead></table></div></div></div></div>');
             $('#weekTables').append(col);
         }
+        updateScheduleModeColors();
 
         // Fetch entire week data in a single request
         var params = {
             date_start: _defaultStart.format('DD/MM/YYYY'),
-            date_end: _defaultEnd.format('DD/MM/YYYY')
+            date_end: _defaultEnd.format('DD/MM/YYYY'),
+            schedule_by: scheduleBy
         };
         var brands = $('#filterBrand').val(); if (brands && brands.length) params.filter_brand = brands;
         var platforms = $('#filterPlatform').val(); if (platforms && platforms.length) params.filter_platform = platforms;
@@ -746,9 +808,10 @@ $(function() {
                             paging: false,
                             info: false,
                             columns: [
-                                { data: 'tanggal_publish', className: 'jam-col', render: function(data, type, row){
-                                        var time = '';
-                                        if (data) time = moment(data).locale('id').format('HH.mm');
+                                { data: 'schedule_date', className: 'jam-col', render: function(data, type, row){
+                                    var activeScheduleBy = getScheduleBy();
+                                    var time = '-';
+                                    if (data && activeScheduleBy === 'tanggal_publish') time = moment(data).locale('id').format('HH.mm');
                                         var status = row && row.status ? row.status : '';
                                         var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'revisi': {bg: '#dc3545', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
                                         var sHtml = '';
@@ -762,7 +825,7 @@ $(function() {
                                         // show blinking warning if publish datetime is past and not published/cancelled
                                         var warnHtml = '';
                                         try {
-                                            if (data) {
+                                            if (data && activeScheduleBy === 'tanggal_publish') {
                                                 var isPast = moment(data).isBefore(moment());
                                                 var st = (status || '').toLowerCase();
                                                 if (isPast && st !== 'published' && st !== 'cancelled') {
@@ -881,6 +944,7 @@ $(function() {
                                             try { timePart = moment(plan.tanggal_publish).format('HH:mm:ss'); } catch(e) {}
                                         }
                                         var newTanggal = targetDate + ' ' + timePart; // 'YYYY-MM-DD HH:mm:ss'
+                                        var scheduleBy = getScheduleBy();
 
                                         // Prepare payload using required fields the controller validates
                                         var payload = {
@@ -890,6 +954,7 @@ $(function() {
                                             deskripsi: plan.deskripsi || null,
                                             caption: plan.caption || null,
                                             mention: plan.mention || null,
+                                            tanggal_produksi: plan.tanggal_produksi || null,
                                             tanggal_publish: newTanggal,
                                             platform: plan.platform && Array.isArray(plan.platform) ? plan.platform : (plan.platform ? (typeof plan.platform === 'string' && plan.platform.indexOf(',') !== -1 ? plan.platform.split(',').map(function(s){ return s.trim(); }) : [plan.platform]) : []),
                                             status: plan.status || 'Draft',
@@ -903,12 +968,23 @@ $(function() {
                                             _method: 'PUT'
                                         };
 
+                                        if (scheduleBy === 'tanggal_produksi') {
+                                            payload.tanggal_produksi = targetDate;
+                                        } else {
+                                            payload.tanggal_publish = newTanggal;
+                                        }
+
                                         // Remove null values to avoid sending unwanted nulls
                                         Object.keys(payload).forEach(function(k){ if (payload[k] === null) delete payload[k]; });
 
                                         $.ajax({ url: '/marketing/content-plan/' + id, method: 'POST', data: payload })
                                             .done(function(res){
-                                                try { rowData.tanggal_publish = newTanggal; $moved.data('rowData', rowData); } catch(e){}
+                                                try {
+                                                    rowData.tanggal_publish = payload.tanggal_publish || rowData.tanggal_publish;
+                                                    rowData.tanggal_produksi = payload.tanggal_produksi || rowData.tanggal_produksi;
+                                                    rowData.schedule_date = scheduleBy === 'tanggal_produksi' ? payload.tanggal_produksi : payload.tanggal_publish;
+                                                    $moved.data('rowData', rowData);
+                                                } catch(e){}
                                                 try { targetDt.row.add(rowData).draw(false); } catch(e) { console.error(e); }
                                                 try { reloadAllTables(false); } catch(e) {}
                                             }).fail(function(xhr){
@@ -954,7 +1030,8 @@ $(function() {
     function getWeekParams() {
         var params = {
             date_start: _defaultStart.format('DD/MM/YYYY'),
-            date_end: _defaultEnd.format('DD/MM/YYYY')
+            date_end: _defaultEnd.format('DD/MM/YYYY'),
+            schedule_by: getScheduleBy()
         };
         var brands = $('#filterBrand').val(); if (brands && brands.length) params.filter_brand = brands;
         var platforms = $('#filterPlatform').val(); if (platforms && platforms.length) params.filter_platform = platforms;
@@ -987,7 +1064,7 @@ $(function() {
             // 'terlewat' list from the controller and use its length so the header shows all overdue items.
             try {
                 var url = "{{ route('marketing.content-plan.status_list') }}";
-                $.getJSON(url, { status: 'terlewat' }).done(function(r){
+                $.getJSON(url, { status: 'terlewat', schedule_by: getScheduleBy() }).done(function(r){
                     var rows = (r && r.data) ? r.data : [];
                     $('#stat_terlewat').text(rows.length);
                 }).fail(function(){
@@ -1391,6 +1468,7 @@ $(function() {
         $('#brand').val(null).trigger('change');
         $('#assigned_to').val(null).trigger('change');
         $('#konten_pilar').val(null).trigger('change');
+        $('#tanggal_produksi').val('');
         try {
             try { if ($.fn && $.fn.summernote) { $('#cb_isi_konten').summernote('destroy'); } } catch(e) {}
             $('#cb_content_plan_id').val('');
@@ -1418,6 +1496,7 @@ $(function() {
             $('#jenis_konten').val(Array.isArray(source.jenis_konten) ? source.jenis_konten : []).trigger('change');
             $('#konten_pilar').val(source.konten_pilar || '').trigger('change');
             $('#assigned_to').val(source.assigned_to || '').trigger('change');
+            $('#tanggal_produksi').val(source.tanggal_produksi || '');
             $('#link_referensi').val(source.link_referensi || '');
             renderLinkInputs(source.platform || [], null);
             if (source.gambar_referensi) {
@@ -1502,11 +1581,26 @@ $(function() {
         var today = moment();
         $('#monthPicker').val(today.format('YYYY-MM'));
         $('#weekPicker').val(getWeekNumberForDateInMonth(today));
+        updateScheduleModeTitle();
+        updateScheduleModeColors();
     } catch(e) { console.error(e); }
 
     $('#monthPicker, #weekPicker').on('change', function(){
         var mv = $('#monthPicker').val(); var w = parseInt($('#weekPicker').val(),10);
         applyMonthWeekRange(mv, w);
+    });
+
+    $('#scheduleModeTitle').on('click', function(){
+        $('#scheduleByPicker').val(getScheduleBy() === 'tanggal_produksi' ? 'tanggal_publish' : 'tanggal_produksi');
+        updateScheduleModeTitle();
+        updateScheduleModeColors();
+        try {
+            if (typeof contentPlanTables !== 'undefined' && contentPlanTables.length) {
+                contentPlanTables.forEach(function(t){ try{ t.destroy(); }catch(e){} });
+                contentPlanTables = [];
+            }
+        } catch(e) { console.error('schedule mode change', e); }
+        buildWeekTables();
     });
 
     $('#btnPrevWeek, #btnNextWeek').on('click', function(){
@@ -1728,6 +1822,7 @@ $(function() {
             $('#konten_pilar').val(data.konten_pilar).trigger('change');
             // assigned_to may be null
             try { $('#assigned_to').val(data.assigned_to || '').trigger('change'); } catch(e) {}
+            try { $('#tanggal_produksi').val(data.tanggal_produksi || ''); } catch(e) {}
             $('#link_asset').val(data.link_asset);
             $('#link_referensi').val(data.link_referensi || '');
             // render per-platform link inputs
