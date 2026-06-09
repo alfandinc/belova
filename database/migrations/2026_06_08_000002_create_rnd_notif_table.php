@@ -8,18 +8,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('rnd_notif', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('produk_id')->constrained('rnd_produk')->cascadeOnDelete()->cascadeOnUpdate();
-            $table->string('doc_path')->nullable();
-            $table->date('tanggal_mulai')->nullable();
-            $table->date('tanggal_selesai')->nullable();
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('rnd_notif')) {
+            Schema::create('rnd_notif', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('produk_id')->constrained('rnd_produk')->cascadeOnDelete()->cascadeOnUpdate();
+                $table->string('doc_path')->nullable();
+                $table->date('tanggal_mulai')->nullable();
+                $table->date('tanggal_selesai')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('rnd_notif');
+        if (Schema::hasTable('rnd_notif')) {
+            Schema::dropIfExists('rnd_notif');
+        }
     }
 };
