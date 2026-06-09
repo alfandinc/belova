@@ -9,11 +9,35 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('rnd_produk', function (Blueprint $table) {
-            $table->enum('status_administrasi_fpp', ['review', 'revisi', 'done'])->nullable()->after('netto');
-            $table->enum('status_administrasi_spk', ['review', 'revisi', 'done'])->nullable()->after('status_administrasi_fpp');
-            $table->enum('status_administrasi_notif', ['review', 'revisi', 'done'])->nullable()->after('status_administrasi_spk');
-        });
+        $columnsToAdd = [];
+
+        if (!Schema::hasColumn('rnd_produk', 'status_administrasi_fpp')) {
+            $columnsToAdd[] = 'status_administrasi_fpp';
+        }
+
+        if (!Schema::hasColumn('rnd_produk', 'status_administrasi_spk')) {
+            $columnsToAdd[] = 'status_administrasi_spk';
+        }
+
+        if (!Schema::hasColumn('rnd_produk', 'status_administrasi_notif')) {
+            $columnsToAdd[] = 'status_administrasi_notif';
+        }
+
+        if ($columnsToAdd !== []) {
+            Schema::table('rnd_produk', function (Blueprint $table) use ($columnsToAdd) {
+                if (in_array('status_administrasi_fpp', $columnsToAdd, true)) {
+                    $table->enum('status_administrasi_fpp', ['review', 'revisi', 'done'])->nullable()->after('netto');
+                }
+
+                if (in_array('status_administrasi_spk', $columnsToAdd, true)) {
+                    $table->enum('status_administrasi_spk', ['review', 'revisi', 'done'])->nullable()->after('status_administrasi_fpp');
+                }
+
+                if (in_array('status_administrasi_notif', $columnsToAdd, true)) {
+                    $table->enum('status_administrasi_notif', ['review', 'revisi', 'done'])->nullable()->after('status_administrasi_spk');
+                }
+            });
+        }
 
         if (Schema::hasColumn('rnd_produk', 'status_administrasi')) {
             DB::table('rnd_produk')
@@ -46,37 +70,49 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('rnd_produk', function (Blueprint $table) {
-            $table->enum('status_administrasi', ['fpp_progress', 'fpp_done', 'spk_progress', 'spk_done', 'notif_progress', 'notif_revisi', 'notif_done'])->nullable()->after('netto');
-        });
+        if (!Schema::hasColumn('rnd_produk', 'status_administrasi')) {
+            Schema::table('rnd_produk', function (Blueprint $table) {
+                $table->enum('status_administrasi', ['fpp_progress', 'fpp_done', 'spk_progress', 'spk_done', 'notif_progress', 'notif_revisi', 'notif_done'])->nullable()->after('netto');
+            });
+        }
 
-        DB::table('rnd_produk')
-            ->select(['id', 'status_administrasi_fpp', 'status_administrasi_spk', 'status_administrasi_notif'])
-            ->orderBy('id')
-            ->chunkById(100, function ($rows) {
-                foreach ($rows as $row) {
-                    $statusAdministrasi = null;
+        if (
+            Schema::hasColumn('rnd_produk', 'status_administrasi_fpp') &&
+            Schema::hasColumn('rnd_produk', 'status_administrasi_spk') &&
+            Schema::hasColumn('rnd_produk', 'status_administrasi_notif')
+        ) {
+            DB::table('rnd_produk')
+                ->select(['id', 'status_administrasi_fpp', 'status_administrasi_spk', 'status_administrasi_notif'])
+                ->orderBy('id')
+                ->chunkById(100, function ($rows) {
+                    foreach ($rows as $row) {
+                        $statusAdministrasi = null;
 
-                    if ($row->status_administrasi_notif) {
-                        $statusAdministrasi = 'notif_' . ($row->status_administrasi_notif === 'review' ? 'progress' : $row->status_administrasi_notif);
-                    } elseif ($row->status_administrasi_spk) {
-                        $statusAdministrasi = 'spk_' . ($row->status_administrasi_spk === 'review' ? 'progress' : $row->status_administrasi_spk);
-                    } elseif ($row->status_administrasi_fpp) {
-                        $statusAdministrasi = 'fpp_' . ($row->status_administrasi_fpp === 'review' ? 'progress' : $row->status_administrasi_fpp);
+                        if ($row->status_administrasi_notif) {
+                            $statusAdministrasi = 'notif_' . ($row->status_administrasi_notif === 'review' ? 'progress' : $row->status_administrasi_notif);
+                        } elseif ($row->status_administrasi_spk) {
+                            $statusAdministrasi = 'spk_' . ($row->status_administrasi_spk === 'review' ? 'progress' : $row->status_administrasi_spk);
+                        } elseif ($row->status_administrasi_fpp) {
+                            $statusAdministrasi = 'fpp_' . ($row->status_administrasi_fpp === 'review' ? 'progress' : $row->status_administrasi_fpp);
+                        }
+
+                        DB::table('rnd_produk')
+                            ->where('id', $row->id)
+                            ->update(['status_administrasi' => $statusAdministrasi]);
                     }
+                }, 'id');
+        }
 
-                    DB::table('rnd_produk')
-                        ->where('id', $row->id)
-                        ->update(['status_administrasi' => $statusAdministrasi]);
-                }
-            }, 'id');
+        $columnsToDrop = array_values(array_filter([
+            Schema::hasColumn('rnd_produk', 'status_administrasi_fpp') ? 'status_administrasi_fpp' : null,
+            Schema::hasColumn('rnd_produk', 'status_administrasi_spk') ? 'status_administrasi_spk' : null,
+            Schema::hasColumn('rnd_produk', 'status_administrasi_notif') ? 'status_administrasi_notif' : null,
+        ]));
 
-        Schema::table('rnd_produk', function (Blueprint $table) {
-            $table->dropColumn([
-                'status_administrasi_fpp',
-                'status_administrasi_spk',
-                'status_administrasi_notif',
-            ]);
-        });
+        if ($columnsToDrop !== []) {
+            Schema::table('rnd_produk', function (Blueprint $table) use ($columnsToDrop) {
+                $table->dropColumn($columnsToDrop);
+            });
+        }
     }
 };
