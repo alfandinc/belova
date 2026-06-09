@@ -619,6 +619,7 @@
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
     .tile-daily-journal { background-color: #da16d0; } /* warm pink */
+    .tile-rnd { background-color: #0f766e; }       /* research teal */
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
@@ -1100,7 +1101,19 @@
                     <div class="menu-sub">Barang & Persediaan</div>
                 </a>
 
-                     <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12" data-filter="akreditasi quality compliance"
+                <a href="{{ route('rnd.dashboard') }}" class="menu-tile tile-rnd animate-item delay-12" data-filter="rnd research development master brand vendor bahan aktif"
+                   @if(!array_intersect($userRoles, ['Admin','Rnd','rnd','RND']))
+                       onclick="showRoleWarning(event, 'RND')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-atom"></i></div>
+                        <div class="menu-badge">R&D</div>
+                    </div>
+                    <div class="menu-title">Product R&D</div>
+                    <div class="menu-sub">Research and Development</div>
+                </a>
+
+                     <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-13" data-filter="akreditasi quality compliance"
                          @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Akreditasi')"
                    @endif>

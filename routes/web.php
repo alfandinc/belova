@@ -107,6 +107,9 @@ use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController
 use App\Http\Controllers\BukuMenuController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DailyJournalController;
+use App\Http\Controllers\RndDashboardController;
+use App\Http\Controllers\RndMasterController;
+use App\Http\Controllers\RndProdukController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login', [
@@ -249,6 +252,52 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/bcl', [BCLDashboardController::class, 'index'])
         ->middleware('role:Kos|Admin')
         ->name('bcl.dashboard');
+
+    Route::get('/rnd', [RndDashboardController::class, 'index'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.dashboard');
+    Route::get('/rnd/produk', [RndProdukController::class, 'index'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.index');
+    Route::get('/rnd/produk/data', [RndProdukController::class, 'data'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.data');
+    Route::put('/rnd/produk/sample-log/{sampleLog}', [RndProdukController::class, 'updateSampleLog'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.sample-log.update');
+    Route::delete('/rnd/produk/sample-log/{sampleLog}', [RndProdukController::class, 'destroySampleLog'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.sample-log.destroy');
+    Route::get('/rnd/produk/notif/{notif}/document', [RndProdukController::class, 'viewNotifDocument'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.notif.document');
+    Route::get('/rnd/produk/{produk}', [RndProdukController::class, 'show'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.show');
+    Route::post('/rnd/produk', [RndProdukController::class, 'store'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.store');
+    Route::put('/rnd/produk/{produk}', [RndProdukController::class, 'update'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.update');
+    Route::delete('/rnd/produk/{produk}', [RndProdukController::class, 'destroy'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.destroy');
+    Route::get('/rnd/masters/{master}/data', [RndMasterController::class, 'data'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.masters.data');
+    Route::get('/rnd/masters/{master}/{id}', [RndMasterController::class, 'show'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.masters.show');
+    Route::post('/rnd/masters/{master}', [RndMasterController::class, 'store'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.masters.store');
+    Route::put('/rnd/masters/{master}/{id}', [RndMasterController::class, 'update'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.masters.update');
+    Route::delete('/rnd/masters/{master}/{id}', [RndMasterController::class, 'destroy'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.masters.destroy');
 });
 
 // WhatsApp (waweb-js) integration removed: Node service and related endpoints deleted
