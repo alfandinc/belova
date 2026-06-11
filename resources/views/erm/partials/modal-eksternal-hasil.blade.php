@@ -1,6 +1,37 @@
 <!-- Modal for Hasil Eksternal Details -->
+<style>
+    #hasilEksternalModal .modal-dialog {
+        max-width: 95vw;
+        width: 95vw;
+    }
+
+    #hasilEksternalModal #fileViewerContainer {
+        min-height: 72vh;
+    }
+
+    #hasilEksternalModal #fileViewerContent iframe,
+    #hasilEksternalModal #fileViewerContent img {
+        width: 100%;
+        min-height: 72vh;
+        object-fit: contain;
+    }
+    
+    @media (max-width: 768px) {
+        #hasilEksternalModal .modal-dialog {
+            max-width: calc(100vw - 1rem);
+            width: calc(100vw - 1rem);
+            margin: 0.5rem auto;
+        }
+
+        #hasilEksternalModal #fileViewerContainer,
+        #hasilEksternalModal #fileViewerContent iframe,
+        #hasilEksternalModal #fileViewerContent img {
+            min-height: 60vh;
+        }
+    }
+</style>
 <div class="modal fade" id="hasilEksternalModal" tabindex="-1" role="dialog" aria-labelledby="hasilEksternalModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="hasilEksternalModalLabel">Detail Hasil Lab Eksternal</h5>

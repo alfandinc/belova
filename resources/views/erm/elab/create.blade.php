@@ -1282,9 +1282,9 @@ $(document).ready(function () {
                     let ext = response.fileUrl.split('.').pop().toLowerCase();
                     let viewerHtml = '';
                     if (['jpg','jpeg','png'].includes(ext)) {
-                        viewerHtml = '<img src="' + response.fileUrl + '" style="max-width:100%;max-height:500px;display:block;margin:auto;border:1px solid #ddd;">';
+                        viewerHtml = '<img src="' + response.fileUrl + '" style="display:block;margin:auto;border:1px solid #ddd;">';
                     } else if (ext === 'pdf') {
-                        viewerHtml = '<iframe src="' + response.fileUrl + '" style="width:100%;height:500px;border:1px solid #ddd;" frameborder="0"></iframe>';
+                        viewerHtml = '<iframe src="' + response.fileUrl + '" style="width:100%;height:72vh;border:1px solid #ddd;" frameborder="0"></iframe>';
                     } else {
                         viewerHtml = '<div class="text-danger">File tidak didukung untuk preview.</div>';
                     }
