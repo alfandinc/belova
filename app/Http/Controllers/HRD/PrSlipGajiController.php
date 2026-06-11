@@ -430,7 +430,16 @@ class PrSlipGajiController extends Controller
         $slip->benefit_jht = $request->input('benefit_jht', $slip->benefit_jht);
         $slip->benefit_jkk = $request->input('benefit_jkk', $slip->benefit_jkk);
         $slip->benefit_jkm = $request->input('benefit_jkm', $slip->benefit_jkm);
-        $slip->total_benefit = $request->input('total_benefit', $slip->total_benefit);
+        if ($request->has('total_benefit')) {
+            $slip->total_benefit = $request->input('total_benefit', $slip->total_benefit);
+        } else {
+            $slip->total_benefit = (
+                floatval($slip->benefit_bpjs_kesehatan ?? 0)
+                + floatval($slip->benefit_jht ?? 0)
+                + floatval($slip->benefit_jkk ?? 0)
+                + floatval($slip->benefit_jkm ?? 0)
+            );
+        }
 
         // Handle jasmed_file upload
         if ($request->hasFile('jasmed_file')) {
