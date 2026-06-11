@@ -312,7 +312,7 @@ Terima kasih.
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalEditAntrianTitle">Edit Nomor Antrian & Waktu Kunjungan</h5>
+                <h5 class="modal-title" id="modalEditAntrianTitle">Edit Kunjungan</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -320,6 +320,26 @@ Terima kasih.
             <form id="form-edit-antrian">
                 <div class="modal-body">
                     <input type="hidden" id="edit-antrian-visitation-id" name="visitation_id">
+                    <input type="hidden" id="edit-antrian-klinik-id" name="klinik_id">
+                    <div class="form-group">
+                        <label for="edit-antrian-tanggal">Tanggal Kunjungan</label>
+                        <input type="date" class="form-control" id="edit-antrian-tanggal" name="tanggal_visitation" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-antrian-dokter">Dokter</label>
+                        <select class="form-control select2-edit-antrian" id="edit-antrian-dokter" name="dokter_id" required>
+                            <option value="">Pilih Dokter</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-antrian-metode-bayar">Metode Bayar</label>
+                        <select class="form-control select2-edit-antrian" id="edit-antrian-metode-bayar" name="metode_bayar_id" required>
+                            <option value="">Pilih Metode Bayar</option>
+                            @foreach($metodeBayar as $metode)
+                                <option value="{{ $metode->id }}">{{ $metode->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="edit-antrian-no">Nomor Antrian</label>
                         <input type="number" min="1" class="form-control" id="edit-antrian-no" name="no_antrian" required>

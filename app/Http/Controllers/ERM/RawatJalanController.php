@@ -519,6 +519,8 @@ class RawatJalanController extends Controller
                     ->select([
                         'erm_visitations.id',
                         'erm_visitations.pasien_id',
+                        'erm_visitations.dokter_id',
+                        'erm_visitations.klinik_id',
                         'erm_visitations.metode_bayar_id',
                         'erm_visitations.status_kunjungan',
                         'erm_visitations.status_dokumen',
@@ -698,9 +700,16 @@ class RawatJalanController extends Controller
                             $whatsAppButton = '<button class="btn btn-sm btn-success open-visitation-chat position-relative" style="font-weight:bold; overflow: visible;" data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? '-') . '" title="Riwayat WhatsApp"><i class="fab fa-whatsapp"></i>' . $badgeHtml . '</button>';
                         }
                         $waktuKunjungan = $v->waktu_kunjungan ?? '';
-                        // Ensure we always emit a valid JS argument for no_antrian (use null literal when empty)
-                        $antrianJs = json_encode($v->no_antrian);
-                        $actionButtons[] = '<button class="btn btn-sm btn-secondary" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $antrianJs . ', \'' . htmlspecialchars($waktuKunjungan, ENT_QUOTES, 'UTF-8') . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
+                        $editPayload = htmlspecialchars(json_encode([
+                            'visitation_id' => (string) $v->id,
+                            'no_antrian' => $v->no_antrian,
+                            'waktu_kunjungan' => $waktuKunjungan,
+                            'tanggal_visitation' => $v->tanggal_visitation,
+                            'klinik_id' => $v->klinik_id,
+                            'dokter_id' => $v->dokter_id,
+                            'metode_bayar_id' => $v->metode_bayar_id,
+                        ]), ENT_QUOTES, 'UTF-8');
+                        $actionButtons[] = '<button class="btn btn-sm btn-secondary" style="font-weight:bold;" data-edit-payload="' . $editPayload . '" onclick="editAntrian(JSON.parse(this.dataset.editPayload))" title="Edit Kunjungan"><i class=\'fas fa-edit\'></i></button>';
                         }
 
                         $buttonHtml = '';
@@ -1383,10 +1392,17 @@ class RawatJalanController extends Controller
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
+            'dokter_id' => 'required|exists:erm_dokters,id',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'required|exists:erm_metode_bayar,id',
             'no_antrian' => 'required|integer|min:1',
-            'waktu_kunjungan' => 'nullable|date_format:H:i', // allow editing waktu_kunjungan
+            'waktu_kunjungan' => 'nullable|date_format:H:i',
         ]);
+
         $visitation = Visitation::findOrFail($request->visitation_id);
+        $visitation->dokter_id = $request->dokter_id;
+        $visitation->tanggal_visitation = $request->tanggal_visitation;
+        $visitation->metode_bayar_id = $request->metode_bayar_id;
         $visitation->no_antrian = $request->no_antrian;
         if ($request->has('waktu_kunjungan')) {
             $visitation->waktu_kunjungan = $request->waktu_kunjungan;

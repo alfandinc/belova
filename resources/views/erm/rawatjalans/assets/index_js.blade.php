@@ -1352,13 +1352,74 @@ function batalkanKunjungan(visitationId, btn) {
     });
 }
 
-// Edit Antrian
-function editAntrian(visitationId, currentAntrian, currentWaktuKunjungan = null) {
+// Edit Kunjungan
+function editAntrian(payload) {
     ensureRawatJalanCommonModalsLoaded().done(function () {
-        $('#edit-antrian-visitation-id').val(visitationId);
-        $('#edit-antrian-no').val(currentAntrian || '');
-        $('#edit-antrian-waktu').val(currentWaktuKunjungan || '');
-        $('#modalEditAntrian').modal('show');
+        payload = payload || {};
+        initializeEditAntrianSelect2();
+        $('#edit-antrian-visitation-id').val(payload.visitation_id || '');
+        $('#edit-antrian-klinik-id').val(payload.klinik_id || '');
+        $('#edit-antrian-tanggal').val(payload.tanggal_visitation || '');
+        $('#edit-antrian-metode-bayar').val(payload.metode_bayar_id || '').trigger('change.select2');
+        $('#edit-antrian-no').val(payload.no_antrian || '');
+        $('#edit-antrian-waktu').val(payload.waktu_kunjungan || '');
+
+        loadEditAntrianDokters(payload.klinik_id, payload.dokter_id).always(function () {
+            $('#modalEditAntrian').modal('show');
+        });
+    });
+}
+
+function initializeEditAntrianSelect2() {
+    var $modal = $('#modalEditAntrian');
+    if (!$modal.length || typeof $.fn.select2 !== 'function') {
+        return;
+    }
+
+    $modal.find('.select2-edit-antrian').each(function () {
+        var $select = $(this);
+        if ($select.hasClass('select2-hidden-accessible')) {
+            return;
+        }
+
+        $select.select2({
+            width: '100%',
+            dropdownParent: $modal
+        });
+    });
+}
+
+function loadEditAntrianDokters(klinikId, selectedDokterId) {
+    var $dokterSelect = $('#edit-antrian-dokter');
+
+    function escapeOptionValue(value) {
+        return $('<div>').text(value == null ? '' : String(value)).html();
+    }
+
+    $dokterSelect.empty().append('<option value="">Pilih Dokter</option>').trigger('change.select2');
+
+    if (!klinikId) {
+        return $.Deferred().resolve().promise();
+    }
+
+    return $.ajax({
+        url: '/get-dokters/' + encodeURIComponent(klinikId),
+        type: 'GET'
+    }).done(function (data) {
+        $dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+
+        if (Array.isArray(data)) {
+            $.each(data, function (index, dokter) {
+                var dokterName = dokter && dokter.user && dokter.user.name ? dokter.user.name : 'Unknown Doctor';
+                var spesialis = dokter && dokter.spesialisasi && dokter.spesialisasi.nama ? ' - ' + dokter.spesialisasi.nama : '';
+                $dokterSelect.append('<option value="' + escapeOptionValue(dokter.id) + '">' + escapeOptionValue(dokterName + spesialis) + '</option>');
+            });
+        }
+
+        $dokterSelect.val(selectedDokterId || '').trigger('change.select2');
+    }).fail(function () {
+        $dokterSelect.empty().append('<option value="">Pilih Dokter</option>').trigger('change.select2');
+        Swal.fire('Error', 'Gagal mengambil daftar dokter untuk klinik ini.', 'error');
     });
 }
 
@@ -1502,8 +1563,26 @@ $(document).on('submit', '#form-edit-antrian', function(e){
     e.preventDefault();
 
     var visitationId = $('#edit-antrian-visitation-id').val();
+    var tanggalKunjungan = $('#edit-antrian-tanggal').val();
+    var dokterId = $('#edit-antrian-dokter').val();
+    var metodeBayarId = $('#edit-antrian-metode-bayar').val();
     var noAntrian = $('#edit-antrian-no').val();
     var waktuKunjungan = $('#edit-antrian-waktu').val();
+
+    if (!tanggalKunjungan) {
+        Swal.fire('Error', 'Tanggal kunjungan wajib diisi', 'warning');
+        return;
+    }
+
+    if (!dokterId) {
+        Swal.fire('Error', 'Dokter wajib dipilih', 'warning');
+        return;
+    }
+
+    if (!metodeBayarId) {
+        Swal.fire('Error', 'Metode bayar wajib dipilih', 'warning');
+        return;
+    }
 
     if (!noAntrian || parseInt(noAntrian, 10) < 1) {
         Swal.fire('Error', 'Nomor antrian tidak valid', 'warning');
@@ -1516,13 +1595,16 @@ $(document).on('submit', '#form-edit-antrian', function(e){
         data: {
             _token: '{{ csrf_token() }}',
             visitation_id: visitationId,
+            tanggal_visitation: tanggalKunjungan,
+            dokter_id: dokterId,
+            metode_bayar_id: metodeBayarId,
             no_antrian: noAntrian,
             waktu_kunjungan: waktuKunjungan
         },
         success: function() {
             $('#modalEditAntrian').modal('hide');
             $('#rawatjalan-table').DataTable().ajax.reload();
-            Swal.fire('Berhasil', 'Nomor antrian & waktu kunjungan berhasil diubah.', 'success');
+            Swal.fire('Berhasil', 'Data kunjungan berhasil diubah.', 'success');
         },
         error: function() {
             Swal.fire('Gagal', 'Terjadi kesalahan.', 'error');
