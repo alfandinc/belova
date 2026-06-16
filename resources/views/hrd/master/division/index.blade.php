@@ -271,6 +271,16 @@
             adjustAndFix();
         });
 
+        // Initialize Select2 for parent position select inside the modal
+        if (typeof $.fn.select2 === 'function') {
+            $('#parent_id').select2({
+                dropdownParent: $('#positionModal'),
+                width: '100%',
+                placeholder: '-- Tidak Ada --',
+                allowClear: true
+            });
+        }
+
         // Ensure buttons are icon-only after each draw
         divisionTable.on('draw', function() { makeActionButtonsIconOnly('#divisionTable'); });
         positionTable.on('draw', function() { makeActionButtonsIconOnly('#positionTable'); });
