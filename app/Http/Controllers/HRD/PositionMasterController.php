@@ -17,9 +17,15 @@ class PositionMasterController extends Controller
         return view('hrd.master.position.index', compact('divisions'));
     }
 
-    public function getData()
+    public function getData(Request $request)
     {
         $positions = Position::with(['employees', 'division', 'parent']);
+
+        // Optional filter by division_id (sent from DataTables ajax)
+        $divisionId = $request->input('division_id');
+        if ($divisionId) {
+            $positions->where('division_id', $divisionId);
+        }
 
         return DataTables::of($positions)
             ->addColumn('division_name', function ($position) {

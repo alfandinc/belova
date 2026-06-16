@@ -62,9 +62,17 @@
                 <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Data Posisi</h4>
-                    <button type="button" class="btn btn-primary btn-sm" id="btnAddPosition">
-                        <i class="fa fa-plus"></i> Tambah Posisi
-                    </button>
+                    <div class="d-flex align-items-center">
+                        <select id="filter_division" class="form-control form-control-sm me-2">
+                            <option value="">Semua Divisi</option>
+                            @foreach($divisions as $division)
+                                <option value="{{ $division->id }}">{{ $division->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-primary btn-sm" id="btnAddPosition">
+                            <i class="fa fa-plus"></i> Tambah Posisi
+                        </button>
+                    </div>
                 </div><!--end card-header-->
                 <div class="card-body">
                     <div class="table-responsive">
@@ -223,6 +231,9 @@
             serverSide: true,
             ajax: {
                 url: "{{ route('hrd.master.position.data') }}",
+                data: function(d) {
+                    d.division_id = $('#filter_division').val();
+                },
                 error: function(xhr, error, thrown) {
                     console.log('DataTables error:', error, thrown);
                     Swal.fire('Error', 'Terjadi kesalahan saat memuat data. Silakan coba lagi.', 'error');
@@ -284,6 +295,11 @@
         // Ensure buttons are icon-only after each draw
         divisionTable.on('draw', function() { makeActionButtonsIconOnly('#divisionTable'); });
         positionTable.on('draw', function() { makeActionButtonsIconOnly('#positionTable'); });
+
+        // Reload positions table when division filter changes
+        $('#filter_division').on('change', function() {
+            positionTable.ajax.reload();
+        });
 
         // Open modal for adding new division
         $('#btnAddDivision').on('click', function() {
