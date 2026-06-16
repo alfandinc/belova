@@ -36,7 +36,7 @@ class EmployeeController extends Controller
 {
     if ($request->ajax()) {
         // (debug logging removed)
-        $employees = Employee::with(['division', 'user','position'])
+        $employees = Employee::with(['user','positions.division'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
         // Filter by status using dropdown:
@@ -63,6 +63,14 @@ class EmployeeController extends Controller
         }
 
         $dataTable = DataTables::of($employees)
+            ->addColumn('position', function ($employee) {
+                $names = $employee->positions->pluck('name')->toArray();
+                return empty($names) ? '-' : implode(', ', $names);
+            })
+            ->addColumn('division', function ($employee) {
+                $divs = $employee->positions->pluck('division.name')->unique()->filter()->toArray();
+                return empty($divs) ? '-' : implode(', ', $divs);
+            })
             ->addColumn('action', function ($employee) {
                 $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
                 $editBtn = '<a href="' . route('hrd.employee.edit', $employee->id) . '" class="btn btn-sm btn-primary ml-1"><i class="fas fa-edit"></i></a>';
@@ -166,7 +174,9 @@ class EmployeeController extends Controller
             'alamat' => 'nullable|string',
             'gol_darah' => 'nullable|string|max:5',
             'village_id' => 'nullable|exists:area_villages,id',
-            'position_id' => 'nullable|exists:hrd_position,id',
+            'position_ids' => 'nullable|array',
+            'position_ids.*' => 'exists:hrd_position,id',
+            'primary_position' => 'nullable|exists:hrd_position,id',
             'division_id' => 'nullable|exists:hrd_division,id',
             'pendidikan' => 'nullable|string',
             'no_hp' => 'nullable|string',
@@ -224,6 +234,16 @@ class EmployeeController extends Controller
         }
         $employee = Employee::create($employeeData);
 
+        // Sync positions pivot
+        if (isset($data['position_ids']) && is_array($data['position_ids'])) {
+            $primary = $data['primary_position'] ?? null;
+            $sync = [];
+            foreach ($data['position_ids'] as $pid) {
+                $sync[$pid] = ['is_primary' => ($primary && $primary == $pid) ? 1 : 0];
+            }
+            $employee->positions()->sync($sync);
+        }
+
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
@@ -239,23 +259,25 @@ class EmployeeController extends Controller
 
     public function show($id)
     {
-        $employee = Employee::with(['position', 'division', 'village', 'user'])->findOrFail($id);
+            $employee = Employee::with('positions')->findOrFail($id);
         return view('hrd.employee.show', compact('employee'));
     }
 
-    public function edit($id)
-    {
-            $employee = Employee::findOrFail($id);
+        public function edit($id)
+        {
+            $employee = Employee::with('positions')->findOrFail($id);
             $positions = Position::all();
             $divisions = Division::all();
             $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
             $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
+            $primaryPositionId = $employee->positions->firstWhere('pivot.is_primary', 1)->id ?? null;
             return view('hrd.employee.form', compact(
                 'employee',
                 'positions',
                 'divisions',
                 'gajiPokokList',
-                'tunjanganJabatanList'
+                'tunjanganJabatanList',
+                'primaryPositionId'
             ));
     }
 
@@ -291,6 +313,9 @@ class EmployeeController extends Controller
             'kategori_pegawai' => 'nullable|string|in:normal,khusus',
             'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
             'gol_tunjangan_jabatan_id' => 'nullable|exists:pr_master_tunjangan_jabatan,id',
+            'position_ids' => 'nullable|array',
+            'position_ids.*' => 'exists:hrd_position,id',
+            'primary_position' => 'nullable|exists:hrd_position,id',
         ]);
 
         // Handle file uploads
@@ -314,6 +339,19 @@ class EmployeeController extends Controller
             $employeeData['instagram'] = json_encode($data['instagram']);
         }
         $employee->update($employeeData);
+
+        // Sync positions pivot
+        if (isset($data['position_ids']) && is_array($data['position_ids'])) {
+            $primary = $data['primary_position'] ?? null;
+            $sync = [];
+            foreach ($data['position_ids'] as $pid) {
+                $sync[$pid] = ['is_primary' => ($primary && $primary == $pid) ? 1 : 0];
+            }
+            $employee->positions()->sync($sync);
+        } else {
+            // If none provided, detach all
+            $employee->positions()->detach();
+        }
 
         if ($request->ajax()) {
             return response()->json([
@@ -355,7 +393,7 @@ class EmployeeController extends Controller
     public function getDetails($id)
     {
         try {
-            $employee = Employee::with(['position', 'division', 'village', 'user'])->findOrFail($id);
+            $employee = Employee::with(['positions.division', 'village', 'user'])->findOrFail($id);
             
             // Convert document paths to public URLs if they exist
             foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {

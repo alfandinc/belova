@@ -338,16 +338,16 @@ $(function() {
                 }
             },
             {
-                data: 'position.name',
-                name: 'position.name',
+                data: 'position',
+                name: 'position',
                 defaultContent: '-',
                 render: function(data, type, row) {
                     var positionName = data || '-';
-                    var divisionName = (row.division && row.division.name) ? row.division.name : '-';
+                    var divisionName = row.division || '-';
 
                     var dropdown = '' +
                         '<div class="dropdown ml-2 position-dropdown-wrapper">' +
-                            '<button class="btn btn-sm btn-light p-1 position-change-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-id="' + row.id + '" data-division-id="' + (row.division && row.division.id ? row.division.id : '') + '" title="Ubah posisi">' +
+                            '<button class="btn btn-sm btn-light p-1 position-change-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-id="' + row.id + '" data-division-id="" title="Ubah posisi">' +
                                 '<i class="fas fa-ellipsis-v"></i>' +
                             '</button>' +
                             '<div class="dropdown-menu dropdown-menu-right p-0" id="position-menu-' + row.id + '">' +
@@ -361,7 +361,7 @@ $(function() {
                            '</div>';
                 }
             },
-            {data: 'division.name', name: 'division.name', defaultContent: '-', visible: false},
+            {data: 'division', name: 'division', defaultContent: '-', visible: false},
             {
                 data: 'status', 
                 name: 'status', 

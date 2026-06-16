@@ -43,7 +43,7 @@ class KpiAssessmentController extends Controller
             $assessmentMonth = Carbon::createFromFormat('Y-m', $selectedMonth)->startOfMonth();
         }
 
-        $assessments = KpiAssessment::with(['period', 'evaluatee.division', 'evaluatee.position'])
+        $assessments = KpiAssessment::with(['period', 'evaluatee.positions.division'])
             ->where('evaluator_id', $employee->id)
             ->whereHas('period', function ($query) use ($assessmentMonth) {
                 $query->whereDate('assessment_month', $assessmentMonth);
@@ -61,7 +61,7 @@ class KpiAssessmentController extends Controller
             abort(403);
         }
 
-        $assessment->load(['period', 'evaluatee.division', 'evaluatee.position', 'evaluatee.user.roles', 'scores']);
+        $assessment->load(['period', 'evaluatee.positions.division', 'evaluatee.user.roles', 'scores']);
 
         $indicators = $this->relevantIndicators($assessment)->get();
         $scores = $assessment->scores->keyBy('period_indicator_id');

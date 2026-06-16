@@ -20,13 +20,27 @@ class DivisionController extends Controller
                 ->with('error', 'Data karyawan tidak ditemukan');
         }
 
-        $division = Division::with([
-            'employees' => function ($query) {
-                $query->active()->orderBy('nama');
-            }
-        ])->findOrFail($employee->division);
+        // Resolve division id from employee safely whether `division` is an id or a related model
+        $divisionId = null;
+        if (is_numeric($employee->division)) {
+            $divisionId = $employee->division;
+        } elseif ($employee->division && is_object($employee->division) && property_exists($employee->division, 'id')) {
+            $divisionId = $employee->division->id;
+        } elseif (isset($employee->division_id)) {
+            $divisionId = $employee->division_id;
+        }
 
-        return view('hrd.division.my-division', compact('division'));
+        $division = Division::findOrFail($divisionId);
+
+        // Load employees for this division via positions pivot
+        $employees = Employee::active()
+            ->whereHas('positions', function ($q) use ($divisionId) {
+                $q->where('division_id', $divisionId);
+            })
+            ->orderBy('nama')
+            ->get();
+
+        return view('hrd.division.my-division', compact('division', 'employees'));
     }
 
     public function showMyTeam(Request $request)
@@ -40,9 +54,11 @@ class DivisionController extends Controller
 
         if ($request->ajax()) {
             $employees = Employee::active()
-                ->where('division', $employee->division)
+                ->whereHas('positions', function ($q) use ($divisionId) {
+                    $q->where('division_id', $divisionId);
+                })
                 ->where('id', '!=', $employee->id)
-                ->with(['position', 'user']);
+                ->with(['positions.division', 'user']);
 
             return DataTables::of($employees)
                 ->addColumn('status_label', function ($employee) {

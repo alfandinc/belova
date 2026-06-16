@@ -184,87 +184,140 @@
                     <!-- Data Kepegawaian Tab -->
                     <div class="tab-pane fade" id="kepegawaian" role="tabpanel" aria-labelledby="kepegawaian-tab">
                         <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="perusahaan">Perusahaan</label>
-                                <select id="perusahaan" name="perusahaan" class="form-control select2">
-                                    <option value="">-- Pilih Perusahaan --</option>
-                                    <option value="Klinik Utama Premiere Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Utama Premiere Belova' ? 'selected' : '' }}>Klinik Utama Premiere Belova</option>
-                                    <option value="Klinik Pratama Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Pratama Belova' ? 'selected' : '' }}>Klinik Pratama Belova</option>
-                                    <option value="Belova Center Living" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Belova Center Living' ? 'selected' : '' }}>Belova Center Living</option>
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="kategori_pegawai">Kategori Pegawai</label>
-                                <select id="kategori_pegawai" name="kategori_pegawai" class="form-control select2">
-                                    <option value="">-- Pilih Kategori --</option>
-                                    <option value="normal" {{ old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'normal' ? 'selected' : '' }}>Normal</option>
-                                    <option value="khusus" {{ old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'khusus' ? 'selected' : '' }}>Khusus</option>
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="no_induk">No Induk</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text"><i class="fas fa-fingerprint"></i></span>
+                            <div class="col-12 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        {{-- <h5 class="card-title">Data Kepegawaian - Umum</h5> --}}
+                                        <div class="form-row">
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="perusahaan" class="col-sm-4 col-form-label font-weight-bold text-left">Perusahaan :</label>
+                                                    <div class="col-sm-8">
+                                                        <select id="perusahaan" name="perusahaan" class="form-control select2">
+                                                            <option value="">-- Pilih Perusahaan --</option>
+                                                            <option value="Klinik Utama Premiere Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Utama Premiere Belova' ? 'selected' : '' }}>Klinik Utama Premiere Belova</option>
+                                                            <option value="Klinik Pratama Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Pratama Belova' ? 'selected' : '' }}>Klinik Pratama Belova</option>
+                                                            <option value="Belova Center Living" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Belova Center Living' ? 'selected' : '' }}>Belova Center Living</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="no_induk" class="col-sm-4 col-form-label font-weight-bold text-left">No Induk :</label>
+                                                    <div class="col-sm-8">
+                                                        <div class="input-group">
+                                                            <div class="input-group-prepend">
+                                                                <span class="input-group-text"><i class="fas fa-fingerprint"></i></span>
+                                                            </div>
+                                                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? ($nextNoInduk ?? '') ) }}">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="position_ids" class="col-sm-4 col-form-label font-weight-bold text-left">Posisi :</label>
+                                                    <div class="col-sm-8">
+                                                        <select name="position_ids[]" id="position_ids" class="form-control select2" multiple>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group col-md-6" id="primary-position-group">
+                                                <div class="form-row align-items-center">
+                                                    <label for="primary_position" class="col-sm-4 col-form-label font-weight-bold text-left">Primary Posisi :</label>
+                                                    <div class="col-sm-8">
+                                                        <select name="primary_position" id="primary_position" class="form-control select2">
+                                                            <option value="">-- Pilih Primary Posisi --</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group col-md-12">
+                                                <div class="form-row align-items-center">
+                                                    <label class="col-sm-4 col-form-label font-weight-bold text-left">Kategori Pegawai :</label>
+                                                    <div class="col-sm-8">
+                                                        <input type="hidden" name="kategori_pegawai" id="kategori_pegawai_hidden" value="{{ old('kategori_pegawai', $employee->kategori_pegawai ?? 'normal') }}">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" id="kategori_pegawai_khusus" {{ (old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'khusus') ? 'checked' : '' }}>
+                                                            <label class="form-check-label font-weight-bold" for="kategori_pegawai_khusus">Khusus</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? ($nextNoInduk ?? '') ) }}">
                                 </div>
                             </div>
-                            <div class="form-group col-md-6">
-                                <label for="division_id">Divisi</label>
-                                <select name="division_id" id="division_id" class="form-control select2">
-                                    <option value="">-- Pilih Divisi --</option>
-                                    @foreach($divisions as $division)
-                                        <option value="{{ $division->id }}" {{ old('division_id', $employee->division_id ?? '') == $division->id ? 'selected' : '' }}>
-                                            {{ $division->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="position_id">Posisi</label>
-                                <select name="position_id" id="position_id" class="form-control select2">
-                                    <option value="">-- Pilih Posisi --</option>
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="status">Status</label>
-                                <select name="status" id="status" class="form-control select2">
-                                    <option value="">-- Pilih Status --</option>
-                                    <option value="tetap" {{ old('status', $employee->status ?? '') == 'tetap' ? 'selected' : '' }}>Tetap</option>
-                                    <option value="kontrak" {{ old('status', $employee->status ?? '') == 'kontrak' ? 'selected' : '' }}>Kontrak</option>
-                                    <option value="tidak aktif" {{ old('status', $employee->status ?? '') == 'tidak aktif' ? 'selected' : '' }}>Tidak Aktif</option>
-                                    <option value="freelance" {{ old('status', $employee->status ?? '') == 'freelance' ? 'selected' : '' }}>Freelance</option>
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="tanggal_masuk">Tanggal Masuk</label>
-                                <input type="date" id="tanggal_masuk" name="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk', isset($employee->tanggal_masuk) ? $employee->tanggal_masuk->format('Y-m-d') : '') }}">
-                            </div>
-                            <input type="hidden" id="durasi_kontrak" name="durasi_kontrak" value="{{ old('durasi_kontrak', isset($employee->kontrak_berakhir) && isset($employee->tanggal_masuk) ? round(($employee->kontrak_berakhir->timestamp - $employee->tanggal_masuk->timestamp) / (30 * 24 * 60 * 60)) : '') }}">
-                            <input type="hidden" id="kontrak_berakhir" name="kontrak_berakhir" value="{{ old('kontrak_berakhir', isset($employee->kontrak_berakhir) ? $employee->kontrak_berakhir->format('Y-m-d') : '') }}">
 
-                            <div class="form-group col-md-6">
-                                <label for="gol_gaji_pokok_id">Gaji Pokok</label>
-                                <select name="gol_gaji_pokok_id" id="gol_gaji_pokok_id" class="form-control select2">
-                                    <option value="">-- Pilih Gaji Pokok --</option>
-                                    @foreach($gajiPokokList as $gaji)
-                                        <option value="{{ $gaji->id }}" {{ old('gol_gaji_pokok_id', $employee->gol_gaji_pokok_id ?? '') == $gaji->id ? 'selected' : '' }}>
-                                            {{ $gaji->golongan }} - Rp{{ number_format($gaji->nominal,0,',','.') }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="gol_tunjangan_jabatan_id">Tunjangan Jabatan</label>
-                                <select name="gol_tunjangan_jabatan_id" id="gol_tunjangan_jabatan_id" class="form-control select2">
-                                    <option value="">-- Pilih Tunjangan Jabatan --</option>
-                                    @foreach($tunjanganJabatanList as $tunjangan)
-                                        <option value="{{ $tunjangan->id }}" {{ old('gol_tunjangan_jabatan_id', $employee->gol_tunjangan_jabatan_id ?? '') == $tunjangan->id ? 'selected' : '' }}>
-                                            {{ $tunjangan->golongan }} - Rp{{ number_format($tunjangan->nominal,0,',','.') }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body">
+                                        {{-- <h5 class="card-title">Data Kepegawaian - Kontrak & Gaji</h5> --}}
+                                        <div class="form-row">
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="status" class="col-sm-4 col-form-label font-weight-bold text-left">Status :</label>
+                                                    <div class="col-sm-8">
+                                                        <select name="status" id="status" class="form-control select2">
+                                                            <option value="">-- Pilih Status --</option>
+                                                            <option value="tetap" {{ old('status', $employee->status ?? '') == 'tetap' ? 'selected' : '' }}>Tetap</option>
+                                                            <option value="kontrak" {{ old('status', $employee->status ?? '') == 'kontrak' ? 'selected' : '' }}>Kontrak</option>
+                                                            <option value="tidak aktif" {{ old('status', $employee->status ?? '') == 'tidak aktif' ? 'selected' : '' }}>Tidak Aktif</option>
+                                                            <option value="freelance" {{ old('status', $employee->status ?? '') == 'freelance' ? 'selected' : '' }}>Freelance</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="tanggal_masuk" class="col-sm-4 col-form-label font-weight-bold text-left">Tanggal Masuk :</label>
+                                                    <div class="col-sm-8">
+                                                        <input type="date" id="tanggal_masuk" name="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk', isset($employee->tanggal_masuk) ? $employee->tanggal_masuk->format('Y-m-d') : '') }}">
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <input type="hidden" id="durasi_kontrak" name="durasi_kontrak" value="{{ old('durasi_kontrak', isset($employee->kontrak_berakhir) && isset($employee->tanggal_masuk) ? round(($employee->kontrak_berakhir->timestamp - $employee->tanggal_masuk->timestamp) / (30 * 24 * 60 * 60)) : '') }}">
+                                            <input type="hidden" id="kontrak_berakhir" name="kontrak_berakhir" value="{{ old('kontrak_berakhir', isset($employee->kontrak_berakhir) ? $employee->kontrak_berakhir->format('Y-m-d') : '') }}">
+
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="gol_gaji_pokok_id" class="col-sm-4 col-form-label font-weight-bold text-left">Gaji Pokok :</label>
+                                                    <div class="col-sm-8">
+                                                        <select name="gol_gaji_pokok_id" id="gol_gaji_pokok_id" class="form-control select2">
+                                                            <option value="">-- Pilih Gaji Pokok --</option>
+                                                            @foreach($gajiPokokList as $gaji)
+                                                                <option value="{{ $gaji->id }}" {{ old('gol_gaji_pokok_id', $employee->gol_gaji_pokok_id ?? '') == $gaji->id ? 'selected' : '' }}>
+                                                                    {{ $gaji->golongan }} - Rp{{ number_format($gaji->nominal,0,',','.') }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <div class="form-row align-items-center">
+                                                    <label for="gol_tunjangan_jabatan_id" class="col-sm-4 col-form-label font-weight-bold text-left">Tunjangan Jabatan :</label>
+                                                    <div class="col-sm-8">
+                                                        <select name="gol_tunjangan_jabatan_id" id="gol_tunjangan_jabatan_id" class="form-control select2">
+                                                            <option value="">-- Pilih Tunjangan Jabatan --</option>
+                                                            @foreach($tunjanganJabatanList as $tunjangan)
+                                                                <option value="{{ $tunjangan->id }}" {{ old('gol_tunjangan_jabatan_id', $employee->gol_tunjangan_jabatan_id ?? '') == $tunjangan->id ? 'selected' : '' }}>
+                                                                    {{ $tunjangan->golongan }} - Rp{{ number_format($tunjangan->nominal,0,',','.') }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -343,12 +396,16 @@ var allPositions = [
     @foreach($positions as $position)
         {
             id: '{{ $position->id }}',
-            name: '{{ $position->name }}',
-            division_id: '{{ $position->division_id }}',
-            selected: '{{ old('position_id', $employee->position_id ?? '') }}' == '{{ $position->id }}'
+            name: '{{ addslashes($position->name) }}',
+            division_id: '{{ $position->division_id }}'
         },
     @endforeach
 ];
+
+var initiallySelected = {!! json_encode(old('position_ids', isset($employee) ? $employee->positions->pluck('id')->toArray() : [])) !!};
+// Ensure IDs are strings to match Select2 option values
+initiallySelected = (initiallySelected || []).map(function(v){ return String(v); });
+var initiallyPrimary = '{{ old('primary_position', $primaryPositionId ?? '') }}';
 
 $(function() {
     // Initialize select2
@@ -356,24 +413,51 @@ $(function() {
         width: '100%',
     });
 
-    // Populate positions based on division
+    // Populate positions (no division filter - positions are selectable directly)
     function populatePositions() {
-        var selectedDivision = $('#division_id').val();
-        var $position = $('#position_id');
-        var currentValue = $position.val();
+        var $position = $('#position_ids');
         $position.empty();
-        $position.append('<option value="">-- Pilih Posisi --</option>');
         allPositions.forEach(function(pos) {
-            if (!selectedDivision || pos.division_id == selectedDivision) {
-                var selected = (pos.selected || currentValue == pos.id) ? 'selected' : '';
-                $position.append('<option value="'+pos.id+'" '+selected+'>'+pos.name+'</option>');
-            }
+            var selected = (initiallySelected.indexOf(String(pos.id)) !== -1) ? 'selected' : '';
+            $position.append('<option value="'+pos.id+'" '+selected+'>'+pos.name+'</option>');
         });
         $position.trigger('change.select2');
+
+        // populate primary select based on current selection
+        updatePrimaryOptions();
     }
+
+    function updatePrimaryOptions() {
+        var $primary = $('#primary_position');
+        var selectedVals = $('#position_ids').val() || [];
+        $primary.empty();
+        $primary.append('<option value="">-- Pilih Primary Posisi --</option>');
+        allPositions.forEach(function(pos) {
+            if (selectedVals.indexOf(String(pos.id)) !== -1 || selectedVals.indexOf(pos.id) !== -1) {
+                var sel = (String(pos.id) === String(initiallyPrimary)) ? 'selected' : '';
+                $primary.append('<option value="'+pos.id+'" '+sel+'>'+pos.name+'</option>');
+            }
+        });
+        $primary.trigger('change.select2');
+        // Show primary selector only when more than one position is selected
+        if ((selectedVals || []).length > 1) {
+            $('#primary-position-group').show();
+        } else {
+            $('#primary-position-group').hide();
+        }
+    }
+
     populatePositions();
-    $('#division_id').on('change', function() {
-        populatePositions();
+
+    // initialize kategori_pegawai hidden value based on checkbox
+    $('#kategori_pegawai_hidden').val($('#kategori_pegawai_khusus').is(':checked') ? 'khusus' : 'normal');
+    $('#kategori_pegawai_khusus').on('change', function() {
+        $('#kategori_pegawai_hidden').val(this.checked ? 'khusus' : 'normal');
+    });
+
+    // When positions selection changes, refresh primary options
+    $(document).on('change', '#position_ids', function() {
+        updatePrimaryOptions();
     });
 
     // ...existing code for file input, contract date, etc...

@@ -83,7 +83,7 @@ class KpiAssessmentPeriodController extends Controller
         $this->authorizeManagement();
 
         $assessments = $period->assessments()
-            ->with(['evaluatee.division', 'evaluatee.position', 'scores.periodIndicator'])
+            ->with(['evaluatee.positions.division', 'scores.periodIndicator'])
             ->orderBy('evaluatee_id')
             ->get()
             ->groupBy('evaluatee_id');

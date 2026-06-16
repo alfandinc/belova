@@ -4,6 +4,7 @@ namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
 use App\Models\HRD\Division;
+use App\Models\HRD\Position;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Validation\Rule;
@@ -13,16 +14,20 @@ class DivisionMasterController extends Controller
     public function index()
     {
         $divisions = Division::all();
-        return view('hrd.master.division.index', compact('divisions'));
+        $positions = Position::all();
+        return view('hrd.master.division.index', compact('divisions', 'positions'));
     }
 
     public function getData()
     {
-        $divisions = Division::with('employees');
+        $divisions = Division::query();
 
         return DataTables::of($divisions)
             ->addColumn('employee_count', function ($division) {
-                return $division->employees->count();
+                // Count employees by checking positions that belong to this division
+                return \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($division) {
+                    $q->where('division_id', $division->id);
+                })->count();
             })
             ->addColumn('action', function ($division) {
                 return '
@@ -94,7 +99,11 @@ class DivisionMasterController extends Controller
         $division = Division::findOrFail($id);
         
         // Check if there are any related positions
-        if ($division->employees()->count() > 0) {
+        $employeeCount = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($division) {
+            $q->where('division_id', $division->id);
+        })->count();
+
+        if ($employeeCount > 0) {
             return response()->json([
                 'success' => false,
                 'message' => 'Tidak dapat menghapus divisi karena masih memiliki karyawan'

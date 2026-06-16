@@ -517,7 +517,7 @@ class PerformanceEvaluationController extends Controller
             
             // Use table alias to avoid ambiguous column names
             $query = PerformanceEvaluation::select('performance_evaluations.*')
-                ->with(['evaluatee', 'evaluatee.position', 'evaluatee.division', 'period'])
+                ->with(['evaluatee', 'evaluatee.positions.division', 'period'])
                 ->where('performance_evaluations.evaluator_id', $employee->id)
                 ->where('performance_evaluations.status', $type);
 

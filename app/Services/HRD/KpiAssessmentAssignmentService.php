@@ -59,7 +59,7 @@ class KpiAssessmentAssignmentService
 
     private function generateAssignments(KpiAssessmentPeriod $period): void
     {
-        $employees = Employee::with(['division', 'position', 'user.roles'])
+        $employees = Employee::with(['positions.division', 'user.roles'])
             ->where(function ($query) {
                 $query->whereNull('status')
                     ->orWhereRaw('LOWER(status) <> ?', ['tidak aktif']);

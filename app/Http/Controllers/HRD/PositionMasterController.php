@@ -19,11 +19,14 @@ class PositionMasterController extends Controller
 
     public function getData()
     {
-        $positions = Position::with(['employees', 'division']);
+        $positions = Position::with(['employees', 'division', 'parent']);
 
         return DataTables::of($positions)
             ->addColumn('division_name', function ($position) {
                 return $position->division->name ?? '-';
+            })
+            ->addColumn('parent_name', function ($position) {
+                return $position->parent->name ?? '-';
             })
             ->addColumn('employee_count', function ($position) {
                 return $position->employees->count();
@@ -47,13 +50,15 @@ class PositionMasterController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'division_id' => 'required|exists:hrd_division,id'
+            'division_id' => 'required|exists:hrd_division,id',
+            'parent_id' => 'nullable|exists:hrd_position,id'
         ]);
 
         $position = Position::create([
             'name' => $request->name,
             'description' => $request->description,
-            'division_id' => $request->division_id
+            'division_id' => $request->division_id,
+            'parent_id' => $request->parent_id
         ]);
 
         return response()->json([
@@ -76,13 +81,15 @@ class PositionMasterController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'division_id' => 'required|exists:hrd_division,id'
+            'division_id' => 'required|exists:hrd_division,id',
+            'parent_id' => ['nullable','exists:hrd_position,id', Rule::notIn([$id])]
         ]);
 
         $position->update([
             'name' => $request->name,
             'description' => $request->description,
-            'division_id' => $request->division_id
+            'division_id' => $request->division_id,
+            'parent_id' => $request->parent_id
         ]);
 
         return response()->json([

@@ -33,8 +33,7 @@ class Employee extends Model
         'alamat',
         'gol_darah', // Blood type
         'village_id',
-        'position_id',       // Changed from 'posisi' to match migration
-        'division_id',       // Changed from 'divisi' to match migration
+        // position_id and division_id moved to pivot / derived from Position
         'pendidikan',
         'no_hp',
         'tanggal_masuk',
@@ -86,14 +85,48 @@ class Employee extends Model
 
     public function position()
     {
-        // Make sure this points to the correct foreign key
-        return $this->belongsTo(Position::class, 'position_id');
+        // Relation: primary position (may return a collection when eager-loaded)
+        return $this->positions()->wherePivot('is_primary', 1);
     }
 
-    public function division()
+    /**
+     * Accessor for `$employee->position` to return a single Position model (primary)
+     */
+    public function getPositionAttribute()
     {
-        // Make sure this points to the correct foreign key
-        return $this->belongsTo(Division::class, 'division_id');
+        $rel = $this->getRelationValue('position');
+        if ($rel instanceof \Illuminate\Contracts\Support\Arrayable || $rel instanceof \Illuminate\Database\Eloquent\Collection) {
+            return $rel->first();
+        }
+        return $rel;
+    }
+
+    /**
+     * Accessor for `$employee->division` to keep compatibility.
+     * Returns the division of the primary position if available.
+     */
+    public function getDivisionAttribute()
+    {
+        $pos = $this->position; // uses accessor above
+        return $pos ? $pos->division : null;
+    }
+
+    /**
+     * Many-to-many positions pivot relationship.
+     */
+    public function positions()
+    {
+        return $this->belongsToMany(Position::class, 'hrd_employee_position')
+                    ->withPivot('is_primary')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Helper to get the primary position (if any).
+     */
+    public function primaryPosition()
+    {
+        return $this->positions()->wherePivot('is_primary', 1)->first();
     }
     public function manager()
     {

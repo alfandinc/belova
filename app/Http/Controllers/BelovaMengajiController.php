@@ -63,14 +63,14 @@ class BelovaMengajiController extends Controller
         $date = $request->get('date') ?: date('Y-m-d');
 
         $employees = Employee::active()
-            ->with(['position', 'division'])
+            ->with(['positions.division'])
             ->select('id', 'nama', 'no_induk', 'no_hp', 'email', 'position_id', 'division_id');
 
         // fetch existing ngaji nilai for the given date
         $ngaji = \App\Models\Belova\NgajiNilai::where('date', $date)->get()->keyBy('employee_id');
 
-        return DataTables::of($employees)->addColumn('position', function($e) { return optional($e->position)->nama ?? '-'; })
-            ->addColumn('division', function($e) { return optional($e->division)->nama ?? '-'; })
+        return DataTables::of($employees)->addColumn('position', function($e) { $names = $e->positions->pluck('name')->toArray(); return empty($names) ? '-' : implode(', ', $names); })
+            ->addColumn('division', function($e) { $divs = $e->positions->pluck('division.name')->unique()->filter()->toArray(); return empty($divs) ? '-' : implode(', ', $divs); })
             ->addColumn('nilai_makhroj', function($e) use ($ngaji, $date) {
                 $val = isset($ngaji[$e->id]) ? $ngaji[$e->id]->nilai_makhroj : '';
                 $html = '<select class="form-control ngaji-select" data-employee="'.$e->id.'" data-field="nilai_makhroj" data-date="'.$date.'">';
