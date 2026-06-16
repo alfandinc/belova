@@ -53,9 +53,12 @@ class EmployeeController extends Controller
             $employees->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
         }
 
-        // Filter by division if provided
+        // Filter by division if provided (employees are linked to divisions via positions)
         if ($request->filled('division_id')) {
-            $employees->where('division_id', $request->input('division_id'));
+            $divisionId = $request->input('division_id');
+            $employees->whereHas('positions', function($q) use ($divisionId) {
+                $q->where('division_id', $divisionId);
+            });
         }
         // Filter by perusahaan if provided
         if ($request->filled('perusahaan')) {
