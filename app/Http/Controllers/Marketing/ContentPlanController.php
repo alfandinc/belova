@@ -585,7 +585,7 @@ class ContentPlanController extends Controller
             } elseif ($statusParam === 'terlewat' || $statusParam === 'overdue') {
                 $now = \Carbon\Carbon::now();
                 $data->where(function($q) {
-                    $q->whereIn('status', ['Scheduled','Draft']);
+                    $q->whereIn('status', ['Scheduled','Draft','Done']);
                 });
                 if ($scheduleBy === 'tanggal_produksi') {
                     $data->whereDate('tanggal_produksi', '<', $now->toDateString());

@@ -556,6 +556,7 @@
                         <select id="status_select" name="status" class="form-control">
                             <option value="Draft">Draft</option>
                             <option value="Scheduled">Scheduled</option>
+                            <option value="Done">Done</option>
                             <option value="Published">Published</option>
                             <option value="Revisi">Revisi</option>
                             <option value="Cancelled">Cancelled</option>
@@ -813,7 +814,7 @@ $(function() {
                                     var time = '-';
                                     if (data && activeScheduleBy === 'tanggal_publish') time = moment(data).locale('id').format('HH.mm');
                                         var status = row && row.status ? row.status : '';
-                                        var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'revisi': {bg: '#dc3545', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
+                                        var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'done': {bg: '#0d6efd', color: '#ffffff'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'revisi': {bg: '#dc3545', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
                                         var sHtml = '';
                                         if (status) {
                                             var key = status.toLowerCase();
@@ -1109,6 +1110,7 @@ $(function() {
                             var sClass = 'badge-secondary';
                             if (sKey === 'published') sClass = 'badge-success';
                             else if (sKey === 'scheduled') sClass = 'badge-warning';
+                            else if (sKey === 'done') sClass = 'badge-primary';
                             else if (sKey === 'draft') sClass = 'badge-secondary';
                             else if (sKey === 'revisi') sClass = 'badge-danger';
                             else if (sKey === 'cancelled') sClass = 'badge-danger';
@@ -2332,6 +2334,7 @@ $(function() {
             var map = {
                 'draft': {bg: '#6c757d', color: '#ffffff'},
                 'scheduled': {bg: '#ffc107', color: '#212529'},
+                'done': {bg: '#0d6efd', color: '#ffffff'},
                 'published': {bg: '#28a745', color: '#ffffff'},
                 'cancelled': {bg: '#dc3545', color: '#ffffff'}
             };
