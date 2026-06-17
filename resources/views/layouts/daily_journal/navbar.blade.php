@@ -30,6 +30,10 @@
             $baseJournalParams['start_date'] = request('start_date', $todayDate);
             $baseJournalParams['end_date'] = request('end_date', $todayDate);
         }
+
+        $journalDivisionUser = Auth::user();
+        $canOpenDivisionJournal = $journalDivisionUser?->hasAnyRole(['Hrd', 'HRD', 'hrd', 'Admin', 'admin', 'Ceo', 'CEO', 'ceo'])
+            || $journalDivisionUser?->roles()->pluck('name')->contains(fn ($roleName) => str_contains(strtolower($roleName), 'manager'));
     @endphp
 
     <div class="brand mt-3">
@@ -52,7 +56,7 @@
                 </a>
             </li>
 
-            @if(Auth::user()?->hasAnyRole(['Manager', 'Head Manager', 'Hrd', 'Admin']))
+            @if($canOpenDivisionJournal)
                 <li>
                     <a href="{{ route('daily-journal.division.index') }}" class="{{ $isDivisionPage ? 'active' : '' }}">
                         <i data-feather="users" class="align-self-center menu-icon"></i>

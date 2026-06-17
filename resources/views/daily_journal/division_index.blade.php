@@ -1423,8 +1423,8 @@
             @if(!$divisionName)
                 <div class="empty-state">
                     <span class="emoji">🏢</span>
-                    <h2>Divisi belum terhubung</h2>
-                    <p>User manager ini belum memiliki divisi pada data karyawan.</p>
+                    <h2>Tim belum terhubung</h2>
+                    <p>User ini belum memiliki data karyawan yang bisa dipakai untuk membaca relasi bawahan.</p>
                 </div>
             @elseif($tasks->isEmpty())
                 <div class="empty-state">
@@ -1516,7 +1516,7 @@
             <div class="assign-panel-head">
                 <div>
                     <h2 class="assign-panel-title">Give Task</h2>
-                    <p class="assign-panel-copy">Manager dapat membuat task untuk employee dalam divisi yang sama, sementara Admin dan HRD dapat assign lintas divisi.</p>
+                    <p class="assign-panel-copy">Manager dapat membuat task untuk bawahan langsungnya, sementara CEO, Admin, dan HRD dapat assign ke semua user.</p>
                 </div>
                 <button type="button" class="close-assign-panel" id="closeAssignPanel">×</button>
             </div>

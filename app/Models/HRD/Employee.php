@@ -130,9 +130,17 @@ class Employee extends Model
     }
     public function manager()
     {
-        return $this->belongsTo(Employee::class, 'manager_id');
+        return $this->belongsTo(Employee::class, 'parent_id');
         // OR if you determine managers by a flag
         // return $this->hasOne(Employee::class)->where('is_manager', true);
+    }
+
+    /**
+     * Direct reports for this manager (employees where parent_id == this employee id)
+     */
+    public function directReports()
+    {
+        return $this->hasMany(self::class, 'parent_id');
     }
 
     public function village()

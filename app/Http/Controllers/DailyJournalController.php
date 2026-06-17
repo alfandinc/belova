@@ -7,12 +7,15 @@ use App\Models\HRD\Employee;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DailyJournalController extends Controller
 {
+    private const ALL_TASK_ACCESS_ROLES = ['Hrd', 'HRD', 'hrd', 'Admin', 'admin', 'Ceo', 'CEO', 'ceo'];
+
     private const FILTERS = [
         'today',
         'week',
@@ -88,8 +91,10 @@ class DailyJournalController extends Controller
     public function divisionIndex(Request $request): View
     {
         $actor = Auth::user();
-        $canViewAllTasks = $actor?->hasRole('Hrd') || $actor?->hasRole('Admin');
-        $canAssignTasks = $actor?->hasRole('Manager') || $canViewAllTasks;
+        $canViewAllTasks = $this->canViewAllDivisionTasks($actor);
+        $canAssignTasks = $this->canAssignDivisionTasks($actor);
+        $actorEmployee = $actor?->employee;
+        $assignableMemberQuery = $this->resolveDivisionMemberQuery($actorEmployee, $canViewAllTasks);
 
         abort_unless($canAssignTasks || $canViewAllTasks, 403);
 
@@ -104,10 +109,9 @@ class DailyJournalController extends Controller
         });
         [$rangeStart, $rangeEnd] = $this->resolveDateRange($request, $selectedDate, $filter);
 
-        $divisionId = optional($actor->employee)->division_id;
         $divisionName = $canViewAllTasks
-            ? 'All Divisions'
-            : optional(optional($actor->employee)->division)->name;
+            ? 'All Employees'
+            : ($actorEmployee ? 'My Team' : null);
 
         $divisionMembers = collect();
         $selectedUserId = null;
@@ -120,11 +124,8 @@ class DailyJournalController extends Controller
             'skipped' => 0,
         ];
 
-        if ($canViewAllTasks || $divisionId) {
-            $divisionMembers = Employee::active()
-                ->when(!$canViewAllTasks, function ($query) use ($divisionId) {
-                    $query->where('division_id', $divisionId);
-                })
+        if ($assignableMemberQuery !== null) {
+            $divisionMembers = $assignableMemberQuery
                 ->whereNotNull('user_id')
                 ->with('user:id,name')
                 ->get()
@@ -218,16 +219,14 @@ class DailyJournalController extends Controller
         $actor = Auth::user();
         $userId = Auth::id();
         $fromUserId = null;
-        $canViewAllTasks = $actor?->hasRole('Hrd') || $actor?->hasRole('Admin');
+        $canViewAllTasks = $this->canViewAllDivisionTasks($actor);
+        $assignableMemberQuery = $this->resolveDivisionMemberQuery($actor?->employee, $canViewAllTasks);
 
         if ($canViewAllTasks && !empty($validated['user_id'])) {
             $userId = (int) $validated['user_id'];
             $fromUserId = $actor->id;
-        } elseif ($actor?->hasRole('Manager') && !empty($validated['user_id'])) {
-            $managerDivisionId = optional($actor->employee)->division_id;
-
-            $divisionMemberIds = Employee::active()
-                ->where('division_id', $managerDivisionId)
+        } elseif ($this->canAssignDivisionTasks($actor) && !empty($validated['user_id'])) {
+            $divisionMemberIds = ($assignableMemberQuery ?? Employee::query()->whereRaw('1 = 0'))
                 ->whereNotNull('user_id')
                 ->pluck('user_id')
                 ->filter()
@@ -467,5 +466,53 @@ class DailyJournalController extends Controller
         }
 
         return $params;
+    }
+
+    private function canViewAllDivisionTasks($user): bool
+    {
+        return (bool) $user?->hasRole(self::ALL_TASK_ACCESS_ROLES);
+    }
+
+    private function canAssignDivisionTasks($user): bool
+    {
+        if ($this->canViewAllDivisionTasks($user)) {
+            return true;
+        }
+
+        if (!$user) {
+            return false;
+        }
+
+        return $user->roles()
+            ->pluck('name')
+            ->contains(fn ($roleName) => str_contains(strtolower($roleName), 'manager'));
+    }
+
+    private function resolveDivisionMemberQuery(?Employee $actorEmployee, bool $canViewAllTasks): ?Builder
+    {
+        $query = Employee::active();
+
+        if ($canViewAllTasks) {
+            return $query;
+        }
+
+        if (!$actorEmployee) {
+            return null;
+        }
+
+        $managerPositionIds = $actorEmployee->positions()
+            ->wherePivot('is_primary', 1)
+            ->pluck('hrd_position.id')
+            ->filter()
+            ->values();
+
+        if ($managerPositionIds->isEmpty()) {
+            return null;
+        }
+
+        return $query->whereHas('positions', function (Builder $positionQuery) use ($managerPositionIds) {
+            $positionQuery->where('hrd_employee_position.is_primary', 1)
+                ->whereIn('hrd_position.parent_id', $managerPositionIds->all());
+        });
     }
 }
