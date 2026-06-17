@@ -575,6 +575,26 @@
             background: #fff;
         }
 
+        .delegated-filter-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 9px 12px;
+            border-radius: 14px;
+            background: rgba(248, 250, 252, 0.96);
+            border: 1px solid rgba(15, 23, 42, 0.06);
+            font-size: 12px;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .delegated-filter-toggle input {
+            width: 16px;
+            height: 16px;
+            accent-color: #ff6b8a;
+        }
+
         .summary-filter-label {
             display: block;
             margin-bottom: 8px;
@@ -758,6 +778,27 @@
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+        }
+
+        .task-source-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            background: rgba(255, 255, 255, 0.82);
+            color: #475569;
+            border: 1px solid rgba(15, 23, 42, 0.06);
+        }
+
+        .task-source-label.is-delegated {
+            background: rgba(255, 236, 240, 0.95);
+            color: #b4234f;
+            border-color: rgba(180, 35, 79, 0.12);
         }
 
         .task-user-cell,
@@ -1318,6 +1359,7 @@
             'start_date' => $rangeStart->toDateString(),
             'end_date' => $rangeEnd->toDateString(),
             'user_id' => $selectedUserId,
+            'delegated_by_me' => $delegatedByMe ? 1 : 0,
         ];
         $themeOptions = ['rose', 'lavender', 'mint', 'sky', 'peach'];
         $assignFormHasErrors = $errors->hasAny([
@@ -1351,7 +1393,8 @@
                         <input type="hidden" name="date" value="{{ $selectedDate->toDateString() }}">
                         <input type="hidden" name="start_date" value="{{ $rangeStart->toDateString() }}">
                         <input type="hidden" name="end_date" value="{{ $rangeEnd->toDateString() }}">
-                        <select id="topbar_division_user_id" name="user_id" class="topbar-filter-select">
+                        <input type="hidden" name="delegated_by_me" value="0">
+                        <select id="topbar_division_user_id" name="user_id" class="topbar-filter-select js-ajax-filter-input">
                             <option value="">All Employees</option>
                             @foreach($divisionMembers as $member)
                                 <option value="{{ $member->user_id }}" {{ (int) $selectedUserId === (int) $member->user_id ? 'selected' : '' }}>
@@ -1359,22 +1402,27 @@
                                 </option>
                             @endforeach
                         </select>
+                        <label class="delegated-filter-toggle" for="topbar_delegated_by_me">
+                            <input type="checkbox" id="topbar_delegated_by_me" name="delegated_by_me" value="1" class="js-ajax-filter-input" {{ $delegatedByMe ? 'checked' : '' }}>
+                            Delegated by me
+                        </label>
                     </form>
                 @endif
             </div>
 
             <div class="filter-panel" id="filterPanel">
                 <div class="filter-grid">
-                    <a href="{{ route('daily-journal.division.index', ['filter' => 'today', 'date' => now()->toDateString(), 'user_id' => $selectedUserId]) }}" class="filter-choice {{ $filter === 'today' ? 'active' : '' }}">Today</a>
-                    <a href="{{ route('daily-journal.division.index', ['filter' => 'week', 'date' => now()->toDateString(), 'user_id' => $selectedUserId]) }}" class="filter-choice {{ $filter === 'week' ? 'active' : '' }}">This Week</a>
-                    <a href="{{ route('daily-journal.division.index', ['filter' => 'month', 'date' => now()->toDateString(), 'user_id' => $selectedUserId]) }}" class="filter-choice {{ $filter === 'month' ? 'active' : '' }}">This Month</a>
-                    <a href="{{ route('daily-journal.division.index', ['filter' => 'year', 'date' => now()->toDateString(), 'user_id' => $selectedUserId]) }}" class="filter-choice {{ $filter === 'year' ? 'active' : '' }}">This Year</a>
+                    <a href="{{ route('daily-journal.division.index', ['filter' => 'today', 'date' => now()->toDateString(), 'user_id' => $selectedUserId, 'delegated_by_me' => $delegatedByMe ? 1 : 0]) }}" class="filter-choice {{ $filter === 'today' ? 'active' : '' }}">Today</a>
+                    <a href="{{ route('daily-journal.division.index', ['filter' => 'week', 'date' => now()->toDateString(), 'user_id' => $selectedUserId, 'delegated_by_me' => $delegatedByMe ? 1 : 0]) }}" class="filter-choice {{ $filter === 'week' ? 'active' : '' }}">This Week</a>
+                    <a href="{{ route('daily-journal.division.index', ['filter' => 'month', 'date' => now()->toDateString(), 'user_id' => $selectedUserId, 'delegated_by_me' => $delegatedByMe ? 1 : 0]) }}" class="filter-choice {{ $filter === 'month' ? 'active' : '' }}">This Month</a>
+                    <a href="{{ route('daily-journal.division.index', ['filter' => 'year', 'date' => now()->toDateString(), 'user_id' => $selectedUserId, 'delegated_by_me' => $delegatedByMe ? 1 : 0]) }}" class="filter-choice {{ $filter === 'year' ? 'active' : '' }}">This Year</a>
                 </div>
 
                 <form method="GET" action="{{ route('daily-journal.division.index') }}" class="custom-filter-form">
                     <input type="hidden" name="filter" value="custom">
                     <input type="hidden" name="date" value="{{ $rangeStart->toDateString() }}">
                     <input type="hidden" name="user_id" value="{{ $selectedUserId }}">
+                    <input type="hidden" name="delegated_by_me" value="{{ $delegatedByMe ? 1 : 0 }}">
                     <div class="custom-filter-row">
                         <div>
                             <label class="form-label" for="division_start_date">Start date</label>
@@ -1464,6 +1512,18 @@
                                             @endif
                                             {{ $task->note ?: 'Catatan belum ditambahkan.' }}
                                         </p>
+                                        <span class="task-source-label {{ $task->from_user_id ? 'is-delegated' : '' }}">
+                                            @if($task->from_user_id && optional($task->fromUser)->id === auth()->id())
+                                                <i class="fas fa-share"></i>
+                                                Delegated by you
+                                            @elseif($task->from_user_id)
+                                                <i class="fas fa-arrow-down"></i>
+                                                Delegated by {{ $task->fromUser->name ?? 'parent' }}
+                                            @else
+                                                <i class="fas fa-user-edit"></i>
+                                                Created by employee
+                                            @endif
+                                        </span>
                                     </div>
                             </div>
 
@@ -1529,6 +1589,7 @@
                 <input type="hidden" name="redirect_end_date" value="{{ $rangeEnd->toDateString() }}">
                 <input type="hidden" name="redirect_user_id" value="{{ $selectedUserId }}">
                 <input type="hidden" name="redirect_status" value="{{ $selectedStatus }}">
+                <input type="hidden" name="redirect_delegated_by_me" value="{{ $delegatedByMe ? 1 : 0 }}">
 
                 <div>
                     <label class="form-label" for="assign_user_id">Employee</label>
@@ -1676,6 +1737,14 @@
                 return url.toString();
             }
 
+            function submitFilterForm(form) {
+                if (!form) {
+                    return;
+                }
+
+                ajaxVisit(buildGetUrl(form), { method: 'GET' });
+            }
+
             async function ajaxVisit(url, options) {
                 if (isRequestPending) {
                     return;
@@ -1729,19 +1798,19 @@
                 root.querySelectorAll('form.custom-filter-form, form.topbar-filter-form').forEach(function (form) {
                     form.addEventListener('submit', function (event) {
                         event.preventDefault();
-                        ajaxVisit(buildGetUrl(form), { method: 'GET' });
+                        submitFilterForm(form);
                     });
                 });
 
-                root.querySelectorAll('.topbar-filter-form .topbar-filter-select').forEach(function (select) {
-                    select.addEventListener('change', function () {
-                        const form = select.closest('form');
+                root.querySelectorAll('.js-ajax-filter-input').forEach(function (input) {
+                    input.addEventListener('change', function () {
+                        const form = input.closest('form');
 
                         if (!form) {
                             return;
                         }
 
-                        ajaxVisit(buildGetUrl(form), { method: 'GET' });
+                        submitFilterForm(form);
                     });
                 });
 

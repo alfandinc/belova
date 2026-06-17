@@ -103,6 +103,9 @@ class DailyJournalController extends Controller
         $selectedStatus = in_array($request->query('status'), DailyJournalTask::STATUSES, true)
             ? $request->query('status')
             : null;
+        $delegatedByMe = $request->has('delegated_by_me')
+            ? $request->boolean('delegated_by_me')
+            : true;
         $weekStart = $selectedDate->copy()->startOfWeek(Carbon::MONDAY);
         $weekDays = collect(range(0, 6))->map(function (int $offset) use ($weekStart) {
             return $weekStart->copy()->addDays($offset);
@@ -125,7 +128,7 @@ class DailyJournalController extends Controller
         ];
 
         if ($assignableMemberQuery !== null) {
-            $divisionMembers = $assignableMemberQuery
+            $divisionMembers = (clone $assignableMemberQuery)
                 ->whereNotNull('user_id')
                 ->with('user:id,name')
                 ->get()
@@ -154,6 +157,9 @@ class DailyJournalController extends Controller
                             $deadlineQuery->whereNotNull('deadline_date')
                                 ->where('status', '!=', 'done');
                         });
+                })
+                ->when($delegatedByMe, function ($query) use ($actor) {
+                    $query->where('from_user_id', $actor?->id);
                 });
 
             if ($selectedUserId) {
@@ -199,6 +205,7 @@ class DailyJournalController extends Controller
             'selectedUserId' => $selectedUserId,
             'divisionName' => $divisionName,
             'canAssignTasks' => $canAssignTasks,
+            'delegatedByMe' => $delegatedByMe,
         ]);
     }
 
@@ -257,14 +264,10 @@ class DailyJournalController extends Controller
 
         if ($fromUserId) {
             return redirect()
-                ->route('daily-journal.division.index', [
-                    'filter' => $request->input('redirect_filter', $request->input('filter', 'today')),
-                    'date' => $request->input('redirect_date', $validated['task_date']),
-                    'start_date' => $request->input('redirect_start_date', $request->input('start_date')),
-                    'end_date' => $request->input('redirect_end_date', $request->input('end_date')),
-                    'user_id' => $request->input('redirect_user_id', $request->input('user_id')),
-                    'status' => $request->input('redirect_status', $request->input('status_filter')),
-                ])
+                ->route('daily-journal.division.index', $this->buildDivisionRedirectParams(
+                    $request,
+                    $request->input('redirect_date', $validated['task_date'])
+                ))
                 ->with('success', 'Task berhasil diberikan ke employee.');
         }
 
@@ -463,6 +466,12 @@ class DailyJournalController extends Controller
 
         if ($status !== null && $status !== '') {
             $params['status'] = $status;
+        }
+
+        $delegatedByMe = $request->input('redirect_delegated_by_me', $request->input('delegated_by_me'));
+
+        if ($delegatedByMe !== null && $delegatedByMe !== '') {
+            $params['delegated_by_me'] = $delegatedByMe;
         }
 
         return $params;
