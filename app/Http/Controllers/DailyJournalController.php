@@ -501,9 +501,9 @@ class DailyJournalController extends Controller
         }
 
         $managerPositionIds = $actorEmployee->positions()
-            ->wherePivot('is_primary', 1)
             ->pluck('hrd_position.id')
             ->filter()
+            ->unique()
             ->values();
 
         if ($managerPositionIds->isEmpty()) {
@@ -511,8 +511,7 @@ class DailyJournalController extends Controller
         }
 
         return $query->whereHas('positions', function (Builder $positionQuery) use ($managerPositionIds) {
-            $positionQuery->where('hrd_employee_position.is_primary', 1)
-                ->whereIn('hrd_position.parent_id', $managerPositionIds->all());
+            $positionQuery->whereIn('hrd_position.parent_id', $managerPositionIds->all());
         });
     }
 }
