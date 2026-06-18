@@ -168,7 +168,7 @@ class RndProdukController extends Controller
             return $this->updateInlineStatus($request, $produk);
         }
 
-        $validated = $this->validatedPayload($request);
+        $validated = $this->validatedPayload($request, true);
         $produk->update($validated['attributes']);
         $produk->bahanAktif()->sync($validated['bahan_aktif_ids']);
 
@@ -236,21 +236,23 @@ class RndProdukController extends Controller
         ]);
     }
 
-    private function validatedPayload(Request $request): array
+    private function validatedPayload(Request $request, bool $isUpdate = false): array
     {
+        $requiredRule = $isUpdate ? 'nullable' : 'required';
+
         $validated = $request->validate([
             'nama_produk' => 'required|string|max:255',
-            'brand_id' => 'required|exists:rnd_master_brand,id',
+            'brand_id' => $requiredRule . '|exists:rnd_master_brand,id',
             'produsen_vendor_id' => 'nullable|exists:rnd_master_vendor,id',
             'bahan_aktif_ids' => 'nullable|array',
             'bahan_aktif_ids.*' => 'exists:rnd_master_bahan_aktif,id',
-            'kemasan_premier_id' => 'required|exists:rnd_master_kemasan,id',
+            'kemasan_premier_id' => $requiredRule . '|exists:rnd_master_kemasan,id',
             'kemasan_sekunder_id' => 'nullable|exists:rnd_master_kemasan,id',
             'kemasan_primer_vendor_id' => 'nullable|exists:rnd_master_vendor,id',
             'kemasan_sekunder_vendor_id' => 'nullable|exists:rnd_master_vendor,id',
             'desain_kemasan_primer_id' => 'nullable|exists:rnd_master_vendor,id',
             'desain_kemasan_sekunder_id' => 'nullable|exists:rnd_master_vendor,id',
-            'sediaan_id' => 'required|exists:rnd_master_sediaan,id',
+            'sediaan_id' => $requiredRule . '|exists:rnd_master_sediaan,id',
             'netto' => 'nullable|string|max:255',
             'status_administrasi_fpp' => 'nullable|in:' . implode(',', self::STATUS_ADMINISTRASI_FPP_OPTIONS),
             'status_administrasi_spk' => 'nullable|in:' . implode(',', self::STATUS_ADMINISTRASI_SPK_OPTIONS),
