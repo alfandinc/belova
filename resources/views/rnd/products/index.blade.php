@@ -1326,6 +1326,7 @@
 
         function toggleProdukFormMode(isEdit) {
             $('.produk-form-create-only').toggleClass('is-hidden', isEdit);
+            $('.produk-form-create-only').find('input, select, textarea').prop('disabled', isEdit);
             $('#deleteProdukBtn').toggleClass('d-none', !isEdit).attr('data-id', '');
             $('#produkLogPane').toggleClass('is-hidden', !isEdit);
         }

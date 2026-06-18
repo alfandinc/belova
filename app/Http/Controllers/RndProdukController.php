@@ -263,10 +263,17 @@ class RndProdukController extends Controller
             'status_desain_kemasan_sekunder' => 'nullable|string|max:255',
         ]);
 
+        $attributes = collect($validated)
+            ->except(['bahan_aktif_ids']);
+
+        if ($isUpdate) {
+            $attributes = $attributes->reject(function ($value, $key) {
+                return in_array($key, ['brand_id', 'kemasan_premier_id', 'sediaan_id'], true) && $value === null;
+            });
+        }
+
         return [
-            'attributes' => collect($validated)
-                ->except(['bahan_aktif_ids'])
-                ->all(),
+            'attributes' => $attributes->all(),
             'bahan_aktif_ids' => $validated['bahan_aktif_ids'] ?? [],
         ];
     }
