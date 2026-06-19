@@ -17,6 +17,22 @@ use App\Helpers\HrdConfig;
 
 class PengajuanLiburController extends Controller
 {
+    private function getSubordinateEmployeeIds(Employee $employee): array
+    {
+        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+
+        if ($parentPositionIds->isEmpty()) {
+            return [];
+        }
+
+        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
+                $query->whereIn('parent_id', $parentPositionIds);
+            })
+            ->where('id', '!=', $employee->id)
+            ->pluck('id')
+            ->toArray();
+    }
+
     /**
      * Helper: get dates within range that already have >= 2 leave requests
      * (counts any request not explicitly rejected by Manager or HRD)
@@ -183,14 +199,12 @@ class PengajuanLiburController extends Controller
         else if ($viewType == 'team' && $user->hasRole('Manager')) {
             $employee = $user->employee;
                 if ($employee) {
-                    $division = $employee->division;
-                    if ($division) {
-                        $teamEmployeeIds = $division->employees->pluck('id')->toArray();
+                    $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
+                    if (!empty($teamEmployeeIds)) {
                         // Exclude the manager's own requests from the team approval list
                         // (they are already shown in 'Pengajuan Saya')
                         // Show all requests from team, not just 'menunggu'
                         $data = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
-                            ->where('employee_id', '!=', $employee->id)
                             ->where(function($q) use ($filterStart, $filterEnd) {
                                 $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                                   ->whereDate('tanggal_selesai', '>=', $filterStart);
@@ -384,8 +398,8 @@ class PengajuanLiburController extends Controller
     elseif ($user->hasRole('Manager')) {
         if ($viewType == 'team') {
             $employee = $user->employee;
-            if ($employee && $employee->division) {
-                $teamEmployeeIds = $employee->division->employees->pluck('id')->toArray();
+            if ($employee) {
+                $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
                 $pengajuanLibur = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
                     ->where('status_manager', 'menunggu')
                     ->with('employee')
