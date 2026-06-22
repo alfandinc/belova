@@ -93,7 +93,7 @@ class KpiAssessmentPeriodController extends Controller
 
             return [
                 'employee' => $evaluatee,
-                'submitted_count' => $group->where('status', 'submitted')->count(),
+                'submitted_count' => $group->where('status', 'done')->count(),
                 'pending_count' => $group->where('status', 'pending')->count(),
                 'total_score' => $this->calculateFinalScore($group),
                 'ceo_score' => optional($group->firstWhere('evaluator_type', 'ceo'))->total_score,
@@ -167,7 +167,7 @@ class KpiAssessmentPeriodController extends Controller
         );
 
         $submittedScores = $group
-            ->where('status', 'submitted')
+            ->where('status', 'done')
             ->flatMap(fn (KpiAssessment $assessment) => $assessment->scores)
             ->filter(fn (KpiAssessmentScore $score) => (bool) $score->periodIndicator)
             ->keyBy('period_indicator_id');

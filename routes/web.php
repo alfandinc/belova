@@ -107,6 +107,8 @@ use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController
 use App\Http\Controllers\BukuMenuController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DailyJournalController;
+use App\Http\Controllers\KPI\IndicatorController;
+use App\Http\Controllers\KPI\KpiPeriodController;
 use App\Http\Controllers\RndDashboardController;
 use App\Http\Controllers\RndMasterController;
 use App\Http\Controllers\RndProdukController;
@@ -1951,6 +1953,60 @@ Route::get('/marketing/clinics', [\App\Http\Controllers\Marketing\MarketingContr
 
 // AJAX route for new patients list (modal DataTable)
 Route::get('/marketing/patients/new-list', [\App\Http\Controllers\Marketing\MarketingController::class, 'newPatientsList'])->name('marketing.patients.new_list');
+
+Route::prefix('indicator')->name('indicator.')->middleware(['auth', 'role:Employee|Manager|Hrd|Ceo|Head Manager|Admin'])->group(function () {
+    Route::get('/', [IndicatorController::class, 'index'])->name('index');
+    Route::get('/meta', [IndicatorController::class, 'meta'])->name('meta');
+
+    Route::get('/categories/data', [IndicatorController::class, 'categoryData'])->name('categories.data');
+    Route::get('/categories/total', [IndicatorController::class, 'categoryTotal'])->name('categories.total');
+    Route::post('/categories', [IndicatorController::class, 'storeCategory'])->name('categories.store');
+    Route::get('/categories/{category}', [IndicatorController::class, 'showCategory'])->name('categories.show');
+    Route::put('/categories/{category}', [IndicatorController::class, 'updateCategory'])->name('categories.update');
+    Route::delete('/categories/{category}', [IndicatorController::class, 'destroyCategory'])->name('categories.destroy');
+
+    Route::get('/indicators/data', [IndicatorController::class, 'indicatorData'])->name('indicators.data');
+    Route::post('/indicators', [IndicatorController::class, 'storeIndicator'])->name('indicators.store');
+    Route::get('/indicators/{indicator}', [IndicatorController::class, 'showIndicator'])->name('indicators.show');
+    Route::put('/indicators/{indicator}', [IndicatorController::class, 'updateIndicator'])->name('indicators.update');
+    Route::delete('/indicators/{indicator}', [IndicatorController::class, 'destroyIndicator'])->name('indicators.destroy');
+    Route::get('/positions/{position}/mappings', [IndicatorController::class, 'positionMappings'])->name('positions.mappings');
+    Route::post('/positions/{position}/mappings', [IndicatorController::class, 'positionMappingsUpdate'])->name('positions.mappings.update');
+    Route::get('/positions/data', [IndicatorController::class, 'positionData'])->name('positions.data');
+    Route::post('/import/preview', [IndicatorController::class, 'importPreview'])->name('import.preview');
+    Route::post('/import/commit', [IndicatorController::class, 'importCommit'])->name('import.commit');
+});
+
+// KPI Periods
+Route::prefix('kpi/periods')->name('kpi.periods.')->middleware(['auth', 'role:Employee|Manager|Hrd|Ceo|Head Manager|Admin'])->group(function () {
+    Route::get('/', [KpiPeriodController::class, 'index'])->name('index');
+    Route::get('/data', [KpiPeriodController::class, 'data'])->name('data');
+    Route::get('/{period}', [KpiPeriodController::class, 'show'])->name('show');
+    Route::post('/', [KpiPeriodController::class, 'store'])->name('store');
+    Route::put('/{period}', [KpiPeriodController::class, 'update'])->name('update');
+    Route::delete('/{period}', [KpiPeriodController::class, 'destroy'])->name('destroy');
+    Route::get('/{period}/start/preview', [KpiPeriodController::class, 'previewStart'])->name('start.preview');
+    Route::get('/{period}/details', [KpiPeriodController::class, 'details'])->name('details');
+    Route::post('/{period}/start', [KpiPeriodController::class, 'startAssessment'])->name('start');
+    Route::post('/{period}/open', [KpiPeriodController::class, 'openPeriod'])->name('open');
+    Route::post('/{period}/close', [KpiPeriodController::class, 'closePeriod'])->name('close');
+});
+
+// My evaluatees - list pending assessments for logged-in employee
+Route::get('/kpi/evaluatees', [\App\Http\Controllers\KPI\EvaluateeController::class, 'index'])
+    ->name('kpi.evaluatees.index')
+    ->middleware(['auth']);
+Route::get('/kpi/evaluatees/data', [\App\Http\Controllers\KPI\EvaluateeController::class, 'data'])
+    ->name('kpi.evaluatees.data')
+    ->middleware(['auth']);
+
+// KPI assessments (KPI module) - fill and submit routes (used by Evaluatees modal)
+Route::get('/kpi/assessments/{assessment}', [\App\Http\Controllers\KPI\KpiAssessmentController::class, 'fill'])
+    ->name('kpi.kpi_assessments.fill')
+    ->middleware(['auth']);
+Route::post('/kpi/assessments/{assessment}/submit', [\App\Http\Controllers\KPI\KpiAssessmentController::class, 'submit'])
+    ->name('kpi.kpi_assessments.submit')
+    ->middleware(['auth']);
 
 Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
 // Route::prefix('admin')->group(

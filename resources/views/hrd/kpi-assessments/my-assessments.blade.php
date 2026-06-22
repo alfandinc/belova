@@ -66,13 +66,13 @@
                                     <td>{{ optional($assessment->evaluatee->position)->name ?: '-' }}</td>
                                     <td>{{ strtoupper(str_replace('_', ' ', $assessment->evaluator_type)) }}</td>
                                     <td>
-                                        <span class="badge badge-{{ $assessment->status === 'submitted' ? 'success' : 'warning' }}">
+                                        <span class="badge badge-{{ $assessment->status === 'done' ? 'success' : 'warning' }}">
                                             {{ strtoupper($assessment->status) }}
                                         </span>
                                     </td>
                                     <td>
                                         <a href="{{ route('hrd.kpi_assessments.fill', $assessment) }}" class="btn btn-sm btn-outline-primary">
-                                            {{ $assessment->status === 'submitted' ? 'Lihat' : 'Isi Assessment' }}
+                                            {{ $assessment->status === 'done' ? 'Lihat' : 'Isi Assessment' }}
                                         </a>
                                     </td>
                                 </tr>

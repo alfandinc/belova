@@ -60,11 +60,11 @@
                                                     class="form-control @error('scores.' . $indicator->id) is-invalid @enderror"
                                                     value="{{ old('scores.' . $indicator->id, optional($existingScore)->score) }}"
                                                     placeholder="Contoh: 2.70"
-                                                    {{ $assessment->status === 'submitted' ? 'disabled' : '' }}
+                                                    {{ $assessment->status === 'done' ? 'disabled' : '' }}
                                                     required>
                                                 <small class="form-text text-muted">Input angka desimal diperbolehkan. Rentang skor 0 sampai {{ $indicator->max_score }}.</small>
                                             @else
-                                                <select name="scores[{{ $indicator->id }}]" class="form-control @error('scores.' . $indicator->id) is-invalid @enderror" {{ $assessment->status === 'submitted' ? 'disabled' : '' }} required>
+                                                <select name="scores[{{ $indicator->id }}]" class="form-control @error('scores.' . $indicator->id) is-invalid @enderror" {{ $assessment->status === 'done' ? 'disabled' : '' }} required>
                                                     <option value="">Pilih skor</option>
                                                     @for($score = 1; $score <= $indicator->max_score; $score++)
                                                         @php($label = $indicator->{'score_label_' . $score})
@@ -81,7 +81,7 @@
                                         </div>
                                         <div class="form-group mb-0">
                                             <label class="font-weight-bold">Catatan</label>
-                                            <textarea name="notes[{{ $indicator->id }}]" rows="3" class="form-control @error('notes.' . $indicator->id) is-invalid @enderror" placeholder="Tambahkan catatan bila perlu" {{ $assessment->status === 'submitted' ? 'disabled' : '' }}>{{ old('notes.' . $indicator->id, optional($existingScore)->note) }}</textarea>
+                                            <textarea name="notes[{{ $indicator->id }}]" rows="3" class="form-control @error('notes.' . $indicator->id) is-invalid @enderror" placeholder="Tambahkan catatan bila perlu" {{ $assessment->status === 'done' ? 'disabled' : '' }}>{{ old('notes.' . $indicator->id, optional($existingScore)->note) }}</textarea>
                                             @error('notes.' . $indicator->id)
                                                 <div class="invalid-feedback d-block">{{ $message }}</div>
                                             @enderror
@@ -92,7 +92,7 @@
                         @endforeach
                     </div>
 
-                    @if($assessment->status === 'submitted')
+                    @if($assessment->status === 'done')
                         <div class="alert alert-success mb-0">Assessment ini sudah disubmit pada {{ optional($assessment->submitted_at)->format('d M Y H:i') }}.</div>
                     @else
                         <button type="submit" class="btn btn-primary">Submit Assessment</button>
@@ -112,31 +112,42 @@
 
             const $form = $(this);
 
-            $.ajax({
-                url: $form.attr('action'),
-                method: 'POST',
-                data: $form.serialize(),
-                headers: {
-                    'Accept': 'application/json'
-                }
-            }).done(function (response) {
-                $.get(window.location.href, function (html) {
-                    const $html = $(html);
-                    $('#kpiAssessmentFillSection').html($html.find('#kpiAssessmentFillSection').html());
-                    Swal.fire('Sukses', response.message, 'success');
-                }).fail(function () {
-                    Swal.fire('Warning', response.message + ' Namun refresh tampilan gagal, silakan muat ulang manual.', 'warning');
-                });
-            }).fail(function (xhr) {
-                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                    Swal.fire('Validasi gagal', Object.values(xhr.responseJSON.errors).flat().join('<br>'), 'warning');
-                    return;
-                }
+            Swal.fire({
+                title: 'Konfirmasi pengiriman',
+                text: 'Tindakan ini tidak dapat dibatalkan. Setelah disubmit, assessment tidak dapat diubah. Lanjutkan?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, submit',
+                cancelButtonText: 'Batal'
+            }).then(function(result){
+                if (!result.isConfirmed) return;
 
-                const message = xhr.responseJSON && xhr.responseJSON.message
-                    ? xhr.responseJSON.message
-                    : 'Gagal menyimpan KPI Assessment.';
-                Swal.fire('Error', message, 'error');
+                $.ajax({
+                    url: $form.attr('action'),
+                    method: 'POST',
+                    data: $form.serialize(),
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                }).done(function (response) {
+                    $.get(window.location.href, function (html) {
+                        const $html = $(html);
+                        $('#kpiAssessmentFillSection').html($html.find('#kpiAssessmentFillSection').html());
+                        Swal.fire('Sukses', response.message, 'success');
+                    }).fail(function () {
+                        Swal.fire('Warning', response.message + ' Namun refresh tampilan gagal, silakan muat ulang manual.', 'warning');
+                    });
+                }).fail(function (xhr) {
+                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        Swal.fire('Validasi gagal', Object.values(xhr.responseJSON.errors).flat().join('<br>'), 'warning');
+                        return;
+                    }
+
+                    const message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'Gagal menyimpan KPI Assessment.';
+                    Swal.fire('Error', message, 'error');
+                });
             });
         });
     });

@@ -1241,6 +1241,18 @@
                     <div class="menu-title">CEO Dashboard</div>
                     <div class="menu-sub">Executive Summary & KPI</div>
                 </a>
+                <!-- Assessment module (added last) -->
+                <a href="/indicator" class="menu-tile tile-hrd animate-item delay-21" id="assessment-tile" data-filter="assessment penilaian kpi"
+                   @if(!array_intersect($userRoles, ['Employee','Manager','Hrd','Ceo','Head Manager','Admin']))
+                       onclick="showRoleWarning(event, 'Assessment')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-clipboard-check"></i></div>
+                        <div class="menu-badge">Assessment</div>
+                    </div>
+                    <div class="menu-title">Assessment</div>
+                    <div class="menu-sub">Employee Assessments & Scoring</div>
+                </a>
                 </div>
             </div>
             </div>
