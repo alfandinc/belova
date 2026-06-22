@@ -1242,7 +1242,7 @@
                     <div class="menu-sub">Executive Summary & KPI</div>
                 </a>
                 <!-- Assessment module (added last) -->
-                <a href="/indicator" class="menu-tile tile-hrd animate-item delay-21" id="assessment-tile" data-filter="assessment penilaian kpi"
+                <a href="{{ route('kpi.evaluatees.index') }}" class="menu-tile tile-hrd animate-item delay-21" id="assessment-tile" data-filter="assessment penilaian kpi"
                    @if(!array_intersect($userRoles, ['Employee','Manager','Hrd','Ceo','Head Manager','Admin']))
                        onclick="showRoleWarning(event, 'Assessment')"
                    @endif>

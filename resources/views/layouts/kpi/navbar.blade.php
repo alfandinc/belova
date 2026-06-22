@@ -37,12 +37,14 @@
                 </a>
             </li>
 
+            @hasanyrole('Admin|Hrd|Ceo|Head Manager')
             <li class="{{ request()->routeIs('indicator.index') ? 'mm-active' : '' }}">
                 <a href="{{ route('indicator.index') }}" class="{{ request()->routeIs('indicator.index') ? 'active' : '' }}">
                     <i data-feather="sliders" class="align-self-center menu-icon"></i>
                     <span>Master Indicators</span>
                 </a>
             </li>
+            @endhasanyrole
 
             <li>
                 <a href="javascript: void(0);">
@@ -51,6 +53,7 @@
                     <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                 </a>
                 <ul class="nav-second-level" aria-expanded="false">
+                    @hasanyrole('Admin|Hrd|Ceo|Head Manager')
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('indicator.index') ? 'active' : '' }}" href="{{ route('indicator.index') }}">
                             <i class="ti-control-record"></i>Master Indikator
@@ -61,6 +64,7 @@
                             <i class="ti-control-record"></i>Periods
                         </a>
                     </li>
+                    @endhasanyrole
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('kpi.evaluatees.*') ? 'active' : '' }}" href="{{ route('kpi.evaluatees.index') }}">
                             <i class="ti-control-record"></i>My Evaluations
