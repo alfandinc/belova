@@ -651,6 +651,15 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Head Manager|Admin|Financ
 });
 
 Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'exportExcel'])->name('hrd.absensi_rekap.export_excel');
+// Admin: visitation CSV import (dashboard form posts here)
+Route::post('/admin/visitations/import', [\App\Http\Controllers\Admin\VisitationImportController::class, 'import'])
+    ->name('admin.visitations.import')
+    ->middleware(['auth','role:Admin']);
+
+// Preview CSV before import (returns JSON preview)
+Route::post('/admin/visitations/preview', [\App\Http\Controllers\Admin\VisitationImportController::class, 'preview'])
+    ->name('admin.visitations.preview')
+    ->middleware(['auth','role:Admin']);
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir')->group(function () {
     // Dokter to Perawat notification
