@@ -220,8 +220,8 @@
                                 <tr>
                                     <th>No</th>
                                     <th>Treatment</th>
-                                    <th>Count</th>
-                                    <th>Revenue</th>
+                                    <th class="sortable" data-key="total_count" style="cursor:pointer">Count <span class="sort-indicator"></span></th>
+                                    <th class="sortable" data-key="total_revenue" style="cursor:pointer">Revenue <span class="sort-indicator"></span></th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -605,8 +605,67 @@ $(document).ready(function() {
     console.log('Starting initial load...');
     loadAnalyticsData();
 
-    // Fetch full list of treatments when modal opened
+    // Fetch full list of treatments when modal opened and enable client-side sorting
     let allTreatmentsData = null;
+    let allTreatmentsSort = { key: null, dir: -1 }; // default descending
+
+    function parseNumber(v) {
+        if (v == null) return 0;
+        if (typeof v === 'number') return v;
+        // remove non-digits (keep minus and dot)
+        const s = String(v).replace(/[^0-9\-\.]/g, '');
+        const n = parseFloat(s);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function renderAllTreatmentsTable() {
+        const $tbody = $('#viewAllTreatmentsTable tbody');
+        $tbody.empty();
+
+        if (!allTreatmentsData || allTreatmentsData.length === 0) {
+            $tbody.append('<tr><td colspan="4" class="text-center text-muted py-4">No data available</td></tr>');
+            return;
+        }
+
+        let data = allTreatmentsData.slice();
+        if (allTreatmentsSort.key) {
+            data.sort(function(a, b) {
+                const va = parseNumber(a[allTreatmentsSort.key]);
+                const vb = parseNumber(b[allTreatmentsSort.key]);
+                if (va === vb) return 0;
+                return (va > vb ? 1 : -1) * allTreatmentsSort.dir;
+            });
+        }
+
+        for (let i = 0; i < data.length; i++) {
+            const r = data[i];
+            const rev = r.total_revenue != null ? parseFloat(r.total_revenue) : 0;
+            const cnt = r.total_count != null ? r.total_count : '';
+            $tbody.append(`<tr>
+                <td>${i+1}</td>
+                <td>${r.treatment_name}</td>
+                <td>${cnt}</td>
+                <td>Rp ${rev ? rev.toLocaleString() : '-'}</td>
+            </tr>`);
+        }
+    }
+
+    // header click handlers for sorting
+    $('#viewAllTreatmentsTable thead').on('click', 'th.sortable', function() {
+        const key = $(this).data('key');
+        if (!key) return;
+        if (allTreatmentsSort.key === key) {
+            allTreatmentsSort.dir = -allTreatmentsSort.dir; // toggle
+        } else {
+            allTreatmentsSort.key = key;
+            allTreatmentsSort.dir = -1; // default desc
+        }
+        // update indicators
+        $('#viewAllTreatmentsTable thead th .sort-indicator').text('');
+        $(this).find('.sort-indicator').text(allTreatmentsSort.dir === -1 ? '↓' : '↑');
+        renderAllTreatmentsTable();
+    });
+
     $('#viewAllTreatmentsBtn').on('click', function() {
         const $tbody = $('#viewAllTreatmentsTable tbody');
         $tbody.empty();
