@@ -232,7 +232,7 @@
             </li>
             
 
-            <li>
+            {{-- <li>
                 <a href="javascript: void(0);"> <i data-feather="target" class="align-self-center menu-icon"></i><span>KPI Assessment</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.kpi_assessments.my') }}"><i class="ti-control-record"></i>Assessment Saya</a></li>
@@ -243,7 +243,7 @@
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.kpi_assessments.indicators.index') }}"><i class="ti-control-record"></i>Master Indikator</a></li>
                     @endif
                 </ul>
-            </li>
+            </li> --}}
             
             <!-- For Managers: Team Management -->
             @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Head Manager'))
