@@ -125,6 +125,34 @@
         </div>
     </div>
 
+    <!-- Top Occupations -->
+    <div class="row mt-3">
+        <div class="col-xl-6">
+            <div class="card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h4 class="card-title mb-0">Top Patient Occupations</h4>
+                    <small class="text-muted">Top 10 by visits</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:6%">No</th>
+                                    <th>Pekerjaan</th>
+                                    <th class="text-end" style="width:20%">Count</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-occupations-body">
+                                <tr><td colspan="3" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Geographic & Loyalty Analysis -->
     <div class="row">
         <div class="col-xl-6">
@@ -613,6 +641,21 @@ $(document).ready(function() {
             locationHtml = '<tr><td colspan="5" class="text-center">No data available</td></tr>';
         }
         $('#locationStatsTable').html(locationHtml);
+
+        // Top occupations
+        let occHtml = '';
+        if (data.topPatientPekerjaan && Array.isArray(data.topPatientPekerjaan) && data.topPatientPekerjaan.length) {
+            data.topPatientPekerjaan.forEach(function(item, idx) {
+                occHtml += `<tr>
+                    <td>${idx+1}</td>
+                    <td>${item.pekerjaan || 'Unknown'}</td>
+                    <td class="text-end">${item.count || 0}</td>
+                </tr>`;
+            });
+        } else {
+            occHtml = '<tr><td colspan="3" class="text-center text-muted">No data available</td></tr>';
+        }
+        $('#top-occupations-body').html(occHtml);
 
         // Retention detail analysis
         if (data.retentionAnalysis) {

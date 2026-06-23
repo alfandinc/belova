@@ -38,6 +38,43 @@ class MarketingController extends Controller
     }
 
     /**
+     * Get top 10 patient occupations (pekerjaan) based on visitations in the given range/clinic
+     */
+    private function getTopPatientPekerjaan($clinicId = null, $startDate = null, $endDate = null)
+    {
+        try {
+            $query = DB::table('erm_visitations as v')
+                ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+                ->selectRaw("COALESCE(NULLIF(TRIM(p.pekerjaan), ''), 'Unknown') as pekerjaan")
+                ->selectRaw('COUNT(*) as total')
+                ->where('v.status_kunjungan', 2);
+
+            if ($clinicId) {
+                $query->where('v.klinik_id', $clinicId);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+            }
+
+            $rows = $query->groupBy('pekerjaan')
+                ->orderByDesc('total')
+                ->limit(10)
+                ->get();
+
+            return $rows->map(function ($row) {
+                return [
+                    'pekerjaan' => (string) ($row->pekerjaan ?? 'Unknown'),
+                    'count' => (int) ($row->total ?? 0),
+                ];
+            })->values()->all();
+        } catch (\Exception $e) {
+            Log::error('getTopPatientPekerjaan error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Get comprehensive dashboard statistics
      */
     private function getDashboardStats()
@@ -1694,6 +1731,7 @@ class MarketingController extends Controller
                 'patientLoyalty' => $this->getPatientLoyalty($year, $clinicId, $month, $startDate, $endDate),
                 'geographicDistribution' => $this->getGeographicDistribution($clinicId, $year, $month, $startDate, $endDate),
                 'addressStats' => $this->getAddressStatistics($clinicId, $year, $month, $startDate, $endDate),
+                'topPatientPekerjaan' => $this->getTopPatientPekerjaan($clinicId, $startDate, $endDate),
                 'growthTrends' => $this->getPatientGrowthTrends($year, $clinicId, $startDate, $endDate),
                 'retentionAnalysis' => $this->getPatientRetentionAnalysis($year, $clinicId, $startDate, $endDate)
             ];
