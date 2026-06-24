@@ -192,12 +192,7 @@ class KpiPeriodController extends Controller
                                 $category = $indicator->category;
                                 $assessmentType = $category->evaluator_type;
 
-                                if ($assessmentType === 'specific_position'
-                                    && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
-                                    continue;
-                                }
-
-                                if ($assessmentType === 'bottom_up'
+                                if (in_array($assessmentType, ['specific_position'], true)
                                     && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
                                     continue;
                                 }
@@ -208,7 +203,7 @@ class KpiPeriodController extends Controller
                                 } elseif ($assessmentType === 'specific_position') {
                                     $evaluatorPositionTargets = $category->evaluator_position_id;
                                 } elseif ($assessmentType === 'bottom_up') {
-                                    $children = HRDPosition::where('parent_id', $primaryPosition->id)->get();
+                                    $children = HRDPosition::where('parent_id', $evaluateePosition->id)->get();
                                     $childWithEmp = [];
                                     foreach ($children as $childPos) {
                                         $hasEmp = HRDEmployee::whereHas('positions', function ($q) use ($childPos) {
@@ -338,18 +333,13 @@ class KpiPeriodController extends Controller
                     $category = $indicator->category;
                     $assessmentType = $category->evaluator_type;
 
-                    if ($assessmentType === 'specific_position'
-                        && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
-                        continue;
-                    }
-
-                    if ($assessmentType === 'bottom_up'
+                    if (in_array($assessmentType, ['specific_position'], true)
                         && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
                         continue;
                     }
 
                     if ($assessmentType === 'bottom_up') {
-                        $children = HRDPosition::where('parent_id', $primaryPosition->id)->get();
+                        $children = HRDPosition::where('parent_id', $evaluateePosition->id)->get();
                         $childWithEmp = [];
                         foreach ($children as $childPos) {
                             $hasEmp = HRDEmployee::whereHas('positions', function ($q) use ($childPos) {
