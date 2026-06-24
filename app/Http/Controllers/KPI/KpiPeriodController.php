@@ -230,13 +230,6 @@ class KpiPeriodController extends Controller
                                         $q->where('hrd_employee_position.position_id', $evaluatorPositionId);
                                     })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
 
-                                    if ($assessmentType === 'bottom_up') {
-                                        $evaluators = $evaluators->filter(function ($evaluator) use ($evaluatorPositionId) {
-                                            $primaryPosition = $evaluator->primaryPosition();
-                                            return $primaryPosition && (int) $primaryPosition->id === (int) $evaluatorPositionId;
-                                        })->values();
-                                    }
-
                                     foreach ($evaluators as $evaluator) {
                                         $assessment = KpiAssessment::firstOrCreate([
                                             'period_id' => $period->id,
@@ -353,11 +346,7 @@ class KpiPeriodController extends Controller
                         foreach ($childWithEmp as $evPos) {
                             $evaluators = HRDEmployee::whereHas('positions', function ($q) use ($evPos) {
                                 $q->where('hrd_employee_position.position_id', $evPos->id);
-                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get()
-                                ->filter(function ($evaluator) use ($evPos) {
-                                    $primaryPosition = $evaluator->primaryPosition();
-                                    return $primaryPosition && (int) $primaryPosition->id === (int) $evPos->id;
-                                })->values();
+                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
 
                             foreach ($evaluators as $evaluator) {
                                 $proposals[] = [
