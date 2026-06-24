@@ -228,7 +228,14 @@ class KpiPeriodController extends Controller
                                     $evaluatorPositionId = $evPos->id ?? $evPos;
                                     $evaluators = HRDEmployee::whereHas('positions', function ($q) use ($evaluatorPositionId) {
                                         $q->where('hrd_employee_position.position_id', $evaluatorPositionId);
-                                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
+                                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get()
+                                        ->filter(function ($evaluator) use ($evaluateePosition, $evaluatorPositionId) {
+                                            return $this->shouldIncludeBottomUpEvaluator(
+                                                $evaluator,
+                                                $evaluateePosition->id,
+                                                $evaluatorPositionId
+                                            );
+                                        })->values();
 
                                     foreach ($evaluators as $evaluator) {
                                         $assessment = KpiAssessment::firstOrCreate([
@@ -346,7 +353,14 @@ class KpiPeriodController extends Controller
                         foreach ($childWithEmp as $evPos) {
                             $evaluators = HRDEmployee::whereHas('positions', function ($q) use ($evPos) {
                                 $q->where('hrd_employee_position.position_id', $evPos->id);
-                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
+                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get()
+                                ->filter(function ($evaluator) use ($evaluateePosition, $evPos) {
+                                    return $this->shouldIncludeBottomUpEvaluator(
+                                        $evaluator,
+                                        $evaluateePosition->id,
+                                        $evPos->id
+                                    );
+                                })->values();
 
                             foreach ($evaluators as $evaluator) {
                                 $proposals[] = [
@@ -459,5 +473,20 @@ class KpiPeriodController extends Controller
         $period->closed_at = now();
         $period->save();
         return response()->json(['success' => true, 'message' => 'Period closed.', 'data' => $period]);
+    }
+
+    private function shouldIncludeBottomUpEvaluator(HRDEmployee $evaluator, int $parentPositionId, int $candidatePositionId): bool
+    {
+        $positionsUnderParent = $evaluator->positions()
+            ->where('parent_id', $parentPositionId)
+            ->get();
+
+        if ($positionsUnderParent->count() <= 1) {
+            return true;
+        }
+
+        $primaryPosition = $evaluator->primaryPosition();
+
+        return $primaryPosition && (int) $primaryPosition->id === $candidatePositionId;
     }
 }
