@@ -277,6 +277,10 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Kos|Admin')
         ->name('bcl.dashboard');
 
+    Route::get('/bcl/data', [BCLDashboardController::class, 'data'])
+        ->middleware('role:Kos|Admin')
+        ->name('bcl.dashboard.data');
+
     Route::get('/rnd', [RndDashboardController::class, 'index'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.dashboard');

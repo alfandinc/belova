@@ -22,11 +22,73 @@ class BCLDashboardController extends Controller
 
     //     return view('bcl.home');
     // }
-    public function index()
+    public function index(Request $request)
     {
         if (!Auth::user() || !Auth::user()->hasAnyRole(['Kos','Admin'])) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
+
+        [$startDate, $endDate] = $this->resolveDateRange($request);
+        $response = $this->buildDashboardResponse($startDate, $endDate);
+
+        $ranking_penyewa = app(tr_renterController::class)->ranking_penyewa();
+        $response->ranking_penyewa = $ranking_penyewa;
+
+        return view('bcl.home')->with('response', (object) $response);
+    }
+
+    public function data(Request $request)
+    {
+        if (!Auth::user() || !Auth::user()->hasAnyRole(['Kos','Admin'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        [$startDate, $endDate] = $this->resolveDateRange($request);
+
+        return response()->json($this->buildDashboardResponse($startDate, $endDate));
+    }
+
+    protected function resolveDateRange(Request $request): array
+    {
+        $now = Carbon::now();
+        $defaultStart = $now->copy()->startOfYear();
+        $defaultEnd = $now->copy()->endOfYear();
+
+        try {
+            $startDate = $request->filled('start_date')
+                ? Carbon::parse($request->input('start_date'))->startOfDay()
+                : $defaultStart;
+        } catch (\Throwable $e) {
+            $startDate = $defaultStart;
+        }
+
+        try {
+            $endDate = $request->filled('end_date')
+                ? Carbon::parse($request->input('end_date'))->endOfDay()
+                : $defaultEnd;
+        } catch (\Throwable $e) {
+            $endDate = $defaultEnd;
+        }
+
+        if ($startDate->gt($endDate)) {
+            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
+        }
+
+        return [$startDate, $endDate];
+    }
+
+    protected function buildDashboardResponse(Carbon $startDate, Carbon $endDate): \stdClass
+    {
+        $rangeStart = $startDate->copy()->startOfDay();
+        $rangeEnd = $endDate->copy()->endOfDay();
+        $now = Carbon::now();
+        $isCurrentYearRange = $rangeStart->equalTo($now->copy()->startOfYear())
+            && $rangeEnd->equalTo($now->copy()->endOfYear());
+
+        $filterLabel = $isCurrentYearRange
+            ? (string) $now->format('Y')
+            : $rangeStart->format('d M Y') . ' - ' . $rangeEnd->format('d M Y');
+
         $data = Rooms::with('category')->with('renter')->get();
         $room_used = 0;
         foreach ($data as $value) {
@@ -39,6 +101,12 @@ class BCLDashboardController extends Controller
         $rooms->total = $data->count();
         $rooms->used = $room_used;
         $response->rooms = $rooms;
+        $response->filter = (object) [
+            'start_date' => $rangeStart->format('Y-m-d'),
+            'end_date' => $rangeEnd->format('Y-m-d'),
+            'label' => $filterLabel,
+            'is_default_year' => $isCurrentYearRange,
+        ];
 
         // Use aggregated columns to be compatible with ONLY_FULL_GROUP_BY
         $belum_lunas = Fin_jurnal::leftjoin('bcl_tr_renter', 'bcl_tr_renter.trans_id', '=', 'bcl_fin_jurnal.doc_id')
@@ -78,6 +146,8 @@ class BCLDashboardController extends Controller
 
         $needed_maintanance = 0;
         foreach ($inventory as $data) {
+            $next_maintanance = null;
+            $remaining = null;
             if ($data->last_maintanance != null && $data->maintanance_cycle != null) {
                 $period = (int) $data->maintanance_period;
                 if ($data->maintanance_cycle == 'Minggu') {
@@ -90,19 +160,20 @@ class BCLDashboardController extends Controller
                     $next_maintanance = Carbon::parse($data->last_maintanance)->addYears($period)->format('Y-m-d');
                     $remaining =  Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
                 }
-            } else {
-                $next_maintanance = null;
             }
             if ($next_maintanance != null && $remaining <= 7) {
                 $needed_maintanance++;
             }
         }
         $response->needed_maintanance = $needed_maintanance;
+        $response->total_revenue = (float) tr_renter::query()
+            ->whereBetween('tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->sum('harga');
 
-        $room_stat = Rooms::leftjoin('bcl_tr_renter', function ($join) {
+        $room_stat = Rooms::leftjoin('bcl_tr_renter', function ($join) use ($rangeStart, $rangeEnd) {
             $join->on('bcl_tr_renter.room_id', '=', 'bcl_rooms.id');
-            $join->where(DB::raw('year(bcl_tr_renter.tgl_mulai)'), '=', Carbon::now()->format('Y'));
-        })->select('bcl_rooms.id', 'bcl_rooms.room_name', DB::raw('sum(bcl_tr_renter.harga) as total_value'))->groupby('bcl_rooms.id')->orderby('total_value', 'DESC')->get();
+            $join->whereBetween('bcl_tr_renter.tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()]);
+        })->select('bcl_rooms.id', 'bcl_rooms.room_name', DB::raw('COALESCE(sum(bcl_tr_renter.harga), 0) as total_value'))->groupby('bcl_rooms.id')->orderby('total_value', 'DESC')->get();
         $stat = new \stdClass();
         $stat->room_name = [];
         $stat->total_value = [];
@@ -112,13 +183,43 @@ class BCLDashboardController extends Controller
         }
         $response->room_stat = $stat;
 
-        $ranking_penyewa = app(tr_renterController::class)->ranking_penyewa();
-        $response->ranking_penyewa = $ranking_penyewa;
-        // return response()->json($response);
-        // $group_jenis_kelamin = renter::with('current_room')
-        // ->sum('')
-        // ->get();
-        // return response()->json($group_jenis_kelamin);
-        return view('bcl.home')->with('response', (object)$response);
+        $periodRevenueRows = tr_renter::query()
+            ->selectRaw("CONCAT(lama_sewa, ' ', jangka_sewa) as period_label")
+            ->selectRaw('COUNT(*) as total_transactions')
+            ->selectRaw('COALESCE(SUM(harga), 0) as total_revenue')
+            ->whereBetween('tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
+            ->groupBy('lama_sewa', 'jangka_sewa')
+            ->orderByDesc('total_revenue')
+            ->orderByDesc('total_transactions')
+            ->get();
+
+        $periodStats = new \stdClass();
+        $periodStats->labels = [];
+        $periodStats->counts = [];
+        $periodStats->revenues = [];
+        $periodStats->items = [];
+        $periodStats->total_transactions = 0;
+        $periodStats->total_revenue = 0;
+
+        foreach ($periodRevenueRows as $row) {
+            $label = trim((string) $row->period_label);
+            $transactions = (int) $row->total_transactions;
+            $revenue = (float) $row->total_revenue;
+
+            $periodStats->labels[] = $label;
+            $periodStats->counts[] = $transactions;
+            $periodStats->revenues[] = $revenue;
+            $periodStats->items[] = (object) [
+                'label' => $label,
+                'total_transactions' => $transactions,
+                'total_revenue' => $revenue,
+            ];
+            $periodStats->total_transactions += $transactions;
+            $periodStats->total_revenue += $revenue;
+        }
+
+        $response->period_stats = $periodStats;
+
+        return $response;
     }
 }
