@@ -360,7 +360,12 @@ class BCLDashboardController extends Controller
             ? (string) $allocations->first()['month_label']
             : Carbon::createFromFormat('Y-m', $monthKey)->translatedFormat('M Y');
 
-        $items = $allocations->map(function (array $allocation) {
+        $items = $allocations->map(function (array $allocation) use ($rangeStart, $rangeEnd) {
+            $recognizedStart = Carbon::parse($allocation['recognized_start_date'])->startOfDay();
+            $recognizedEnd = Carbon::parse($allocation['recognized_end_date'])->endOfDay();
+            $displayStart = $recognizedStart->lt($rangeStart) ? $rangeStart->copy() : $recognizedStart;
+            $displayEnd = $recognizedEnd->gt($rangeEnd) ? $rangeEnd->copy() : $recognizedEnd;
+
             return [
                 'transaction_id' => $allocation['transaction_id'],
                 'renter_name' => $allocation['renter_name'],
@@ -368,8 +373,8 @@ class BCLDashboardController extends Controller
                 'period_label' => $allocation['period_label'],
                 'tgl_mulai' => Carbon::parse($allocation['tgl_mulai'])->format('d-m-Y'),
                 'tgl_selesai' => Carbon::parse($allocation['tgl_selesai'])->format('d-m-Y'),
-                'recognized_start_date' => Carbon::parse($allocation['recognized_start_date'])->format('d-m-Y'),
-                'recognized_end_date' => Carbon::parse($allocation['recognized_end_date'])->format('d-m-Y'),
+                'recognized_start_date' => $displayStart->format('d-m-Y'),
+                'recognized_end_date' => $displayEnd->format('d-m-Y'),
                 'recognized_revenue' => round((float) $allocation['recognized_revenue'], 2),
             ];
         })->all();
