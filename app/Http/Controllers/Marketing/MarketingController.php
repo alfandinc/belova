@@ -344,7 +344,7 @@ class MarketingController extends Controller
             $clinicId = $request->input('clinic_id');
             $obatSearch = trim((string) $request->input('obat_q', ''));
             $obatCategory = trim((string) $request->input('obat_kategori', ''));
-            $excludeSales = (int) $request->input('exclude_sales', 0);
+            $obatIsSales = trim((string) $request->input('obat_is_sales', ''));
             $treatmentSearch = trim((string) $request->input('treatment_q', ''));
             $treatmentSpecialtyId = (int) $request->input('treatment_spesialisasi_id', 0);
 
@@ -359,7 +359,7 @@ class MarketingController extends Controller
                 'topPatients' => $this->getProfitablePatients($year, $startDate, $endDate, $clinicId),
                 'treatmentRevenue' => $this->getRevenueByTreatmentCategory($year, $startDate, $endDate, $clinicId),
                 'topTreatmentRevenue' => $this->getTopTreatmentRevenueItems($year, $startDate, $endDate, $clinicId, $treatmentSearch, $treatmentSpecialtyId),
-                'topObatRevenue' => $this->getTopObatRevenueItems($year, $startDate, $endDate, $clinicId, $obatSearch, $obatCategory, $excludeSales),
+                'topObatRevenue' => $this->getTopObatRevenueItems($year, $startDate, $endDate, $clinicId, $obatSearch, $obatCategory, $obatIsSales),
                 'paymentMethodAnalysis' => $this->getPaymentMethodAnalysis($year, $startDate, $endDate, $clinicId),
                 'revenueGrowth' => $this->getRevenueGrowthComparison($year, $startDate, $endDate, $clinicId),
                 'dailyRevenue' => $this->getDailyRevenueTrends($year, $month ?: date('m'), $startDate, $endDate, $clinicId)
@@ -941,7 +941,7 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getTopObatRevenueItems($year, $startDate = null, $endDate = null, $clinicId = null, $search = '', $category = '', $excludeSales = 0)
+    private function getTopObatRevenueItems($year, $startDate = null, $endDate = null, $clinicId = null, $search = '', $category = '', $isSalesFilter = '')
     {
         $baseQuery = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
             ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
@@ -949,15 +949,7 @@ class MarketingController extends Controller
             ->join('erm_resepfarmasi', 'finance_invoice_items.billable_id', '=', 'erm_resepfarmasi.id')
             ->join('erm_obat', 'erm_resepfarmasi.obat_id', '=', 'erm_obat.id')
             ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
-            ->where('finance_invoices.amount_paid', '>', 0)
-            ;
-
-        if ((int) $excludeSales === 1) {
-            $baseQuery->where(function ($query) {
-                $query->whereNull('erm_pasiens.is_sales')
-                    ->orWhere('erm_pasiens.is_sales', 0);
-            });
-        }
+            ->where('finance_invoices.amount_paid', '>', 0);
 
         if ($startDate && $endDate) {
             $baseQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
@@ -971,6 +963,15 @@ class MarketingController extends Controller
 
         if ($category !== '') {
             $baseQuery->where('erm_obat.kategori', $category);
+        }
+
+        if ($isSalesFilter === '1') {
+            $baseQuery->where('erm_pasiens.is_sales', 1);
+        } elseif ($isSalesFilter === '0') {
+            $baseQuery->where(function ($query) {
+                $query->whereNull('erm_pasiens.is_sales')
+                    ->orWhere('erm_pasiens.is_sales', 0);
+            });
         }
 
         if ($search !== '') {

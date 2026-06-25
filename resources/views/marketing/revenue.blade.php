@@ -141,10 +141,6 @@
                             <button type="button" id="clearDateRange" class="btn btn-outline-secondary btn-sm" title="Clear Date Range">
                                 <i class="fas fa-times"></i>
                             </button>
-                            <div class="form-check d-flex align-items-center ms-2">
-                                <input class="form-check-input" type="checkbox" id="excludeSales">
-                                <label class="form-check-label ms-2" for="excludeSales">Exclude sales patients</label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -224,16 +220,7 @@
     <div class="row">
         <div class="col-lg-8">
             <div class="card">
-                            <select id="clinicFilter" class="form-select form-select-sm" style="width: 250px;">
-                                <option value="">All Clinics</option>
-                            </select>
-                            <div class="d-flex align-items-center gap-2">
-                                <select id="clinicFilter" class="form-select"></select>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="excludeSales">
-                                    <label class="form-check-label" for="excludeSales">Exclude sales patients</label>
-                                </div>
-                            </div>
+                <div class="card-header">
                     <h5 class="card-title mb-0">Monthly Revenue Trend {{ $year }}</h5>
                 </div>
                 <div class="card-body">
@@ -296,6 +283,11 @@
                             @foreach(($obatCategories ?? []) as $category)
                                 <option value="{{ $category }}">{{ $category }}</option>
                             @endforeach
+                        </select>
+                        <select id="topObatSalesFilter" class="form-select form-select-sm">
+                            <option value="">Semua pasien</option>
+                            <option value="1">Sales</option>
+                            <option value="0">Non-sales</option>
                         </select>
                         <input type="text" id="topObatSearch" class="form-control form-control-sm ranking-search" placeholder="Search obat revenue...">
                     </div>
@@ -489,9 +481,9 @@ function loadRevenueData() {
             start_date: dateRange.start,
             end_date: dateRange.end,
             clinic_id: clinicId,
-                exclude_sales: $('#excludeSales').is(':checked') ? 1 : 0,
             obat_q: $('#topObatSearch').val() || '',
             obat_kategori: $('#topObatCategoryFilter').val() || '',
+            obat_is_sales: $('#topObatSalesFilter').val() || '',
             treatment_q: $('#topTreatmentSearch').val() || '',
             treatment_spesialisasi_id: $('#topTreatmentSpecialtyFilter').val() || ''
         },
@@ -547,7 +539,7 @@ function initializeClinicFilter() {
         loadRevenueData();
     });
 
-    $('#topObatCategoryFilter, #topTreatmentSpecialtyFilter').on('change', function() {
+    $('#topObatCategoryFilter, #topObatSalesFilter, #topTreatmentSpecialtyFilter').on('change', function() {
         loadRevenueData();
     });
 
