@@ -220,8 +220,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [\App\Http\Controllers\Dashboard\DashboardController::class, 'index'])
         ->name('dashboard.index');
 
-    // Dashboard widgets CRUD (AJAX + Yajra)
-    Route::prefix('dashboard')->group(function () {
+    // Dashboard widgets/settings admin area
+    Route::prefix('dashboard')->middleware('role:Admin|Ceo|CEO|Head Manager')->group(function () {
         Route::get('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'index'])->name('dashboard.widgets.index');
         Route::get('widgets/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'data'])->name('dashboard.widgets.data');
         Route::post('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'store'])->name('dashboard.widgets.store');

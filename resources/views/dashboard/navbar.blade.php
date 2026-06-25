@@ -1,4 +1,7 @@
 <!-- Dashboard Left Sidenav (custom for /dashboard) -->
+    @php
+        $canManageDashboardAdmin = auth()->check() && auth()->user()->hasAnyRole(['Admin', 'Ceo', 'CEO', 'Head Manager']);
+    @endphp
         <div class="left-sidenav">
             <div class="brand mt-3">
                 <a href="/dashboard" class="logo">
@@ -13,12 +16,14 @@
                     <li class="{{ request()->routeIs('dashboard.index') ? 'mm-active' : '' }}">
                         <a href="{{ route('dashboard.index') }}"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
                     </li>
-                    <li class="{{ request()->routeIs('dashboard.widgets.*') ? 'mm-active' : '' }}">
-                        <a href="{{ route('dashboard.widgets.index') }}"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Widgets</span></a>
-                    </li>
-                    <li class="{{ request()->routeIs('dashboard.settings') ? 'mm-active' : '' }}">
-                        <a href="#settings"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Settings</span></a>
-                    </li>
+                    @if($canManageDashboardAdmin)
+                        <li class="{{ request()->routeIs('dashboard.widgets.*') ? 'mm-active' : '' }}">
+                            <a href="{{ route('dashboard.widgets.index') }}"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Widgets</span></a>
+                        </li>
+                        <li class="{{ request()->routeIs('dashboard.settings') ? 'mm-active' : '' }}">
+                            <a href="#settings"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Settings</span></a>
+                        </li>
+                    @endif
                 </ul>
             </div>
         </div>
