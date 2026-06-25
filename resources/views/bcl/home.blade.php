@@ -105,19 +105,17 @@ function convert($sum)
                     </div> <!--end col-->
                 </div><!--end row-->
                 <div class="card">
-
                     <div class="card-header">
                         <div class="row align-items-center">
                             <div class="col">
-                                <h4 class="card-title">Room Stat. by Revenue <span id="room-stat-period">{{ data_get($response, 'filter.label', now()->format('Y')) }}</span> (Top 10)</h4>
-                            </div><!--end col-->
-                        </div> <!--end row-->
-                    </div><!--end card-header-->
+                                <h4 class="card-title">Revenue Bulanan <span id="monthly-revenue-period">{{ data_get($response, 'filter.label', now()->format('Y')) }}</span></h4>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card-body">
-                        <div id="barchart" class="apex-charts ml-n4"></div>
-                    </div><!--end card-body-->
-
-                </div><!--end card-->
+                        <div id="monthlyRevenueChart" class="apex-charts"></div>
+                    </div>
+                </div>
                 <div class="card">
                     <div class="card-header">
                         <div class="row align-items-center">
@@ -230,19 +228,61 @@ function convert($sum)
             </div> <!--end col-->
         </div><!--end row-->
 
+        <div class="modal fade" id="monthlyRevenueDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Detail Revenue Bulanan <span id="monthly-detail-title">-</span></h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="text-muted">Penyewa yang aktif di bulan tersebut</div>
+                            <div>
+                                <span class="badge badge-soft-primary" id="monthly-detail-count">0 sewa</span>
+                                <span class="badge badge-soft-success" id="monthly-detail-total">Rp 0</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Penyewa</th>
+                                        <th>Kamar</th>
+                                        <th>Paket</th>
+                                        <th>Masa Sewa</th>
+                                        <th class="text-right">Revenue Bulan Ini</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monthly-detail-body">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">Belum ada data.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
 @section('pagescript')
 <script>
     var dashboardDataUrl = @json(route('bcl.dashboard.data'));
+    var monthlyRevenueDetailUrl = @json(route('bcl.dashboard.monthly-revenue-details'));
     var dashboardStartDate = @json(data_get($response, 'filter.start_date', now()->startOfYear()->format('Y-m-d')));
     var dashboardEndDate = @json(data_get($response, 'filter.end_date', now()->endOfYear()->format('Y-m-d')));
-    var rooms = {!! json_encode(data_get($response, 'room_stat.room_name', [])) !!};
-    var total_value = {!! json_encode(data_get($response, 'room_stat.total_value', [])) !!};
     var period_labels = {!! json_encode(data_get($response, 'period_stats.labels', [])) !!};
     var period_counts = {!! json_encode(data_get($response, 'period_stats.counts', [])) !!};
     var period_revenues = {!! json_encode(data_get($response, 'period_stats.revenues', [])) !!};
+    var monthly_revenue_labels = {!! json_encode(data_get($response, 'monthly_revenue.labels', [])) !!};
+    var monthly_revenue_keys = {!! json_encode(data_get($response, 'monthly_revenue.month_keys', [])) !!};
+    var monthly_revenue_values = {!! json_encode(data_get($response, 'monthly_revenue.revenues', [])) !!};
 </script>
 <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
 <script>
@@ -253,8 +293,16 @@ function convert($sum)
             maximumFractionDigits: 0
         });
         var numberFormatter = new Intl.NumberFormat('id-ID');
-        var roomChart = null;
         var packageChart = null;
+        var monthlyRevenueChart = null;
+
+        function openMonthlyRevenueDetailByIndex(index) {
+            if (typeof index !== 'number' || index < 0) {
+                return;
+            }
+
+            fetchMonthlyRevenueDetail(monthly_revenue_keys[index]);
+        }
 
         function escapeHtml(value) {
             return String(value || '')
@@ -267,7 +315,7 @@ function convert($sum)
 
         function setFilterText(label) {
             $('#dashboard-filter-text').text(label || '-');
-            $('#room-stat-period').text(label || '-');
+            $('#monthly-revenue-period').text(label || '-');
             $('#package-period-title').text(label || '-');
             $('#package-side-period').text(label || '-');
             $('#total-revenue-subtitle').text('Periode ' + (label || '-'));
@@ -314,14 +362,15 @@ function convert($sum)
 
         function updateDashboardView(payload) {
             var filter = payload.filter || {};
-            var roomStat = payload.room_stat || { room_name: [], total_value: [] };
             var periodStats = payload.period_stats || { labels: [], counts: [], revenues: [], items: [], total_transactions: 0, total_revenue: 0 };
+            var monthlyRevenue = payload.monthly_revenue || { labels: [], revenues: [], month_keys: [] };
 
-            rooms = roomStat.room_name || [];
-            total_value = roomStat.total_value || [];
             period_labels = periodStats.labels || [];
             period_counts = periodStats.counts || [];
             period_revenues = periodStats.revenues || [];
+            monthly_revenue_labels = monthlyRevenue.labels || [];
+            monthly_revenue_keys = monthlyRevenue.month_keys || [];
+            monthly_revenue_values = monthlyRevenue.revenues || [];
 
             setFilterText(filter.label || '-');
             $('#total-revenue-value').text(currencyFormatter.format(payload.total_revenue || 0));
@@ -331,16 +380,18 @@ function convert($sum)
             renderPackageTable(periodStats.items || []);
             renderSidePackageTable(periodStats.items || []);
 
-            if (roomChart) {
-                roomChart.updateOptions({
-                    xaxis: { categories: rooms }
-                }, false, false);
-                roomChart.updateSeries([{ name: 'Revenue', data: total_value }], true);
-            }
-
             if (packageChart) {
                 packageChart.updateOptions({ labels: period_labels }, false, false);
                 packageChart.updateSeries(period_revenues, true);
+            }
+
+            if (monthlyRevenueChart) {
+                monthlyRevenueChart.updateOptions({
+                    xaxis: {
+                        categories: monthly_revenue_labels
+                    }
+                }, false, false);
+                monthlyRevenueChart.updateSeries([{ name: 'Revenue', data: monthly_revenue_values }], true);
             }
         }
 
@@ -372,71 +423,66 @@ function convert($sum)
             });
         }
 
-        var roomChartEl = document.querySelector('#barchart');
-        if (roomChartEl) {
-            roomChart = new ApexCharts(roomChartEl, {
-                series: [{
-                    name: 'Revenue',
-                    data: total_value
-                }],
-                chart: {
-                    height: 355,
-                    type: 'bar',
-                    toolbar: {
-                        show: false
-                    }
-                },
-                colors: ['#2a76f4'],
-                plotOptions: {
-                    bar: {
-                        borderRadius: 4,
-                        columnWidth: '45%',
-                        distributed: false
-                    }
-                },
-                dataLabels: {
-                    enabled: true,
-                    formatter: function (value) {
-                        return currencyFormatter.format(value || 0);
-                    },
-                    offsetY: -20,
-                    style: {
-                        fontSize: '11px',
-                        colors: ['#304758']
-                    }
-                },
-                xaxis: {
-                    categories: rooms,
-                    position: 'bottom',
-                    axisBorder: {
-                        show: false
-                    },
-                    axisTicks: {
-                        show: false
-                    }
-                },
-                yaxis: {
-                    labels: {
-                        formatter: function (value) {
-                            return currencyFormatter.format(value || 0);
-                        }
-                    }
-                },
-                grid: {
-                    strokeDashArray: 3
-                },
-                tooltip: {
-                    y: {
-                        formatter: function (value) {
-                            return currencyFormatter.format(value || 0);
-                        }
-                    }
-                },
-                noData: {
-                    text: 'Belum ada data revenue kamar'
+        function renderMonthlyDetailModal(payload) {
+            var items = payload.items || [];
+            var rows = [];
+
+            $('#monthly-detail-title').text(payload.month_label || '-');
+            $('#monthly-detail-count').text(numberFormatter.format(payload.total_items || 0) + ' sewa');
+            $('#monthly-detail-total').text(currencyFormatter.format(payload.total_revenue || 0));
+
+            if (!items.length) {
+                rows.push('<tr><td colspan="5" class="text-center text-muted">Tidak ada data sewa di bulan ini.</td></tr>');
+            } else {
+                items.forEach(function (item) {
+                    rows.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(item.renter_name) + '</td>' +
+                            '<td>' + escapeHtml(item.room_name) + '</td>' +
+                            '<td>' + escapeHtml(item.period_label) + '</td>' +
+                            '<td>' + escapeHtml(item.tgl_mulai) + ' s/d ' + escapeHtml(item.tgl_selesai) + '</td>' +
+                            '<td class="text-right">' + currencyFormatter.format(item.recognized_revenue || 0) + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            $('#monthly-detail-body').html(rows.join(''));
+            $('#monthlyRevenueDetailModal').modal('show');
+        }
+
+        function fetchMonthlyRevenueDetail(monthKey) {
+            if (!monthKey) {
+                return;
+            }
+
+            $('#monthly-detail-title').text('...');
+            $('#monthly-detail-count').text('Memuat...');
+            $('#monthly-detail-total').text('Rp 0');
+            $('#monthly-detail-body').html('<tr><td colspan="5" class="text-center text-muted">Memuat data...</td></tr>');
+            $('#monthlyRevenueDetailModal').modal('show');
+
+            $.ajax({
+                url: monthlyRevenueDetailUrl,
+                method: 'GET',
+                dataType: 'json',
+                data: {
+                    start_date: dashboardStartDate,
+                    end_date: dashboardEndDate,
+                    month_key: monthKey
                 }
+            }).done(function (response) {
+                renderMonthlyDetailModal(response || {});
+            }).fail(function () {
+                $('#monthly-detail-body').html('<tr><td colspan="5" class="text-center text-danger">Gagal memuat detail revenue bulanan.</td></tr>');
+                $.toast({
+                    text: 'Gagal memuat detail revenue bulanan.',
+                    heading: 'Result',
+                    position: 'top-center',
+                    hideAfter: 5000,
+                    icon: 'error'
+                });
             });
-            roomChart.render();
         }
 
         var packageChartEl = document.querySelector('#ana_device');
@@ -475,6 +521,99 @@ function convert($sum)
                 }
             });
             packageChart.render();
+        }
+
+        var monthlyRevenueChartEl = document.querySelector('#monthlyRevenueChart');
+        if (monthlyRevenueChartEl) {
+            monthlyRevenueChart = new ApexCharts(monthlyRevenueChartEl, {
+                series: [{
+                    name: 'Revenue',
+                    data: monthly_revenue_values
+                }],
+                chart: {
+                    height: 320,
+                    type: 'area',
+                    events: {
+                        dataPointSelection: function (event, chartContext, config) {
+                            openMonthlyRevenueDetailByIndex(config.dataPointIndex);
+                        },
+                        markerClick: function (event, chartContext, config) {
+                            openMonthlyRevenueDetailByIndex(config.dataPointIndex);
+                        }
+                    },
+                    toolbar: {
+                        show: false
+                    }
+                },
+                colors: ['#1ccab8'],
+                stroke: {
+                    curve: 'smooth',
+                    width: 3
+                },
+                markers: {
+                    size: 6,
+                    strokeWidth: 2,
+                    strokeColors: '#ffffff',
+                    hover: {
+                        size: 8,
+                        sizeOffset: 2
+                    }
+                },
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.35,
+                        opacityTo: 0.08,
+                        stops: [0, 90, 100]
+                    }
+                },
+                dataLabels: {
+                    enabled: false
+                },
+                xaxis: {
+                    categories: monthly_revenue_labels,
+                    axisBorder: {
+                        show: false
+                    },
+                    axisTicks: {
+                        show: false
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        formatter: function (value) {
+                            return currencyFormatter.format(value || 0);
+                        }
+                    }
+                },
+                tooltip: {
+                    shared: false,
+                    intersect: true,
+                    y: {
+                        formatter: function (value) {
+                            return currencyFormatter.format(value || 0);
+                        }
+                    }
+                },
+                states: {
+                    hover: {
+                        filter: {
+                            type: 'darken',
+                            value: 0.85
+                        }
+                    }
+                },
+                grid: {
+                    strokeDashArray: 3
+                },
+                noData: {
+                    text: 'Belum ada data revenue bulanan'
+                }
+            });
+            monthlyRevenueChart.render();
+
+            $('#monthlyRevenueChart').css('cursor', 'pointer');
         }
 
         if ($.fn.daterangepicker && typeof moment !== 'undefined') {
@@ -519,10 +658,6 @@ function convert($sum)
             filter: {
                 label: @json(data_get($response, 'filter.label', now()->format('Y')))
             },
-            room_stat: {
-                room_name: rooms,
-                total_value: total_value
-            },
             period_stats: {
                 labels: period_labels,
                 counts: period_counts,
@@ -530,6 +665,11 @@ function convert($sum)
                 items: {!! json_encode(data_get($response, 'period_stats.items', [])) !!},
                 total_transactions: {{ json_encode(data_get($response, 'period_stats.total_transactions', 0)) }},
                 total_revenue: {{ json_encode(data_get($response, 'period_stats.total_revenue', 0)) }}
+            },
+            monthly_revenue: {
+                labels: monthly_revenue_labels,
+                month_keys: monthly_revenue_keys,
+                revenues: monthly_revenue_values
             }
         });
     })();

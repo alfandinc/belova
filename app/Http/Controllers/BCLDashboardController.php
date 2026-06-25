@@ -48,6 +48,22 @@ class BCLDashboardController extends Controller
         return response()->json($this->buildDashboardResponse($startDate, $endDate));
     }
 
+    public function monthlyRevenueDetails(Request $request)
+    {
+        if (!Auth::user() || !Auth::user()->hasAnyRole(['Kos','Admin'])) {
+            return response()->json(['message' => 'Unauthorized access.'], 403);
+        }
+
+        [$startDate, $endDate] = $this->resolveDateRange($request);
+        $monthKey = (string) $request->input('month_key', '');
+
+        if (!preg_match('/^\d{4}-\d{2}$/', $monthKey)) {
+            return response()->json(['message' => 'Month key is invalid.'], 422);
+        }
+
+        return response()->json($this->buildMonthlyRevenueDetails($startDate, $endDate, $monthKey));
+    }
+
     protected function resolveDateRange(Request $request): array
     {
         $now = Carbon::now();
@@ -145,19 +161,19 @@ class BCLDashboardController extends Controller
             ->get();
 
         $needed_maintanance = 0;
-        foreach ($inventory as $data) {
+        foreach ($inventory as $inventoryItem) {
             $next_maintanance = null;
             $remaining = null;
-            if ($data->last_maintanance != null && $data->maintanance_cycle != null) {
-                $period = (int) $data->maintanance_period;
-                if ($data->maintanance_cycle == 'Minggu') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addWeeks($period)->format('Y-m-d');
+            if ($inventoryItem->last_maintanance != null && $inventoryItem->maintanance_cycle != null) {
+                $period = (int) $inventoryItem->maintanance_period;
+                if ($inventoryItem->maintanance_cycle == 'Minggu') {
+                    $next_maintanance = Carbon::parse($inventoryItem->last_maintanance)->addWeeks($period)->format('Y-m-d');
                     $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
-                } else if ($data->maintanance_cycle == 'Bulan') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addMonths($period)->format('Y-m-d');
+                } else if ($inventoryItem->maintanance_cycle == 'Bulan') {
+                    $next_maintanance = Carbon::parse($inventoryItem->last_maintanance)->addMonths($period)->format('Y-m-d');
                     $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
-                } else if ($data->maintanance_cycle == 'Tahun') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addYears($period)->format('Y-m-d');
+                } else if ($inventoryItem->maintanance_cycle == 'Tahun') {
+                    $next_maintanance = Carbon::parse($inventoryItem->last_maintanance)->addYears($period)->format('Y-m-d');
                     $remaining =  Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
                 }
             }
@@ -166,32 +182,38 @@ class BCLDashboardController extends Controller
             }
         }
         $response->needed_maintanance = $needed_maintanance;
-        $response->total_revenue = (float) tr_renter::query()
-            ->whereBetween('tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
-            ->sum('harga');
+        $revenueAllocations = $this->buildMonthlyRevenueAllocations($rangeStart, $rangeEnd);
+        $response->total_revenue = collect($revenueAllocations)->sum('recognized_revenue');
 
-        $room_stat = Rooms::leftjoin('bcl_tr_renter', function ($join) use ($rangeStart, $rangeEnd) {
-            $join->on('bcl_tr_renter.room_id', '=', 'bcl_rooms.id');
-            $join->whereBetween('bcl_tr_renter.tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()]);
-        })->select('bcl_rooms.id', 'bcl_rooms.room_name', DB::raw('COALESCE(sum(bcl_tr_renter.harga), 0) as total_value'))->groupby('bcl_rooms.id')->orderby('total_value', 'DESC')->get();
-        $stat = new \stdClass();
-        $stat->room_name = [];
-        $stat->total_value = [];
-        foreach ($room_stat->take(10) as $data) {
-            $stat->room_name[] = $data->room_name;
-            $stat->total_value[] = $data->total_value;
+        $periodRevenue = [];
+        $monthlyRevenue = [];
+
+        foreach ($revenueAllocations as $allocation) {
+            $periodLabel = $allocation['period_label'];
+            $recognizedRevenue = (float) $allocation['recognized_revenue'];
+            $monthKey = $allocation['month_key'];
+            $monthLabel = $allocation['month_label'];
+
+            if (!isset($periodRevenue[$periodLabel])) {
+                $periodRevenue[$periodLabel] = [
+                    'label' => $periodLabel,
+                    'total_transactions' => 0,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            $periodRevenue[$periodLabel]['total_transactions']++;
+            $periodRevenue[$periodLabel]['total_revenue'] += $recognizedRevenue;
+
+            if (!isset($monthlyRevenue[$monthKey])) {
+                $monthlyRevenue[$monthKey] = [
+                    'label' => $monthLabel,
+                    'total_revenue' => 0,
+                ];
+            }
+
+            $monthlyRevenue[$monthKey]['total_revenue'] += $recognizedRevenue;
         }
-        $response->room_stat = $stat;
-
-        $periodRevenueRows = tr_renter::query()
-            ->selectRaw("CONCAT(lama_sewa, ' ', jangka_sewa) as period_label")
-            ->selectRaw('COUNT(*) as total_transactions')
-            ->selectRaw('COALESCE(SUM(harga), 0) as total_revenue')
-            ->whereBetween('tgl_mulai', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
-            ->groupBy('lama_sewa', 'jangka_sewa')
-            ->orderByDesc('total_revenue')
-            ->orderByDesc('total_transactions')
-            ->get();
 
         $periodStats = new \stdClass();
         $periodStats->labels = [];
@@ -201,25 +223,153 @@ class BCLDashboardController extends Controller
         $periodStats->total_transactions = 0;
         $periodStats->total_revenue = 0;
 
+        $periodRevenueRows = collect($periodRevenue)
+            ->sort(function (array $left, array $right) {
+                if ($left['total_revenue'] === $right['total_revenue']) {
+                    return $right['total_transactions'] <=> $left['total_transactions'];
+                }
+
+                return $right['total_revenue'] <=> $left['total_revenue'];
+            })
+            ->values();
+
         foreach ($periodRevenueRows as $row) {
-            $label = trim((string) $row->period_label);
-            $transactions = (int) $row->total_transactions;
-            $revenue = (float) $row->total_revenue;
+            $label = trim((string) $row['label']);
+            $transactions = (int) $row['total_transactions'];
+            $revenue = (float) $row['total_revenue'];
 
             $periodStats->labels[] = $label;
             $periodStats->counts[] = $transactions;
-            $periodStats->revenues[] = $revenue;
+            $periodStats->revenues[] = round($revenue, 2);
             $periodStats->items[] = (object) [
                 'label' => $label,
                 'total_transactions' => $transactions,
-                'total_revenue' => $revenue,
+                'total_revenue' => round($revenue, 2),
             ];
             $periodStats->total_transactions += $transactions;
             $periodStats->total_revenue += $revenue;
         }
 
+        $periodStats->total_revenue = round($periodStats->total_revenue, 2);
+
         $response->period_stats = $periodStats;
 
+        $monthlyRevenueStats = new \stdClass();
+        $monthlyRevenueStats->labels = [];
+        $monthlyRevenueStats->revenues = [];
+        $monthlyRevenueStats->month_keys = [];
+
+        ksort($monthlyRevenue);
+        foreach ($monthlyRevenue as $monthKey => $month) {
+            $monthlyRevenueStats->month_keys[] = $monthKey;
+            $monthlyRevenueStats->labels[] = $month['label'];
+            $monthlyRevenueStats->revenues[] = round((float) $month['total_revenue'], 2);
+        }
+
+        $response->monthly_revenue = $monthlyRevenueStats;
+
         return $response;
+    }
+
+    protected function buildMonthlyRevenueAllocations(Carbon $rangeStart, Carbon $rangeEnd): array
+    {
+        $transactions = tr_renter::query()
+            ->with(['renter:id,nama', 'room:id,room_name'])
+            ->select('id', 'id_renter', 'room_id', 'lama_sewa', 'jangka_sewa', 'harga', 'tgl_mulai', 'tgl_selesai')
+            ->whereDate('tgl_mulai', '<=', $rangeEnd->toDateString())
+            ->whereDate('tgl_selesai', '>', $rangeStart->toDateString())
+            ->get();
+
+        $allocations = [];
+
+        foreach ($transactions as $transaction) {
+            $start = Carbon::parse($transaction->tgl_mulai)->startOfDay();
+            $endExclusive = Carbon::parse($transaction->tgl_selesai)->startOfDay();
+
+            if ($endExclusive->lte($start) || $start->gt($rangeEnd) || $endExclusive->lte($rangeStart)) {
+                continue;
+            }
+
+            $effectiveEnd = $endExclusive->copy()->subDay();
+            if ($effectiveEnd->lt($start)) {
+                $effectiveEnd = $start->copy();
+            }
+
+            $rentalStartMonth = $start->copy()->startOfMonth();
+            $rentalEndMonth = $effectiveEnd->copy()->startOfMonth();
+            $totalMonths = $rentalStartMonth->diffInMonths($rentalEndMonth) + 1;
+            if ($totalMonths <= 0) {
+                $totalMonths = 1;
+            }
+
+            $overlapStartMonth = $start->greaterThan($rangeStart)
+                ? $start->copy()->startOfMonth()
+                : $rangeStart->copy()->startOfMonth();
+            $overlapEndMonth = $effectiveEnd->lessThan($rangeEnd)
+                ? $effectiveEnd->copy()->startOfMonth()
+                : $rangeEnd->copy()->startOfMonth();
+
+            if ($overlapStartMonth->gt($overlapEndMonth)) {
+                continue;
+            }
+
+            $overlapMonths = $overlapStartMonth->diffInMonths($overlapEndMonth) + 1;
+            if ($overlapMonths <= 0) {
+                continue;
+            }
+
+            $monthlyRevenue = (float) $transaction->harga / $totalMonths;
+
+            $cursorMonth = $overlapStartMonth->copy();
+            while ($cursorMonth->lte($overlapEndMonth)) {
+                $allocations[] = [
+                    'transaction_id' => (int) $transaction->id,
+                    'renter_name' => data_get($transaction, 'renter.nama', '-'),
+                    'room_name' => data_get($transaction, 'room.room_name', '-'),
+                    'tgl_mulai' => $transaction->tgl_mulai,
+                    'tgl_selesai' => $transaction->tgl_selesai,
+                    'room_id' => (int) $transaction->room_id,
+                    'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
+                    'recognized_revenue' => $monthlyRevenue,
+                    'month_key' => $cursorMonth->format('Y-m'),
+                    'month_label' => $cursorMonth->translatedFormat('M Y'),
+                ];
+
+                $cursorMonth->addMonth();
+            }
+        }
+
+        return $allocations;
+    }
+
+    protected function buildMonthlyRevenueDetails(Carbon $rangeStart, Carbon $rangeEnd, string $monthKey): array
+    {
+        $allocations = collect($this->buildMonthlyRevenueAllocations($rangeStart, $rangeEnd))
+            ->filter(fn (array $allocation) => $allocation['month_key'] === $monthKey)
+            ->values();
+
+        $monthLabel = $allocations->isNotEmpty()
+            ? (string) $allocations->first()['month_label']
+            : Carbon::createFromFormat('Y-m', $monthKey)->translatedFormat('M Y');
+
+        $items = $allocations->map(function (array $allocation) {
+            return [
+                'transaction_id' => $allocation['transaction_id'],
+                'renter_name' => $allocation['renter_name'],
+                'room_name' => $allocation['room_name'],
+                'period_label' => $allocation['period_label'],
+                'tgl_mulai' => Carbon::parse($allocation['tgl_mulai'])->format('d-m-Y'),
+                'tgl_selesai' => Carbon::parse($allocation['tgl_selesai'])->format('d-m-Y'),
+                'recognized_revenue' => round((float) $allocation['recognized_revenue'], 2),
+            ];
+        })->all();
+
+        return [
+            'month_key' => $monthKey,
+            'month_label' => $monthLabel,
+            'total_revenue' => round($allocations->sum('recognized_revenue'), 2),
+            'total_items' => $allocations->count(),
+            'items' => $items,
+        ];
     }
 }
