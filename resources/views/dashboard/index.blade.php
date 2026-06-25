@@ -1,0 +1,56 @@
+@extends('layouts.erm.app')
+
+@section('title', 'Dashboard')
+
+@section('navbar')
+    @include('dashboard.navbar')
+@endsection
+
+@section('content')
+    <div class="container-fluid mt-4">
+        @if (! $employeePosition)
+            <div class="alert alert-warning">
+                Dashboard belum bisa ditampilkan karena akun ini belum memiliki posisi utama karyawan.
+            </div>
+        @elseif ($dashboardWidgets->isEmpty())
+            <div class="alert alert-info">
+                Belum ada widget yang dipetakan untuk posisi {{ $employeePosition->name }}.
+            </div>
+        @else
+            <div class="row">
+                @foreach ($dashboardWidgets as $widget)
+                    <div class="col-lg-{{ $widget->column_span }} col-md-12 mb-4">
+                        @if ($widget->view_exists)
+                            @include($widget->resolved_view, ['widget' => $widget])
+                        @else
+                            <div class="card h-100 border-warning">
+                                <div class="card-body">
+                                    <h5 class="card-title mb-2">{{ $widget->widget_name }}</h5>
+                                    <p class="text-muted mb-2">{{ $widget->description ?: 'Widget belum memiliki deskripsi.' }}</p>
+                                    <div class="small text-warning">
+                                        View widget tidak ditemukan: {{ $widget->component_path }}
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        @endif
+    </div>
+@endsection
+
+@section('scripts')
+    @if (! $employeePosition || $dashboardWidgets->isEmpty())
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Dashboard Belum Tersedia',
+                    text: 'Posisi anda belum memiliki dashboard.',
+                    confirmButtonText: 'OK'
+                });
+            });
+        </script>
+    @endif
+@endsection

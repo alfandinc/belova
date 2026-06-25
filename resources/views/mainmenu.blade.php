@@ -343,19 +343,22 @@
         .welcome-banner {
             text-align: center;
             margin: 20px 0;
-            padding: 20px;
+            padding: 18px 24px 20px;
             color: var(--text-color);
             background: var(--bg-banner);
-            border-radius: 10px;
-            box-shadow: 0 5px 15px var(--shadow-color);
+            border-radius: 18px;
             width: 100%;
             max-width: 1200px;
             transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.12);
         }
         
         .welcome-banner h2 {
             margin-top: 0;
+            margin-bottom: 12px;
             animation: fadeIn 1s ease;
+            font-size: clamp(1.9rem, 2.7vw, 2.7rem);
+            letter-spacing: -0.03em;
         }
         
         .welcome-prefix {
@@ -370,6 +373,43 @@
         .welcome-banner p {
             margin-bottom: 0;
             animation: fadeIn 1.2s ease;
+        }
+
+        .welcome-dashboard-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 220px;
+            padding: 10px 18px;
+            border-radius: 999px;
+            background: #c7d2fe;
+            border: 1px solid rgba(199,210,254,0.85);
+            color: #1e3a8a;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+            line-height: 1;
+            white-space: nowrap;
+            transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .welcome-dashboard-btn i {
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(30, 58, 138, 0.12);
+        }
+
+        .welcome-dashboard-btn:hover {
+            color: #1d4ed8;
+            background: #e0e7ff;
+            border-color: rgba(224,231,255,0.95);
+            transform: translateY(-1px);
+            text-decoration: none;
         }
         
         /* Main menu grid and modern glass tiles */
@@ -386,6 +426,12 @@
             gap: 12px;
             align-items: center;
             margin-bottom: 12px;
+        }
+
+        .menu-dashboard-cta {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
         }
 
         .menu-search {
@@ -669,7 +715,7 @@
             .tiles { grid-template-columns: repeat(4, 1fr); }
         }
         @media (max-width: 768px) {
-            .welcome-banner { padding: 12px; }
+            .welcome-banner { padding: 14px 14px 16px; }
             /* On medium/smaller screens show 2 columns for better touch targets */
             .tiles { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; width: calc(100% - 24px); max-width: 100%; }
             .menu-tile { min-height: 140px; }
@@ -678,6 +724,7 @@
             .jadwal-modal-iframe { height: 60vh; }
             .modal-dialog { margin: 10px; width: calc(100% - 20px); }
             .modal-content { border-radius: 8px; }
+            .welcome-dashboard-btn { min-width: 0; }
         }
 
         /* Phones: keep 2 columns on most phones to match the visual layout; collapse to 1 on very small devices */
@@ -701,7 +748,8 @@
         @media (max-width: 480px) {
             .menu-controls { flex-direction: column; align-items: stretch; gap: 8px; }
             .menu-search { order: 1; }
-            .user-area { order: 2; justify-content: space-between; }
+            .menu-dashboard-cta { order: 2; }
+            .user-area { order: 3; justify-content: space-between; }
             .welcome-banner { padding: 14px 10px; border-radius: 10px; }
             .welcome-banner h2 { font-size: 18px; line-height: 1.15; }
             .welcome-banner p { display: none; } /* hide subtitle to reduce clutter */
@@ -711,6 +759,7 @@
             .user-area { display:flex; justify-content:space-between; align-items:center; }
             .user-area .info { text-align:left; }
             .menu-search { width:100%; }
+            .menu-dashboard-cta .welcome-dashboard-btn { width: 100%; }
             /* On phones hide the long date and show compact time only */
             .date-display .date-full { display: none; }
             .date-display .date-compact { display: block; }
@@ -865,7 +914,6 @@
                     }
                 @endphp
                 <h2><span class="welcome-prefix">Welcome to</span> <span class="sim-name">{{ $simName }}</span></h2>
-                <p>Sistem Informasi Manajemen Terintegrasi</p>
             </div>
             
             <div class="menu-grid-wrapper">
@@ -873,6 +921,12 @@
                     <div class="menu-search">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input id="menuFilter" placeholder="Cari modul" aria-label="Cari modul" />
+                    </div>
+                    <div class="menu-dashboard-cta">
+                        <a href="{{ route('dashboard.index') }}" class="welcome-dashboard-btn">
+                            <i class="fas fa-th-large"></i>
+                            <span>Open Your Dashboard</span>
+                        </a>
                     </div>
                     <div class="user-area">
                         <div class="info profile-trigger profile-trigger-info js-open-profile-modal" tabindex="0" role="button" aria-label="Buka profil karyawan">

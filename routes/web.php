@@ -217,6 +217,28 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
+    Route::get('/dashboard', [\App\Http\Controllers\Dashboard\DashboardController::class, 'index'])
+        ->name('dashboard.index');
+
+    // Dashboard widgets CRUD (AJAX + Yajra)
+    Route::prefix('dashboard')->group(function () {
+        Route::get('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'index'])->name('dashboard.widgets.index');
+        Route::get('widgets/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'data'])->name('dashboard.widgets.data');
+        Route::post('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'store'])->name('dashboard.widgets.store');
+        Route::put('widgets/{id}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'update'])->name('dashboard.widgets.update');
+        Route::delete('widgets/{id}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'destroy'])->name('dashboard.widgets.destroy');
+
+        Route::get('widget-mappings/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'mappingsData'])->name('dashboard.widget-mappings.data');
+        Route::post('widget-mappings', [\App\Http\Controllers\Dashboard\WidgetController::class, 'storeMapping'])->name('dashboard.widget-mappings.store');
+        Route::put('widget-mappings/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'updateMapping'])->name('dashboard.widget-mappings.update');
+        Route::delete('widget-mappings/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'destroyMapping'])->name('dashboard.widget-mappings.destroy');
+
+        Route::get('widgets/{id}/positions', [\App\Http\Controllers\Dashboard\WidgetController::class, 'positions'])->name('dashboard.widgets.positions');
+        Route::get('widgets/{id}/positions/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'positionsData'])->name('dashboard.widgets.positions.data');
+        Route::post('widgets/{id}/positions', [\App\Http\Controllers\Dashboard\WidgetController::class, 'addPosition'])->name('dashboard.widgets.positions.add');
+        Route::put('widgets/{id}/positions/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'updatePosition'])->name('dashboard.widgets.positions.update');
+        Route::delete('widgets/{id}/positions/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'removePosition'])->name('dashboard.widgets.positions.remove');
+    });
     // AJAX: generate next employee `no_induk` in YYMMXXX format
     Route::get('hrd/employee/next-no-induk', [App\Http\Controllers\HRD\EmployeeController::class, 'nextNoInduk'])
         ->name('hrd.employee.nextNoInduk');
