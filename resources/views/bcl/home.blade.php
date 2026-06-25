@@ -252,7 +252,7 @@ function convert($sum)
                                         <th>Penyewa</th>
                                         <th>Kamar</th>
                                         <th>Paket</th>
-                                        <th>Masa Sewa</th>
+                                        <th>Periode Revenue</th>
                                         <th class="text-right">Revenue Bulan Ini</th>
                                     </tr>
                                 </thead>
@@ -440,7 +440,7 @@ function convert($sum)
                             '<td>' + escapeHtml(item.renter_name) + '</td>' +
                             '<td>' + escapeHtml(item.room_name) + '</td>' +
                             '<td>' + escapeHtml(item.period_label) + '</td>' +
-                            '<td>' + escapeHtml(item.tgl_mulai) + ' s/d ' + escapeHtml(item.tgl_selesai) + '</td>' +
+                            '<td>' + escapeHtml(item.recognized_start_date) + ' s/d ' + escapeHtml(item.recognized_end_date) + '</td>' +
                             '<td class="text-right">' + currencyFormatter.format(item.recognized_revenue || 0) + '</td>' +
                         '</tr>'
                     );

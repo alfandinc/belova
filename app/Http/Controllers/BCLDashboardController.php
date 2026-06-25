@@ -295,6 +295,7 @@ class BCLDashboardController extends Controller
             $rentalStartMonth = $start->copy()->startOfMonth();
             $totalMonths = $this->resolveRevenueDurationMonths((int) $transaction->lama_sewa, (string) $transaction->jangka_sewa);
             $rentalEndMonth = $rentalStartMonth->copy()->addMonths($totalMonths - 1);
+            $recognizedPeriodEnd = $rentalEndMonth->copy()->endOfMonth();
 
             $overlapStartMonth = $rentalStartMonth->greaterThan($rangeStart->copy()->startOfMonth())
                 ? $rentalStartMonth->copy()
@@ -317,6 +318,8 @@ class BCLDashboardController extends Controller
                     'room_name' => data_get($transaction, 'room.room_name', '-'),
                     'tgl_mulai' => $transaction->tgl_mulai,
                     'tgl_selesai' => $transaction->tgl_selesai,
+                    'recognized_start_date' => $start->format('Y-m-d'),
+                    'recognized_end_date' => $recognizedPeriodEnd->format('Y-m-d'),
                     'room_id' => (int) $transaction->room_id,
                     'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
                     'recognized_revenue' => $monthlyRevenue,
@@ -365,6 +368,8 @@ class BCLDashboardController extends Controller
                 'period_label' => $allocation['period_label'],
                 'tgl_mulai' => Carbon::parse($allocation['tgl_mulai'])->format('d-m-Y'),
                 'tgl_selesai' => Carbon::parse($allocation['tgl_selesai'])->format('d-m-Y'),
+                'recognized_start_date' => Carbon::parse($allocation['recognized_start_date'])->format('d-m-Y'),
+                'recognized_end_date' => Carbon::parse($allocation['recognized_end_date'])->format('d-m-Y'),
                 'recognized_revenue' => round((float) $allocation['recognized_revenue'], 2),
             ];
         })->all();
