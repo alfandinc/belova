@@ -193,16 +193,21 @@ class BCLDashboardController extends Controller
             $recognizedRevenue = (float) $allocation['recognized_revenue'];
             $monthKey = $allocation['month_key'];
             $monthLabel = $allocation['month_label'];
+            $transactionId = (int) $allocation['transaction_id'];
 
             if (!isset($periodRevenue[$periodLabel])) {
                 $periodRevenue[$periodLabel] = [
                     'label' => $periodLabel,
                     'total_transactions' => 0,
                     'total_revenue' => 0,
+                    'transaction_ids' => [],
                 ];
             }
 
-            $periodRevenue[$periodLabel]['total_transactions']++;
+            if (!in_array($transactionId, $periodRevenue[$periodLabel]['transaction_ids'], true)) {
+                $periodRevenue[$periodLabel]['transaction_ids'][] = $transactionId;
+                $periodRevenue[$periodLabel]['total_transactions']++;
+            }
             $periodRevenue[$periodLabel]['total_revenue'] += $recognizedRevenue;
 
             if (!isset($monthlyRevenue[$monthKey])) {
@@ -277,44 +282,28 @@ class BCLDashboardController extends Controller
             ->with(['renter:id,nama', 'room:id,room_name'])
             ->select('id', 'id_renter', 'room_id', 'lama_sewa', 'jangka_sewa', 'harga', 'tgl_mulai', 'tgl_selesai')
             ->whereDate('tgl_mulai', '<=', $rangeEnd->toDateString())
-            ->whereDate('tgl_selesai', '>', $rangeStart->toDateString())
             ->get();
 
         $allocations = [];
 
         foreach ($transactions as $transaction) {
             $start = Carbon::parse($transaction->tgl_mulai)->startOfDay();
-            $endExclusive = Carbon::parse($transaction->tgl_selesai)->startOfDay();
-
-            if ($endExclusive->lte($start) || $start->gt($rangeEnd) || $endExclusive->lte($rangeStart)) {
+            if ($start->gt($rangeEnd)) {
                 continue;
-            }
-
-            $effectiveEnd = $endExclusive->copy()->subDay();
-            if ($effectiveEnd->lt($start)) {
-                $effectiveEnd = $start->copy();
             }
 
             $rentalStartMonth = $start->copy()->startOfMonth();
-            $rentalEndMonth = $effectiveEnd->copy()->startOfMonth();
-            $totalMonths = $rentalStartMonth->diffInMonths($rentalEndMonth) + 1;
-            if ($totalMonths <= 0) {
-                $totalMonths = 1;
-            }
+            $totalMonths = $this->resolveRevenueDurationMonths((int) $transaction->lama_sewa, (string) $transaction->jangka_sewa);
+            $rentalEndMonth = $rentalStartMonth->copy()->addMonths($totalMonths - 1);
 
-            $overlapStartMonth = $start->greaterThan($rangeStart)
-                ? $start->copy()->startOfMonth()
+            $overlapStartMonth = $rentalStartMonth->greaterThan($rangeStart->copy()->startOfMonth())
+                ? $rentalStartMonth->copy()
                 : $rangeStart->copy()->startOfMonth();
-            $overlapEndMonth = $effectiveEnd->lessThan($rangeEnd)
-                ? $effectiveEnd->copy()->startOfMonth()
+            $overlapEndMonth = $rentalEndMonth->lessThan($rangeEnd->copy()->startOfMonth())
+                ? $rentalEndMonth->copy()
                 : $rangeEnd->copy()->startOfMonth();
 
             if ($overlapStartMonth->gt($overlapEndMonth)) {
-                continue;
-            }
-
-            $overlapMonths = $overlapStartMonth->diffInMonths($overlapEndMonth) + 1;
-            if ($overlapMonths <= 0) {
                 continue;
             }
 
@@ -340,6 +329,22 @@ class BCLDashboardController extends Controller
         }
 
         return $allocations;
+    }
+
+    protected function resolveRevenueDurationMonths(int $duration, string $unit): int
+    {
+        $duration = max(1, $duration);
+        $normalizedUnit = strtolower(trim($unit));
+
+        if ($normalizedUnit === 'tahun') {
+            return $duration * 12;
+        }
+
+        if ($normalizedUnit === 'bulan') {
+            return $duration;
+        }
+
+        return 1;
     }
 
     protected function buildMonthlyRevenueDetails(Carbon $rangeStart, Carbon $rangeEnd, string $monthKey): array
