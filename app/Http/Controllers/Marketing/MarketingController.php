@@ -944,10 +944,15 @@ class MarketingController extends Controller
     {
         $baseQuery = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
             ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
             ->join('erm_resepfarmasi', 'finance_invoice_items.billable_id', '=', 'erm_resepfarmasi.id')
             ->join('erm_obat', 'erm_resepfarmasi.obat_id', '=', 'erm_obat.id')
             ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
-            ->where('finance_invoices.amount_paid', '>', 0);
+            ->where('finance_invoices.amount_paid', '>', 0)
+            ->where(function ($query) {
+                $query->whereNull('erm_pasiens.is_sales')
+                    ->orWhere('erm_pasiens.is_sales', 0);
+            });
 
         if ($startDate && $endDate) {
             $baseQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
