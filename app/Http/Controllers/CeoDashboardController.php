@@ -1008,10 +1008,12 @@ class CeoDashboardController extends Controller
                 $topObatRevenueBase = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
                     ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
                     ->join('erm_resepfarmasi as r', 'fb.billable_id', '=', 'r.id')
+                    ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
                     ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
                     ->where('fb.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
+                    ->whereRaw('COALESCE(p.is_sales, 0) = 0')
                     ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
 
                 $this->applyVisitTypeFilter($topObatRevenueBase, $visitTypeFilter);
@@ -1967,10 +1969,12 @@ class CeoDashboardController extends Controller
         $query = \Illuminate\Support\Facades\DB::table('finance_billing as fb')
             ->join('erm_visitations as v', 'fb.visitation_id', '=', 'v.id')
             ->join('erm_resepfarmasi as r', 'fb.billable_id', '=', 'r.id')
+            ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
             ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
             ->where('fb.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
             ->where('v.klinik_id', $clinicId)
             ->where('v.status_kunjungan', 2)
+            ->whereRaw('COALESCE(p.is_sales, 0) = 0')
             ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
 
         $this->applyVisitTypeFilter($query, $visitTypeFilter);
@@ -2144,6 +2148,7 @@ class CeoDashboardController extends Controller
             ->where('r.obat_id', $id)
             ->where('v.klinik_id', $clinicId)
             ->where('v.status_kunjungan', 2)
+            ->whereRaw('COALESCE(p.is_sales, 0) = 0')
             ->whereBetween('v.tanggal_visitation', [$startDt->toDateString(), $endDt->toDateString()]);
 
         $this->applyVisitTypeFilter($rows, $visitTypeFilter);
