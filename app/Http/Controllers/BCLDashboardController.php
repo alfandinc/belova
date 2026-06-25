@@ -187,6 +187,8 @@ class BCLDashboardController extends Controller
 
         $periodRevenue = [];
         $monthlyRevenue = [];
+        $monthlyPackageBreakdown = [];
+        $packageLabels = [];
 
         foreach ($revenueAllocations as $allocation) {
             $periodLabel = $allocation['period_label'];
@@ -200,14 +202,10 @@ class BCLDashboardController extends Controller
                     'label' => $periodLabel,
                     'total_transactions' => 0,
                     'total_revenue' => 0,
-                    'transaction_ids' => [],
                 ];
             }
 
-            if (!in_array($transactionId, $periodRevenue[$periodLabel]['transaction_ids'], true)) {
-                $periodRevenue[$periodLabel]['transaction_ids'][] = $transactionId;
-                $periodRevenue[$periodLabel]['total_transactions']++;
-            }
+            $periodRevenue[$periodLabel]['total_transactions']++;
             $periodRevenue[$periodLabel]['total_revenue'] += $recognizedRevenue;
 
             if (!isset($monthlyRevenue[$monthKey])) {
@@ -218,6 +216,26 @@ class BCLDashboardController extends Controller
             }
 
             $monthlyRevenue[$monthKey]['total_revenue'] += $recognizedRevenue;
+
+            if (!in_array($periodLabel, $packageLabels, true)) {
+                $packageLabels[] = $periodLabel;
+            }
+
+            if (!isset($monthlyPackageBreakdown[$monthKey])) {
+                $monthlyPackageBreakdown[$monthKey] = [
+                    'month_key' => $monthKey,
+                    'label' => $monthLabel,
+                    'total_revenue' => 0,
+                    'package_counts' => [],
+                ];
+            }
+
+            if (!isset($monthlyPackageBreakdown[$monthKey]['package_counts'][$periodLabel])) {
+                $monthlyPackageBreakdown[$monthKey]['package_counts'][$periodLabel] = 0;
+            }
+
+            $monthlyPackageBreakdown[$monthKey]['total_revenue'] += $recognizedRevenue;
+            $monthlyPackageBreakdown[$monthKey]['package_counts'][$periodLabel]++;
         }
 
         $periodStats = new \stdClass();
@@ -272,6 +290,30 @@ class BCLDashboardController extends Controller
         }
 
         $response->monthly_revenue = $monthlyRevenueStats;
+
+        natcasesort($packageLabels);
+        $packageLabels = array_values($packageLabels);
+
+        $monthlyPackageStats = new \stdClass();
+        $monthlyPackageStats->package_labels = $packageLabels;
+        $monthlyPackageStats->rows = [];
+
+        ksort($monthlyPackageBreakdown);
+        foreach ($monthlyPackageBreakdown as $monthKey => $monthData) {
+            $rowCounts = [];
+            foreach ($packageLabels as $packageLabel) {
+                $rowCounts[$packageLabel] = (int) ($monthData['package_counts'][$packageLabel] ?? 0);
+            }
+
+            $monthlyPackageStats->rows[] = (object) [
+                'month_key' => $monthKey,
+                'label' => $monthData['label'],
+                'total_revenue' => round((float) $monthData['total_revenue'], 2),
+                'package_counts' => (object) $rowCounts,
+            ];
+        }
+
+        $response->monthly_package_breakdown = $monthlyPackageStats;
 
         return $response;
     }

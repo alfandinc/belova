@@ -114,6 +114,35 @@ function convert($sum)
                     </div>
                     <div class="card-body">
                         <div id="monthlyRevenueChart" class="apex-charts"></div>
+                        <div class="table-responsive mt-4">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead id="monthly-package-breakdown-head">
+                                    <tr>
+                                        <th>Bulan</th>
+                                        <th class="text-right">Revenue</th>
+                                        @foreach(data_get($response, 'monthly_package_breakdown.package_labels', []) as $packageLabel)
+                                            <th class="text-right">{{ $packageLabel }}</th>
+                                        @endforeach
+                                    </tr>
+                                </thead>
+                                <tbody id="monthly-package-breakdown-body">
+                                    @php($monthlyRows = data_get($response, 'monthly_package_breakdown.rows', []))
+                                    @forelse($monthlyRows as $row)
+                                        <tr>
+                                            <td>{{ $row->label }}</td>
+                                            <td class="text-right">Rp {{ number_format($row->total_revenue, 0, ',', '.') }}</td>
+                                            @foreach(data_get($response, 'monthly_package_breakdown.package_labels', []) as $packageLabel)
+                                                <td class="text-right">{{ number_format(data_get($row, 'package_counts.' . $packageLabel, 0)) }}</td>
+                                            @endforeach
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="{{ 2 + count(data_get($response, 'monthly_package_breakdown.package_labels', [])) }}" class="text-center text-muted">Belum ada breakdown bulanan.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
@@ -283,6 +312,8 @@ function convert($sum)
     var monthly_revenue_labels = {!! json_encode(data_get($response, 'monthly_revenue.labels', [])) !!};
     var monthly_revenue_keys = {!! json_encode(data_get($response, 'monthly_revenue.month_keys', [])) !!};
     var monthly_revenue_values = {!! json_encode(data_get($response, 'monthly_revenue.revenues', [])) !!};
+    var monthly_package_labels = {!! json_encode(data_get($response, 'monthly_package_breakdown.package_labels', [])) !!};
+    var monthly_package_rows = {!! json_encode(data_get($response, 'monthly_package_breakdown.rows', [])) !!};
 </script>
 <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
 <script>
@@ -360,10 +391,46 @@ function convert($sum)
             $('#package-side-table-body').html(rows.join(''));
         }
 
+        function renderMonthlyPackageBreakdown(packageLabels, rows) {
+            var headerCells = [
+                '<tr>',
+                '<th>Bulan</th>',
+                '<th class="text-right">Revenue</th>'
+            ];
+
+            (packageLabels || []).forEach(function (packageLabel) {
+                headerCells.push('<th class="text-right">' + escapeHtml(packageLabel) + '</th>');
+            });
+            headerCells.push('</tr>');
+            $('#monthly-package-breakdown-head').html(headerCells.join(''));
+
+            var bodyRows = [];
+            if (!rows.length) {
+                bodyRows.push('<tr><td colspan="' + (2 + (packageLabels || []).length) + '" class="text-center text-muted">Belum ada breakdown bulanan.</td></tr>');
+            } else {
+                rows.forEach(function (row) {
+                    bodyRows.push('<tr>');
+                    bodyRows.push('<td>' + escapeHtml(row.label) + '</td>');
+                    bodyRows.push('<td class="text-right">' + currencyFormatter.format(row.total_revenue || 0) + '</td>');
+
+                    (packageLabels || []).forEach(function (packageLabel) {
+                        var counts = row.package_counts || {};
+                        var countValue = counts[packageLabel] || 0;
+                        bodyRows.push('<td class="text-right">' + numberFormatter.format(countValue) + '</td>');
+                    });
+
+                    bodyRows.push('</tr>');
+                });
+            }
+
+            $('#monthly-package-breakdown-body').html(bodyRows.join(''));
+        }
+
         function updateDashboardView(payload) {
             var filter = payload.filter || {};
             var periodStats = payload.period_stats || { labels: [], counts: [], revenues: [], items: [], total_transactions: 0, total_revenue: 0 };
             var monthlyRevenue = payload.monthly_revenue || { labels: [], revenues: [], month_keys: [] };
+            var monthlyPackageBreakdown = payload.monthly_package_breakdown || { package_labels: [], rows: [] };
 
             period_labels = periodStats.labels || [];
             period_counts = periodStats.counts || [];
@@ -371,6 +438,8 @@ function convert($sum)
             monthly_revenue_labels = monthlyRevenue.labels || [];
             monthly_revenue_keys = monthlyRevenue.month_keys || [];
             monthly_revenue_values = monthlyRevenue.revenues || [];
+            monthly_package_labels = monthlyPackageBreakdown.package_labels || [];
+            monthly_package_rows = monthlyPackageBreakdown.rows || [];
 
             setFilterText(filter.label || '-');
             $('#total-revenue-value').text(currencyFormatter.format(payload.total_revenue || 0));
@@ -379,6 +448,7 @@ function convert($sum)
 
             renderPackageTable(periodStats.items || []);
             renderSidePackageTable(periodStats.items || []);
+            renderMonthlyPackageBreakdown(monthly_package_labels, monthly_package_rows);
 
             if (packageChart) {
                 packageChart.updateOptions({ labels: period_labels }, false, false);
@@ -670,6 +740,10 @@ function convert($sum)
                 labels: monthly_revenue_labels,
                 month_keys: monthly_revenue_keys,
                 revenues: monthly_revenue_values
+            },
+            monthly_package_breakdown: {
+                package_labels: monthly_package_labels,
+                rows: monthly_package_rows
             }
         });
     })();
