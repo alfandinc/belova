@@ -4,16 +4,36 @@ namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
 use App\Models\Sys\PositionWidget;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         $employee = $user?->employee;
         $position = $employee?->primaryPosition();
+        $now = Carbon::now();
+
+        $selectedPeriodStart = $this->parseStartDate($request->input('start_date'), $now);
+        $selectedPeriodEnd = $this->parseEndDate($request->input('end_date'), $selectedPeriodStart, $now);
+
+        if ($selectedPeriodEnd->lt($selectedPeriodStart)) {
+            [$selectedPeriodStart, $selectedPeriodEnd] = [$selectedPeriodEnd->copy()->startOfDay(), $selectedPeriodStart->copy()->endOfDay()];
+        }
+
+        $dashboardFilter = [
+            'year' => (int) $selectedPeriodEnd->year,
+            'month' => (int) $selectedPeriodStart->month,
+            'period_start' => $selectedPeriodStart,
+            'period_end' => $selectedPeriodEnd,
+            'start_date' => $selectedPeriodStart->format('Y-m-d'),
+            'end_date' => $selectedPeriodEnd->format('Y-m-d'),
+            'label' => $selectedPeriodStart->format('Y-m-d') . ' - ' . $selectedPeriodEnd->format('Y-m-d'),
+        ];
 
         $widgets = collect();
 
@@ -39,10 +59,49 @@ class DashboardController extends Controller
                 ->values();
         }
 
-        return view('dashboard.index', [
+        $viewData = [
             'dashboardWidgets' => $widgets,
             'employeePosition' => $position,
-        ]);
+            'dashboardFilter' => $dashboardFilter,
+        ];
+
+        if ($request->ajax()) {
+            return response()->json([
+                'html' => view('dashboard.partials.widgets_grid', $viewData)->render(),
+                'hasEmployeePosition' => (bool) $position,
+                'hasWidgets' => $widgets->isNotEmpty(),
+            ]);
+        }
+
+        return view('dashboard.index', $viewData);
+    }
+
+    private function parseStartDate(?string $value, Carbon $now): Carbon
+    {
+        try {
+            return $value ? Carbon::parse($value)->startOfDay() : $now->copy()->startOfMonth();
+        } catch (\Throwable $e) {
+            return $now->copy()->startOfMonth();
+        }
+    }
+
+    private function parseEndDate(?string $value, Carbon $startDate, Carbon $now): Carbon
+    {
+        try {
+            if (! $value) {
+                return $now->copy();
+            }
+
+            $parsed = Carbon::parse($value)->endOfDay();
+
+            if ($parsed->isSameMonth($now) && $parsed->year === $now->year && $parsed->greaterThan($now)) {
+                return $now->copy();
+            }
+
+            return $parsed;
+        } catch (\Throwable $e) {
+            return $startDate->copy()->endOfMonth();
+        }
     }
 
     private function normalizeWidgetViewPath(?string $componentPath): ?string

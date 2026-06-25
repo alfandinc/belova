@@ -1,10 +1,15 @@
 @php
-    $now = \Carbon\Carbon::now();
-    $monthStart = $now->copy()->startOfMonth();
-    $yearStart = $now->copy()->startOfYear();
+    $periodEnd = ($dashboardFilter['period_end'] ?? \Carbon\Carbon::now())->copy();
+    $periodStart = ($dashboardFilter['period_start'] ?? $periodEnd->copy()->startOfMonth())->copy();
+    $selectedYear = (int) ($dashboardFilter['year'] ?? $periodEnd->year);
+    $selectedMonth = (int) ($dashboardFilter['month'] ?? $periodEnd->month);
+
+    $now = $periodEnd->copy();
+    $monthStart = $periodStart->copy()->startOfMonth();
+    $yearStart = \Carbon\Carbon::create($selectedYear, 1, 1)->startOfYear();
     $sameDayLastYear = $now->copy()->subYear();
     $lastYearMonthStart = $sameDayLastYear->copy()->startOfMonth();
-    $lastYearStart = $sameDayLastYear->copy()->startOfYear();
+    $lastYearStart = \Carbon\Carbon::create($selectedYear - 1, 1, 1)->startOfYear();
 
     $revenueExpression = "COALESCE(SUM(CASE WHEN LOWER(COALESCE(jenis_transaksi, 'in')) = 'out' THEN -COALESCE(jumlah, 0) ELSE COALESCE(jumlah, 0) END), 0)";
 
@@ -41,8 +46,8 @@
             return [
                 'direction' => $difference > 0 ? 'up' : 'down',
                 'icon' => $difference > 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down',
-                'class' => $difference > 0 ? 'text-success' : 'text-danger',
-                'label' => '100,0%',
+                'class' => 'text-muted',
+                'label' => 'N/A',
             ];
         }
 
@@ -79,7 +84,7 @@
                         <div class="small {{ $monthlyTrend['class'] }} font-weight-bold">
                             <i class="{{ $monthlyTrend['icon'] }} mr-1"></i>{{ $monthlyTrend['label'] }}
                         </div>
-                        <div class="small text-muted">vs {{ $sameDayLastYear->translatedFormat('F Y') }}</div>
+                        <div class="small text-muted">vs {{ \Carbon\Carbon::create($selectedYear - 1, $selectedMonth, 1)->translatedFormat('F Y') }}</div>
                     </div>
                 </div>
             </div>
@@ -91,7 +96,7 @@
                         <div class="small {{ $yearlyTrend['class'] }} font-weight-bold">
                             <i class="{{ $yearlyTrend['icon'] }} mr-1"></i>{{ $yearlyTrend['label'] }}
                         </div>
-                        <div class="small text-muted">vs YTD {{ $sameDayLastYear->year }}</div>
+                        <div class="small text-muted">vs YTD {{ $selectedYear - 1 }}</div>
                     </div>
                 </div>
             </div>
