@@ -192,11 +192,6 @@ class KpiPeriodController extends Controller
                                 $category = $indicator->category;
                                 $assessmentType = $category->evaluator_type;
 
-                                if (in_array($assessmentType, ['specific_position'], true)
-                                    && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
-                                    continue;
-                                }
-
                                 $evaluatorPositionTargets = null;
                                 if ($assessmentType === 'direct_parent') {
                                     $evaluatorPositionTargets = $evaluateePosition->parent_id ?: null;
@@ -332,11 +327,6 @@ class KpiPeriodController extends Controller
                     $indicator = $map->indicator;
                     $category = $indicator->category;
                     $assessmentType = $category->evaluator_type;
-
-                    if (in_array($assessmentType, ['specific_position'], true)
-                        && (!$primaryPosition || (int) $evaluateePosition->id !== (int) $primaryPosition->id)) {
-                        continue;
-                    }
 
                     if ($assessmentType === 'bottom_up') {
                         $children = HRDPosition::where('parent_id', $evaluateePosition->id)->get();
