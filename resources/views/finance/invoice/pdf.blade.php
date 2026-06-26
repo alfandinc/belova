@@ -760,8 +760,8 @@
 
             if ($clinicId == 1) {
                 // Payment info for Premiere Belova
-                $paymentBank = 'BNI';
-                $paymentAccNo = '4713131515';
+                $paymentBank = 'BRI';
+                $paymentAccNo = '137801000400307';
                 $paymentAccName = 'CV BELOVA INDONESIA';
 
                 // Clinic display info for klinik id 1
@@ -771,9 +771,9 @@
                 $clinicWebsite = 'www.premierebelova.id';
             } elseif ($clinicId == 2) {
                 // Payment info fallback for klinik id 2 (use clinic values if present)
-                $paymentBank = $klinik->bank_name ?? 'BNI';
+                $paymentBank = $klinik->bank_name ?? 'BRI';
                 $paymentAccName = $klinik->bank_account_name ?? ($klinik->rekening_nama ?? 'CV BELIA ABADI');
-                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '3113131515'));
+                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '137801000423305'));
 
                 // Clinic display info for klinik id 2 (Belova Skin)
                 $clinicDisplayName = 'BELOVA SKIN';
@@ -781,9 +781,9 @@
                 $clinicPhone = '085 100 990 139 / 0812 2870 6886';
                 $clinicWebsite = 'www.belovaskin.id';
             } else {
-                $paymentBank = $klinik->bank_name ?? 'BNI';
+                $paymentBank = $klinik->bank_name ?? 'BRI';
                 $paymentAccName = $klinik->bank_account_name ?? ($klinik->rekening_nama ?? 'CV BELIA ABADI');
-                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '3113131515'));
+                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '137801000423305'));
 
                 $clinicDisplayName = $klinik->nama ?? $klinik->name ?? 'Klinik';
                 // prefer alamat or address fields if available
