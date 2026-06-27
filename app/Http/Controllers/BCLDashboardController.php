@@ -649,10 +649,13 @@ class BCLDashboardController extends Controller
             $renterModel = $transaction->renter;
             $birthday = data_get($renterModel, 'birthday');
             $age = null;
+            $birthdayLabel = '-';
 
             if (!empty($birthday)) {
                 try {
-                    $age = Carbon::parse($birthday)->age;
+                    $birthdayDate = Carbon::parse($birthday);
+                    $age = $birthdayDate->age;
+                    $birthdayLabel = $birthdayDate->format('d-m-Y');
                 } catch (\Throwable $e) {
                     $age = null;
                 }
@@ -662,7 +665,7 @@ class BCLDashboardController extends Controller
             $groups[$groupLabel][] = [
                 'name' => data_get($renterModel, 'nama', '-'),
                 'age' => $age,
-                'birthday' => !empty($birthday) ? Carbon::parse($birthday)->format('d-m-Y') : '-',
+                'birthday' => $birthdayLabel,
                 'room_name' => data_get($transaction, 'room.room_name', '-'),
             ];
         }
