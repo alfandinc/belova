@@ -188,7 +188,7 @@ function convert($sum)
                     <div class="card-header">
                         <div class="row align-items-center">
                             <div class="col">
-                                <h4 class="card-title">Hunian dan Mutasi Penghuni <span id="occupancy-period-title">{{ data_get($response, 'filter.label', now()->format('Y')) }}</span></h4>
+                                <h4 class="card-title">Hunian dan Pergerakan Penghuni <span id="occupancy-period-title">{{ data_get($response, 'filter.label', now()->format('Y')) }}</span></h4>
                             </div>
                         </div>
                     </div>
@@ -198,36 +198,28 @@ function convert($sum)
                                 <thead>
                                     <tr>
                                         <th>Bulan</th>
+                                        <th class="text-right">Kamar Terisi</th>
                                         <th class="text-right">Tingkat Hunian</th>
-                                        <th>Penghuni Masuk</th>
-                                        <th>Penghuni Keluar</th>
+                                        <th class="text-right">Penghuni Masuk</th>
+                                        <th class="text-right">Penghuni Keluar</th>
                                     </tr>
                                 </thead>
                                 <tbody id="occupancy-breakdown-body">
-                                    @forelse(data_get($response, 'occupancy_breakdown.rows', []) as $row)
+                                    @forelse(data_get($response, 'occupancy.rows', []) as $row)
                                         <tr>
                                             <td>{{ $row->label }}</td>
-                                            <td class="text-right">{{ number_format($row->occupancy_percent, 2, ',', '.') }}%<br><span class="text-muted">{{ $row->occupied_rooms }}/{{ $row->total_rooms }} kamar</span></td>
-                                            <td>
-                                                <div><strong>{{ number_format($row->move_in_count) }}</strong> penghuni</div>
-                                                @forelse($row->move_ins as $moveIn)
-                                                    <div class="small text-muted">{{ $moveIn['renter_name'] }} ({{ $moveIn['room_name'] }})</div>
-                                                @empty
-                                                    <div class="small text-muted">-</div>
-                                                @endforelse
+                                            <td class="text-right">{{ number_format($row->occupied_rooms) }}/{{ number_format($row->total_rooms) }}</td>
+                                            <td class="text-right">{{ number_format($row->occupancy_rate, 1) }}%</td>
+                                            <td class="text-right">
+                                                <button type="button" class="btn btn-link btn-sm p-0 occupancy-detail-trigger" data-month-key="{{ $row->month_key }}" data-detail-type="move_ins">{{ number_format($row->move_in_count) }}</button>
                                             </td>
-                                            <td>
-                                                <div><strong>{{ number_format($row->move_out_count) }}</strong> penghuni</div>
-                                                @forelse($row->move_outs as $moveOut)
-                                                    <div class="small text-muted">{{ $moveOut['renter_name'] }} ({{ $moveOut['room_name'] }})</div>
-                                                @empty
-                                                    <div class="small text-muted">-</div>
-                                                @endforelse
+                                            <td class="text-right">
+                                                <button type="button" class="btn btn-link btn-sm p-0 occupancy-detail-trigger" data-month-key="{{ $row->month_key }}" data-detail-type="move_outs">{{ number_format($row->move_out_count) }}</button>
                                             </td>
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="4" class="text-center text-muted">Belum ada data hunian.</td>
+                                            <td colspan="5" class="text-center text-muted">Belum ada data hunian.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>
@@ -348,6 +340,44 @@ function convert($sum)
             </div>
         </div>
 
+        <div class="modal fade" id="occupancyMovementDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><span id="occupancy-detail-type-title">Detail Penghuni</span> <span id="occupancy-detail-month-title">-</span></h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="text-muted" id="occupancy-detail-description">Daftar penghuni</div>
+                            <div>
+                                <span class="badge badge-soft-primary" id="occupancy-detail-count">0 orang</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Nama</th>
+                                        <th>Kamar</th>
+                                        <th>Paket</th>
+                                        <th>Periode</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="occupancy-detail-body">
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted">Belum ada data.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
@@ -365,7 +395,7 @@ function convert($sum)
     var monthly_revenue_values = {!! json_encode(data_get($response, 'monthly_revenue.revenues', [])) !!};
     var monthly_package_labels = {!! json_encode(data_get($response, 'monthly_package_breakdown.package_labels', [])) !!};
     var monthly_package_rows = {!! json_encode(data_get($response, 'monthly_package_breakdown.rows', [])) !!};
-    var occupancy_breakdown_rows = {!! json_encode(data_get($response, 'occupancy_breakdown.rows', [])) !!};
+    var occupancy_rows = {!! json_encode(data_get($response, 'occupancy.rows', [])) !!};
 </script>
 <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
 <script>
@@ -378,6 +408,12 @@ function convert($sum)
         var numberFormatter = new Intl.NumberFormat('id-ID');
         var packageChart = null;
         var monthlyRevenueChart = null;
+
+        function findOccupancyRow(monthKey) {
+            return (occupancy_rows || []).find(function (row) {
+                return row.month_key === monthKey;
+            }) || null;
+        }
 
         function openMonthlyRevenueDetailByIndex(index) {
             if (typeof index !== 'number' || index < 0) {
@@ -400,6 +436,7 @@ function convert($sum)
             $('#dashboard-filter-text').text(label || '-');
             $('#monthly-revenue-period').text(label || '-');
             $('#package-period-title').text(label || '-');
+            $('#occupancy-period-title').text(label || '-');
             $('#package-side-period').text(label || '-');
             $('#total-revenue-subtitle').text('Periode ' + (label || '-'));
         }
@@ -482,38 +519,54 @@ function convert($sum)
             var html = [];
 
             if (!rows.length) {
-                html.push('<tr><td colspan="4" class="text-center text-muted">Belum ada data hunian.</td></tr>');
+                html.push('<tr><td colspan="5" class="text-center text-muted">Belum ada data hunian.</td></tr>');
             } else {
                 rows.forEach(function (row) {
-                    var moveInHtml = ['<div><strong>' + numberFormatter.format(row.move_in_count || 0) + '</strong> penghuni</div>'];
-                    var moveOutHtml = ['<div><strong>' + numberFormatter.format(row.move_out_count || 0) + '</strong> penghuni</div>'];
-
-                    if ((row.move_ins || []).length) {
-                        row.move_ins.forEach(function (item) {
-                            moveInHtml.push('<div class="small text-muted">' + escapeHtml(item.renter_name) + ' (' + escapeHtml(item.room_name) + ')</div>');
-                        });
-                    } else {
-                        moveInHtml.push('<div class="small text-muted">-</div>');
-                    }
-
-                    if ((row.move_outs || []).length) {
-                        row.move_outs.forEach(function (item) {
-                            moveOutHtml.push('<div class="small text-muted">' + escapeHtml(item.renter_name) + ' (' + escapeHtml(item.room_name) + ')</div>');
-                        });
-                    } else {
-                        moveOutHtml.push('<div class="small text-muted">-</div>');
-                    }
-
-                    html.push('<tr>');
-                    html.push('<td>' + escapeHtml(row.label) + '</td>');
-                    html.push('<td class="text-right">' + numberFormatter.format(row.occupancy_percent || 0) + '%<br><span class="text-muted">' + numberFormatter.format(row.occupied_rooms || 0) + '/' + numberFormatter.format(row.total_rooms || 0) + ' kamar</span></td>');
-                    html.push('<td>' + moveInHtml.join('') + '</td>');
-                    html.push('<td>' + moveOutHtml.join('') + '</td>');
-                    html.push('</tr>');
+                    html.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(row.label) + '</td>' +
+                            '<td class="text-right">' + numberFormatter.format(row.occupied_rooms || 0) + '/' + numberFormatter.format(row.total_rooms || 0) + '</td>' +
+                            '<td class="text-right">' + numberFormatter.format(row.occupancy_rate || 0) + '%</td>' +
+                            '<td class="text-right"><button type="button" class="btn btn-link btn-sm p-0 occupancy-detail-trigger" data-month-key="' + escapeHtml(row.month_key) + '" data-detail-type="move_ins">' + numberFormatter.format(row.move_in_count || 0) + '</button></td>' +
+                            '<td class="text-right"><button type="button" class="btn btn-link btn-sm p-0 occupancy-detail-trigger" data-month-key="' + escapeHtml(row.month_key) + '" data-detail-type="move_outs">' + numberFormatter.format(row.move_out_count || 0) + '</button></td>' +
+                        '</tr>'
+                    );
                 });
             }
 
             $('#occupancy-breakdown-body').html(html.join(''));
+        }
+
+        function showOccupancyDetail(monthKey, detailType) {
+            var row = findOccupancyRow(monthKey);
+            var items = row && row[detailType] ? row[detailType] : [];
+            var isMoveIn = detailType === 'move_ins';
+            var title = isMoveIn ? 'Detail Penghuni Masuk' : 'Detail Penghuni Keluar';
+            var description = isMoveIn ? 'Daftar penghuni baru pada bulan tersebut' : 'Daftar penghuni yang keluar pada bulan tersebut';
+            var rows = [];
+
+            $('#occupancy-detail-type-title').text(title);
+            $('#occupancy-detail-month-title').text(row ? row.label : '-');
+            $('#occupancy-detail-description').text(description);
+            $('#occupancy-detail-count').text(numberFormatter.format(items.length) + ' orang');
+
+            if (!items.length) {
+                rows.push('<tr><td colspan="4" class="text-center text-muted">Tidak ada data.</td></tr>');
+            } else {
+                items.forEach(function (item) {
+                    rows.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(item.renter_name) + '</td>' +
+                            '<td>' + escapeHtml(item.room_name) + '</td>' +
+                            '<td>' + escapeHtml(item.period_label) + '</td>' +
+                            '<td>' + escapeHtml(item.start_date) + ' s/d ' + escapeHtml(item.end_date) + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            $('#occupancy-detail-body').html(rows.join(''));
+            $('#occupancyMovementDetailModal').modal('show');
         }
 
         function updateDashboardView(payload) {
@@ -521,7 +574,7 @@ function convert($sum)
             var periodStats = payload.period_stats || { labels: [], counts: [], revenues: [], items: [], total_transactions: 0, total_revenue: 0 };
             var monthlyRevenue = payload.monthly_revenue || { labels: [], revenues: [], month_keys: [] };
             var monthlyPackageBreakdown = payload.monthly_package_breakdown || { package_labels: [], rows: [] };
-            var occupancyBreakdown = payload.occupancy_breakdown || { rows: [] };
+            var occupancy = payload.occupancy || { rows: [] };
 
             period_labels = periodStats.labels || [];
             period_counts = periodStats.counts || [];
@@ -531,10 +584,9 @@ function convert($sum)
             monthly_revenue_values = monthlyRevenue.revenues || [];
             monthly_package_labels = monthlyPackageBreakdown.package_labels || [];
             monthly_package_rows = monthlyPackageBreakdown.rows || [];
-            occupancy_breakdown_rows = occupancyBreakdown.rows || [];
+            occupancy_rows = occupancy.rows || [];
 
             setFilterText(filter.label || '-');
-            $('#occupancy-period-title').text(filter.label || '-');
             $('#total-revenue-value').text(currencyFormatter.format(payload.total_revenue || 0));
             $('#package-total-transactions').text(numberFormatter.format(periodStats.total_transactions || 0) + ' transaksi');
             $('#package-total-revenue').text(currencyFormatter.format(periodStats.total_revenue || 0));
@@ -542,7 +594,7 @@ function convert($sum)
             renderPackageTable(periodStats.items || []);
             renderSidePackageTable(periodStats.items || []);
             renderMonthlyPackageBreakdown(monthly_package_labels, monthly_package_rows);
-            renderOccupancyBreakdown(occupancy_breakdown_rows);
+            renderOccupancyBreakdown(occupancy_rows);
 
             if (packageChart) {
                 packageChart.updateOptions({ labels: period_labels }, false, false);
@@ -817,6 +869,10 @@ function convert($sum)
             });
         }
 
+        $(document).on('click', '.occupancy-detail-trigger', function () {
+            showOccupancyDetail($(this).data('monthKey'), $(this).data('detailType'));
+        });
+
         updateDashboardView({
             total_revenue: {{ json_encode(data_get($response, 'total_revenue', 0)) }},
             filter: {
@@ -839,8 +895,8 @@ function convert($sum)
                 package_labels: monthly_package_labels,
                 rows: monthly_package_rows
             },
-            occupancy_breakdown: {
-                rows: occupancy_breakdown_rows
+            occupancy: {
+                rows: occupancy_rows
             }
         });
     })();

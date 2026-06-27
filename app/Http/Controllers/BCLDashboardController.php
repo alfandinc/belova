@@ -106,7 +106,6 @@ class BCLDashboardController extends Controller
             : $rangeStart->format('d M Y') . ' - ' . $rangeEnd->format('d M Y');
 
         $data = Rooms::with('category')->with('renter')->get();
-        $totalAvailableRooms = $data->count();
         $room_used = 0;
         foreach ($data as $value) {
             if ($value->renter != null) {
@@ -183,6 +182,7 @@ class BCLDashboardController extends Controller
             }
         }
         $response->needed_maintanance = $needed_maintanance;
+        $response->occupancy = $this->buildMonthlyOccupancyBreakdown($rangeStart, $rangeEnd, (int) $rooms->total);
         $revenueAllocations = $this->buildMonthlyRevenueAllocations($rangeStart, $rangeEnd);
         $response->total_revenue = collect($revenueAllocations)->sum('recognized_revenue');
 
@@ -196,7 +196,6 @@ class BCLDashboardController extends Controller
             $recognizedRevenue = (float) $allocation['recognized_revenue'];
             $monthKey = $allocation['month_key'];
             $monthLabel = $allocation['month_label'];
-            $transactionId = (int) $allocation['transaction_id'];
 
             if (!isset($periodRevenue[$periodLabel])) {
                 $periodRevenue[$periodLabel] = [
@@ -316,116 +315,7 @@ class BCLDashboardController extends Controller
 
         $response->monthly_package_breakdown = $monthlyPackageStats;
 
-        $response->occupancy_breakdown = $this->buildOccupancyBreakdown($rangeStart, $rangeEnd, $totalAvailableRooms);
-
         return $response;
-    }
-
-    protected function buildOccupancyBreakdown(Carbon $rangeStart, Carbon $rangeEnd, int $totalAvailableRooms): \stdClass
-    {
-        $transactions = tr_renter::query()
-            ->with(['renter:id,nama', 'room:id,room_name'])
-            ->select('id', 'id_renter', 'room_id', 'tgl_mulai', 'tgl_selesai', 'lama_sewa', 'jangka_sewa')
-            ->whereDate('tgl_mulai', '<=', $rangeEnd->copy()->endOfMonth()->toDateString())
-            ->orderBy('room_id')
-            ->orderBy('tgl_mulai')
-            ->orderBy('id')
-            ->get();
-
-        $monthlyRows = [];
-        $months = [];
-        $cursorMonth = $rangeStart->copy()->startOfMonth();
-        $lastMonth = $rangeEnd->copy()->startOfMonth();
-
-        while ($cursorMonth->lte($lastMonth)) {
-            $monthKey = $cursorMonth->format('Y-m');
-            $months[$monthKey] = [
-                'start' => $cursorMonth->copy()->startOfMonth(),
-                'end' => $cursorMonth->copy()->endOfMonth(),
-                'label' => $cursorMonth->translatedFormat('M Y'),
-            ];
-            $monthlyRows[$monthKey] = [
-                'month_key' => $monthKey,
-                'label' => $cursorMonth->translatedFormat('M Y'),
-                'occupied_rooms' => [],
-                'move_ins' => [],
-                'move_outs' => [],
-            ];
-            $cursorMonth->addMonth();
-        }
-
-        $transactionsByRoom = $transactions->groupBy('room_id');
-
-        foreach ($months as $monthKey => $monthData) {
-            foreach ($transactions as $transaction) {
-                $transactionStart = Carbon::parse($transaction->tgl_mulai)->startOfDay();
-                $transactionEndExclusive = Carbon::parse($transaction->tgl_selesai)->startOfDay();
-
-                if ($transactionStart->lte($monthData['end']) && $transactionEndExclusive->gt($monthData['start'])) {
-                    $monthlyRows[$monthKey]['occupied_rooms'][(int) $transaction->room_id] = true;
-                }
-            }
-        }
-
-        foreach ($transactionsByRoom as $roomTransactions) {
-            $roomTransactions = $roomTransactions->values();
-            $count = $roomTransactions->count();
-
-            for ($index = 0; $index < $count; $index++) {
-                $transaction = $roomTransactions[$index];
-                $previous = $index > 0 ? $roomTransactions[$index - 1] : null;
-                $next = $index + 1 < $count ? $roomTransactions[$index + 1] : null;
-
-                $startDate = Carbon::parse($transaction->tgl_mulai)->startOfDay();
-                $startMonthKey = $startDate->format('Y-m');
-                $endDate = Carbon::parse($transaction->tgl_selesai)->startOfDay();
-                $endMonthKey = $endDate->copy()->subDay()->format('Y-m');
-
-                $isNewOccupant = $previous === null || (int) $previous->id_renter !== (int) $transaction->id_renter;
-                if ($isNewOccupant && isset($monthlyRows[$startMonthKey])) {
-                    $monthlyRows[$startMonthKey]['move_ins'][] = [
-                        'renter_name' => data_get($transaction, 'renter.nama', '-'),
-                        'room_name' => data_get($transaction, 'room.room_name', '-'),
-                        'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
-                    ];
-                }
-
-                $nextStart = $next ? Carbon::parse($next->tgl_mulai)->startOfDay() : null;
-                $gapDays = $nextStart ? $endDate->diffInDays($nextStart, false) : null;
-                $isMoveOut = $nextStart === null || $gapDays > 31;
-                if ($isMoveOut && isset($monthlyRows[$endMonthKey])) {
-                    $monthlyRows[$endMonthKey]['move_outs'][] = [
-                        'renter_name' => data_get($transaction, 'renter.nama', '-'),
-                        'room_name' => data_get($transaction, 'room.room_name', '-'),
-                        'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
-                    ];
-                }
-            }
-        }
-
-        $occupancyStats = new \stdClass();
-        $occupancyStats->rows = [];
-
-        foreach ($monthlyRows as $monthKey => $row) {
-            $occupiedCount = count($row['occupied_rooms']);
-            $occupancyPercent = $totalAvailableRooms > 0
-                ? round(($occupiedCount / $totalAvailableRooms) * 100, 2)
-                : 0;
-
-            $occupancyStats->rows[] = (object) [
-                'month_key' => $monthKey,
-                'label' => $row['label'],
-                'occupied_rooms' => $occupiedCount,
-                'total_rooms' => $totalAvailableRooms,
-                'occupancy_percent' => $occupancyPercent,
-                'move_in_count' => count($row['move_ins']),
-                'move_out_count' => count($row['move_outs']),
-                'move_ins' => array_values($row['move_ins']),
-                'move_outs' => array_values($row['move_outs']),
-            ];
-        }
-
-        return $occupancyStats;
     }
 
     protected function buildMonthlyRevenueAllocations(Carbon $rangeStart, Carbon $rangeEnd): array
@@ -484,6 +374,146 @@ class BCLDashboardController extends Controller
         }
 
         return $allocations;
+    }
+
+    protected function buildMonthlyOccupancyBreakdown(Carbon $rangeStart, Carbon $rangeEnd, int $totalRooms): \stdClass
+    {
+        $transactions = tr_renter::query()
+            ->with(['renter:id,nama', 'room:id,room_name'])
+            ->select('id', 'id_renter', 'room_id', 'lama_sewa', 'jangka_sewa', 'tgl_mulai', 'tgl_selesai')
+            ->orderBy('tgl_mulai')
+            ->get();
+
+        $monthCursor = $rangeStart->copy()->startOfMonth();
+        $lastMonth = $rangeEnd->copy()->startOfMonth();
+        $rows = [];
+
+        while ($monthCursor->lte($lastMonth)) {
+            $monthKey = $monthCursor->format('Y-m');
+            $snapshotDate = $monthCursor->copy()->endOfMonth()->gt($rangeEnd)
+                ? $rangeEnd->copy()->endOfDay()
+                : $monthCursor->copy()->endOfMonth()->endOfDay();
+
+            $occupiedRooms = $transactions
+                ->filter(function ($transaction) use ($snapshotDate) {
+                    $start = Carbon::parse($transaction->tgl_mulai)->startOfDay();
+                    $end = Carbon::parse($transaction->tgl_selesai)->startOfDay();
+
+                    return $start->lte($snapshotDate) && $end->gt($snapshotDate);
+                })
+                ->pluck('room_id')
+                ->filter()
+                ->unique()
+                ->count();
+
+            $rows[$monthKey] = [
+                'month_key' => $monthKey,
+                'label' => $monthCursor->translatedFormat('M Y'),
+                'occupied_rooms' => $occupiedRooms,
+                'total_rooms' => $totalRooms,
+                'occupancy_rate' => $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0,
+                'move_ins' => [],
+                'move_outs' => [],
+            ];
+
+            $monthCursor->addMonth();
+        }
+
+        $transactionsByRoom = $transactions->groupBy('room_id');
+        foreach ($transactionsByRoom as $roomTransactions) {
+            $sortedRoomTransactions = $roomTransactions->sortBy('tgl_mulai')->values();
+            $previousTransaction = null;
+
+            foreach ($sortedRoomTransactions as $transaction) {
+                $start = Carbon::parse($transaction->tgl_mulai)->startOfDay();
+                $monthKey = $start->format('Y-m');
+
+                if (!isset($rows[$monthKey])) {
+                    $previousTransaction = $transaction;
+                    continue;
+                }
+
+                $isNewMoveIn = false;
+                if ($previousTransaction === null) {
+                    $isNewMoveIn = true;
+                } else {
+                    $previousEnd = Carbon::parse($previousTransaction->tgl_selesai)->startOfDay();
+                    $gapDays = $previousEnd->diffInDays($start, false);
+                    $isDifferentRenter = (int) $previousTransaction->id_renter !== (int) $transaction->id_renter;
+                    $isNewMoveIn = $isDifferentRenter && $gapDays >= 7;
+                }
+
+                if ($isNewMoveIn && $start->betweenIncluded($rangeStart, $rangeEnd)) {
+                    $rows[$monthKey]['move_ins'][] = [
+                        'renter_name' => data_get($transaction, 'renter.nama', '-'),
+                        'room_name' => data_get($transaction, 'room.room_name', '-'),
+                        'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
+                        'start_date' => $start->format('d-m-Y'),
+                        'end_date' => Carbon::parse($transaction->tgl_selesai)->format('d-m-Y'),
+                    ];
+                }
+
+                $previousTransaction = $transaction;
+            }
+        }
+
+        $transactionsByRenter = $transactions->groupBy('id_renter');
+        foreach ($transactionsByRenter as $renterTransactions) {
+            $sortedRenterTransactions = $renterTransactions->sortBy('tgl_mulai')->values();
+            $count = $sortedRenterTransactions->count();
+
+            for ($index = 0; $index < $count; $index++) {
+                $transaction = $sortedRenterTransactions[$index];
+                $end = Carbon::parse($transaction->tgl_selesai)->startOfDay();
+                $monthKey = $end->format('Y-m');
+
+                if (!isset($rows[$monthKey])) {
+                    continue;
+                }
+
+                $nextTransaction = $sortedRenterTransactions[$index + 1] ?? null;
+                $isMoveOut = false;
+
+                if ($nextTransaction === null) {
+                    $isMoveOut = true;
+                } else {
+                    $nextStart = Carbon::parse($nextTransaction->tgl_mulai)->startOfDay();
+                    $gapDays = $end->diffInDays($nextStart, false);
+                    $isMoveOut = $gapDays >= 7;
+                }
+
+                if ($isMoveOut && $end->betweenIncluded($rangeStart, $rangeEnd)) {
+                    $rows[$monthKey]['move_outs'][] = [
+                        'renter_name' => data_get($transaction, 'renter.nama', '-'),
+                        'room_name' => data_get($transaction, 'room.room_name', '-'),
+                        'period_label' => trim($transaction->lama_sewa . ' ' . $transaction->jangka_sewa),
+                        'start_date' => Carbon::parse($transaction->tgl_mulai)->format('d-m-Y'),
+                        'end_date' => $end->format('d-m-Y'),
+                    ];
+                }
+            }
+        }
+
+        $result = new \stdClass();
+        $result->rows = [];
+
+        foreach ($rows as $row) {
+            $row['move_in_count'] = count($row['move_ins']);
+            $row['move_out_count'] = count($row['move_outs']);
+            $result->rows[] = (object) [
+                'month_key' => $row['month_key'],
+                'label' => $row['label'],
+                'occupied_rooms' => $row['occupied_rooms'],
+                'total_rooms' => $row['total_rooms'],
+                'occupancy_rate' => $row['occupancy_rate'],
+                'move_in_count' => $row['move_in_count'],
+                'move_out_count' => $row['move_out_count'],
+                'move_ins' => $row['move_ins'],
+                'move_outs' => $row['move_outs'],
+            ];
+        }
+
+        return $result;
     }
 
     protected function resolveRevenueDurationMonths(int $duration, string $unit): int
