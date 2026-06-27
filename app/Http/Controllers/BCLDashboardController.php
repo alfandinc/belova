@@ -183,6 +183,8 @@ class BCLDashboardController extends Controller
         }
         $response->needed_maintanance = $needed_maintanance;
         $response->occupancy = $this->buildMonthlyOccupancyBreakdown($rangeStart, $rangeEnd, (int) $rooms->total);
+        $response->room_occupancy_rankings = $this->buildRoomOccupancyRankings($rangeStart, $rangeEnd);
+        $response->age_classification = $this->buildAgeClassification($rangeStart, $rangeEnd);
         $revenueAllocations = $this->buildMonthlyRevenueAllocations($rangeStart, $rangeEnd);
         $response->total_revenue = collect($revenueAllocations)->sum('recognized_revenue');
 
@@ -514,6 +516,200 @@ class BCLDashboardController extends Controller
         }
 
         return $result;
+    }
+
+    protected function buildRoomOccupancyRankings(Carbon $rangeStart, Carbon $rangeEnd): \stdClass
+    {
+        $rangeStartDay = $rangeStart->copy()->startOfDay();
+        $rangeEndExclusive = $rangeEnd->copy()->addDay()->startOfDay();
+        $totalDays = max(1, $rangeStartDay->diffInDays($rangeEndExclusive));
+
+        $rooms = Rooms::query()->select('id', 'room_name')->orderBy('room_name')->get();
+        $transactions = tr_renter::query()
+            ->select('room_id', 'tgl_mulai', 'tgl_selesai')
+            ->whereDate('tgl_mulai', '<=', $rangeEnd->toDateString())
+            ->whereDate('tgl_selesai', '>', $rangeStart->toDateString())
+            ->orderBy('tgl_mulai')
+            ->get()
+            ->groupBy('room_id');
+
+        $rankings = $rooms->map(function ($room) use ($transactions, $rangeStartDay, $rangeEndExclusive, $totalDays) {
+            $roomTransactions = $transactions->get($room->id, collect());
+            $intervals = [];
+
+            foreach ($roomTransactions as $transaction) {
+                $start = Carbon::parse($transaction->tgl_mulai)->startOfDay();
+                $endExclusive = Carbon::parse($transaction->tgl_selesai)->startOfDay();
+
+                if ($endExclusive->lte($rangeStartDay) || $start->gte($rangeEndExclusive)) {
+                    continue;
+                }
+
+                $intervals[] = [
+                    'start' => $start->lt($rangeStartDay) ? $rangeStartDay->copy() : $start,
+                    'end' => $endExclusive->gt($rangeEndExclusive) ? $rangeEndExclusive->copy() : $endExclusive,
+                ];
+            }
+
+            usort($intervals, function (array $left, array $right) {
+                return $left['start']->lt($right['start']) ? -1 : 1;
+            });
+
+            $merged = [];
+            foreach ($intervals as $interval) {
+                if (empty($merged)) {
+                    $merged[] = $interval;
+                    continue;
+                }
+
+                $lastIndex = count($merged) - 1;
+                if ($interval['start']->lte($merged[$lastIndex]['end'])) {
+                    if ($interval['end']->gt($merged[$lastIndex]['end'])) {
+                        $merged[$lastIndex]['end'] = $interval['end'];
+                    }
+                    continue;
+                }
+
+                $merged[] = $interval;
+            }
+
+            $occupiedDays = 0;
+            foreach ($merged as $interval) {
+                $occupiedDays += $interval['start']->diffInDays($interval['end']);
+            }
+
+            return (object) [
+                'room_name' => $room->room_name,
+                'occupied_days' => $occupiedDays,
+                'total_days' => $totalDays,
+                'occupancy_rate' => round(($occupiedDays / $totalDays) * 100, 1),
+            ];
+        })->values();
+
+        $highest = $rankings
+            ->sort(function ($left, $right) {
+                if ($left->occupancy_rate === $right->occupancy_rate) {
+                    return strcmp($left->room_name, $right->room_name);
+                }
+
+                return $right->occupancy_rate <=> $left->occupancy_rate;
+            })
+            ->take(5)
+            ->values();
+
+        $lowest = $rankings
+            ->sort(function ($left, $right) {
+                if ($left->occupancy_rate === $right->occupancy_rate) {
+                    return strcmp($left->room_name, $right->room_name);
+                }
+
+                return $left->occupancy_rate <=> $right->occupancy_rate;
+            })
+            ->take(5)
+            ->values();
+
+        $result = new \stdClass();
+        $result->highest = $highest->all();
+        $result->lowest = $lowest->all();
+
+        return $result;
+    }
+
+    protected function buildAgeClassification(Carbon $rangeStart, Carbon $rangeEnd): \stdClass
+    {
+        $transactions = tr_renter::query()
+            ->with(['renter:id,nama,birthday', 'room:id,room_name'])
+            ->select('id_renter', 'room_id', 'tgl_mulai', 'tgl_selesai')
+            ->whereDate('tgl_mulai', '<=', $rangeEnd->toDateString())
+            ->whereDate('tgl_selesai', '>', $rangeStart->toDateString())
+            ->orderByDesc('tgl_mulai')
+            ->get();
+
+        $latestByRenter = [];
+        foreach ($transactions as $transaction) {
+            $renterId = (int) $transaction->id_renter;
+            if ($renterId <= 0 || isset($latestByRenter[$renterId])) {
+                continue;
+            }
+
+            $latestByRenter[$renterId] = $transaction;
+        }
+
+        $groups = [
+            'Anak (<18)' => [],
+            '18-25 Tahun' => [],
+            '26-35 Tahun' => [],
+            '36-45 Tahun' => [],
+            '46-55 Tahun' => [],
+            '56+ Tahun' => [],
+            'Tidak diketahui' => [],
+        ];
+
+        foreach ($latestByRenter as $transaction) {
+            $renterModel = $transaction->renter;
+            $birthday = data_get($renterModel, 'birthday');
+            $age = null;
+
+            if (!empty($birthday)) {
+                try {
+                    $age = Carbon::parse($birthday)->age;
+                } catch (\Throwable $e) {
+                    $age = null;
+                }
+            }
+
+            $groupLabel = $this->resolveAgeGroupLabel($age);
+            $groups[$groupLabel][] = [
+                'name' => data_get($renterModel, 'nama', '-'),
+                'age' => $age,
+                'birthday' => !empty($birthday) ? Carbon::parse($birthday)->format('d-m-Y') : '-',
+                'room_name' => data_get($transaction, 'room.room_name', '-'),
+            ];
+        }
+
+        $result = new \stdClass();
+        $result->items = [];
+        $result->total = 0;
+
+        foreach ($groups as $label => $members) {
+            $result->items[] = (object) [
+                'label' => $label,
+                'count' => count($members),
+                'members' => $members,
+            ];
+            $result->total += count($members);
+        }
+
+        return $result;
+    }
+
+    protected function resolveAgeGroupLabel(?int $age): string
+    {
+        if ($age === null || $age < 0) {
+            return 'Tidak diketahui';
+        }
+
+        if ($age < 18) {
+            return 'Anak (<18)';
+        }
+
+        if ($age <= 25) {
+            return '18-25 Tahun';
+        }
+
+        if ($age <= 35) {
+            return '26-35 Tahun';
+        }
+
+        if ($age <= 45) {
+            return '36-45 Tahun';
+        }
+
+        if ($age <= 55) {
+            return '46-55 Tahun';
+        }
+
+        return '56+ Tahun';
     }
 
     protected function resolveRevenueDurationMonths(int $duration, string $unit): int

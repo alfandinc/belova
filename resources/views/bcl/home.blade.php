@@ -227,6 +227,73 @@ function convert($sum)
                         </div>
                     </div>
                 </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h4 class="card-title">Kamar dengan Tingkat Hunian Tertinggi dan Terendah <span id="room-occupancy-period-title">{{ data_get($response, 'filter.label', now()->format('Y')) }}</span></h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-uppercase text-muted mb-3">Tertinggi</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Kamar</th>
+                                                <th class="text-right">Hari Terisi</th>
+                                                <th class="text-right">Hunian</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="room-occupancy-highest-body">
+                                            @forelse(data_get($response, 'room_occupancy_rankings.highest', []) as $row)
+                                                <tr>
+                                                    <td>{{ $row->room_name }}</td>
+                                                    <td class="text-right">{{ number_format($row->occupied_days) }}/{{ number_format($row->total_days) }}</td>
+                                                    <td class="text-right">{{ number_format($row->occupancy_rate, 1) }}%</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted">Belum ada data.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mt-4 mt-md-0">
+                                <h6 class="text-uppercase text-muted mb-3">Terendah</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Kamar</th>
+                                                <th class="text-right">Hari Terisi</th>
+                                                <th class="text-right">Hunian</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="room-occupancy-lowest-body">
+                                            @forelse(data_get($response, 'room_occupancy_rankings.lowest', []) as $row)
+                                                <tr>
+                                                    <td>{{ $row->room_name }}</td>
+                                                    <td class="text-right">{{ number_format($row->occupied_days) }}/{{ number_format($row->total_days) }}</td>
+                                                    <td class="text-right">{{ number_format($row->occupancy_rate, 1) }}%</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted">Belum ada data.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div><!--end col-->
             <div class="col-lg-3">
                 <div class="card">
@@ -292,6 +359,44 @@ function convert($sum)
                                         <td class="text-right">{{ convert(data_get($data, 'total_lama_sewa', 0)) }}</td>
                                     </tr>
                                     @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <h4 class="card-title mb-0">Klasifikasi Umur Penghuni</h4>
+                            </div>
+                            <div class="col-auto">
+                                <span class="badge badge-soft-primary" id="age-classification-total">{{ number_format(data_get($response, 'age_classification.total', 0)) }} penghuni</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table border-dashed mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Kelompok Umur</th>
+                                        <th class="text-right">Jumlah</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="age-classification-body">
+                                    @forelse(data_get($response, 'age_classification.items', []) as $item)
+                                        <tr>
+                                            <td>{{ $item->label }}</td>
+                                            <td class="text-right">
+                                                <button type="button" class="btn btn-link btn-sm p-0 age-detail-trigger" data-age-group="{{ $item->label }}">{{ number_format($item->count) }}</button>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="2" class="text-center text-muted">Belum ada data umur penghuni.</td>
+                                        </tr>
+                                    @endforelse
                                 </tbody>
                             </table>
                         </div>
@@ -378,6 +483,44 @@ function convert($sum)
             </div>
         </div>
 
+        <div class="modal fade" id="ageClassificationDetailModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Detail Klasifikasi Umur <span id="age-detail-title">-</span></h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="text-muted">Daftar penghuni pada kelompok umur tersebut</div>
+                            <div>
+                                <span class="badge badge-soft-primary" id="age-detail-count">0 penghuni</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Nama</th>
+                                        <th>Kamar</th>
+                                        <th class="text-right">Umur</th>
+                                        <th>Tanggal Lahir</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="age-detail-body">
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted">Belum ada data.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
@@ -396,6 +539,10 @@ function convert($sum)
     var monthly_package_labels = {!! json_encode(data_get($response, 'monthly_package_breakdown.package_labels', [])) !!};
     var monthly_package_rows = {!! json_encode(data_get($response, 'monthly_package_breakdown.rows', [])) !!};
     var occupancy_rows = {!! json_encode(data_get($response, 'occupancy.rows', [])) !!};
+    var room_occupancy_highest = {!! json_encode(data_get($response, 'room_occupancy_rankings.highest', [])) !!};
+    var room_occupancy_lowest = {!! json_encode(data_get($response, 'room_occupancy_rankings.lowest', [])) !!};
+    var age_classification_items = {!! json_encode(data_get($response, 'age_classification.items', [])) !!};
+    var age_classification_total = {!! json_encode(data_get($response, 'age_classification.total', 0)) !!};
 </script>
 <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
 <script>
@@ -412,6 +559,12 @@ function convert($sum)
         function findOccupancyRow(monthKey) {
             return (occupancy_rows || []).find(function (row) {
                 return row.month_key === monthKey;
+            }) || null;
+        }
+
+        function findAgeClassificationItem(label) {
+            return (age_classification_items || []).find(function (item) {
+                return item.label === label;
             }) || null;
         }
 
@@ -537,6 +690,74 @@ function convert($sum)
             $('#occupancy-breakdown-body').html(html.join(''));
         }
 
+        function renderRoomOccupancyRankings(rows, targetSelector) {
+            var html = [];
+
+            if (!rows.length) {
+                html.push('<tr><td colspan="3" class="text-center text-muted">Belum ada data.</td></tr>');
+            } else {
+                rows.forEach(function (row) {
+                    html.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(row.room_name) + '</td>' +
+                            '<td class="text-right">' + numberFormatter.format(row.occupied_days || 0) + '/' + numberFormatter.format(row.total_days || 0) + '</td>' +
+                            '<td class="text-right">' + numberFormatter.format(row.occupancy_rate || 0) + '%</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            $(targetSelector).html(html.join(''));
+        }
+
+        function renderAgeClassification(items, total) {
+            var html = [];
+
+            $('#age-classification-total').text(numberFormatter.format(total || 0) + ' penghuni');
+
+            if (!items.length) {
+                html.push('<tr><td colspan="2" class="text-center text-muted">Belum ada data umur penghuni.</td></tr>');
+            } else {
+                items.forEach(function (item) {
+                    html.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(item.label) + '</td>' +
+                            '<td class="text-right"><button type="button" class="btn btn-link btn-sm p-0 age-detail-trigger" data-age-group="' + escapeHtml(item.label) + '">' + numberFormatter.format(item.count || 0) + '</button></td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            $('#age-classification-body').html(html.join(''));
+        }
+
+        function showAgeClassificationDetail(label) {
+            var item = findAgeClassificationItem(label);
+            var members = item && item.members ? item.members : [];
+            var rows = [];
+
+            $('#age-detail-title').text(label || '-');
+            $('#age-detail-count').text(numberFormatter.format(members.length) + ' penghuni');
+
+            if (!members.length) {
+                rows.push('<tr><td colspan="4" class="text-center text-muted">Tidak ada data.</td></tr>');
+            } else {
+                members.forEach(function (member) {
+                    rows.push(
+                        '<tr>' +
+                            '<td>' + escapeHtml(member.name) + '</td>' +
+                            '<td>' + escapeHtml(member.room_name) + '</td>' +
+                            '<td class="text-right">' + (member.age === null || member.age === undefined ? '-' : numberFormatter.format(member.age)) + '</td>' +
+                            '<td>' + escapeHtml(member.birthday || '-') + '</td>' +
+                        '</tr>'
+                    );
+                });
+            }
+
+            $('#age-detail-body').html(rows.join(''));
+            $('#ageClassificationDetailModal').modal('show');
+        }
+
         function showOccupancyDetail(monthKey, detailType) {
             var row = findOccupancyRow(monthKey);
             var items = row && row[detailType] ? row[detailType] : [];
@@ -575,6 +796,8 @@ function convert($sum)
             var monthlyRevenue = payload.monthly_revenue || { labels: [], revenues: [], month_keys: [] };
             var monthlyPackageBreakdown = payload.monthly_package_breakdown || { package_labels: [], rows: [] };
             var occupancy = payload.occupancy || { rows: [] };
+            var roomOccupancyRankings = payload.room_occupancy_rankings || { highest: [], lowest: [] };
+            var ageClassification = payload.age_classification || { items: [], total: 0 };
 
             period_labels = periodStats.labels || [];
             period_counts = periodStats.counts || [];
@@ -585,8 +808,13 @@ function convert($sum)
             monthly_package_labels = monthlyPackageBreakdown.package_labels || [];
             monthly_package_rows = monthlyPackageBreakdown.rows || [];
             occupancy_rows = occupancy.rows || [];
+            room_occupancy_highest = roomOccupancyRankings.highest || [];
+            room_occupancy_lowest = roomOccupancyRankings.lowest || [];
+            age_classification_items = ageClassification.items || [];
+            age_classification_total = ageClassification.total || 0;
 
             setFilterText(filter.label || '-');
+            $('#room-occupancy-period-title').text(filter.label || '-');
             $('#total-revenue-value').text(currencyFormatter.format(payload.total_revenue || 0));
             $('#package-total-transactions').text(numberFormatter.format(periodStats.total_transactions || 0) + ' transaksi');
             $('#package-total-revenue').text(currencyFormatter.format(periodStats.total_revenue || 0));
@@ -595,6 +823,9 @@ function convert($sum)
             renderSidePackageTable(periodStats.items || []);
             renderMonthlyPackageBreakdown(monthly_package_labels, monthly_package_rows);
             renderOccupancyBreakdown(occupancy_rows);
+            renderRoomOccupancyRankings(room_occupancy_highest, '#room-occupancy-highest-body');
+            renderRoomOccupancyRankings(room_occupancy_lowest, '#room-occupancy-lowest-body');
+            renderAgeClassification(age_classification_items, age_classification_total);
 
             if (packageChart) {
                 packageChart.updateOptions({ labels: period_labels }, false, false);
@@ -873,6 +1104,10 @@ function convert($sum)
             showOccupancyDetail($(this).data('monthKey'), $(this).data('detailType'));
         });
 
+        $(document).on('click', '.age-detail-trigger', function () {
+            showAgeClassificationDetail($(this).data('ageGroup'));
+        });
+
         updateDashboardView({
             total_revenue: {{ json_encode(data_get($response, 'total_revenue', 0)) }},
             filter: {
@@ -897,6 +1132,14 @@ function convert($sum)
             },
             occupancy: {
                 rows: occupancy_rows
+            },
+            room_occupancy_rankings: {
+                highest: room_occupancy_highest,
+                lowest: room_occupancy_lowest
+            },
+            age_classification: {
+                items: age_classification_items,
+                total: age_classification_total
             }
         });
     })();
