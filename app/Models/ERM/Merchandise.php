@@ -12,11 +12,16 @@ class Merchandise extends Model
     protected $table = 'erm_merchandises';
 
     protected $fillable = [
-        'name', 'description', 'price', 'stock'
+        'name', 'description', 'price', 'monthly_limit_stock'
     ];
 
     public function pasienReceipts()
     {
         return $this->hasMany(PasienMerchandise::class, 'merchandise_id');
+    }
+
+    public function kartuStok()
+    {
+        return $this->hasMany(MerchandiseKartuStok::class, 'merchandise_id');
     }
 }

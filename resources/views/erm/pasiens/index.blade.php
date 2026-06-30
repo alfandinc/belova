@@ -689,6 +689,76 @@ let currentPasienId;
     });
 
     // Merchandise checklist logic (used inside unified modal)
+        function getMerchandiseErrorMessage(xhr, fallbackMessage) {
+            if (xhr && xhr.responseJSON) {
+                return xhr.responseJSON.message || xhr.responseJSON.error || fallbackMessage;
+            }
+
+            return fallbackMessage;
+        }
+
+        function getNullableInt(value) {
+            if (value === null || value === undefined || value === '') {
+                return null;
+            }
+
+            let parsed = parseInt(value, 10);
+            return Number.isNaN(parsed) ? null : parsed;
+        }
+
+        function getMerchandiseMaxQty($input) {
+            let remaining = getNullableInt($input.data('remaining'));
+            let currentQty = parseInt($input.data('currentQty') || 0, 10);
+
+            if (remaining === null) {
+                return null;
+            }
+
+            return Math.max(0, remaining + currentQty);
+        }
+
+        function syncMerchandiseQtyControls($input) {
+            let qty = parseInt($input.val() || 1, 10);
+            let maxQty = getMerchandiseMaxQty($input);
+            let merchId = $input.data('id');
+            let $minus = $('.merch-qty-minus[data-id="' + merchId + '"]');
+            let $plus = $('.merch-qty-plus[data-id="' + merchId + '"]');
+
+            $minus.prop('disabled', qty <= 1);
+            $plus.prop('disabled', maxQty !== null && qty >= maxQty);
+        }
+
+        function validateMerchandiseQty($input, qty) {
+            let maxQty = getMerchandiseMaxQty($input);
+
+            if (maxQty !== null && maxQty <= 0) {
+                Swal.fire({ icon: 'warning', title: 'Limit bulanan habis', text: 'Merchandise ini sudah mencapai limit bulan berjalan.' });
+                return { valid: false, qty: 0 };
+            }
+
+            if (maxQty !== null && qty > maxQty) {
+                Swal.fire({ icon: 'warning', title: 'Melebihi limit bulanan', text: `Qty (${qty}) melebihi sisa limit yang tersedia (${maxQty}).` });
+                return { valid: false, qty: maxQty };
+            }
+
+            return { valid: true, qty: qty };
+        }
+
+        function loadManagePasienMerchandise(pasienId) {
+            $('#unifiedMerchChecklistContainer').html('<p class="text-muted">Memuat...</p>');
+
+            $.when(
+                $.get('/marketing/master-merchandise/data').fail(()=>{}),
+                $.get('/erm/pasiens/' + pasienId + '/merchandises').fail(()=>{})
+            ).done(function(masterResp, pasienResp){
+                let masterData = masterResp && masterResp[0] ? (masterResp[0].data || masterResp[0]) : [];
+                let pasienData = pasienResp && pasienResp[0] ? (pasienResp[0].data || pasienResp[0]) : [];
+                renderMerchChecklist(masterData, pasienData);
+            }).fail(function(){
+                $('#unifiedMerchChecklistContainer').html('<p class="text-danger">Gagal memuat data.</p>');
+            });
+        }
+
         function renderMerchChecklist(masterList, pasienReceipts) {
             let receivedIds = (pasienReceipts || []).map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
             let $container = $('#unifiedMerchChecklistContainer');
@@ -700,170 +770,170 @@ let currentPasienId;
             }
 
             let $form = $('<div class="list-group"></div>');
-            // Build a map of received quantities by merchandise id
             let qtyMap = {};
+            let pmIdMap = {};
             (pasienReceipts || []).forEach(r => {
-                if (r.merchandise_id) qtyMap[r.merchandise_id] = r.quantity || 1;
+                if (r.merchandise_id) {
+                    qtyMap[r.merchandise_id] = r.quantity || 1;
+                    pmIdMap[r.merchandise_id] = r.id || '';
+                }
             });
 
             masterList.forEach(item => {
                 let received = receivedIds.includes(item.id);
-                let checked = received ? 'checked' : '';
                 let qty = received ? (qtyMap[item.id] || 1) : 1;
-                let stock = item.stock || 0;
-
-                // If stock is zero, disable the checkbox and show 'Habis' badge
-                let disabledAttr = stock <= 0 ? 'disabled' : '';
-                let stockBadge = stock <= 0 ? '<span class="badge badge-danger ml-2">Habis</span>' : `<small class="text-muted ml-2">Stok: ${stock}</small>`;
+                let monthlyLimit = getNullableInt(item.monthly_limit_stock);
+                let remaining = getNullableInt(item.remaining_monthly_stock);
+                let maxQty = monthlyLimit === null ? null : Math.max(0, (remaining || 0) + (received ? qty : 0));
+                let exhausted = maxQty !== null && maxQty <= 0 && !received;
+                let disabledAttr = exhausted ? 'disabled' : '';
+                let limitBadge = monthlyLimit === null
+                    ? '<small class="text-muted ml-2">Tanpa limit bulanan</small>'
+                    : (exhausted
+                        ? `<small class="text-danger ml-2">Limit: ${monthlyLimit} - habis bulan ini</small>`
+                        : `<small class="text-muted ml-2">Limit: ${monthlyLimit}</small>`);
+                let statusBadge = received ? '<span class="badge badge-success ml-2">Sudah diberikan</span>' : '';
 
                 let $row = $(
-                    `<label class="list-group-item d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center">
-                            <input type="checkbox" class="merch-checkbox mr-3" data-id="${item.id}" data-stock="${stock}" ${checked} ${disabledAttr}>
-                            <div>
-                                <div><strong>${item.name}</strong> ${stockBadge}</div>
+                    `<div class="list-group-item merch-item-row" data-id="${item.id}">
+                        <div class="d-flex align-items-start justify-content-between">
+                            <div class="pr-3">
+                                <div><strong>${item.name}</strong> ${limitBadge} ${statusBadge}</div>
                                 <div class="small text-muted">${item.description || ''}</div>
                             </div>
+                            <div class="text-right" style="min-width: 190px;">
+                                <div class="input-group input-group-sm justify-content-end">
+                                    <div class="input-group-prepend">
+                                        <button type="button" class="btn btn-outline-secondary merch-qty-minus" data-id="${item.id}" ${disabledAttr}>-</button>
+                                    </div>
+                                    <input type="number" min="1" ${maxQty !== null ? `max="${maxQty}"` : ''} class="form-control form-control-sm merch-qty text-center" data-id="${item.id}" data-pm-id="${pmIdMap[item.id] || ''}" data-current-qty="${received ? qty : 0}" data-remaining="${remaining ?? ''}" value="${qty}" style="max-width:70px;" ${disabledAttr}>
+                                    <div class="input-group-append">
+                                        <button type="button" class="btn btn-outline-secondary merch-qty-plus" data-id="${item.id}" ${disabledAttr}>+</button>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-primary merch-save" data-id="${item.id}" ${disabledAttr}>${received ? 'Ubah' : 'Beri'}</button>
+                                    ${received ? `<button type="button" class="btn btn-sm btn-outline-danger merch-remove" data-id="${item.id}">Hapus</button>` : ''}
+                                </div>
+                            </div>
                         </div>
-                        <div class="ml-3">
-                            <input type="number" min="1" class="form-control form-control-sm merch-qty" data-id="${item.id}" data-stock="${stock}" value="${qty}" style="width:80px;" ${received ? '' : 'disabled'} ${stock <= 0 ? 'disabled' : ''}>
-                        </div>
-                    </label>`
+                    </div>`
                 );
                 $form.append($row);
             });
 
             $container.append($form);
+            $('.merch-qty').each(function(){ syncMerchandiseQtyControls($(this)); });
         }
 
         // No dedicated open handler; merchandise loads inside unified modal open
 
-        // Handle checkbox toggle: add or remove receipt
-        $(document).on('change', '.merch-checkbox', function(){
-            let checked = $(this).is(':checked');
+        $(document).on('click', '.merch-qty-minus, .merch-qty-plus', function(){
+            let $button = $(this);
+            let merchId = $button.data('id');
+            let $input = $('.merch-qty[data-id="' + merchId + '"]');
+            let qty = parseInt($input.val() || 1, 10);
+            qty = $button.hasClass('merch-qty-plus') ? qty + 1 : Math.max(1, qty - 1);
+            let validation = validateMerchandiseQty($input, qty);
+            $input.val(validation.valid ? validation.qty : Math.max(1, validation.qty || qty));
+            syncMerchandiseQtyControls($input);
+        });
+
+        $(document).on('input change', '.merch-qty', function(){
+            let $input = $(this);
+            let qty = parseInt($input.val() || 1, 10);
+            if (qty < 1) { qty = 1; $input.val(1); }
+            let validation = validateMerchandiseQty($input, qty);
+            if (!validation.valid) {
+                if (validation.qty > 0) {
+                    $input.val(validation.qty);
+                }
+                return;
+            }
+            qty = validation.qty;
+
+            $input.val(qty);
+            syncMerchandiseQtyControls($input);
+        });
+
+        $(document).on('click', '.merch-save', function(){
             let merchId = $(this).data('id');
             let pasienId = $('#modalManagePasien').data('pasien-id');
             if (!pasienId) return alert('Pasien ID missing');
 
-            // find the qty input for this merch and stock
-            let $qtyInput = $('.merch-qty[data-id="' + merchId + '"]');
-            let stock = parseInt($qtyInput.data('stock') || 0, 10);
-            let qty = parseInt($qtyInput.val() || 1, 10);
-
-            // validate against stock
-            if (stock <= 0) {
-                Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat ditambahkan.' });
-                // ensure unchecked
-                $(this).prop('checked', false);
-                return;
-            }
-            if (qty > stock) {
-                Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` });
-                // restore qty to stock
-                $qtyInput.val(stock);
-                return;
-            }
-
-            if (checked) {
-                let $cb = $(this);
-                // enable qty input
-                $qtyInput.prop('disabled', false);
-
-                $.post('/erm/pasiens/' + pasienId + '/merchandises', {
-                    _token: $('meta[name="csrf-token"]').attr('content'),
-                    merchandise_id: merchId,
-                    quantity: qty
-                }, function(resp){
-                    // success - if response contains created id, we could store it on the row for faster updates
-                    if (resp && resp.id) {
-                        $qtyInput.data('pm-id', resp.id);
-                    }
-                }).fail(function(){
-                    alert('Failed to add merchandise');
-                    $cb.prop('checked', false);
-                    $qtyInput.prop('disabled', true);
-                });
-            } else {
-                // Need to find the pmId for this pasien+merch combination; call the pasien merch list and find id
-                $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
-                    let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
-                    if (!rec) return; // nothing to delete
-                    $.ajax({
-                        url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id,
-                        type: 'DELETE',
-                        data: { _token: $('meta[name="csrf-token"]').attr('content') },
-                        success: function(){
-                            // removed - disable qty input
-                            $qtyInput.prop('disabled', true);
-                            $qtyInput.removeData('pm-id');
-                        },
-                        error: function(){
-                            alert('Failed to remove merchandise');
-                        }
-                    });
-                });
-            }
-        });
-
-        // Handle qty changes for already-checked items
-        $(document).on('change', '.merch-qty', function(){
-            let $input = $(this);
-            let merchId = $input.data('id');
-            let pasienId = $('#modalManagePasien').data('pasien-id');
-            if (!pasienId) return alert('Pasien ID missing');
-
+            let $input = $('.merch-qty[data-id="' + merchId + '"]');
             let qty = parseInt($input.val() || 1, 10);
-            if (qty < 1) { qty = 1; $input.val(1); }
-            let stock = parseInt($input.data('stock') || 0, 10);
-            if (stock <= 0) {
-                Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat diubah.' });
-                $input.val(1);
+            let validation = validateMerchandiseQty($input, qty);
+            if (!validation.valid) {
+                $input.val(Math.max(1, validation.qty || qty));
                 return;
             }
+            qty = validation.qty;
 
-            if (qty > stock) {
-                Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` });
-                $input.val(stock);
-                qty = stock;
-            }
-
-            // If checkbox isn't checked, just return (qty changes only for checked items)
-            let $checkbox = $('.merch-checkbox[data-id="' + merchId + '"]');
-            if (!$checkbox.is(':checked')) return;
-
-            // Try to use stored pm-id first
             let pmId = $input.data('pm-id');
             if (pmId) {
-                // send update request (PUT)
                 $.ajax({
                     url: '/erm/pasiens/' + pasienId + '/merchandises/' + pmId,
                     type: 'PUT',
                     data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty },
                     success: function(resp){
-                        // updated
+                        $input.data('currentQty', qty);
+                        if (resp && Object.prototype.hasOwnProperty.call(resp, 'remaining_monthly_stock')) {
+                            $input.data('remaining', resp.remaining_monthly_stock);
+                        }
+                        loadManagePasienMerchandise(pasienId);
                     },
-                    error: function(){
-                        alert('Failed to update quantity');
+                    error: function(xhr){
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to update quantity') });
                     }
                 });
                 return;
             }
 
-            // fallback: fetch pasien receipts to find pm id and then update
-            $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
-                let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
-                if (!rec) return; // nothing to update
+            $.post('/erm/pasiens/' + pasienId + '/merchandises', {
+                _token: $('meta[name="csrf-token"]').attr('content'),
+                merchandise_id: merchId,
+                quantity: qty
+            }, function(resp){
+                if (resp && resp.id) {
+                    $input.data('pm-id', resp.id);
+                }
+                loadManagePasienMerchandise(pasienId);
+            }).fail(function(xhr){
+                Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to add merchandise') });
+            });
+        });
+
+        $(document).on('click', '.merch-remove', function(){
+            let merchId = $(this).data('id');
+            let pasienId = $('#modalManagePasien').data('pasien-id');
+            if (!pasienId) return alert('Pasien ID missing');
+
+            let $input = $('.merch-qty[data-id="' + merchId + '"]');
+            let pmId = $input.data('pm-id');
+            let handleDelete = function(targetPmId) {
                 $.ajax({
-                    url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id,
-                    type: 'PUT',
-                    data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty },
+                    url: '/erm/pasiens/' + pasienId + '/merchandises/' + targetPmId,
+                    type: 'DELETE',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content') },
                     success: function(){
-                        $input.data('pm-id', rec.id);
+                        loadManagePasienMerchandise(pasienId);
                     },
-                    error: function(){
-                        alert('Failed to update quantity');
+                    error: function(xhr){
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to remove merchandise') });
                     }
                 });
+            };
+
+            if (pmId) {
+                handleDelete(pmId);
+                return;
+            }
+
+            $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
+                let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
+                if (!rec) return;
+                handleDelete(rec.id);
             });
         });
     });

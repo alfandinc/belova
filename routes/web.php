@@ -1777,7 +1777,9 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Master Merchandise (Marketing)
     Route::get('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'index'])->name('marketing.master_merchandise.index');
     Route::get('/master-merchandise/data', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'data'])->name('marketing.master_merchandise.data');
+    Route::get('/master-merchandise/{id}/stock-history', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'stockHistory'])->name('marketing.master_merchandise.stock_history');
     Route::post('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'store'])->name('marketing.master_merchandise.store');
+    Route::post('/master-merchandise/{id}/add-stock', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'addStock'])->name('marketing.master_merchandise.add_stock');
     Route::get('/master-merchandise/{id}/edit', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'edit']);
     Route::put('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'update']);
     Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);

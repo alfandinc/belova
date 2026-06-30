@@ -1608,7 +1608,7 @@ class RawatJalanController extends Controller
     public function getPasienMerchandises($pasienId)
     {
         try {
-            $items = PasienMerchandise::with(['merchandise:id,name,description,price,stock', 'pasien:id,nama'])
+            $items = PasienMerchandise::with(['merchandise:id,name,description,price,monthly_limit_stock', 'pasien:id,nama'])
                 ->where('pasien_id', $pasienId)
                 ->orderBy('given_at', 'desc')
                 ->get()
