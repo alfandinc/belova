@@ -107,7 +107,19 @@
                                     ->where('status_hrd', 'menunggu')->count();
                             }
                             if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                                $pendingLiburManager = PengajuanLibur::where('status_manager', 'menunggu')->count();
+                                $employee = Auth::user()->employee;
+                                $subordinateIds = [];
+                                if ($employee) {
+                                    $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+                                    if ($parentPositionIds->isNotEmpty()) {
+                                        $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
+                                            $q->whereIn('parent_id', $parentPositionIds);
+                                        })->where('id', '!=', $employee->id)->pluck('id')->toArray();
+                                    }
+                                }
+                                $pendingLiburManager = PengajuanLibur::whereIn('employee_id', $subordinateIds)
+                                    ->where('status_manager', 'menunggu')
+                                    ->count();
                             }
                         }
                     @endphp
@@ -136,7 +148,19 @@
                         })->count();
                     }
                     if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                        $pendingTidakMasukManager = PengajuanTidakMasuk::whereNull('status_manager')->count();
+                        $employee = Auth::user()->employee;
+                        $subordinateIds = [];
+                        if ($employee) {
+                            $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+                            if ($parentPositionIds->isNotEmpty()) {
+                                $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
+                                    $q->whereIn('parent_id', $parentPositionIds);
+                                })->where('id', '!=', $employee->id)->pluck('id')->toArray();
+                            }
+                        }
+                        $pendingTidakMasukManager = PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)
+                            ->whereNull('status_manager')
+                            ->count();
                     }
                 }
             @endphp
@@ -170,7 +194,19 @@
                         })->count();
                     }
                     if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                        $pendingLemburManager = \App\Models\HRD\PengajuanLembur::whereNull('status_manager')->count();
+                        $employee = Auth::user()->employee;
+                        $subordinateIds = [];
+                        if ($employee) {
+                            $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+                            if ($parentPositionIds->isNotEmpty()) {
+                                $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
+                                    $q->whereIn('parent_id', $parentPositionIds);
+                                })->where('id', '!=', $employee->id)->pluck('id')->toArray();
+                            }
+                        }
+                        $pendingLemburManager = \App\Models\HRD\PengajuanLembur::whereIn('employee_id', $subordinateIds)
+                            ->whereNull('status_manager')
+                            ->count();
                     }
                 }
             @endphp
@@ -206,9 +242,20 @@
 
                             if (Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
                                 // Pending for Manager: status_manager explicitly 'menunggu' or null
-                                $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::where(function($q){
-                                    $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');
-                                })->count();
+                                $employee = Auth::user()->employee;
+                                $subordinateIds = [];
+                                if ($employee) {
+                                    $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+                                    if ($parentPositionIds->isNotEmpty()) {
+                                        $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
+                                            $q->whereIn('parent_id', $parentPositionIds);
+                                        })->where('id', '!=', $employee->id)->pluck('id')->toArray();
+                                    }
+                                }
+                                $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::whereIn('employee_id', $subordinateIds)
+                                    ->where(function($q){
+                                        $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');
+                                    })->count();
                             }
                         }
                     } catch (Exception $e) {

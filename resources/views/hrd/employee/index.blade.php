@@ -829,8 +829,17 @@ $(function() {
                     
                     // Set employee basic info
                     $('#employee-name').text(employee.nama || '-');
-                    $('#employee-position').text((employee.position && employee.position.name) ? employee.position.name : '-');
-                    $('#employee-division').text((employee.division && employee.division.name) ? employee.division.name : '-');
+                    var positionNames = (employee.positions || []).map(function(position) {
+                        return position.name;
+                    }).filter(Boolean);
+                    var divisionNames = (employee.positions || []).map(function(position) {
+                        return position.division && position.division.name ? position.division.name : null;
+                    }).filter(Boolean).filter(function(value, index, self) {
+                        return self.indexOf(value) === index;
+                    });
+
+                    $('#employee-position').text(positionNames.length ? positionNames.join(', ') : '-');
+                    $('#employee-division').text(divisionNames.length ? divisionNames.join(', ') : '-');
                     $('#employee-nik').text(employee.nik || '-');
                     $('#employee-no_induk').text(employee.no_induk || '-');
                     

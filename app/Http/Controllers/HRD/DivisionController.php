@@ -11,6 +11,14 @@ use Yajra\DataTables\Facades\DataTables;
 
 class DivisionController extends Controller
 {
+    private function getEmployeeDivisionId(Employee $employee): ?int
+    {
+        return $employee->positions()
+            ->whereNotNull('division_id')
+            ->orderByDesc('hrd_employee_position.is_primary')
+            ->value('division_id');
+    }
+
     public function showMyDivision()
     {
         $employee = Auth::user()->employee;
@@ -20,14 +28,11 @@ class DivisionController extends Controller
                 ->with('error', 'Data karyawan tidak ditemukan');
         }
 
-        // Resolve division id from employee safely whether `division` is an id or a related model
-        $divisionId = null;
-        if (is_numeric($employee->division)) {
-            $divisionId = $employee->division;
-        } elseif ($employee->division && is_object($employee->division) && property_exists($employee->division, 'id')) {
-            $divisionId = $employee->division->id;
-        } elseif (isset($employee->division_id)) {
-            $divisionId = $employee->division_id;
+        $divisionId = $this->getEmployeeDivisionId($employee);
+
+        if (!$divisionId) {
+            return redirect()->route('hrd.dashboard')
+                ->with('error', 'Divisi karyawan belum ditentukan dari posisi');
         }
 
         $division = Division::findOrFail($divisionId);
@@ -53,6 +58,12 @@ class DivisionController extends Controller
         }
 
         if ($request->ajax()) {
+            $divisionId = $this->getEmployeeDivisionId($employee);
+
+            if (!$divisionId) {
+                return DataTables::of([])->make(true);
+            }
+
             $employees = Employee::active()
                 ->whereHas('positions', function ($q) use ($divisionId) {
                     $q->where('division_id', $divisionId);

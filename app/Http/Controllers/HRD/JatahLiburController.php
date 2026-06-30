@@ -42,17 +42,24 @@ class JatahLiburController extends Controller
     public function getData()
     {
         // Build a query that selects jatah libur plus employee fields so DataTables can
-        // search and order by employee name or number. We join the hrd_employee table
-        // and left join divisions (if available) to include division name.
+        // search and order by employee name or number. Division is derived from employee positions.
+        $employeeDivisionSubquery = DB::table('hrd_employee_position as ep')
+            ->join('hrd_position as p', 'p.id', '=', 'ep.position_id')
+            ->leftJoin('hrd_division as d', 'd.id', '=', 'p.division_id')
+            ->selectRaw("ep.employee_id, GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ', ') as division")
+            ->groupBy('ep.employee_id');
+
         $jatahLiburQuery = JatahLibur::select([
             'hrd_jatah_libur.*',
             'e.nama as employee_name',
             'e.no_induk as employee_number',
-            'd.name as division'
+            'ed.division as division'
         ])
         ->from('hrd_jatah_libur')
         ->leftJoin('hrd_employee as e', 'hrd_jatah_libur.employee_id', '=', 'e.id')
-        ->leftJoin('hrd_division as d', 'e.division_id', '=', 'd.id');
+        ->leftJoinSub($employeeDivisionSubquery, 'ed', function ($join) {
+            $join->on('ed.employee_id', '=', 'e.id');
+        });
 
         return DataTables::of($jatahLiburQuery)
             // If client searches for 'employee_name' or 'employee_number', let DataTables

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,6 +12,22 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanLemburController extends Controller
 {
+    private function getSubordinateEmployeeIds(Employee $employee): array
+    {
+        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+
+        if ($parentPositionIds->isEmpty()) {
+            return [];
+        }
+
+        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
+                $query->whereIn('parent_id', $parentPositionIds);
+            })
+            ->where('id', '!=', $employee->id)
+            ->pluck('id')
+            ->toArray();
+    }
+
     public function index(Request $request)
     {
         $user = \App\Models\User::find(Auth::id());
@@ -114,11 +131,13 @@ class PengajuanLemburController extends Controller
                         ->rawColumns(['tanggal', 'catatan', 'status_pengajuan', 'action'])
                     ->make(true);
             }
-            // Manager: own + division
+            // Manager: own + subordinate positions
             else if ($user->hasRole('Manager')) {
-                $division = $user->employee->division;
-                $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
-                $employeeIds[] = $user->employee->id; // include self
+                $employee = $user->employee;
+                $employeeIds = $employee ? $this->getSubordinateEmployeeIds($employee) : [];
+                if ($employee) {
+                    $employeeIds[] = $employee->id; // include self
+                }
                 $data = PengajuanLembur::whereIn('employee_id', $employeeIds)
                     ->whereDate('tanggal', '>=', $filterStart)
                     ->whereDate('tanggal', '<=', $filterEnd)

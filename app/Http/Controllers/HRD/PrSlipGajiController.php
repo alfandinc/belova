@@ -9,6 +9,7 @@ use App\Models\HRD\PengajuanLembur;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
@@ -578,7 +579,7 @@ class PrSlipGajiController extends Controller
         $tunjanganMasaKerjaMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Tunjangan Masa Kerja')->first();
         $tunjanganMasaKerjaNominal = $tunjanganMasaKerjaMaster ? floatval($tunjanganMasaKerjaMaster->nominal) : 0;
 
-        $slips = PrSlipGaji::with(['employee', 'employee.division'])
+        $slips = PrSlipGaji::with(['employee.positions.division'])
             ->where('bulan', $bulan)
             ->get();
 
@@ -1157,9 +1158,17 @@ class PrSlipGajiController extends Controller
 
         $previousBulan = \Carbon\Carbon::createFromFormat('Y-m', $bulan)->subMonth()->format('Y-m');
 
+        $employeeDivisionSubquery = DB::table('hrd_employee_position as ep')
+            ->join('hrd_position as p', 'p.id', '=', 'ep.position_id')
+            ->leftJoin('hrd_division as d', 'd.id', '=', 'p.division_id')
+            ->selectRaw("ep.employee_id, GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ', ') as division_name")
+            ->groupBy('ep.employee_id');
+
         $query = PrSlipGaji::query()
             ->leftJoin('hrd_employee as e', 'e.id', '=', 'pr_slip_gaji.employee_id')
-            ->leftJoin('hrd_division as d', 'd.id', '=', 'e.division_id')
+            ->leftJoinSub($employeeDivisionSubquery, 'ed', function ($join) {
+                $join->on('ed.employee_id', '=', 'e.id');
+            })
             ->leftJoin('pr_slip_gaji as prev_slip', function ($join) use ($previousBulan) {
                 $join->on('prev_slip.employee_id', '=', 'pr_slip_gaji.employee_id')
                     ->where('prev_slip.bulan', '=', $previousBulan);
@@ -1168,7 +1177,7 @@ class PrSlipGajiController extends Controller
                 'pr_slip_gaji.*',
                 'e.no_induk as employee_no_induk',
                 'e.nama as employee_nama',
-                'd.name as division_name_join',
+                'ed.division_name as division_name_join',
                 'prev_slip.total_gaji as last_month_total_gaji',
             ]);
         if ($bulan) {
@@ -1182,7 +1191,13 @@ class PrSlipGajiController extends Controller
             }
         }
         if ($divisionId !== null && $divisionId !== '' && is_numeric($divisionId)) {
-            $query->where('e.division_id', intval($divisionId));
+            $query->whereExists(function ($subquery) use ($divisionId) {
+                $subquery->select(DB::raw(1))
+                    ->from('hrd_employee_position as ep_filter')
+                    ->join('hrd_position as p_filter', 'p_filter.id', '=', 'ep_filter.position_id')
+                    ->whereColumn('ep_filter.employee_id', 'e.id')
+                    ->where('p_filter.division_id', intval($divisionId));
+            });
         }
         return datatables()->of($query)
             ->addColumn('id', function($row) {
@@ -1432,7 +1447,7 @@ class PrSlipGajiController extends Controller
 
     public function detail(Request $request, $id)
     {
-        $slip = PrSlipGaji::with(['employee.division'])->findOrFail($id);
+        $slip = PrSlipGaji::with(['employee.positions.division'])->findOrFail($id);
         // if only=potongan requested, return potongan partial
         if ($request->get('only') === 'potongan') {
             return view('hrd.payroll.slip_gaji._modal_potongan', compact('slip'))->render();
@@ -1544,7 +1559,7 @@ class PrSlipGajiController extends Controller
 
     public function print($id)
     {
-    $slip = \App\Models\HRD\PrSlipGaji::with('employee.division')->findOrFail($id);
+    $slip = \App\Models\HRD\PrSlipGaji::with('employee.positions.division')->findOrFail($id);
     $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
     $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
     // Set margin_top to 5mm for minimal gap at the top

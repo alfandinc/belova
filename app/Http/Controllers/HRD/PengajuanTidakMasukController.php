@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanTidakMasuk;
 use App\Models\HRD\PengajuanLibur;
 use App\Models\HRD\JatahLibur;
@@ -15,6 +16,22 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanTidakMasukController extends Controller
 {
+    private function getSubordinateEmployeeIds(Employee $employee): array
+    {
+        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+
+        if ($parentPositionIds->isEmpty()) {
+            return [];
+        }
+
+        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
+                $query->whereIn('parent_id', $parentPositionIds);
+            })
+            ->where('id', '!=', $employee->id)
+            ->pluck('id')
+            ->toArray();
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -148,12 +165,10 @@ class PengajuanTidakMasukController extends Controller
                     ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
                     ->make(true);
             }
-            // Manager: data semua employee di divisinya (view=team)
+            // Manager: data subordinate berdasarkan parent posisi (view=team)
             else if ($viewType == 'team' && $user->hasRole('Manager')) {
-                $division = $user->employee->division;
-                $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
+                $employeeIds = $user->employee ? $this->getSubordinateEmployeeIds($user->employee) : [];
                 $data = PengajuanTidakMasuk::whereIn('employee_id', $employeeIds)
-                    ->where('employee_id', '!=', $user->employee->id)
                     ->where(function($q) use ($filterStart, $filterEnd) {
                         $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                           ->whereDate('tanggal_selesai', '>=', $filterStart);

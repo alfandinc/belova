@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanGantiShift;
 use App\Models\HRD\Shift;
 use App\Models\HRD\EmployeeSchedule;
@@ -14,6 +15,22 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanGantiShiftController extends Controller
 {
+    private function getSubordinateEmployeeIds(Employee $employee): array
+    {
+        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
+
+        if ($parentPositionIds->isEmpty()) {
+            return [];
+        }
+
+        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
+                $query->whereIn('parent_id', $parentPositionIds);
+            })
+            ->where('id', '!=', $employee->id)
+            ->pluck('id')
+            ->toArray();
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -80,10 +97,9 @@ class PengajuanGantiShiftController extends Controller
                     ->rawColumns(['jenis', 'status_manager', 'status_hrd', 'status_target', 'action'])
                     ->make(true);
             }
-            // Manager: data semua employee di divisinya (view=team)
+            // Manager: data subordinate berdasarkan parent posisi (view=team)
             else if ($viewType == 'team' && $user->hasRole('Manager')) {
-                $division = $user->employee->division;
-                $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
+                $employeeIds = $user->employee ? $this->getSubordinateEmployeeIds($user->employee) : [];
                 $data = PengajuanGantiShift::whereIn('employee_id', $employeeIds)
                     ->with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
                     ->latest()

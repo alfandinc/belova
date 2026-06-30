@@ -39,31 +39,33 @@ class JobListController extends Controller
             if ($user->hasAnyRole(['Hrd','Admin','Manager'])) {
                 // no restriction (admins/hrd/managers keep original full access)
             } elseif ($user->hasAnyRole('Employee')) {
-                $divisionId = optional($user->employee)->division_id;
+                $divisionIds = $user->employee
+                    ? $user->employee->positions()->whereNotNull('division_id')->pluck('division_id')->unique()->values()->toArray()
+                    : [];
                 $isManager = $user->hasAnyRole(['Manager','manager']);
-                if ($divisionId) {
-                    $query->where(function($q) use ($divisionId, $isManager) {
+                if (!empty($divisionIds)) {
+                    $query->where(function($q) use ($divisionIds, $isManager) {
                         // Jobs visible to all employees in the division (for_manager = false)
-                        $q->where(function($qa) use ($divisionId) {
+                        $q->where(function($qa) use ($divisionIds) {
                             $qa->where('for_manager', false)
-                               ->where(function($qb) use ($divisionId) {
+                               ->where(function($qb) use ($divisionIds) {
                                    $qb->where('all_divisions', true)
-                                      ->orWhere('division_id', $divisionId)
-                                      ->orWhereHas('divisions', function($qq) use ($divisionId) {
-                                          $qq->where('hrd_division.id', $divisionId);
+                                      ->orWhereIn('division_id', $divisionIds)
+                                      ->orWhereHas('divisions', function($qq) use ($divisionIds) {
+                                          $qq->whereIn('hrd_division.id', $divisionIds);
                                       });
                                });
                         });
 
                         // If the user is a manager, also include jobs marked for_manager in their division
                         if ($isManager) {
-                            $q->orWhere(function($qc) use ($divisionId) {
+                            $q->orWhere(function($qc) use ($divisionIds) {
                                 $qc->where('for_manager', true)
-                                   ->where(function($qd) use ($divisionId) {
+                                   ->where(function($qd) use ($divisionIds) {
                                        $qd->where('all_divisions', true)
-                                          ->orWhere('division_id', $divisionId)
-                                          ->orWhereHas('divisions', function($qq) use ($divisionId) {
-                                              $qq->where('hrd_division.id', $divisionId);
+                                          ->orWhereIn('division_id', $divisionIds)
+                                          ->orWhereHas('divisions', function($qq) use ($divisionIds) {
+                                              $qq->whereIn('hrd_division.id', $divisionIds);
                                           });
                                    });
                             });
