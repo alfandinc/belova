@@ -39,7 +39,6 @@ $(function() {
             url: '{{ route('hrd.payroll.slip_gaji.data') }}',
             data: function(d) {
                 d.bulan = $('#filterBulan').val();
-                d.status = 'submitted';
                 d.division_id = $('#filterDivision').val();
             }
         },

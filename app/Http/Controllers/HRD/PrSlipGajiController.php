@@ -1144,11 +1144,6 @@ class PrSlipGajiController extends Controller
         $rawStatus = trim((string) $request->get('status', ''));
         $status = $rawStatus !== '' ? $this->normalizeSlipStatus($rawStatus) : '';
         $divisionId = $request->get('division_id');
-        $user = Auth::user();
-
-        if ($status === '' && $this->isCeoSlipApprover($user)) {
-            $status = 'submitted';
-        }
 
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $bulan)) {
             $bulan = substr($bulan, 0, 7);
