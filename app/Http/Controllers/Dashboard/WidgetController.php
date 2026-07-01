@@ -120,6 +120,7 @@ class WidgetController extends Controller
     {
         $data = $request->validate([
             'position_id' => 'required|integer|exists:hrd_position,id',
+            'row_index' => 'nullable|integer|min:1',
             'order_index' => 'nullable|integer|min:0',
             'column_span' => 'nullable|integer|min:1|max:12',
         ]);
@@ -128,6 +129,7 @@ class WidgetController extends Controller
             'widget_id' => $id,
             'position_id' => $data['position_id'],
         ], [
+            'row_index' => $data['row_index'] ?? 1,
             'order_index' => $data['order_index'] ?? 0,
             'column_span' => $data['column_span'] ?? 12,
         ]);
@@ -141,12 +143,14 @@ class WidgetController extends Controller
 
         $data = $request->validate([
             'position_id' => 'required|integer|exists:hrd_position,id',
+            'row_index' => 'nullable|integer|min:1',
             'order_index' => 'nullable|integer|min:0',
             'column_span' => 'nullable|integer|min:1|max:12',
         ]);
 
         $map->update([
             'position_id' => $data['position_id'],
+            'row_index' => $data['row_index'] ?? 1,
             'order_index' => $data['order_index'] ?? 0,
             'column_span' => $data['column_span'] ?? 12,
         ]);
@@ -159,6 +163,7 @@ class WidgetController extends Controller
         $data = $request->validate([
             'widget_id' => 'required|integer|exists:sys_dashboard_widgets,id',
             'position_id' => 'required|integer|exists:hrd_position,id',
+            'row_index' => 'nullable|integer|min:1',
             'order_index' => 'nullable|integer|min:0',
             'column_span' => 'required|integer|in:12,6,4',
         ]);
@@ -167,6 +172,7 @@ class WidgetController extends Controller
             'widget_id' => $data['widget_id'],
             'position_id' => $data['position_id'],
         ], [
+            'row_index' => $data['row_index'] ?? 1,
             'order_index' => $data['order_index'] ?? 0,
             'column_span' => $data['column_span'],
         ]);
@@ -181,6 +187,7 @@ class WidgetController extends Controller
         $data = $request->validate([
             'widget_id' => 'required|integer|exists:sys_dashboard_widgets,id',
             'position_id' => 'required|integer|exists:hrd_position,id',
+            'row_index' => 'nullable|integer|min:1',
             'order_index' => 'nullable|integer|min:0',
             'column_span' => 'required|integer|in:12,6,4',
         ]);
@@ -203,6 +210,7 @@ class WidgetController extends Controller
         $mapping->update([
             'widget_id' => $data['widget_id'],
             'position_id' => $data['position_id'],
+            'row_index' => $data['row_index'] ?? 1,
             'order_index' => $data['order_index'] ?? 0,
             'column_span' => $data['column_span'],
         ]);

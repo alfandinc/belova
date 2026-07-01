@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PositionWidget extends Model
 {
     protected $table = 'sys_position_widgets';
-    protected $fillable = ['position_id', 'widget_id', 'order_index', 'column_span'];
+    protected $fillable = ['position_id', 'widget_id', 'row_index', 'order_index', 'column_span'];
 
     public function widget()
     {

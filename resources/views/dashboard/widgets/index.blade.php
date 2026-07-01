@@ -50,6 +50,7 @@
                     <th>ID</th>
                     <th>Widget</th>
                     <th>Position</th>
+                    <th>Row</th>
                     <th>Order</th>
                     <th>Cols</th>
                     <th>Actions</th>
@@ -134,11 +135,15 @@
                 </select>
               </div>
               <div class="form-row">
-                <div class="form-group col-md-6">
+                <div class="form-group col-md-4">
+                  <label>Row</label>
+                  <input type="number" name="row_index" class="form-control" value="1" min="1" />
+                </div>
+                <div class="form-group col-md-4">
                   <label>Order Index</label>
                   <input type="number" name="order_index" class="form-control" value="0" />
                 </div>
-                <div class="form-group col-md-6">
+                <div class="form-group col-md-4">
                   <label>Column Span</label>
                   <select name="column_span" class="form-control" required>
                     <option value="12">12 - Full Width</option>
@@ -188,6 +193,7 @@ $(function(){
             {data: 'id', name: 'id'},
             {data: 'widget_name', name: 'widget_name'},
             {data: 'position_name', name: 'position_name'},
+          {data: 'row_index', name: 'row_index'},
             {data: 'order_index', name: 'order_index'},
             {data: 'column_span', name: 'column_span'},
             {data: 'actions', orderable:false, searchable:false}
@@ -291,6 +297,7 @@ $(function(){
       form.find('input[name=mapping_id]').val(mapping.id);
       form.find('select[name=widget_id]').val(mapping.widget_id);
       form.find('select[name=position_id]').val(mapping.position_id);
+      form.find('input[name=row_index]').val(mapping.row_index || 1);
       form.find('input[name=order_index]').val(mapping.order_index);
       form.find('select[name=column_span]').val(String(mapping.column_span));
       $('#saveMapBtn').text('Update Mapping');
@@ -300,6 +307,7 @@ $(function(){
       var form = $('#mapForm');
       form[0].reset();
       form.find('input[name=mapping_id]').val('');
+      form.find('input[name=row_index]').val(1);
       form.find('input[name=order_index]').val(0);
       form.find('select[name=column_span]').val('12');
       $('#saveMapBtn').text('Save Mapping');

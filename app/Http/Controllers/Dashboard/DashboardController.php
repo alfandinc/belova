@@ -41,6 +41,7 @@ class DashboardController extends Controller
             $widgets = PositionWidget::query()
                 ->with('widget')
                 ->where('position_id', $position->id)
+                ->orderBy('row_index')
                 ->orderBy('order_index')
                 ->get()
                 ->filter(function ($mapping) {
@@ -52,6 +53,7 @@ class DashboardController extends Controller
                     $widget->view_exists = $widget->resolved_view
                         ? View::exists($widget->resolved_view)
                         : false;
+                    $widget->row_index = max(1, (int) ($mapping->row_index ?? 1));
                     $widget->column_span = max(1, min(12, (int) $mapping->column_span));
 
                     return $widget;
