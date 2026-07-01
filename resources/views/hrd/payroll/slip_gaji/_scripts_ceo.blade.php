@@ -29,6 +29,28 @@ $(function() {
         $('#slipTotalBeban').text(formatRupiah(total));
     }
 
+    function renderSalaryTrend(currentValue, previousValue) {
+        var current = parseFloat(currentValue);
+        var previous = parseFloat(previousValue);
+
+        if (isNaN(current)) {
+            current = 0;
+        }
+        if (isNaN(previous)) {
+            previous = 0;
+        }
+
+        var diff = current - previous;
+        if (diff > 0) {
+            return '<span class="text-success small ml-2 font-weight-bold">&uarr; Naik ' + formatRupiah(diff) + '</span>';
+        }
+        if (diff < 0) {
+            return '<span class="text-danger small ml-2 font-weight-bold">&darr; Turun ' + formatRupiah(Math.abs(diff)) + '</span>';
+        }
+
+        return '<span class="text-muted small ml-2">Tetap</span>';
+    }
+
     var table = $('#slipGajiTable').DataTable({
         processing: true,
         serverSide: true,
@@ -39,6 +61,7 @@ $(function() {
             url: '{{ route('hrd.payroll.slip_gaji.data') }}',
             data: function(d) {
                 d.bulan = $('#filterBulan').val();
+                d.status = 'submitted';
                 d.division_id = $('#filterDivision').val();
             }
         },
@@ -91,9 +114,9 @@ $(function() {
                 data: 'total_gaji',
                 name: 'pr_slip_gaji.total_gaji',
                 className: 'text-right',
-                render: function(data, type) {
+                render: function(data, type, row) {
                     if (type === 'display') {
-                        return '<strong class="text-nowrap">' + formatRupiah(data) + '</strong>';
+                        return '<div class="text-nowrap"><strong>' + formatRupiah(data) + '</strong>' + renderSalaryTrend(data, row.last_month_total_gaji) + '</div>';
                     }
 
                     return data || 0;
