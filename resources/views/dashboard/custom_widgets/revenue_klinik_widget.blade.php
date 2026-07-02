@@ -61,7 +61,7 @@
     };
 @endphp
 
-<div class="card h-100 border-0 shadow-sm" style="border-radius: 18px; overflow: hidden;">
+<div class="card h-100 border-0 shadow-sm dashboard-widget-card" style="border-radius: 18px; overflow: hidden;">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-start flex-wrap mb-3">
             <div>

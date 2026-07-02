@@ -14,7 +14,7 @@
                     @if ($widget->view_exists)
                         @include($widget->resolved_view, ['widget' => $widget, 'dashboardFilter' => $dashboardFilter])
                     @else
-                        <div class="card h-100 border-warning">
+                        <div class="card h-100 border-warning dashboard-widget-card">
                             <div class="card-body">
                                 <h5 class="card-title mb-2">{{ $widget->widget_name }}</h5>
                                 <p class="text-muted mb-2">{{ $widget->description ?: 'Widget belum memiliki deskripsi.' }}</p>

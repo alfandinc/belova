@@ -140,6 +140,16 @@
             vertical-align: middle;
         }
 
+        #dashboard-widgets-container .dashboard-widget-card {
+            border: 1.5px solid #d8e1ef !important;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.09) !important;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        #dashboard-widgets-container .dashboard-widget-card:hover {
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12) !important;
+        }
+
         @media (max-width: 991.98px) {
             .dashboard-hero-row {
                 align-items: flex-start;
@@ -201,10 +211,12 @@
 @endsection
 
 @section('scripts')
+    @include('dashboard.partials.widget_helpers')
     <script>
         $(document).ready(function () {
             var initialStart = moment(@json($dashboardFilter['start_date']), 'YYYY-MM-DD');
             var initialEnd = moment(@json($dashboardFilter['end_date']), 'YYYY-MM-DD');
+            var widgetHelpers = window.DashboardWidgetHelpers || {};
 
             function formatDisplayRange(startDate, endDate) {
                 return startDate.format('DD MMM YYYY') + ' - ' + endDate.format('DD MMM YYYY');
@@ -218,40 +230,130 @@
 
             function showDashboardAvailabilityAlert(hasEmployeePosition, hasWidgets) {
                 if (!hasEmployeePosition || !hasWidgets) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Dashboard Belum Tersedia',
-                        text: 'Posisi anda belum memiliki dashboard.',
-                        confirmButtonText: 'OK'
-                    });
+                    widgetHelpers.showWarningAlert('Dashboard Belum Tersedia', 'Posisi anda belum memiliki dashboard.');
                 }
             }
 
+            function collectDashboardWidgetFilters() {
+                var params = {};
+
+                $('#dashboard-widgets-container').find('[data-dashboard-filter-input]').each(function () {
+                    var input = $(this);
+                    var name = input.attr('name');
+                    var isHiddenField = String(input.attr('type') || '').toLowerCase() === 'hidden';
+
+                    if (!name || input.is(':disabled')) {
+                        return;
+                    }
+
+                    if (!isHiddenField && !input.is(':visible')) {
+                        return;
+                    }
+
+                    params[name] = input.val();
+                });
+
+                return params;
+            }
+
+            function initializeDashboardJournalTables() {
+                if (!$.fn.DataTable) {
+                    return;
+                }
+
+                $('#dashboard-widgets-container').find('[data-dashboard-journal-table]').each(function () {
+                    var table = $(this);
+
+                    widgetHelpers.initializeDataTable(table, {
+                        dom: 't<"d-flex flex-wrap justify-content-between align-items-center mt-2"ip>',
+                        pageLength: 5,
+                        lengthChange: false,
+                        searching: false,
+                        ordering: false,
+                        info: true,
+                        paging: true,
+                        autoWidth: false,
+                        language: {
+                            paginate: {
+                                previous: 'Prev',
+                                next: 'Next'
+                            },
+                            info: 'Showing _START_ to _END_ of _TOTAL_ tasks',
+                            infoEmpty: 'Showing 0 to 0 of 0 tasks',
+                            zeroRecords: 'Tidak ada task Daily Journal untuk filter yang dipilih.'
+                        },
+                        drawCallback: function () {
+                            $(this.api().table().container()).find('.dataTables_paginate').toggle(this.api().page.info().pages > 1);
+                        }
+                    });
+                });
+
+                $('#dashboard-widgets-container').find('[data-dashboard-journal-modal-table]').each(function () {
+                    var table = $(this);
+
+                    widgetHelpers.initializeDataTable(table, {
+                        dom: '<"d-flex flex-wrap justify-content-between align-items-center mb-2"f>t<"d-flex flex-wrap justify-content-between align-items-center mt-2"ip>',
+                        pageLength: 10,
+                        lengthChange: false,
+                        searching: true,
+                        ordering: false,
+                        info: true,
+                        paging: true,
+                        autoWidth: false,
+                        language: {
+                            search: '',
+                            searchPlaceholder: 'Search tasks',
+                            paginate: {
+                                previous: 'Prev',
+                                next: 'Next'
+                            },
+                            info: 'Showing _START_ to _END_ of _TOTAL_ tasks',
+                            infoEmpty: 'Showing 0 to 0 of 0 tasks',
+                            zeroRecords: 'Tidak ada task Daily Journal untuk filter yang dipilih.'
+                        }
+                    });
+                });
+            }
+
             function loadDashboardWidgets(startDate, endDate) {
-                $.ajax({
+                var requestData = $.extend({}, collectDashboardWidgetFilters(), {
+                    start_date: startDate.format('YYYY-MM-DD'),
+                    end_date: endDate.format('YYYY-MM-DD')
+                });
+
+                return $.ajax({
                     url: '{{ route('dashboard.index') }}',
                     type: 'GET',
-                    data: {
-                        start_date: startDate.format('YYYY-MM-DD'),
-                        end_date: endDate.format('YYYY-MM-DD')
-                    },
+                    data: requestData,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     success: function (response) {
                         $('#dashboard-widgets-container').html(response.html || '');
+                        initializeDashboardJournalTables();
                         updateDashboardFilterDisplay(startDate, endDate);
                         showDashboardAvailabilityAlert(response.hasEmployeePosition, response.hasWidgets);
                     },
                     error: function () {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Filter gagal dimuat',
-                            text: 'Dashboard tidak bisa diperbarui. Silakan coba lagi.',
-                            confirmButtonText: 'OK'
-                        });
+                        widgetHelpers.showErrorAlert('Filter gagal dimuat', 'Dashboard tidak bisa diperbarui. Silakan coba lagi.');
                     }
                 });
+            }
+
+            function getActiveDashboardRange() {
+                var picker = $('#dashboard-daterange').data('daterangepicker');
+
+                if (picker) {
+                    return {
+                        startDate: picker.startDate.clone(),
+                        endDate: picker.endDate.clone()
+                    };
+                }
+
+                return {
+                    startDate: initialStart.clone(),
+                    endDate: initialEnd.clone()
+                };
             }
 
             if ($.fn.daterangepicker) {
@@ -308,7 +410,89 @@
                 loadDashboardWidgets(start, end);
             });
 
+            $(document).on('submit', 'form[data-dashboard-ajax-form="daily-journal"]', function (event) {
+                event.preventDefault();
+
+                var activeRange = getActiveDashboardRange();
+                loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
+            });
+
+            $(document).on('change', 'select[name="daily_journal_mode"]', function () {
+                var modeSelect = $(this);
+                var widgetForm = modeSelect.closest('form');
+                var divisionSelect = widgetForm.find('select[name="daily_journal_division_id"]');
+                var isTeamMode = modeSelect.val() === 'team';
+
+                divisionSelect.prop('disabled', !isTeamMode);
+
+                if (!isTeamMode) {
+                    divisionSelect.val('');
+                }
+
+                var activeRange = getActiveDashboardRange();
+                loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
+            });
+
+            $(document).on('change', 'select[name="daily_journal_division_id"]', function () {
+                if ($(this).is(':disabled')) {
+                    return;
+                }
+
+                var activeRange = getActiveDashboardRange();
+                loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
+            });
+
+            $(document).on('change', 'select[name="daily_journal_status"]', function () {
+                var activeRange = getActiveDashboardRange();
+                loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
+            });
+
+            $(document).on('submit', '.js-dashboard-journal-edit-form', function (event) {
+                event.preventDefault();
+
+                var form = $(this);
+                var submitButton = form.find('button[type="submit"]');
+                var activeRange = getActiveDashboardRange();
+                var modalId = form.data('modal-id');
+
+                submitButton.prop('disabled', true);
+
+                $.ajax({
+                    url: form.attr('action'),
+                    type: 'POST',
+                    data: form.serialize(),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    success: function () {
+                        widgetHelpers.closeModal(modalId, function () {
+                            loadDashboardWidgets(activeRange.startDate, activeRange.endDate)
+                                .done(function () {
+                                    widgetHelpers.showSuccessAlert('Update berhasil', 'Task berhasil diperbarui.');
+                                });
+                        });
+                    },
+                    error: function (xhr) {
+                        var message = 'Journal tidak bisa diperbarui. Silakan coba lagi.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.errors) {
+                            var firstErrorGroup = Object.values(xhr.responseJSON.errors)[0];
+                            if (Array.isArray(firstErrorGroup) && firstErrorGroup.length) {
+                                message = firstErrorGroup[0];
+                            }
+                        }
+
+                        widgetHelpers.showErrorAlert('Update gagal', message);
+                    },
+                    complete: function () {
+                        submitButton.prop('disabled', false);
+                    }
+                });
+            });
+
             updateDashboardFilterDisplay(initialStart, initialEnd);
+            initializeDashboardJournalTables();
 
             if (window.feather) {
                 window.feather.replace();

@@ -1,4 +1,4 @@
-<div class="card h-100 shadow-sm">
+<div class="card h-100 shadow-sm dashboard-widget-card">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-start mb-3">
             <div>
