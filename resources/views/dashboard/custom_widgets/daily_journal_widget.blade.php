@@ -86,6 +86,19 @@
         $selectedDivisionId = null;
     }
 
+    $widgetTasksQuery = DailyJournalTask::query()
+        ->with([
+            'fromUser:id,name',
+        ])
+        ->where('user_id', Auth::id())
+        ->where(function (Builder $query) use ($periodStart, $periodEnd) {
+            $query->whereBetween('task_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+                ->orWhere(function (Builder $deadlineQuery) {
+                    $deadlineQuery->whereNotNull('deadline_date')
+                        ->where('status', '!=', 'done');
+                });
+        });
+
     $tasksQuery = DailyJournalTask::query()
         ->with([
             'user:id,name',
@@ -125,16 +138,6 @@
     } else {
         $tasksQuery->where('user_id', Auth::id());
     }
-
-    $totalTasks = (clone $tasksQuery)->count();
-
-    $tasks = $tasksQuery
-        ->orderByDesc('task_date')
-        ->orderByRaw('CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END')
-        ->orderBy('scheduled_time')
-        ->orderByDesc('id')
-        ->limit(8)
-        ->get();
 
     $statusBadgeClass = [
         'todo' => 'secondary',
@@ -178,10 +181,22 @@
     $modalId = 'dailyJournalModal-' . ($widget->id ?? 'widget');
     $tableId = 'dailyJournalTable-' . ($widget->id ?? 'widget');
     $modalTableId = 'dailyJournalModalTable-' . ($widget->id ?? 'widget');
+    $createModalId = 'dailyJournalCreateModal-' . ($widget->id ?? 'widget');
 
     if ($selectedStatus) {
+        $widgetTasksQuery->where('status', $selectedStatus);
         $tasksQuery->where('status', $selectedStatus);
     }
+
+    $widgetTotalTasks = (clone $widgetTasksQuery)->count();
+
+    $widgetTasks = $widgetTasksQuery
+        ->orderByRaw("CASE WHEN status IN ('todo', 'in_progress') THEN 0 ELSE 1 END")
+        ->orderByDesc('task_date')
+        ->orderByRaw('CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END')
+        ->orderBy('scheduled_time')
+        ->orderByDesc('id')
+        ->get();
 
     $allTasks = $tasksQuery
         ->orderByRaw("CASE WHEN status IN ('todo', 'in_progress') THEN 0 ELSE 1 END")
@@ -204,24 +219,13 @@
                             <input type="hidden" name="end_date" value="{{ $dashboardFilter['end_date'] ?? $periodEnd->toDateString() }}">
 
                             <div class="d-flex align-items-center justify-content-end flex-nowrap" style="gap: 6px; max-width: 100%;">
-                                <select name="daily_journal_mode" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Journal mode" title="Journal mode" style="width: 108px; min-width: 0; height: 34px;">
-                                    <option value="my" {{ $mode === 'my' ? 'selected' : '' }}>My Journal</option>
-                                    @if ($canManageTeam)
-                                        <option value="team" {{ $mode === 'team' ? 'selected' : '' }}>Team Journal</option>
-                                    @endif
-                                </select>
-                                <select name="daily_journal_division_id" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Division filter" title="Division filter" style="width: 118px; min-width: 0; height: 34px;" {{ $mode !== 'team' || ! $canManageTeam ? 'disabled' : '' }}>
-                                    <option value="">All Divisions</option>
-                                    @foreach ($divisionOptions as $division)
-                                        <option value="{{ $division->id }}" {{ $selectedDivisionId === (int) $division->id ? 'selected' : '' }}>{{ $division->name }}</option>
-                                    @endforeach
-                                </select>
                                 <select name="daily_journal_status" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Status filter" title="Status filter" style="width: 108px; min-width: 0; height: 34px;">
                                     <option value="">All Status</option>
                                     @foreach (DailyJournalTask::STATUSES as $statusOption)
                                         <option value="{{ $statusOption }}" {{ $selectedStatus === $statusOption ? 'selected' : '' }}>{{ $statusLabels[$statusOption] ?? ucfirst($statusOption) }}</option>
                                     @endforeach
                                 </select>
+                                <button type="button" class="btn btn-sm btn-primary px-2" style="height: 34px; min-width: 64px; flex: 0 0 auto;" data-toggle="modal" data-target="#{{ $createModalId }}">Add</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary px-2" style="height: 34px; min-width: 72px; flex: 0 0 auto;" data-toggle="modal" data-target="#{{ $modalId }}">Show All</button>
                             </div>
                         </form>
@@ -235,34 +239,19 @@
                 <input type="hidden" name="end_date" value="{{ $dashboardFilter['end_date'] ?? $periodEnd->toDateString() }}">
 
                 <div class="d-flex align-items-center flex-wrap" style="gap: 2px;">
-                    <select name="daily_journal_mode" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Journal mode" title="Journal mode" style="width: 122px; height: 34px;">
-                        <option value="my" {{ $mode === 'my' ? 'selected' : '' }}>My Journal</option>
-                        @if ($canManageTeam)
-                            <option value="team" {{ $mode === 'team' ? 'selected' : '' }}>Team Journal</option>
-                        @endif
-                    </select>
-                    <select name="daily_journal_division_id" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Division filter" title="Division filter" style="width: 132px; height: 34px;" {{ $mode !== 'team' || ! $canManageTeam ? 'disabled' : '' }}>
-                        <option value="">All Divisions</option>
-                        @foreach ($divisionOptions as $division)
-                            <option value="{{ $division->id }}" {{ $selectedDivisionId === (int) $division->id ? 'selected' : '' }}>{{ $division->name }}</option>
-                        @endforeach
-                    </select>
                     <select name="daily_journal_status" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Status filter" title="Status filter" style="width: 136px; height: 34px;">
                         <option value="">All Status</option>
                         @foreach (DailyJournalTask::STATUSES as $statusOption)
                             <option value="{{ $statusOption }}" {{ $selectedStatus === $statusOption ? 'selected' : '' }}>{{ $statusLabels[$statusOption] ?? ucfirst($statusOption) }}</option>
                         @endforeach
                     </select>
+                    <button type="button" class="btn btn-sm btn-primary px-2" style="height: 34px; min-width: 64px;" data-toggle="modal" data-target="#{{ $createModalId }}">Add</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary px-2" style="height: 34px; min-width: 78px;" data-toggle="modal" data-target="#{{ $modalId }}">Show All</button>
                 </div>
             </form>
         </div>
 
-        @if ($mode === 'team' && $selectedDivisionName)
-            <div class="small text-muted mb-2">Division: <span class="font-weight-bold text-dark">{{ $selectedDivisionName }}</span></div>
-        @endif
-
-        @if ($allTasks->isEmpty())
+        @if ($widgetTasks->isEmpty())
             <div class="alert alert-light border mb-0">
                 Tidak ada task Daily Journal untuk filter yang dipilih.
             </div>
@@ -277,7 +266,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($allTasks as $task)
+                        @foreach ($widgetTasks as $task)
                             @php
                                 $taskEditModalId = 'dailyJournalTaskEditModal-' . $task->id;
                                 $canEditTask = (int) $task->user_id === (int) Auth::id();
@@ -297,20 +286,13 @@
                                 </td>
                                 <td class="align-middle border-0" style="border-top-right-radius: 12px; border-bottom-right-radius: 12px;">
                                     <div class="font-weight-bold text-dark" style="line-height: 1.35;">{{ $task->title }}</div>
-                                    @if ($mode === 'team')
-                                        <div class="small text-muted mt-1">
-                                            <span class="text-dark">{{ optional($task->user)->name ?? '-' }}</span>
-                                            <span class="d-block">{{ optional(optional(optional($task->user)->employee)->division)->name ?? 'Tanpa Division' }}</span>
-                                        </div>
-                                    @else
-                                        <div class="small text-muted mt-1">
-                                            @if ($task->note)
-                                                <span>{{ $task->note }}</span>
-                                            @else
-                                                <span>Belum ada catatan task.</span>
-                                            @endif
-                                        </div>
-                                    @endif
+                                    <div class="small text-muted mt-1">
+                                        @if ($task->note)
+                                            <span>{{ $task->note }}</span>
+                                        @else
+                                            <span>Belum ada catatan task.</span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="align-middle border-0 small text-right pr-3" style="border-top-right-radius: 12px; border-bottom-right-radius: 12px; width: 110px;">
                                     <span class="badge badge-{{ $statusBadgeClass[$task->status] ?? 'secondary' }}">{{ $statusLabels[$task->status] ?? ucfirst($task->status) }}</span>
@@ -321,12 +303,73 @@
                 </table>
             </div>
 
-            <div class="small text-muted mt-3">Total {{ number_format($totalTasks, 0, ',', '.') }} task.</div>
+            <div class="small text-muted mt-3">Total {{ number_format($widgetTotalTasks, 0, ',', '.') }} task.</div>
         @endif
     </div>
 </div>
 
-@foreach ($allTasks as $task)
+<div class="modal fade" id="{{ $createModalId }}" tabindex="-1" role="dialog" aria-labelledby="{{ $createModalId }}Label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document" style="max-width: 760px;">
+        <div class="modal-content border-0" style="border-radius: 18px; overflow: hidden;">
+            <div class="modal-header border-0 pb-2">
+                <div>
+                    <h5 class="modal-title mb-1" id="{{ $createModalId }}Label">Add Task</h5>
+                    <div class="small text-muted">Tambahkan task baru ke My Journal.</div>
+                </div>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body pt-2" style="padding-bottom: 20px;">
+                <form method="POST" action="{{ route('daily-journal.store') }}" class="js-dashboard-journal-create-form mb-0" data-modal-id="{{ $createModalId }}">
+                    @csrf
+                    <input type="hidden" name="redirect_filter" value="custom">
+                    <input type="hidden" name="redirect_start_date" value="{{ $periodStart->toDateString() }}">
+                    <input type="hidden" name="redirect_end_date" value="{{ $periodEnd->toDateString() }}">
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6 mb-3">
+                            <label class="small text-muted font-weight-bold text-uppercase mb-1">Task Date</label>
+                            <input type="date" name="task_date" class="form-control form-control-sm" value="{{ $periodEnd->toDateString() }}" required>
+                        </div>
+                        <div class="form-group col-md-6 mb-3">
+                            <label class="small text-muted font-weight-bold text-uppercase mb-1">Deadline</label>
+                            <input type="date" name="deadline_date" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="small text-muted font-weight-bold text-uppercase mb-1">Title</label>
+                        <input type="text" name="title" class="form-control form-control-sm" maxlength="120" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6 mb-3">
+                            <label class="small text-muted font-weight-bold text-uppercase mb-1">Status</label>
+                            <select name="status" class="form-control form-control-sm">
+                                @foreach (DailyJournalTask::STATUSES as $statusOption)
+                                    <option value="{{ $statusOption }}" {{ $statusOption === 'todo' ? 'selected' : '' }}>{{ $statusLabels[$statusOption] ?? ucfirst($statusOption) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6 mb-3">
+                            <label class="small text-muted font-weight-bold text-uppercase mb-1">Time</label>
+                            <input type="time" name="scheduled_time" class="form-control form-control-sm">
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="small text-muted font-weight-bold text-uppercase mb-1">Note</label>
+                        <textarea name="note" class="form-control form-control-sm" rows="3" maxlength="180"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap" style="gap: 8px;">
+                        <div class="small text-muted">Task baru akan langsung masuk ke My Journal.</div>
+                        <button type="submit" class="btn btn-sm btn-primary px-3">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@foreach ($widgetTasks as $task)
     @php
         $taskEditModalId = 'dailyJournalTaskEditModal-' . $task->id;
         $canEditTask = (int) $task->user_id === (int) Auth::id();
@@ -385,7 +428,7 @@
     @endif
 @endforeach
 
-<div class="modal fade" id="{{ $modalId }}" tabindex="-1" role="dialog" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
+<div class="modal fade" id="{{ $modalId }}" data-dashboard-journal-modal="1" tabindex="-1" role="dialog" aria-labelledby="{{ $modalId }}Label" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content border-0" style="border-radius: 18px; overflow: hidden;">
             <div class="modal-header border-0 pb-2">
@@ -398,6 +441,28 @@
                 </button>
             </div>
             <div class="modal-body pt-2">
+                <form method="GET" action="{{ route('dashboard.index') }}" class="mb-3" data-dashboard-ajax-form="daily-journal">
+                    <input type="hidden" name="daily_journal_modal_open" value="1" data-dashboard-filter-input="1">
+
+                    <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
+                        <select name="daily_journal_mode" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Journal mode" title="Journal mode" style="width: 132px; height: 34px;">
+                            <option value="my" {{ $mode === 'my' ? 'selected' : '' }}>My Journal</option>
+                            @if ($canManageTeam)
+                                <option value="team" {{ $mode === 'team' ? 'selected' : '' }}>Team Journal</option>
+                            @endif
+                        </select>
+                        <select name="daily_journal_division_id" class="form-control form-control-sm" data-dashboard-filter-input="1" aria-label="Division filter" title="Division filter" style="width: 160px; height: 34px;" {{ $mode !== 'team' || ! $canManageTeam ? 'disabled' : '' }}>
+                            <option value="">All Divisions</option>
+                            @foreach ($divisionOptions as $division)
+                                <option value="{{ $division->id }}" {{ $selectedDivisionId === (int) $division->id ? 'selected' : '' }}>{{ $division->name }}</option>
+                            @endforeach
+                        </select>
+                        @if ($mode === 'team' && $selectedDivisionName)
+                            <div class="small text-muted">Division: <span class="font-weight-bold text-dark">{{ $selectedDivisionName }}</span></div>
+                        @endif
+                    </div>
+                </form>
+
                 @if ($allTasks->isEmpty())
                     <div class="alert alert-light border mb-0">Tidak ada task Daily Journal untuk filter yang dipilih.</div>
                 @else

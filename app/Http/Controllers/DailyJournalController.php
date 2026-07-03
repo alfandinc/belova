@@ -209,7 +209,7 @@ class DailyJournalController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
             'user_id' => ['nullable', 'integer'],
@@ -259,8 +259,17 @@ class DailyJournalController extends Controller
             'scheduled_time' => $validated['scheduled_time'] ?? null,
             'status' => $validated['status'],
             'color_theme' => $validated['color_theme'] ?? DailyJournalTask::THEMES[$themeIndex],
-            'icon' => $validated['icon'] ?: '📝',
+            'icon' => $validated['icon'] ?? '📝',
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => $fromUserId
+                    ? 'Task berhasil diberikan ke employee.'
+                    : 'Task Daily Journal berhasil ditambahkan.',
+            ]);
+        }
 
         if ($fromUserId) {
             return redirect()

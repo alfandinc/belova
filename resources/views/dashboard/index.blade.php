@@ -239,6 +239,33 @@
 
                 $('#dashboard-widgets-container').find('[data-dashboard-filter-input]').each(function () {
                     var input = $(this);
+                    var parentModal = input.closest('.modal');
+                    var name = input.attr('name');
+                    var isHiddenField = String(input.attr('type') || '').toLowerCase() === 'hidden';
+
+                    if (!name || input.is(':disabled')) {
+                        return;
+                    }
+
+                    if (parentModal.length && !parentModal.hasClass('show')) {
+                        return;
+                    }
+
+                    if (!isHiddenField && !input.is(':visible')) {
+                        return;
+                    }
+
+                    params[name] = input.val();
+                });
+
+                return params;
+            }
+
+            function collectJournalModalFilters(modal) {
+                var params = {};
+
+                modal.find('[data-dashboard-filter-input]').each(function () {
+                    var input = $(this);
                     var name = input.attr('name');
                     var isHiddenField = String(input.attr('type') || '').toLowerCase() === 'hidden';
 
@@ -321,6 +348,17 @@
                     end_date: endDate.format('YYYY-MM-DD')
                 });
 
+                function renderWidgetResponse(response) {
+                    $('#dashboard-widgets-container').html(response.html || '');
+                    initializeDashboardJournalTables();
+                    updateDashboardFilterDisplay(startDate, endDate);
+                    showDashboardAvailabilityAlert(response.hasEmployeePosition, response.hasWidgets);
+
+                    if (String(requestData.daily_journal_modal_open || '') === '1') {
+                        $('#dashboard-widgets-container').find('[data-dashboard-journal-modal="1"]').first().modal('show');
+                    }
+                }
+
                 return $.ajax({
                     url: '{{ route('dashboard.index') }}',
                     type: 'GET',
@@ -329,13 +367,51 @@
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     success: function (response) {
-                        $('#dashboard-widgets-container').html(response.html || '');
-                        initializeDashboardJournalTables();
-                        updateDashboardFilterDisplay(startDate, endDate);
-                        showDashboardAvailabilityAlert(response.hasEmployeePosition, response.hasWidgets);
+                        var activeJournalModal = $('#dashboard-widgets-container').find('.modal.show[data-dashboard-journal-modal="1"]').first();
+
+                        if (String(requestData.daily_journal_modal_open || '') === '1' && activeJournalModal.length) {
+                            widgetHelpers.closeModal(activeJournalModal.attr('id'), function () {
+                                renderWidgetResponse(response);
+                            });
+                            return;
+                        }
+
+                        renderWidgetResponse(response);
                     },
                     error: function () {
                         widgetHelpers.showErrorAlert('Filter gagal dimuat', 'Dashboard tidak bisa diperbarui. Silakan coba lagi.');
+                    }
+                });
+            }
+
+            function loadJournalModalContent(modal, startDate, endDate) {
+                var requestData = $.extend({}, collectJournalModalFilters(modal), {
+                    start_date: startDate.format('YYYY-MM-DD'),
+                    end_date: endDate.format('YYYY-MM-DD'),
+                    daily_journal_modal_open: '1'
+                });
+
+                return $.ajax({
+                    url: '{{ route('dashboard.index') }}',
+                    type: 'GET',
+                    data: requestData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    success: function (response) {
+                        var html = response.html || '';
+                        var extractedModal = $('<div>').html(html).find('[data-dashboard-journal-modal="1"]').first();
+
+                        if (!extractedModal.length) {
+                            widgetHelpers.showErrorAlert('Filter gagal dimuat', 'Modal journal tidak bisa diperbarui.');
+                            return;
+                        }
+
+                        modal.find('.modal-content').replaceWith(extractedModal.find('.modal-content'));
+                        initializeDashboardJournalTables();
+                    },
+                    error: function () {
+                        widgetHelpers.showErrorAlert('Filter gagal dimuat', 'Modal journal tidak bisa diperbarui.');
                     }
                 });
             }
@@ -414,12 +490,21 @@
                 event.preventDefault();
 
                 var activeRange = getActiveDashboardRange();
+                var form = $(this);
+                var modal = form.closest('[data-dashboard-journal-modal="1"]');
+
+                if (modal.length) {
+                    loadJournalModalContent(modal, activeRange.startDate, activeRange.endDate);
+                    return;
+                }
+
                 loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
             });
 
             $(document).on('change', 'select[name="daily_journal_mode"]', function () {
                 var modeSelect = $(this);
                 var widgetForm = modeSelect.closest('form');
+                var modal = modeSelect.closest('[data-dashboard-journal-modal="1"]');
                 var divisionSelect = widgetForm.find('select[name="daily_journal_division_id"]');
                 var isTeamMode = modeSelect.val() === 'team';
 
@@ -430,6 +515,12 @@
                 }
 
                 var activeRange = getActiveDashboardRange();
+
+                if (modal.length) {
+                    loadJournalModalContent(modal, activeRange.startDate, activeRange.endDate);
+                    return;
+                }
+
                 loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
             });
 
@@ -439,11 +530,25 @@
                 }
 
                 var activeRange = getActiveDashboardRange();
+                var modal = $(this).closest('[data-dashboard-journal-modal="1"]');
+
+                if (modal.length) {
+                    loadJournalModalContent(modal, activeRange.startDate, activeRange.endDate);
+                    return;
+                }
+
                 loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
             });
 
             $(document).on('change', 'select[name="daily_journal_status"]', function () {
                 var activeRange = getActiveDashboardRange();
+                var modal = $(this).closest('[data-dashboard-journal-modal="1"]');
+
+                if (modal.length) {
+                    loadJournalModalContent(modal, activeRange.startDate, activeRange.endDate);
+                    return;
+                }
+
                 loadDashboardWidgets(activeRange.startDate, activeRange.endDate);
             });
 
@@ -484,6 +589,50 @@
                         }
 
                         widgetHelpers.showErrorAlert('Update gagal', message);
+                    },
+                    complete: function () {
+                        submitButton.prop('disabled', false);
+                    }
+                });
+            });
+
+            $(document).on('submit', '.js-dashboard-journal-create-form', function (event) {
+                event.preventDefault();
+
+                var form = $(this);
+                var submitButton = form.find('button[type="submit"]');
+                var activeRange = getActiveDashboardRange();
+                var modalId = form.data('modal-id');
+
+                submitButton.prop('disabled', true);
+
+                $.ajax({
+                    url: form.attr('action'),
+                    type: 'POST',
+                    data: form.serialize(),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    },
+                    success: function (response) {
+                        widgetHelpers.closeModal(modalId, function () {
+                            loadDashboardWidgets(activeRange.startDate, activeRange.endDate)
+                                .done(function () {
+                                    widgetHelpers.showSuccessAlert('Task berhasil ditambahkan', response.message || 'Task Daily Journal berhasil ditambahkan.');
+                                });
+                        });
+                    },
+                    error: function (xhr) {
+                        var message = 'Task tidak bisa ditambahkan. Silakan coba lagi.';
+
+                        if (xhr.responseJSON && xhr.responseJSON.errors) {
+                            var firstErrorGroup = Object.values(xhr.responseJSON.errors)[0];
+                            if (Array.isArray(firstErrorGroup) && firstErrorGroup.length) {
+                                message = firstErrorGroup[0];
+                            }
+                        }
+
+                        widgetHelpers.showErrorAlert('Tambah task gagal', message);
                     },
                     complete: function () {
                         submitButton.prop('disabled', false);
