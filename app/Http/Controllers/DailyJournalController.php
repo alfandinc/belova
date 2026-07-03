@@ -524,12 +524,28 @@ class DailyJournalController extends Controller
             ->unique()
             ->values();
 
-        if ($managerPositionIds->isEmpty()) {
+        $directReportIds = $actorEmployee->directReports()
+            ->pluck('id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($managerPositionIds->isEmpty() && $directReportIds->isEmpty()) {
             return null;
         }
 
-        return $query->whereHas('positions', function (Builder $positionQuery) use ($managerPositionIds) {
-            $positionQuery->whereIn('hrd_position.parent_id', $managerPositionIds->all());
-        });
+        return $query
+            ->where('id', '!=', $actorEmployee->id)
+            ->where(function (Builder $memberQuery) use ($managerPositionIds, $directReportIds) {
+                if ($directReportIds->isNotEmpty()) {
+                    $memberQuery->whereIn('id', $directReportIds->all());
+                }
+
+                if ($managerPositionIds->isNotEmpty()) {
+                    $memberQuery->orWhereHas('positions', function (Builder $positionQuery) use ($managerPositionIds) {
+                        $positionQuery->whereIn('hrd_position.parent_id', $managerPositionIds->all());
+                    });
+                }
+            });
     }
 }
