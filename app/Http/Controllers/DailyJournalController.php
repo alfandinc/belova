@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DailyJournalTask;
 use App\Models\HRD\Employee;
+use App\Models\HRD\Position;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -528,10 +529,45 @@ class DailyJournalController extends Controller
             return null;
         }
 
+        $descendantPositionIds = $this->resolveDescendantPositionIds($managerPositionIds->all());
+
+        if (empty($descendantPositionIds)) {
+            return null;
+        }
+
         return $query
             ->where('id', '!=', $actorEmployee->id)
-            ->whereHas('positions', function (Builder $positionQuery) use ($managerPositionIds) {
-                $positionQuery->whereIn('hrd_position.parent_id', $managerPositionIds->all());
+            ->whereHas('positions', function (Builder $positionQuery) use ($descendantPositionIds) {
+                $positionQuery->whereIn('hrd_position.id', $descendantPositionIds);
             });
+    }
+
+    private function resolveDescendantPositionIds(array $parentPositionIds): array
+    {
+        $pendingParentIds = collect($parentPositionIds)
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $descendantIds = collect();
+
+        while ($pendingParentIds->isNotEmpty()) {
+            $childIds = Position::query()
+                ->whereIn('parent_id', $pendingParentIds->all())
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->diff($descendantIds)
+                ->values();
+
+            if ($childIds->isEmpty()) {
+                break;
+            }
+
+            $descendantIds = $descendantIds->concat($childIds)->unique()->values();
+            $pendingParentIds = $childIds;
+        }
+
+        return $descendantIds->all();
     }
 }
