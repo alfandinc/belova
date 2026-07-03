@@ -1126,33 +1126,104 @@ class MarketingController extends Controller
             '65+' => [66, 200]
         ];
 
-        $results = [];
+        $patientCounts = [];
+        $revenueSeries = [];
+        $breakdown = [];
 
         foreach ($ageRanges as $label => $range) {
-            $query = Pasien::whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) >= ?', [$range[0]])
+            $patientQuery = Pasien::query()
+                ->whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) >= ?', [$range[0]])
                 ->whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) <= ?', [$range[1]]);
 
             if ($clinicId || $year || $month || $startDate || $endDate) {
-                $query->whereHas('visitations', function ($q) use ($clinicId, $year, $month, $startDate, $endDate) {
-                    if ($clinicId) $q->where('klinik_id', $clinicId);
-                    
-                    // Apply date range or year/month filter
-                    if ($startDate && $endDate) {
-                        $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
-                    } else {
-                        if ($year) $q->whereYear('tanggal_visitation', $year);
-                        if ($month) $q->whereMonth('tanggal_visitation', $month);
-                    }
+                $patientQuery->whereHas('visitations', function ($q) use ($clinicId, $year, $month, $startDate, $endDate) {
+                    $this->applyVisitationAnalyticsFilters($q, $clinicId, $year, $month, $startDate, $endDate);
                 });
             }
 
-            $results[$label] = $query->count();
+            $patientCount = (int) $patientQuery->count();
+
+            $revenueQuery = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
+                ->where('finance_invoices.amount_paid', '>', 0)
+                ->whereRaw('TIMESTAMPDIFF(YEAR, erm_pasiens.tanggal_lahir, CURDATE()) >= ?', [$range[0]])
+                ->whereRaw('TIMESTAMPDIFF(YEAR, erm_pasiens.tanggal_lahir, CURDATE()) <= ?', [$range[1]]);
+
+            $this->applyVisitationAnalyticsFilters($revenueQuery, $clinicId, $year, $month, $startDate, $endDate);
+
+            $revenue = round((float) ($revenueQuery->sum('finance_invoices.total_amount') ?: 0), 2);
+
+            $topTreatments = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+                ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
+                ->join('erm_riwayat_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_riwayat_tindakan.id')
+                ->join('erm_tindakan', 'erm_riwayat_tindakan.tindakan_id', '=', 'erm_tindakan.id')
+                ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+                ->where('finance_invoices.amount_paid', '>', 0)
+                ->whereRaw('TIMESTAMPDIFF(YEAR, erm_pasiens.tanggal_lahir, CURDATE()) >= ?', [$range[0]])
+                ->whereRaw('TIMESTAMPDIFF(YEAR, erm_pasiens.tanggal_lahir, CURDATE()) <= ?', [$range[1]]);
+
+            $this->applyVisitationAnalyticsFilters($topTreatments, $clinicId, $year, $month, $startDate, $endDate);
+
+            $topTreatments = $topTreatments
+                ->select(
+                    'erm_tindakan.nama as treatment_name',
+                    DB::raw('COUNT(*) as treatment_count'),
+                    DB::raw('SUM(finance_invoice_items.final_amount) as treatment_revenue')
+                )
+                ->groupBy('erm_tindakan.nama')
+                ->orderByDesc('treatment_count')
+                ->orderByDesc('treatment_revenue')
+                ->limit(3)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'name' => (string) ($item->treatment_name ?? 'Unknown'),
+                        'count' => (int) ($item->treatment_count ?? 0),
+                        'revenue' => round((float) ($item->treatment_revenue ?? 0), 2),
+                    ];
+                })
+                ->values()
+                ->all();
+
+            $patientCounts[$label] = $patientCount;
+            $revenueSeries[$label] = $revenue;
+            $breakdown[] = [
+                'label' => $label,
+                'patient_count' => $patientCount,
+                'revenue' => $revenue,
+                'top_treatments' => $topTreatments,
+            ];
         }
 
         return [
-            'labels' => array_keys($results),
-            'series' => array_values($results)
+            'labels' => array_keys($patientCounts),
+            'series' => array_values($patientCounts),
+            'revenueSeries' => array_values($revenueSeries),
+            'breakdown' => $breakdown,
         ];
+    }
+
+    private function applyVisitationAnalyticsFilters($query, $clinicId = null, $year = null, $month = null, $startDate = null, $endDate = null, $table = 'erm_visitations')
+    {
+        if ($clinicId) {
+            $query->where($table . '.klinik_id', $clinicId);
+        }
+
+        if ($startDate && $endDate) {
+            $query->whereBetween($table . '.tanggal_visitation', [$startDate, $endDate]);
+            return $query;
+        }
+
+        if ($year) {
+            $query->whereYear($table . '.tanggal_visitation', $year);
+        }
+
+        if ($month) {
+            $query->whereMonth($table . '.tanggal_visitation', $month);
+        }
+
+        return $query;
     }
 
     private function getGenderDemographics($clinicId = null, $year = null, $month = null, $startDate = null, $endDate = null)

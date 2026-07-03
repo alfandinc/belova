@@ -110,6 +110,23 @@
                 </div>
                 <div class="card-body">
                     <div id="ageChart"></div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-striped table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Age Range</th>
+                                    <th class="text-end">Patients</th>
+                                    <th class="text-end">Revenue</th>
+                                    <th>Top Tindakan</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ageStatsBody">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -332,6 +349,36 @@
 
 <script>
 $(document).ready(function() {
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            maximumFractionDigits: 0
+        }).format(Number(value) || 0);
+    }
+
+    function formatCompactCurrency(value) {
+        const amount = Number(value) || 0;
+
+        if (Math.abs(amount) >= 1000000000) {
+            return 'Rp ' + (amount / 1000000000).toFixed(1) + 'B';
+        }
+
+        if (Math.abs(amount) >= 1000000) {
+            return 'Rp ' + (amount / 1000000).toFixed(1) + 'M';
+        }
+
+        if (Math.abs(amount) >= 1000) {
+            return 'Rp ' + (amount / 1000).toFixed(1) + 'K';
+        }
+
+        return formatCurrency(amount);
+    }
+
+    function escapeHtml(value) {
+        return $('<div>').text(value || '').html();
+    }
+
     // Check if ApexCharts is loaded
     if (typeof ApexCharts === 'undefined') {
         console.error('ApexCharts is not loaded');
@@ -507,13 +554,45 @@ $(document).ready(function() {
                 if (data.ageDemographics && data.ageDemographics.series && data.ageDemographics.labels) {
                     const ageOptions = {
                         chart: { 
-                            type: 'bar', 
+                            type: 'line', 
                             height: 350,
                             id: 'ageChart'
                         },
-                        series: [{ name: 'Patients', data: data.ageDemographics.series }],
+                        series: [
+                            { name: 'Patients', type: 'column', data: data.ageDemographics.series },
+                            { name: 'Revenue', type: 'line', data: data.ageDemographics.revenueSeries || [] }
+                        ],
                         xaxis: { categories: data.ageDemographics.labels },
-                        colors: ['#007bff'],
+                        yaxis: [
+                            {
+                                title: { text: 'Patients' }
+                            },
+                            {
+                                opposite: true,
+                                title: { text: 'Revenue' },
+                                labels: {
+                                    formatter: function(value) {
+                                        return formatCompactCurrency(value);
+                                    }
+                                }
+                            }
+                        ],
+                        stroke: {
+                            width: [0, 3],
+                            curve: 'smooth'
+                        },
+                        dataLabels: {
+                            enabled: false
+                        },
+                        colors: ['#007bff', '#28a745'],
+                        tooltip: {
+                            shared: true,
+                            y: {
+                                formatter: function(value, context) {
+                                    return context.seriesIndex === 1 ? formatCurrency(value) : value;
+                                }
+                            }
+                        },
                         title: { text: 'Age Distribution' }
                     };
                     chartInstances.age = new ApexCharts(document.querySelector("#ageChart"), ageOptions);
@@ -617,6 +696,29 @@ $(document).ready(function() {
     // Update tables
     function updateTables(data) {
         console.log('Updating tables with data:', data); // Debug log
+
+        let ageStatsHtml = '';
+        if (data.ageDemographics && Array.isArray(data.ageDemographics.breakdown) && data.ageDemographics.breakdown.length) {
+            data.ageDemographics.breakdown.forEach(function(item) {
+                const topTreatments = Array.isArray(item.top_treatments) && item.top_treatments.length
+                    ? item.top_treatments.map(function(treatment) {
+                        return `<div class="age-treatment-item"><strong>${escapeHtml(treatment.name)}</strong> <span class="text-muted">(${treatment.count}x, ${formatCurrency(treatment.revenue)})</span></div>`;
+                    }).join('')
+                    : '<span class="text-muted">No tindakan</span>';
+
+                ageStatsHtml += `
+                    <tr>
+                        <td>${escapeHtml(item.label)}</td>
+                        <td class="text-end">${item.patient_count || 0}</td>
+                        <td class="text-end">${formatCurrency(item.revenue)}</td>
+                        <td>${topTreatments}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            ageStatsHtml = '<tr><td colspan="4" class="text-center text-muted">No data available</td></tr>';
+        }
+        $('#ageStatsBody').html(ageStatsHtml);
         
         // Location stats table
         let locationHtml = '';
@@ -754,6 +856,9 @@ $(document).ready(function() {
     }
     .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 29px;
+    }
+    .age-treatment-item + .age-treatment-item {
+        margin-top: 0.25rem;
     }
 </style>
 @endsection
