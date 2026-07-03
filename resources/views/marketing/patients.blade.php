@@ -115,14 +115,23 @@
                             <thead>
                                 <tr>
                                     <th>Age Range</th>
-                                    <th class="text-end">Patients</th>
-                                    <th class="text-end">Revenue</th>
+                                    <th class="text-end">
+                                        <button type="button" class="btn btn-link btn-sm p-0 age-sort" data-sort-key="patient_count">
+                                            Patients <span class="age-sort-indicator" data-sort-indicator="patient_count">&#8597;</span>
+                                        </button>
+                                    </th>
+                                    <th class="text-end">
+                                        <button type="button" class="btn btn-link btn-sm p-0 age-sort" data-sort-key="revenue">
+                                            Revenue <span class="age-sort-indicator" data-sort-indicator="revenue">&#8597;</span>
+                                        </button>
+                                    </th>
+                                    <th class="text-end">Avg Spend</th>
                                     <th>Top Tindakan</th>
                                 </tr>
                             </thead>
                             <tbody id="ageStatsBody">
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted">Loading...</td>
+                                    <td colspan="5" class="text-center text-muted">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -379,6 +388,85 @@ $(document).ready(function() {
         return $('<div>').text(value || '').html();
     }
 
+    let ageBreakdownData = [];
+    let ageSortState = {
+        key: null,
+        direction: 'desc'
+    };
+
+    function getAverageSpend(item) {
+        const patientCount = Number(item && item.patient_count) || 0;
+        const revenue = Number(item && item.revenue) || 0;
+
+        return patientCount > 0 ? revenue / patientCount : 0;
+    }
+
+    function updateAgeSortIndicators() {
+        $('[data-sort-indicator]').html('&#8597;');
+
+        if (!ageSortState.key) {
+            return;
+        }
+
+        const indicator = ageSortState.direction === 'asc' ? '&#8593;' : '&#8595;';
+        $(`[data-sort-indicator="${ageSortState.key}"]`).html(indicator);
+    }
+
+    function renderAgeStatsTable() {
+        let ageStatsHtml = '';
+
+        if (Array.isArray(ageBreakdownData) && ageBreakdownData.length) {
+            ageBreakdownData.forEach(function(item) {
+                const topTreatments = Array.isArray(item.top_treatments) && item.top_treatments.length
+                    ? item.top_treatments.map(function(treatment) {
+                        return `<div class="age-treatment-item"><strong>${escapeHtml(treatment.name)}</strong> <span class="text-muted">(${treatment.count}x, ${formatCurrency(treatment.revenue)})</span></div>`;
+                    }).join('')
+                    : '<span class="text-muted">No tindakan</span>';
+
+                ageStatsHtml += `
+                    <tr>
+                        <td>${escapeHtml(item.label)}</td>
+                        <td class="text-end">${item.patient_count || 0}</td>
+                        <td class="text-end">${formatCurrency(item.revenue)}</td>
+                        <td class="text-end">${formatCurrency(getAverageSpend(item))}</td>
+                        <td>${topTreatments}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            ageStatsHtml = '<tr><td colspan="5" class="text-center text-muted">No data available</td></tr>';
+        }
+
+        $('#ageStatsBody').html(ageStatsHtml);
+        updateAgeSortIndicators();
+    }
+
+    function sortAgeStats(sortKey) {
+        if (!Array.isArray(ageBreakdownData) || !ageBreakdownData.length) {
+            return;
+        }
+
+        if (ageSortState.key === sortKey) {
+            ageSortState.direction = ageSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            ageSortState.key = sortKey;
+            ageSortState.direction = 'desc';
+        }
+
+        ageBreakdownData.sort(function(left, right) {
+            const leftValue = sortKey === 'avg_spend' ? getAverageSpend(left) : (Number(left[sortKey]) || 0);
+            const rightValue = sortKey === 'avg_spend' ? getAverageSpend(right) : (Number(right[sortKey]) || 0);
+
+            if (leftValue === rightValue) {
+                return String(left.label || '').localeCompare(String(right.label || ''));
+            }
+
+            return ageSortState.direction === 'asc' ? leftValue - rightValue : rightValue - leftValue;
+        });
+
+        renderAgeStatsTable();
+    }
+
     // Check if ApexCharts is loaded
     if (typeof ApexCharts === 'undefined') {
         console.error('ApexCharts is not loaded');
@@ -433,6 +521,10 @@ $(document).ready(function() {
     // Clinic filter change
     $('#clinicFilter').on('change', function() {
         loadAnalyticsData();
+    });
+
+    $(document).on('click', '.age-sort', function() {
+        sortAgeStats($(this).data('sortKey'));
     });
 
     // Chart containers
@@ -697,28 +789,14 @@ $(document).ready(function() {
     function updateTables(data) {
         console.log('Updating tables with data:', data); // Debug log
 
-        let ageStatsHtml = '';
-        if (data.ageDemographics && Array.isArray(data.ageDemographics.breakdown) && data.ageDemographics.breakdown.length) {
-            data.ageDemographics.breakdown.forEach(function(item) {
-                const topTreatments = Array.isArray(item.top_treatments) && item.top_treatments.length
-                    ? item.top_treatments.map(function(treatment) {
-                        return `<div class="age-treatment-item"><strong>${escapeHtml(treatment.name)}</strong> <span class="text-muted">(${treatment.count}x, ${formatCurrency(treatment.revenue)})</span></div>`;
-                    }).join('')
-                    : '<span class="text-muted">No tindakan</span>';
-
-                ageStatsHtml += `
-                    <tr>
-                        <td>${escapeHtml(item.label)}</td>
-                        <td class="text-end">${item.patient_count || 0}</td>
-                        <td class="text-end">${formatCurrency(item.revenue)}</td>
-                        <td>${topTreatments}</td>
-                    </tr>
-                `;
-            });
-        } else {
-            ageStatsHtml = '<tr><td colspan="4" class="text-center text-muted">No data available</td></tr>';
-        }
-        $('#ageStatsBody').html(ageStatsHtml);
+        ageBreakdownData = data.ageDemographics && Array.isArray(data.ageDemographics.breakdown)
+            ? data.ageDemographics.breakdown.slice()
+            : [];
+        ageSortState = {
+            key: null,
+            direction: 'desc'
+        };
+        renderAgeStatsTable();
         
         // Location stats table
         let locationHtml = '';
@@ -859,6 +937,21 @@ $(document).ready(function() {
     }
     .age-treatment-item + .age-treatment-item {
         margin-top: 0.25rem;
+    }
+    .age-sort {
+        color: inherit;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .age-sort:hover,
+    .age-sort:focus {
+        color: #0d6efd;
+        text-decoration: none;
+    }
+    .age-sort-indicator {
+        display: inline-block;
+        min-width: 0.8rem;
+        margin-left: 0.2rem;
     }
 </style>
 @endsection
