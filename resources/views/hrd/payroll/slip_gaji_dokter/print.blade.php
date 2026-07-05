@@ -121,8 +121,6 @@
                     @foreach($slip->pendapatan_tambahan as $item)
                         <tr><td>{{ $item['label'] ?? '-' }}</td><td class="right">{{ number_format($item['amount'] ?? 0, 2) }}</td></tr>
                     @endforeach
-                @else
-                    <tr><td><em>Tidak ada pendapatan tambahan</em></td><td class="right">{{ number_format(0, 2) }}</td></tr>
                 @endif
                 <!-- Bagi Hasil moved to Potongan column (deduction) -->
                 <tr class="total-row"><td>Total Pendapatan</td><td class="right"><strong>{{ number_format($slip->total_pendapatan, 2) }}</strong></td></tr>
