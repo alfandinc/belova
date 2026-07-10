@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Dashboard\DashboardController as CustomDashboardController;
 use App\Models\DailyJournalTask;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -13,7 +14,7 @@ class CeoDashboardController extends Controller
      */
     public function index(Request $request)
     {
-        return view('ceodashboard.dashboard');
+        return app(CustomDashboardController::class)->index($request);
     }
 
     /**
