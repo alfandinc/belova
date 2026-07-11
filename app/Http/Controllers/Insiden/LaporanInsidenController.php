@@ -107,7 +107,7 @@ class LaporanInsidenController extends Controller
         if ($q) {
             $query->where('nama', 'like', "%$q%")
                   ->orWhere('id', 'like', "%$q%")
-                  ->orWhere('nik', 'like', "%$q%")
+                  ->orWhere('identity_number', 'like', "%$q%")
                   ->orWhere('no_hp', 'like', "%$q%")
                   ->orWhere('alamat', 'like', "%$q%")
                   ;

@@ -115,10 +115,10 @@
                         <div class="d-flex align-items-center">
                             <span class="d-inline-flex align-items-center justify-content-center mr-2" 
                                 style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
-                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-id-card" title="NIK"></i>
+                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-id-card" title="{{ $visitation->pasien->identity_label ?? 'Identitas' }}"></i>
                             </span>
                             <div class="flex-grow-1">
-                                <strong>{{ $visitation->pasien->nik ?? '-' }}</strong>
+                                <strong>{{ $visitation->pasien->identity_display ?? '-' }}</strong>
                             </div>
                         </div>
                     </div>

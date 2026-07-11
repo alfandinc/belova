@@ -15,6 +15,7 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
+use Illuminate\Validation\Rule;
 
 class PasienController extends Controller
 {
@@ -26,13 +27,13 @@ class PasienController extends Controller
     {
         $term = trim((string) $request->get('q', ''));
 
-        $query = Pasien::query()->select(['id', 'nama', 'nik']);
+        $query = Pasien::query()->select(['id', 'nama', 'identity_document', 'identity_number']);
 
         if ($term !== '') {
             $query->where(function ($q) use ($term) {
                 $q->where('nama', 'like', '%' . $term . '%')
                     ->orWhere('id', 'like', '%' . $term . '%')
-                    ->orWhere('nik', 'like', '%' . $term . '%');
+                    ->orWhere('identity_number', 'like', '%' . $term . '%');
             });
         }
 
@@ -42,8 +43,8 @@ class PasienController extends Controller
             ->get()
             ->map(function ($p) {
                 $label = trim(($p->nama ?? '-') . ' (RM: ' . $p->id . ')');
-                if (!empty($p->nik)) {
-                    $label .= ' - NIK: ' . $p->nik;
+                if (!empty($p->identity_number)) {
+                    $label .= ' - ' . strtoupper($p->identity_document ?? 'ktp') . ': ' . $p->identity_number;
                 }
                 return [
                     'id' => (string) $p->id,
@@ -60,7 +61,18 @@ class PasienController extends Controller
         if ($request->ajax()) {
             // eager-load nested area relations so DataTables payload includes village/district/regency/province
             $pasiens = Pasien::with('village.district.regency.province')
-                ->select('id', 'nama', 'nik', 'alamat', 'village_id', 'no_hp', 'status_pasien', 'status_akses', 'status_review');
+                ->select([
+                    'id',
+                    'nama',
+                    'identity_document',
+                    'identity_number',
+                    'alamat',
+                    'village_id',
+                    'no_hp',
+                    'status_pasien',
+                    'status_akses',
+                    'status_review',
+                ]);
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
@@ -69,7 +81,7 @@ class PasienController extends Controller
                 $pasiens->where('nama', 'like', '%' . $request->nama . '%');
             }
             if ($request->nik) {
-                $pasiens->where('nik', 'like', '%' . $request->nik . '%');
+                $pasiens->where('identity_number', 'like', '%' . $request->nik . '%');
             }
             if ($request->alamat) {
                 $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
@@ -246,7 +258,7 @@ class PasienController extends Controller
     
         if ($request->has('edit_id')) {
             // eager-load nested area relations so the view can access province/regency/district
-            $pasien = Pasien::with('village.district.regency.province')->find($request->edit_id);
+            $pasien = Pasien::with(['village.district.regency.province', 'referralPasien'])->find($request->edit_id);
             $isEditing = true;
         }
     
@@ -262,8 +274,22 @@ class PasienController extends Controller
 
     public function store(Request $request)
 {
+    $request->merge([
+        'identity_document' => $request->input('identity_document', 'ktp'),
+        'identity_number' => $request->input('identity_number', $request->input('nik')),
+    ]);
+
     $validator = Validator::make($request->all(), [
-        'nik' => 'required|string|max:16|unique:erm_pasiens,nik,' . $request->pasien_id . ',id',
+        'identity_document' => 'required|in:ktp,sim,paspor,kia',
+        'identity_number' => [
+            'required',
+            'string',
+            'max:50',
+            Rule::unique('erm_pasiens', 'identity_number')->ignore($request->pasien_id, 'id'),
+        ],
+        'referral_type' => 'nullable|in:social_media,website,other_pasien,lainnya',
+        'referral_pasien_id' => 'nullable|string|exists:erm_pasiens,id',
+        'referral_detail' => 'nullable|string|max:255',
         'nama' => 'required|string|max:255',
         'tanggal_lahir' => 'required|date',
         'gender' => 'required|in:Laki-laki,Perempuan',
@@ -280,6 +306,24 @@ class PasienController extends Controller
         'status_akses' => 'nullable|in:normal,akses cepat',
     ]);
 
+    $validator->after(function ($validator) use ($request) {
+        if ($request->identity_document === 'ktp') {
+            $identityNumber = (string) $request->identity_number;
+
+            if (!preg_match('/^\d{16}$/', $identityNumber)) {
+                $validator->errors()->add('identity_number', 'Nomor identitas untuk KTP harus 16 digit angka.');
+            }
+        }
+
+        if ($request->referral_type === 'other_pasien' && empty($request->referral_pasien_id)) {
+            $validator->errors()->add('referral_pasien_id', 'Silakan pilih pasien sumber referral.');
+        }
+
+        if ($request->referral_type === 'lainnya' && empty(trim((string) $request->referral_detail))) {
+            $validator->errors()->add('referral_detail', 'Silakan isi detail referral lainnya.');
+        }
+    });
+
     if ($validator->fails()) {
         return response()->json([
             'status' => 'error',
@@ -288,6 +332,9 @@ class PasienController extends Controller
     }
 
     $userId = Auth::id();
+    $referralType = $request->filled('referral_type') ? $request->referral_type : null;
+    $referralPasienId = $referralType === 'other_pasien' ? $request->referral_pasien_id : null;
+    $referralDetail = $referralType === 'lainnya' ? trim((string) $request->referral_detail) : null;
 
     DB::beginTransaction();
 
@@ -299,7 +346,11 @@ class PasienController extends Controller
             // Update existing patient
             $pasien = Pasien::findOrFail($pasienId);
             $pasien->update([
-                'nik' => $request->nik,
+                'identity_document' => $request->identity_document,
+                'identity_number' => $request->identity_number,
+                'referral_type' => $referralType,
+                'referral_pasien_id' => $referralPasienId,
+                'referral_detail' => $referralDetail,
                 'nama' => $request->nama,
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'gender' => $request->gender,
@@ -332,7 +383,11 @@ class PasienController extends Controller
             // Insert pasien
             $pasien = Pasien::create([
                 'id' => $newId,
-                'nik' => $request->nik,
+                'identity_document' => $request->identity_document,
+                'identity_number' => $request->identity_number,
+                'referral_type' => $referralType,
+                'referral_pasien_id' => $referralPasienId,
+                'referral_detail' => $referralDetail,
                 'nama' => $request->nama,
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'gender' => $request->gender,

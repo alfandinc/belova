@@ -9,6 +9,9 @@
     <div class="card">
         <div class="card-body">
             <h4 class="card-title">Pasien SatuSehat — Kunjungan Hari Ini</h4>
+            <div class="alert alert-info py-2 px-3 mb-3">
+                Lookup data Kemkes hanya tersedia untuk pasien dengan dokumen identitas KTP/NIK.
+            </div>
             <div class="row mb-3">
                 <div class="col-md-4">
                     <label for="filterDate">Tanggal</label>

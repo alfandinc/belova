@@ -19,8 +19,8 @@
               <td>: <span id="info-nama"></span></td>
             </tr>
             <tr>
-              <th>NIK</th>
-              <td>: <span id="info-nik"></span></td>
+              <th><span id="info-identity-label">Identitas</span></th>
+              <td>: <span id="info-identity-value"></span></td>
             </tr>
             <tr>
               <th>Jenis Kelamin</th>

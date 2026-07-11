@@ -98,7 +98,7 @@
           <tbody>
             <tr><th>ID</th><td id="modal-pasien-id"></td></tr>
             <tr><th>Nama</th><td id="modal-pasien-nama"></td></tr>
-            <tr><th>NIK</th><td id="modal-pasien-nik"></td></tr>
+            <tr><th id="modal-pasien-identity-label">Identitas</th><td id="modal-pasien-identity-value"></td></tr>
             <tr><th>Tanggal Lahir</th><td id="modal-pasien-tanggal_lahir"></td></tr>
             <tr><th>Gender</th><td id="modal-pasien-gender"></td></tr>
             <tr><th>Agama</th><td id="modal-pasien-agama"></td></tr>
@@ -281,7 +281,8 @@
         // Fill modal fields
         $('#modal-pasien-id').text(pasien.id || '-');
         $('#modal-pasien-nama').text(pasien.nama || '-');
-        $('#modal-pasien-nik').text(pasien.nik || '-');
+        $('#modal-pasien-identity-label').text(pasien.identity_label || 'Identitas');
+        $('#modal-pasien-identity-value').text(pasien.identity_number || pasien.nik || '-');
         $('#modal-pasien-tanggal_lahir').text(pasien.tanggal_lahir || '-');
         $('#modal-pasien-gender').text(pasien.gender || '-');
         $('#modal-pasien-agama').text(pasien.agama || '-');

@@ -40,8 +40,8 @@
           <tr>
             <td>ALAMAT</td>
             <td><span id="ic_alamat" class="ic-line">&nbsp;</span></td>
-            <td>NIK</td>
-            <td><span id="ic_nik" class="ic-line">&nbsp;</span></td>
+            <td><span id="ic_identity_label">Identitas</span></td>
+            <td><span id="ic_identity_number" class="ic-line">&nbsp;</span></td>
           </tr>
           <tr>
             <td>NO. RM</td>
@@ -162,28 +162,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var nama = '';
     var alamat = '';
-    var nik = '';
+    var identityLabel = 'Identitas';
+    var identityNumber = '';
     var no_hp = '';
     var tanggal_lahir = '';
 
     if (fromIndex) {
       nama = pasienData.nama || '';
       alamat = pasienData.alamat || '';
-      nik = pasienData.nik || '';
+      identityLabel = pasienData.identity_label || 'Identitas';
+      identityNumber = pasienData.identity_number || pasienData.nik || '';
       no_hp = pasienData.no_hp || '';
       tanggal_lahir = formatDateIdLong(pasienData.tanggal_lahir || '');
     } else {
       // Populate patient fields from the form inputs (create/edit page)
       nama = $('#pasien-form').find('#nama').val() || '';
       alamat = $('#pasien-form').find('#alamat').val() || '';
-      nik = $('#pasien-form').find('#nik').val() || '';
+      identityLabel = $('#pasien-form').find('#identity_number_label').text() || 'Identitas';
+      identityNumber = $('#pasien-form').find('#identity_number').val() || '';
       no_hp = $('#pasien-form').find('#no_hp').val() || $('#pasien-form').find('#no_hp2').val() || '';
       tanggal_lahir = formatDateIdLong($('#pasien-form').find('#tanggal_lahir').val() || '');
     }
 
     $('#ic_nama').text(nama);
     $('#ic_alamat').text(alamat);
-    $('#ic_nik').text(nik);
+    $('#ic_identity_label').text(identityLabel);
+    $('#ic_identity_number').text(identityNumber);
     $('#ic_no_hp').text(no_hp);
     $('#ic_tanggal_lahir').text(tanggal_lahir);
     // NO. RM (use pasien id when available)

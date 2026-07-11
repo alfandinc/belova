@@ -267,8 +267,8 @@
                 <td width="30%">{{ $visitation->pasien->nama }}</td>
             </tr>
             <tr>
-                <th>NIK</th>
-                <td>{{ $visitation->pasien->nik }}</td>
+                <th>{{ $visitation->pasien->identity_label ?? 'Identitas' }}</th>
+                <td>{{ $visitation->pasien->identity_number ?? $visitation->pasien->nik ?? '-' }}</td>
                 <th>Tanggal Lahir</th>
                 <td>{{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d-m-Y') }}</td>
             </tr>

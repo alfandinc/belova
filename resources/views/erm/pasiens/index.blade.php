@@ -196,7 +196,7 @@ r
                     <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
                 </div>
                 <div class="col-md-2 mb-2">
-                    <input type="text" id="filter_nik" class="form-control" placeholder="NIK">
+                    <input type="text" id="filter_nik" class="form-control" placeholder="Identitas">
                 </div>
                 <div class="col-md-4 mb-2">
                     <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
@@ -237,7 +237,7 @@ r
                     <tr>
                         <th>No RM</th>
                         <th>Name</th>
-                        <th>NIK</th>
+                        <th>Identitas</th>
                         <th>Alamat</th>
                         <th>No HP</th>
                         <th>Inform Consent</th>
@@ -277,7 +277,7 @@ $(document).ready(function () {
         columns: [
             { data: 'id', name: 'id' },
             { data: 'nama', name: 'nama' },
-            { data: 'nik', name: 'nik' },
+            { data: 'nik', name: 'identity_number' },
             { data: 'alamat', name: 'alamat' },
             { data: 'no_hp', name: 'no_hp' },
             { data: 'ic', name: 'ic', orderable: false, searchable: false, defaultContent: '' },
@@ -339,6 +339,16 @@ $(document).ready(function () {
                 }
             },
             {
+                targets: 2,
+                render: function(data, type, row) {
+                    if (row.identity_display && row.identity_display !== '-') {
+                        return row.identity_display;
+                    }
+
+                    return data || '-';
+                }
+            },
+            {
                 // Inform Consent column renderer (index 5)
                 targets: 5,
                 render: function(data, type, row) {
@@ -347,7 +357,8 @@ $(document).ready(function () {
                                    title="Isi IC Pendaftaran"
                                    data-id="${row.id}"
                                    data-nama="${(row.nama||'').toString().replace(/"/g,'&quot;')}"
-                                   data-nik="${row.nik||''}"
+                                   data-identity-label="${(row.identity_label||'Identitas').toString().replace(/"/g,'&quot;')}"
+                                   data-identity-number="${(row.identity_number||row.nik||'').toString().replace(/"/g,'&quot;')}"
                                    data-alamat="${(row.alamat||'').toString().replace(/"/g,'&quot;')}"
                                    data-nohp="${row.no_hp||''}"
                                    data-tgllahir="${tgllahir}">
@@ -458,7 +469,8 @@ let currentPasienId;
                 // Populate table cells with response data
                 $('#info-no-rm').text(response.id);
                 $('#info-nama').text(response.nama);
-                $('#info-nik').text(response.nik);
+                $('#info-identity-label').text(response.identity_label || 'Identitas');
+                $('#info-identity-value').text(response.identity_number || response.nik || '-');
                 // Build combined address: alamat, desa, kecamatan, kabupaten, provinsi
                 const alamat = response.alamat || '';
                 const villageName = response.village && response.village.name ? response.village.name : '';
@@ -512,7 +524,8 @@ let currentPasienId;
         const fallback = {
             id: id,
             nama: ($(this).attr('data-nama') || ''),
-            nik: ($(this).attr('data-nik') || ''),
+            identity_label: ($(this).attr('data-identity-label') || 'Identitas'),
+            identity_number: ($(this).attr('data-identity-number') || ''),
             alamat: ($(this).attr('data-alamat') || ''),
             no_hp: ($(this).attr('data-nohp') || ''),
             tanggal_lahir: ($(this).attr('data-tgllahir') || '')
@@ -525,7 +538,8 @@ let currentPasienId;
             const pasien = {
                 id: (resp.id || fallback.id).toString(),
                 nama: resp.nama || fallback.nama,
-                nik: (resp.nik || fallback.nik).toString(),
+                identity_label: resp.identity_label || fallback.identity_label,
+                identity_number: (resp.identity_number || resp.nik || fallback.identity_number).toString(),
                 alamat: resp.alamat || fallback.alamat,
                 no_hp: (resp.no_hp || fallback.no_hp).toString(),
                 tanggal_lahir: resp.tanggal_lahir || fallback.tanggal_lahir

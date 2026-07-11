@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Satusehat;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\ERM\Pasien as ErmPasien;
 use App\Models\ERM\Visitation;
 use App\Models\Satusehat\ClinicConfig;
 use App\Models\Satusehat\PatientGet;
@@ -1065,6 +1066,7 @@ class PasienController extends Controller
             $pasienId = $v->pasien_id;
             $patientUrl = $pasienId ? route('erm.pasien.show', $pasienId) : '#';
             $nik = $v->pasien->nik ?? null;
+            $identityDocument = $v->pasien->identity_document ?? null;
             $diagnosa = null;
             $asesmen = $v->asesmenPenunjang ?? null;
             if ($asesmen) {
@@ -1117,22 +1119,32 @@ class PasienController extends Controller
                     }
                 }
 
+                $identityDisplay = $v->pasien->identity_display ?? ((isset($v->pasien->nik) && $v->pasien->nik) ? 'NIK: ' . $v->pasien->nik : '');
+                $isKtpIdentity = $identityDocument === ErmPasien::IDENTITY_DOCUMENT_KTP;
+                $satusehatWarning = $isKtpIdentity ? null : 'Kemkes lookup hanya untuk pasien dengan dokumen KTP/NIK.';
+                $getDataButtonAttributes = $isKtpIdentity
+                    ? 'data-visitation-id="' . $v->id . '" class="btn btn-sm btn-outline-info btn-get-data"'
+                    : 'data-visitation-id="' . $v->id . '" class="btn btn-sm btn-outline-secondary" disabled title="' . e($satusehatWarning) . '"';
+
                 return [
                 'id' => $v->id,
                 'tanggal_visitation' => $v->tanggal_visitation,
                 'nik' => $nik,
+                'identity_display' => $identityDisplay,
+                'satusehat_warning' => $satusehatWarning,
                 'waktu_kunjungan' => $v->waktu_kunjungan,
                 'no_antrian' => $v->no_antrian,
-                // render pasien name with NIK below (muted small text)
+                // render pasien name with identity document below (muted small text)
                 'pasien' => (isset($v->pasien->nama) ? e($v->pasien->nama) : '')
-                    . (isset($v->pasien->nik) ? '<br><small class="text-muted">' . e($v->pasien->nik) . '</small>' : ''),
+                    . (!empty($identityDisplay) && $identityDisplay !== '-' ? '<br><small class="text-muted">' . e($identityDisplay) . '</small>' : '')
+                    . ($satusehatWarning ? '<br><small class="text-warning">' . e($satusehatWarning) . '</small>' : ''),
                 'encounter_status' => $encounterBadge,
                 'diagnosa' => $diagnosa,
                 'dokter' => $dokterHtml,
                 'klinik' => $klinikName,
                 'status_kunjungan' => $v->status_kunjungan,
                     'aksi' => '<div class="btn-group" role="group" aria-label="Aksi">'
-                        . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-outline-info btn-get-data">Get Data</button> '
+                        . '<button ' . $getDataButtonAttributes . '>Get Data</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-success btn-create-encounter">Create Encounter</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-info btn-update-encounter">Update Encounter</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-danger btn-finish-encounter">Finish Encounter</button> '
@@ -1146,7 +1158,7 @@ class PasienController extends Controller
     }
 
     /**
-     * Fetch patient data from Kemkes FHIR based on visitation's klinik config and pasien nik
+     * Fetch patient data from Kemkes FHIR based on visitation's klinik config and pasien KTP/NIK.
      */
     public function getKemkesPatient(Request $request, $visitationId)
     {
@@ -1158,9 +1170,19 @@ class PasienController extends Controller
             return response()->json(['ok' => false, 'error' => 'Clinic config or base_url not found'], 404);
         }
 
-        $nik = $visitation->pasien->nik ?? null;
+        $identityDocument = $visitation->pasien->identity_document ?? null;
+        if ($identityDocument !== ErmPasien::IDENTITY_DOCUMENT_KTP) {
+            $documentLabel = $visitation->pasien->identity_label ?? 'Identitas';
+
+            return response()->json([
+                'ok' => false,
+                'error' => 'Kemkes lookup hanya mendukung pasien dengan dokumen KTP/NIK. Dokumen pasien ini: ' . $documentLabel,
+            ], 400);
+        }
+
+        $nik = $visitation->pasien->identity_number ?? $visitation->pasien->nik ?? null;
         if (!$nik) {
-            return response()->json(['ok' => false, 'error' => 'Patient NIK not available'], 400);
+            return response()->json(['ok' => false, 'error' => 'Nomor KTP/NIK pasien tidak tersedia'], 400);
         }
 
         $identifier = 'https://fhir.kemkes.go.id/id/nik|' . $nik;

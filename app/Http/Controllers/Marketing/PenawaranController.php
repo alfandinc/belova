@@ -108,7 +108,7 @@ class PenawaranController extends Controller
             $query->where(function ($q) use ($term) {
                 $q->where('nama', 'like', '%' . $term . '%')
                     ->orWhere('id', 'like', '%' . $term . '%')
-                    ->orWhere('nik', 'like', '%' . $term . '%');
+                    ->orWhere('identity_number', 'like', '%' . $term . '%');
             });
         }
 

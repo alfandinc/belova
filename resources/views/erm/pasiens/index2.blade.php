@@ -38,7 +38,7 @@
                                     <tr>
                                         <th>No RM</th>
                                         <th>Name</th>
-                                        <th>NIK</th>
+                                        <th>Identitas</th>
                                         <th>Alamat</th>
                                         <th>No HP</th>
                                         <th>Action</th>
@@ -62,7 +62,7 @@ $(document).ready(function() {
     columns: [
         { data: 'id', name: 'id' },
         { data: 'nama', name: 'nama' },
-        { data: 'nik', name: 'nik' },
+        { data: 'nik', name: 'identity_number', render: function(data, type, row) { return row.identity_display || data || '-'; } },
         { data: 'alamat', name: 'alamat' },
         { data: 'no_hp', name: 'no_hp' },
         { data: 'actions', name: 'actions', orderable: false, searchable: false }

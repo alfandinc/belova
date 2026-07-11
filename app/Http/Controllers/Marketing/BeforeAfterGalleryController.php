@@ -116,7 +116,7 @@ class BeforeAfterGalleryController extends Controller
             ->where(function ($query) use ($term) {
                 $query->where('nama', 'like', '%' . $term . '%')
                     ->orWhere('id', 'like', '%' . $term . '%')
-                    ->orWhere('nik', 'like', '%' . $term . '%');
+                    ->orWhere('identity_number', 'like', '%' . $term . '%');
             })
             ->orderBy('nama')
             ->limit(20)

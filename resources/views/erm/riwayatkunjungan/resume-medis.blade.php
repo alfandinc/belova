@@ -73,7 +73,7 @@
     <td style="width: 12%; line-height: 0.8;"><strong>No RM</strong> </td> <td style="width: 28%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->id }}</td>
   </tr>
   <tr>   
-    <td style="width: 12%; line-height: 0.8;"><strong>NIK</strong> </td> <td style="width: 48%%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->nik }}</td>
+    <td style="width: 12%; line-height: 0.8;"><strong>{{ $pasien->identity_label ?? 'Identitas' }}</strong> </td> <td style="width: 48%%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->identity_number ?? $pasien->nik ?? '-' }}</td>
     <td style="width: 12%; line-height: 0.8;"><strong>Tgl Lahir</strong> </td> <td style="width: 28%; line-height: 0.8;" ><strong>:</strong> {{ \Carbon\Carbon::parse($pasien->tanggal_lahir)->translatedFormat('d F Y') }}</td>
   </tr>
   <tr>   

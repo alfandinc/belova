@@ -104,8 +104,8 @@
     <td style="width: 28%;"><strong>:</strong> {{ $pasien->id }}</td>
   </tr>
   <tr>
-    <td><strong>NIK</strong></td>
-    <td><strong>:</strong> {{ $pasien->nik }}</td>
+    <td><strong>{{ $pasien->identity_label ?? 'Identitas' }}</strong></td>
+    <td><strong>:</strong> {{ $pasien->identity_number ?? $pasien->nik ?? '-' }}</td>
     <td><strong>Tgl Lahir</strong></td>
     <td><strong>:</strong> {{ \Carbon\Carbon::parse($pasien->tanggal_lahir)->translatedFormat('d F Y') }}</td>
   </tr>

@@ -77,7 +77,7 @@ $(document).ready(function(){
     // pasien select2 ajax
     $('#rj_pasien_id').select2({
         width: '100%',
-        placeholder: 'Cari pasien (nama / RM / NIK)',
+        placeholder: 'Cari pasien (nama / RM / identitas)',
         allowClear: true,
         ajax: {
             url: "{{ route('erm.pasiens.select2') }}",

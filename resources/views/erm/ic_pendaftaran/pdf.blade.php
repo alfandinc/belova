@@ -45,8 +45,8 @@
         <tr>
             <td class="label">ALAMAT</td>
             <td>{{ $pasien->alamat ?? '-' }}</td>
-            <td class="label">NIK</td>
-            <td>{{ $pasien->nik ?? '-' }}</td>
+            <td class="label">{{ $pasien->identity_label ?? 'Identitas' }}</td>
+            <td>{{ $pasien->identity_number ?? $pasien->nik ?? '-' }}</td>
         </tr>
         <tr>
             <td class="label">NO. RM</td>

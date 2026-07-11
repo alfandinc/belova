@@ -55,10 +55,22 @@
                 <h3>Personal Data</h3>
                     <fieldset>
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="nik">NIK</label>
-                                    <input type="text" class="form-control" id="nik" name="nik" maxlength="16" required value="{{ $pasien->nik ?? '' }}">
+                                    <label for="identity_document">Dokumen Identitas</label>
+                                    <select class="form-control select2" id="identity_document" name="identity_document" required>
+                                        <option value="ktp" {{ ($pasien->identity_document ?? 'ktp') === 'ktp' ? 'selected' : '' }}>KTP</option>
+                                        <option value="sim" {{ ($pasien->identity_document ?? '') === 'sim' ? 'selected' : '' }}>SIM</option>
+                                        <option value="paspor" {{ ($pasien->identity_document ?? '') === 'paspor' ? 'selected' : '' }}>Paspor</option>
+                                        <option value="kia" {{ ($pasien->identity_document ?? '') === 'kia' ? 'selected' : '' }}>KIA</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="identity_number" id="identity_number_label">Nomor Identitas</label>
+                                    <input type="text" class="form-control" id="identity_number" name="identity_number" maxlength="50" required value="{{ old('identity_number', $pasien->identity_number ?? $pasien->nik ?? '') }}">
+                                    <small class="form-text text-muted" id="identity_number_help">KTP wajib 16 digit. Dokumen lain boleh memakai nomor sesuai dokumen.</small>
                                 </div>
                             </div>
                             <div class="col-md-6">
@@ -91,7 +103,7 @@
                             <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="agama">Agama</label>
-                                    <select class="form-control select2" id="agama" name="agama" >>
+                                    <select class="form-control select2" id="agama" name="agama">
                                         <option value="" disabled selected>Select Agama</option>
                                         <option value="Islam">Islam</option>
                                         <option value="Kristen Protestan">Kristen Protestan</option>
@@ -293,6 +305,43 @@
                     </div>
                 </div>
                 </fieldset>
+                <h3>Referral Data</h3>
+                <fieldset>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="referral_type">Sumber Referral</label>
+                                <select class="form-control select2" id="referral_type" name="referral_type">
+                                    <option value="">Pilih Sumber Referral</option>
+                                    <option value="social_media" {{ old('referral_type', $pasien->referral_type ?? '') === 'social_media' ? 'selected' : '' }}>Social Media</option>
+                                    <option value="website" {{ old('referral_type', $pasien->referral_type ?? '') === 'website' ? 'selected' : '' }}>Website</option>
+                                    <option value="other_pasien" {{ old('referral_type', $pasien->referral_type ?? '') === 'other_pasien' ? 'selected' : '' }}>Pasien Lain</option>
+                                    <option value="lainnya" {{ old('referral_type', $pasien->referral_type ?? '') === 'lainnya' ? 'selected' : '' }}>Lainnya</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row d-none" id="referral_pasien_wrapper">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label for="referral_pasien_id">Pasien Referral</label>
+                                <select class="form-control" id="referral_pasien_id" name="referral_pasien_id" data-selected-id="{{ old('referral_pasien_id', $pasien->referral_pasien_id ?? '') }}" data-selected-text="{{ old('referral_pasien_text', $pasien?->referralPasien?->nama ? $pasien->referralPasien->nama . ' (RM: ' . $pasien->referralPasien->id . ')' : '') }}">
+                                </select>
+                                <small class="form-text text-muted">Cari berdasarkan nama pasien, nomor RM, atau nomor identitas.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row d-none" id="referral_detail_wrapper">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label for="referral_detail">Detail Referral</label>
+                                <input type="text" class="form-control" id="referral_detail" name="referral_detail" maxlength="255" value="{{ old('referral_detail', $pasien->referral_detail ?? '') }}" placeholder="Contoh: tetangga, brosur, event, dll.">
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
                     {{-- <button type="submit">Test Submit</button> --}}
             </form>
         </div>
@@ -343,6 +392,25 @@
     
     $('.select2').select2({ width: '100%' });
 
+    $('#referral_pasien_id').select2({
+        width: '100%',
+        placeholder: 'Cari pasien referral',
+        allowClear: true,
+        ajax: {
+            url: '{{ route('erm.pasiens.select2') }}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return data;
+            }
+        }
+    });
+
     // VALIDASI INPUT
 
     $('#nama').on('input', function () {
@@ -351,22 +419,124 @@
     $('#alamat').on('input', function () {
         this.value = this.value.toUpperCase();
     });
-    $('#nik').on('input', function () {
-    // Remove non-digits and cut off at 16 characters
-    this.value = this.value.replace(/\D/g, '').slice(0, 16);
+    const identityDocumentLabels = {
+        ktp: 'NIK',
+        sim: 'Nomor SIM',
+        paspor: 'Nomor Paspor',
+        kia: 'Nomor KIA'
+    };
+
+    const identityDocumentHints = {
+        ktp: 'KTP wajib 16 digit angka.',
+        sim: 'Masukkan nomor SIM sesuai dokumen.',
+        paspor: 'Masukkan nomor paspor sesuai dokumen.',
+        kia: 'Masukkan nomor KIA sesuai dokumen anak.'
+    };
+
+    function syncIdentityInput() {
+        const documentType = $('#identity_document').val() || 'ktp';
+        const identityInput = $('#identity_number');
+
+        $('#identity_number_label').text(identityDocumentLabels[documentType] || 'Nomor Identitas');
+        $('#identity_number_help').text(identityDocumentHints[documentType] || 'Masukkan nomor identitas sesuai dokumen.');
+
+        if (documentType === 'ktp') {
+            identityInput.attr('maxlength', 16);
+            identityInput.attr('inputmode', 'numeric');
+            identityInput.attr('placeholder', '16 digit nomor KTP');
+            identityInput.val(identityInput.val().replace(/\D/g, '').slice(0, 16));
+            return;
+        }
+
+        identityInput.attr('maxlength', 50);
+        identityInput.attr('inputmode', 'text');
+        identityInput.attr('placeholder', 'Masukkan nomor dokumen');
+    }
+
+    function syncReferralFields() {
+        const referralType = $('#referral_type').val() || '';
+        const referralPasienWrapper = $('#referral_pasien_wrapper');
+        const referralDetailWrapper = $('#referral_detail_wrapper');
+        const referralPasienInput = $('#referral_pasien_id');
+        const referralDetailInput = $('#referral_detail');
+
+        const isOtherPasien = referralType === 'other_pasien';
+        const isLainnya = referralType === 'lainnya';
+
+        referralPasienWrapper.toggleClass('d-none', !isOtherPasien);
+        referralDetailWrapper.toggleClass('d-none', !isLainnya);
+
+        referralPasienInput.prop('required', isOtherPasien);
+        referralPasienInput.prop('disabled', !isOtherPasien);
+        referralDetailInput.prop('required', isLainnya);
+        referralDetailInput.prop('disabled', !isLainnya);
+
+        if (!isOtherPasien) {
+            referralPasienInput.val(null).trigger('change');
+        }
+
+        if (!isLainnya) {
+            referralDetailInput.val('');
+        }
+    }
+
+    function hydrateReferralPasienSelection() {
+        const referralPasienInput = $('#referral_pasien_id');
+        const selectedId = referralPasienInput.data('selected-id');
+        const selectedText = referralPasienInput.data('selected-text');
+
+        if (!selectedId || !selectedText) {
+            return;
+        }
+
+        if (referralPasienInput.find("option[value='" + selectedId + "']").length === 0) {
+            const option = new Option(selectedText, selectedId, true, true);
+            referralPasienInput.append(option).trigger('change');
+        } else {
+            referralPasienInput.val(selectedId).trigger('change');
+        }
+    }
+
+    $('#identity_document').on('change', function () {
+        $('#identity_number').removeClass('is-invalid');
+        $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
+        syncIdentityInput();
     });
-     $('#nik').on('blur', function () {
+
+    $('#referral_type').on('change', function () {
+        $('#referral_pasien_id').removeClass('is-invalid');
+        $('#referral_detail').removeClass('is-invalid');
+        $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
+        syncReferralFields();
+    });
+
+    $('#identity_number').on('input', function () {
+        if (($('#identity_document').val() || 'ktp') === 'ktp') {
+            this.value = this.value.replace(/\D/g, '').slice(0, 16);
+            return;
+        }
+
+        this.value = this.value.toUpperCase().slice(0, 50);
+    });
+
+    $('#identity_number').on('blur', function () {
         const value = $(this).val();
-        if (value.length > 0 && value.length !== 16) {
+        const documentType = $('#identity_document').val() || 'ktp';
+
+        if (documentType === 'ktp' && value.length > 0 && value.length !== 16) {
             Swal.fire({
                 icon: 'warning',
-                title: 'Invalid NIK',
-                text: 'NIK must be exactly 16 digits!',
+                title: 'Nomor identitas tidak valid',
+                text: 'Nomor KTP harus tepat 16 digit angka.',
             }).then(() => {
                 $(this).val('').focus();
             });
         }
     });
+
+    syncIdentityInput();
+    hydrateReferralPasienSelection();
+    syncReferralFields();
 
     $('#tanggal_lahir').on('change', function () {
         const selectedDate = new Date(this.value);
@@ -540,6 +710,7 @@
         $('#pekerjaan').val('{{ $pasien->pekerjaan }}').trigger('change');
         $('#gol_darah').val('{{ $pasien->gol_darah }}').trigger('change');
         $('#status_pasien').val('{{ $pasien->status_pasien ?? "Regular" }}').trigger('change');
+    $('#referral_type').val('{{ $pasien->referral_type ?? "" }}').trigger('change');
         
         // Handle address selection
         @if($pasien->village && $pasien->village->district && $pasien->village->district->regency && $pasien->village->district->regency->province)
