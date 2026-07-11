@@ -45,7 +45,7 @@
                 </div>
                 @endif
 
-                @if(auth()->user()->hasRole('Manager'))
+                @if(auth()->user()->hasAnyRole('Manager', 'Head Manager'))
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
@@ -339,7 +339,7 @@ $(document).ready(function() {
     @endif
 
     // DataTable untuk Manager (team)
-    @if(auth()->user()->hasRole('Manager'))
+    @if(auth()->user()->hasAnyRole('Manager', 'Head Manager'))
     var tableTeam = $('#tableGantiShiftTeam').DataTable({
         processing: true,
         serverSide: true,

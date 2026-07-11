@@ -97,8 +97,8 @@ class PengajuanGantiShiftController extends Controller
                     ->rawColumns(['jenis', 'status_manager', 'status_hrd', 'status_target', 'action'])
                     ->make(true);
             }
-            // Manager: data subordinate berdasarkan parent posisi (view=team)
-            else if ($viewType == 'team' && $user->hasRole('Manager')) {
+            // Manager and Head Manager: data subordinate berdasarkan parent posisi (view=team)
+            else if ($viewType == 'team' && $user->hasAnyRole('Manager', 'Head Manager')) {
                 $employeeIds = $user->employee ? $this->getSubordinateEmployeeIds($user->employee) : [];
                 $data = PengajuanGantiShift::whereIn('employee_id', $employeeIds)
                     ->with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
