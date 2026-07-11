@@ -138,6 +138,11 @@ class Visitation extends Model
         return $this->hasOne(ScreeningBatuk::class, 'visitation_id');
     }
 
+    public function screeningVaksin()
+    {
+        return $this->hasOne(ScreeningVaksin::class, 'visitation_id');
+    }
+
     public function waMessages()
     {
         return $this->hasMany(\App\Models\WaMessage::class, 'visitation_id');

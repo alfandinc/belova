@@ -10,6 +10,7 @@ use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
 use App\Models\ERM\ScreeningBatuk;
+use App\Models\ERM\ScreeningVaksin;
 use App\Models\ERM\Rujuk;
 use App\Models\ERM\LabPermintaan;
 use Illuminate\Support\Facades\Log;
@@ -57,6 +58,18 @@ class RawatJalanController extends Controller
         }
 
         return response()->view('erm.rawatjalans.partials.screening_batuk_modals');
+    }
+
+    /**
+     * Lazy-loaded modal HTML for Screening Vaksin.
+     */
+    public function screeningVaksinModals()
+    {
+        if (!Auth::check()) {
+            return response('Unauthenticated', 401);
+        }
+
+        return response()->view('erm.rawatjalans.partials.screening_vaksin_modals');
     }
 
     /**
@@ -547,6 +560,7 @@ class RawatJalanController extends Controller
                     ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
                     // avoid eager-load queries by using cheap correlated subqueries
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
+                    ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
                     ->selectRaw('EXISTS(SELECT 1 FROM wa_scheduled_messages wsm WHERE wsm.visitation_id = erm_visitations.id) as has_wa_scheduled_message')
                     ->selectRaw("(SELECT COUNT(1) FROM wa_messages wm WHERE wm.visitation_id = erm_visitations.id AND LOWER(COALESCE(wm.direction, '')) = 'in') as incoming_wa_message_count")
                     ->selectSub(
@@ -681,6 +695,11 @@ class RawatJalanController extends Controller
                         } else {
                             $actionButtons[] = '<button class="btn btn-sm btn-primary screening-btn" style="font-weight:bold;" title="Dokumen" data-visitation-id="' . $visitationId . '"><i class="fas fa-file-alt mr-1"></i>Dokumen</button>';
                         }
+                        if (!empty($v->has_screening_vaksin)) {
+                            $actionButtons[] = '<button class="btn btn-sm btn-success view-screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe"></i></button>';
+                        } else {
+                            $actionButtons[] = '<button class="btn btn-sm btn-outline-success screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe"></i></button>';
+                        }
                         $actionButtons[] = '<button class="btn btn-sm btn-info btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien Memasuki Ruangan" data-visitation-id="' . $visitationId . '" data-pasien-nama="' . e($v->nama_pasien ?? 'Pasien') . '"><i class="fas fa-door-open"></i></button>';
                     } elseif ($user->hasRole('Dokter')) {
                         if ($v->status_dokumen === 'asesmen') {
@@ -738,6 +757,7 @@ class RawatJalanController extends Controller
                 ->removeColumn('dokter_user_name')
                 ->removeColumn('spesialisasi_nama')
                 ->removeColumn('has_screening_batuk')
+                ->removeColumn('has_screening_vaksin')
                 ->removeColumn('asesmen_penunjang_created_at')
                 ->removeColumn('cppt_created_at')
                 ->rawColumns(['antrian', 'nama_pasien', 'dokumen'])
@@ -1719,6 +1739,149 @@ class RawatJalanController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat memperbarui data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function storeScreeningVaksin(Request $request)
+    {
+        Log::info('Screening Vaksin Request Data:', $request->all());
+
+        $request->validate([
+            'visitation_id' => 'required|string',
+            'sakit_hari_ini' => 'required|in:ya,tidak',
+            'alergi_obat_makanan_vaksin' => 'required|in:ya,tidak',
+            'efek_samping_vaksin_berat' => 'required|in:ya,tidak',
+            'gangguan_kekebalan_tubuh' => 'required|in:ya,tidak',
+            'obat_steroid_atau_terapi' => 'required|in:ya,tidak',
+            'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
+            'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
+            'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
+            'catatan' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $visitation = Visitation::find($request->visitation_id);
+
+            if (!$visitation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kunjungan tidak ditemukan dengan ID: ' . $request->visitation_id,
+                ], 404);
+            }
+
+            $payload = [
+                'visitation_id' => $request->visitation_id,
+                'sakit_hari_ini' => $request->sakit_hari_ini,
+                'alergi_obat_makanan_vaksin' => $request->alergi_obat_makanan_vaksin,
+                'efek_samping_vaksin_berat' => $request->efek_samping_vaksin_berat,
+                'gangguan_kekebalan_tubuh' => $request->gangguan_kekebalan_tubuh,
+                'obat_steroid_atau_terapi' => $request->obat_steroid_atau_terapi,
+                'transfusi_darah_atau_imunoglobulin' => $request->transfusi_darah_atau_imunoglobulin,
+                'hamil_atau_rencana_hamil' => $request->hamil_atau_rencana_hamil,
+                'vaksinasi_4_minggu_terakhir' => $request->vaksinasi_4_minggu_terakhir,
+                'catatan' => $request->catatan,
+                'created_by' => Auth::id(),
+            ];
+
+            $existingScreening = ScreeningVaksin::where('visitation_id', $request->visitation_id)->first();
+
+            if ($existingScreening) {
+                $existingScreening->update($payload);
+            } else {
+                ScreeningVaksin::create($payload);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data screening vaksin berhasil disimpan.',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Screening Vaksin Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function getScreeningVaksin($visitationId)
+    {
+        try {
+            $screening = ScreeningVaksin::where('visitation_id', $visitationId)->first();
+
+            if (!$screening) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data screening vaksin tidak ditemukan',
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $screening,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get Screening Vaksin Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengambil data: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function updateScreeningVaksin(Request $request, $id)
+    {
+        Log::info('Update Screening Vaksin Request Data:', $request->all());
+        Log::info('Screening Vaksin ID:', [$id]);
+
+        $request->validate([
+            'visitation_id' => 'required|string',
+            'sakit_hari_ini' => 'required|in:ya,tidak',
+            'alergi_obat_makanan_vaksin' => 'required|in:ya,tidak',
+            'efek_samping_vaksin_berat' => 'required|in:ya,tidak',
+            'gangguan_kekebalan_tubuh' => 'required|in:ya,tidak',
+            'obat_steroid_atau_terapi' => 'required|in:ya,tidak',
+            'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
+            'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
+            'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
+            'catatan' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            $screening = ScreeningVaksin::find($id);
+
+            if (!$screening) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data screening vaksin tidak ditemukan',
+                ], 404);
+            }
+
+            $screening->update([
+                'visitation_id' => $request->visitation_id,
+                'sakit_hari_ini' => $request->sakit_hari_ini,
+                'alergi_obat_makanan_vaksin' => $request->alergi_obat_makanan_vaksin,
+                'efek_samping_vaksin_berat' => $request->efek_samping_vaksin_berat,
+                'gangguan_kekebalan_tubuh' => $request->gangguan_kekebalan_tubuh,
+                'obat_steroid_atau_terapi' => $request->obat_steroid_atau_terapi,
+                'transfusi_darah_atau_imunoglobulin' => $request->transfusi_darah_atau_imunoglobulin,
+                'hamil_atau_rencana_hamil' => $request->hamil_atau_rencana_hamil,
+                'vaksinasi_4_minggu_terakhir' => $request->vaksinasi_4_minggu_terakhir,
+                'catatan' => $request->catatan,
+                'created_by' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data screening vaksin berhasil diperbarui.',
+                'data' => $screening,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Update Screening Vaksin Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui data: ' . $e->getMessage(),
             ], 500);
         }
     }

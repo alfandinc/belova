@@ -902,6 +902,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/assets/index.js', [RawatJalanController::class, 'assetsJs'])->name('erm.rawatjalans.assets.js');
     Route::get('/rawatjalans/modals/common', [RawatJalanController::class, 'commonModals'])->name('erm.rawatjalans.modals.common');
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
+    Route::get('/rawatjalans/modals/screening-vaksin', [RawatJalanController::class, 'screeningVaksinModals'])->name('erm.rawatjalans.modals.screeningVaksin');
     Route::get('/rawatjalans/scheduled-messages', [RawatJalanController::class, 'scheduledMessages'])->name('erm.rawatjalans.scheduledMessages');
     Route::get('/rawatjalans/{visitation}/messages', [RawatJalanController::class, 'visitationMessages'])->name('erm.rawatjalans.visitationMessages');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
@@ -933,6 +934,11 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('screening/batuk/store', [RawatJalanController::class, 'storeScreeningBatuk'])->name('erm.screening.batuk.store');
     Route::get('screening/batuk/{visitation}', [RawatJalanController::class, 'getScreeningBatuk'])->name('erm.screening.batuk.get');
     Route::put('screening/batuk/update/{id}', [RawatJalanController::class, 'updateScreeningBatuk'])->name('erm.screening.batuk.update');
+
+    //screening vaksin
+    Route::post('screening/vaksin/store', [RawatJalanController::class, 'storeScreeningVaksin'])->name('erm.screening.vaksin.store');
+    Route::get('screening/vaksin/{visitation}', [RawatJalanController::class, 'getScreeningVaksin'])->name('erm.screening.vaksin.get');
+    Route::put('screening/vaksin/update/{id}', [RawatJalanController::class, 'updateScreeningVaksin'])->name('erm.screening.vaksin.update');
 
     //CPPT
     Route::get('cppt/{visitation_id}/create', [CPPTController::class, 'create'])->name('erm.cppt.create');

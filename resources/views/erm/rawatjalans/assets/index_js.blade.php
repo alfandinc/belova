@@ -1538,6 +1538,30 @@ function ensureScreeningBatukModalsLoaded() {
     return __screeningBatukModalsLoading;
 }
 
+// Lazy-load: Screening Vaksin modals
+var __screeningVaksinModalsUrl = "{{ route('erm.rawatjalans.modals.screeningVaksin') }}";
+var __screeningVaksinModalsLoading = null;
+function ensureScreeningVaksinModalsLoaded() {
+    if ($('#modalScreeningVaksin').length && $('#modalViewScreeningVaksin').length) {
+        return $.Deferred().resolve().promise();
+    }
+
+    if (__screeningVaksinModalsLoading) {
+        return __screeningVaksinModalsLoading;
+    }
+
+    __screeningVaksinModalsLoading = $.get(__screeningVaksinModalsUrl)
+        .done(function (html) {
+            $('#modalScreeningVaksin, #modalViewScreeningVaksin').remove();
+            $('body').append(html);
+        })
+        .always(function () {
+            __screeningVaksinModalsLoading = null;
+        });
+
+    return __screeningVaksinModalsLoading;
+}
+
 function openScreeningBatukModal(visitationId, editMode) {
     ensureScreeningBatukModalsLoaded().done(function(){
         $('#screening-visitation-id').val(visitationId);
@@ -1556,6 +1580,27 @@ function openScreeningBatukModal(visitationId, editMode) {
         }
 
         $('#modalScreeningBatuk').modal('show');
+    });
+}
+
+function openScreeningVaksinModal(visitationId, editMode) {
+    ensureScreeningVaksinModalsLoaded().done(function(){
+        $('#screening-vaksin-visitation-id').val(visitationId);
+        $('#screening-vaksin-edit-mode').val(editMode ? 'true' : 'false');
+
+        if (editMode) {
+            loadScreeningVaksinDataForEdit(visitationId);
+            $('#screening-vaksin-modal-title').text('Edit Screening Vaksin');
+            $('#screening-vaksin-btn-text').text('Update Screening');
+        } else {
+            $('#form-screening-vaksin')[0].reset();
+            $('#form-screening-vaksin input[type="radio"][value="tidak"]').prop('checked', true);
+            $('#screening-vaksin-modal-title').text('Screening Vaksin');
+            $('#screening-vaksin-btn-text').text('Simpan Screening');
+            $('#screening-vaksin-id').val('');
+        }
+
+        $('#modalScreeningVaksin').modal('show');
     });
 }
 
@@ -1684,6 +1729,48 @@ function populateScreeningForm(data) {
     $('#catatan_screening').val(data.catatan || '');
 }
 
+function loadScreeningVaksinDataForEdit(visitationId) {
+    $.ajax({
+        url: '{{ url("erm/screening/vaksin") }}/' + visitationId,
+        method: 'GET',
+        success: function(res) {
+            if (res.success && res.data) {
+                const data = res.data;
+                $('#screening-vaksin-id').val(data.id);
+                populateScreeningVaksinForm(data);
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Data screening vaksin tidak ditemukan.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading screening vaksin data:', xhr);
+            Swal.fire({
+                title: 'Error',
+                text: 'Gagal memuat data screening vaksin.',
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+        }
+    });
+}
+
+function populateScreeningVaksinForm(data) {
+    $('input[name="sakit_hari_ini"][value="' + data.sakit_hari_ini + '"]').prop('checked', true);
+    $('input[name="alergi_obat_makanan_vaksin"][value="' + data.alergi_obat_makanan_vaksin + '"]').prop('checked', true);
+    $('input[name="efek_samping_vaksin_berat"][value="' + data.efek_samping_vaksin_berat + '"]').prop('checked', true);
+    $('input[name="gangguan_kekebalan_tubuh"][value="' + data.gangguan_kekebalan_tubuh + '"]').prop('checked', true);
+    $('input[name="obat_steroid_atau_terapi"][value="' + data.obat_steroid_atau_terapi + '"]').prop('checked', true);
+    $('input[name="transfusi_darah_atau_imunoglobulin"][value="' + data.transfusi_darah_atau_imunoglobulin + '"]').prop('checked', true);
+    $('input[name="hamil_atau_rencana_hamil"][value="' + data.hamil_atau_rencana_hamil + '"]').prop('checked', true);
+    $('input[name="vaksinasi_4_minggu_terakhir"][value="' + data.vaksinasi_4_minggu_terakhir + '"]').prop('checked', true);
+    $('#catatan_screening_vaksin').val(data.catatan || '');
+}
+
 // Event handler for screening button using data attribute
 $(document).on('click', '.screening-btn', function(e) {
     e.preventDefault();
@@ -1693,6 +1780,16 @@ $(document).on('click', '.screening-btn', function(e) {
         openScreeningBatukModal(visitationId, false);
     }).fail(function(){
         Swal.fire({ title: 'Terjadi Kesalahan', text: 'Gagal memuat form Screening Batuk.', icon: 'error', confirmButtonText: 'OK' });
+    });
+});
+
+$(document).on('click', '.screening-vaksin-btn', function(e) {
+    e.preventDefault();
+    const visitationId = $(this).data('visitation-id');
+    ensureScreeningVaksinModalsLoaded().done(function(){
+        openScreeningVaksinModal(visitationId, false);
+    }).fail(function(){
+        Swal.fire({ title: 'Terjadi Kesalahan', text: 'Gagal memuat form Screening Vaksin.', icon: 'error', confirmButtonText: 'OK' });
     });
 });
 
@@ -1708,6 +1805,16 @@ $(document).on('click', '#btn-edit-screening', function(e) {
     // Open edit modal after a short delay to ensure smooth transition
     setTimeout(function() {
         openScreeningBatukModal(visitationId, true);
+    }, 300);
+});
+
+$(document).on('click', '#btn-edit-screening-vaksin', function(e) {
+    e.preventDefault();
+    const visitationId = $('#screening-vaksin-visitation-id').val();
+    $('#modalViewScreeningVaksin').modal('hide');
+
+    setTimeout(function() {
+        openScreeningVaksinModal(visitationId, true);
     }, 300);
 });
 
@@ -1811,6 +1918,86 @@ $(document).on('click', '#btn-simpan-screening', function() {
     });
 });
 
+$(document).on('click', '#btn-simpan-screening-vaksin', function() {
+    let isValid = true;
+    const requiredFields = [
+        'sakit_hari_ini',
+        'alergi_obat_makanan_vaksin',
+        'efek_samping_vaksin_berat',
+        'gangguan_kekebalan_tubuh',
+        'obat_steroid_atau_terapi',
+        'transfusi_darah_atau_imunoglobulin',
+        'hamil_atau_rencana_hamil',
+        'vaksinasi_4_minggu_terakhir'
+    ];
+
+    requiredFields.forEach(function(field) {
+        if (!$('#form-screening-vaksin input[name="' + field + '"]:checked').length) {
+            isValid = false;
+        }
+    });
+
+    if (!isValid) {
+        Swal.fire({
+            title: 'Lengkapi Form',
+            text: 'Harap jawab semua pertanyaan screening vaksin.',
+            icon: 'warning',
+            confirmButtonText: 'OK'
+        });
+        return;
+    }
+
+    const editMode = $('#screening-vaksin-edit-mode').val() === 'true';
+    const screeningId = $('#screening-vaksin-id').val();
+    const formData = $('#form-screening-vaksin').serialize();
+
+    let url = '{{ route("erm.screening.vaksin.store") }}';
+    let method = 'POST';
+    let additionalData = '&_token={{ csrf_token() }}';
+
+    if (editMode && screeningId) {
+        url = '{{ url("erm/screening/vaksin/update") }}/' + screeningId;
+        method = 'PUT';
+        additionalData = '&_token={{ csrf_token() }}&_method=PUT';
+    }
+
+    $.ajax({
+        url: url,
+        method: method,
+        data: formData + additionalData,
+        success: function(res) {
+            $('#modalScreeningVaksin').modal('hide');
+            Swal.fire({
+                title: 'Berhasil!',
+                text: editMode ? 'Data screening vaksin berhasil diperbarui.' : 'Data screening vaksin berhasil disimpan.',
+                icon: 'success',
+                timer: 2000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            }).then(function() {
+                if (typeof table !== 'undefined') {
+                    table.ajax.reload(null, false);
+                }
+            });
+        },
+        error: function(xhr) {
+            let errorMessage = editMode ? 'Gagal memperbarui data screening vaksin. Silakan coba lagi.' : 'Gagal menyimpan data screening vaksin. Silakan coba lagi.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+
+            Swal.fire({
+                title: 'Terjadi Kesalahan',
+                text: errorMessage,
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+        }
+    });
+});
+
 // Event handler for view screening button
 $(document).on('click', '.view-screening-btn', function(e) {
     e.preventDefault();
@@ -1850,6 +2037,44 @@ $(document).on('click', '.view-screening-btn', function(e) {
         });
     }).fail(function(){
         Swal.fire({ title: 'Terjadi Kesalahan', text: 'Gagal memuat modal Screening Batuk.', icon: 'error', confirmButtonText: 'OK' });
+    });
+});
+
+$(document).on('click', '.view-screening-vaksin-btn', function(e) {
+    e.preventDefault();
+    const visitationId = $(this).data('visitation-id');
+
+    ensureScreeningVaksinModalsLoaded().done(function(){
+        $('#screening-vaksin-visitation-id').val(visitationId);
+
+        $.ajax({
+            url: '{{ url("erm/screening/vaksin") }}/' + visitationId,
+            method: 'GET',
+            success: function(res) {
+                if (res.success) {
+                    displayScreeningVaksinData(res.data);
+                    $('#modalViewScreeningVaksin').modal('show');
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: res.message,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            },
+            error: function(xhr) {
+                console.error('Error fetching screening vaksin data:', xhr);
+                Swal.fire({
+                    title: 'Terjadi Kesalahan',
+                    text: 'Gagal mengambil data screening vaksin.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+    }).fail(function(){
+        Swal.fire({ title: 'Terjadi Kesalahan', text: 'Gagal memuat modal Screening Vaksin.', icon: 'error', confirmButtonText: 'OK' });
     });
 });
 
@@ -1896,6 +2121,29 @@ function displayScreeningData(data) {
     // Created info
     const createdAt = new Date(data.created_at);
     $('#view-created-at').text(createdAt.toLocaleString('id-ID'));
+}
+
+function displayScreeningVaksinData(data) {
+    function getReadableValue(value) {
+        if (value === 'ya') {
+            return '<span class="badge badge-danger">Ya</span>';
+        }
+
+        return '<span class="badge badge-success">Tidak</span>';
+    }
+
+    $('#view-vaksin-sakit-hari-ini').html(getReadableValue(data.sakit_hari_ini));
+    $('#view-vaksin-alergi-obat-makanan-vaksin').html(getReadableValue(data.alergi_obat_makanan_vaksin));
+    $('#view-vaksin-efek-samping-vaksin-berat').html(getReadableValue(data.efek_samping_vaksin_berat));
+    $('#view-vaksin-gangguan-kekebalan-tubuh').html(getReadableValue(data.gangguan_kekebalan_tubuh));
+    $('#view-vaksin-obat-steroid-atau-terapi').html(getReadableValue(data.obat_steroid_atau_terapi));
+    $('#view-vaksin-transfusi-darah-atau-imunoglobulin').html(getReadableValue(data.transfusi_darah_atau_imunoglobulin));
+    $('#view-vaksin-hamil-atau-rencana-hamil').html(getReadableValue(data.hamil_atau_rencana_hamil));
+    $('#view-vaksin-vaksinasi-4-minggu-terakhir').html(getReadableValue(data.vaksinasi_4_minggu_terakhir));
+    $('#view-vaksin-catatan').text(data.catatan || '-');
+
+    const createdAt = new Date(data.created_at);
+    $('#view-vaksin-created-at').text(createdAt.toLocaleString('id-ID'));
 }
 
 // Manage Pasien modal handlers (mirrors pasien index behavior)
