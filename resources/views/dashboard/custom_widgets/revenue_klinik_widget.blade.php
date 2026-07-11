@@ -2,8 +2,15 @@
     $periodEnd = ($dashboardFilter['period_end'] ?? \Carbon\Carbon::now())->copy();
     $periodStart = ($dashboardFilter['period_start'] ?? $periodEnd->copy()->startOfMonth())->copy();
     $periodLabel = $periodStart->format('d M Y') . ' - ' . $periodEnd->format('d M Y');
+    $selectedYear = (int) ($dashboardFilter['year'] ?? $periodEnd->year);
+    $selectedMonth = (int) ($dashboardFilter['month'] ?? $periodEnd->month);
 
     $palette = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6'];
+
+    $targetsByClinic = \Illuminate\Support\Facades\DB::table('finance_revenue_target')
+        ->where('periode_tahun', $selectedYear)
+        ->where('periode_bulan', $selectedMonth)
+        ->pluck('target_amount', 'klinik_id');
 
     $revenueByClinic = \Illuminate\Support\Facades\DB::table('finance_invoices as fi')
         ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
@@ -20,10 +27,12 @@
     $clinics = \App\Models\ERM\Klinik::query()
         ->orderBy('nama')
         ->get(['id', 'nama'])
-        ->map(function ($clinic) use ($revenueByClinic) {
+        ->map(function ($clinic) use ($revenueByClinic, $targetsByClinic) {
             $clinic->revenue_total = (float) optional($revenueByClinic->get($clinic->id))->revenue_total;
             $clinic->invoice_count = (int) optional($revenueByClinic->get($clinic->id))->invoice_count;
             $clinic->avg_invoice = $clinic->invoice_count > 0 ? ($clinic->revenue_total / $clinic->invoice_count) : 0;
+            $clinic->target_amount = (float) ($targetsByClinic[$clinic->id] ?? 0);
+            $clinic->target_percentage = $clinic->target_amount > 0 ? ($clinic->revenue_total / $clinic->target_amount) * 100 : null;
 
             return $clinic;
         })
@@ -31,6 +40,8 @@
         ->values();
 
     $grandTotal = (float) $clinics->sum('revenue_total');
+    $grandTarget = (float) $clinics->sum('target_amount');
+    $grandTargetPercentage = $grandTarget > 0 ? ($grandTotal / $grandTarget) * 100 : null;
     $donutStyle = 'background: #e5e7eb;';
 
     $clinics = $clinics->values()->map(function ($clinic, $index) use ($grandTotal, $palette) {
@@ -103,8 +114,21 @@
                                             <div class="font-weight-bold text-dark">{{ number_format($clinic->invoice_count, 0, ',', '.') }}</div>
                                         </div>
                                         <div class="col-6">
+                                            <div class="text-muted" style="font-size: 11px;">Target</div>
+                                            <div class="font-weight-bold text-dark">{{ $clinic->target_amount > 0 ? $formatCurrency($clinic->target_amount) : '-' }}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mt-2">
+                                        <div class="col-6">
                                             <div class="text-muted" style="font-size: 11px;">Avg Invoice</div>
                                             <div class="font-weight-bold text-dark">{{ $formatCurrency($clinic->avg_invoice) }}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="text-muted" style="font-size: 11px;">% Target</div>
+                                            <div class="font-weight-bold {{ $clinic->target_percentage !== null && $clinic->target_percentage >= 100 ? 'text-success' : 'text-dark' }}">
+                                                {{ $clinic->target_percentage !== null ? number_format($clinic->target_percentage, 1, ',', '.') . '%' : '-' }}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -126,7 +150,9 @@
                                 <div class="d-flex flex-column align-items-center justify-content-center text-center bg-white" style="width: 108px; height: 108px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);">
                                     <div class="text-muted" style="font-size: 11px;">TOTAL</div>
                                     <div class="font-weight-bold text-dark">{{ $formatCurrency($grandTotal) }}</div>
-                                    <div class="text-muted" style="font-size: 11px;">100%</div>
+                                    <div class="text-muted" style="font-size: 11px;">
+                                        {{ $grandTargetPercentage !== null ? number_format($grandTargetPercentage, 1, ',', '.') . '% target' : 'Target belum ada' }}
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -1349,6 +1349,10 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/laporan-keuangan/monthly-data', [FinanceReportController::class, 'monthlyData'])->name('finance.laporan-keuangan.monthly-data');
             Route::get('/laporan-keuangan/detail-data', [FinanceReportController::class, 'detailData'])->name('finance.laporan-keuangan.detail-data');
         });
+        Route::middleware('role:Admin|Finance')->group(function () {
+            Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.revenue-targets.index');
+            Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
+        });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');

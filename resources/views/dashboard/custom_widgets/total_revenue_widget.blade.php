@@ -25,6 +25,11 @@
     $yearlyRevenue = $sumRevenue($yearStart, $now);
     $yearlyRevenueLastYear = $sumRevenue($lastYearStart, $sameDayLastYear);
     $periodRevenue = $sumRevenue($periodStart, $periodEnd);
+    $periodTarget = (float) (\Illuminate\Support\Facades\DB::table('finance_revenue_target')
+        ->where('periode_tahun', $selectedYear)
+        ->where('periode_bulan', $selectedMonth)
+        ->sum('target_amount') ?? 0);
+    $periodTargetPercentage = $periodTarget > 0 ? ($periodRevenue / $periodTarget) * 100 : null;
 
     $periodRangeDays = max(1, $periodStart->copy()->startOfDay()->diffInDays($periodEnd->copy()->startOfDay()) + 1);
     $previousPeriodEnd = $periodStart->copy()->subDay()->endOfDay();
@@ -96,6 +101,18 @@
                             <i class="{{ $periodTrend['icon'] }} mr-1"></i>{{ $periodTrend['label'] }}
                         </span>
                         <span class="small text-muted">vs periode sebelumnya</span>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-sm-6 mb-2 mb-sm-0">
+                            <div class="text-muted" style="font-size: 12px;">Target Bulan Ini</div>
+                            <div class="font-weight-bold text-dark">{{ $periodTarget > 0 ? $formatCurrency($periodTarget) : '-' }}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="text-muted" style="font-size: 12px;">Pencapaian Target</div>
+                            <div class="font-weight-bold {{ $periodTargetPercentage !== null && $periodTargetPercentage >= 100 ? 'text-success' : 'text-dark' }}">
+                                {{ $periodTargetPercentage !== null ? number_format($periodTargetPercentage, 1, ',', '.') . '%' : '-' }}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

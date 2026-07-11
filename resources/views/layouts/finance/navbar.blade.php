@@ -74,6 +74,14 @@
                             <span>Laporan Keuangan</span>
                         </a>
                     </li>
+                    @hasanyrole('Admin|Finance')
+                    <li>
+                        <a href="{{ route('finance.revenue-targets.index') }}">
+                            <i class="fas fa-bullseye align-self-center menu-icon"></i>
+                            <span>Target Revenue</span>
+                        </a>
+                    </li>
+                    @endhasanyrole
                     
 
                     @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
