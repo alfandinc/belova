@@ -47,6 +47,14 @@
                                     $isLibur = $firstSchedule && isset($firstSchedule->is_libur) && $firstSchedule->is_libur;
                                     $firstShiftId = $firstSchedule ? ($firstSchedule->shift_id ?? '') : '';
                                     $secondShiftId = $secondSchedule ? ($secondSchedule->shift_id ?? '') : '';
+                                    $availableShifts = collect($shifts);
+                                    if (isset($allShifts)) {
+                                        $historicalShiftIds = collect([$firstShiftId, $secondShiftId])->filter();
+                                        if ($historicalShiftIds->isNotEmpty()) {
+                                            $historicalShifts = collect($allShifts)->whereIn('id', $historicalShiftIds);
+                                            $availableShifts = $availableShifts->concat($historicalShifts)->unique('id')->values();
+                                        }
+                                    }
                                     $firstShiftName = $firstSchedule && $firstSchedule->shift
                                         ? \Illuminate\Support\Str::slug($firstSchedule->shift->name)
                                         : '';
@@ -63,12 +71,12 @@
                                                     data-employee-id="{{ $employee->id }}"
                                                     data-date="{{ $date }}">
                                                     <option value="">-</option>
-                                                    @foreach($shifts as $shift)
+                                                    @foreach($availableShifts as $shift)
                                                         <option value="{{ $shift->id }}"
                                                                 data-shift-name="{{ \Illuminate\Support\Str::slug($shift->name) }}"
                                                                 data-shift-color="{{ $shift->color }}"
                                                                 {{ ($firstShiftId == $shift->id) ? 'selected' : '' }}>
-                                                            {{ $shift->name }}
+                                                            {{ $shift->name }}{{ !$shift->active ? ' (Tidak Aktif)' : '' }}
                                                         </option>
                                                     @endforeach
                                                 </select>
@@ -101,12 +109,12 @@
                                                     data-employee-id="{{ $employee->id }}"
                                                     data-date="{{ $date }}">
                                                     <option value="">-</option>
-                                                    @foreach($shifts as $shift)
+                                                    @foreach($availableShifts as $shift)
                                                         <option value="{{ $shift->id }}"
                                                                 data-shift-name="{{ \Illuminate\Support\Str::slug($shift->name) }}"
                                                                 data-shift-color="{{ $shift->color }}"
                                                                 {{ ($secondShiftId == $shift->id) ? 'selected' : '' }}>
-                                                            {{ $shift->name }}
+                                                            {{ $shift->name }}{{ !$shift->active ? ' (Tidak Aktif)' : '' }}
                                                         </option>
                                                     @endforeach
                                                 </select>
