@@ -639,6 +639,14 @@
         white-space: nowrap;
     }
 
+    .room-history-action + .room-history-action {
+        margin-left: 0.35rem;
+    }
+
+    .room-history-action--proof {
+        background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+    }
+
     .room-history-action:hover,
     .room-history-action:focus {
         color: #fff;
@@ -1366,7 +1374,7 @@
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{ route('bcl.rooms.sewa') }}" method="POST">
+            <form action="{{ route('bcl.rooms.sewa') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -1431,6 +1439,13 @@
                                     <button class="btn btn-outline-secondary" type="button" id="btn_topup_deposit">Top-up</button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12 col-sm-12">
+                            <label class="">Bukti Transfer</label>
+                            <input type="file" name="bukti_transfer" class="form-control" accept="image/*" required>
+                            <small class="form-text text-muted">Upload gambar bukti transfer untuk menyimpan transaksi sewa.</small>
                         </div>
                     </div>
                 </div>
@@ -3504,9 +3519,17 @@
                             const period = (item.tgl_mulai || '-') + ' s/d ' + (item.tgl_selesai || '-');
                             const total = 'Rp ' + $.number((item.harga || 0) + (item.extra_total || 0), 0);
                             const paid = 'Rp ' + $.number(item.paid_total || 0, 0);
-                            const printButton = item.trans_id
-                                ? '<a href="' + roomActionUrl(transactionPrintUrlTemplate, item.trans_id) + '" target="_blank" rel="noopener noreferrer" class="room-history-action">Nota</a>'
-                                : '-';
+                            const actionButtons = [];
+
+                            if (item.bukti_transfer_url) {
+                                actionButtons.push('<a href="' + escapeHtml(item.bukti_transfer_url) + '" target="_blank" rel="noopener noreferrer" class="room-history-action room-history-action--proof">Bukti Transfer</a>');
+                            }
+
+                            if (item.trans_id) {
+                                actionButtons.push('<a href="' + roomActionUrl(transactionPrintUrlTemplate, item.trans_id) + '" target="_blank" rel="noopener noreferrer" class="room-history-action">Nota</a>');
+                            }
+
+                            const actionHtml = actionButtons.length ? actionButtons.join('') : '-';
 
                             return '<tr>' +
                                 '<td>' + (item.trans_id || '-') + '</td>' +
@@ -3515,7 +3538,7 @@
                                 '<td>' + total + '</td>' +
                                 '<td>' + paid + '</td>' +
                                 '<td>' + (item.notes || '-') + '</td>' +
-                                '<td class="text-right">' + printButton + '</td>' +
+                                '<td class="text-right">' + actionHtml + '</td>' +
                             '</tr>';
                         }).join('');
 

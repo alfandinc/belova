@@ -14,6 +14,7 @@ use App\Models\BCL\tr_renter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class tr_renterController extends Controller
@@ -425,6 +426,7 @@ class tr_renterController extends Controller
                 'catatan' => 'sometimes',
                 'tgl_bayar' => 'sometimes',
                 'nominal' => 'required|numeric',
+                'bukti_transfer' => 'required|image|mimes:jpg,jpeg,png,webp|max:4096',
             ]);
             $pl = pricelist::findorfail($request->pricelist);
             switch ($pl->jangka_sewa) {
@@ -482,6 +484,9 @@ class tr_renterController extends Controller
                 ]);
             }
 
+            $transferProofName = 'bukti-transfer-' . $no_trans . '-' . Str::random(10) . '.' . $request->file('bukti_transfer')->getClientOriginalExtension();
+            $transferProofPath = $request->file('bukti_transfer')->storeAs('bcl/transfer-proof', $transferProofName, 'public');
+
             tr_renter::create([
                 'trans_id' => $no_trans,
                 'identity' => 'Baru',
@@ -495,7 +500,8 @@ class tr_renterController extends Controller
                 'harga' => $pl->price,
                 'free_sewa' => $pl->bonus_waktu,
                 'free_jangka' => $pl->bonus_sewa,
-                'catatan' => $request->catatan
+                'catatan' => $request->catatan,
+                'bukti_transfer' => $transferProofPath,
             ]);
             // Determine amounts: split into revenue (price) and optional overpay
             $nominal = floatval($request->nominal);

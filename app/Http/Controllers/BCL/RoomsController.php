@@ -558,6 +558,9 @@ class RoomsController extends Controller
             ->map(function ($transaction) {
                 $paidTotal = (float) $transaction->jurnal->sum('kredit');
                 $extraTotal = (float) $transaction->tambahan->sum('harga');
+                $transferProofUrl = $transaction->bukti_transfer
+                    ? asset('storage/' . ltrim($transaction->bukti_transfer, '/'))
+                    : null;
 
                 return [
                     'trans_id' => $transaction->trans_id,
@@ -571,6 +574,7 @@ class RoomsController extends Controller
                     'extra_total' => $extraTotal,
                     'renter_name' => optional($transaction->renter)->nama,
                     'notes' => $transaction->catatan,
+                    'bukti_transfer_url' => $transferProofUrl,
                 ];
             })
             ->values();
