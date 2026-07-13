@@ -313,14 +313,18 @@
                             if ($winning) {
                                 if ($winning->item_type === 'tindakan') {
                                     $t = \App\Models\ERM\Tindakan::find($winning->item_id);
-                                    $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                                    $basePrice = $t->harga ?? $t->harga_diskon ?? null;
                                 } elseif ($winning->item_type === 'obat') {
                                     $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
                                     $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
                                 }
                             }
                             if (!$basePrice && isset($item->billable)) {
-                                $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                if (($winning->item_type ?? null) === 'tindakan') {
+                                    $basePrice = $item->billable->harga ?? $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                } else {
+                                    $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                }
                             }
                             if (!$basePrice) $basePrice = $unit;
 
@@ -532,6 +536,10 @@
                 $diskonTotalNominal = $itemDiscountTotal + $invoiceLevelDiscountNominal;
                 if ($diskonTotalNominal < 0) $diskonTotalNominal = 0;
 
+                $computedSubtotal = $subtotalItems;
+                $computedTotal = max(0, $computedSubtotal - $diskonTotalNominal + $adminFee + $shippingFee + ($invoice->tax ?? 0));
+                $computedChangeAmount = max(0, floatval($invoice->amount_paid ?? 0) - $computedTotal);
+
                 // Compute percent representation for Diskon Total relative to the invoice subtotal (all line totals)
                 $diskonTotalPercent = null;
                 if ($diskonTotalNominal > 0 && $subtotalLineTotals > 0) {
@@ -554,7 +562,7 @@
             @endif
             <tr>
                 <td class="total-label total-row"><strong>Total</strong></td>
-                <td class="total-amount bold total-row">{{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
+                <td class="total-amount bold total-row">{{ number_format($computedTotal, 0, ',', '.') }}</td>
             </tr>
             <tr>
                 @php
@@ -572,7 +580,7 @@
             </tr>
             <tr>
                 <td class="total-label">Kembali</td>
-                <td class="total-amount">{{ number_format($invoice->change_amount, 0, ',', '.') }}</td>
+                <td class="total-amount">{{ number_format($computedChangeAmount, 0, ',', '.') }}</td>
             </tr>
         </table>
     </div>

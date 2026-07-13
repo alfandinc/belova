@@ -696,14 +696,18 @@
                                         if ($winning) {
                                             if ($winning->item_type === 'tindakan') {
                                                 $t = \App\Models\ERM\Tindakan::find($winning->item_id);
-                                                $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                                                $basePrice = $t->harga ?? $t->harga_diskon ?? null;
                                             } elseif ($winning->item_type === 'obat') {
                                                 $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
                                                 $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
                                             }
                                         }
                                         if (!$basePrice && isset($item->billable)) {
-                                            $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                            if (($winning->item_type ?? null) === 'tindakan') {
+                                                $basePrice = $item->billable->harga ?? $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                            } else {
+                                                $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                            }
                                         }
                                         if (!$basePrice) $basePrice = $unit;
 
@@ -726,6 +730,55 @@
                     if (($lineDisc > 0 && $lineNoDisc > 0) || (isset($item->discount) && floatval($item->discount) > 0)) {
                         $showDiscount = true;
                     }
+                @endphp
+
+                @php
+                    $computedSubtotal = 0;
+                    $computedAdminFee = 0;
+                    $computedShippingFee = 0;
+                    $computedItemDiscountTotal = 0;
+                    $computedSubtotalLineTotals = 0;
+
+                    foreach ($invoice->items as $summaryItem) {
+                        $summaryName = strtolower(trim($summaryItem->name ?? $summaryItem->nama_item ?? ''));
+                        $summaryQty = $summaryItem->quantity ?? ($summaryItem->qty ?? 1);
+                        $summaryUnit = $summaryItem->unit_price ?? ($summaryItem->jumlah_raw ?? ($summaryItem->harga_akhir_raw ?? 0));
+                        $summaryLineNoDisc = $summaryUnit * $summaryQty;
+                        $summaryLineFinal = isset($summaryItem->final_amount) ? $summaryItem->final_amount : $summaryLineNoDisc;
+
+                        if (strpos($summaryName, 'biaya administrasi') !== false || strpos($summaryName, 'biaya admin') !== false || strpos($summaryName, 'administrasi') !== false) {
+                            $computedAdminFee += $summaryLineNoDisc;
+                            continue;
+                        }
+
+                        if (strpos($summaryName, 'ongkir') !== false || strpos($summaryName, 'biaya ongkir') !== false || strpos($summaryName, 'shipping') !== false) {
+                            $computedShippingFee += $summaryLineNoDisc;
+                            continue;
+                        }
+
+                        $computedSubtotal += $summaryLineNoDisc;
+                        $computedSubtotalLineTotals += $summaryLineNoDisc;
+
+                        $summaryLineDisc = max(0, $summaryLineNoDisc - $summaryLineFinal);
+                        if ($summaryLineDisc > 0) {
+                            $computedItemDiscountTotal += $summaryLineDisc;
+                        }
+                    }
+
+                    $computedInvoiceLevelDiscount = 0;
+                    if (!empty($invoice->discount)) {
+                        $computedInvoiceLevelDiscount = $invoice->discount;
+                    } elseif (!empty($invoice->discount_value) && isset($invoice->discount_type)) {
+                        $computedInvoiceDiscountType = strtolower((string) $invoice->discount_type);
+                        if (in_array($computedInvoiceDiscountType, ['%', 'percent', 'percentage'])) {
+                            $computedInvoiceLevelDiscount = ($invoice->discount_value / 100) * $computedSubtotalLineTotals;
+                        } else {
+                            $computedInvoiceLevelDiscount = $invoice->discount_value;
+                        }
+                    }
+
+                    $computedDiskonTotal = max(0, $computedItemDiscountTotal + $computedInvoiceLevelDiscount);
+                    $computedTotalAmount = max(0, $computedSubtotal - $computedDiskonTotal + $computedAdminFee + $computedShippingFee + ($invoice->tax ?? 0));
                 @endphp
                 <tr>
                     <td>
@@ -801,7 +854,7 @@
             <table class="summary-table" style="width:100%;">
                 <tr>
                     <td class="label" style="text-align:left;">SUBTOTAL</td>
-                    <td class="value" style="text-align:right;">Rp&nbsp;{{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
+                    <td class="value" style="text-align:right;">Rp&nbsp;{{ number_format($computedSubtotal, 0, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td class="label" style="text-align:left;">TAX ({{ $taxPct }}%)</td>
@@ -809,12 +862,12 @@
                 </tr>
                 <tr>
                     <td class="label summary-total" style="text-align:left;">TOTAL AMOUNT</td>
-                    <td class="value summary-total" style="text-align:right;">Rp&nbsp;{{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
+                    <td class="value summary-total" style="text-align:right;">Rp&nbsp;{{ number_format($computedTotalAmount, 0, ',', '.') }}</td>
                 </tr>
                 <tr>
                     <td colspan="2" style="text-align:right; padding-top:8px;">
                         <div class="summary-terbilang" style="display:inline-block;">
-                            <em>{{ ucfirst(terbilang((int)$invoice->total_amount)) }} rupiah</em>
+                            <em>{{ ucfirst(terbilang((int)$computedTotalAmount)) }} rupiah</em>
                         </div>
                     </td>
                 </tr>

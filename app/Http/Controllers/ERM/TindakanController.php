@@ -535,12 +535,44 @@ class TindakanController extends Controller
                 // Calculate discount amount based on harga type. For 3x visits we do not apply the
                 // normal tindakan discount (unless you want a separate 3x discount field).
                 $discountAmount = 0;
-                if ($tindakan->diskon_active) {
+                $billingDiscountType = null;
+
+                $activePromoPercent = 0.0;
+                if ($hargaType !== '3x' && floatval($billingAmount) > 0 && floatval($tindakan->harga ?? 0) > 0) {
+                    try {
+                        $today = \Carbon\Carbon::today()->format('Y-m-d');
+                        $activePromoPercent = (float) (\App\Models\Marketing\PromoItem::where('item_type', 'tindakan')
+                            ->where('item_id', $tindakan->id)
+                            ->whereHas('promo', function ($q) use ($today) {
+                                $q->where(function ($q2) use ($today) {
+                                    $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                                        ->where('start_date', '<=', $today)
+                                        ->where('end_date', '>=', $today);
+                                })->orWhere(function ($q2) use ($today) {
+                                    $q2->whereNotNull('start_date')->whereNull('end_date')
+                                        ->where('start_date', '<=', $today);
+                                })->orWhere(function ($q2) use ($today) {
+                                    $q2->whereNull('start_date')->whereNotNull('end_date')
+                                        ->where('end_date', '>=', $today);
+                                });
+                            })
+                            ->max('discount_percent') ?? 0);
+                    } catch (\Exception $e) {
+                        $activePromoPercent = 0.0;
+                    }
+                }
+
+                if ($activePromoPercent > 0) {
+                    // Promo replaces tindakan harga_diskon when both exist.
+                    $discountAmount = round(floatval($billingAmount) * ($activePromoPercent / 100), 2);
+                    $billingDiscountType = $discountAmount > 0 ? 'nominal' : null;
+                } elseif ($tindakan->diskon_active) {
                     if ($hargaType === '3x') {
                         // No automatic discount applied to 3x-visit pricing by default
                         $discountAmount = 0;
                     } else {
                         $discountAmount = ($tindakan->harga - $tindakan->harga_diskon);
+                        $billingDiscountType = $discountAmount > 0 ? ($tindakan->diskon_type ?? 'nominal') : null;
                     }
                 }
 
@@ -550,7 +582,7 @@ class TindakanController extends Controller
                     'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
                     'jumlah' => $billingAmount,
                     'diskon' => $discountAmount,
-                    'diskon_type' => $tindakan->diskon_active ? ($tindakan->diskon_type ?? 'nominal') : null,
+                    'diskon_type' => $billingDiscountType,
                     'keterangan' => $billingKeterangan
                 ];
                 if (!empty($data['jumlah'])) {

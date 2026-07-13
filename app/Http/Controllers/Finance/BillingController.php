@@ -612,7 +612,7 @@ class BillingController extends Controller
                 \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
                 \App\Models\ERM\LabPermintaan::class => ['labTest:id,nama'],
                 \App\Models\ERM\RadiologiPermintaan::class => ['radiologiTest:id,nama'],
-                \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,nama,spesialis_id'],
+                \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,nama,spesialis_id,harga,harga_diskon,diskon_active'],
             ]);
         } catch (\Exception $e) {
             // Non-fatal: fallback to lazy-loading if morph eager-loading fails.
@@ -670,6 +670,39 @@ class BillingController extends Controller
         // Apply active promos to processed billing items: set diskon (%) when promo matches
         try {
             $today = \Carbon\Carbon::today()->format('Y-m-d');
+            $isIntrinsicTindakanDiscount = function ($row) {
+                $currentDiscount = round((float) ($row->diskon ?? 0), 2);
+                if ($currentDiscount <= 0) {
+                    return false;
+                }
+
+                $currentType = trim((string) ($row->diskon_type ?? ''));
+                if ($currentType === '%') {
+                    return false;
+                }
+
+                $billableType = (string) ($row->billable_type ?? '');
+                $isRiwayatTindakan = $billableType === 'App\\Models\\ERM\\RiwayatTindakan' || $billableType === 'App\Models\ERM\RiwayatTindakan';
+                $isManualTindakan = $billableType === 'App\\Models\\ERM\\Tindakan' || $billableType === 'App\Models\ERM\Tindakan';
+                if (!$isRiwayatTindakan && !$isManualTindakan) {
+                    return false;
+                }
+
+                try {
+                    $tindakan = $isRiwayatTindakan ? optional($row->billable)->tindakan : ($row->billable ?? null);
+                    $harga = isset($tindakan->harga) ? (float) $tindakan->harga : 0;
+                    $hargaDiskon = isset($tindakan->harga_diskon) ? (float) $tindakan->harga_diskon : 0;
+                    $diskonActive = !empty($tindakan->diskon_active);
+                    if (!$diskonActive || $harga <= 0 || $hargaDiskon <= 0 || $hargaDiskon >= $harga) {
+                        return false;
+                    }
+
+                    $intrinsicDiscount = round($harga - $hargaDiskon, 2);
+                    return abs($currentDiscount - $intrinsicDiscount) < 0.01;
+                } catch (\Exception $e) {
+                    return false;
+                }
+            };
 
             // Collect all candidate IDs first, then query promo items once.
             $rowCandidatesByIndex = []; // pbIndex => [candidateId...]
@@ -681,7 +714,7 @@ class BillingController extends Controller
 
                 // If user already set a manual discount on this billing row, never override it with promo.
                 // This prevents the UI from "reverting" discount values after refresh/update.
-                if (floatval($pb->diskon ?? 0) > 0) {
+                if (floatval($pb->diskon ?? 0) > 0 && !$isIntrinsicTindakanDiscount($pb)) {
                     continue;
                 }
 
@@ -763,7 +796,7 @@ class BillingController extends Controller
                         $tindakans = \App\Models\ERM\Tindakan::whereIn('id', $promoTindakanIds)
                             ->get(['id', 'harga', 'harga_diskon']);
                         foreach ($tindakans as $t) {
-                            $tindakanPriceById[intval($t->id)] = $t->harga_diskon ?? $t->harga ?? null;
+                            $tindakanPriceById[intval($t->id)] = $t->harga ?? $t->harga_diskon ?? null;
                         }
                     }
 
@@ -773,7 +806,7 @@ class BillingController extends Controller
                         if (!$pb) continue;
 
                         // Respect manual discount (do not apply promo)
-                        if (floatval($pb->diskon ?? 0) > 0) {
+                        if (floatval($pb->diskon ?? 0) > 0 && !$isIntrinsicTindakanDiscount($pb)) {
                             continue;
                         }
 
@@ -810,7 +843,11 @@ class BillingController extends Controller
 
                             // Common fallbacks
                             if (!$basePrice && isset($pb->billable)) {
-                                $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                                if ($promoType === 'tindakan') {
+                                    $basePrice = $pb->billable->harga ?? $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                                } else {
+                                    $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                                }
                             }
                             if (!$basePrice) {
                                 $basePrice = $pb->jumlah ?? 0;
@@ -818,9 +855,41 @@ class BillingController extends Controller
 
                             // Only apply promo discount when we have a valid base price (> 0)
                             if ($basePrice && $basePrice > 0) {
-                                $pb->diskon = $bestPercent;
-                                $pb->diskon_type = '%';
-                                $pb->promo_price_base = $basePrice;
+                                $resolvedQty = isset($pb->qty) ? $pb->qty : (
+                                    $pb->billable_type == 'App\\Models\\ERM\\ResepFarmasi'
+                                        ? ($pb->billable->jumlah ?? 1)
+                                        : ($pb->billable->qty ?? 1)
+                                );
+                                $resolvedQty = floatval($resolvedQty ?: 1);
+                                $promoNominalDiscount = round(($basePrice * $resolvedQty) * ($bestPercent / 100), 2);
+
+                                $shouldPersistPromo = !$isLight
+                                    && isset($pb->id)
+                                    && $promoType === 'tindakan'
+                                    && $isIntrinsicTindakanDiscount($pb)
+                                    && (
+                                        trim((string) ($pb->diskon_type ?? '')) !== 'nominal'
+                                        || abs(floatval($pb->diskon ?? 0) - $promoNominalDiscount) > 0.0001
+                                    );
+
+                                $pb->diskon = $promoNominalDiscount;
+                                $pb->diskon_type = 'nominal';
+                                unset($pb->promo_price_base);
+
+                                if ($shouldPersistPromo) {
+                                    try {
+                                        Billing::whereKey($pb->id)->update([
+                                            'diskon' => $promoNominalDiscount,
+                                            'diskon_type' => 'nominal',
+                                            'updated_at' => now(),
+                                        ]);
+                                    } catch (\Exception $e) {
+                                        Log::warning('Failed to persist promo discount to billing row: ' . $e->getMessage(), [
+                                            'billing_id' => $pb->id,
+                                            'promo_discount_nominal' => $promoNominalDiscount,
+                                        ]);
+                                    }
+                                }
                             }
                         }
 
@@ -1791,29 +1860,35 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return '-';
                 }
 
-                // If percent promo and a promo_price_base exists which is lower than original amount,
-                // show the original fixed discount (original - promo_base) plus the percent.
                 if ($row->diskon_type == '%') {
-                    $percentText = number_format($row->diskon, 2) . '%';
+                    $qty = isset($row->qty) ? $row->qty : (
+                        $row->billable_type == 'App\\Models\\ERM\\ResepFarmasi'
+                            ? ($row->billable->jumlah ?? 1)
+                            : ($row->billable->qty ?? 1)
+                    );
+                    $qty = floatval($qty ?: 1);
 
-                    // Determine original unit amount where possible
-                    $originalAmount = null;
-                    if (isset($row->jumlah) && is_numeric($row->jumlah)) {
-                        $originalAmount = $row->jumlah;
-                    } elseif (isset($row->racikan_total_price)) {
-                        $originalAmount = $row->racikan_total_price;
-                    } elseif (isset($row->fee_total_price)) {
-                        $originalAmount = $row->fee_total_price;
+                    $originalUnit = 0.0;
+                    if (isset($row->racikan_total_price) && is_numeric($row->racikan_total_price)) {
+                        $originalUnit = floatval($row->racikan_total_price);
+                    } elseif (isset($row->fee_total_price) && is_numeric($row->fee_total_price)) {
+                        $originalUnit = floatval($row->fee_total_price);
+                    } elseif (isset($row->jumlah) && is_numeric($row->jumlah)) {
+                        $originalUnit = floatval($row->jumlah);
                     }
 
-                    if ($originalAmount && isset($row->promo_price_base) && is_numeric($row->promo_price_base) && $row->promo_price_base < $originalAmount) {
-                        $fixedDiscount = $originalAmount - $row->promo_price_base;
-                        if ($fixedDiscount > 0) {
-                            return 'Rp ' . number_format($fixedDiscount, 0, ',', '.') . ' + ' . $percentText;
-                        }
+                    $baseUnit = $originalUnit;
+                    if (isset($row->promo_price_base) && is_numeric($row->promo_price_base) && floatval($row->promo_price_base) > 0) {
+                        $baseUnit = floatval($row->promo_price_base);
                     }
 
-                    return $percentText;
+                    $lineNoDisc = $originalUnit * $qty;
+                    $lineAfter = max(0, ($baseUnit - ($baseUnit * (floatval($row->diskon) / 100))) * $qty);
+                    $lineDiscount = max(0, $lineNoDisc - $lineAfter);
+
+                    return $lineDiscount > 0
+                        ? 'Rp ' . number_format($lineDiscount, 0, ',', '.')
+                        : '-';
                 } else {
                     return 'Rp ' . number_format($row->diskon, 0, ',', '.');
                 }
@@ -2730,20 +2805,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         if (!$promoItems->isEmpty()) {
                             $max = $promoItems->max('discount_percent');
                             if ($max > 0) {
-                                // apply percent discount from promo on promo_price_base (prefer harga_diskon)
+                                // apply percent discount from promo on promo_price_base
                                 $winning = $promoItems->firstWhere('discount_percent', $max);
                                 $basePrice = null;
                                 if ($winning) {
                                     if ($winning->item_type === 'tindakan') {
                                         $t = \App\Models\ERM\Tindakan::find($winning->item_id);
-                                        $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                                        $basePrice = $t->harga ?? $t->harga_diskon ?? null;
                                     } elseif ($winning->item_type === 'obat') {
                                         $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
                                         $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
                                     }
                                 }
                                 if (!$basePrice && isset($item->billable)) {
-                                    $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                    if (($winning->item_type ?? null) === 'tindakan') {
+                                        $basePrice = $item->billable->harga ?? $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                    } else {
+                                        $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                    }
                                 }
                                 if (!$basePrice) $basePrice = $unitPrice;
 
