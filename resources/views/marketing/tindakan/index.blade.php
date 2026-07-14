@@ -88,6 +88,7 @@
                                     <th>Harga Diskon</th>
                                     <th>Harga Paket Visit</th>
                                     <th>Slimming</th>
+                                    <th>Vaksin</th>
                                     <th>Visit Total</th>
                                     <th>Specialist</th>
                                     <th>Status</th>
@@ -213,6 +214,12 @@
                                 <label class="form-check-label" for="is_slimming">Slimming</label>
                             </div>
                         </div>
+                        <div class="form-group col-md-2 d-flex align-items-center">
+                            <div class="form-check mb-0">
+                                <input type="checkbox" class="form-check-input" id="is_vaksin" name="is_vaksin" value="1">
+                                <label class="form-check-label" for="is_vaksin">Vaksin</label>
+                            </div>
+                        </div>
                     </div>
 
                     {{-- <div class="form-group">
@@ -300,7 +307,7 @@
                     <div class="form-group">
                         <label for="csvFile">CSV File</label>
                         <input type="file" id="csvFileTindakan" name="csv" accept=".csv,text/csv" class="form-control" required />
-                        <small class="form-text text-muted">Expected columns: name/nama, harga normal, harga diskon, harga paket, multi_visit_total, specialist (name or id), is_active (1 or 0), is_slimming (1 or 0). Header row optional.</small>
+                        <small class="form-text text-muted">Expected columns: name/nama, harga normal, harga diskon, harga paket, multi_visit_total, specialist (name or id), is_active (1 or 0), is_slimming (1 or 0), is_vaksin (1 or 0). Header row optional.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -772,6 +779,15 @@
                     }
                 },
                 {
+                    data: 'is_vaksin',
+                    name: 'is_vaksin',
+                    render: function(data) {
+                        return data == 1 || data === true
+                            ? '<span class="badge badge-primary">Vaksin</span>'
+                            : '<span class="badge badge-light">No</span>';
+                    }
+                },
+                {
                     data: 'multi_visit_total',
                     name: 'multi_visit_total',
                     render: function(data) {
@@ -1014,6 +1030,7 @@
                            $('#diskon_active').prop('checked', false);
                        }
                        $('#is_slimming').prop('checked', !!(data.is_slimming && (data.is_slimming == 1 || data.is_slimming === true)));
+                       $('#is_vaksin').prop('checked', !!(data.is_vaksin && (data.is_vaksin == 1 || data.is_vaksin === true)));
                        if (data.is_active && (data.is_active == 1 || data.is_active === true)) {
                            $('#is_active').prop('checked', true);
                        } else {
@@ -1206,6 +1223,7 @@
             $('.select2').val('').trigger('change');
                 $('#kode_tindakan_ids').val('').trigger('change');
             $('#is_slimming').prop('checked', false);
+            $('#is_vaksin').prop('checked', false);
         }
         
         // Show error alert

@@ -205,6 +205,7 @@ class TindakanController extends Controller
             'is_active' => 'nullable|boolean',
             'harga_paket_visit' => 'nullable|numeric|min:0',
             'is_slimming' => 'nullable|boolean',
+            'is_vaksin' => 'nullable|boolean',
             'multi_visit_total' => 'nullable|integer|min:2|max:20',
         ]);
 
@@ -222,6 +223,7 @@ class TindakanController extends Controller
                         'is_active' => $request->input('is_active', 1),
                         'harga_paket_visit' => $request->input('harga_paket_visit', null),
                         'is_slimming' => $request->boolean('is_slimming'),
+                        'is_vaksin' => $request->boolean('is_vaksin'),
                         'multi_visit_total' => $request->filled('multi_visit_total') ? $request->integer('multi_visit_total') : null,
                 ]
             );
@@ -412,7 +414,7 @@ class TindakanController extends Controller
                     if ($rowIndex === 1) {
                         $lowerCols = array_map(function($c){ return strtolower(trim($c)); }, $data);
                         // if first row contains known header keywords, treat as header
-                        $known = ['nama', 'name', 'harga normal', 'harga_normal', 'harga', 'harga diskon', 'harga_diskon', 'harga paket', 'harga_paket_visit', 'harga 3x', 'harga_3_kali', 'spesialis', 'specialist', 'spesialisasi', 'is_active', 'active', 'aktif', 'is_slimming', 'slimming', 'multi_visit_total'];
+                        $known = ['nama', 'name', 'harga normal', 'harga_normal', 'harga', 'harga diskon', 'harga_diskon', 'harga paket', 'harga_paket_visit', 'harga 3x', 'harga_3_kali', 'spesialis', 'specialist', 'spesialisasi', 'is_active', 'active', 'aktif', 'is_slimming', 'slimming', 'is_vaksin', 'vaksin', 'multi_visit_total'];
                         $intersect = array_intersect($lowerCols, $known);
                         if (count($intersect) >= 2) {
                             $headers = $lowerCols;
@@ -437,6 +439,7 @@ class TindakanController extends Controller
                         $spesialisRaw = $get(['spesialis','specialist','spesialisasi','spesialis_id']);
                         $multiVisitTotalRaw = $get(['multi_visit_total','jumlah visit paket','visit total']);
                         $isSlimmingRaw = $get(['is_slimming','slimming']);
+                        $isVaksinRaw = $get(['is_vaksin','vaksin']);
                         $isActiveRaw = $get(['is_active','active','aktif']);
                     } else {
                         // expected order: nama, harga, harga_diskon, harga_paket_visit, spesialis
@@ -447,6 +450,7 @@ class TindakanController extends Controller
                         $spesialisRaw = isset($data[4]) ? trim($data[4]) : null;
                         $multiVisitTotalRaw = isset($data[5]) ? trim($data[5]) : null;
                         $isSlimmingRaw = isset($data[6]) ? trim($data[6]) : null;
+                        $isVaksinRaw = isset($data[7]) ? trim($data[7]) : null;
                         $isActiveRaw = isset($data[5]) ? trim($data[5]) : null;
                     }
 
@@ -487,6 +491,7 @@ class TindakanController extends Controller
                         $multiVisitTotalVal = max((int) $multiVisitTotalRaw, 2);
                     }
                     $isSlimmingVal = $parseBool($isSlimmingRaw);
+                    $isVaksinVal = $parseBool($isVaksinRaw);
 
                     // resolve specialist to id
                     $spesialis_id = null;
@@ -549,6 +554,7 @@ class TindakanController extends Controller
                             'harga_paket_visit' => $hargaPaketVisitVal,
                             'multi_visit_total' => $multiVisitTotalVal,
                             'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
+                            'is_vaksin' => ($isVaksinVal !== null) ? $isVaksinVal : 0,
                         ]);
                         $created++;
                         $createdThis = true;
@@ -571,6 +577,7 @@ class TindakanController extends Controller
                                         'harga_paket_visit' => $hargaPaketVisitVal,
                                         'multi_visit_total' => $multiVisitTotalVal,
                                         'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
+                                        'is_vaksin' => ($isVaksinVal !== null) ? $isVaksinVal : 0,
                                     ]);
                                     $created++;
                                     $createdThis = true;

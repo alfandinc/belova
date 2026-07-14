@@ -114,6 +114,9 @@
                         <a class="nav-link" id="tab-treatment-link" data-toggle="tab" href="#tab-treatment" role="tab">Treatment</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" id="tab-vaksin-link" data-toggle="tab" href="#tab-vaksin" role="tab">Vaksin</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" id="tab-laboratorium-link" data-toggle="tab" href="#tab-laboratorium" role="tab">Laboratorium</a>
                     </li>
                     <li class="nav-item">
@@ -471,6 +474,51 @@
                                         </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="tab-vaksin" role="tabpanel">
+                        <div class="row mb-3">
+                            <div class="col-md-6 mb-2">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="small text-muted">Total Visit Vaksin</div>
+                                    <div class="h4 mb-0" id="stat-total-vaksin-visits">-</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="small text-muted">Total Tindakan Vaksin</div>
+                                    <div class="h4 mb-0" id="stat-total-vaksin-tindakan">-</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-3" style="gap:12px;">
+                                        <h6 class="mb-0">Data Visit Dengan Tindakan Vaksin</h6>
+                                        <span class="text-muted small">Periode mengikuti filter Premiere Belova</span>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th>Tanggal</th>
+                                                    <th>ID Visit</th>
+                                                    <th>Pasien</th>
+                                                    <th>Dokter</th>
+                                                    <th>Tindakan Vaksin</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="vaksin-visits-body">
+                                                <tr>
+                                                    <td colspan="5" class="text-muted">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1241,6 +1289,35 @@
                 }
             }
 
+            function renderVaksinVisitsTable(stats) {
+                var vaksin = stats && stats.vaksin ? stats.vaksin : { total_visits: 0, total_tindakan: 0, visits: [] };
+                var totalVisitsEl = document.getElementById('stat-total-vaksin-visits');
+                var totalTindakanEl = document.getElementById('stat-total-vaksin-tindakan');
+                var body = document.getElementById('vaksin-visits-body');
+
+                if (totalVisitsEl) totalVisitsEl.textContent = formatNumber(vaksin.total_visits || 0);
+                if (totalTindakanEl) totalTindakanEl.textContent = formatNumber(vaksin.total_tindakan || 0);
+                if (!body) return;
+
+                body.innerHTML = '';
+
+                if (!Array.isArray(vaksin.visits) || !vaksin.visits.length) {
+                    body.innerHTML = '<tr><td colspan="5" class="text-muted">Tidak ada data</td></tr>';
+                    return;
+                }
+
+                vaksin.visits.forEach(function(item) {
+                    var row = document.createElement('tr');
+                    row.innerHTML = '' +
+                        '<td>' + (item.tanggal_visitation ? moment(item.tanggal_visitation).format('DD MMM YYYY') : '-') + '</td>' +
+                        '<td>' + (item.visitation_id || '-') + '</td>' +
+                        '<td>' + (item.patient_name || '-') + '</td>' +
+                        '<td>' + (item.doctor_name || '-') + '</td>' +
+                        '<td>' + (item.tindakan_names || '-') + '</td>';
+                    body.appendChild(row);
+                });
+            }
+
             function renderDoctorRevenueTransactionsModal(payload) {
                 var modalLabel = document.getElementById('doctorRevenueModalLabel');
                 var modalRange = document.getElementById('doctor-revenue-modal-range');
@@ -1654,6 +1731,7 @@
                 renderSimpleRankingTable('medicine-top-body', medicine.top_obats || [], 'qty', 'Tidak ada data');
                 renderSimpleRankingTable('tindakan-top-body', tindakan.top_tindakans || [], 'count', 'Tidak ada data');
                 renderSimpleRankingTable('lab-top-body', laboratorium.top_labs || [], 'count', 'Tidak ada data');
+                renderVaksinVisitsTable(stats);
             }
 
             function renderSocialMediaTab(stats) {

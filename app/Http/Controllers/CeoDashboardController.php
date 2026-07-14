@@ -675,6 +675,11 @@ class CeoDashboardController extends Controller
                 'total_tindakan' => 0,
                 'top_tindakans' => [],
             ],
+            'vaksin' => [
+                'total_visits' => 0,
+                'total_tindakan' => 0,
+                'visits' => [],
+            ],
             'laboratorium' => [
                 'total_requests' => 0,
                 'completed_requests' => 0,
@@ -1110,6 +1115,46 @@ class CeoDashboardController extends Controller
                 $stats['tindakan'] = ['total_tindakan' => 0, 'top_tindakans' => []];
                 $stats['top_treatment_revenue'] = [];
                 $stats['top_treatment_revenue_total'] = 0.0;
+            }
+
+            try {
+                $vaksinBase = \Illuminate\Support\Facades\DB::table('erm_riwayat_tindakan as r')
+                    ->join('erm_visitations as v', 'r.visitation_id', '=', 'v.id')
+                    ->join('erm_tindakan as t', 'r.tindakan_id', '=', 't.id')
+                    ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+                    ->leftJoin('erm_dokters as d', 'v.dokter_id', '=', 'd.id')
+                    ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->where('t.is_vaksin', true)
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
+
+                $this->applyVisitTypeFilter($vaksinBase, $visitTypeFilter);
+
+                $stats['vaksin']['total_tindakan'] = (int) (clone $vaksinBase)->count();
+                $stats['vaksin']['total_visits'] = (int) (clone $vaksinBase)->distinct()->count('v.id');
+
+                $vaksinVisitRows = (clone $vaksinBase)
+                    ->selectRaw('v.id as visitation_id, v.tanggal_visitation')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(p.nama), ''), CONCAT('Pasien ID ', COALESCE(v.pasien_id, '-'))) as patient_name")
+                    ->selectRaw("COALESCE(NULLIF(TRIM(u.name), ''), CONCAT('Dokter ID ', COALESCE(v.dokter_id, '-'))) as doctor_name")
+                    ->selectRaw("GROUP_CONCAT(DISTINCT COALESCE(NULLIF(TRIM(t.nama), ''), CONCAT('Tindakan ', COALESCE(r.tindakan_id, '-'))) ORDER BY t.nama SEPARATOR ', ') as tindakan_names")
+                    ->groupBy('v.id', 'v.tanggal_visitation', 'p.nama', 'u.name', 'v.pasien_id', 'v.dokter_id')
+                    ->orderByDesc('v.tanggal_visitation')
+                    ->orderByDesc('v.id')
+                    ->get();
+
+                $stats['vaksin']['visits'] = $vaksinVisitRows->map(function ($row) {
+                    return [
+                        'visitation_id' => (string) ($row->visitation_id ?? '-'),
+                        'tanggal_visitation' => $row->tanggal_visitation,
+                        'patient_name' => (string) ($row->patient_name ?? 'Pasien Tidak Diketahui'),
+                        'doctor_name' => (string) ($row->doctor_name ?? 'Dokter Tidak Diketahui'),
+                        'tindakan_names' => (string) ($row->tindakan_names ?? '-'),
+                    ];
+                })->values()->all();
+            } catch (\Exception $e) {
+                $stats['vaksin'] = ['total_visits' => 0, 'total_tindakan' => 0, 'visits' => []];
             }
 
             try {
