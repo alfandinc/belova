@@ -25,7 +25,9 @@ class InvoiceController extends Controller
         foreach ($items as $item) {
             $billableType = (string) ($item->billable_type ?? '');
             $isTindakan = $billableType === 'App\\Models\\ERM\\RiwayatTindakan'
-                || $billableType === 'App\Models\ERM\RiwayatTindakan';
+                || $billableType === 'App\Models\ERM\RiwayatTindakan'
+                || $billableType === 'App\\Models\\ERM\\Tindakan'
+                || $billableType === 'App\Models\ERM\Tindakan';
 
             if (!$isTindakan) {
                 $groupedItems[] = $item;
@@ -33,18 +35,19 @@ class InvoiceController extends Controller
             }
 
             $discountType = trim((string) ($item->discount_type ?? ''));
+            $quantity = (float) ($item->quantity ?? 0);
+            $quantity = $quantity > 0 ? $quantity : 1;
             $discountValue = round((float) ($item->discount ?? 0), 2);
-            if ($discountValue > 0 && $discountType !== '%') {
-                $groupedItems[] = $item;
-                continue;
-            }
+            $discountPerUnit = $discountValue > 0
+                ? round($discountValue / $quantity, 2)
+                : 0.0;
 
             $groupKey = implode('|', [
                 trim((string) ($item->name ?? '')),
                 trim((string) ($item->description ?? '')),
                 number_format((float) ($item->unit_price ?? 0), 2, '.', ''),
                 $discountType,
-                number_format($discountValue, 2, '.', ''),
+                number_format($discountPerUnit, 2, '.', ''),
             ]);
 
             if (!array_key_exists($groupKey, $groupIndexByKey)) {
@@ -56,6 +59,7 @@ class InvoiceController extends Controller
             $existingIndex = $groupIndexByKey[$groupKey];
             $existingItem = $groupedItems[$existingIndex];
             $existingItem->quantity = (float) ($existingItem->quantity ?? 0) + (float) ($item->quantity ?? 0);
+            $existingItem->discount = (float) ($existingItem->discount ?? 0) + (float) ($item->discount ?? 0);
             $existingItem->final_amount = (float) ($existingItem->final_amount ?? 0) + (float) ($item->final_amount ?? 0);
             $groupedItems[$existingIndex] = $existingItem;
         }
