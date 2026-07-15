@@ -1757,6 +1757,7 @@ class RawatJalanController extends Controller
             'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
             'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
             'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
+            'rencana_vaksin' => 'nullable|string|max:255',
             'catatan' => 'nullable|string|max:1000',
         ]);
 
@@ -1780,6 +1781,7 @@ class RawatJalanController extends Controller
                 'transfusi_darah_atau_imunoglobulin' => $request->transfusi_darah_atau_imunoglobulin,
                 'hamil_atau_rencana_hamil' => $request->hamil_atau_rencana_hamil,
                 'vaksinasi_4_minggu_terakhir' => $request->vaksinasi_4_minggu_terakhir,
+                'rencana_vaksin' => $request->rencana_vaksin,
                 'catatan' => $request->catatan,
                 'created_by' => Auth::id(),
             ];
@@ -1845,6 +1847,7 @@ class RawatJalanController extends Controller
             'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
             'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
             'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
+            'rencana_vaksin' => 'nullable|string|max:255',
             'catatan' => 'nullable|string|max:1000',
         ]);
 
@@ -1868,6 +1871,7 @@ class RawatJalanController extends Controller
                 'transfusi_darah_atau_imunoglobulin' => $request->transfusi_darah_atau_imunoglobulin,
                 'hamil_atau_rencana_hamil' => $request->hamil_atau_rencana_hamil,
                 'vaksinasi_4_minggu_terakhir' => $request->vaksinasi_4_minggu_terakhir,
+                'rencana_vaksin' => $request->rencana_vaksin,
                 'catatan' => $request->catatan,
                 'created_by' => Auth::id(),
             ]);

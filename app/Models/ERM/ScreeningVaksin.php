@@ -18,6 +18,7 @@ class ScreeningVaksin extends Model
         'transfusi_darah_atau_imunoglobulin',
         'hamil_atau_rencana_hamil',
         'vaksinasi_4_minggu_terakhir',
+        'rencana_vaksin',
         'catatan',
         'created_by',
     ];

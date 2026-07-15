@@ -162,6 +162,11 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="rencana_vaksin_screening_vaksin" class="font-weight-bold">Rencana Vaksin:</label>
+                        <input type="text" class="form-control" id="rencana_vaksin_screening_vaksin" name="rencana_vaksin" placeholder="Masukkan rencana vaksin">
+                    </div>
+
+                    <div class="form-group">
                         <label for="catatan_screening_vaksin" class="font-weight-bold">Catatan Tambahan (Opsional):</label>
                         <textarea class="form-control" id="catatan_screening_vaksin" name="catatan" rows="3" placeholder="Masukkan catatan tambahan jika ada..."></textarea>
                     </div>
@@ -238,10 +243,14 @@
 
                 <div class="row">
                     <div class="col-md-6">
+                        <h6 class="text-info mb-2"><i class="fas fa-syringe mr-2"></i>Rencana Vaksin</h6>
+                        <p id="view-vaksin-rencana-vaksin" class="border p-3 bg-light">-</p>
+                    </div>
+                    <div class="col-md-6">
                         <h6 class="text-info mb-2"><i class="fas fa-sticky-note mr-2"></i>Catatan Tambahan</h6>
                         <p id="view-vaksin-catatan" class="border p-3 bg-light">-</p>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-12 mt-3">
                         <h6 class="text-info mb-2"><i class="fas fa-clock mr-2"></i>Waktu Pengisian</h6>
                         <p id="view-vaksin-created-at" class="border p-3 bg-light">-</p>
                     </div>

@@ -1768,6 +1768,7 @@ function populateScreeningVaksinForm(data) {
     $('input[name="transfusi_darah_atau_imunoglobulin"][value="' + data.transfusi_darah_atau_imunoglobulin + '"]').prop('checked', true);
     $('input[name="hamil_atau_rencana_hamil"][value="' + data.hamil_atau_rencana_hamil + '"]').prop('checked', true);
     $('input[name="vaksinasi_4_minggu_terakhir"][value="' + data.vaksinasi_4_minggu_terakhir + '"]').prop('checked', true);
+    $('#rencana_vaksin_screening_vaksin').val(data.rencana_vaksin || '');
     $('#catatan_screening_vaksin').val(data.catatan || '');
 }
 
@@ -2140,6 +2141,7 @@ function displayScreeningVaksinData(data) {
     $('#view-vaksin-transfusi-darah-atau-imunoglobulin').html(getReadableValue(data.transfusi_darah_atau_imunoglobulin));
     $('#view-vaksin-hamil-atau-rencana-hamil').html(getReadableValue(data.hamil_atau_rencana_hamil));
     $('#view-vaksin-vaksinasi-4-minggu-terakhir').html(getReadableValue(data.vaksinasi_4_minggu_terakhir));
+    $('#view-vaksin-rencana-vaksin').text(data.rencana_vaksin || '-');
     $('#view-vaksin-catatan').text(data.catatan || '-');
 
     const createdAt = new Date(data.created_at);
