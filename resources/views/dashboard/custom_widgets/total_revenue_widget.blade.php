@@ -31,75 +31,31 @@
         ->sum('target_amount') ?? 0);
     $periodTargetPercentage = $periodTarget > 0 ? ($periodRevenue / $periodTarget) * 100 : null;
 
-    $categoryRevenue = (object) (\Illuminate\Support\Facades\DB::table('finance_invoice_items as fii')
-        ->join('finance_invoices as fi', 'fi.id', '=', 'fii.invoice_id')
+    $clinicPalette = ['#8b5cf6', '#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6'];
+
+    $revenueByClinic = \Illuminate\Support\Facades\DB::table('finance_invoices as fi')
+        ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+        ->leftJoin('erm_klinik as k', 'k.id', '=', 'v.klinik_id')
         ->whereNotNull('fi.payment_date')
         ->whereIn('fi.status', ['paid', 'partial'])
         ->whereBetween('fi.payment_date', [$periodStart, $periodEnd])
-        ->selectRaw("COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%RiwayatTindakan%'
-                OR fii.billable_type LIKE '%Tindakan%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%tindakan%'
-            THEN fii.final_amount
-            ELSE 0
-        END), 0) as tindakan_total,
-        COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%Resep%'
-                OR fii.billable_type LIKE '%Obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%resep%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%produk%'
-            THEN fii.final_amount
-            ELSE 0
-        END), 0) as obat_produk_total,
-        COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%RiwayatTindakan%'
-                OR fii.billable_type LIKE '%Tindakan%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%tindakan%'
-                OR fii.billable_type LIKE '%Resep%'
-                OR fii.billable_type LIKE '%Obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%resep%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%produk%'
-            THEN 0
-            ELSE fii.final_amount
-        END), 0) as lain_lain_total")
-        ->first());
+        ->groupBy('v.klinik_id', 'k.nama')
+        ->selectRaw("v.klinik_id, COALESCE(k.nama, 'Tanpa Klinik') as nama, COALESCE(SUM(fi.total_amount), 0) as revenue_total")
+        ->orderByDesc('revenue_total')
+        ->get();
 
-    $categoryRevenueLastYear = (object) (\Illuminate\Support\Facades\DB::table('finance_invoice_items as fii')
-        ->join('finance_invoices as fi', 'fi.id', '=', 'fii.invoice_id')
+    $revenueByClinicLastYear = \Illuminate\Support\Facades\DB::table('finance_invoices as fi')
+        ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+        ->leftJoin('erm_klinik as k', 'k.id', '=', 'v.klinik_id')
         ->whereNotNull('fi.payment_date')
         ->whereIn('fi.status', ['paid', 'partial'])
         ->whereBetween('fi.payment_date', [$periodStart->copy()->subYear(), $periodEnd->copy()->subYear()])
-        ->selectRaw("COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%RiwayatTindakan%'
-                OR fii.billable_type LIKE '%Tindakan%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%tindakan%'
-            THEN fii.final_amount
-            ELSE 0
-        END), 0) as tindakan_total,
-        COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%Resep%'
-                OR fii.billable_type LIKE '%Obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%resep%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%produk%'
-            THEN fii.final_amount
-            ELSE 0
-        END), 0) as obat_produk_total,
-        COALESCE(SUM(CASE
-            WHEN fii.billable_type LIKE '%RiwayatTindakan%'
-                OR fii.billable_type LIKE '%Tindakan%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%tindakan%'
-                OR fii.billable_type LIKE '%Resep%'
-                OR fii.billable_type LIKE '%Obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%obat%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%resep%'
-                OR LOWER(COALESCE(fii.name, '')) LIKE '%produk%'
-            THEN 0
-            ELSE fii.final_amount
-        END), 0) as lain_lain_total")
-        ->first());
+        ->groupBy('v.klinik_id', 'k.nama')
+        ->selectRaw("v.klinik_id, COALESCE(k.nama, 'Tanpa Klinik') as nama, COALESCE(SUM(fi.total_amount), 0) as revenue_total")
+        ->get()
+        ->keyBy(function ($clinic) {
+            return (string) ($clinic->klinik_id ?? 'unknown');
+        });
 
     $periodRangeDays = max(1, $periodStart->copy()->startOfDay()->diffInDays($periodEnd->copy()->startOfDay()) + 1);
     $previousPeriodEnd = $periodStart->copy()->subDay()->endOfDay();
@@ -146,39 +102,45 @@
     $yearlyTrend = $formatTrend($yearlyRevenue, $yearlyRevenueLastYear);
     $periodTrend = $formatTrend($periodRevenue, $previousPeriodRevenue);
 
-    $categoryPalette = [
-        'tindakan' => '#3b82f6',
-        'obat_produk' => '#22c55e',
-        'lain_lain' => '#f59e0b',
-    ];
+    $clinics = $revenueByClinic
+        ->values()
+        ->map(function ($clinic, $index) use ($periodRevenue, $revenueByClinicLastYear, $formatTrend, $clinicPalette) {
+            $clinicId = (string) ($clinic->klinik_id ?? 'unknown');
+            $clinicName = strtolower((string) ($clinic->nama ?? ''));
 
-    $categoryTrend = [
-        'tindakan' => $formatTrend((float) ($categoryRevenue->tindakan_total ?? 0), (float) ($categoryRevenueLastYear->tindakan_total ?? 0)),
-        'obat_produk' => $formatTrend((float) ($categoryRevenue->obat_produk_total ?? 0), (float) ($categoryRevenueLastYear->obat_produk_total ?? 0)),
-        'lain_lain' => $formatTrend((float) ($categoryRevenue->lain_lain_total ?? 0), (float) ($categoryRevenueLastYear->lain_lain_total ?? 0)),
-    ];
+            $clinic->share = $periodRevenue > 0 ? (((float) ($clinic->revenue_total ?? 0)) / $periodRevenue) * 100 : 0;
+            $clinic->trend = $formatTrend(
+                (float) ($clinic->revenue_total ?? 0),
+                (float) optional($revenueByClinicLastYear->get($clinicId))->revenue_total
+            );
+            $clinic->color = $clinicPalette[$index % count($clinicPalette)];
 
-    $categoryGrandTotal = (float) ($categoryRevenue->tindakan_total ?? 0) + (float) ($categoryRevenue->obat_produk_total ?? 0) + (float) ($categoryRevenue->lain_lain_total ?? 0);
-    $categoryShares = [
-        'tindakan' => $categoryGrandTotal > 0 ? (((float) ($categoryRevenue->tindakan_total ?? 0)) / $categoryGrandTotal) * 100 : 0,
-        'obat_produk' => $categoryGrandTotal > 0 ? (((float) ($categoryRevenue->obat_produk_total ?? 0)) / $categoryGrandTotal) * 100 : 0,
-        'lain_lain' => $categoryGrandTotal > 0 ? (((float) ($categoryRevenue->lain_lain_total ?? 0)) / $categoryGrandTotal) * 100 : 0,
-    ];
+            if (str_contains($clinicName, 'skin')) {
+                $clinic->color = '#8b5cf6';
+            } elseif (str_contains($clinicName, 'premiere')) {
+                $clinic->color = '#2563eb';
+            } elseif (str_contains($clinicName, 'dental')) {
+                $clinic->color = '#22c55e';
+            }
 
-    $categoryOffset = 0;
-    $categorySegments = [];
-    foreach (['tindakan', 'obat_produk', 'lain_lain'] as $categoryKey) {
-        if (($categoryShares[$categoryKey] ?? 0) <= 0) {
+            return $clinic;
+        })
+        ->values();
+
+    $clinicSegments = [];
+    $clinicOffset = 0;
+    foreach ($clinics as $clinic) {
+        if (($clinic->share ?? 0) <= 0) {
             continue;
         }
 
-        $segmentEnd = min(100, $categoryOffset + $categoryShares[$categoryKey]);
-        $categorySegments[] = $categoryPalette[$categoryKey] . ' ' . number_format($categoryOffset, 4, '.', '') . '% ' . number_format($segmentEnd, 4, '.', '') . '%';
-        $categoryOffset = $segmentEnd;
+        $segmentEnd = min(100, $clinicOffset + $clinic->share);
+        $clinicSegments[] = $clinic->color . ' ' . number_format($clinicOffset, 4, '.', '') . '% ' . number_format($segmentEnd, 4, '.', '') . '%';
+        $clinicOffset = $segmentEnd;
     }
 
-    $categoryDonutStyle = !empty($categorySegments)
-        ? 'background: conic-gradient(' . implode(', ', $categorySegments) . ');'
+    $clinicDonutStyle = !empty($clinicSegments)
+        ? 'background: conic-gradient(' . implode(', ', $clinicSegments) . ');'
         : 'background: #e5e7eb;';
 @endphp
 
@@ -224,13 +186,13 @@
 
             <div class="col-xl-5">
                 <div class="h-100 p-3" style="border-radius: 14px; border: 1px solid rgba(148, 163, 184, 0.14); background: linear-gradient(180deg, #ffffff 0%, #fafaff 100%);">
-                    <div class="small text-uppercase text-muted font-weight-bold mb-3">Komposisi Revenue</div>
+                    <div class="small text-uppercase text-muted font-weight-bold mb-3">Komposisi Revenue Klinik</div>
 
                     <div class="d-flex justify-content-center align-items-center mb-3">
-                        <div class="position-relative d-flex align-items-center justify-content-center" style="width: 180px; height: 180px; border-radius: 50%; {{ $categoryDonutStyle }}">
+                        <div class="position-relative d-flex align-items-center justify-content-center" style="width: 180px; height: 180px; border-radius: 50%; {{ $clinicDonutStyle }}">
                             <div class="d-flex flex-column align-items-center justify-content-center text-center bg-white" style="width: 108px; height: 108px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);">
                                 <div class="text-muted" style="font-size: 11px;">TOTAL</div>
-                                <div class="font-weight-bold text-dark">{{ $formatCurrency($categoryGrandTotal) }}</div>
+                                <div class="font-weight-bold text-dark">{{ $formatCurrency($periodRevenue) }}</div>
                                 <div class="small {{ $periodTrend['class'] }} font-weight-bold" style="font-size: 10px;">
                                     <i class="{{ $periodTrend['icon'] }} mr-1"></i>{{ $periodTrend['label'] }}
                                 </div>
@@ -242,41 +204,23 @@
                     </div>
 
                     <div class="mb-3 p-3" style="border-radius: 14px; background: rgba(241, 245, 249, 0.75);">
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="text-muted d-flex align-items-center" style="font-size: 11px;">
-                                <span class="mr-2" style="width: 10px; height: 10px; border-radius: 50%; background: {{ $categoryPalette['tindakan'] }};"></span>
-                                Tindakan
-                                <span class="ml-2 font-weight-bold" style="color: #94a3b8;">{{ number_format($categoryShares['tindakan'], 1, ',', '.') }}%</span>
-                            </span>
-                            <span class="font-weight-bold text-dark" style="font-size: 12px;">{{ $formatCurrency((float) ($categoryRevenue->tindakan_total ?? 0)) }}</span>
-                        </div>
-                        <div class="small {{ $categoryTrend['tindakan']['class'] }} font-weight-bold mb-1" style="font-size: 10px; line-height: 1.2;">
-                            <i class="{{ $categoryTrend['tindakan']['icon'] }} mr-1"></i>{{ $categoryTrend['tindakan']['label'] }} <span class="text-muted font-weight-normal">vs periode tahun lalu</span>
-                        </div>
-
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="text-muted d-flex align-items-center" style="font-size: 11px;">
-                                <span class="mr-2" style="width: 10px; height: 10px; border-radius: 50%; background: {{ $categoryPalette['obat_produk'] }};"></span>
-                                Obat/Produk
-                                <span class="ml-2 font-weight-bold" style="color: #94a3b8;">{{ number_format($categoryShares['obat_produk'], 1, ',', '.') }}%</span>
-                            </span>
-                            <span class="font-weight-bold text-dark" style="font-size: 12px;">{{ $formatCurrency((float) ($categoryRevenue->obat_produk_total ?? 0)) }}</span>
-                        </div>
-                        <div class="small {{ $categoryTrend['obat_produk']['class'] }} font-weight-bold mb-1" style="font-size: 10px; line-height: 1.2;">
-                            <i class="{{ $categoryTrend['obat_produk']['icon'] }} mr-1"></i>{{ $categoryTrend['obat_produk']['label'] }} <span class="text-muted font-weight-normal">vs periode tahun lalu</span>
-                        </div>
-
-                        <div class="d-flex align-items-center justify-content-between">
-                            <span class="text-muted d-flex align-items-center" style="font-size: 11px;">
-                                <span class="mr-2" style="width: 10px; height: 10px; border-radius: 50%; background: {{ $categoryPalette['lain_lain'] }};"></span>
-                                Lain-lain
-                                <span class="ml-2 font-weight-bold" style="color: #94a3b8;">{{ number_format($categoryShares['lain_lain'], 1, ',', '.') }}%</span>
-                            </span>
-                            <span class="font-weight-bold text-dark" style="font-size: 12px;">{{ $formatCurrency((float) ($categoryRevenue->lain_lain_total ?? 0)) }}</span>
-                        </div>
-                        <div class="small {{ $categoryTrend['lain_lain']['class'] }} font-weight-bold" style="font-size: 10px; line-height: 1.2;">
-                            <i class="{{ $categoryTrend['lain_lain']['icon'] }} mr-1"></i>{{ $categoryTrend['lain_lain']['label'] }} <span class="text-muted font-weight-normal">vs periode tahun lalu</span>
-                        </div>
+                        @forelse ($clinics as $clinic)
+                            <div class="d-flex align-items-center justify-content-between {{ !$loop->last ? 'mb-1' : '' }}">
+                                <span class="text-muted d-flex align-items-center" style="font-size: 11px;">
+                                    <span class="mr-2" style="width: 10px; height: 10px; border-radius: 50%; background: {{ $clinic->color }};"></span>
+                                    {{ $clinic->nama }}
+                                    <span class="ml-2 font-weight-bold" style="color: #94a3b8;">{{ number_format($clinic->share, 1, ',', '.') }}%</span>
+                                </span>
+                                <span class="font-weight-bold text-dark text-right" style="font-size: 12px;">
+                                    {{ $formatCurrency((float) ($clinic->revenue_total ?? 0)) }}
+                                    <span class="d-block small {{ $clinic->trend['class'] }} font-weight-bold" style="font-size: 10px; line-height: 1.2;">
+                                        <i class="{{ $clinic->trend['icon'] }} mr-1"></i>{{ $clinic->trend['label'] }} <span class="text-muted font-weight-normal">vs periode tahun lalu</span>
+                                    </span>
+                                </span>
+                            </div>
+                        @empty
+                            <div class="small text-muted">Belum ada revenue klinik pada periode ini.</div>
+                        @endforelse
                     </div>
                 </div>
             </div>
