@@ -149,6 +149,14 @@ class KartuStokController extends Controller
                                 $mutasi = DB::table('erm_mutasi_gudang')->where('id', $t->ref_id)->first();
                                 $refNumber = $mutasi ? $mutasi->nomor_mutasi : '#' . $t->ref_id;
                                 break;
+                            case 'mutasi_stok':
+                                $mutasiStok = DB::table('erm_mutasi_stok')->where('id', $t->ref_id)->first();
+                                $refNumber = $mutasiStok ? $mutasiStok->nomor_mutasi : '#' . $t->ref_id;
+                                break;
+                            case 'mutasi_stok_cancel':
+                                $mutasiStok = DB::table('erm_mutasi_stok')->where('id', $t->ref_id)->first();
+                                $refNumber = $mutasiStok ? ('BATAL-' . $mutasiStok->nomor_mutasi) : '#' . $t->ref_id;
+                                break;
                             case 'stok_opname':
                                 $opname = DB::table('erm_stok_opname')->where('id', $t->ref_id)->first();
                                 $refNumber = $opname ? 'OPNAME-' . $opname->periode_bulan . '-' . $opname->periode_tahun . ' (#' . $t->ref_id . ')' : '#' . $t->ref_id;
@@ -555,6 +563,16 @@ class KartuStokController extends Controller
                                 case 'mutasi_gudang':
                                     $mutasi = DB::table('erm_mutasi_gudang')->where('id', $row->ref_id)->first();
                                     $refNumber = $mutasi ? $mutasi->nomor_mutasi : '#' . $row->ref_id;
+                                    break;
+
+                                case 'mutasi_stok':
+                                    $mutasiStok = DB::table('erm_mutasi_stok')->where('id', $row->ref_id)->first();
+                                    $refNumber = $mutasiStok ? $mutasiStok->nomor_mutasi : '#' . $row->ref_id;
+                                    break;
+
+                                case 'mutasi_stok_cancel':
+                                    $mutasiStok = DB::table('erm_mutasi_stok')->where('id', $row->ref_id)->first();
+                                    $refNumber = $mutasiStok ? ('BATAL-' . $mutasiStok->nomor_mutasi) : '#' . $row->ref_id;
                                     break;
 
                                     case 'retur_pembelian':

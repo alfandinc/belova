@@ -53,7 +53,8 @@ use App\Http\Controllers\ERM\{
     NotificationController,
     ObatKeluarController,
     MutasiGudangController,
-    GudangController
+    GudangController,
+    MutasiStokController
     ,IcPendaftaranController
 };
 use App\Http\Controllers\ERM\ObatMappingController;
@@ -775,6 +776,16 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
     Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');
     Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
+    });
+
+    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin')->group(function () {
+        Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
+        Route::get('/data', [MutasiStokController::class, 'data'])->name('erm.mutasi-stok.data');
+        Route::get('/obat', [MutasiStokController::class, 'getObatGudang'])->name('erm.mutasi-stok.obat');
+        Route::post('/', [MutasiStokController::class, 'store'])->name('erm.mutasi-stok.store');
+        Route::get('/{id}/print', [MutasiStokController::class, 'print'])->name('erm.mutasi-stok.print');
+        Route::post('/{id}/cancel', [MutasiStokController::class, 'cancel'])->name('erm.mutasi-stok.cancel');
+        Route::get('/{id}', [MutasiStokController::class, 'show'])->name('erm.mutasi-stok.show');
     });
 
     // Gudang Routes

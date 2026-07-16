@@ -126,6 +126,9 @@
                                 <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Antar Gudang</span></a>
                             </li>
                             <li>
+                                <a href="/erm/mutasi-stok"><i data-feather="shuffle" class="align-self-center menu-icon"></i><span>Mutasi Stok</span></a>
+                            </li>
+                            <li>
                                 <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
                             </li>
                             <li>
