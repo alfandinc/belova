@@ -89,6 +89,14 @@
                                     <input type="date" id="tanggal_lahir" name="tanggal_lahir" class="form-control" value="{{ old('tanggal_lahir', isset($employee->tanggal_lahir) ? $employee->tanggal_lahir->format('Y-m-d') : '') }}">
                                 </div>
                             </div>
+                                <div class="form-group col-md-6">
+                                    <label for="jenis_kelamin">Jenis Kelamin</label>
+                                    <select name="jenis_kelamin" id="jenis_kelamin" class="form-control">
+                                        <option value="">- Pilih Jenis Kelamin -</option>
+                                        <option value="L" {{ strtolower(old('jenis_kelamin', $employee->jenis_kelamin ?? '')) == 'l' ? 'selected' : '' }}>Laki-laki</option>
+                                        <option value="P" {{ strtolower(old('jenis_kelamin', $employee->jenis_kelamin ?? '')) == 'p' ? 'selected' : '' }}>Perempuan</option>
+                                    </select>
+                                </div>
                             <!-- Alamat will be moved to the last position below -->
                             <div class="form-group col-md-6">
                                 <label for="no_hp">No HP</label>

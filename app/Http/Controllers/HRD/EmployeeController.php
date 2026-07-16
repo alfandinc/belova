@@ -171,6 +171,7 @@ class EmployeeController extends Controller
             'nama' => 'nullable|string|max:255',
             'tempat_lahir' => 'nullable|string|max:100',
             'tanggal_lahir' => 'nullable|date',
+            'jenis_kelamin' => 'nullable|in:L,P,l,p',
             'nik' => 'nullable|string|unique:hrd_employee',
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk',
             'no_darurat' => 'nullable|string|max:50', // Emergency contact number
@@ -228,6 +229,9 @@ class EmployeeController extends Controller
 
         // Map no_darurat to the correct field for Employee model
         $employeeData = $data;
+        if (!empty($data['jenis_kelamin'])) {
+            $employeeData['jenis_kelamin'] = strtoupper($data['jenis_kelamin']);
+        }
         if (isset($data['no_darurat'])) {
             $employeeData['no_darurat'] = $data['no_darurat'];
         }
@@ -292,6 +296,7 @@ class EmployeeController extends Controller
             'nama' => 'nullable|string|max:255',
             'tempat_lahir' => 'nullable|string|max:100',
             'tanggal_lahir' => 'nullable|date',
+            'jenis_kelamin' => 'nullable|in:L,P,l,p',
             'nik' => 'nullable|string|unique:hrd_employee,nik,' . $employee->id,
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk,' . $employee->id,
             'no_darurat' => 'nullable|string|max:50', // Emergency contact number
@@ -334,6 +339,9 @@ class EmployeeController extends Controller
 
         // Map no_darurat to the correct field for Employee model
         $employeeData = $data;
+        if (!empty($data['jenis_kelamin'])) {
+            $employeeData['jenis_kelamin'] = strtoupper($data['jenis_kelamin']);
+        }
         if (isset($data['no_darurat'])) {
             $employeeData['no_darurat'] = $data['no_darurat'];
         }
