@@ -32,6 +32,9 @@
         .login-container.premiere {
             background: linear-gradient(135deg,#003366,#007bff);
         }
+        .login-container.dental {
+            background: linear-gradient(135deg,#0b3d2e,#14532d);
+        }
         .login-title {
             text-align: center;
             font-weight: 700;
@@ -97,9 +100,45 @@
             font-size: 12px;
             font-weight: 600;
         }
+        .clinic-choice-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: stretch;
+            gap: 16px;
+            width: 100%;
+        }
+        .clinic-choice-modal-dialog {
+            max-width: 980px;
+        }
+        .clinic-choice-item {
+            flex: 0 0 240px;
+            max-width: 240px;
+            display: flex;
+        }
+        .clinic-choice-btn {
+            width: 100%;
+            height: 240px;
+            display: flex;
+            margin: 0;
+            align-self: stretch;
+        }
+        @media (max-width: 991px) {
+            .clinic-choice-item {
+                flex-basis: 240px;
+                max-width: 240px;
+            }
+        }
         @media (max-width: 480px) {
             .emotion-grid {
                 grid-template-columns: repeat(3, 1fr);
+            }
+            .clinic-choice-item {
+                flex-basis: 240px;
+                max-width: 240px;
+            }
+            .clinic-choice-btn {
+                height: 240px;
             }
         }
     </style>
@@ -146,19 +185,28 @@
 
     <!-- Clinic Choice Modal -->
     <div class="modal fade" id="clinicChoiceModal" tabindex="-1" aria-labelledby="clinicChoiceModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-dialog modal-dialog-centered modal-lg clinic-choice-modal-dialog">
         <div class="modal-content" style="background:#232a36; color:#fff; border-radius:20px;">
           {{-- <div class="modal-header border-0">
             <h4 class="modal-title w-100 text-center" id="clinicChoiceModalLabel" style="font-weight:700;">Pilih Klinik</h4>
           </div> --}}
           <div class="modal-body text-center" style="padding:50px 20px;">
-            <div class="d-flex flex-row align-items-center justify-content-center gap-3">
-              <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center mx-2 p-0" id="choose-skin" style="width:340px; height:340px; border-radius:20px; border-width:4px; background:linear-gradient(135deg,#b8004c,#e83e8c); color:#232a36; border:4px solid #e83e8c; overflow:hidden;">
-                <img src="{{ asset('img/logo-belovaskin-bw.png') }}" alt="Belova Skin" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
-              </button>
-              <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center mx-2 p-0" id="choose-premiere" style="width:340px; height:340px; border-radius:20px; border-width:4px; background:linear-gradient(135deg,#003366,#007bff); color:#232a36; border:4px solid #007bff; overflow:hidden;">
-                <img src="{{ asset('img/logo-premiere-bw.png') }}" alt="Premiere Belova" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
-              </button>
+                        <div class="clinic-choice-grid">
+                            <div class="clinic-choice-item">
+                                <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center p-0 clinic-choice-btn" id="choose-skin" style="border-radius:20px; border-width:4px; background:linear-gradient(135deg,#b8004c,#e83e8c); color:#232a36; border:4px solid #e83e8c; overflow:hidden;">
+                                    <img src="{{ asset('img/logo-belovaskin-bw.png') }}" alt="Belova Skin" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
+                                </button>
+                            </div>
+                            <div class="clinic-choice-item">
+                                <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center p-0 clinic-choice-btn" id="choose-premiere" style="border-radius:20px; border-width:4px; background:linear-gradient(135deg,#003366,#007bff); color:#232a36; border:4px solid #007bff; overflow:hidden;">
+                                    <img src="{{ asset('img/logo-premiere-bw.png') }}" alt="Premiere Belova" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
+                                </button>
+                            </div>
+                            <div class="clinic-choice-item">
+                                <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center p-0 clinic-choice-btn" id="choose-dental" style="border-radius:20px; border-width:4px; background:linear-gradient(135deg,#0b3d2e,#14532d); color:#ffffff; border:4px solid #14532d; overflow:hidden;">
+                                    <img src="{{ asset('img/logo-dental.png') }}" alt="Belova Dental Care" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
+                                </button>
+                            </div>
             </div>
           </div>
         </div>
@@ -190,6 +238,9 @@
         $('#choose-premiere').on('click', function() {
             setClinicChoice('premiere');
         });
+        $('#choose-dental').on('click', function() {
+            setClinicChoice('dental');
+        });
 
         function setClinicChoice(choice) {
             // Set hidden input for form submit
@@ -198,11 +249,15 @@
             if (choice === 'skin') {
                 $('#login-logo').attr('src', '{{ asset('img/logo-belovaskin-bw.png') }}');
                 $('#login-title').text('Login SIM Klinik Belova Skin');
-                $('#login-container').removeClass('premiere').addClass('skin');
+                $('#login-container').removeClass('premiere dental').addClass('skin');
             } else if (choice === 'premiere') {
                 $('#login-logo').attr('src', '{{ asset('img/logo-premiere-bw.png') }}');
                 $('#login-title').text('Login SIM Klinik Premiere Belova');
-                $('#login-container').removeClass('skin').addClass('premiere');
+                $('#login-container').removeClass('skin dental').addClass('premiere');
+            } else if (choice === 'dental') {
+                $('#login-logo').attr('src', '{{ asset('img/logo-dental.png') }}');
+                $('#login-title').text('Login SIM Klinik Belova Dental Care');
+                $('#login-container').removeClass('skin premiere').addClass('dental');
             }
             updateLoginButtonState();
             // Hide modal

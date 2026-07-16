@@ -1,14 +1,27 @@
 <!-- Left Sidenav -->
 <div class="left-sidenav">
     <!-- LOGO -->
+    @php
+        $clinicChoice = session('clinic_choice');
+        if ($clinicChoice === 'skin') {
+            $lightLogo = asset('img/logo-belovaskin-bw.png');
+            $darkLogo = asset('img/logo-belovaskin.png');
+        } elseif ($clinicChoice === 'dental') {
+            $lightLogo = asset('img/logo-dental.png');
+            $darkLogo = asset('img/logo-dental.png');
+        } else {
+            $lightLogo = asset('img/logo-premiere-bw.png');
+            $darkLogo = asset('img/logo-premiere.png');
+        }
+    @endphp
     <div class="brand mt-3 text-center">
         <a href="/erm" class="logo">
             <span>
                 <!-- Light-theme logo (for dark background) -->
-                <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
+                <img src="{{ $lightLogo }}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
 
                 <!-- Dark-theme logo (for light background) -->
-                <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
+                <img src="{{ $darkLogo }}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
                 {{-- <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;"> --}}
             </span>
         </a>

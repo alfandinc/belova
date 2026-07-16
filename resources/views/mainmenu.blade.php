@@ -343,14 +343,11 @@
         .welcome-banner {
             text-align: center;
             margin: 20px 0;
-            padding: 18px 24px 20px;
+              padding: 8px 0 12px;
             color: var(--text-color);
-            background: var(--bg-banner);
-            border-radius: 18px;
             width: 100%;
             max-width: 1200px;
             transition: all 0.3s ease;
-            border: 1px solid rgba(255,255,255,0.12);
         }
         
         .welcome-banner h2 {
@@ -373,6 +370,14 @@
         .welcome-banner p {
             margin-bottom: 0;
             animation: fadeIn 1.2s ease;
+        }
+
+        .welcome-slogan {
+            margin: 0;
+            font-size: clamp(0.95rem, 1.5vw, 1.1rem);
+            font-weight: 500;
+            letter-spacing: 0.02em;
+            color: var(--text-muted);
         }
 
         .welcome-dashboard-btn {
@@ -849,6 +854,9 @@
                     } elseif ($clinicChoice === 'skin') {
                         $logoDark = 'img/logo-belovaskin-bw.png';
                         $logoLight = 'img/logo-belovaskin.png'; // Make sure this file exists
+                    } elseif ($clinicChoice === 'dental') {
+                        $logoDark = 'img/logo-dental.png';
+                        $logoLight = 'img/logo-dental.png';
                     }
                 @endphp
                 <img src="{{ asset($logoDark) }}" data-logo-dark="{{ asset($logoDark) }}" data-logo-light="{{ asset($logoLight) }}" alt="Belova Logo" id="logo-image">
@@ -911,9 +919,12 @@
                         $simName = 'SIM Klinik Premiere Belova';
                     } elseif ($clinicChoice === 'skin') {
                         $simName = 'SIM Klinik Belova Skin';
+                    } elseif ($clinicChoice === 'dental') {
+                        $simName = 'SIM Klinik Belova Dental Care';
                     }
                 @endphp
                 <h2><span class="welcome-prefix">Welcome to</span> <span class="sim-name">{{ $simName }}</span></h2>
+                <p class="welcome-slogan">Bertumbuh Bersama dengan Niat Baik</p>
             </div>
             
             <div class="menu-grid-wrapper">

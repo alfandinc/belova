@@ -11,12 +11,16 @@
 
     <!-- App favicon -->
     @php
-        $klinikId = auth()->user()->dokter->klinik_id ?? null; // Assuming 'dokter' is the relationship
-        $favicon = $klinikId == 1 
-            ? asset('img/favicon-premiere.png') 
-            : ($klinikId == 2 
-                ? asset('img/favicon-belovaskin.png') 
-                : asset('img/favicon-belovaskin.png'));
+        $clinicChoice = session('clinic_choice');
+        if ($clinicChoice === 'premiere') {
+            $favicon = asset('img/favicon-premiere.png');
+        } elseif ($clinicChoice === 'skin') {
+            $favicon = asset('img/favicon-belovaskin.png');
+        } elseif ($clinicChoice === 'dental') {
+            $favicon = asset('img/logo-dental.png');
+        } else {
+            $favicon = asset('img/favicon-belovaskin.png');
+        }
     @endphp
     <link rel="shortcut icon" href="{{ $favicon }}">
 

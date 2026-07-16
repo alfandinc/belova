@@ -128,7 +128,7 @@ class AuthController extends Controller
     public function setClinicChoice(Request $request)
     {
         $request->validate([
-            'clinic_choice' => 'required|in:skin,premiere',
+            'clinic_choice' => 'required|in:skin,premiere,dental',
         ]);
         session(['clinic_choice' => $request->clinic_choice]);
         return response()->json(['status' => 'ok']);
@@ -173,6 +173,7 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required',
             'emotion' => 'nullable|in:' . implode(',', array_keys(self::emotionCatalog())),
+            'clinic_choice' => 'nullable|in:skin,premiere,dental',
         ]);
 
         // Find user with given email

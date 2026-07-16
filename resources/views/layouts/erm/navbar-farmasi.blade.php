@@ -12,6 +12,10 @@
                     $lightLogo = asset('img/logo-belovaskin-bw.png');
                     $darkLogo = asset('img/logo-belovaskin.png');
                     $logoHeight = '50px';
+                } elseif ($clinicChoice === 'dental') {
+                    $lightLogo = asset('img/logo-dental.png');
+                    $darkLogo = asset('img/logo-dental.png');
+                    $logoHeight = '50px';
                 } else {
                     $lightLogo = asset('img/logo-belova-klinik-bw.png');
                     $darkLogo = asset('img/logo-belova-klinik.png');
