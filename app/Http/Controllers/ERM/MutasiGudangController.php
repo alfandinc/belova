@@ -14,6 +14,13 @@ use Illuminate\Support\Facades\Log;
 
 class MutasiGudangController extends Controller
 {
+    private function canAccessMutasiGudangActions($user): bool
+    {
+        return $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['Admin', 'Farmasi', 'farmasi', 'Beautician', 'beautician']);
+    }
+
     /**
      * Get obat yang tersedia di gudang asal beserta stoknya
      */
@@ -130,10 +137,7 @@ class MutasiGudangController extends Controller
             })
             ->addColumn('action', function ($mutasi) {
                 $user = auth()->user();
-                $canApprove = false;
-                if ($user && method_exists($user, 'hasRole')) {
-                    $canApprove = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
-                }
+                $canApprove = $this->canAccessMutasiGudangActions($user);
 
                 $printUrl = route('erm.mutasi-gudang.print', $mutasi->id);
 
@@ -289,10 +293,7 @@ class MutasiGudangController extends Controller
         
         $html = view('erm.mutasi-gudang._detail', compact('mutasi'))->render();
         $user = Auth::user();
-        $canApprove = false;
-        if ($user && method_exists($user, 'hasRole')) {
-            $canApprove = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
-        }
+        $canApprove = $this->canAccessMutasiGudangActions($user);
 
         return response()->json([
             'html' => $html,
@@ -304,10 +305,7 @@ class MutasiGudangController extends Controller
     public function approve($id)
     {
         $user = Auth::user();
-        $allowed = false;
-        if ($user && method_exists($user, 'hasRole')) {
-            $allowed = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
-        }
+        $allowed = $this->canAccessMutasiGudangActions($user);
         if (!$allowed) {
             return response()->json([
                 'success' => false,
@@ -416,10 +414,7 @@ class MutasiGudangController extends Controller
     public function reject($id)
     {
         $user = Auth::user();
-        $allowed = false;
-        if ($user && method_exists($user, 'hasRole')) {
-            $allowed = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
-        }
+        $allowed = $this->canAccessMutasiGudangActions($user);
         if (!$allowed) {
             return response()->json([
                 'success' => false,

@@ -203,7 +203,7 @@ class StokGudangController extends Controller {
                 if (!$obatId) return '';
 
                 $user = Auth::user();
-                $canDeleteStok = $user && $user->hasAnyRole(['Admin', 'admin']);
+                $canDeleteStok = $user && $user->hasAnyRole(['Admin', 'admin', 'Beautician', 'beautician']);
                 $canFollowUpExpired = $expiredGudangId
                     && (int) $gudangId === (int) $expiredGudangId
                     && (float) $row->total_stok > 0;
@@ -564,7 +564,7 @@ class StokGudangController extends Controller {
     public function deleteObatFromGudang(Request $request)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasAnyRole(['Admin', 'admin'])) {
+        if (!$user || !$user->hasAnyRole(['Admin', 'admin', 'Beautician', 'beautician'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda tidak memiliki izin untuk menghapus stok.'

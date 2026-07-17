@@ -337,7 +337,7 @@ Route::middleware(['auth'])->group(function () {
 
 // AJAX: delete (zero-out) all stok records for an obat in a gudang (requires auth + role)
 Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObatFromGudang'])
-    ->middleware(['auth','role:Admin|Farmasi'])
+    ->middleware(['auth','role:Admin|Farmasi|Beautician'])
     ->name('erm.stok-gudang.delete');
 
 
@@ -778,7 +778,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
     });
 
-    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin')->group(function () {
+    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician')->group(function () {
         Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
         Route::get('/data', [MutasiStokController::class, 'data'])->name('erm.mutasi-stok.data');
         Route::get('/obat', [MutasiStokController::class, 'getObatGudang'])->name('erm.mutasi-stok.obat');
