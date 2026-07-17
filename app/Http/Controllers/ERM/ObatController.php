@@ -167,6 +167,12 @@ class ObatController extends Controller
             if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
                 $query->where('metode_bayar_id', $request->metode_bayar_id);
             }
+            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
+                $zatAktifId = $request->zataktif_id;
+                $query->whereHas('zatAktifs', function ($zatQuery) use ($zatAktifId) {
+                    $zatQuery->where('erm_zataktif.id', $zatAktifId);
+                });
+            }
             if ($request->filled('status_aktif')) {
                 $query->where('status_aktif', $request->status_aktif);
             }

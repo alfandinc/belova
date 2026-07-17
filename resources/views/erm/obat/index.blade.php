@@ -400,6 +400,20 @@
                     </div>
                 </div>
             </div>
+            <div class="row mb-3">
+                <div class="col-md-6 col-lg-4">
+                    <div class="form-group mb-0">
+                        <label for="filter_kandungan">Kandungan</label>
+                        <select id="filter_kandungan" class="form-control select2">
+                            <option value="">Semua Kandungan</option>
+                            @php $filterZatAktifList = \App\Models\ERM\ZatAktif::orderBy('nama')->get(); @endphp
+                            @foreach($filterZatAktifList as $zat)
+                                <option value="{{ $zat->id }}">{{ $zat->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+            </div>
             <hr />
             <table id="obat-table" class="table table-bordered table-hover">
                 <thead>
@@ -664,6 +678,7 @@
                 data: function(d) {
                     d.kategori = $('#filter_kategori').val();
                     d.metode_bayar_id = $('#filter_metode_bayar').val();
+                    d.zataktif_id = $('#filter_kandungan').val();
                     
                     // Always send the status_aktif parameter
                     // Even when it's empty, to ensure the controller gets it
@@ -674,6 +689,7 @@
                     console.log('Sending filters:', {
                         kategori: d.kategori,
                         metode_bayar_id: d.metode_bayar_id,
+                        zataktif_id: d.zataktif_id,
                         status_aktif: d.status_aktif,
                         is_generik: d.is_generik
                     });
@@ -935,7 +951,7 @@
         });
 
         // Apply filter when select changes (no button needed)
-        $('#filter_kategori, #filter_metode_bayar, #filter_status, #filter_paten').on('change', function() {
+        $('#filter_kategori, #filter_metode_bayar, #filter_status, #filter_paten, #filter_kandungan').on('change', function() {
             var statusFilter = $('#filter_status').val();
             console.log('Status filter changed to:', statusFilter);
             
