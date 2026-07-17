@@ -15,6 +15,8 @@ class MutasiStok extends Model
         'nomor_mutasi',
         'gudang_id',
         'jenis_mutasi',
+        'tanggal_mutasi',
+        'tanggal_input',
         'status',
         'user_id',
         'cancelled_by',
@@ -23,6 +25,8 @@ class MutasiStok extends Model
     ];
 
     protected $casts = [
+        'tanggal_mutasi' => 'date',
+        'tanggal_input' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
 

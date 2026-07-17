@@ -53,6 +53,7 @@
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
+                                    <th>Tanggal Input</th>
                                     <th>Nomor Mutasi</th>
                                     <th>Gudang</th>
                                     <th>Jenis</th>
@@ -103,6 +104,21 @@
                                     <option value="masuk">Masuk</option>
                                     <option value="keluar">Keluar</option>
                                 </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="tanggal_mutasi">Tanggal Mutasi <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="tanggal_mutasi" id="tanggal_mutasi" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="tanggal_input_preview">Tanggal Input</label>
+                                <input type="text" class="form-control" id="tanggal_input_preview" readonly placeholder="Otomatis saat disimpan">
                             </div>
                         </div>
                     </div>
@@ -161,6 +177,24 @@
 $(function () {
     var isEditMode = false;
 
+    function getCurrentTimestampLabel() {
+        var now = new Date();
+        var day = String(now.getDate()).padStart(2, '0');
+        var month = String(now.getMonth() + 1).padStart(2, '0');
+        var year = now.getFullYear();
+        var hours = String(now.getHours()).padStart(2, '0');
+        var minutes = String(now.getMinutes()).padStart(2, '0');
+        return day + '/' + month + '/' + year + ' ' + hours + ':' + minutes;
+    }
+
+    function getCurrentDateValue() {
+        var now = new Date();
+        var day = String(now.getDate()).padStart(2, '0');
+        var month = String(now.getMonth() + 1).padStart(2, '0');
+        var year = now.getFullYear();
+        return year + '-' + month + '-' + day;
+    }
+
     var table = $('#mutasi-stok-table').DataTable({
         processing: true,
         serverSide: true,
@@ -178,7 +212,8 @@ $(function () {
             feather.replace();
         },
         columns: [
-            { data: 'tanggal', name: 'created_at' },
+            { data: 'tanggal', name: 'tanggal_mutasi' },
+            { data: 'tanggal_input', name: 'tanggal_input' },
             { data: 'nomor_mutasi', name: 'nomor_mutasi' },
             { data: 'gudang_nama', name: 'gudang.nama', orderable: false },
             { data: 'jenis_label', name: 'jenis_mutasi', searchable: false },
@@ -203,6 +238,8 @@ $(function () {
         $('#form-mutasi-stok')[0].reset();
         $('#edit_id').val('');
         $('#modalMutasiStokLabel').text('Buat Mutasi Stok');
+        $('#tanggal_mutasi').val(getCurrentDateValue());
+        $('#tanggal_input_preview').val(getCurrentTimestampLabel());
         $('#gudang_id, #jenis_mutasi').val(null).trigger('change');
         $('#mutasi-stok-items-table tbody').empty();
     }
@@ -409,6 +446,7 @@ $(function () {
                 _token: "{{ csrf_token() }}",
                 gudang_id: gudangId,
                 jenis_mutasi: jenisMutasi,
+                tanggal_mutasi: $('#tanggal_mutasi').val(),
                 edit_id: editId || null,
                 items: items
             },
@@ -472,8 +510,9 @@ $(function () {
 
             var html = '' +
                 '<div class="row mb-3">' +
-                    '<div class="col-md-6"><strong>Nomor Mutasi:</strong><br>' + response.nomor_mutasi + '</div>' +
-                    '<div class="col-md-6"><strong>Tanggal:</strong><br>' + response.tanggal + '</div>' +
+                    '<div class="col-md-4"><strong>Nomor Mutasi:</strong><br>' + response.nomor_mutasi + '</div>' +
+                    '<div class="col-md-4"><strong>Tanggal Mutasi:</strong><br>' + (response.tanggal_mutasi_display || '-') + '</div>' +
+                    '<div class="col-md-4"><strong>Tanggal Input:</strong><br>' + (response.tanggal_input || '-') + '</div>' +
                 '</div>' +
                 '<div class="row mb-3">' +
                     '<div class="col-md-4"><strong>Gudang:</strong><br>' + (response.gudang || '-') + '</div>' +
@@ -541,6 +580,8 @@ $(function () {
             $('#modalDetailMutasiStok').modal('hide');
             $('#modalMutasiStokLabel').text('Ubah Mutasi Stok');
             $('#edit_id').val(response.id);
+            $('#tanggal_mutasi').val(response.tanggal_mutasi || getCurrentDateValue());
+            $('#tanggal_input_preview').val(response.tanggal_input || getCurrentTimestampLabel());
             $('#gudang_id').val(response.gudang_id).trigger('change');
             $('#jenis_mutasi').val(response.jenis_mutasi).trigger('change');
             $('#mutasi-stok-items-table tbody').empty();
@@ -553,6 +594,7 @@ $(function () {
         });
     });
 
+    resetFormState();
     updateInfoBox();
 });
 </script>

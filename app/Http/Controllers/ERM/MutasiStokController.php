@@ -42,7 +42,10 @@ class MutasiStokController extends Controller
 
         return DataTables::of($query)
             ->addColumn('tanggal', function (MutasiStok $mutasi) {
-                return optional($mutasi->created_at)->format('d/m/Y H:i');
+                return optional($mutasi->tanggal_mutasi)->format('d/m/Y');
+            })
+            ->addColumn('tanggal_input', function (MutasiStok $mutasi) {
+                return optional($mutasi->tanggal_input)->format('d/m/Y H:i');
             })
             ->addColumn('gudang_nama', function (MutasiStok $mutasi) {
                 return optional($mutasi->gudang)->nama ?: '-';
@@ -165,6 +168,7 @@ class MutasiStokController extends Controller
         $request->validate([
             'gudang_id' => 'required|exists:erm_gudang,id',
             'jenis_mutasi' => 'required|in:masuk,keluar',
+            'tanggal_mutasi' => 'required|date',
             'edit_id' => 'nullable|exists:erm_mutasi_stok,id',
             'items' => 'required|array|min:1',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
@@ -191,6 +195,8 @@ class MutasiStokController extends Controller
                     'nomor_mutasi' => $this->generateNomorMutasi($request->jenis_mutasi),
                     'gudang_id' => $request->gudang_id,
                     'jenis_mutasi' => $request->jenis_mutasi,
+                    'tanggal_mutasi' => $request->tanggal_mutasi,
+                    'tanggal_input' => now(),
                     'status' => 'done',
                     'user_id' => Auth::id(),
                     'revised_from_id' => $revisedFromId,
@@ -252,9 +258,12 @@ class MutasiStokController extends Controller
             'gudang_id' => $mutasi->gudang_id,
             'gudang' => optional($mutasi->gudang)->nama,
             'jenis_mutasi' => $mutasi->jenis_mutasi,
+            'tanggal_mutasi' => optional($mutasi->tanggal_mutasi)->format('Y-m-d'),
+            'tanggal_mutasi_display' => optional($mutasi->tanggal_mutasi)->format('d/m/Y'),
+            'tanggal_input' => optional($mutasi->tanggal_input)->format('d/m/Y H:i'),
             'status' => $mutasi->status,
             'user' => optional($mutasi->user)->name,
-            'tanggal' => optional($mutasi->created_at)->format('d/m/Y H:i'),
+            'tanggal' => optional($mutasi->tanggal_mutasi)->format('d/m/Y'),
             'can_cancel' => $mutasi->status === 'done',
             'can_edit' => $mutasi->status === 'done',
             'cancelled_by' => optional($mutasi->cancelledBy)->name,

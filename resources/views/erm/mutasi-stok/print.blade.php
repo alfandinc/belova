@@ -24,7 +24,8 @@
     <table class="meta small">
         <tr>
             <td style="width: 50%;">
-                <strong>Tanggal:</strong> {{ optional($mutasi->created_at)->format('d/m/Y H:i') }}<br>
+                <strong>Tanggal Mutasi:</strong> {{ optional($mutasi->tanggal_mutasi)->format('d/m/Y') ?? '-' }}<br>
+                <strong>Tanggal Input:</strong> {{ optional($mutasi->tanggal_input)->format('d/m/Y H:i') ?? '-' }}<br>
                 <strong>Gudang:</strong> {{ $mutasi->gudang->nama ?? '-' }}<br>
                 <strong>Jenis:</strong> {{ ucfirst($mutasi->jenis_mutasi) }}<br>
                 <strong>Dibuat Oleh:</strong> {{ $mutasi->user->name ?? '-' }}
