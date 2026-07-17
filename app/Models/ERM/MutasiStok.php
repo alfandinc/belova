@@ -25,7 +25,7 @@ class MutasiStok extends Model
     ];
 
     protected $casts = [
-        'tanggal_mutasi' => 'date',
+        'tanggal_mutasi' => 'datetime',
         'tanggal_input' => 'datetime',
         'cancelled_at' => 'datetime',
     ];

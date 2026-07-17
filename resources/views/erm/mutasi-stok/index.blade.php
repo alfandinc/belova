@@ -112,7 +112,7 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="tanggal_mutasi">Tanggal Mutasi <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" name="tanggal_mutasi" id="tanggal_mutasi" required>
+                                <input type="datetime-local" class="form-control" name="tanggal_mutasi" id="tanggal_mutasi" required>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -192,7 +192,9 @@ $(function () {
         var day = String(now.getDate()).padStart(2, '0');
         var month = String(now.getMonth() + 1).padStart(2, '0');
         var year = now.getFullYear();
-        return year + '-' + month + '-' + day;
+        var hours = String(now.getHours()).padStart(2, '0');
+        var minutes = String(now.getMinutes()).padStart(2, '0');
+        return year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
     }
 
     var table = $('#mutasi-stok-table').DataTable({

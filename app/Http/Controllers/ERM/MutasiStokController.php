@@ -10,6 +10,7 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\ObatStokGudang;
 use App\Services\ERM\StokService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -179,6 +180,7 @@ class MutasiStokController extends Controller
         try {
             DB::transaction(function () use ($request, $stokService) {
                 $revisedFromId = null;
+                $tanggalMutasi = Carbon::parse($request->tanggal_mutasi);
 
                 if ($request->filled('edit_id')) {
                     $original = MutasiStok::with(['items.obat'])->lockForUpdate()->findOrFail($request->edit_id);
@@ -195,7 +197,7 @@ class MutasiStokController extends Controller
                     'nomor_mutasi' => $this->generateNomorMutasi($request->jenis_mutasi),
                     'gudang_id' => $request->gudang_id,
                     'jenis_mutasi' => $request->jenis_mutasi,
-                    'tanggal_mutasi' => $request->tanggal_mutasi,
+                    'tanggal_mutasi' => $tanggalMutasi,
                     'tanggal_input' => now(),
                     'status' => 'done',
                     'user_id' => Auth::id(),
@@ -224,7 +226,8 @@ class MutasiStokController extends Controller
                             null,
                             'mutasi_stok',
                             $mutasi->id,
-                            $keterangan
+                            $keterangan,
+                            $mutasi->tanggal_mutasi
                         );
 
                         continue;
@@ -258,12 +261,12 @@ class MutasiStokController extends Controller
             'gudang_id' => $mutasi->gudang_id,
             'gudang' => optional($mutasi->gudang)->nama,
             'jenis_mutasi' => $mutasi->jenis_mutasi,
-            'tanggal_mutasi' => optional($mutasi->tanggal_mutasi)->format('Y-m-d'),
-            'tanggal_mutasi_display' => optional($mutasi->tanggal_mutasi)->format('d/m/Y'),
+            'tanggal_mutasi' => optional($mutasi->tanggal_mutasi)->format('Y-m-d\TH:i'),
+            'tanggal_mutasi_display' => optional($mutasi->tanggal_mutasi)->format('d/m/Y H:i'),
             'tanggal_input' => optional($mutasi->tanggal_input)->format('d/m/Y H:i'),
             'status' => $mutasi->status,
             'user' => optional($mutasi->user)->name,
-            'tanggal' => optional($mutasi->tanggal_mutasi)->format('d/m/Y'),
+            'tanggal' => optional($mutasi->tanggal_mutasi)->format('d/m/Y H:i'),
             'can_cancel' => $mutasi->status === 'done',
             'can_edit' => $mutasi->status === 'done',
             'cancelled_by' => optional($mutasi->cancelledBy)->name,
@@ -347,7 +350,8 @@ class MutasiStokController extends Controller
                 $stokBatch->batch,
                 'mutasi_stok',
                 $mutasi->id,
-                $keterangan
+                $keterangan,
+                $mutasi->tanggal_mutasi
             );
 
             $remaining -= $qty;

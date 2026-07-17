@@ -68,9 +68,9 @@ class StokService {
      * @param float|null $hargaBeliJual HPP exclude diskon
      * @return ObatStokGudang
      */
-    public function tambahStok($obatId, $gudangId, $jumlah, $batch = null, $expDate = null, $rak = null, $lokasi = null, $hargaBeli = null, $hargaBeliJual = null, $refType = null, $refId = null, $keterangan = null)
+    public function tambahStok($obatId, $gudangId, $jumlah, $batch = null, $expDate = null, $rak = null, $lokasi = null, $hargaBeli = null, $hargaBeliJual = null, $refType = null, $refId = null, $keterangan = null, $tanggal = null)
     {
-        return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $expDate, $rak, $lokasi, $hargaBeli, $hargaBeliJual, $refType, $refId, $keterangan) {
+        return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $expDate, $rak, $lokasi, $hargaBeli, $hargaBeliJual, $refType, $refId, $keterangan, $tanggal) {
             // Ensure numeric values are properly cast
             $jumlah = (float) $jumlah;
             $hargaBeli = $hargaBeli !== null ? (float) $hargaBeli : null;
@@ -126,7 +126,8 @@ class StokService {
                 $batch, 
                 $keterangan ?: 'Penambahan stok',
                 $refType,
-                $refId
+                $refId,
+                $tanggal
             );
 
             return $stok;
@@ -146,9 +147,9 @@ class StokService {
      * @return bool
      * @throws \Exception
      */
-    public function kurangiStok($obatId, $gudangId, $jumlah, $batch = null, $refType = null, $refId = null, $keterangan = null)
+    public function kurangiStok($obatId, $gudangId, $jumlah, $batch = null, $refType = null, $refId = null, $keterangan = null, $tanggal = null)
     {
-        return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $refType, $refId, $keterangan) {
+        return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $refType, $refId, $keterangan, $tanggal) {
             // Debug: log incoming parameters and types to diagnose rounding/truncation issues
             try {
                 \Illuminate\Support\Facades\Log::info('StokService::kurangiStok called', [
@@ -192,7 +193,8 @@ class StokService {
                 $batch, 
                 $keterangan ?: 'Pengurangan stok',
                 $refType,
-                $refId
+                $refId,
+                $tanggal
             );
 
             return true;
@@ -391,7 +393,7 @@ class StokService {
      * @param string $keterangan
      * @return void
      */
-    private function catatKartuStok($obatId, $gudangId, $tipe, $jumlah, $batch, $keterangan, $refType = null, $refId = null)
+    private function catatKartuStok($obatId, $gudangId, $tipe, $jumlah, $batch, $keterangan, $refType = null, $refId = null, $tanggal = null)
     {
         // Dapatkan stok terakhir
         $stokAkhir = ObatStokGudang::where('obat_id', $obatId)
@@ -402,11 +404,13 @@ class StokService {
             $stokAkhir = 0;
         }
 
+        $tanggalTransaksi = $tanggal ? Carbon::parse($tanggal) : now();
+
         // Buat record kartu stok, sertakan user_id jika tersedia
         return KartuStok::create([
             'obat_id' => $obatId,
             'gudang_id' => $gudangId,
-            'tanggal' => now(),
+            'tanggal' => $tanggalTransaksi,
             'tipe' => $tipe, // 'masuk' atau 'keluar'
             'qty' => (float) $jumlah,
             'stok_setelah' => (float) $stokAkhir,
