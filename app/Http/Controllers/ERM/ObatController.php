@@ -158,7 +158,8 @@ class ObatController extends Controller
 
             // Simple query without batch/expiration complexity
             $query = \App\Models\ERM\Obat::withoutGlobalScope('active')
-                ->with(['zatAktifs', 'metodeBayar']);
+                ->with(['zatAktifs', 'metodeBayar', 'principals'])
+                ->withSum('stokGudang as total_stok', 'stok');
 
             // Apply filters if provided
             if ($request->has('kategori') && !empty($request->kategori)) {
@@ -212,6 +213,13 @@ class ObatController extends Controller
                     }
                     return implode(' ', $zats);
                 })
+                ->addColumn('principal', function ($obat) {
+                    if (!$obat->principals || $obat->principals->isEmpty()) {
+                        return '-';
+                    }
+
+                    return e($obat->principals->pluck('nama')->implode(', '));
+                })
                 // Add warning icon if dosis or satuan is null
                 ->editColumn('nama', function ($obat) {
                     $warning = '';
@@ -222,6 +230,15 @@ class ObatController extends Controller
                 })
                 ->addColumn('status_aktif', function ($obat) {
                     return $obat->status_aktif;
+                })
+                ->addColumn('total_stok', function ($obat) {
+                    $val = (float) ($obat->total_stok ?? 0);
+
+                    if (abs($val - round($val)) < 0.00001) {
+                        return number_format($val, 0, ',', '.');
+                    }
+
+                    return number_format($val, 2, ',', '.');
                 })
                 ->addColumn('action', function ($obat) {
                     $editBtn = '<button type="button" class="btn btn-sm btn-primary btn-edit-obat" data-id="' . $obat->id . '"><i class="fas fa-edit"></i></button>';

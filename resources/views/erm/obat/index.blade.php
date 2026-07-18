@@ -424,12 +424,14 @@
                     <tr>
                         <th>Kode Obat</th>
                         <th>Nama Obat</th>
+                        <th class="text-right">Stok Total</th>
                         <th class="text-right">HPP</th>
                         <!-- HPP Jual column removed -->
                         <!-- Harga Net column removed -->
                         <th class="text-right">Harga Jual</th>
-                                <th>Zat Aktif</th>
-                                <th>Aksi</th>
+                        <th>Principal</th>
+                        <th>Zat Aktif</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -481,7 +483,8 @@
     }
     /* Right align for price columns (HPP and Harga Jual) */
     #obat-table td:nth-child(3),
-    #obat-table td:nth-child(4) {
+    #obat-table td:nth-child(4),
+    #obat-table td:nth-child(5) {
         text-align: right;
     }
     
@@ -741,6 +744,12 @@
                     }
                 },
                 { 
+                    data: 'total_stok',
+                    name: 'total_stok',
+                    className: 'text-right',
+                    searchable: false
+                },
+                {
                     data: 'hpp',
                     name: 'hpp',
                     className: 'text-right',
@@ -758,6 +767,7 @@
                         return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
                     }
                 },
+                { data: 'principal', name: 'principal', width: '180px', orderable: false },
                 { data: 'zat_aktif', name: 'zat_aktif', width: '180px' },
                 {
                     data: 'action',
