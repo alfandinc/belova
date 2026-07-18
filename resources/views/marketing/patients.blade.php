@@ -227,6 +227,73 @@
         </div>
     </div>
 
+    <!-- Visit Interval Pattern -->
+    <div class="row">
+        <div class="col-xl-7">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Visit Interval Pattern</h4>
+                </div>
+                <div class="card-body">
+                    <div id="visitIntervalChart"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Visit Interval Summary</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center mb-3">
+                        <div class="col-6 mb-3">
+                            <div class="p-3 border rounded h-100">
+                                <h4 class="text-primary mb-1 visit-interval-average">0 hari</h4>
+                                <p class="mb-0 text-muted">Rata-rata Jeda</p>
+                            </div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="p-3 border rounded h-100">
+                                <h4 class="text-success mb-1 visit-interval-median">0 hari</h4>
+                                <p class="mb-0 text-muted">Median Jeda</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded h-100">
+                                <h4 class="text-warning mb-1 visit-interval-repeat-patients">0</h4>
+                                <p class="mb-0 text-muted">Pasien Repeat</p>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 border rounded h-100">
+                                <h4 class="text-info mb-1 visit-interval-common">-</h4>
+                                <p class="mb-0 text-muted">Pola Terbanyak</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-striped table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Jeda Kunjungan</th>
+                                    <th class="text-end">Jumlah</th>
+                                    <th class="text-end">Pasien</th>
+                                    <th class="text-end">%</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visitIntervalTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Patient Detail Tables -->
     <div class="row">
         <div class="col-xl-12">
@@ -534,7 +601,8 @@ $(document).ready(function() {
         geographic: null,
         loyalty: null,
         growth: null,
-        retention: null
+        retention: null,
+        visitInterval: null
     };
 
     // Destroy all charts
@@ -779,6 +847,43 @@ $(document).ready(function() {
                     chartInstances.retention = new ApexCharts(document.querySelector("#retentionChart"), retentionOptions);
                     chartInstances.retention.render();
                 }
+
+                if (data.visitIntervalAnalysis && data.visitIntervalAnalysis.distribution) {
+                    const intervalDistribution = data.visitIntervalAnalysis.distribution;
+                    const visitIntervalOptions = {
+                        chart: {
+                            type: 'bar',
+                            height: 350,
+                            id: 'visitIntervalChart'
+                        },
+                        series: [{
+                            name: 'Jumlah Interval',
+                            data: intervalDistribution.series || []
+                        }],
+                        xaxis: {
+                            categories: intervalDistribution.labels || [],
+                            labels: { rotate: -20 }
+                        },
+                        colors: ['#6f42c1'],
+                        plotOptions: {
+                            bar: {
+                                borderRadius: 4,
+                                distributed: true
+                            }
+                        },
+                        dataLabels: {
+                            enabled: true
+                        },
+                        legend: {
+                            show: false
+                        },
+                        title: {
+                            text: 'Distribusi Jeda Antar Kunjungan'
+                        }
+                    };
+                    chartInstances.visitInterval = new ApexCharts(document.querySelector("#visitIntervalChart"), visitIntervalOptions);
+                    chartInstances.visitInterval.render();
+                }
             } catch (error) {
                 console.error('Error rendering charts:', error);
             }
@@ -844,6 +949,36 @@ $(document).ready(function() {
             $('.one-time-patients').text(data.retentionAnalysis.one_time_patients || 0);
             $('.retention-rate-detail').text((data.retentionAnalysis.retention_rate || 0) + '%');
         }
+
+        let visitIntervalHtml = '';
+        if (data.visitIntervalAnalysis && data.visitIntervalAnalysis.summary) {
+            const summary = data.visitIntervalAnalysis.summary;
+            $('.visit-interval-average').text((summary.average_days || 0) + ' hari');
+            $('.visit-interval-median').text((summary.median_days || 0) + ' hari');
+            $('.visit-interval-repeat-patients').text(summary.patients_with_repeat_visits || 0);
+            $('.visit-interval-common').text(summary.most_common_bucket || '-');
+        } else {
+            $('.visit-interval-average').text('0 hari');
+            $('.visit-interval-median').text('0 hari');
+            $('.visit-interval-repeat-patients').text('0');
+            $('.visit-interval-common').text('-');
+        }
+
+        if (data.visitIntervalAnalysis && Array.isArray(data.visitIntervalAnalysis.buckets) && data.visitIntervalAnalysis.buckets.length) {
+            data.visitIntervalAnalysis.buckets.forEach(function(item) {
+                visitIntervalHtml += `
+                    <tr>
+                        <td>${item.label || '-'}</td>
+                        <td class="text-end">${item.interval_count || 0}</td>
+                        <td class="text-end">${item.patient_count || 0}</td>
+                        <td class="text-end">${item.percentage || 0}%</td>
+                    </tr>
+                `;
+            });
+        } else {
+            visitIntervalHtml = '<tr><td colspan="4" class="text-center text-muted">No data available</td></tr>';
+        }
+        $('#visitIntervalTableBody').html(visitIntervalHtml);
     }
 
     // Initialize page

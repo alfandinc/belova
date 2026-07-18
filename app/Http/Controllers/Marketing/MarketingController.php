@@ -1815,7 +1815,8 @@ class MarketingController extends Controller
                 'addressStats' => $this->getAddressStatistics($clinicId, $year, $month, $startDate, $endDate),
                 'topPatientPekerjaan' => $this->getTopPatientPekerjaan($clinicId, $startDate, $endDate),
                 'growthTrends' => $this->getPatientGrowthTrends($year, $clinicId, $startDate, $endDate),
-                'retentionAnalysis' => $this->getPatientRetentionAnalysis($year, $clinicId, $startDate, $endDate)
+                'retentionAnalysis' => $this->getPatientRetentionAnalysis($year, $clinicId, $startDate, $endDate),
+                'visitIntervalAnalysis' => $this->getVisitIntervalAnalysis($year, $clinicId, $startDate, $endDate)
             ];
 
             // Prepare addressStats for table rendering
