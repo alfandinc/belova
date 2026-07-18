@@ -195,6 +195,30 @@ class ObatController extends Controller
             }
 
             return DataTables::of($query)
+                ->filter(function ($query) use ($request) {
+                    $searchValue = trim((string) $request->input('search.value', ''));
+
+                    if ($searchValue === '') {
+                        return;
+                    }
+
+                    $query->where(function ($subQuery) use ($searchValue) {
+                        $subQuery->where('kode_obat', 'LIKE', "%{$searchValue}%")
+                            ->orWhere('nama', 'LIKE', "%{$searchValue}%")
+                            ->orWhere('kategori', 'LIKE', "%{$searchValue}%")
+                            ->orWhere('dosis', 'LIKE', "%{$searchValue}%")
+                            ->orWhere('satuan', 'LIKE', "%{$searchValue}%")
+                            ->orWhereHas('metodeBayar', function ($metodeQuery) use ($searchValue) {
+                                $metodeQuery->where('nama', 'LIKE', "%{$searchValue}%");
+                            })
+                            ->orWhereHas('zatAktifs', function ($zatQuery) use ($searchValue) {
+                                $zatQuery->where('nama', 'LIKE', "%{$searchValue}%");
+                            })
+                            ->orWhereHas('principals', function ($principalQuery) use ($searchValue) {
+                                $principalQuery->where('nama', 'LIKE', "%{$searchValue}%");
+                            });
+                    });
+                })
                 ->addColumn('metode_bayar', function ($obat) {
                     return $obat->metodeBayar ? $obat->metodeBayar->nama : '-';
                 })
