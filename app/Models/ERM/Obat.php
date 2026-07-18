@@ -40,6 +40,11 @@ class Obat extends Model
         return $this->belongsToMany(Principal::class, 'erm_obat_principal', 'obat_id', 'principal_id');
     }
 
+    public function masterFakturs()
+    {
+        return $this->hasMany(MasterFaktur::class, 'obat_id');
+    }
+
     // Mendapatkan total stok dari semua gudang
     public function getTotalStokAttribute()
     {

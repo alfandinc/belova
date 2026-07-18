@@ -158,7 +158,7 @@ class ObatController extends Controller
 
             // Simple query without batch/expiration complexity
             $query = \App\Models\ERM\Obat::withoutGlobalScope('active')
-                ->with(['zatAktifs', 'metodeBayar', 'principals'])
+                ->with(['zatAktifs', 'metodeBayar', 'masterFakturs.principal'])
                 ->withSum('stokGudang as total_stok', 'stok');
 
             // Apply filters if provided
@@ -214,7 +214,7 @@ class ObatController extends Controller
                             ->orWhereHas('zatAktifs', function ($zatQuery) use ($searchValue) {
                                 $zatQuery->where('nama', 'LIKE', "%{$searchValue}%");
                             })
-                            ->orWhereHas('principals', function ($principalQuery) use ($searchValue) {
+                            ->orWhereHas('masterFakturs.principal', function ($principalQuery) use ($searchValue) {
                                 $principalQuery->where('nama', 'LIKE', "%{$searchValue}%");
                             });
                     });
@@ -238,11 +238,17 @@ class ObatController extends Controller
                     return implode(' ', $zats);
                 })
                 ->addColumn('principal', function ($obat) {
-                    if (!$obat->principals || $obat->principals->isEmpty()) {
+                    $principalNames = $obat->masterFakturs
+                        ->pluck('principal.nama')
+                        ->filter()
+                        ->unique()
+                        ->values();
+
+                    if ($principalNames->isEmpty()) {
                         return '-';
                     }
 
-                    return e($obat->principals->pluck('nama')->implode(', '));
+                    return e($principalNames->implode(', '));
                 })
                 // Add warning icon if dosis or satuan is null
                 ->editColumn('nama', function ($obat) {
