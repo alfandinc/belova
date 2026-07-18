@@ -1397,6 +1397,132 @@ class MarketingController extends Controller
         ];
     }
 
+    private function getVisitIntervalAnalysis($year = null, $clinicId = null, $startDate = null, $endDate = null)
+    {
+        $bucketDefinitions = [
+            ['label' => '0-7 hari', 'min' => 0, 'max' => 7],
+            ['label' => '8-14 hari', 'min' => 8, 'max' => 14],
+            ['label' => '15-30 hari', 'min' => 15, 'max' => 30],
+            ['label' => '31-60 hari', 'min' => 31, 'max' => 60],
+            ['label' => '61-90 hari', 'min' => 61, 'max' => 90],
+            ['label' => '>90 hari', 'min' => 91, 'max' => null],
+        ];
+
+        $visits = Visitation::query()
+            ->select('pasien_id', 'tanggal_visitation')
+            ->whereNotNull('pasien_id')
+            ->whereNotNull('tanggal_visitation');
+
+        if ($startDate && $endDate) {
+            $visits->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+        } elseif ($year) {
+            $visits->whereYear('tanggal_visitation', $year);
+        }
+
+        if ($clinicId) {
+            $visits->where('klinik_id', $clinicId);
+        }
+
+        $rows = $visits
+            ->orderBy('pasien_id')
+            ->orderBy('tanggal_visitation')
+            ->get();
+
+        $bucketStats = [];
+        foreach ($bucketDefinitions as $bucket) {
+            $bucketStats[$bucket['label']] = [
+                'interval_count' => 0,
+                'patient_ids' => [],
+            ];
+        }
+
+        $allIntervals = [];
+        $patientsWithRepeatVisits = 0;
+
+        foreach ($rows->groupBy('pasien_id') as $patientId => $patientRows) {
+            $visitDates = $patientRows
+                ->pluck('tanggal_visitation')
+                ->filter()
+                ->map(function ($date) {
+                    return Carbon::parse($date)->startOfDay()->format('Y-m-d');
+                })
+                ->unique()
+                ->values();
+
+            if ($visitDates->count() < 2) {
+                continue;
+            }
+
+            $patientsWithRepeatVisits++;
+
+            for ($i = 1; $i < $visitDates->count(); $i++) {
+                $previousDate = Carbon::createFromFormat('Y-m-d', $visitDates[$i - 1]);
+                $currentDate = Carbon::createFromFormat('Y-m-d', $visitDates[$i]);
+                $diffDays = $previousDate->diffInDays($currentDate);
+
+                $allIntervals[] = $diffDays;
+
+                foreach ($bucketDefinitions as $bucket) {
+                    $matchesMin = $diffDays >= $bucket['min'];
+                    $matchesMax = $bucket['max'] === null || $diffDays <= $bucket['max'];
+
+                    if ($matchesMin && $matchesMax) {
+                        $bucketStats[$bucket['label']]['interval_count']++;
+                        $bucketStats[$bucket['label']]['patient_ids'][$patientId] = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        sort($allIntervals);
+
+        $totalIntervals = count($allIntervals);
+        $averageDays = $totalIntervals > 0 ? round(array_sum($allIntervals) / $totalIntervals, 1) : 0;
+        $medianDays = 0;
+
+        if ($totalIntervals > 0) {
+            $middle = intdiv($totalIntervals, 2);
+            if ($totalIntervals % 2 === 0) {
+                $medianDays = round(($allIntervals[$middle - 1] + $allIntervals[$middle]) / 2, 1);
+            } else {
+                $medianDays = $allIntervals[$middle];
+            }
+        }
+
+        $bucketRows = collect($bucketDefinitions)
+            ->map(function ($bucket) use ($bucketStats, $totalIntervals) {
+                $stats = $bucketStats[$bucket['label']];
+                $intervalCount = (int) $stats['interval_count'];
+                $patientCount = count($stats['patient_ids']);
+
+                return [
+                    'label' => $bucket['label'],
+                    'interval_count' => $intervalCount,
+                    'patient_count' => $patientCount,
+                    'percentage' => $totalIntervals > 0 ? round(($intervalCount / $totalIntervals) * 100, 1) : 0,
+                ];
+            })
+            ->values();
+
+        $mostCommonBucket = $bucketRows->sortByDesc('interval_count')->first();
+
+        return [
+            'summary' => [
+                'patients_with_repeat_visits' => $patientsWithRepeatVisits,
+                'total_intervals' => $totalIntervals,
+                'average_days' => $averageDays,
+                'median_days' => $medianDays,
+                'most_common_bucket' => ($mostCommonBucket && $mostCommonBucket['interval_count'] > 0) ? $mostCommonBucket['label'] : '-',
+            ],
+            'distribution' => [
+                'labels' => $bucketRows->pluck('label')->toArray(),
+                'series' => $bucketRows->pluck('interval_count')->toArray(),
+            ],
+            'buckets' => $bucketRows->toArray(),
+        ];
+    }
+
     private function getPopularTreatments($clinicId = null, $year = null, $month = null, $startDate = null, $endDate = null)
     {
         // Determine date range
