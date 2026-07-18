@@ -21,13 +21,14 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
         'harga_nonfornas' => 'Harga Non-Fornas',
         'metode_bayar' => 'Metode Bayar',
         'kategori' => 'Kategori',
+        'zat_aktif' => 'Zat Aktif',
         'dosis' => 'Dosis',
         'satuan' => 'Satuan',
         'is_generik' => 'Generik',
     ];
     /** @var string[] */
     protected $allowedColumns = [
-        'id','kode_obat','nama','hpp','hpp_jual','harga_nonfornas','metode_bayar','kategori','dosis','satuan','is_generik'
+        'id','kode_obat','nama','hpp','hpp_jual','harga_nonfornas','metode_bayar','kategori','zat_aktif','dosis','satuan','is_generik'
     ];
     public function __construct($request)
     {
@@ -43,7 +44,7 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
     public function collection()
     {
         // Always export only active medications
-        $query = Obat::where('status_aktif', 1)->with('metodeBayar');
+        $query = Obat::where('status_aktif', 1)->with(['metodeBayar', 'zatAktifs']);
 
         // Preserve optional filters if provided (kategori, metode_bayar_id)
         if ($this->request->has('kategori') && !empty($this->request->kategori)) {
@@ -96,6 +97,12 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                     $row[] = optional($obat->metodeBayar)->nama ?: '-'; break;
                 case 'kategori':
                     $row[] = $obat->kategori; break;
+                case 'zat_aktif':
+                    $row[] = $obat->zatAktifs
+                        ->pluck('nama')
+                        ->filter()
+                        ->implode(', ');
+                    break;
                 case 'dosis':
                     $row[] = $obat->dosis; break;
                 case 'satuan':

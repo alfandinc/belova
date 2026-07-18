@@ -261,6 +261,10 @@
                                     <label class="custom-control-label" for="col-kategori">Kategori</label>
                                 </div>
                                 <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-zat-aktif" value="zat_aktif" checked>
+                                    <label class="custom-control-label" for="col-zat-aktif">Zat Aktif</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-dosis" value="dosis" checked>
                                     <label class="custom-control-label" for="col-dosis">Dosis</label>
                                 </div>
