@@ -335,18 +335,22 @@ class ObatController extends Controller
         $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat) {
             $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
             $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
-            $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
-            $limitStok = $averageMonthlyKeluar / $divisor;
-            $qtyPesan = $limitStok * 3;
+            $averageMonthlyKeluarRaw = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
+            $limitStokRaw = $averageMonthlyKeluarRaw / $divisor;
+            $qtyPesanRaw = $limitStokRaw * 3;
+
+            $averageMonthlyKeluar = ceil($averageMonthlyKeluarRaw);
+            $limitStok = ceil($limitStokRaw);
+            $qtyPesan = ceil($qtyPesanRaw);
 
             return [
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
                 'total_stock' => round($totalStock, 2),
                 'obat_keluar' => round($obatKeluar, 2),
-                'average_monthly_keluar' => round($averageMonthlyKeluar, 2),
-                'limit_stok' => round($limitStok, 2),
-                'qty_pesan' => round($qtyPesan, 2),
+                'average_monthly_keluar' => $averageMonthlyKeluar,
+                'limit_stok' => $limitStok,
+                'qty_pesan' => $qtyPesan,
             ];
         })->values();
 
@@ -392,9 +396,13 @@ class ObatController extends Controller
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
             ->sum('qty');
 
-        $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
-        $limitStok = $averageMonthlyKeluar / $divisor;
-        $qtyPesan = $limitStok * 3;
+        $averageMonthlyKeluarRaw = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
+        $limitStokRaw = $averageMonthlyKeluarRaw / $divisor;
+        $qtyPesanRaw = $limitStokRaw * 3;
+
+        $averageMonthlyKeluar = ceil($averageMonthlyKeluarRaw);
+        $limitStok = ceil($limitStokRaw);
+        $qtyPesan = ceil($qtyPesanRaw);
 
         return response()->json([
             'obat_id' => $obat->id,
@@ -403,9 +411,9 @@ class ObatController extends Controller
             'pengadaan_frequency' => $pengadaanFrequency,
             'total_stock' => round($totalStock, 2),
             'obat_keluar' => round($obatKeluar, 2),
-            'average_monthly_keluar' => round($averageMonthlyKeluar, 2),
-            'limit_stok' => round($limitStok, 2),
-            'qty_pesan' => round($qtyPesan, 2),
+            'average_monthly_keluar' => $averageMonthlyKeluar,
+            'limit_stok' => $limitStok,
+            'qty_pesan' => $qtyPesan,
             'formula_label' => '1/' . $divisor . ' x rata-rata keluar ' . $periodMonths . ' bulan',
             'period_start' => $periodStart->format('Y-m-d'),
             'period_end' => $periodEnd->format('Y-m-d'),
