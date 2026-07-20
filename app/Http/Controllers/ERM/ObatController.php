@@ -312,28 +312,22 @@ class ObatController extends Controller
         $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
         $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
 
-        $keluarSubquery = KartuStok::query()
+        $keluarPerObat = KartuStok::query()
             ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
             ->where('tipe', 'keluar')
             ->where('ref_type', 'invoice_penjualan')
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
-            ->groupBy('obat_id');
+            ->groupBy('obat_id')
+            ->pluck('total_keluar', 'obat_id');
 
         $obats = Obat::query()
             ->withSum('stokGudang as total_stock', 'stok')
-            ->leftJoinSub($keluarSubquery, 'forecast_keluar', function ($join) {
-                $join->on('erm_obat.id', '=', 'forecast_keluar.obat_id');
-            })
-            ->orderBy('erm_obat.nama')
-            ->get([
-                'erm_obat.id',
-                'erm_obat.nama',
-                DB::raw('COALESCE(forecast_keluar.total_keluar, 0) as obat_keluar'),
-            ]);
+            ->orderBy('nama')
+            ->get(['id', 'nama']);
 
-        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor) {
+        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat) {
             $totalStock = (float) ($obat->total_stock ?? 0);
-            $obatKeluar = (float) ($obat->obat_keluar ?? 0);
+            $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
             $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
             $limitStok = $averageMonthlyKeluar / $divisor;
             $qtyPesan = $limitStok * 3;
