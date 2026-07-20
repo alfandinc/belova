@@ -307,13 +307,15 @@ class ObatController extends Controller
         ];
         $divisor = $frequencyDivisors[$pengadaanFrequency] ?? $frequencyDivisors['monthly'];
 
-        $periodEnd = Carbon::now()->endOfDay();
-        $periodStart = Carbon::now()->subMonthsNoOverflow($periodMonths)->startOfDay();
+        // Use previous full months (exclude current month).
+        // Example: if today is July, and periodMonths=3 => use Apr 1 - Jun 30
+        $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
+        $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
 
         $keluarSubquery = KartuStok::query()
             ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
             ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice_penjualan')
+            ->where('ref_type', 'invoice')
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
             ->groupBy('obat_id');
 
@@ -372,15 +374,16 @@ class ObatController extends Controller
 
         $obat = Obat::withInactive()->findOrFail($id);
 
-        $periodEnd = Carbon::now()->endOfDay();
-        $periodStart = Carbon::now()->subMonthsNoOverflow($periodMonths)->startOfDay();
+        // Use previous full months (exclude current month). See comment above.
+        $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
+        $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
 
         $totalStock = (float) $obat->stokGudang()->sum('stok');
 
         $obatKeluar = (float) KartuStok::query()
             ->where('obat_id', $obat->id)
             ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice_penjualan')
+            ->where('ref_type', 'invoice')
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
             ->sum('qty');
 
