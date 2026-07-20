@@ -320,13 +320,20 @@ class ObatController extends Controller
             ->groupBy('obat_id')
             ->pluck('total_keluar', 'obat_id');
 
+        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
+            ->groupBy('obat_id')
+            ->pluck('total_stock', 'obat_id');
+
         $obats = Obat::query()
-            ->withSum('stokGudang as total_stock', 'stok')
             ->orderBy('nama')
             ->get(['id', 'nama']);
 
-        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat) {
-            $totalStock = (float) ($obat->total_stock ?? 0);
+        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat) {
+            $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
             $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
             $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
             $limitStok = $averageMonthlyKeluar / $divisor;
@@ -372,7 +379,11 @@ class ObatController extends Controller
         $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
         $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
 
-        $totalStock = (float) $obat->stokGudang()->sum('stok');
+        $totalStock = (float) $obat->stokGudang()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->sum('stok');
 
         $obatKeluar = (float) KartuStok::query()
             ->where('obat_id', $obat->id)
