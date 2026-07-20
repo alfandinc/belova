@@ -88,18 +88,49 @@ class PermintaanController extends Controller
             ]);
         }
         $filtered = $query->count();
-        $data = $query->skip($start)->take($length)->get()->values()->map(function($p, $i) use ($start) {
+        $permintaans = $query->skip($start)->take($length)->get()->values();
+
+        $obatIds = $permintaans->flatMap(function ($permintaan) {
+            return $permintaan->items->pluck('obat_id');
+        })->filter()->unique()->values();
+
+        $pemasokIds = $permintaans->flatMap(function ($permintaan) {
+            return $permintaan->items->pluck('pemasok_id');
+        })->filter()->unique()->values();
+
+        $masterFakturs = \App\Models\ERM\MasterFaktur::query()
+            ->whereIn('obat_id', $obatIds)
+            ->whereIn('pemasok_id', $pemasokIds)
+            ->get(['obat_id', 'pemasok_id', 'harga'])
+            ->keyBy(function ($master) {
+                return $master->obat_id . '|' . $master->pemasok_id;
+            });
+
+        $data = $permintaans->map(function($p, $i) use ($start, $masterFakturs) {
             $aksi = '';
-            // Get comma-separated list of obat names
-            $obatList = $p->items->map(function($item) {
-                return optional($item->obat)->nama;
-            })->filter()->unique()->implode(', ');
+            $obatList = $p->items->map(function($item) use ($masterFakturs) {
+                $obatName = optional($item->obat)->nama ?? '-';
+                $masterKey = $item->obat_id . '|' . $item->pemasok_id;
+                $harga = optional($masterFakturs->get($masterKey))->harga;
+                $hargaLabel = $harga !== null ? 'Rp ' . number_format((float) $harga, 0, ',', '.') : '-';
+
+                return '<div class="mb-1 pb-1 border-bottom">'
+                    . '<div>' . e($obatName) . '</div>'
+                    . '<small class="text-muted">Qty Total: ' . e(number_format((float) $item->qty_total, 0, ',', '.'))
+                    . ' | Harga: ' . e($hargaLabel) . '</small>'
+                    . '</div>';
+            })->implode('');
+
+            if ($obatList === '') {
+                $obatList = '-';
+            }
+
             // Get pemasok name (should be the same for all items in this permintaan)
             $pemasokName = optional($p->items->first() ? $p->items->first()->pemasok : null)->nama ?? '-';
             // Get approved_by user name if approved
             $approved_by_name = null;
             if ($p->status === 'approved' && $p->approved_by) {
-                $user = \App\Models\User::find($p->approved_by);
+                $user = \App\Models\User::query()->find($p->approved_by);
                 $approved_by_name = $user ? $user->name : null;
             }
             if ($p->status === 'approved') {
@@ -107,7 +138,12 @@ class PermintaanController extends Controller
             }
             if ($p->status === 'waiting_approval') {
                 $aksi .= '<a href="/erm/permintaan/'.$p->id.'/edit" class="btn btn-info btn-sm mr-1">Edit</a>';
-                $aksi .= '<button class="btn btn-success btn-sm btn-approve" data-id="'.$p->id.'">Approve</button>';
+                $aksi .= '<button class="btn btn-success btn-sm mr-1 btn-approve" data-id="'.$p->id.'">Approve</button>';
+                $aksi .= '<button class="btn btn-warning btn-sm mr-1 btn-reject" data-id="'.$p->id.'">Reject</button>';
+                $aksi .= '<button class="btn btn-danger btn-sm btn-delete" data-id="'.$p->id.'">Hapus</button>';
+            }
+            if ($p->status === 'rejected') {
+                $aksi .= '<button class="btn btn-danger btn-sm btn-delete" data-id="'.$p->id.'">Hapus</button>';
             }
             return [
                 'no' => $start + $i + 1,
@@ -247,7 +283,7 @@ class PermintaanController extends Controller
         $now = now();
         DB::transaction(function () use ($permintaan, $userId, $now) {
             // Group items by pemasok
-            $grouped = $permintaan->items->groupBy('pemasok_id');
+            $grouped = collect($permintaan->items)->groupBy('pemasok_id');
             foreach ($grouped as $pemasokId => $items) {
                 $faktur = \App\Models\ERM\FakturBeli::create([
                     'pemasok_id' => $pemasokId,
@@ -284,6 +320,39 @@ class PermintaanController extends Controller
             ]);
         });
         return redirect()->route('erm.permintaan.index')->with('success', 'Permintaan disetujui dan faktur berhasil dibuat!');
+    }
+
+    public function reject($id)
+    {
+        $permintaan = Permintaan::findOrFail($id);
+
+        if ($permintaan->status !== 'waiting_approval') {
+            return response()->json(['success' => false, 'message' => 'Hanya permintaan yang menunggu approval yang bisa direject.'], 422);
+        }
+
+        $permintaan->update([
+            'status' => 'rejected',
+            'approved_by' => null,
+            'approved_date' => null,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Permintaan berhasil direject.']);
+    }
+
+    public function destroy($id)
+    {
+        $permintaan = Permintaan::with('items')->findOrFail($id);
+
+        if ($permintaan->status === 'approved') {
+            return response()->json(['success' => false, 'message' => 'Permintaan yang sudah approved tidak bisa dihapus.'], 422);
+        }
+
+        DB::transaction(function () use ($permintaan) {
+            $permintaan->items()->delete();
+            $permintaan->delete();
+        });
+
+        return response()->json(['success' => true, 'message' => 'Permintaan berhasil dihapus.']);
     }
 
     

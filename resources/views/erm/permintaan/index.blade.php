@@ -91,6 +91,8 @@ $(document).ready(function() {
                             html += '<br><small class="text-muted">Approved by: ' + row.approved_by_name + '</small>';
                         }
                         return html;
+                    } else if (data === 'rejected' || data === 'ditolak') {
+                        return '<span class="badge badge-danger">Rejected</span>';
                     } else {
                         return '<span class="badge badge-secondary">'+data+'</span>';
                     }
@@ -145,6 +147,91 @@ $(document).ready(function() {
                     },
                     error: function(xhr) {
                         let msg = 'Gagal approve permintaan!';
+                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: msg,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    $('#permintaan-table').on('click', '.btn-reject', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Reject permintaan ini?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Reject',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: '/erm/permintaan/' + id + '/reject',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: res.message || 'Permintaan berhasil direject!',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        let msg = 'Gagal reject permintaan!';
+                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: msg,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    $('#permintaan-table').on('click', '.btn-delete', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Hapus permintaan ini?',
+            text: 'Data permintaan dan itemnya akan dihapus.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: '/erm/permintaan/' + id,
+                    type: 'DELETE',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: res.message || 'Permintaan berhasil dihapus!',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        let msg = 'Gagal menghapus permintaan!';
                         if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
                         Swal.fire({
                             icon: 'error',
