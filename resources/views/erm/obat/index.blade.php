@@ -630,6 +630,16 @@
             var bHasKeluar = Number(b.obat_keluar || 0) > 0 ? 1 : 0;
             var aBelowLimit = Number(a.total_stock || 0) < Number(a.limit_stok || 0) ? 1 : 0;
             var bBelowLimit = Number(b.total_stock || 0) < Number(b.limit_stok || 0) ? 1 : 0;
+            var aDeficit = Number(a.limit_stok || 0) - Number(a.total_stock || 0);
+            var bDeficit = Number(b.limit_stok || 0) - Number(b.total_stock || 0);
+
+            if (aBelowLimit !== bBelowLimit) {
+                return bBelowLimit - aBelowLimit;
+            }
+
+            if (aBelowLimit && bBelowLimit && aDeficit !== bDeficit) {
+                return bDeficit - aDeficit;
+            }
 
             if (aHasKeluar !== bHasKeluar) {
                 return bHasKeluar - aHasKeluar;
@@ -637,10 +647,6 @@
 
             if (aHasKeluar && bHasKeluar && Number(a.obat_keluar || 0) !== Number(b.obat_keluar || 0)) {
                 return Number(b.obat_keluar || 0) - Number(a.obat_keluar || 0);
-            }
-
-            if (aBelowLimit !== bBelowLimit) {
-                return bBelowLimit - aBelowLimit;
             }
 
             return String(a.obat_nama || '').localeCompare(String(b.obat_nama || ''), 'id');
