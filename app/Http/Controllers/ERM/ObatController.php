@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\ERM;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
+use App\Models\ERM\KartuStok;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatMapping;
 use App\Models\ERM\Supplier;
@@ -275,7 +278,7 @@ class ObatController extends Controller
                     $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
                     $action = $editBtn;
                     // Show delete button only to users with Admin role
-                    $user = auth()->user();
+                    $user = Auth::user();
                     if ($user && $user->hasAnyRole(['Admin'])) {
                         $action .= ' ' . $deleteBtn;
                     }
@@ -289,6 +292,116 @@ class ObatController extends Controller
         $metodeBayars = MetodeBayar::all();
 
         return view('erm.obat.index', compact('kategoris', 'metodeBayars'));
+    }
+
+    public function forecastAll(Request $request)
+    {
+        $periodMonths = (int) $request->input('period_months', 3);
+        $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
+
+        $pengadaanFrequency = (string) $request->input('pengadaan_frequency', 'monthly');
+        $frequencyDivisors = [
+            'monthly' => 1,
+            'weekly' => 4,
+            'twice_weekly' => 8,
+        ];
+        $divisor = $frequencyDivisors[$pengadaanFrequency] ?? $frequencyDivisors['monthly'];
+
+        $periodEnd = Carbon::now()->endOfDay();
+        $periodStart = Carbon::now()->subMonthsNoOverflow($periodMonths)->startOfDay();
+
+        $keluarSubquery = KartuStok::query()
+            ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
+            ->where('tipe', 'keluar')
+            ->where('ref_type', 'invoice_penjualan')
+            ->whereBetween('tanggal', [$periodStart, $periodEnd])
+            ->groupBy('obat_id');
+
+        $obats = Obat::query()
+            ->withSum('stokGudang as total_stock', 'stok')
+            ->leftJoinSub($keluarSubquery, 'forecast_keluar', function ($join) {
+                $join->on('erm_obat.id', '=', 'forecast_keluar.obat_id');
+            })
+            ->orderBy('erm_obat.nama')
+            ->get([
+                'erm_obat.id',
+                'erm_obat.nama',
+                DB::raw('COALESCE(forecast_keluar.total_keluar, 0) as obat_keluar'),
+            ]);
+
+        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor) {
+            $totalStock = (float) ($obat->total_stock ?? 0);
+            $obatKeluar = (float) ($obat->obat_keluar ?? 0);
+            $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
+            $limitStok = $averageMonthlyKeluar / $divisor;
+            $qtyPesan = $limitStok * 3;
+
+            return [
+                'obat_id' => $obat->id,
+                'obat_nama' => $obat->nama,
+                'total_stock' => round($totalStock, 2),
+                'obat_keluar' => round($obatKeluar, 2),
+                'average_monthly_keluar' => round($averageMonthlyKeluar, 2),
+                'limit_stok' => round($limitStok, 2),
+                'qty_pesan' => round($qtyPesan, 2),
+            ];
+        })->values();
+
+        return response()->json([
+            'period_months' => $periodMonths,
+            'pengadaan_frequency' => $pengadaanFrequency,
+            'formula_label' => '1/' . $divisor . ' x rata-rata keluar ' . $periodMonths . ' bulan',
+            'period_start' => $periodStart->format('Y-m-d'),
+            'period_end' => $periodEnd->format('Y-m-d'),
+            'rows' => $rows,
+        ]);
+    }
+
+    public function forecast(Request $request, $id)
+    {
+        $periodMonths = (int) $request->input('period_months', 3);
+        $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
+
+        $pengadaanFrequency = (string) $request->input('pengadaan_frequency', 'monthly');
+        $frequencyDivisors = [
+            'monthly' => 1,
+            'weekly' => 4,
+            'twice_weekly' => 8,
+        ];
+        $divisor = $frequencyDivisors[$pengadaanFrequency] ?? $frequencyDivisors['monthly'];
+
+        $obat = Obat::withInactive()->findOrFail($id);
+
+        $periodEnd = Carbon::now()->endOfDay();
+        $periodStart = Carbon::now()->subMonthsNoOverflow($periodMonths)->startOfDay();
+
+        $totalStock = (float) $obat->stokGudang()->sum('stok');
+
+        $obatKeluar = (float) KartuStok::query()
+            ->where('obat_id', $obat->id)
+            ->where('tipe', 'keluar')
+            ->where('ref_type', 'invoice_penjualan')
+            ->whereBetween('tanggal', [$periodStart, $periodEnd])
+            ->sum('qty');
+
+        $averageMonthlyKeluar = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
+        $limitStok = $averageMonthlyKeluar / $divisor;
+        $qtyPesan = $limitStok * 3;
+
+        return response()->json([
+            'obat_id' => $obat->id,
+            'obat_nama' => $obat->nama,
+            'period_months' => $periodMonths,
+            'pengadaan_frequency' => $pengadaanFrequency,
+            'total_stock' => round($totalStock, 2),
+            'obat_keluar' => round($obatKeluar, 2),
+            'average_monthly_keluar' => round($averageMonthlyKeluar, 2),
+            'limit_stok' => round($limitStok, 2),
+            'qty_pesan' => round($qtyPesan, 2),
+            'formula_label' => '1/' . $divisor . ' x rata-rata keluar ' . $periodMonths . ' bulan',
+            'period_start' => $periodStart->format('Y-m-d'),
+            'period_end' => $periodEnd->format('Y-m-d'),
+        ]);
     }
 
     public function create()

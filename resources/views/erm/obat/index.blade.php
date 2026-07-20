@@ -186,6 +186,7 @@
             <div class="btn-group" role="group">
                 <button type="button" class="btn btn-primary btn-tambah-obat">+ Tambah Obat</button>
                 <button type="button" class="btn btn-info btn-zat-aktif"><i class="fas fa-pills"></i> Zat Aktif</button>
+                <button type="button" class="btn btn-warning btn-forecast-all"><i class="fas fa-chart-line"></i> Forecast</button>
                 <div class="btn-group" role="group">
                     <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="fas fa-ellipsis-v"></i>
@@ -353,6 +354,73 @@
                                             <button type="button" id="btnConfirmImport" class="btn btn-primary" onclick="(window.confirmImportAction||function(){})()" disabled>Import</button>
                                         </div>
                                     </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal fade" id="forecastModal" tabindex="-1" role="dialog" aria-labelledby="forecastModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-xl" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="forecastModalLabel">Forecast Stok Obat Aktif</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="forecast_period_months">Obat Keluar</label>
+                                                    <select class="form-control" id="forecast_period_months">
+                                                        <option value="1">1 Bulan</option>
+                                                        <option value="3" selected>3 Bulan</option>
+                                                        <option value="6">6 Bulan</option>
+                                                        <option value="12">1 Tahun</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="form-group">
+                                                    <label for="forecast_pengadaan_frequency">Pengadaan</label>
+                                                    <select class="form-control" id="forecast_pengadaan_frequency">
+                                                        <option value="monthly">1 Bulan Sekali</option>
+                                                        <option value="weekly">1 Minggu Sekali</option>
+                                                        <option value="twice_weekly" selected>1 Minggu 2x</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="forecastLoadingState" class="text-center py-4 d-none">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <div class="mt-2 text-muted">Menghitung forecast...</div>
+                                        </div>
+                                        <div id="forecastContent">
+                                            <div class="mb-3">
+                                                <h5 class="mb-1" id="forecastObatName">Semua Obat Aktif</h5>
+                                                <small class="text-muted" id="forecastPeriodInfo">-</small>
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table id="forecastTable" class="table table-bordered table-sm w-100">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Nama Obat</th>
+                                                            <th>Total Stok</th>
+                                                            <th>Obat Keluar</th>
+                                                            <th>Rata-rata Keluar / Bulan</th>
+                                                            <th>Limit Stok</th>
+                                                            <th>QTY Pesan</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                            <div class="alert alert-light border mb-0" id="forecastFormulaInfo">Rumus: -</div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -524,6 +592,11 @@
     #importCsvModal .table td, #importCsvModal .table th {
         white-space: normal;
     }
+
+    #forecastTable td:nth-child(n+2),
+    #forecastTable th:nth-child(n+2) {
+        text-align: right;
+    }
 </style>
 <script>
     // Setup CSRF token untuk semua AJAX request
@@ -535,7 +608,139 @@
     
     // Declare table variable globally
     let table;
+    let forecastTable = null;
     const rupiahInputSelectors = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
+
+    function formatForecastNumber(value) {
+        var numeric = Number(value || 0);
+        return numeric.toLocaleString('id-ID', {
+            minimumFractionDigits: Number.isInteger(numeric) ? 0 : 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function setForecastLoading(isLoading) {
+        $('#forecastLoadingState').toggleClass('d-none', !isLoading);
+        $('#forecastContent').toggleClass('d-none', isLoading);
+    }
+
+    function prioritizeForecastRows(rows) {
+        return (rows || []).slice().sort(function(a, b) {
+            var aBelowLimit = Number(a.total_stock || 0) < Number(a.limit_stok || 0) ? 1 : 0;
+            var bBelowLimit = Number(b.total_stock || 0) < Number(b.limit_stok || 0) ? 1 : 0;
+
+            if (aBelowLimit !== bBelowLimit) {
+                return bBelowLimit - aBelowLimit;
+            }
+
+            return String(a.obat_nama || '').localeCompare(String(b.obat_nama || ''), 'id');
+        });
+    }
+
+    function renderForecastRows(rows) {
+        var sortedRows = prioritizeForecastRows(rows);
+
+        if (forecastTable) {
+            forecastTable.clear();
+            forecastTable.rows.add(sortedRows);
+            forecastTable.search('');
+            forecastTable.draw();
+            return;
+        }
+
+        forecastTable = $('#forecastTable').DataTable({
+            data: sortedRows,
+            pageLength: 10,
+            lengthChange: false,
+            searching: true,
+            ordering: true,
+            info: true,
+            autoWidth: false,
+            order: [],
+            language: {
+                search: 'Cari Obat:',
+                emptyTable: 'Tidak ada obat aktif untuk diforecast.',
+                zeroRecords: 'Obat tidak ditemukan.',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ obat',
+                infoEmpty: 'Tidak ada data obat',
+                paginate: {
+                    previous: 'Sebelumnya',
+                    next: 'Berikutnya'
+                }
+            },
+            columns: [
+                {
+                    data: 'obat_nama',
+                    name: 'obat_nama',
+                    render: function(data) {
+                        return $('<div>').text(data || '-').html();
+                    }
+                },
+                {
+                    data: 'total_stock',
+                    name: 'total_stock',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'obat_keluar',
+                    name: 'obat_keluar',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'average_monthly_keluar',
+                    name: 'average_monthly_keluar',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'limit_stok',
+                    name: 'limit_stok',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'qty_pesan',
+                    name: 'qty_pesan',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                }
+            ]
+        });
+    }
+
+    function loadForecastData() {
+        setForecastLoading(true);
+
+        $.ajax({
+            url: '{{ route('erm.obat.forecast-all') }}',
+            type: 'GET',
+            data: {
+                period_months: $('#forecast_period_months').val(),
+                pengadaan_frequency: $('#forecast_pengadaan_frequency').val()
+            },
+            success: function(response) {
+                $('#forecastObatName').text('Semua Obat Aktif');
+                $('#forecastPeriodInfo').text('Periode ' + response.period_start + ' s/d ' + response.period_end);
+                renderForecastRows(response.rows || []);
+                $('#forecastFormulaInfo').text('Rumus: ' + response.formula_label + '. QTY Pesan = Limit Stok x 3.');
+            },
+            error: function(xhr) {
+                var message = xhr.responseJSON?.message || 'Gagal memuat forecast stok obat.';
+                alert(message);
+                $('#forecastModal').modal('hide');
+            },
+            complete: function() {
+                setForecastLoading(false);
+            }
+        });
+    }
 
     function normalizeNumericInput(value) {
         var raw = (value || '').toString().replace(/[^0-9.,-]/g, '').trim();
@@ -782,6 +987,20 @@
                     }
                 }
             ]
+        });
+
+        $(document).on('click', '.btn-forecast-all', function() {
+            $('#forecastObatName').text('Semua Obat Aktif');
+            $('#forecast_period_months').val('3');
+            $('#forecast_pengadaan_frequency').val('twice_weekly');
+            $('#forecastModal').modal('show');
+            loadForecastData();
+        });
+
+        $('#forecast_period_months, #forecast_pengadaan_frequency').on('change', function() {
+            if ($('#forecastModal').hasClass('show')) {
+                loadForecastData();
+            }
         });
 
         // Export Excel: open modal instead of direct download

@@ -1138,8 +1138,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Obat
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
+    Route::get('/obat/forecast-all', [ObatController::class, 'forecastAll'])->name('erm.obat.forecast-all');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
+    Route::get('/obat/{id}/forecast', [ObatController::class, 'forecast'])->name('erm.obat.forecast');
     Route::get('/obat/{id}/relations', [ObatController::class, 'relations'])->name('erm.obat.relations');
     // CSV import preview & import (AJAX)
     Route::post('/obat/import-csv-preview', [ObatController::class, 'importCsvPreview'])->name('erm.obat.import_csv_preview');
