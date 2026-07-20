@@ -315,7 +315,7 @@ class ObatController extends Controller
         $keluarSubquery = KartuStok::query()
             ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
             ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice')
+            ->where('ref_type', 'invoice_penjualan')
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
             ->groupBy('obat_id');
 
@@ -383,7 +383,7 @@ class ObatController extends Controller
         $obatKeluar = (float) KartuStok::query()
             ->where('obat_id', $obat->id)
             ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice')
+            ->where('ref_type', 'invoice_penjualan')
             ->whereBetween('tanggal', [$periodStart, $periodEnd])
             ->sum('qty');
 
