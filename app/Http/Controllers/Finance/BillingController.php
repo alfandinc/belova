@@ -2642,6 +2642,70 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         return $discount;
     }
 
+    private function normalizeComparisonText($value): string
+    {
+        $text = html_entity_decode((string) ($value ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = str_ireplace(['<br />', '<br/>', '<br>'], "\n", $text);
+        $text = strip_tags($text);
+        $text = preg_replace('/[ \t]+/', ' ', $text);
+        $text = preg_replace('/\n{2,}/', "\n", $text);
+
+        return trim((string) $text);
+    }
+
+    private function normalizeComparisonGroupType($billableType, bool $isRacikan = false): string
+    {
+        if ($isRacikan) {
+            return 'racikan';
+        }
+
+        $type = (string) ($billableType ?? '');
+        if ($type === '') {
+            return 'other';
+        }
+
+        if (in_array($type, [RiwayatTindakan::class, 'App\Models\ERM\Tindakan', 'App\Models\ERM\RiwayatTindakan', 'AppModelsERMTindakan', 'AppModelsERMRiwayatTindakan'], true)) {
+            return 'tindakan';
+        }
+
+        if (in_array($type, [ResepFarmasi::class, 'App\Models\ERM\Obat', 'AppModelsERMObat', 'AppModelsERMResepFarmasi'], true)) {
+            return 'obat';
+        }
+
+        return $type;
+    }
+
+    private function comparisonSnapshotsMatch(array $left, array $right): bool
+    {
+        if (count($left) !== count($right)) {
+            return false;
+        }
+
+        foreach ($left as $index => $leftRow) {
+            $rightRow = $right[$index] ?? null;
+            if (!is_array($rightRow)) {
+                return false;
+            }
+
+            foreach (['group_type', 'name'] as $field) {
+                if (($leftRow[$field] ?? '') !== ($rightRow[$field] ?? '')) {
+                    return false;
+                }
+            }
+
+            foreach (['quantity', 'unit_price', 'discount', 'final_amount'] as $field) {
+                $leftValue = round((float) ($leftRow[$field] ?? 0), 2);
+                $rightValue = round((float) ($rightRow[$field] ?? 0), 2);
+                if (abs($leftValue - $rightValue) > 0.01) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     private function normalizeProcessedBillingsForInvoiceComparison($processedBillings): array
     {
         $normalized = [];
@@ -2677,14 +2741,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             $billableType = (string) ($row->billable_type ?? '');
-            $groupType = (isset($row->is_racikan) && $row->is_racikan)
-                ? 'racikan'
-                : ((in_array($billableType, [RiwayatTindakan::class, 'App\Models\ERM\Tindakan', 'App\\Models\\ERM\\Tindakan'], true)) ? 'tindakan' : $billableType);
+            $groupType = $this->normalizeComparisonGroupType($billableType, !empty($row->is_racikan));
 
             $normalized[] = [
                 'group_type' => $groupType,
-                'name' => $this->resolveBillingRowNameForInvoiceComparison($row),
-                'description' => $this->resolveBillingRowDescriptionForInvoiceComparison($row),
+                'name' => $this->normalizeComparisonText($this->resolveBillingRowNameForInvoiceComparison($row)),
+                'description' => $this->normalizeComparisonText($this->resolveBillingRowDescriptionForInvoiceComparison($row)),
                 'quantity' => round($qty, 3),
                 'unit_price' => $unitPrice,
                 'discount' => $this->calculateComparisonLineDiscount($lineNoDisc, $finalAmount, $discountValue, $discountType),
@@ -2758,11 +2820,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $billableType = (string) ($item->billable_type ?? '');
 
             $normalized[] = [
-                'group_type' => ($billableType === RiwayatTindakan::class || $billableType === 'App\Models\ERM\Tindakan' || $billableType === 'App\\Models\\ERM\\Tindakan')
-                    ? 'tindakan'
-                    : ($billableType === ResepFarmasi::class && empty($item->billable_id) ? 'racikan' : $billableType),
-                'name' => trim((string) ($item->name ?? '')),
-                'description' => trim(str_replace('<br>', "\n", strip_tags((string) ($item->description ?? '')))),
+                'group_type' => $this->normalizeComparisonGroupType($billableType, $billableType === ResepFarmasi::class && empty($item->billable_id)),
+                'name' => $this->normalizeComparisonText($item->name ?? ''),
+                'description' => $this->normalizeComparisonText($item->description ?? ''),
                 'quantity' => round($qty, 3),
                 'unit_price' => $unitPrice,
                 'discount' => $this->calculateComparisonLineDiscount($lineNoDisc, $finalAmount, $item->discount ?? 0, $item->discount_type ?? null),
@@ -2785,8 +2845,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
         $invoice->loadMissing('items');
 
-        return $this->normalizeProcessedBillingsForInvoiceComparison($processedBillings)
-            === $this->normalizeInvoiceItemsForBillingComparison($invoice);
+        return $this->comparisonSnapshotsMatch(
+            $this->normalizeProcessedBillingsForInvoiceComparison($processedBillings),
+            $this->normalizeInvoiceItemsForBillingComparison($invoice)
+        );
     }
 
     public function createInvoice(Request $request)
