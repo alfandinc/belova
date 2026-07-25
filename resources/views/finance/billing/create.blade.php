@@ -1077,6 +1077,23 @@
             lastInvoiceSyncFingerprint = null;
         }
 
+        function shouldSuppressBackendInvoiceNeedsUpdate(backendInvoiceNeedsUpdate) {
+            if (!backendInvoiceNeedsUpdate) {
+                return false;
+            }
+
+            try {
+                if (hasLocalBillingChanges()) {
+                    return false;
+                }
+
+                const currentFingerprint = getCurrentInvoiceSyncFingerprint();
+                return !!(currentFingerprint && lastInvoiceSyncFingerprint && currentFingerprint === lastInvoiceSyncFingerprint);
+            } catch (e) {
+                return false;
+            }
+        }
+
         function invoiceNeedsUpdateBeforePrint() {
             if (!(currentInvoiceId && !currentInvoiceIsPaid && !billingLocked)) {
                 return false;
@@ -1563,7 +1580,7 @@
                     try {
                         if (typeof json.invoice_needs_update !== 'undefined') {
                             const backendInvoiceNeedsUpdate = (json.invoice_needs_update === true || json.invoice_needs_update === 1 || json.invoice_needs_update === '1');
-                            if (suppressNextInvoiceNeedsUpdateRefresh && !hasLocalBillingChanges()) {
+                            if ((suppressNextInvoiceNeedsUpdateRefresh && !hasLocalBillingChanges()) || shouldSuppressBackendInvoiceNeedsUpdate(backendInvoiceNeedsUpdate)) {
                                 invoiceNeedsUpdateServer = false;
                                 suppressNextInvoiceNeedsUpdateRefresh = false;
                             } else {
@@ -3361,7 +3378,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                         // and refresh billingData to replace any temp IDs with real DB IDs.
                                         invoiceNeedsUpdateServer = false;
                                         suppressNextInvoiceNeedsUpdateRefresh = true;
-                                        clearInvoiceFingerprintSync();
+                                        markInvoiceFingerprintSynced();
                                         try {
                                             billingData = [];
                                             deletedItems = [];
@@ -3382,7 +3399,7 @@ $('#saveAllChangesBtn').on('click', function() {
 
                                     invoiceNeedsUpdateServer = false;
                                     suppressNextInvoiceNeedsUpdateRefresh = true;
-                                    clearInvoiceFingerprintSync();
+                                    markInvoiceFingerprintSynced();
                                     try {
                                         billingData = [];
                                         deletedItems = [];
