@@ -808,7 +808,7 @@
                     </td>
                     <td class="text-center">{{ $item->quantity }}</td>
                     <td class="text-right">Rp {{ number_format($item->unit_price, 0, ',', '.') }}</td>
-                    <td class="text-right">Rp {{ number_format($item->final_amount, 0, ',', '.') }}</td>
+                    <td class="text-right">Rp {{ number_format($lineNoDisc, 0, ',', '.') }}</td>
                 </tr>
                 @endforeach
             </tbody>

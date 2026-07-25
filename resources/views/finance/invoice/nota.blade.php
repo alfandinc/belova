@@ -356,7 +356,7 @@
             <table class="item-table">
                 <tr>
                     <td class="qty-price">{{ $qty }} x {{ number_format($unit, 0, ',', '.') }}</td>
-                    <td class="amount">{{ number_format(($lineDisc > 0 && $lineNoDisc > 0) ? $lineFinal : $lineNoDisc, 0, ',', '.') }}</td>
+                    <td class="amount">{{ number_format($lineNoDisc, 0, ',', '.') }}</td>
                 </tr>
                 @php
                     $showDiscount = false;
