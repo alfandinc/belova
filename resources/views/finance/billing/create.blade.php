@@ -1012,6 +1012,7 @@
             invoiceNeedsUpdateServer = false;
         }
         let lastInvoiceSyncFingerprint = null;
+        let suppressNextInvoiceNeedsUpdateRefresh = false;
 
         function getCurrentInvoiceSyncFingerprint() {
             try {
@@ -1105,20 +1106,13 @@
         function isTempBillingId(id) {
             try {
                 const s = (id || '').toString();
-                if (!s) {
-                    return false;
+                // Any non-numeric ID can't be a real DB primary key.
+                // Treat it as a temp row so it gets sent as `new_items`.
+                if (!/^[0-9]+$/.test(s)) {
+                    return true;
                 }
-                if (/^[0-9]+$/.test(s)) {
-                    return false;
-                }
-                // Only client-generated placeholder rows should be treated as unsaved.
-                // Some server responses may use non-numeric composite ids for grouped display rows.
-                return s.startsWith('tindakan-')
-                    || s.startsWith('lab-')
-                    || s.startsWith('konsultasi-')
-                    || s.startsWith('obat-')
-                    || s.startsWith('racikan-')
-                    || s.startsWith('temp-');
+                // Known temp prefixes (kept for clarity; numeric-only check above is the main guard)
+                return s.startsWith('tindakan-') || s.startsWith('lab-') || s.startsWith('konsultasi-') || s.startsWith('obat-') || s.startsWith('racikan-');
             } catch (e) {
                 return false;
             }
@@ -1568,7 +1562,13 @@
                     // Update invoice-needs-update flag from backend so button can change without page refresh.
                     try {
                         if (typeof json.invoice_needs_update !== 'undefined') {
-                            invoiceNeedsUpdateServer = (json.invoice_needs_update === true || json.invoice_needs_update === 1 || json.invoice_needs_update === '1');
+                            const backendInvoiceNeedsUpdate = (json.invoice_needs_update === true || json.invoice_needs_update === 1 || json.invoice_needs_update === '1');
+                            if (suppressNextInvoiceNeedsUpdateRefresh && !hasLocalBillingChanges()) {
+                                invoiceNeedsUpdateServer = false;
+                                suppressNextInvoiceNeedsUpdateRefresh = false;
+                            } else {
+                                invoiceNeedsUpdateServer = backendInvoiceNeedsUpdate;
+                            }
                         }
                     } catch (e) {
                         // ignore
@@ -3360,6 +3360,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                         // First invoice created: reset local dirty state so the primary action becomes "Pembayaran"
                                         // and refresh billingData to replace any temp IDs with real DB IDs.
                                         invoiceNeedsUpdateServer = false;
+                                        suppressNextInvoiceNeedsUpdateRefresh = true;
                                         clearInvoiceFingerprintSync();
                                         try {
                                             billingData = [];
@@ -3380,6 +3381,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                     }
 
                                     invoiceNeedsUpdateServer = false;
+                                    suppressNextInvoiceNeedsUpdateRefresh = true;
                                     clearInvoiceFingerprintSync();
                                     try {
                                         billingData = [];
