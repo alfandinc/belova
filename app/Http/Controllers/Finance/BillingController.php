@@ -2038,21 +2038,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $latestInvoice = Invoice::with('items')->where('visitation_id', $visitation_id)->latest()->first();
                 if ($latestInvoice) {
                     $invoiceNeedsUpdate = !$this->invoiceSnapshotMatchesProcessedBillings($processedBillings, $latestInvoice);
-
-                    if (!$invoiceNeedsUpdate) {
-                        $maxBillingChangedAt = null;
-                        try {
-                            $maxBillingChangedAt = Billing::withTrashed()
-                                ->where('visitation_id', $visitation_id)
-                                ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
-                                ->value('max_changed_at');
-                        } catch (\Exception $e) {
-                            $maxBillingChangedAt = null;
-                        }
-                        if ($maxBillingChangedAt && $latestInvoice->updated_at) {
-                            $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($latestInvoice->updated_at);
-                        }
-                    }
                 }
             } catch (\Exception $e) {
                 $invoiceNeedsUpdate = false;
@@ -2523,19 +2508,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     ->values();
             }
 
-            try {
-                if ($invoice) {
-                    $maxBillingChangedAt = Billing::withTrashed()
-                        ->where('visitation_id', $visitation->id)
-                        ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
-                        ->value('max_changed_at');
-                    if ($maxBillingChangedAt && $invoice->updated_at) {
-                        $invoiceNeedsUpdate = Carbon::parse($maxBillingChangedAt)->gt($invoice->updated_at);
-                    }
-                }
-            } catch (\Exception $e) {
-                $invoiceNeedsUpdate = false;
-            }
+            // Let the billing table refresh decide invoice sync state from actual snapshot content.
+            // Timestamp-only checks create false positives when related rows are touched without changing
+            // the effective billing/invoice data.
+            $invoiceNeedsUpdate = false;
         }
 
         return [
