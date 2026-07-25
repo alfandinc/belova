@@ -712,12 +712,18 @@
                                         if (!$basePrice) $basePrice = $unit;
 
                                         $gap = max(0, $unit - $basePrice);
-                                        $promoDisplay = [
-                                            'gap' => $gap,
-                                            'percent' => $max,
-                                            'base' => $basePrice,
-                                            'percent_nominal' => round($basePrice * ($max / 100), 0),
-                                        ];
+                                        $gapNominal = round($gap * $qty, 0);
+                                        $percentNominal = round(($basePrice * ($max / 100)) * $qty, 0);
+                                        $expectedPromoDiscount = $gapNominal + $percentNominal;
+
+                                        if (abs($lineDisc - $expectedPromoDiscount) <= 1) {
+                                            $promoDisplay = [
+                                                'gap' => $gapNominal,
+                                                'percent' => $max,
+                                                'base' => $basePrice,
+                                                'percent_nominal' => $percentNominal,
+                                            ];
+                                        }
                                     }
                                 }
                             }

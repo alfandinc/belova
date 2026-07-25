@@ -19,6 +19,7 @@ class Pasien extends Model
     public const REFERRAL_TYPE_WEBSITE = 'website';
     public const REFERRAL_TYPE_OTHER_PASIEN = 'other_pasien';
     public const REFERRAL_TYPE_LAINNYA = 'lainnya';
+    public const REFERRAL_TYPE_EVENT = 'event';
 
     protected $keyType = 'string';
     public $incrementing = false;

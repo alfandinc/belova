@@ -1,4 +1,99 @@
 <style>
+    .event-billing-header-row {
+        gap: 1rem;
+    }
+    .event-billing-header-main,
+    .event-billing-header-date,
+    .event-billing-header-action {
+        flex: 1 1 0;
+    }
+    .event-billing-header-action {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .event-header-reset-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0.375rem 1rem;
+        border-radius: 0.25rem;
+        color: #fff;
+        background-color: #28a745;
+        border-color: #28a745;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .event-header-reset-btn:hover,
+    .event-header-reset-btn:focus {
+        color: #fff;
+        background-color: #218838;
+        border-color: #1e7e34;
+        text-decoration: none;
+    }
+    .event-billing-header-date {
+        text-align: right;
+    }
+    @media (max-width: 767.98px) {
+        .event-billing-header-date {
+            text-align: left;
+        }
+    }
+    .event-patient-row {
+        margin-bottom: -0.5rem;
+    }
+    .event-patient-field {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1rem;
+    }
+    .event-patient-field label {
+        margin-bottom: 0.5rem;
+        line-height: 1.2;
+    }
+    .event-patient-field .form-control {
+        min-height: 38px;
+    }
+    .event-gender-group {
+        display: inline-flex;
+        width: auto;
+        height: 38px;
+        align-self: flex-start;
+    }
+    .event-gender-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 48px;
+        width: 48px;
+        height: 38px;
+        padding: 0;
+        line-height: 1;
+        flex: 0 0 auto;
+    }
+    .event-gender-btn i {
+        font-size: 0.95rem;
+    }
+    .event-patient-action {
+        justify-content: flex-end;
+    }
+    .event-patient-action-label {
+        visibility: hidden;
+    }
+    .event-create-billing-btn {
+        width: 100%;
+        min-height: 38px;
+        white-space: nowrap;
+    }
+    @media (max-width: 767.98px) {
+        .event-patient-action-label {
+            display: none;
+        }
+        .event-create-billing-btn {
+            width: 100%;
+        }
+    }
     /* Gender badge: rounded rectangle around the icon */
     .gender-badge {
         display: inline-flex;

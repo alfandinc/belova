@@ -9,6 +9,14 @@
 
 @include('finance.billing.partials.create-styles')
 
+@php
+    $isEventBilling = $isEventBilling ?? false;
+    $hasVisitation = !empty($visitation);
+    $currentVisitationId = $visitation->id ?? null;
+    $eventStartUrl = $eventStartUrl ?? null;
+    $eventResetUrl = $eventResetUrl ?? null;
+@endphp
+
 <div class="container-fluid">
     <div id="pageLoadingOverlay" class="page-loading-overlay" aria-live="polite" aria-busy="true">
         <div class="text-center">
@@ -23,6 +31,21 @@
         $latestPiutang = $invoice?->piutangs?->sortByDesc('id')->first();
     @endphp
     <script>
+        window.billingPage = {
+            isEventBilling: @json($isEventBilling),
+            hasVisitation: @json($hasVisitation),
+            visitationId: @json($currentVisitationId),
+            billingDataUrl: @json($currentVisitationId ? route('finance.billing.create', $currentVisitationId) : null),
+            eventId: @json($event->id ?? null),
+            eventKode: @json($event->kode_event ?? null),
+            eventNama: @json($event->nama_event ?? null),
+            eventStartUrl: @json($eventStartUrl),
+            eventResetUrl: @json($eventResetUrl),
+            eventItemSearchUrl: @json($eventItemSearchUrl ?? null)
+        };
+
+        window.eventPromoDetails = @json($eventPromoDetails ?? []);
+
         window.oldInvoice = {
             id: @json($invoice?->id ?? null),
             invoice_number: @json($invoice?->invoice_number ?? null),
@@ -41,7 +64,7 @@
             change_amount: @json($invoice?->change_amount ?? '')
         };
 
-        window.visitationMetodeBayarName = @json(optional($visitation->metodeBayar)->nama ?? null);
+        window.visitationMetodeBayarName = @json($visitation?->metodeBayar?->nama ?? null);
 
         // True when there is an existing invoice but billing was changed afterwards (server-side detection).
         window.invoiceNeedsUpdate = @json($invoiceNeedsUpdate ?? false);
@@ -149,7 +172,7 @@
         // Simple page-ready gate to avoid UI flashing before data is ready
         window.__pageReadyGate = {
             gudangDone: false,
-            tableDone: false,
+            tableDone: @json(!$hasVisitation),
             hideOverlayIfReady: function() {
                 try {
                     if (!this.gudangDone || !this.tableDone) return;
@@ -167,6 +190,44 @@
     </script>
     
 
+        @if($isEventBilling)
+        <div class="row mb-2">
+            <div class="col-12">
+                <div class="card shadow-sm mt-2">
+                    <div class="card-body py-3">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center event-billing-header-row">
+                            <div class="event-billing-header-main">
+                                <div class="text-muted small mb-1">Event Billing</div>
+                                <h5 class="mb-1">{{ $event->nama_event ?? '-' }}</h5>
+                            </div>
+                            <div class="event-billing-header-action text-center mt-3 mt-md-0">
+                                @if($eventResetUrl)
+                                    <a href="{{ $eventResetUrl }}" class="btn event-header-reset-btn">
+                                        <i class="fas fa-user-plus mr-1"></i> Pasien Event Baru
+                                    </a>
+                                @endif
+                            </div>
+                            <div class="text-md-right mt-2 mt-md-0 event-billing-header-date">
+                                <div class="text-muted small mb-1">Tanggal Event</div>
+                                <div class="font-weight-bold">
+                                    @if(!empty($event->tanggal_mulai) && !empty($event->tanggal_selesai))
+                                        {{ \Carbon\Carbon::parse($event->tanggal_mulai)->locale('id')->translatedFormat('j F Y H:i') }} - {{ \Carbon\Carbon::parse($event->tanggal_selesai)->locale('id')->translatedFormat('j F Y H:i') }}
+                                    @elseif(!empty($event->tanggal_mulai))
+                                        {{ \Carbon\Carbon::parse($event->tanggal_mulai)->locale('id')->translatedFormat('j F Y H:i') }}
+                                    @elseif(!empty($event->tanggal_selesai))
+                                        {{ \Carbon\Carbon::parse($event->tanggal_selesai)->locale('id')->translatedFormat('j F Y H:i') }}
+                                    @else
+                                        -
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+
     <div class="row mb-2">
         <div class="col-md-8">
             <div class="card shadow-sm mt-2 data-pasien">
@@ -174,8 +235,49 @@
                     <h5 class="card-title mb-0">
                         <i class="fas fa-user-circle mr-2"></i>Data Pasien
                     </h5>
+                    @if($isEventBilling)
+                        <div class="d-flex align-items-center">
+                            <span class="badge badge-info">Event Billing</span>
+                        </div>
+                    @endif
                 </div>
                 <div class="card-body">
+                    @if($isEventBilling && !$hasVisitation)
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="form-row align-items-end event-patient-row">
+                                <div class="form-group col-md-4 event-patient-field">
+                                    <label for="event_pasien_nama"><strong>Nama Pasien</strong></label>
+                                    <input type="text" id="event_pasien_nama" class="form-control" placeholder="Masukkan nama pasien">
+                                </div>
+                                <div class="form-group col-md-3 event-patient-field">
+                                    <label><strong>Jenis Kelamin</strong></label>
+                                    <input type="hidden" id="event_pasien_gender" value="">
+                                    <div class="btn-group event-gender-group" role="group" aria-label="Pilih jenis kelamin pasien event">
+                                        <button type="button" class="btn btn-outline-primary event-gender-btn" data-value="Laki-laki" title="Laki-laki" aria-label="Laki-laki">
+                                            <i class="fas fa-mars" aria-hidden="true"></i>
+                                            <span class="sr-only">Laki-laki</span>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger event-gender-btn" data-value="Perempuan" title="Perempuan" aria-label="Perempuan">
+                                            <i class="fas fa-venus" aria-hidden="true"></i>
+                                            <span class="sr-only">Perempuan</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-group col-md-3 event-patient-field">
+                                    <label for="event_pasien_no_hp"><strong>No HP</strong></label>
+                                    <input type="text" id="event_pasien_no_hp" class="form-control" placeholder="08xxxxxxxxxx">
+                                </div>
+                                <div class="form-group col-md-2 event-patient-field event-patient-action">
+                                    <label class="event-patient-action-label" aria-hidden="true">&nbsp;</label>
+                                    <button id="createEventBillingBtn" type="button" class="btn btn-primary event-create-billing-btn">
+                                        <i class="fas fa-user-plus mr-1"></i> Create Billing
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @else
                     <div class="row">
                         <div class="col-md-6">
                             <table class="table table-sm table-borderless">
@@ -252,13 +354,14 @@
                             </table>
                         </div>
                     </div>
+                    @endif
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card shadow-sm mt-2">
                 <div class="card-header d-flex align-items-center">
-                    <h5 class="card-title mb-0"><i class="fas fa-tags mr-2"></i>Active Promos</h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-tags mr-2"></i>{{ $isEventBilling ? 'Promo Event' : 'Active Promos' }}</h5>
                 </div>
                 <div class="card-body">
                     @php
@@ -274,20 +377,54 @@
                             $q->whereNull('start_date')->whereNotNull('end_date')
                                 ->where('end_date','>=',$today);
                         })->orderBy('start_date','desc')->take(5)->get();
+                        $displayPromos = $activePromos;
+                        if ($isEventBilling && !empty($event)) {
+                            $displayPromos = $event->promos
+                                ->filter(function ($promo) use ($today) {
+                                    $startDate = $promo->start_date ? \Carbon\Carbon::parse($promo->start_date)->format('Y-m-d') : null;
+                                    $endDate = $promo->end_date ? \Carbon\Carbon::parse($promo->end_date)->format('Y-m-d') : null;
+
+                                    if ($startDate && $endDate) {
+                                        return $startDate <= $today && $endDate >= $today;
+                                    }
+                                    if ($startDate && !$endDate) {
+                                        return $startDate <= $today;
+                                    }
+                                    if (!$startDate && $endDate) {
+                                        return $endDate >= $today;
+                                    }
+
+                                    return false;
+                                })
+                                ->take(5)
+                                ->values();
+                        }
                     @endphp
-                    @if($activePromos->isEmpty())
-                        <p class="mb-0 text-muted">No active promos</p>
+                    @if($displayPromos->isEmpty())
+                        <p class="mb-0 text-muted">{{ $isEventBilling ? 'Belum ada promo aktif yang terhubung ke event ini.' : 'No active promos' }}</p>
                     @else
                         <div class="table-responsive">
                             <table class="table table-sm table-borderless mb-0">
                                 <tbody>
-                                @foreach($activePromos as $p)
+                                @foreach($displayPromos as $p)
                                     <tr>
-                                        <td style="width:45%">
-                                            <div><strong>{{ $p->name }}</strong></div>
-                                            <div><small class="text-muted">@if($p->start_date){{ \Carbon\Carbon::parse($p->start_date)->locale('id')->translatedFormat('j F Y') }}@endif @if($p->end_date) - {{ \Carbon\Carbon::parse($p->end_date)->locale('id')->translatedFormat('j F Y') }}@endif</small></div>
+                                        <td>
+                                            @php
+                                                $promoDetailExists = $isEventBilling && !empty(($eventPromoDetails ?? [])[(string) $p->id]['items'] ?? []);
+                                            @endphp
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="pr-3">
+                                                    @if($promoDetailExists)
+                                                        <button type="button" class="btn btn-link p-0 text-left align-baseline event-promo-detail-trigger" data-promo-id="{{ $p->id }}">
+                                                            <strong>{{ $p->name }}</strong>
+                                                        </button>
+                                                    @else
+                                                        <strong>{{ $p->name }}</strong>
+                                                    @endif
+                                                </div>
+                                                <small class="text-muted text-right text-nowrap">@if($p->start_date){{ \Carbon\Carbon::parse($p->start_date)->locale('id')->translatedFormat('j F Y') }}@endif @if($p->end_date) - {{ \Carbon\Carbon::parse($p->end_date)->locale('id')->translatedFormat('j F Y') }}@endif</small>
+                                            </div>
                                         </td>
-                                        <td style="width:55%">{{ $p->description ?? '' }}</td>
                                     </tr>
                                 @endforeach
                                 </tbody>
@@ -303,6 +440,9 @@
         <div class="col">
             <div class="card shadow-sm">
                 <div class="card-body py-2">
+                    @if($isEventBilling)
+                        <small class="form-text text-muted mb-2">Untuk event billing, penambahan item menggunakan pencarian promo event di sebelah kiri biaya lain-lain.</small>
+                    @endif
                     <div class="row">
                         {{--
                         <div class="col-md-3 mb-2">
@@ -314,11 +454,17 @@
                             <select id="select-lab" class="form-control select2"></select>
                         </div>
                         --}}
+                        @if($isEventBilling)
+                        <div class="col-md-3 mb-2">
+                            <label for="select-event-item">Cari Item Promo Event</label>
+                            <select id="select-event-item" class="form-control select2"></select>
+                        </div>
+                        @endif
                         <div class="col-md-3 mb-2">
                             <label for="select-konsultasi">Tambah Biaya Lain-Lain</label>
                             <select id="select-konsultasi" class="form-control select2"></select>
                         </div>
-                        <div class="col-md-9 mb-2 text-right d-flex align-items-end justify-content-end">
+                        <div class="{{ $isEventBilling ? 'col-md-6' : 'col-md-9' }} mb-2 text-right d-flex align-items-end justify-content-end">
                             <button id="closeBillingTabBtn" type="button" class="btn btn-danger font-weight-bold px-3" title="Tutup tab">
                                 <i class="fas fa-times mr-2"></i> Tutup
                             </button>
@@ -350,8 +496,8 @@
                     <div>
                         <strong class="invoice-number">{{ $invoice?->invoice_number ?? '-' }}</strong>
                         @php
-                            $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
-                            $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                            $totalBillings = $hasVisitation ? \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count() : 0;
+                            $trashedBillings = $hasVisitation ? \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count() : 0;
                             $allBillingsTrashed = ($totalBillings > 0 && $trashedBillings === $totalBillings);
 
                             $hasInvoice = !empty($invoice);
@@ -416,6 +562,11 @@
                     </div>
                 </div>
                 <div class="card-body px-4 py-3">
+                    @if(!$hasVisitation)
+                        <div class="alert alert-info mb-3">
+                            Rincian billing akan aktif setelah data pasien event dibuat.
+                        </div>
+                    @endif
                     <div class="table-responsive">
                         <table id="billingTable" class="table table-hover">
                             <thead class="thead-light">
@@ -589,6 +740,40 @@
     </div>
 </div>
 
+<div class="modal fade" id="eventPromoDetailModal" tabindex="-1" role="dialog" aria-labelledby="eventPromoDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventPromoDetailModalLabel">Detail Promo Event</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="eventPromoDetailMeta" class="mb-3"></div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Jenis</th>
+                                <th>Nama Item</th>
+                                <th class="text-right">Harga Awal</th>
+                                <th class="text-center">Diskon</th>
+                                <th class="text-right">Harga Setelah Diskon</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventPromoDetailTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">Belum ada item promo.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @include('finance.billing.partials.payment-modal')
 @include('finance.billing.partials.modal-terima-pembayaran')
 @endsection
@@ -597,6 +782,10 @@
     @include('finance.billing.partials.stock-info-modal-loader')
     <script>
         $(document).ready(function() {
+        const isEventBilling = !!(window.billingPage && window.billingPage.isEventBilling);
+        const hasBillingVisitation = !!(window.billingPage && window.billingPage.visitationId);
+        const billingDataUrl = (window.billingPage && window.billingPage.billingDataUrl) ? window.billingPage.billingDataUrl : null;
+
         // Close button: try to close the browser tab; fallback to billing index
         $('#closeBillingTabBtn').on('click', function(e) {
             e.preventDefault();
@@ -629,6 +818,7 @@
         // --- 2-step invoice/payment flow UI state ---
         let currentInvoiceId = (window.oldInvoice && window.oldInvoice.id) ? window.oldInvoice.id : null;
         let currentInvoiceIsPaid = false;
+        let pendingPrintAfterInvoiceUpdate = false;
         const canDeleteBilling = @json(auth()->check() && method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Admin'));
         // Billing becomes locked (non-editable) after payment is processed (including piutang).
         // Backend marks unpaid invoice creation with payment_method = null.
@@ -658,6 +848,13 @@
         }
 
         function setInvoiceFlowUi() {
+            if (isEventBilling && !hasBillingVisitation) {
+                $('#createInvoiceCol').hide();
+                $('#terimaPembayaranCol').hide();
+                $('#cetakNotaCol').hide();
+                return;
+            }
+
             if (currentInvoiceId) {
                 // When invoice exists, show actions based on paid status
                 $('#createInvoiceCol').hide();
@@ -688,16 +885,25 @@
         }
 
         function applyBillingLockUi() {
+            const shouldDisableBillingInputs = billingLocked || (isEventBilling && !hasBillingVisitation);
+            const shouldDisableKonsultasi = shouldDisableBillingInputs || isEventBilling;
+
             // Disable add/select inputs
             try {
-                ['#select-konsultasi', '#select-tindakan', '#select-lab', '#select-obat'].forEach(function(sel) {
+                ['#select-tindakan', '#select-lab', '#select-obat', '#select-event-item'].forEach(function(sel) {
                     const $el = $(sel);
                     if ($el && $el.length) {
-                        $el.prop('disabled', !!billingLocked);
+                        $el.prop('disabled', shouldDisableBillingInputs);
                         // select2 needs a change to reflect disabled state
                         try { $el.trigger('change.select2'); } catch (e) { /* ignore */ }
                     }
                 });
+
+                const $konsultasi = $('#select-konsultasi');
+                if ($konsultasi && $konsultasi.length) {
+                    $konsultasi.prop('disabled', shouldDisableKonsultasi);
+                    try { $konsultasi.trigger('change.select2'); } catch (e) { /* ignore */ }
+                }
             } catch (e) {
                 // ignore
             }
@@ -804,6 +1010,87 @@
             invoiceNeedsUpdateServer = (window.invoiceNeedsUpdate === true || window.invoiceNeedsUpdate === 1 || window.invoiceNeedsUpdate === '1');
         } catch (e) {
             invoiceNeedsUpdateServer = false;
+        }
+        let lastInvoiceSyncFingerprint = null;
+
+        function getCurrentInvoiceSyncFingerprint() {
+            try {
+                const rows = (Array.isArray(billingData) ? billingData : [])
+                    .filter(function(item) {
+                        return !!item && !item.deleted;
+                    })
+                    .map(function(item) {
+                        const qty = parseFloat(item.qty || 1) || 1;
+                        const unitPrice = parseFloat(item.jumlah_raw || 0) || 0;
+                        const discountValue = parseFloat(item.diskon_raw || 0) || 0;
+                        const finalAmount = parseFloat(item.harga_akhir_raw || 0) || 0;
+                        const memberIds = Array.isArray(item.group_member_ids)
+                            ? item.group_member_ids.map(function(id) { return Number(id); }).filter(function(id) { return !isNaN(id); }).sort(function(a, b) { return a - b; })
+                            : [];
+                        const groupedBillableIds = Array.isArray(item.grouped_billable_ids)
+                            ? item.grouped_billable_ids.map(function(id) { return Number(id); }).filter(function(id) { return !isNaN(id); }).sort(function(a, b) { return a - b; })
+                            : [];
+
+                        return {
+                            id: String(item.id || ''),
+                            billable_type: String(item.billable_type || ''),
+                            billable_id: String(item.billable_id || ''),
+                            nama_item: String(item.nama_item || ''),
+                            deskripsi: String(item.deskripsi || item.keterangan || ''),
+                            qty: Number(qty.toFixed(3)),
+                            jumlah_raw: Number(unitPrice.toFixed(2)),
+                            diskon_raw: Number(discountValue.toFixed(2)),
+                            diskon_type: String(item.diskon_type || ''),
+                            harga_akhir_raw: Number(finalAmount.toFixed(2)),
+                            is_racikan: item.is_racikan ? 1 : 0,
+                            is_pharmacy_fee: item.is_pharmacy_fee ? 1 : 0,
+                            group_member_ids: memberIds,
+                            grouped_billable_ids: groupedBillableIds
+                        };
+                    })
+                    .sort(function(left, right) {
+                        const a = JSON.stringify(left);
+                        const b = JSON.stringify(right);
+                        return a.localeCompare(b);
+                    });
+
+                const header = {
+                    tax_percentage: Number((parseFloat($('#tax_percentage').val() || 0) || 0).toFixed(4)),
+                    admin_fee: Math.ceil(parseHarga($('#admin_fee').val() || 0) || 0),
+                    shipping_fee: Math.ceil(parseHarga($('#shipping_fee').val() || 0) || 0),
+                    global_discount: Math.ceil(parseHarga($('#global_discount').val() || 0) || 0),
+                    global_discount_type: String($('#global_discount_type').val() || '')
+                };
+
+                return JSON.stringify({ rows: rows, header: header });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function markInvoiceFingerprintSynced() {
+            lastInvoiceSyncFingerprint = getCurrentInvoiceSyncFingerprint();
+        }
+
+        function clearInvoiceFingerprintSync() {
+            lastInvoiceSyncFingerprint = null;
+        }
+
+        function invoiceNeedsUpdateBeforePrint() {
+            if (!(currentInvoiceId && !currentInvoiceIsPaid && !billingLocked)) {
+                return false;
+            }
+
+            if (invoiceNeedsUpdateNow()) {
+                return true;
+            }
+
+            const currentFingerprint = getCurrentInvoiceSyncFingerprint();
+            if (!currentFingerprint || !lastInvoiceSyncFingerprint) {
+                return false;
+            }
+
+            return currentFingerprint !== lastInvoiceSyncFingerprint;
         }
 
         function isKonsultasiBillingType(billableType) {
@@ -992,6 +1279,57 @@
             });
         }
 
+        function buildEventPromoPeriodLabel(promo) {
+            if (!promo) return '';
+            if (promo.start_date && promo.end_date) return promo.start_date + ' s/d ' + promo.end_date;
+            if (promo.start_date) return 'Mulai ' + promo.start_date;
+            if (promo.end_date) return 'Sampai ' + promo.end_date;
+            return '';
+        }
+
+        function openEventPromoDetailModal(promoId) {
+            const promoMap = window.eventPromoDetails || {};
+            const promo = promoMap[String(promoId)] || promoMap[promoId] || null;
+            if (!promo) return;
+
+            $('#eventPromoDetailModalLabel').text('Detail Promo: ' + (promo.name || 'Promo Event'));
+
+            const metaParts = [];
+            if (promo.description) {
+                metaParts.push('<div class="mb-1">' + escapeHtml(promo.description) + '</div>');
+            }
+
+            const periodLabel = buildEventPromoPeriodLabel(promo);
+            if (periodLabel) {
+                metaParts.push('<div><small class="text-muted">Periode: ' + escapeHtml(periodLabel) + '</small></div>');
+            }
+            $('#eventPromoDetailMeta').html(metaParts.join(''));
+
+            const items = Array.isArray(promo.items) ? promo.items : [];
+            if (!items.length) {
+                $('#eventPromoDetailTableBody').html('<tr><td colspan="5" class="text-center text-muted">Belum ada item promo aktif.</td></tr>');
+                $('#eventPromoDetailModal').modal('show');
+                return;
+            }
+
+            const rowsHtml = items.map(function(item) {
+                const basePrice = Number(item.base_price || 0);
+                const discountedPrice = Number(item.discounted_price || 0);
+                const discountLabel = (item.discount_label || '-').toString();
+
+                return '<tr>'
+                    + '<td><span class="badge badge-info">' + escapeHtml(item.type_label || item.type || '-') + '</span></td>'
+                    + '<td>' + escapeHtml(item.name || '-') + '</td>'
+                    + '<td class="text-right">Rp ' + formatCurrency(basePrice) + '</td>'
+                    + '<td class="text-center">' + escapeHtml(discountLabel) + '</td>'
+                    + '<td class="text-right font-weight-bold">Rp ' + formatCurrency(discountedPrice) + '</td>'
+                    + '</tr>';
+            }).join('');
+
+            $('#eventPromoDetailTableBody').html(rowsHtml);
+            $('#eventPromoDetailModal').modal('show');
+        }
+
         setInvoiceFlowUi();
         applyBillingLockUi();
         // Default: dibayar starts 0 => method piutang (unless locked by insurer)
@@ -1157,7 +1495,7 @@
         // Initialize DataTable
         const table = $('#billingTable').DataTable({
             processing: true,
-            serverSide: true,
+            serverSide: hasBillingVisitation,
             responsive: false, // Turn off responsive to avoid column collapsing
             scrollX: false,    // Disable horizontal scrolling
             autoWidth: false,  // Don't automatically calculate column widths
@@ -1166,8 +1504,8 @@
             pageLength: -1,
             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Semua"]],
             stripeClasses: ['odd', 'even'], // Add zebra-striping
-            ajax: {
-                url: "{{ route('finance.billing.create', $visitation->id) }}",
+            ajax: hasBillingVisitation ? {
+                url: billingDataUrl,
                 type: "GET",
                 data: function(d) {
                     try {
@@ -1306,6 +1644,13 @@
 
                     // Ensure primary action button reflects latest state
                     try {
+                        if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked) {
+                            if (invoiceNeedsUpdateServer || hasLocalBillingChanges()) {
+                                clearInvoiceFingerprintSync();
+                            } else {
+                                markInvoiceFingerprintSynced();
+                            }
+                        }
                         updatePaymentActionButtons($('#payment_method').val() || 'piutang');
                     } catch (e) {
                         // ignore
@@ -1313,7 +1658,7 @@
                     
                     return visibleData;
                 }
-            },
+            } : null,
             columns: [
                 { 
                     data: null, 
@@ -1456,6 +1801,40 @@
                 }
             }
         });
+
+        function canReloadBillingTable() {
+            try {
+                if (!hasBillingVisitation || !billingDataUrl || !table) {
+                    return false;
+                }
+
+                if (!table.ajax || typeof table.ajax.reload !== 'function') {
+                    return false;
+                }
+
+                if (!table.settings || typeof table.settings !== 'function') {
+                    return false;
+                }
+
+                const settings = table.settings();
+                const firstSettings = settings && settings.length ? settings[0] : null;
+
+                return !!(firstSettings && firstSettings.ajax);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function reloadBillingTable(callback, resetPaging) {
+            if (!canReloadBillingTable()) {
+                if (typeof callback === 'function') {
+                    callback();
+                }
+                return;
+            }
+
+            table.ajax.reload(callback || null, !!resetPaging);
+        }
 
         const returnedItemsTable = $('#returnedItemsTable').DataTable({
             processing: false,
@@ -1749,37 +2128,39 @@
         // Auto-refresh rincian billing every 5 seconds
         // - Pause while edit modal is open (avoid disrupting user edits)
         // - Skip during manual client-side redraws (updateTable) to prevent race conditions
-        billingTableAutoRefreshIntervalId = setInterval(function() {
-            try {
-                if (document.hidden) return;
-                if (isManualTableUpdateInProgress) return;
-                if ($('#editModal').hasClass('show')) return;
-                if ($('#stockInfoModal').hasClass('show')) return;
-                if (isAutoRefreshInFlight) return;
-                // Avoid accidental bursts
-                const now = Date.now();
-                if (now - lastAutoRefreshAt < 4500) return;
+        if (hasBillingVisitation) {
+            billingTableAutoRefreshIntervalId = setInterval(function() {
+                try {
+                    if (document.hidden) return;
+                    if (isManualTableUpdateInProgress) return;
+                    if ($('#editModal').hasClass('show')) return;
+                    if ($('#stockInfoModal').hasClass('show')) return;
+                    if (isAutoRefreshInFlight) return;
+                    // Avoid accidental bursts
+                    const now = Date.now();
+                    if (now - lastAutoRefreshAt < 4500) return;
 
-                if (table && table.ajax && typeof table.ajax.reload === 'function') {
-                    isAutoRefreshInFlight = true;
-                    lastAutoRefreshAt = now;
+                    if (table && table.ajax && typeof table.ajax.reload === 'function') {
+                        isAutoRefreshInFlight = true;
+                        lastAutoRefreshAt = now;
 
-                    // Light refresh to reduce backend work during polling.
-                    window.__billingLightRefresh = true;
-                    // Safety: reset the flag in case the request errors and callback doesn't run.
-                    setTimeout(function() { window.__billingLightRefresh = false; }, 8000);
+                        // Light refresh to reduce backend work during polling.
+                        window.__billingLightRefresh = true;
+                        // Safety: reset the flag in case the request errors and callback doesn't run.
+                        setTimeout(function() { window.__billingLightRefresh = false; }, 8000);
 
-                    table.ajax.reload(function() {
-                        window.__billingLightRefresh = false;
-                        isAutoRefreshInFlight = false;
-                    }, false); // keep paging
+                        reloadBillingTable(function() {
+                            window.__billingLightRefresh = false;
+                            isAutoRefreshInFlight = false;
+                        }, false); // keep paging
+                    }
+                } catch (e) {
+                    console.debug('Auto-refresh skipped:', e);
+                    window.__billingLightRefresh = false;
+                    isAutoRefreshInFlight = false;
                 }
-            } catch (e) {
-                console.debug('Auto-refresh skipped:', e);
-                window.__billingLightRefresh = false;
-                isAutoRefreshInFlight = false;
-            }
-        }, 5000);
+            }, 5000);
+        }
 
         $(window).on('beforeunload', function() {
             if (billingTableAutoRefreshIntervalId) {
@@ -1833,7 +2214,7 @@
         // Refresh table when gudang data is loaded
         function refreshTableAfterGudangLoad() {
             if (window.gudangData.loaded) {
-                table.ajax.reload(null, false); // Don't reset paging
+                reloadBillingTable(null, false); // Don't reset paging
             }
         }
         
@@ -1973,6 +2354,7 @@
                             try {
                                 if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked) {
                                     invoiceNeedsUpdateServer = true;
+                                    clearInvoiceFingerprintSync();
                                     updatePaymentActionButtons($('#payment_method').val() || 'piutang');
                                 }
                             } catch (e) {
@@ -2465,7 +2847,11 @@ $('#saveAllChangesBtn').on('click', function() {
     }).then((result) => {
         if (result.value) {
             // Force the visitation ID to be treated as a string
-            const correctVisitationId = "{{ $visitation->id }}";
+            const correctVisitationId = window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null;
+            if (!correctVisitationId) {
+                Swal.fire({ title: 'Info', text: 'Buat data pasien event terlebih dahulu.', icon: 'info' });
+                return;
+            }
             
             // console.log('=== SAVE BILLING DEBUG START ===');
             // console.log('All billingData:', billingData);
@@ -2665,7 +3051,8 @@ $('#saveAllChangesBtn').on('click', function() {
             const silent = options.silent === true;
             if (billingLocked) return;
 
-            const correctVisitationId = "{{ $visitation->id }}";
+            const correctVisitationId = window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null;
+            if (!correctVisitationId) return;
             const requestData = buildSaveBillingRequestData(correctVisitationId, null);
 
             const hasSomethingToSave = (
@@ -2691,12 +3078,22 @@ $('#saveAllChangesBtn').on('click', function() {
                 type: 'POST',
                 data: requestData,
                 success: function() {
+                    try {
+                        if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked) {
+                            invoiceNeedsUpdateServer = true;
+                            clearInvoiceFingerprintSync();
+                            updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
                     // Clear local dirty state and refresh from DB
                     try {
                         billingData = [];
                         deletedItems = [];
                         window.__billingLightRefresh = false;
-                        table.ajax.reload(null, false);
+                        reloadBillingTable(null, false);
                     } catch (e) {
                         // ignore
                     }
@@ -2776,7 +3173,11 @@ $('#saveAllChangesBtn').on('click', function() {
             }).then((result) => {
                 if (result.value) {
                     // Prepare request data
-                    const correctVisitationId = "{{ $visitation->id }}";
+                    const correctVisitationId = window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null;
+                    if (!correctVisitationId) {
+                        Swal.fire({ title: 'Info', text: 'Buat data pasien event terlebih dahulu.', icon: 'info' });
+                        return;
+                    }
                     const items = billingData.filter(item => !item.deleted);
                     if (items.length === 0) {
                         Swal.fire({
@@ -2952,11 +3353,12 @@ $('#saveAllChangesBtn').on('click', function() {
                                         // First invoice created: reset local dirty state so the primary action becomes "Pembayaran"
                                         // and refresh billingData to replace any temp IDs with real DB IDs.
                                         invoiceNeedsUpdateServer = false;
+                                        clearInvoiceFingerprintSync();
                                         try {
                                             billingData = [];
                                             deletedItems = [];
                                             window.__billingLightRefresh = false;
-                                            table.ajax.reload(null, false);
+                                            reloadBillingTable(null, false);
                                         } catch (e) {
                                             // ignore
                                         }
@@ -2971,15 +3373,22 @@ $('#saveAllChangesBtn').on('click', function() {
                                     }
 
                                     invoiceNeedsUpdateServer = false;
+                                    clearInvoiceFingerprintSync();
                                     try {
                                         billingData = [];
                                         deletedItems = [];
                                         window.__billingLightRefresh = false;
-                                        table.ajax.reload(null, false);
+                                        reloadBillingTable(null, false);
                                     } catch (e) {
                                         // ignore
                                     }
                                     updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+
+                                    if (pendingPrintAfterInvoiceUpdate) {
+                                        pendingPrintAfterInvoiceUpdate = false;
+                                        openPrintNota(currentInvoiceId);
+                                        return;
+                                    }
 
                                     Swal.fire({
                                         title: 'Berhasil!',
@@ -2994,7 +3403,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                 // After payment is processed (including piutang), lock billing edits.
                                 billingLocked = true;
                                 applyBillingLockUi();
-                                try { table.ajax.reload(null, false); } catch (e) { /* ignore */ }
+                                try { reloadBillingTable(null, false); } catch (e) { /* ignore */ }
 
                                 invoiceNeedsUpdateServer = false;
 
@@ -3294,7 +3703,20 @@ $('#saveAllChangesBtn').on('click', function() {
 
         // Print nota button
         $('#printNotaBtn').on('click', function() {
+            if (invoiceNeedsUpdateBeforePrint()) {
+                pendingPrintAfterInvoiceUpdate = true;
+                runInvoiceFlow(true);
+                return;
+            }
+
             openPrintNota(currentInvoiceId);
+        });
+
+        $(document).on('click', '.event-promo-detail-trigger', function(e) {
+            e.preventDefault();
+            const promoId = $(this).data('promo-id');
+            if (!promoId) return;
+            openEventPromoDetailModal(promoId);
         });
         
         // --- Select2 AJAX for Tindakan ---
@@ -3362,6 +3784,27 @@ $('#saveAllChangesBtn').on('click', function() {
             },
             minimumInputLength: 1
         });
+
+        if ($('#select-event-item').length) {
+            $('#select-event-item').select2({
+                placeholder: 'Cari item promo event...',
+                ajax: {
+                    url: function() {
+                        return (window.billingPage && window.billingPage.eventItemSearchUrl) ? window.billingPage.eventItemSearchUrl : '';
+                    },
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return { q: params.term };
+                    },
+                    processResults: function(data) {
+                        return data && data.results ? data : { results: [] };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 1
+            });
+        }
 
         // --- Select2 AJAX for Obat/Produk ---
         $('#select-obat').select2({
@@ -3502,6 +3945,53 @@ $('#saveAllChangesBtn').on('click', function() {
             }
         });
 
+        $('#select-event-item').on('select2:select', function(e) {
+            const data = e.params.data || {};
+            const itemType = (data.item_type || '').toString();
+            const itemId = data.item_id || data.id;
+            const selectedText = (data.text || data.nama_item || data.nama || $(this).find('option:selected').text() || '').toString().trim();
+            const harga = parseHarga(data.harga);
+            const qty = Math.max(1, parseInt(data.qty, 10) || 1);
+            const discountType = (data.discount_type || 'percent').toString() === 'nominal' ? 'nominal' : '%';
+            const discountValue = Math.max(0, parseFloat(data.discount_value) || 0);
+            const normalizedDiscountType = discountValue > 0 ? discountType : null;
+            const lineAfterDiscount = computeLineTotalAfterDiscount(harga, qty, discountValue, normalizedDiscountType);
+            const discountLabel = discountValue > 0
+                ? (discountType === '%'
+                    ? (Number.isInteger(discountValue) ? discountValue.toString() : discountValue.toFixed(2).replace(/\.00$/, '')) + '%'
+                    : 'Rp ' + formatCurrency(discountValue))
+                : '-';
+
+            const row = {
+                id: itemType + '-' + itemId + '-' + Date.now(),
+                billable_id: itemId,
+                billable_type: itemType === 'tindakan' ? 'App\\Models\\ERM\\Tindakan' : 'App\\Models\\ERM\\Obat',
+                nama_item: selectedText || (itemType === 'tindakan' ? 'Tindakan' : 'Obat'),
+                jumlah: 'Rp ' + formatCurrency(harga),
+                jumlah_raw: harga,
+                qty: qty,
+                diskon: discountLabel,
+                diskon_raw: discountType === '%' ? discountValue : (discountValue * qty),
+                diskon_type: normalizedDiscountType,
+                harga_akhir: 'Rp ' + formatCurrency(lineAfterDiscount),
+                harga_akhir_raw: lineAfterDiscount,
+                promo_price_base: harga,
+                deleted: false,
+                deskripsi: ''
+            };
+
+            billingData.push(row);
+            updateTable();
+            calculateTotals();
+            $(this).val(null).trigger('change');
+
+            try {
+                persistBillingSilently();
+            } catch (e) {
+                // ignore
+            }
+        });
+
         // Add selected Obat/Produk to billingData
         $('#select-obat').on('select2:select', function(e) {
             const data = e.params.data;
@@ -3537,6 +4027,57 @@ $('#saveAllChangesBtn').on('click', function() {
         
         // Initial calculation of totals
         calculateTotals();
+        setInvoiceFlowUi();
+        applyBillingLockUi();
+
+        $(document).on('click', '.event-gender-btn', function() {
+            const selectedValue = ($(this).data('value') || '').toString();
+            $('#event_pasien_gender').val(selectedValue);
+            $('.event-gender-btn').removeClass('active');
+            $(this).addClass('active');
+        });
+
+        $('#createEventBillingBtn').on('click', function() {
+            const startUrl = window.billingPage && window.billingPage.eventStartUrl ? window.billingPage.eventStartUrl : null;
+            const nama = ($('#event_pasien_nama').val() || '').trim();
+            const noHp = ($('#event_pasien_no_hp').val() || '').trim();
+            const gender = ($('#event_pasien_gender').val() || '').trim();
+
+            if (!startUrl) return;
+
+            if (!nama || !noHp || !gender) {
+                Swal.fire({ title: 'Info', text: 'Lengkapi nama pasien, no hp, dan jenis kelamin.', icon: 'info' });
+                return;
+            }
+
+            const $btn = $(this);
+            $btn.prop('disabled', true);
+
+            $.ajax({
+                url: startUrl,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    nama: nama,
+                    no_hp: noHp,
+                    gender: gender
+                },
+                success: function(response) {
+                    if (response && response.redirect_url) {
+                        window.location.href = response.redirect_url;
+                        return;
+                    }
+
+                    Swal.fire({ title: 'Error', text: 'Redirect billing tidak tersedia.', icon: 'error' });
+                },
+                error: function(xhr) {
+                    showReadableAjaxError('Gagal Membuat Billing Event', xhr, 'Terjadi kesalahan saat membuat pasien event:');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                }
+            });
+        });
         
         // Force column widths to be applied immediately after init
         setTimeout(function() {

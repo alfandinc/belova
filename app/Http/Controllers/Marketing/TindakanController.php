@@ -957,6 +957,7 @@ class TindakanController extends Controller
     $spesialisasiId = $request->input('spesialisasi_id');
     
     $query = \App\Models\ERM\Tindakan::with('spesialis')
+            ->where('is_active', true)
         ->when($spesialisasiId, function($q) use ($spesialisasiId) {
             $q->where('spesialis_id', $spesialisasiId);
         })

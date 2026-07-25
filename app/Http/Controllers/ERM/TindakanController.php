@@ -117,10 +117,14 @@ class TindakanController extends Controller
     public function create($visitationId)
     {
         // Kosongkan dulu, tidak ada data dummy
-        $visitation = Visitation::findOrFail($visitationId);
+        $visitation = Visitation::with('dokter')->findOrFail($visitationId);
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
-        $spesialisasiId = $visitation->dokter->spesialisasi_id;
+        $spesialisasiId = optional($visitation->dokter)->spesialisasi_id;
+
+        if (!$spesialisasiId) {
+            $spesialisasiId = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->value('id');
+        }
 
 
         // dd($spesialisasiId);
@@ -537,11 +541,11 @@ class TindakanController extends Controller
                 $discountAmount = 0;
                 $billingDiscountType = null;
 
-                $activePromoPercent = 0.0;
+                $activePromoDiscountAmount = 0.0;
                 if ($hargaType !== '3x' && floatval($billingAmount) > 0 && floatval($tindakan->harga ?? 0) > 0) {
                     try {
                         $today = \Carbon\Carbon::today()->format('Y-m-d');
-                        $activePromoPercent = (float) (\App\Models\Marketing\PromoItem::where('item_type', 'tindakan')
+                        $activePromoItems = \App\Models\Marketing\PromoItem::where('item_type', 'tindakan')
                             ->where('item_id', $tindakan->id)
                             ->whereHas('promo', function ($q) use ($today) {
                                 $q->where(function ($q2) use ($today) {
@@ -556,15 +560,22 @@ class TindakanController extends Controller
                                         ->where('end_date', '>=', $today);
                                 });
                             })
-                            ->max('discount_percent') ?? 0);
+                            ->get(['discount_type', 'discount_value', 'discount_percent']);
+
+                        foreach ($activePromoItems as $promoItem) {
+                            $discountAmount = $promoItem->calculateDiscountAmount((float) $billingAmount);
+                            if ($discountAmount > $activePromoDiscountAmount) {
+                                $activePromoDiscountAmount = $discountAmount;
+                            }
+                        }
                     } catch (\Exception $e) {
-                        $activePromoPercent = 0.0;
+                        $activePromoDiscountAmount = 0.0;
                     }
                 }
 
-                if ($activePromoPercent > 0) {
+                if ($activePromoDiscountAmount > 0) {
                     // Promo replaces tindakan harga_diskon when both exist.
-                    $discountAmount = round(floatval($billingAmount) * ($activePromoPercent / 100), 2);
+                    $discountAmount = round($activePromoDiscountAmount, 2);
                     $billingDiscountType = $discountAmount > 0 ? 'nominal' : null;
                 } elseif ($tindakan->diskon_active) {
                     if ($hargaType === '3x') {

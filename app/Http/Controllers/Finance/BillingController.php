@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Visitation;
+use App\Models\ERM\Pasien;
 use App\Models\Finance\Billing;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -17,12 +18,16 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
 use App\Models\ERM\ObatStokGudang;
+use App\Models\Marketing\MarketingEvent;
+use App\Models\Marketing\PromoItem;
 use App\Services\Finance\PasienMembershipStatusService;
 use App\Services\Finance\TransactionRecorderService;
 use App\Services\ERM\StokService;
 use App\Models\ERM\PaketRacikan;
+use App\Models\ERM\RiwayatTindakan;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\KartuStok;
+use Carbon\Carbon;
 
 
 class BillingController extends Controller
@@ -352,9 +357,481 @@ class BillingController extends Controller
     public function index()
     {
         $visitations = Visitation::with(['pasien','klinik'])->get();
+        $activeEvents = MarketingEvent::with('klinik:id,nama')
+            ->where('status', 'aktif')
+            ->whereNotNull('klinik_id')
+            ->orderBy('nama_event')
+            ->get();
 
         // dd($visitations);
-        return view('finance.billing.index', compact('visitations'));
+        return view('finance.billing.index', compact('visitations', 'activeEvents'));
+    }
+
+    public function eventCreate(Request $request, MarketingEvent $event)
+    {
+        $event->load(['klinik:id,nama', 'promos:id,name,description,start_date,end_date']);
+        $eventPromoDetails = $this->buildEventPromoDetails($event);
+
+        abort_if($event->status !== 'aktif', 404);
+
+        $visitation = null;
+        if ($request->filled('visitation_id')) {
+            $visitation = Visitation::with(['pasien', 'metodeBayar'])
+                ->findOrFail($request->query('visitation_id'));
+
+            abort_if((int) ($visitation->jenis_kunjungan ?? 0) !== 4, 404);
+            abort_if((string) ($visitation->pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT, 404);
+            abort_if((string) ($visitation->pasien->referral_detail ?? '') !== (string) $event->kode_event, 404);
+        }
+
+        return view('finance.billing.create', array_merge(
+            $this->getBillingCreateViewData($visitation),
+            [
+                'visitation' => $visitation,
+                'event' => $event,
+                'eventPromoDetails' => $eventPromoDetails,
+                'isEventBilling' => true,
+                'eventStartUrl' => route('finance.billing.event-start', $event->id),
+                'eventResetUrl' => route('finance.billing.event-create', $event->id),
+                'eventItemSearchUrl' => route('finance.billing.event-items', $event->id),
+            ]
+        ));
+    }
+
+    private function buildEventPromoDetails(MarketingEvent $event): array
+    {
+        $event->loadMissing(['promos:id,name,description,start_date,end_date']);
+
+        $promoIds = $event->promos->pluck('id')->filter()->values();
+        if ($promoIds->isEmpty()) {
+            return [];
+        }
+
+        $promoItems = PromoItem::query()
+            ->whereIn('promo_id', $promoIds->all())
+            ->whereIn('item_type', ['tindakan', 'obat'])
+            ->get(['promo_id', 'item_type', 'item_id', 'discount_type', 'discount_value', 'discount_percent']);
+
+        if ($promoItems->isEmpty()) {
+            return [];
+        }
+
+        $tindakanIds = $promoItems->where('item_type', 'tindakan')->pluck('item_id')->map(function ($id) {
+            return (int) $id;
+        })->filter()->unique()->values();
+        $obatIds = $promoItems->where('item_type', 'obat')->pluck('item_id')->map(function ($id) {
+            return (int) $id;
+        })->filter()->unique()->values();
+
+        $tindakanMap = \App\Models\ERM\Tindakan::query()
+            ->when($tindakanIds->isNotEmpty(), function ($query) use ($tindakanIds) {
+                $query->whereIn('id', $tindakanIds->all());
+            })
+            ->get(['id', 'nama', 'harga', 'harga_diskon', 'is_active'])
+            ->keyBy('id');
+
+        $obatMap = \App\Models\ERM\Obat::withInactive()
+            ->when($obatIds->isNotEmpty(), function ($query) use ($obatIds) {
+                $query->whereIn('id', $obatIds->all());
+            })
+            ->where('status_aktif', 1)
+            ->get(['id', 'nama', 'dosis', 'satuan', 'harga_nonfornas', 'harga_net'])
+            ->keyBy('id');
+
+        $detailsByPromo = [];
+        foreach ($event->promos as $promo) {
+            $items = $promoItems
+                ->where('promo_id', $promo->id)
+                ->sortBy(function ($item) {
+                    return sprintf('%s-%010d', (string) ($item->item_type ?? ''), (int) ($item->item_id ?? 0));
+                })
+                ->map(function ($promoItem) use ($tindakanMap, $obatMap) {
+                    $discountType = $promoItem->resolved_discount_type;
+                    $discountValue = $promoItem->resolved_discount_value;
+
+                    if ($promoItem->item_type === 'tindakan') {
+                        $tindakan = $tindakanMap->get((int) $promoItem->item_id);
+                        if (!$tindakan || !$tindakan->is_active) {
+                            return null;
+                        }
+
+                        $basePrice = (float) ($tindakan->harga ?? $tindakan->harga_diskon ?? 0);
+                        $discountAmount = $promoItem->calculateDiscountAmount($basePrice);
+                        return [
+                            'type' => 'tindakan',
+                            'type_label' => 'Tindakan',
+                            'name' => (string) $tindakan->nama,
+                            'base_price' => round($basePrice, 2),
+                            'discount_type' => $discountType,
+                            'discount_value' => $discountValue,
+                            'discount_percent' => $discountType === 'percent' ? $discountValue : 0,
+                            'discount_label' => $discountType === 'nominal' ? 'Rp ' . number_format($discountValue, 0, ',', '.') : number_format($discountValue, 2) . '%',
+                            'discount_amount' => $discountAmount,
+                            'discounted_price' => $promoItem->calculateDiscountedPrice($basePrice),
+                        ];
+                    }
+
+                    if ($promoItem->item_type === 'obat') {
+                        $obat = $obatMap->get((int) $promoItem->item_id);
+                        if (!$obat) {
+                            return null;
+                        }
+
+                        $basePrice = (float) ($obat->harga_nonfornas ?? $obat->harga_net ?? 0);
+                        $detail = trim(implode(' ', array_filter([$obat->dosis, $obat->satuan])));
+                        $discountAmount = $promoItem->calculateDiscountAmount($basePrice);
+                        return [
+                            'type' => 'obat',
+                            'type_label' => 'Produk/Obat',
+                            'name' => trim((string) $obat->nama . ($detail !== '' ? ' - ' . $detail : '')),
+                            'base_price' => round($basePrice, 2),
+                            'discount_type' => $discountType,
+                            'discount_value' => $discountValue,
+                            'discount_percent' => $discountType === 'percent' ? $discountValue : 0,
+                            'discount_label' => $discountType === 'nominal' ? 'Rp ' . number_format($discountValue, 0, ',', '.') : number_format($discountValue, 2) . '%',
+                            'discount_amount' => $discountAmount,
+                            'discounted_price' => $promoItem->calculateDiscountedPrice($basePrice),
+                        ];
+                    }
+
+                    return null;
+                })
+                ->filter()
+                ->values();
+
+            $detailsByPromo[(string) $promo->id] = [
+                'id' => $promo->id,
+                'name' => $promo->name,
+                'description' => $promo->description,
+                'start_date' => $promo->start_date ? Carbon::parse($promo->start_date)->format('Y-m-d') : null,
+                'end_date' => $promo->end_date ? Carbon::parse($promo->end_date)->format('Y-m-d') : null,
+                'items' => $items->all(),
+            ];
+        }
+
+        return $detailsByPromo;
+    }
+
+    public function searchEventItems(Request $request, MarketingEvent $event)
+    {
+        abort_if($event->status !== 'aktif', 404);
+
+        $search = trim((string) $request->input('q', ''));
+        if ($search === '') {
+            return response()->json(['results' => []]);
+        }
+
+        $allowedItems = $this->getEventPromoItemMap($event);
+        if (empty($allowedItems)) {
+            return response()->json(['results' => []]);
+        }
+
+        $tindakanIds = [];
+        $obatIds = [];
+        foreach (array_keys($allowedItems) as $key) {
+            [$itemType, $itemId] = explode('|', $key);
+            if ($itemType === 'tindakan') {
+                $tindakanIds[] = (int) $itemId;
+            } elseif ($itemType === 'obat') {
+                $obatIds[] = (int) $itemId;
+            }
+        }
+
+        $results = collect();
+
+        if (!empty($tindakanIds)) {
+            $tindakans = \App\Models\ERM\Tindakan::query()
+                ->whereIn('id', $tindakanIds)
+                ->where('nama', 'like', '%' . $search . '%')
+                ->orderBy('nama')
+                ->limit(15)
+                ->get(['id', 'nama', 'harga']);
+
+            foreach ($tindakans as $tindakan) {
+                $promoRule = $allowedItems['tindakan|' . $tindakan->id] ?? [];
+                $results->push([
+                    'id' => 'tindakan:' . $tindakan->id,
+                    'item_id' => $tindakan->id,
+                    'item_type' => 'tindakan',
+                    'text' => '[Tindakan] ' . $tindakan->nama,
+                    'harga' => $tindakan->harga,
+                    'discount_type' => $promoRule['discount_type'] ?? 'percent',
+                    'discount_value' => $promoRule['discount_value'] ?? 0,
+                    'discount_percent' => $promoRule['discount_percent'] ?? 0,
+                    'discounted_price' => $promoRule['discounted_price'] ?? $tindakan->harga,
+                ]);
+            }
+        }
+
+        if (!empty($obatIds)) {
+            $obats = \App\Models\ERM\Obat::withInactive()
+                ->where('status_aktif', 1)
+                ->whereIn('id', $obatIds)
+                ->where(function ($query) use ($search) {
+                    $query->where('nama', 'like', '%' . $search . '%')
+                        ->orWhere('dosis', 'like', '%' . $search . '%')
+                        ->orWhere('satuan', 'like', '%' . $search . '%');
+                })
+                ->orderBy('nama')
+                ->limit(15)
+                ->get(['id', 'nama', 'dosis', 'satuan', 'harga_nonfornas', 'harga_net']);
+
+            foreach ($obats as $obat) {
+                $promoRule = $allowedItems['obat|' . $obat->id] ?? [];
+                $label = '[Obat] ' . $obat->nama;
+                $detail = trim(implode(' ', array_filter([$obat->dosis, $obat->satuan])));
+                if ($detail !== '') {
+                    $label .= ' - ' . $detail;
+                }
+
+                $results->push([
+                    'id' => 'obat:' . $obat->id,
+                    'item_id' => $obat->id,
+                    'item_type' => 'obat',
+                    'text' => $label,
+                    'harga' => $obat->harga_nonfornas ?? $obat->harga_net ?? 0,
+                    'discount_type' => $promoRule['discount_type'] ?? 'percent',
+                    'discount_value' => $promoRule['discount_value'] ?? 0,
+                    'discount_percent' => $promoRule['discount_percent'] ?? 0,
+                    'discounted_price' => $promoRule['discounted_price'] ?? ($obat->harga_nonfornas ?? $obat->harga_net ?? 0),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'results' => $results
+                ->sortBy('text', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
+                ->take(20)
+                ->all(),
+        ]);
+    }
+
+    private function applyActivePromoDateConstraint($query, string $today)
+    {
+        return $query->where(function ($q) use ($today) {
+            $q->where(function ($q2) use ($today) {
+                $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                    ->where('start_date', '<=', $today)
+                    ->where('end_date', '>=', $today);
+            })->orWhere(function ($q2) use ($today) {
+                $q2->whereNotNull('start_date')->whereNull('end_date')
+                    ->where('start_date', '<=', $today);
+            })->orWhere(function ($q2) use ($today) {
+                $q2->whereNull('start_date')->whereNotNull('end_date')
+                    ->where('end_date', '>=', $today);
+            });
+        });
+    }
+
+    private function resolveEventForVisitation(?Visitation $visitation): ?MarketingEvent
+    {
+        if (!$visitation || (int) ($visitation->jenis_kunjungan ?? 0) !== 4) {
+            return null;
+        }
+
+        $visitation->loadMissing('pasien');
+
+        if ((string) ($visitation->pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT) {
+            return null;
+        }
+
+        $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
+        if ($eventCode === '') {
+            return null;
+        }
+
+        return MarketingEvent::with('promos:id,name,start_date,end_date')->where('kode_event', $eventCode)->first();
+    }
+
+    private function getEventPromoItemMap(MarketingEvent $event): array
+    {
+        $today = Carbon::today()->format('Y-m-d');
+
+        $promoItems = PromoItem::query()
+            ->whereIn('item_type', ['tindakan', 'obat'])
+            ->whereHas('promo', function ($query) use ($event, $today) {
+                $query->whereHas('events', function ($eventQuery) use ($event) {
+                    $eventQuery->where('marketing_event.id', $event->id);
+                });
+
+                $this->applyActivePromoDateConstraint($query, $today);
+            })
+            ->get(['id', 'item_type', 'item_id', 'discount_type', 'discount_value', 'discount_percent']);
+
+        if ($promoItems->isEmpty()) {
+            return [];
+        }
+
+        $tindakanIds = $promoItems->where('item_type', 'tindakan')->pluck('item_id')->map(function ($id) {
+            return (int) $id;
+        })->filter()->unique()->values();
+        $obatIds = $promoItems->where('item_type', 'obat')->pluck('item_id')->map(function ($id) {
+            return (int) $id;
+        })->filter()->unique()->values();
+
+        $tindakanMap = \App\Models\ERM\Tindakan::query()
+            ->when($tindakanIds->isNotEmpty(), function ($query) use ($tindakanIds) {
+                $query->whereIn('id', $tindakanIds->all());
+            })
+            ->get(['id', 'harga', 'harga_diskon'])
+            ->keyBy('id');
+
+        $obatMap = \App\Models\ERM\Obat::withInactive()
+            ->when($obatIds->isNotEmpty(), function ($query) use ($obatIds) {
+                $query->whereIn('id', $obatIds->all());
+            })
+            ->get(['id', 'harga_nonfornas', 'harga_net'])
+            ->keyBy('id');
+
+        $map = [];
+        foreach ($promoItems as $promoItem) {
+            $itemType = (string) ($promoItem->item_type ?? '');
+            $itemId = (int) ($promoItem->item_id ?? 0);
+            if ($itemType === '' || $itemId <= 0) {
+                continue;
+            }
+
+            $basePrice = 0.0;
+            if ($itemType === 'tindakan') {
+                $basePrice = (float) optional($tindakanMap->get($itemId))->harga;
+            } elseif ($itemType === 'obat') {
+                $obat = $obatMap->get($itemId);
+                $basePrice = (float) ($obat->harga_nonfornas ?? $obat->harga_net ?? 0);
+            }
+
+            $discountAmount = $promoItem->calculateDiscountAmount($basePrice);
+            $key = $itemType . '|' . $itemId;
+            $existingAmount = isset($map[$key]['discount_amount']) ? (float) $map[$key]['discount_amount'] : -1;
+            if ($discountAmount < $existingAmount) {
+                continue;
+            }
+
+            $discountType = $promoItem->resolved_discount_type;
+            $discountValue = $promoItem->resolved_discount_value;
+            $map[$key] = [
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
+                'discount_percent' => $discountType === 'percent' ? $discountValue : 0,
+                'discount_amount' => $discountAmount,
+                'discounted_price' => $promoItem->calculateDiscountedPrice($basePrice),
+            ];
+        }
+
+        return $map;
+    }
+
+    private function getApplicablePromoItemsForCandidates(array $candidates, ?Visitation $visitation = null)
+    {
+        $candidateIds = array_values(array_unique(array_filter(array_map('intval', $candidates))));
+        if (empty($candidateIds)) {
+            return collect();
+        }
+
+        $today = Carbon::today()->format('Y-m-d');
+        $event = $this->resolveEventForVisitation($visitation);
+
+        return PromoItem::query()
+            ->whereIn('item_id', $candidateIds)
+            ->whereIn('item_type', ['tindakan', 'obat'])
+            ->whereHas('promo', function ($query) use ($today, $event) {
+                $this->applyActivePromoDateConstraint($query, $today);
+
+                if ($event) {
+                    $query->whereHas('events', function ($eventQuery) use ($event) {
+                        $eventQuery->where('marketing_event.id', $event->id);
+                    });
+                }
+            })
+                ->get(['id', 'promo_id', 'item_id', 'item_type', 'discount_type', 'discount_value', 'discount_percent']);
+    }
+
+    public function startEventBilling(Request $request, MarketingEvent $event)
+    {
+        abort_if($event->status !== 'aktif', 404);
+
+        $data = $request->validate([
+            'nama' => 'required|string|max:255',
+            'no_hp' => 'required|string|max:15',
+            'gender' => 'required|in:Laki-laki,Perempuan',
+            'tanggal_lahir' => 'nullable|date',
+            'alamat' => 'nullable|string',
+        ]);
+
+        if (!$event->klinik_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Event belum memiliki klinik. Lengkapi data event terlebih dahulu.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $lastPasienId = DB::table('erm_pasiens')
+                ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
+                ->lockForUpdate()
+                ->value('max_id');
+
+            $newPasienId = $lastPasienId ? str_pad((int) $lastPasienId + 1, 6, '0', STR_PAD_LEFT) : '000001';
+            $pasien = Pasien::create([
+                'id' => $newPasienId,
+                'identity_document' => 'ktp',
+                'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
+                'referral_detail' => $event->kode_event,
+                'nama' => $data['nama'],
+                'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
+                'gender' => $data['gender'],
+                'alamat' => isset($data['alamat']) ? trim((string) $data['alamat']) : null,
+                'no_hp' => $data['no_hp'],
+                'status_pasien' => 'Regular',
+                'status_akses' => 'normal',
+                'user_id' => Auth::id(),
+            ]);
+
+            $visitationId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+            $now = Carbon::now();
+
+            $visitation = Visitation::create([
+                'id' => $visitationId,
+                'pasien_id' => $pasien->id,
+                'metode_bayar_id' => 1,
+                'dokter_id' => null,
+                'user_id' => Auth::id(),
+                'klinik_id' => $event->klinik_id,
+                'status_kunjungan' => 2,
+                'status_dokumen' => null,
+                'jenis_kunjungan' => 4,
+                'tanggal_visitation' => $now->toDateString(),
+                'waktu_kunjungan' => $now->format('H:i:s'),
+                'no_antrian' => null,
+            ]);
+
+            \App\Models\ERM\ResepDetail::create([
+                'visitation_id' => $visitation->id,
+                'no_resep' => 'RSP' . $visitation->id,
+                'catatan_dokter' => null,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'redirect_url' => route('finance.billing.event-create', ['event' => $event->id, 'visitation_id' => $visitation->id]),
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            Log::error('Failed to start event billing', [
+                'event_id' => $event->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat pasien dan kunjungan event.',
+            ], 500);
+        }
     }
 
     /**
@@ -667,9 +1144,15 @@ class BillingController extends Controller
             ->where('is_active', true)
             ->get(['id','nama_paket','is_active']);
 
+        $promoVisitationContext = null;
+        try {
+            $promoVisitationContext = Visitation::with('pasien')->find($visitation_id);
+        } catch (\Exception $e) {
+            $promoVisitationContext = null;
+        }
+
         // Apply active promos to processed billing items: set diskon (%) when promo matches
         try {
-            $today = \Carbon\Carbon::today()->format('Y-m-d');
             $isIntrinsicTindakanDiscount = function ($row) {
                 $currentDiscount = round((float) ($row->diskon ?? 0), 2);
                 if ($currentDiscount <= 0) {
@@ -743,22 +1226,7 @@ class BillingController extends Controller
 
             $allCandidateIds = array_values(array_unique(array_filter($allCandidateIds)));
             if (!empty($allCandidateIds)) {
-                $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $allCandidateIds)
-                    ->whereIn('item_type', ['tindakan', 'obat'])
-                    ->whereHas('promo', function($q) use ($today){
-                        $q->where(function($q2) use ($today){
-                            $q2->whereNotNull('start_date')->whereNotNull('end_date')
-                                ->where('start_date','<=',$today)
-                                ->where('end_date','>=',$today);
-                        })->orWhere(function($q2) use ($today){
-                            $q2->whereNotNull('start_date')->whereNull('end_date')
-                                ->where('start_date','<=',$today);
-                        })->orWhere(function($q2) use ($today){
-                            $q2->whereNull('start_date')->whereNotNull('end_date')
-                                ->where('end_date','>=',$today);
-                        });
-                    })
-                    ->get(['id', 'item_id', 'item_type', 'discount_percent']);
+                $promoItems = $this->getApplicablePromoItemsForCandidates($allCandidateIds, $promoVisitationContext);
 
                 if (!$promoItems->isEmpty()) {
                     // Group promo items by (type|id) for fast lookup
@@ -800,7 +1268,7 @@ class BillingController extends Controller
                         }
                     }
 
-                    // Apply promos per row by choosing the highest discount_percent among matching candidates
+                    // Apply promos per row by choosing the largest effective discount amount.
                     foreach ($rowCandidatesByIndex as $pbIndex => $candidates) {
                         $pb = $processedBillings[$pbIndex] ?? null;
                         if (!$pb) continue;
@@ -811,7 +1279,8 @@ class BillingController extends Controller
                         }
 
                         $bestPromo = null;
-                        $bestPercent = 0;
+                        $bestDiscountAmount = 0.0;
+                        $bestBasePrice = 0.0;
 
                         foreach ($candidates as $candidateIdRaw) {
                             $candidateId = intval($candidateIdRaw);
@@ -821,37 +1290,39 @@ class BillingController extends Controller
                                 $k = $type . '|' . $candidateId;
                                 if (empty($promoByKey[$k])) continue;
                                 foreach ($promoByKey[$k] as $pi) {
-                                    $p = floatval($pi->discount_percent ?? 0);
-                                    if ($p > $bestPercent) {
-                                        $bestPercent = $p;
+                                    $promoItemId = intval($pi->item_id ?? 0);
+                                    $basePrice = null;
+
+                                    if ($type === 'tindakan') {
+                                        $basePrice = $tindakanPriceById[$promoItemId] ?? null;
+                                    } elseif ($type === 'obat') {
+                                        $basePrice = $obatPriceById[$promoItemId] ?? null;
+                                    }
+
+                                    if (!$basePrice && isset($pb->billable)) {
+                                        if ($type === 'tindakan') {
+                                            $basePrice = $pb->billable->harga ?? $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                                        } else {
+                                            $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                                        }
+                                    }
+                                    if (!$basePrice) {
+                                        $basePrice = $pb->jumlah ?? 0;
+                                    }
+
+                                    $discountAmount = $basePrice > 0 ? $pi->calculateDiscountAmount((float) $basePrice) : 0.0;
+                                    if ($discountAmount > $bestDiscountAmount) {
+                                        $bestDiscountAmount = $discountAmount;
+                                        $bestBasePrice = (float) $basePrice;
                                         $bestPromo = $pi;
                                     }
                                 }
                             }
                         }
 
-                        if ($bestPromo && $bestPercent > 0) {
-                            $basePrice = null;
-                            $promoItemId = intval($bestPromo->item_id ?? 0);
+                        if ($bestPromo && $bestDiscountAmount > 0 && $bestBasePrice > 0) {
+                            $basePrice = $bestBasePrice;
                             $promoType = (string)($bestPromo->item_type ?? '');
-
-                            if ($promoType === 'tindakan') {
-                                $basePrice = $tindakanPriceById[$promoItemId] ?? null;
-                            } elseif ($promoType === 'obat') {
-                                $basePrice = $obatPriceById[$promoItemId] ?? null;
-                            }
-
-                            // Common fallbacks
-                            if (!$basePrice && isset($pb->billable)) {
-                                if ($promoType === 'tindakan') {
-                                    $basePrice = $pb->billable->harga ?? $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
-                                } else {
-                                    $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
-                                }
-                            }
-                            if (!$basePrice) {
-                                $basePrice = $pb->jumlah ?? 0;
-                            }
 
                             // Only apply promo discount when we have a valid base price (> 0)
                             if ($basePrice && $basePrice > 0) {
@@ -861,7 +1332,7 @@ class BillingController extends Controller
                                         : ($pb->billable->qty ?? 1)
                                 );
                                 $resolvedQty = floatval($resolvedQty ?: 1);
-                                $promoNominalDiscount = round(($basePrice * $resolvedQty) * ($bestPercent / 100), 2);
+                                $promoNominalDiscount = round($bestDiscountAmount * $resolvedQty, 2);
 
                                 $shouldPersistPromo = !$isLight
                                     && isset($pb->id)
@@ -1564,19 +2035,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // without requiring a full page refresh.
             $invoiceNeedsUpdate = false;
             try {
-                $latestInvoice = Invoice::where('visitation_id', $visitation_id)->latest()->first();
+                $latestInvoice = Invoice::with('items')->where('visitation_id', $visitation_id)->latest()->first();
                 if ($latestInvoice) {
-                    $maxBillingChangedAt = null;
-                    try {
-                        $maxBillingChangedAt = Billing::withTrashed()
-                            ->where('visitation_id', $visitation_id)
-                            ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
-                            ->value('max_changed_at');
-                    } catch (\Exception $e) {
+                    $invoiceNeedsUpdate = !$this->invoiceSnapshotMatchesProcessedBillings($processedBillings, $latestInvoice);
+
+                    if (!$invoiceNeedsUpdate) {
                         $maxBillingChangedAt = null;
-                    }
-                    if ($maxBillingChangedAt && $latestInvoice->updated_at) {
-                        $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($latestInvoice->updated_at);
+                        try {
+                            $maxBillingChangedAt = Billing::withTrashed()
+                                ->where('visitation_id', $visitation_id)
+                                ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
+                                ->value('max_changed_at');
+                        } catch (\Exception $e) {
+                            $maxBillingChangedAt = null;
+                        }
+                        if ($maxBillingChangedAt && $latestInvoice->updated_at) {
+                            $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($latestInvoice->updated_at);
+                        }
                     }
                 }
             } catch (\Exception $e) {
@@ -1691,10 +2166,41 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         return 'Obat Racikan';
                     } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                         return 'Jasa Farmasi';
+                    } else if ($row->billable_type == 'App\\Models\\ERM\\RiwayatTindakan' || $row->billable_type == 'App\Models\ERM\RiwayatTindakan') {
+                        $namaTindakan = null;
+                        try {
+                            $namaTindakan = optional(optional($row->billable)->tindakan)->nama;
+                        } catch (\Exception $e) {
+                            $namaTindakan = null;
+                        }
+
+                        if (!empty($namaTindakan)) {
+                            return $namaTindakan;
+                        }
+
+                        if (!empty($row->nama_item)) return $row->nama_item;
+                        if (!empty($row->keterangan)) return $row->keterangan;
+                        return '-';
+                    } else if ($row->billable_type == 'App\\Models\\ERM\\Tindakan' || $row->billable_type == 'App\Models\ERM\Tindakan') {
+                        $namaTindakan = null;
+                        try {
+                            $namaTindakan = optional($row->billable)->nama;
+                        } catch (\Exception $e) {
+                            $namaTindakan = null;
+                        }
+
+                        if (!empty($namaTindakan)) {
+                            return $namaTindakan;
+                        }
+
+                        return $row->nama_item ?? $row->keterangan ?? '-';
                     } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
                         $namaObat = null;
                         try {
                             $namaObat = optional(optional($row->billable)->obat)->nama;
+                            if (empty($namaObat) && !empty(optional($row->billable)->obat_id)) {
+                                $namaObat = optional(\App\Models\ERM\Obat::withInactive()->find(optional($row->billable)->obat_id))->nama;
+                            }
                         } catch (\Exception $e) {
                             $namaObat = null;
                         }
@@ -1710,6 +2216,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             return preg_replace('/^Obat:\s*/i', '', (string)$row->keterangan);
                         }
                         return '-';
+                    } else if ($row->billable_type == 'App\\Models\\ERM\\Obat' || $row->billable_type == 'App\Models\ERM\Obat') {
+                        $namaObat = null;
+                        try {
+                            $namaObat = optional($row->billable)->nama;
+                            if (empty($namaObat) && !empty($row->billable_id)) {
+                                $namaObat = optional(\App\Models\ERM\Obat::withInactive()->find($row->billable_id))->nama;
+                            }
+                        } catch (\Exception $e) {
+                            $namaObat = null;
+                        }
+
+                        if (!empty($namaObat)) {
+                            return $namaObat;
+                        }
+
+                        return $row->nama_item ?? $row->keterangan ?? '-';
                     } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
                         $labName = optional(optional($row->billable)->labTest)->nama;
                         return 'Lab: ' . ($labName ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
@@ -1956,61 +2478,340 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     $visitation = Visitation::with(['pasien', 'metodeBayar'])->findOrFail($visitation_id);
-    // Fetch latest invoice for this visitation (if exists)
-    $invoice = \App\Models\Finance\Invoice::with(['piutangs', 'returPembelians.items'])
-        ->where('visitation_id', $visitation_id)
-        ->latest()
-        ->first();
 
-    $returnedItems = collect();
-    if ($invoice) {
-        $returnedItems = $invoice->returPembelians
-            ->sortByDesc(function ($retur) {
-                return $retur->processed_date ?? $retur->created_at;
-            })
-            ->flatMap(function ($retur) {
-                return $retur->items->map(function ($item) use ($retur) {
-                    return [
-                        'retur_number' => $retur->retur_number,
-                        'processed_date' => $retur->processed_date,
-                        'name' => $item->name,
-                        'quantity_returned' => $item->quantity_returned,
-                        'unit_price' => $item->unit_price,
-                        'total_amount' => $item->total_amount,
-                    ];
-                });
-            })
-            ->values();
-    }
+    return view('finance.billing.create', array_merge(
+        $this->getBillingCreateViewData($visitation),
+        [
+            'visitation' => $visitation,
+            'event' => null,
+            'isEventBilling' => false,
+            'eventStartUrl' => null,
+            'eventResetUrl' => null,
+        ]
+    ));
+}
 
-    // Detect if invoice is out-of-date versus billing (used by UI to prompt "Update Invoice" before payment).
-    $invoiceNeedsUpdate = false;
-    try {
-        if ($invoice) {
-            $maxBillingChangedAt = Billing::withTrashed()
-                ->where('visitation_id', $visitation_id)
-                ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
-                ->value('max_changed_at');
-            if ($maxBillingChangedAt && $invoice->updated_at) {
-                $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingChangedAt)->gt($invoice->updated_at);
+    private function getBillingCreateViewData($visitation): array
+    {
+        $invoice = null;
+        $returnedItems = collect();
+        $invoiceNeedsUpdate = false;
+
+        if ($visitation) {
+            $invoice = Invoice::with(['piutangs', 'returPembelians.items'])
+                ->where('visitation_id', $visitation->id)
+                ->latest()
+                ->first();
+
+            if ($invoice) {
+                $returnedItems = $invoice->returPembelians
+                    ->sortByDesc(function ($retur) {
+                        return $retur->processed_date ?? $retur->created_at;
+                    })
+                    ->flatMap(function ($retur) {
+                        return $retur->items->map(function ($item) use ($retur) {
+                            return [
+                                'retur_number' => $retur->retur_number,
+                                'processed_date' => $retur->processed_date,
+                                'name' => $item->name,
+                                'quantity_returned' => $item->quantity_returned,
+                                'unit_price' => $item->unit_price,
+                                'total_amount' => $item->total_amount,
+                            ];
+                        });
+                    })
+                    ->values();
+            }
+
+            try {
+                if ($invoice) {
+                    $maxBillingChangedAt = Billing::withTrashed()
+                        ->where('visitation_id', $visitation->id)
+                        ->selectRaw('MAX(CASE WHEN deleted_at IS NOT NULL AND deleted_at > updated_at THEN deleted_at ELSE updated_at END) as max_changed_at')
+                        ->value('max_changed_at');
+                    if ($maxBillingChangedAt && $invoice->updated_at) {
+                        $invoiceNeedsUpdate = Carbon::parse($maxBillingChangedAt)->gt($invoice->updated_at);
+                    }
+                }
+            } catch (\Exception $e) {
+                $invoiceNeedsUpdate = false;
             }
         }
-    } catch (\Exception $e) {
-        $invoiceNeedsUpdate = false;
+
+        return [
+            'invoice' => $invoice,
+            'gudangs' => Gudang::orderBy('nama')->get(),
+            'gudangMappings' => [
+                'resep' => GudangMapping::getDefaultGudangId('resep'),
+                'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
+                'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
+            ],
+            'invoiceNeedsUpdate' => $invoiceNeedsUpdate,
+            'returnedItems' => $returnedItems,
+        ];
     }
-    
-    // Get all available gudangs for dropdown
-    $gudangs = Gudang::orderBy('nama')->get();
-    
-    // Get active gudang mappings for auto-selection
-    $gudangMappings = [
-        'resep' => GudangMapping::getDefaultGudangId('resep'),
-        'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
-        'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
-    ];
-    
-    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings', 'invoiceNeedsUpdate', 'returnedItems'));
-}
+
+    private function resolveBillingRowNameForInvoiceComparison($row): string
+    {
+        try {
+            if (isset($row->is_racikan) && $row->is_racikan) {
+                return trim((string) ($row->paket_racikan_name ?? 'Obat Racikan'));
+            }
+
+            if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                return 'Jasa Farmasi';
+            }
+
+            $billableType = (string) ($row->billable_type ?? '');
+
+            if ($billableType === 'App\\Models\\ERM\\RiwayatTindakan' || $billableType === 'App\Models\ERM\RiwayatTindakan') {
+                return trim((string) (optional(optional($row->billable)->tindakan)->nama ?? $row->nama_item ?? $row->keterangan ?? '-'));
+            }
+
+            if ($billableType === 'App\\Models\\ERM\\Tindakan' || $billableType === 'App\Models\ERM\Tindakan') {
+                return trim((string) (optional($row->billable)->nama ?? $row->nama_item ?? $row->keterangan ?? '-'));
+            }
+
+            if ($billableType === 'App\\Models\\ERM\\ResepFarmasi' || $billableType === 'App\Models\ERM\ResepFarmasi') {
+                $namaObat = optional(optional($row->billable)->obat)->nama;
+                if (empty($namaObat) && !empty(optional($row->billable)->obat_id)) {
+                    $namaObat = optional(\App\Models\ERM\Obat::withInactive()->find(optional($row->billable)->obat_id))->nama;
+                }
+
+                return trim((string) ($namaObat ?: $row->nama_item ?: preg_replace('/^Obat:\s*/i', '', (string) ($row->keterangan ?? '')) ?: '-'));
+            }
+
+            if ($billableType === 'App\\Models\\ERM\\Obat' || $billableType === 'App\Models\ERM\Obat') {
+                $namaObat = optional($row->billable)->nama;
+                if (empty($namaObat) && !empty($row->billable_id)) {
+                    $namaObat = optional(\App\Models\ERM\Obat::withInactive()->find($row->billable_id))->nama;
+                }
+
+                return trim((string) ($namaObat ?: $row->nama_item ?: $row->keterangan ?: '-'));
+            }
+
+            if ($billableType === 'App\\Models\\ERM\\LabPermintaan' || $billableType === 'App\Models\ERM\LabPermintaan') {
+                return trim((string) ('Lab: ' . (optional(optional($row->billable)->labTest)->nama ?? preg_replace('/^Lab: /', '', (string) ($row->keterangan ?? 'Test')))));
+            }
+
+            if ($billableType === 'App\\Models\\ERM\\RadiologiPermintaan' || $billableType === 'App\Models\ERM\RadiologiPermintaan') {
+                return trim((string) ('Radiologi: ' . (optional(optional($row->billable)->radiologiTest)->nama ?? preg_replace('/^Radiologi: /', '', (string) ($row->keterangan ?? 'Test')))));
+            }
+
+            return trim((string) ($row->nama_item ?? optional($row->billable)->nama ?? $row->keterangan ?? '-'));
+        } catch (\Exception $e) {
+            return trim((string) ($row->nama_item ?? $row->keterangan ?? '-'));
+        }
+    }
+
+    private function resolveBillingRowDescriptionForInvoiceComparison($row): string
+    {
+        try {
+            if (isset($row->is_racikan) && $row->is_racikan) {
+                $obatList = array_map(function ($item) {
+                    return '- ' . $item;
+                }, $row->racikan_obat_list ?? []);
+
+                return trim(implode("\n", $obatList));
+            }
+
+            if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                if (empty($row->fee_descriptions)) {
+                    return trim((string) ('Biaya jasa farmasi (' . ($row->fee_items_count ?? 0) . ' item)'));
+                }
+
+                return trim(implode("\n", array_map(function ($item) {
+                    return '- ' . $item;
+                }, $row->fee_descriptions ?? [])));
+            }
+
+            if (($row->billable_type ?? null) === 'App\\Models\\ERM\\ResepFarmasi' || ($row->billable_type ?? null) === 'App\Models\ERM\ResepFarmasi') {
+                return trim((string) (optional($row->billable)->keterangan ?? ''));
+            }
+
+            $description = '';
+            if (isset($row->keterangan) && $row->keterangan !== null && $row->keterangan !== '') {
+                $description = (string) $row->keterangan;
+            } elseif (isset($row->deskripsi) && $row->deskripsi !== null && $row->deskripsi !== '' && $row->deskripsi !== '-') {
+                $description = (string) $row->deskripsi;
+            } elseif (isset($row->nama_item) && $row->nama_item !== null && $row->nama_item !== '') {
+                $description = (string) $row->nama_item;
+            }
+
+            return trim($description);
+        } catch (\Exception $e) {
+            return '';
+        }
+
+        return '';
+    }
+
+    private function calculateComparisonLineDiscount(float $lineNoDisc, float $finalAmount, $discountValue = null, $discountType = null): float
+    {
+        $lineDiscount = round(max(0, $lineNoDisc - $finalAmount), 2);
+        if ($lineDiscount > 0) {
+            return $lineDiscount;
+        }
+
+        $discount = round((float) ($discountValue ?? 0), 2);
+        if ($discount <= 0) {
+            return 0.0;
+        }
+
+        $normalizedType = strtolower(trim((string) ($discountType ?? '')));
+        if (in_array($normalizedType, ['%', 'percent', 'percentage'], true)) {
+            return round(max(0, $lineNoDisc * ($discount / 100)), 2);
+        }
+
+        return $discount;
+    }
+
+    private function normalizeProcessedBillingsForInvoiceComparison($processedBillings): array
+    {
+        $normalized = [];
+
+        foreach ($processedBillings as $row) {
+            if (!$row || (!empty($row->is_pharmacy_fee))) {
+                continue;
+            }
+
+            $qty = 1.0;
+            if (isset($row->is_racikan) && $row->is_racikan) {
+                $qty = floatval($row->racikan_bungkus ?? 0);
+            } elseif (isset($row->qty) && $row->qty !== null && $row->qty !== '') {
+                $qty = floatval($row->qty);
+            } elseif (($row->billable_type ?? null) === ResepFarmasi::class) {
+                $qty = floatval(optional($row->billable)->jumlah ?? 1);
+            } else {
+                $qty = floatval(optional($row->billable)->qty ?? 1);
+            }
+            $qty = $qty > 0 ? $qty : 1.0;
+
+            $unitPrice = isset($row->is_racikan) && $row->is_racikan
+                ? round((float) ($row->racikan_total_price ?? 0), 2)
+                : round((float) ($row->jumlah ?? 0), 2);
+
+            $lineNoDisc = round($unitPrice * $qty, 2);
+            $discountValue = floatval($row->diskon ?? 0);
+            $discountType = $row->diskon_type ?? null;
+            if ($discountValue > 0 && trim((string) $discountType) === '%') {
+                $finalAmount = round(max(0, $lineNoDisc - ($lineNoDisc * ($discountValue / 100))), 2);
+            } else {
+                $finalAmount = round(max(0, $lineNoDisc - $discountValue), 2);
+            }
+
+            $billableType = (string) ($row->billable_type ?? '');
+            $groupType = (isset($row->is_racikan) && $row->is_racikan)
+                ? 'racikan'
+                : ((in_array($billableType, [RiwayatTindakan::class, 'App\Models\ERM\Tindakan', 'App\\Models\\ERM\\Tindakan'], true)) ? 'tindakan' : $billableType);
+
+            $normalized[] = [
+                'group_type' => $groupType,
+                'name' => $this->resolveBillingRowNameForInvoiceComparison($row),
+                'description' => $this->resolveBillingRowDescriptionForInvoiceComparison($row),
+                'quantity' => round($qty, 3),
+                'unit_price' => $unitPrice,
+                'discount' => $this->calculateComparisonLineDiscount($lineNoDisc, $finalAmount, $discountValue, $discountType),
+                'final_amount' => $finalAmount,
+            ];
+        }
+
+        usort($normalized, function ($left, $right) {
+            return strcmp(json_encode($left), json_encode($right));
+        });
+
+        return $normalized;
+    }
+
+    private function normalizeInvoiceItemsForBillingComparison(Invoice $invoice): array
+    {
+        $items = $invoice->items ?? collect();
+        $groupedItems = [];
+        $groupIndexByKey = [];
+
+        foreach ($items as $item) {
+            $name = trim((string) ($item->name ?? ''));
+            $nameLower = strtolower($name);
+            if (str_contains($nameLower, 'biaya administrasi') || str_contains($nameLower, 'biaya ongkir')) {
+                continue;
+            }
+
+            $billableType = (string) ($item->billable_type ?? '');
+            $isTindakan = $billableType === RiwayatTindakan::class
+                || $billableType === 'App\Models\ERM\Tindakan'
+                || $billableType === 'App\\Models\\ERM\\Tindakan';
+
+            if (!$isTindakan) {
+                $groupedItems[] = $item;
+                continue;
+            }
+
+            $quantity = (float) ($item->quantity ?? 0);
+            $quantity = $quantity > 0 ? $quantity : 1;
+            $discountValue = round((float) ($item->discount ?? 0), 2);
+            $discountPerUnit = $discountValue > 0 ? round($discountValue / $quantity, 2) : 0.0;
+
+            $groupKey = implode('|', [
+                trim((string) ($item->name ?? '')),
+                trim((string) ($item->description ?? '')),
+                number_format((float) ($item->unit_price ?? 0), 2, '.', ''),
+                number_format($discountPerUnit, 2, '.', ''),
+            ]);
+
+            if (!array_key_exists($groupKey, $groupIndexByKey)) {
+                $groupedItems[] = clone $item;
+                $groupIndexByKey[$groupKey] = count($groupedItems) - 1;
+                continue;
+            }
+
+            $existingIndex = $groupIndexByKey[$groupKey];
+            $existingItem = $groupedItems[$existingIndex];
+            $existingItem->quantity = (float) ($existingItem->quantity ?? 0) + (float) ($item->quantity ?? 0);
+            $existingItem->discount = (float) ($existingItem->discount ?? 0) + (float) ($item->discount ?? 0);
+            $existingItem->final_amount = (float) ($existingItem->final_amount ?? 0) + (float) ($item->final_amount ?? 0);
+            $groupedItems[$existingIndex] = $existingItem;
+        }
+
+        $normalized = [];
+        foreach ($groupedItems as $item) {
+            $qty = (float) ($item->quantity ?? 0);
+            $qty = $qty > 0 ? $qty : 1.0;
+            $unitPrice = round((float) ($item->unit_price ?? 0), 2);
+            $lineNoDisc = round($unitPrice * $qty, 2);
+            $finalAmount = round((float) ($item->final_amount ?? $lineNoDisc), 2);
+            $billableType = (string) ($item->billable_type ?? '');
+
+            $normalized[] = [
+                'group_type' => ($billableType === RiwayatTindakan::class || $billableType === 'App\Models\ERM\Tindakan' || $billableType === 'App\\Models\\ERM\\Tindakan')
+                    ? 'tindakan'
+                    : ($billableType === ResepFarmasi::class && empty($item->billable_id) ? 'racikan' : $billableType),
+                'name' => trim((string) ($item->name ?? '')),
+                'description' => trim(str_replace('<br>', "\n", strip_tags((string) ($item->description ?? '')))),
+                'quantity' => round($qty, 3),
+                'unit_price' => $unitPrice,
+                'discount' => $this->calculateComparisonLineDiscount($lineNoDisc, $finalAmount, $item->discount ?? 0, $item->discount_type ?? null),
+                'final_amount' => $finalAmount,
+            ];
+        }
+
+        usort($normalized, function ($left, $right) {
+            return strcmp(json_encode($left), json_encode($right));
+        });
+
+        return $normalized;
+    }
+
+    private function invoiceSnapshotMatchesProcessedBillings($processedBillings, ?Invoice $invoice): bool
+    {
+        if (!$invoice) {
+            return false;
+        }
+
+        $invoice->loadMissing('items');
+
+        return $this->normalizeProcessedBillingsForInvoiceComparison($processedBillings)
+            === $this->normalizeInvoiceItemsForBillingComparison($invoice);
+    }
 
     public function createInvoice(Request $request)
     {
@@ -2774,10 +3575,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // initialize promo tracking variables to avoid undefined variable when promo lookup fails
                 $appliedPromo = false;
                 $promoBase = null;
-                $promoPercent = null;
+                $promoDiscountUnitAmount = null;
 
                 try {
-                    $today = \Carbon\Carbon::today()->format('Y-m-d');
+                    if ($discountVal > 0) {
+                        throw new \RuntimeException('skip promo auto-apply');
+                    }
+
                     $candidates = [];
                     if (isset($item->billable_id)) $candidates[] = $item->billable_id;
                     if (isset($item->billable) && isset($item->billable->obat) && isset($item->billable->obat->id)) $candidates[] = $item->billable->obat->id;
@@ -2786,58 +3590,53 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $candidates = array_values(array_filter(array_unique($candidates)));
 
                     if (!empty($candidates)) {
-                        $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $candidates)
-                            ->whereIn('item_type', ['tindakan','obat'])
-                            ->whereHas('promo', function($q) use ($today){
-                                $q->where(function($q2) use ($today){
-                                    $q2->whereNotNull('start_date')->whereNotNull('end_date')
-                                        ->where('start_date','<=',$today)
-                                        ->where('end_date','>=',$today);
-                                })->orWhere(function($q2) use ($today){
-                                    $q2->whereNotNull('start_date')->whereNull('end_date')
-                                        ->where('start_date','<=',$today);
-                                })->orWhere(function($q2) use ($today){
-                                    $q2->whereNull('start_date')->whereNotNull('end_date')
-                                        ->where('end_date','>=',$today);
-                                });
-                            })->get();
+                        $promoItems = $this->getApplicablePromoItemsForCandidates($candidates, $visitation);
 
                         if (!$promoItems->isEmpty()) {
-                            $max = $promoItems->max('discount_percent');
-                            if ($max > 0) {
-                                // apply percent discount from promo on promo_price_base
-                                $winning = $promoItems->firstWhere('discount_percent', $max);
+                            $winning = null;
+                            $winningBasePrice = 0.0;
+                            $winningDiscountAmount = 0.0;
+
+                            foreach ($promoItems as $promoItem) {
                                 $basePrice = null;
-                                if ($winning) {
-                                    if ($winning->item_type === 'tindakan') {
-                                        $t = \App\Models\ERM\Tindakan::find($winning->item_id);
-                                        $basePrice = $t->harga ?? $t->harga_diskon ?? null;
-                                    } elseif ($winning->item_type === 'obat') {
-                                        $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
-                                        $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
-                                    }
+                                if ($promoItem->item_type === 'tindakan') {
+                                    $t = \App\Models\ERM\Tindakan::find($promoItem->item_id);
+                                    $basePrice = $t->harga ?? $t->harga_diskon ?? null;
+                                } elseif ($promoItem->item_type === 'obat') {
+                                    $o = \App\Models\ERM\Obat::withInactive()->find($promoItem->item_id);
+                                    $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
                                 }
                                 if (!$basePrice && isset($item->billable)) {
-                                    if (($winning->item_type ?? null) === 'tindakan') {
+                                    if (($promoItem->item_type ?? null) === 'tindakan') {
                                         $basePrice = $item->billable->harga ?? $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
                                     } else {
                                         $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
                                     }
                                 }
-                                if (!$basePrice) $basePrice = $unitPrice;
+                                if (!$basePrice) {
+                                    $basePrice = $unitPrice;
+                                }
 
-                                // Overwrite discount to percent and compute unit price after discount based on promo base
-                                $discountVal = $max;
-                                $discountType = '%';
-                                $unitPriceAfter = max(0, $basePrice - ($basePrice * ($discountVal / 100)));
+                                $discountAmount = $basePrice > 0 ? $promoItem->calculateDiscountAmount((float) $basePrice) : 0.0;
+                                if ($discountAmount > $winningDiscountAmount) {
+                                    $winning = $promoItem;
+                                    $winningBasePrice = (float) $basePrice;
+                                    $winningDiscountAmount = (float) $discountAmount;
+                                }
+                            }
+
+                            if ($winning && $winningDiscountAmount > 0) {
+                                $unitPriceAfter = max(0, $winningBasePrice - $winningDiscountAmount);
                                 $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
                                 // mark applied promo details for later nominal storage calculation
                                 $appliedPromo = true;
-                                $promoBase = $basePrice;
-                                $promoPercent = $max;
+                                $promoBase = $winningBasePrice;
+                                $promoDiscountUnitAmount = $winningDiscountAmount;
                             }
                         }
                     }
+                } catch (\RuntimeException $e) {
+                    // Existing manual billing discount wins over promo auto-application.
                 } catch (\Exception $e) {
                     // fallback to existing billing discount fields if promo detection fails
                     Log::warning('Failed to evaluate promo for invoice item: '.$e->getMessage());
@@ -2879,12 +3678,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $qtyForDiscount = floatval($item->qty ?? 1);
                     $qtyForDiscount = $qtyForDiscount > 0 ? $qtyForDiscount : 1;
 
-                    if ($appliedPromo && $promoBase !== null && $promoPercent !== null) {
-                        // Convert promo % into nominal line discount.
-                        // Gap between original unit price and promo base + percent discount on promo base.
+                    if ($appliedPromo && $promoBase !== null && $promoDiscountUnitAmount !== null) {
                         $gapUnit = max(0, $unitPrice - $promoBase);
-                        $percentUnit = ($promoBase * ($promoPercent / 100));
-                        $unitDiscount = max(0, $gapUnit + $percentUnit);
+                        $unitDiscount = max(0, $gapUnit + $promoDiscountUnitAmount);
                         $storedDiscount = round($unitDiscount * $qtyForDiscount, 2);
                         $storedDiscountType = $storedDiscount > 0 ? 'nominal' : null;
                     } else {
@@ -3435,6 +4231,41 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
         $user = Auth::user();
         $isAdmin = $user && method_exists($user, 'hasRole') && $user->hasRole('Admin');
+        $visitation = Visitation::with('pasien')->find($request->visitation_id);
+        $eventForVisitation = $this->resolveEventForVisitation($visitation);
+        $allowedEventPromoItems = $eventForVisitation ? $this->getEventPromoItemMap($eventForVisitation) : [];
+
+        if ($eventForVisitation && !empty($request->new_items)) {
+            $invalidItems = [];
+            foreach ((array) $request->new_items as $item) {
+                if (!empty($item['deleted']) && ($item['deleted'] === true || $item['deleted'] === 'true')) {
+                    continue;
+                }
+
+                $itemType = null;
+                $billableType = (string) ($item['billable_type'] ?? '');
+                if ($billableType === 'App\\Models\\ERM\\Tindakan') {
+                    $itemType = 'tindakan';
+                } elseif ($billableType === 'App\\Models\\ERM\\Obat') {
+                    $itemType = 'obat';
+                }
+
+                $itemId = (int) ($item['billable_id'] ?? 0);
+                $itemKey = $itemType && $itemId > 0 ? ($itemType . '|' . $itemId) : null;
+
+                if (!$itemKey || !array_key_exists($itemKey, $allowedEventPromoItems)) {
+                    $invalidItems[] = (string) ($item['nama_item'] ?? 'Item tidak valid');
+                }
+            }
+
+            if (!empty($invalidItems)) {
+                $invalidList = implode(', ', array_slice(array_unique($invalidItems), 0, 5));
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Billing event hanya dapat menambahkan item dari promo yang terhubung ke event. Item tidak valid: ' . $invalidList,
+                ], 422);
+            }
+        }
 
         $deletedIds = collect($request->input('deleted_items', []))
             ->filter(function ($id) {
@@ -3508,9 +4339,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     ->all();
 
                 if (!empty($remainingDeletedIds)) {
-                    Billing::where('visitation_id', $request->visitation_id)
+                    $billingsToDelete = Billing::where('visitation_id', $request->visitation_id)
                         ->whereIn('id', $remainingDeletedIds)
-                        ->delete();
+                        ->get();
+
+                    foreach ($billingsToDelete as $billingToDelete) {
+                        $this->deleteBillingWithMedicalSource($billingToDelete);
+                    }
                 }
             }
 
@@ -3648,14 +4483,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Normal edit for non-racikan items
                     $billing = Billing::find($item['id']);
                     if ($billing) {
-                        // Update only specific fields that can be edited
-                        $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
-                        $billing->diskon = $item['diskon_raw'] ?? null;
-                        $billing->diskon_type = $item['diskon_type'] ?? null;
-                        if (isset($item['qty']) && $isAdmin) {
-                            $billing->qty = $item['qty'];
-                        }
-                        $billing->save();
+                        $this->syncEditedBillingWithMedicalSource($visitation, $billing, $item, $isAdmin);
                     }
                 }
             }
@@ -3699,17 +4527,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $newDiskonType = 'nominal';
                     }
 
-                    // Create new billing record
-                    $newBilling = Billing::create([
-                        'visitation_id' => $request->visitation_id,
-                        'billable_type' => $item['billable_type'],
-                        'billable_id' => $item['billable_id'],
-                        'nama_item' => $item['nama_item'],
-                        'jumlah' => $item['harga_akhir_raw'] ?? 0,
-                        'qty' => $item['qty'] ?? 1,
+                    $newBilling = $this->createBillingWithMedicalSource($visitation, $item, [
                         'diskon' => $newDiskon ?? 0,
                         'diskon_type' => $newDiskonType,
-                        'keterangan' => $item['deskripsi'] ?? null,
                     ]);
                     
                     // Log::info('Created new billing: ' . json_encode($newBilling->toArray()));
@@ -3759,6 +4579,258 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    private function createBillingWithMedicalSource(Visitation $visitation, array $item, array $billingMeta = []): Billing
+    {
+        $billableType = (string) ($item['billable_type'] ?? '');
+        $billableId = $item['billable_id'] ?? null;
+        $namaItem = $item['nama_item'] ?? null;
+        $jumlah = $item['jumlah_raw'] ?? $item['harga_akhir_raw'] ?? 0;
+        $qty = max(1, (int) ($item['qty'] ?? 1));
+        $keterangan = $item['deskripsi'] ?? null;
+
+        if ($billableType === 'App\\Models\\ERM\\Tindakan') {
+            $createdBillings = collect();
+            $discountValue = (float) ($billingMeta['diskon'] ?? 0);
+            $discountType = trim((string) ($billingMeta['diskon_type'] ?? 'nominal'));
+            if ($discountValue <= 0) {
+                $discountType = null;
+            }
+
+            for ($index = 0; $index < $qty; $index++) {
+                $riwayatTindakan = RiwayatTindakan::create([
+                    'visitation_id' => $visitation->id,
+                    'tanggal_tindakan' => $visitation->tanggal_visitation ?: Carbon::today()->toDateString(),
+                    'tindakan_id' => $billableId,
+                    'paket_tindakan_id' => null,
+                ]);
+
+                $createdBillings->push(Billing::create([
+                    'visitation_id' => $visitation->id,
+                    'billable_type' => RiwayatTindakan::class,
+                    'billable_id' => $riwayatTindakan->id,
+                    'nama_item' => $namaItem,
+                    'jumlah' => $jumlah,
+                    'qty' => 1,
+                    'diskon' => $discountValue > 0 ? ($discountType === '%' ? $discountValue : ($index === 0 ? $discountValue : 0)) : 0,
+                    'diskon_type' => $discountValue > 0 ? ($discountType === '%' ? '%' : ($index === 0 ? 'nominal' : null)) : null,
+                    'keterangan' => $keterangan,
+                ]));
+            }
+
+            return $createdBillings->first();
+        }
+
+        if ($billableType === 'App\\Models\\ERM\\Obat') {
+            $resepId = now()->format('YmdHis') . strtoupper(substr(md5(uniqid((string) mt_rand(), true)), 0, 7));
+            $harga = (float) ($item['jumlah_raw'] ?? 0);
+            $diskonValue = (float) ($billingMeta['diskon'] ?? 0);
+            $diskonType = (string) ($billingMeta['diskon_type'] ?? 'nominal');
+            $lineTotal = (float) ($item['harga_akhir_raw'] ?? $jumlah);
+
+            $resep = ResepFarmasi::create([
+                'id' => $resepId,
+                'visitation_id' => $visitation->id,
+                'obat_id' => $billableId,
+                'jumlah' => (int) max(1, (int) $qty),
+                'aturan_pakai' => 'Billing Manual',
+                'harga' => $harga,
+                'diskon' => $diskonType === 'nominal' ? (int) round($diskonValue) : 0,
+                'total' => $lineTotal,
+                'dokter_id' => $visitation->dokter_id,
+                'user_id' => Auth::id(),
+                'created_at' => Carbon::now(),
+            ]);
+
+            return Billing::create([
+                'visitation_id' => $visitation->id,
+                'billable_type' => ResepFarmasi::class,
+                'billable_id' => $resep->id,
+                'nama_item' => $namaItem,
+                'jumlah' => $jumlah,
+                'qty' => $qty,
+                'diskon' => $billingMeta['diskon'] ?? 0,
+                'diskon_type' => $billingMeta['diskon_type'] ?? 'nominal',
+                'keterangan' => $keterangan,
+            ]);
+        }
+
+        return Billing::create([
+            'visitation_id' => $visitation->id,
+            'billable_type' => $billableType,
+            'billable_id' => $billableId,
+            'nama_item' => $namaItem,
+            'jumlah' => $jumlah,
+            'qty' => $qty,
+            'diskon' => $billingMeta['diskon'] ?? 0,
+            'diskon_type' => $billingMeta['diskon_type'] ?? 'nominal',
+            'keterangan' => $keterangan,
+        ]);
+    }
+
+    private function deleteBillingWithMedicalSource(Billing $billing): void
+    {
+        if ($billing->billable_type === ResepFarmasi::class && !empty($billing->billable_id)) {
+            $resep = ResepFarmasi::find($billing->billable_id);
+            if ($resep) {
+                $resep->delete();
+                return;
+            }
+        }
+
+        if ($billing->billable_type === RiwayatTindakan::class && !empty($billing->billable_id)) {
+            RiwayatTindakan::whereKey($billing->billable_id)->delete();
+        }
+
+        $billing->delete();
+    }
+
+    private function syncEditedBillingWithMedicalSource(Visitation $visitation, Billing $billing, array $item, bool $isAdmin): void
+    {
+        $billableType = (string) ($billing->billable_type ?? '');
+
+        if ($billableType === RiwayatTindakan::class) {
+            $this->syncEditedRiwayatTindakanBilling($visitation, $billing, $item, $isAdmin);
+            return;
+        }
+
+        if ($billableType === ResepFarmasi::class) {
+            $this->syncEditedResepFarmasiBilling($billing, $item, $isAdmin);
+            return;
+        }
+
+        $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
+        $billing->diskon = $item['diskon_raw'] ?? null;
+        $billing->diskon_type = $item['diskon_type'] ?? null;
+        if (isset($item['qty']) && $isAdmin) {
+            $billing->qty = $item['qty'];
+        }
+        $billing->save();
+    }
+
+    private function syncEditedRiwayatTindakanBilling(Visitation $visitation, Billing $billing, array $item, bool $isAdmin): void
+    {
+        $billingIds = collect($item['group_member_ids'] ?? [$billing->id])
+            ->map(function ($id) { return (int) $id; })
+            ->filter()
+            ->values();
+
+        $linkedBillings = Billing::where('visitation_id', $visitation->id)
+            ->whereIn('id', $billingIds->all())
+            ->where('billable_type', RiwayatTindakan::class)
+            ->orderBy('id')
+            ->get();
+
+        if ($linkedBillings->isEmpty()) {
+            $linkedBillings = collect([$billing]);
+        }
+
+        $desiredQty = $linkedBillings->count();
+        if ($isAdmin && isset($item['qty'])) {
+            $desiredQty = max(1, (int) $item['qty']);
+        }
+
+        $unitPrice = isset($item['jumlah_raw']) ? (float) $item['jumlah_raw'] : (float) $billing->jumlah;
+        $discountValue = isset($item['diskon_raw']) ? (float) $item['diskon_raw'] : (float) ($billing->diskon ?? 0);
+        $discountType = trim((string) ($item['diskon_type'] ?? $billing->diskon_type ?? ''));
+        if ($discountValue <= 0) {
+            $discountType = null;
+        } elseif ($discountType === '') {
+            $discountType = 'nominal';
+        }
+        $description = array_key_exists('deskripsi', $item) ? $item['deskripsi'] : $billing->keterangan;
+
+        while ($linkedBillings->count() < $desiredQty) {
+            $firstBilling = $linkedBillings->first();
+            $sourceRiwayat = RiwayatTindakan::find($firstBilling->billable_id);
+            if (!$sourceRiwayat) {
+                break;
+            }
+
+            $newRiwayat = RiwayatTindakan::create([
+                'visitation_id' => $visitation->id,
+                'tanggal_tindakan' => $sourceRiwayat->tanggal_tindakan ?: ($visitation->tanggal_visitation ?: Carbon::today()->toDateString()),
+                'tindakan_id' => $sourceRiwayat->tindakan_id,
+                'paket_tindakan_id' => $sourceRiwayat->paket_tindakan_id,
+            ]);
+
+            $linkedBillings->push(Billing::create([
+                'visitation_id' => $visitation->id,
+                'billable_type' => RiwayatTindakan::class,
+                'billable_id' => $newRiwayat->id,
+                'jumlah' => $unitPrice,
+                'qty' => 1,
+                'diskon' => 0,
+                'diskon_type' => null,
+                'keterangan' => $description,
+            ]));
+        }
+
+        while ($linkedBillings->count() > $desiredQty) {
+            $billingToRemove = $linkedBillings->pop();
+            if ($billingToRemove) {
+                $this->deleteBillingWithMedicalSource($billingToRemove);
+            }
+        }
+
+        $linkedBillings = Billing::where('visitation_id', $visitation->id)
+            ->where('billable_type', RiwayatTindakan::class)
+            ->where(function ($query) use ($billing, $linkedBillings) {
+                $ids = $linkedBillings->pluck('id')->filter()->all();
+                if (!empty($ids)) {
+                    $query->whereIn('id', $ids);
+                } else {
+                    $query->where('id', $billing->id);
+                }
+            })
+            ->orderBy('id')
+            ->get();
+
+        foreach ($linkedBillings as $index => $linkedBilling) {
+            $linkedBilling->jumlah = $unitPrice;
+            $linkedBilling->qty = 1;
+            $linkedBilling->keterangan = $description;
+
+            if ($discountValue <= 0) {
+                $linkedBilling->diskon = 0;
+                $linkedBilling->diskon_type = null;
+            } elseif ($discountType === '%') {
+                $linkedBilling->diskon = $discountValue;
+                $linkedBilling->diskon_type = '%';
+            } else {
+                $linkedBilling->diskon = $index === 0 ? $discountValue : 0;
+                $linkedBilling->diskon_type = $index === 0 ? 'nominal' : null;
+            }
+
+            $linkedBilling->save();
+        }
+    }
+
+    private function syncEditedResepFarmasiBilling(Billing $billing, array $item, bool $isAdmin): void
+    {
+        $resep = ResepFarmasi::find($billing->billable_id);
+        $unitPrice = isset($item['jumlah_raw']) ? (float) $item['jumlah_raw'] : (float) $billing->jumlah;
+        $qty = $isAdmin && isset($item['qty']) ? max(1, (int) $item['qty']) : max(1, (int) ($billing->qty ?? 1));
+        $discountValue = isset($item['diskon_raw']) ? (float) $item['diskon_raw'] : (float) ($billing->diskon ?? 0);
+        $discountType = trim((string) ($item['diskon_type'] ?? $billing->diskon_type ?? ''));
+        $lineTotal = isset($item['harga_akhir_raw']) ? (float) $item['harga_akhir_raw'] : $unitPrice * $qty;
+        $description = array_key_exists('deskripsi', $item) ? $item['deskripsi'] : $billing->keterangan;
+
+        if ($resep) {
+            $resep->jumlah = $qty;
+            $resep->harga = $unitPrice;
+            $resep->diskon = $discountType === 'nominal' ? (int) round($discountValue) : 0;
+            $resep->total = $lineTotal;
+            $resep->save();
+        }
+
+        $billing->keterangan = $description;
+        $billing->jumlah = $unitPrice;
+        $billing->qty = $qty;
+        $billing->diskon = $discountValue;
+        $billing->diskon_type = $discountValue > 0 ? ($discountType ?: 'nominal') : null;
+        $billing->save();
     }
 
     public function destroy($id)
@@ -4054,6 +5126,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         case 3:
                         case '3':
                             return 'Laboratorium';
+                        case 4:
+                        case '4':
+                            return 'Event';
                         default:
                             return $visitation->jenis_kunjungan;
                     }
@@ -4131,7 +5206,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Transaksi</span>';
                 })
             ->addColumn('action', function ($visitation) use ($isAdmin) {
-                $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+                $billingUrl = route('finance.billing.create', $visitation->id);
+                $event = $this->resolveEventForVisitation($visitation);
+                if ($event) {
+                    $billingUrl = route('finance.billing.event-create', [
+                        'event' => $event->id,
+                        'visitation_id' => $visitation->id,
+                    ]);
+                }
+
+                $action = '<a href="'.$billingUrl.'" class="btn btn-sm btn-primary">Lihat Billing</a>';
 
                 // Add "Cetak Nota" buttons if invoice exists
                 if ($visitation->invoice) {

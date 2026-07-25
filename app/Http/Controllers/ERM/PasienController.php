@@ -287,7 +287,7 @@ class PasienController extends Controller
             'max:50',
             Rule::unique('erm_pasiens', 'identity_number')->ignore($request->pasien_id, 'id'),
         ],
-        'referral_type' => 'nullable|in:social_media,website,other_pasien,lainnya',
+        'referral_type' => 'nullable|in:social_media,website,other_pasien,lainnya,event',
         'referral_pasien_id' => 'nullable|string|exists:erm_pasiens,id',
         'referral_detail' => 'nullable|string|max:255',
         'nama' => 'required|string|max:255',
@@ -334,7 +334,9 @@ class PasienController extends Controller
     $userId = Auth::id();
     $referralType = $request->filled('referral_type') ? $request->referral_type : null;
     $referralPasienId = $referralType === 'other_pasien' ? $request->referral_pasien_id : null;
-    $referralDetail = $referralType === 'lainnya' ? trim((string) $request->referral_detail) : null;
+    $referralDetail = in_array($referralType, ['lainnya', 'event'], true)
+        ? trim((string) $request->referral_detail)
+        : null;
 
     DB::beginTransaction();
 

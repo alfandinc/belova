@@ -330,12 +330,18 @@
 
                             $gap = max(0, $unit - $basePrice);
                             $percent = $max;
-                            $promoDisplay = [
-                                'gap' => $gap,
-                                'percent' => $percent,
-                                'base' => $basePrice,
-                                'percent_nominal' => round($basePrice * ($percent/100), 0),
-                            ];
+                            $gapNominal = round($gap * $qty, 0);
+                            $percentNominal = round(($basePrice * ($percent / 100)) * $qty, 0);
+                            $expectedPromoDiscount = $gapNominal + $percentNominal;
+
+                            if (abs($lineDisc - $expectedPromoDiscount) <= 1) {
+                                $promoDisplay = [
+                                    'gap' => $gapNominal,
+                                    'percent' => $percent,
+                                    'base' => $basePrice,
+                                    'percent_nominal' => $percentNominal,
+                                ];
+                            }
                         }
                     }
                 }

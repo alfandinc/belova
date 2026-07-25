@@ -28,6 +28,12 @@ class Promo extends Model
         return $this->hasMany(PromoItem::class, 'promo_id');
     }
 
+    public function events()
+    {
+        return $this->belongsToMany(MarketingEvent::class, 'marketing_event_promos', 'promo_id', 'event_id')
+            ->withTimestamps();
+    }
+
     // Computed status based on current date and promo periode
     public function getStatusAttribute()
     {

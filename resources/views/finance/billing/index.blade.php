@@ -23,6 +23,23 @@
                             <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="lab">Lab</a>
                         </div>
                     </div>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            Event Billing
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right">
+                            @forelse(($activeEvents ?? collect()) as $event)
+                                <a class="dropdown-item" href="{{ route('finance.billing.event-create', $event->id) }}">
+                                    {{ $event->nama_event }}
+                                    @if(!empty($event->kode_event))
+                                        <small class="text-muted d-block">{{ $event->kode_event }} - {{ optional($event->klinik)->nama ?? '-' }}</small>
+                                    @endif
+                                </a>
+                            @empty
+                                <span class="dropdown-item text-muted">Belum ada event aktif</span>
+                            @endforelse
+                        </div>
+                    </div>
                     <button id="btn-send-farmasi-notif" class="btn btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
                     <button id="btn-old-notifs-finance" type="button" class="btn btn-light" title="Lihat Notifikasi Lama">
                         <span style="color:#007bff; font-size:14px;">&#10084;</span>

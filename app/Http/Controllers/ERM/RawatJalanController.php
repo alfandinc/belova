@@ -586,8 +586,8 @@ class RawatJalanController extends Controller
                         // Dokter view: only show Konsultasi (jenis_kunjungan = 1)
                         $q->where('erm_visitations.jenis_kunjungan', 1);
                     }, function($q) {
-                        // Non-dokter view: show Konsultasi + Produk/Obat
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2]);
+                        // Non-dokter view: show Konsultasi + Produk/Obat + Event
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 4]);
                     })
                     ->where('erm_visitations.status_kunjungan', '!=', 7);
 
@@ -834,7 +834,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1,2])
+                ->whereIn('jenis_kunjungan', [1, 2, 4])
                 ->whereDate('tanggal_visitation', $today);
 
             if ($dokter) {
@@ -911,7 +911,7 @@ class RawatJalanController extends Controller
                         SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                         SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                     )
-                    ->whereIn('jenis_kunjungan', [1,2])
+                    ->whereIn('jenis_kunjungan', [1, 2, 4])
                     ->whereDate('tanggal_visitation', '>=', $start)
                     ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1009,7 +1009,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1,2])
+                ->whereIn('jenis_kunjungan', [1, 2, 4])
                 ->whereDate('tanggal_visitation', '>=', $start)
                 ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1902,7 +1902,7 @@ class RawatJalanController extends Controller
 
         $query = Visitation::query()
             ->with(['pasien', 'dokter'])
-            ->whereIn('jenis_kunjungan', [1, 2]);
+            ->whereIn('jenis_kunjungan', [1, 2, 4]);
 
         // Status filter
         if ($status && $status !== 'total') {

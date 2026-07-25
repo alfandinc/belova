@@ -21,7 +21,7 @@ class ChatController extends Controller
             ->select(['id', 'name', 'email'])
             ->with([
                 'roles:id,name',
-                'employee:id,user_id,photo,position_id',
+                'employee:id,user_id,photo',
                 'employee.position:id,name',
                 'dokter:id,user_id,photo',
             ])
@@ -89,7 +89,7 @@ class ChatController extends Controller
         $authId = (int) Auth::id();
         $user->loadMissing([
             'roles:id,name',
-            'employee:id,user_id,photo,position_id',
+            'employee:id,user_id,photo',
             'employee.position:id,name',
             'dokter:id,user_id,photo',
         ]);

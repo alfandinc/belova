@@ -1368,6 +1368,9 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
+        Route::get('/billing/event/{event}', [BillingController::class, 'eventCreate'])->name('finance.billing.event-create');
+        Route::get('/billing/event/{event}/items/search', [BillingController::class, 'searchEventItems'])->name('finance.billing.event-items');
+        Route::post('/billing/event/{event}/start', [BillingController::class, 'startEventBilling'])->name('finance.billing.event-start');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
     Route::post('/billing/receive-payment', [BillingController::class, 'receivePayment'])->name('finance.billing.receivePayment');
@@ -1794,6 +1797,14 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/penawaran/dokter/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'dokterSelect2'])->name('marketing.penawaran.dokter.search');
     Route::get('/penawaran/metode-bayar/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'metodeBayarSelect2'])->name('marketing.penawaran.metode_bayar.search');
 
+    // Marketing Events
+    Route::get('/events', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'index'])->name('marketing.events.index');
+    Route::get('/events/data', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'data'])->name('marketing.events.data');
+    Route::post('/events', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'store'])->name('marketing.events.store');
+    Route::get('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'show'])->name('marketing.events.show');
+    Route::put('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'update'])->name('marketing.events.update');
+    Route::delete('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'destroy'])->name('marketing.events.destroy');
+
     // Content Plan: status list modal data endpoint
     Route::get('/content-plan/status-list', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'statusList'])
         ->name('marketing.content-plan.status_list');
@@ -1963,6 +1974,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Promo management (Marketing)
     Route::get('/promo', [PromoController::class, 'index'])->name('marketing.promo.index');
     Route::get('/promo/data', [PromoController::class, 'data'])->name('marketing.promo.data');
+    Route::get('/promo/check-item-conflict', [PromoController::class, 'checkItemConflict'])->name('marketing.promo.check-item-conflict');
     Route::post('/promo', [PromoController::class, 'store'])->name('marketing.promo.store');
     Route::get('/promo/{promo}', [PromoController::class, 'show']);
     Route::put('/promo/{promo}', [PromoController::class, 'update'])->name('marketing.promo.update');

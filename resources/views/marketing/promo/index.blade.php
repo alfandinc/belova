@@ -74,20 +74,27 @@
                     <div class="col-md-7 border-left pl-4">
                         <h6 class="mb-3">Promo Items</h6>
                         <div class="form-row align-items-end mb-2">
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-md-3">
                                 <label class="small">Type</label>
                                 <select id="item-type" class="form-control form-control-sm">
                                     <option value="tindakan">Tindakan</option>
                                     <option value="obat">Obat</option>
                                 </select>
                             </div>
-                            <div class="form-group col-md-5">
+                            <div class="form-group col-md-4">
                                 <label class="small">Item</label>
                                 <select id="item-select" class="form-control form-control-sm"></select>
                             </div>
                             <div class="form-group col-md-2">
-                                <label class="small">Discount %</label>
-                                <input type="number" id="item-discount" class="form-control form-control-sm" min="0" max="100" step="0.01">
+                                <label class="small">Discount Type</label>
+                                <select id="item-discount-type" class="form-control form-control-sm">
+                                    <option value="percent">%</option>
+                                    <option value="nominal">Nominal</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-2">
+                                <label class="small">Discount</label>
+                                <input type="number" id="item-discount" class="form-control form-control-sm" min="0" step="0.01">
                             </div>
                             <div class="form-group col-md-1">
                                 <button type="button" id="add-item" class="btn btn-primary btn-sm">Add</button>
@@ -99,7 +106,9 @@
                                 <thead>
                                             <tr>
                                                 <th>Name</th>
+                                                <th style="width:130px">Harga</th>
                                                 <th style="width:120px">Discount</th>
+                                                <th style="width:150px">Harga Setelah Diskon</th>
                                                 <th style="width:60px"></th>
                                             </tr>
                                 </thead>
@@ -175,6 +184,7 @@
             $('#items-json').val('');
             // reset select2
             $('#item-select').val(null).trigger('change');
+            $('#item-discount-type').val('percent');
             $('#item-discount').val('');
             $('#promoModal').modal('show');
         });
@@ -194,7 +204,18 @@
                     table.ajax.reload();
                 },
                 error: function(xhr){
-                    alert('Error saving data');
+                    var message = 'Error saving data';
+                    if (xhr && xhr.responseJSON) {
+                        if (xhr.responseJSON.message) {
+                            message = xhr.responseJSON.message;
+                        } else if (xhr.responseJSON.errors) {
+                            var firstKey = Object.keys(xhr.responseJSON.errors)[0];
+                            if (firstKey && xhr.responseJSON.errors[firstKey] && xhr.responseJSON.errors[firstKey][0]) {
+                                message = xhr.responseJSON.errors[firstKey][0];
+                            }
+                        }
+                    }
+                    alert(message);
                 }
             });
         });
@@ -218,9 +239,11 @@
                         res.items.forEach(function(it){
                             var typeLabel = (it.item_type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary" title="Tindakan"></i>' : '<i class="fas fa-pills text-success" title="Obat"></i>';
                             var nameLabel = it.name || it.item_name || it.item_id;
-                            var row = '<tr data-type="'+it.item_type+'" data-itemid="'+it.item_id+'">'
+                            var row = '<tr data-type="'+it.item_type+'" data-itemid="'+it.item_id+'" data-baseprice="'+(it.base_price || 0)+'" data-discounttype="'+(it.discount_type || 'percent')+'" data-discountvalue="'+(it.discount_value || 0)+'" data-finalprice="'+(it.discounted_price || 0)+'">'
                                 +'<td class="item-name align-middle">'+typeLabel+' <span class="ml-2">'+nameLabel+'</span></td>'
-                                +'<td class="text-center item-discount">'+it.discount_percent+'%</td>'
+                                +'<td class="text-right item-base-price">'+formatRupiah(it.base_price || 0)+'</td>'
+                                +'<td class="text-center item-discount">'+formatDiscountLabel(it.discount_type || 'percent', it.discount_value || 0)+'</td>'
+                                +'<td class="text-right item-final-price">'+formatRupiah(it.discounted_price || 0)+'</td>'
                                 +'<td><button type="button" class="btn btn-sm btn-danger remove-item" title="Remove"><i class="fas fa-times"></i></button></td>'
                                 +'</tr>';
                             $('#items-table tbody').append(row);
@@ -283,15 +306,41 @@
             if (!sel) { alert('Please select an item'); return; }
             var itemId = sel.id;
             var itemName = sel.text || sel.name || itemId;
+            var basePrice = resolveSelectedItemBasePrice(type, sel);
+            var discountType = $('#item-discount-type').val() || 'percent';
             var disc = parseFloat($('#item-discount').val()) || 0;
-            var typeLabel = (type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary" title="Tindakan"></i>' : '<i class="fas fa-pills text-success" title="Obat"></i>';
-            var row = '<tr data-type="'+type+'" data-itemid="'+itemId+'">'
-                +'<td class="item-name align-middle">'+typeLabel+' <span class="ml-2">'+itemName+'</span></td>'
-                +'<td class="text-center item-discount">'+disc+'%</td>'
-                +'<td><button type="button" class="btn btn-sm btn-danger remove-item" title="Remove"><i class="fas fa-times"></i></button></td>'
-                +'</tr>';
-            $('#items-table tbody').append(row);
-            updateItemsJson();
+            if (discountType === 'percent' && disc > 100) { alert('Discount % tidak boleh lebih dari 100'); return; }
+            var currentPromoId = $('#promo-id').val() || '';
+
+            $.ajax({
+                url: '{{ route('marketing.promo.check-item-conflict') }}',
+                method: 'GET',
+                data: {
+                    item_type: type,
+                    item_id: itemId,
+                    promo_id: currentPromoId
+                },
+                success: function(){
+                    var finalPrice = computeDiscountedPrice(basePrice, discountType, disc);
+                    var typeLabel = (type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary" title="Tindakan"></i>' : '<i class="fas fa-pills text-success" title="Obat"></i>';
+                    var row = '<tr data-type="'+type+'" data-itemid="'+itemId+'" data-baseprice="'+basePrice+'" data-discounttype="'+discountType+'" data-discountvalue="'+disc+'" data-finalprice="'+finalPrice+'">'
+                        +'<td class="item-name align-middle">'+typeLabel+' <span class="ml-2">'+itemName+'</span></td>'
+                        +'<td class="text-right item-base-price">'+formatRupiah(basePrice)+'</td>'
+                        +'<td class="text-center item-discount">'+formatDiscountLabel(discountType, disc)+'</td>'
+                        +'<td class="text-right item-final-price">'+formatRupiah(finalPrice)+'</td>'
+                        +'<td><button type="button" class="btn btn-sm btn-danger remove-item" title="Remove"><i class="fas fa-times"></i></button></td>'
+                        +'</tr>';
+                    $('#items-table tbody').append(row);
+                    updateItemsJson();
+                },
+                error: function(xhr){
+                    var message = 'Item ini tidak bisa ditambahkan.';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+                    alert(message);
+                }
+            });
         });
 
         // remove item
@@ -303,15 +352,47 @@
         function updateItemsJson(){
             var items = [];
             $('#items-table tbody tr').each(function(){
-                var discText = $(this).find('td.item-discount').text() || '';
-                var disc = parseFloat(discText) || 0;
                 items.push({
                     item_type: $(this).data('type'),
                     item_id: $(this).data('itemid'),
-                    discount_percent: disc,
+                    discount_type: $(this).data('discounttype'),
+                    discount_value: parseFloat($(this).data('discountvalue')) || 0,
                 });
             });
             $('#items-json').val(JSON.stringify(items));
+        }
+
+        function formatRupiah(value){
+            return 'Rp ' + (parseFloat(value || 0) || 0).toLocaleString('id-ID', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+        }
+
+        function resolveSelectedItemBasePrice(type, selectedItem){
+            if (!selectedItem) {
+                return 0;
+            }
+
+            if (type === 'obat') {
+                return parseFloat(selectedItem.harga_nonfornas || selectedItem.harga_net || selectedItem.harga || 0) || 0;
+            }
+
+            return parseFloat(selectedItem.harga || selectedItem.harga_jual || 0) || 0;
+        }
+
+        function formatDiscountLabel(type, value){
+            var num = parseFloat(value || 0) || 0;
+            if ((type || 'percent') === 'nominal') {
+                return formatRupiah(num);
+            }
+            return num + '%';
+        }
+
+        function computeDiscountedPrice(basePrice, discountType, discountValue){
+            var base = parseFloat(basePrice || 0) || 0;
+            var discount = parseFloat(discountValue || 0) || 0;
+            if ((discountType || 'percent') === 'percent') {
+                return Math.max(0, base - (base * (discount / 100)));
+            }
+            return Math.max(0, base - discount);
         }
 
         // native date inputs used; no JS datepicker initialization needed
