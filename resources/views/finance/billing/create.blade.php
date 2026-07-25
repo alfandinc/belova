@@ -1105,13 +1105,20 @@
         function isTempBillingId(id) {
             try {
                 const s = (id || '').toString();
-                // Any non-numeric ID can't be a real DB primary key.
-                // Treat it as a temp row so it gets sent as `new_items`.
-                if (!/^[0-9]+$/.test(s)) {
-                    return true;
+                if (!s) {
+                    return false;
                 }
-                // Known temp prefixes (kept for clarity; numeric-only check above is the main guard)
-                return s.startsWith('tindakan-') || s.startsWith('lab-') || s.startsWith('konsultasi-') || s.startsWith('obat-') || s.startsWith('racikan-');
+                if (/^[0-9]+$/.test(s)) {
+                    return false;
+                }
+                // Only client-generated placeholder rows should be treated as unsaved.
+                // Some server responses may use non-numeric composite ids for grouped display rows.
+                return s.startsWith('tindakan-')
+                    || s.startsWith('lab-')
+                    || s.startsWith('konsultasi-')
+                    || s.startsWith('obat-')
+                    || s.startsWith('racikan-')
+                    || s.startsWith('temp-');
             } catch (e) {
                 return false;
             }
