@@ -43,6 +43,14 @@
                 <option value="percent" @if($masterFaktur->diskon_type == 'percent') selected @endif>Percent</option>
             </select>
         </div>
+        <div class="mb-3">
+            <label>Notes</label>
+            <textarea name="notes" class="form-control" rows="3">{{ $masterFaktur->notes }}</textarea>
+        </div>
+        <div class="form-check mb-3">
+            <input type="checkbox" name="is_favorite" class="form-check-input" id="edit_is_favorite" value="1" @if($masterFaktur->is_favorite) checked @endif>
+            <label class="form-check-label" for="edit_is_favorite">Is Favorite</label>
+        </div>
         <button type="submit" class="btn btn-primary">Update</button>
         <a href="{{ route('erm.masterfaktur.index') }}" class="btn btn-secondary">Kembali</a>
     </form>

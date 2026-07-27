@@ -42,6 +42,14 @@
                 <option value="percent">Percent</option>
             </select>
         </div>
+        <div class="mb-3">
+            <label>Notes</label>
+            <textarea name="notes" class="form-control" rows="3"></textarea>
+        </div>
+        <div class="form-check mb-3">
+            <input type="checkbox" name="is_favorite" class="form-check-input" id="create_is_favorite" value="1">
+            <label class="form-check-label" for="create_is_favorite">Is Favorite</label>
+        </div>
         <button type="submit" class="btn btn-primary">Simpan</button>
         <a href="{{ route('erm.masterfaktur.index') }}" class="btn btn-secondary">Kembali</a>
     </form>

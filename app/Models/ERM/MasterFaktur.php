@@ -19,6 +19,12 @@ class MasterFaktur extends Model
         'qty_per_box',
         'diskon',
         'diskon_type',
+        'notes',
+        'is_favorite',
+    ];
+
+    protected $casts = [
+        'is_favorite' => 'boolean',
     ];
 
     public function obat()

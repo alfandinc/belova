@@ -82,6 +82,7 @@
                                         <th>Rata-rata Keluar / Bulan</th>
                                         <th>Limit Stok</th>
                                         <th>Pesan / Box</th>
+                                        <th>Favorite</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
@@ -253,6 +254,13 @@
         gap: 6px;
     }
 
+    .forecast-master-faktur-notes {
+        margin-top: 6px;
+        color: #6c757d;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
     .forecast-box-summary {
         text-align: right;
         line-height: 1.35;
@@ -262,6 +270,24 @@
         display: block;
         color: #6c757d;
         font-size: 12px;
+    }
+
+    .btn-master-faktur-favorite {
+        border: 0;
+        background: transparent;
+        padding: 0;
+        color: #adb5bd;
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .btn-master-faktur-favorite.is-favorite {
+        color: #f0ad4e;
+    }
+
+    .btn-master-faktur-favorite:focus {
+        outline: none;
+        box-shadow: none;
     }
 
     .badge-principal-forecast {
@@ -332,6 +358,13 @@
     #forecastTable th:nth-child(5),
     #forecastTable th:nth-child(6) {
         text-align: right;
+    }
+
+    #forecastTable td:nth-child(7),
+    #forecastTable th:nth-child(7) {
+        text-align: center;
+        white-space: nowrap;
+        width: 70px;
     }
 
     #forecastKeluarTable td:last-child,
@@ -536,7 +569,11 @@
             badges.push('');
         }
 
-        return nameHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>';
+        var notesHtml = row.master_faktur_notes
+            ? '<div class="forecast-master-faktur-notes">Catatan: ' + escapeHtml(row.master_faktur_notes) + '</div>'
+            : '';
+
+        return nameHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>' + notesHtml;
     }
 
     function renderForecastBoxSummary(row) {
@@ -549,6 +586,21 @@
             + '<small>Isi/box: ' + isiPerBox + '</small>'
             + '<small>Pesan box: ' + jumlahPesanBox + '</small>'
             + '</div>';
+    }
+
+    function renderFavoriteButton(row) {
+        if (!row || !row.master_faktur_id) {
+            return '<span class="text-muted">-</span>';
+        }
+
+        var isFavorite = row.master_faktur_is_favorite === true || row.master_faktur_is_favorite === 1 || String(row.master_faktur_is_favorite) === '1';
+        var className = 'btn-master-faktur-favorite' + (isFavorite ? ' is-favorite' : '');
+        var iconClass = isFavorite ? 'fas fa-star' : 'far fa-star';
+        var title = isFavorite ? 'Hapus favorite' : 'Jadikan favorite';
+
+        return '<button type="button" class="' + className + '" data-id="' + row.master_faktur_id + '" title="' + title + '">'
+            + '<i class="' + iconClass + '"></i>'
+            + '</button>';
     }
 
     function renderSimilarActionButton(row) {
@@ -862,6 +914,15 @@
                 },
                 {
                     data: null,
+                    name: 'master_faktur_is_favorite',
+                    orderable: false,
+                    searchable: false,
+                    render: function(data, type, row) {
+                        return renderFavoriteButton(row);
+                    }
+                },
+                {
+                    data: null,
                     name: 'action',
                     orderable: false,
                     searchable: false,
@@ -903,6 +964,29 @@
         $(document).on('click', '.btn-forecast-similar', function() {
             var obatId = $(this).data('id');
             loadSimilarObats(obatId);
+        });
+
+        $(document).on('click', '.btn-master-faktur-favorite', function() {
+            var masterFakturId = $(this).data('id');
+
+            if (!masterFakturId) {
+                return;
+            }
+
+            $.ajax({
+                url: '/erm/masterfaktur/' + masterFakturId + '/toggle-favorite',
+                type: 'PATCH',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function() {
+                    loadForecastData();
+                },
+                error: function(xhr) {
+                    var message = xhr.responseJSON?.message || 'Gagal mengubah favorite master faktur.';
+                    alert(message);
+                }
+            });
         });
 
         $('#forecastKeluarTable tbody').on('click', 'tr', function() {
