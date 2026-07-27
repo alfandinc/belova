@@ -248,6 +248,10 @@
         font-weight: 500;
     }
 
+    .forecast-search-keywords {
+        display: none;
+    }
+
     .forecast-obat-meta {
         margin-top: 6px;
         display: flex;
@@ -560,6 +564,9 @@
         var nameHtml = '<div class="forecast-obat-name">' + escapeHtml(row.obat_nama || '-') + '</div>';
         var badges = [];
         var isGenerik = row.is_generik === 1 || row.is_generik === true || String(row.is_generik) === '1';
+        var zatAktifSearchHtml = row && row.zat_aktif_names && row.zat_aktif_names.length
+            ? '<div class="forecast-search-keywords">' + escapeHtml(row.zat_aktif_names.join(' ')) + '</div>'
+            : '';
 
         badges.push('<span class="badge ' + (isGenerik ? 'badge-success' : 'badge-info') + '">' + (isGenerik ? 'Obat Generik' : 'Obat Paten') + '</span>');
 
@@ -575,7 +582,7 @@
             ? '<div class="forecast-master-faktur-notes">Catatan: ' + escapeHtml(row.master_faktur_notes) + '</div>'
             : '';
 
-        return nameHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>' + notesHtml;
+        return nameHtml + zatAktifSearchHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>' + notesHtml;
     }
 
     function renderForecastObatFilterText(row) {
