@@ -600,10 +600,10 @@
             return '-';
         }
 
-        var favoriteButton = renderFavoriteButton(row);
-        var similarButton = '<button type="button" class="btn btn-sm btn-outline-primary btn-forecast-similar" data-id="' + escapeHtml(row.obat_id) + '" data-name="' + escapeHtml(row.obat_nama || '') + '">Obat Serupa</button>';
-
-        return '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:8px;">' + favoriteButton + similarButton + '</div>';
+        return '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:6px;">'
+            + renderFavoriteButton(row)
+            + '<button type="button" class="btn btn-sm btn-outline-primary btn-forecast-similar" data-id="' + escapeHtml(row.obat_id) + '" data-name="' + escapeHtml(row.obat_nama || '') + '">Obat Serupa</button>'
+            + '</div>';
     }
 
     function setSimilarObatLoading(isLoading) {
