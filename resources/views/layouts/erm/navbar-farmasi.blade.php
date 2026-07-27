@@ -138,6 +138,9 @@
                             <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
                             </li>
+                            <li>
+                                <a href="{{ route('erm.obat.forecast.index') }}"><i data-feather="trending-up" class="align-self-center menu-icon"></i><span>Forecast Stok</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasanyrole

@@ -294,6 +294,178 @@ class ObatController extends Controller
         return view('erm.obat.index', compact('kategoris', 'metodeBayars'));
     }
 
+    public function forecastIndex()
+    {
+        return view('erm.obat.forecast-index');
+    }
+
+    public function similarObats($id)
+    {
+        $obat = Obat::withInactive()
+            ->with(['zatAktifs', 'masterFakturs.principal'])
+            ->findOrFail($id);
+
+        $selectedMasterFaktur = $obat->masterFakturs
+            ->sortByDesc('id')
+            ->first();
+
+        $zatAktifIds = $obat->zatAktifs->pluck('id')->filter()->values();
+
+        if ($zatAktifIds->isEmpty()) {
+            return response()->json([
+                'obat_id' => $obat->id,
+                'obat_nama' => $obat->nama,
+                'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
+                'harga_jual' => $obat->harga_nonfornas,
+                'shared_zat_aktif' => [],
+                'rows' => [],
+                'message' => 'Obat ini belum memiliki zat aktif.',
+            ]);
+        }
+
+        $sharedZatAktif = $obat->zatAktifs
+            ->pluck('nama')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $rows = Obat::query()
+            ->with(['zatAktifs', 'masterFakturs.principal'])
+            ->whereKeyNot($obat->id)
+            ->whereHas('zatAktifs', function ($query) use ($zatAktifIds) {
+                $query->whereIn('erm_zataktif.id', $zatAktifIds);
+            })
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'is_generik', 'harga_nonfornas'])
+            ->map(function ($similarObat) use ($zatAktifIds) {
+                $principalNames = $similarObat->masterFakturs
+                    ->pluck('principal.nama')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $latestMasterFaktur = $similarObat->masterFakturs
+                    ->sortByDesc('id')
+                    ->first();
+
+                $matchedZatAktif = $similarObat->zatAktifs
+                    ->whereIn('id', $zatAktifIds)
+                    ->pluck('nama')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                return [
+                    'obat_id' => $similarObat->id,
+                    'obat_nama' => $similarObat->nama,
+                    'is_generik' => $similarObat->is_generik,
+                    'principal_names' => $principalNames,
+                    'harga_beli' => $latestMasterFaktur ? $latestMasterFaktur->harga : null,
+                    'harga_jual' => $similarObat->harga_nonfornas,
+                    'matched_zat_aktif' => $matchedZatAktif,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'obat_id' => $obat->id,
+            'obat_nama' => $obat->nama,
+            'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
+            'harga_jual' => $obat->harga_nonfornas,
+            'shared_zat_aktif' => $sharedZatAktif,
+            'rows' => $rows,
+        ]);
+    }
+
+    public function forecastKeluar(Request $request)
+    {
+        $period = (string) $request->input('period', 'today');
+        $today = Carbon::today();
+
+        switch ($period) {
+            case 'week':
+                $periodStart = $today->copy()->startOfDay();
+                $periodEnd = $today->copy()->endOfWeek()->endOfDay();
+                $periodLabel = 'Hari ini s/d akhir minggu';
+                break;
+            case 'month':
+                $periodStart = $today->copy()->startOfDay();
+                $periodEnd = $today->copy()->endOfMonth()->endOfDay();
+                $periodLabel = 'Hari ini s/d akhir bulan';
+                break;
+            case 'next_month':
+                $periodStart = $today->copy()->startOfDay();
+                $periodEnd = $today->copy()->addMonthNoOverflow()->endOfMonth()->endOfDay();
+                $periodLabel = 'Hari ini s/d akhir bulan depan';
+                break;
+            case 'today':
+            default:
+                $period = 'today';
+                $periodStart = $today->copy()->startOfDay();
+                $periodEnd = $today->copy()->endOfDay();
+                $periodLabel = 'Hari ini';
+                break;
+        }
+
+        $rawRows = DB::table('erm_resepfarmasi as rf')
+            ->join('erm_visitations as v', 'rf.visitation_id', '=', 'v.id')
+            ->join('erm_obat as o', 'rf.obat_id', '=', 'o.id')
+            ->select(
+                'rf.obat_id',
+                'o.nama as obat_nama',
+                DB::raw('SUM(COALESCE(rf.jumlah, 0)) as total_keluar'),
+                DB::raw('COUNT(rf.id) as jumlah_resep'),
+                DB::raw('COUNT(DISTINCT rf.visitation_id) as jumlah_kunjungan'),
+                DB::raw('MAX(v.tanggal_visitation) as tanggal_terakhir')
+            )
+            ->whereBetween('v.tanggal_visitation', [
+                $periodStart->toDateString(),
+                $periodEnd->toDateString(),
+            ])
+            ->groupBy('rf.obat_id', 'o.nama')
+            ->orderByDesc('total_keluar')
+            ->orderBy('o.nama')
+            ->get();
+
+        $obatIds = $rawRows->pluck('obat_id')->filter()->unique()->values();
+        $obatMeta = Obat::withoutGlobalScope('active')
+            ->with(['masterFakturs.principal'])
+            ->whereIn('id', $obatIds)
+            ->get(['id', 'is_generik'])
+            ->keyBy('id');
+
+        $rows = $rawRows->map(function ($row) use ($obatMeta) {
+            $obat = $obatMeta->get($row->obat_id);
+            $principalNames = $obat
+                ? $obat->masterFakturs->pluck('principal.nama')->filter()->unique()->values()->all()
+                : [];
+
+            $isGenerik = $obat ? $obat->is_generik : null;
+
+            return [
+                'obat_id' => $row->obat_id,
+                'obat_nama' => $row->obat_nama,
+                'is_generik' => $isGenerik,
+                'principal_names' => $principalNames,
+                'dibutuhkan' => round((float) $row->total_keluar, 2),
+                'jumlah_resep' => (int) $row->jumlah_resep,
+                'jumlah_kunjungan' => (int) $row->jumlah_kunjungan,
+                'tanggal_terakhir' => $row->tanggal_terakhir,
+            ];
+        })->values();
+
+        return response()->json([
+            'period' => $period,
+            'period_label' => $periodLabel,
+            'period_start' => $periodStart->format('Y-m-d'),
+            'period_end' => $periodEnd->format('Y-m-d'),
+            'rows' => $rows,
+        ]);
+    }
+
     public function forecastAll(Request $request)
     {
         $periodMonths = (int) $request->input('period_months', 3);
@@ -329,8 +501,9 @@ class ObatController extends Controller
             ->pluck('total_stock', 'obat_id');
 
         $obats = Obat::query()
+            ->with(['masterFakturs.principal'])
             ->orderBy('nama')
-            ->get(['id', 'nama']);
+            ->get(['id', 'nama', 'is_generik']);
 
         $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat) {
             $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
@@ -343,9 +516,18 @@ class ObatController extends Controller
             $limitStok = ceil($limitStokRaw);
             $qtyPesan = ceil($qtyPesanRaw);
 
+            $principalNames = $obat->masterFakturs
+                ->pluck('principal.nama')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             return [
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
+                'is_generik' => $obat->is_generik,
+                'principal_names' => $principalNames,
                 'total_stock' => round($totalStock, 2),
                 'obat_keluar' => round($obatKeluar, 2),
                 'average_monthly_keluar' => $averageMonthlyKeluar,

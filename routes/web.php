@@ -1139,7 +1139,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Obat
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
+    Route::get('/obat/forecast', [ObatController::class, 'forecastIndex'])->name('erm.obat.forecast.index');
+    Route::get('/obat/forecast-keluar', [ObatController::class, 'forecastKeluar'])->name('erm.obat.forecast-keluar');
     Route::get('/obat/forecast-all', [ObatController::class, 'forecastAll'])->name('erm.obat.forecast-all');
+    Route::get('/obat/{id}/similar', [ObatController::class, 'similarObats'])->name('erm.obat.similar');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
     Route::get('/obat/{id}/forecast', [ObatController::class, 'forecast'])->name('erm.obat.forecast');
