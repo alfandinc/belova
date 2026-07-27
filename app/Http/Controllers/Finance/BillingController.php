@@ -3536,9 +3536,49 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 );
             }
 
+            $frontendInvoiceItemsByBillingId = [];
+            try {
+                foreach ((array) $request->input('items', []) as $frontendItemRaw) {
+                    $frontendItem = is_array($frontendItemRaw) ? $frontendItemRaw : (array) $frontendItemRaw;
+                    $billingId = isset($frontendItem['id']) ? (int) $frontendItem['id'] : 0;
+                    if ($billingId <= 0) {
+                        continue;
+                    }
+
+                    $groupMemberIds = collect($frontendItem['group_member_ids'] ?? [])
+                        ->map(function ($id) {
+                            return (int) $id;
+                        })
+                        ->filter()
+                        ->values();
+
+                    if (!empty($frontendItem['is_grouped_tindakan']) || $groupMemberIds->count() > 1) {
+                        continue;
+                    }
+
+                    $frontendInvoiceItemsByBillingId[$billingId] = [
+                        'nama_item' => $frontendItem['nama_item'] ?? null,
+                        'deskripsi' => $frontendItem['deskripsi'] ?? null,
+                        'jumlah_raw' => isset($frontendItem['jumlah_raw']) ? (float) $frontendItem['jumlah_raw'] : null,
+                        'diskon_raw' => isset($frontendItem['diskon_raw']) ? (float) $frontendItem['diskon_raw'] : null,
+                        'diskon_type' => array_key_exists('diskon_type', $frontendItem) ? $frontendItem['diskon_type'] : null,
+                        'qty' => isset($frontendItem['qty']) ? (float) $frontendItem['qty'] : null,
+                        'harga_akhir_raw' => isset($frontendItem['harga_akhir_raw']) ? (float) $frontendItem['harga_akhir_raw'] : null,
+                    ];
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to map frontend invoice items: ' . $e->getMessage());
+                $frontendInvoiceItemsByBillingId = [];
+            }
+
             // Process regular items
             foreach ($regularItems as $item) {
-                $name = $item->nama_item;
+                $frontendSnapshot = null;
+                if (!empty($item->id)) {
+                    $frontendSnapshot = $frontendInvoiceItemsByBillingId[(int) $item->id] ?? null;
+                }
+
+                $name = $frontendSnapshot['nama_item'] ?? $item->nama_item;
                 // Fix: If LabPermintaan, use LabTest name
                 if ($item->billable_type == 'App\\Models\\ERM\\LabPermintaan' && !empty($item->billable_id)) {
                     $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest')->find($item->billable_id);
@@ -3592,7 +3632,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
                 
                 // Fallback for description
-                $description = $item->keterangan;
+                $description = $frontendSnapshot['deskripsi'] ?? $item->keterangan;
                 if (empty($description)) {
                     if (!empty($item->deskripsi)) {
                         $description = $item->deskripsi;
@@ -3606,17 +3646,32 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // Ensure per-item computed values are reset to avoid leaking from previous loop iterations
                 $finalAmountComputed = null;
 
-                // Compute final amount: prefer applying active promo percent on the promo base (prefer harga_diskon)
-                $unitPrice = floatval($item->jumlah ?? 0);
-                $discountVal = floatval($item->diskon ?? 0);
-                $discountType = $item->diskon_type ?? null;
+                // Prefer the last frontend values so invoice items match the visible billing table.
+                $quantityForInvoice = isset($frontendSnapshot['qty']) && $frontendSnapshot['qty'] !== null
+                    ? floatval($frontendSnapshot['qty'])
+                    : floatval($item->qty ?? 1);
+                $quantityForInvoice = $quantityForInvoice > 0 ? $quantityForInvoice : 1;
+
+                $unitPrice = isset($frontendSnapshot['jumlah_raw']) && $frontendSnapshot['jumlah_raw'] !== null
+                    ? floatval($frontendSnapshot['jumlah_raw'])
+                    : floatval($item->jumlah ?? 0);
+                $discountVal = isset($frontendSnapshot['diskon_raw']) && $frontendSnapshot['diskon_raw'] !== null
+                    ? floatval($frontendSnapshot['diskon_raw'])
+                    : floatval($item->diskon ?? 0);
+                $discountType = is_array($frontendSnapshot) && array_key_exists('diskon_type', $frontendSnapshot)
+                    ? $frontendSnapshot['diskon_type']
+                    : ($item->diskon_type ?? null);
                 // initialize promo tracking variables to avoid undefined variable when promo lookup fails
                 $appliedPromo = false;
                 $promoBase = null;
                 $promoDiscountUnitAmount = null;
 
+                if (isset($frontendSnapshot['harga_akhir_raw']) && $frontendSnapshot['harga_akhir_raw'] !== null) {
+                    $finalAmountComputed = max(0, floatval($frontendSnapshot['harga_akhir_raw']));
+                }
+
                 try {
-                    if ($discountVal > 0) {
+                    if (isset($finalAmountComputed) || $discountVal > 0) {
                         throw new \RuntimeException('skip promo auto-apply');
                     }
 
@@ -3665,7 +3720,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                             if ($winning && $winningDiscountAmount > 0) {
                                 $unitPriceAfter = max(0, $winningBasePrice - $winningDiscountAmount);
-                                $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
+                                $finalAmountComputed = $unitPriceAfter * $quantityForInvoice;
                                 // mark applied promo details for later nominal storage calculation
                                 $appliedPromo = true;
                                 $promoBase = $winningBasePrice;
@@ -3682,7 +3737,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 // If $finalAmountComputed not set by promo flow, compute using existing billing discount fields
                 if (!isset($finalAmountComputed)) {
-                    $qty = floatval($item->qty ?? 1);
+                    $qty = $quantityForInvoice;
                     $qty = $qty > 0 ? $qty : 1;
 
                     if ($discountVal > 0) {
@@ -3713,7 +3768,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
 
                     // Always store invoice-item discount as NOMINAL (line discount), never as '%'.
-                    $qtyForDiscount = floatval($item->qty ?? 1);
+                    $qtyForDiscount = $quantityForInvoice;
                     $qtyForDiscount = $qtyForDiscount > 0 ? $qtyForDiscount : 1;
 
                     if ($appliedPromo && $promoBase !== null && $promoDiscountUnitAmount !== null) {
@@ -3738,7 +3793,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'invoice_id' => $invoice->id,
                     'name' => $name,
                     'description' => $description,
-                    'quantity' => floatval($item->qty ?? 1),
+                    'quantity' => $quantityForInvoice,
                     // store original unit price (before discount) where available
                     'unit_price' => $unitPrice,
                     'hpp' => (function() use ($item) {
