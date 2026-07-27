@@ -165,6 +165,8 @@
                                 <thead>
                                     <tr>
                                         <th>Nama Obat</th>
+                                        <th>Total Stok</th>
+                                        <th>Isi per Box</th>
                                         <th>Harga Beli</th>
                                         <th>Harga Jual</th>
                                         <th>Zat Aktif Sama</th>
@@ -328,8 +330,12 @@
 
     #similarObatTable td:nth-child(2),
     #similarObatTable td:nth-child(3),
+    #similarObatTable td:nth-child(4),
+    #similarObatTable td:nth-child(5),
     #similarObatTable th:nth-child(2),
-    #similarObatTable th:nth-child(3) {
+    #similarObatTable th:nth-child(3),
+    #similarObatTable th:nth-child(4) {
+    #similarObatTable th:nth-child(5) {
         text-align: right;
         white-space: nowrap;
         width: 120px;
@@ -421,8 +427,12 @@
 
         #similarObatTable td:nth-child(2),
         #similarObatTable td:nth-child(3),
+        #similarObatTable td:nth-child(4),
+        #similarObatTable td:nth-child(5),
         #similarObatTable th:nth-child(2),
-        #similarObatTable th:nth-child(3) {
+        #similarObatTable th:nth-child(3),
+        #similarObatTable th:nth-child(4),
+        #similarObatTable th:nth-child(5) {
             width: auto;
         }
     }
@@ -621,7 +631,7 @@
         var html = '';
 
         if (!rows || !rows.length) {
-            html = '<tr><td colspan="4" class="text-center text-muted">Tidak ada obat lain dengan zat aktif yang sama.</td></tr>';
+            html = '<tr><td colspan="6" class="text-center text-muted">Tidak ada obat lain dengan zat aktif yang sama.</td></tr>';
             $('#similarObatTable tbody').html(html);
             return;
         }
@@ -634,6 +644,8 @@
 
             html += '<tr>' +
                 '<td><div class="forecast-obat-name">' + escapeHtml(row.obat_nama || '-') + '</div>' + metaHtml + '</td>' +
+                '<td>' + formatForecastNumber(row.total_stock) + '</td>' +
+                '<td>' + (row.isi_per_box === null || row.isi_per_box === undefined ? '-' : formatForecastNumber(row.isi_per_box)) + '</td>' +
                 '<td>' + renderComparedPrice(row.harga_beli, selectedHargaBeli) + '</td>' +
                 '<td>' + renderComparedPrice(row.harga_jual, selectedHargaJual) + '</td>' +
                 '<td>' + (zatAktifBadges || '-') + '</td>' +

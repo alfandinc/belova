@@ -367,6 +367,14 @@ class ObatController extends Controller
             ->values()
             ->all();
 
+        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
+            ->groupBy('obat_id')
+            ->pluck('total_stock', 'obat_id');
+
         $rows = Obat::query()
             ->with(['zatAktifs', 'masterFakturs.principal'])
             ->whereKeyNot($obat->id)
@@ -375,7 +383,7 @@ class ObatController extends Controller
             })
             ->orderBy('nama')
             ->get(['id', 'nama', 'is_generik', 'harga_nonfornas'])
-            ->map(function ($similarObat) use ($zatAktifIds) {
+            ->map(function ($similarObat) use ($zatAktifIds, $stockPerObat) {
                 $principalNames = $similarObat->masterFakturs
                     ->pluck('principal.nama')
                     ->filter()
@@ -400,6 +408,8 @@ class ObatController extends Controller
                     'obat_nama' => $similarObat->nama,
                     'is_generik' => $similarObat->is_generik,
                     'principal_names' => $principalNames,
+                    'total_stock' => round((float) ($stockPerObat[$similarObat->id] ?? 0), 2),
+                    'isi_per_box' => $latestMasterFaktur ? round((float) ($latestMasterFaktur->qty_per_box ?? 0), 2) : null,
                     'harga_beli' => $latestMasterFaktur ? $latestMasterFaktur->harga : null,
                     'harga_jual' => $similarObat->harga_nonfornas,
                     'matched_zat_aktif' => $matchedZatAktif,
