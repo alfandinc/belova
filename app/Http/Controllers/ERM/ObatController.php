@@ -570,7 +570,7 @@ class ObatController extends Controller
             ->pluck('total_stock', 'obat_id');
 
         $obats = Obat::query()
-            ->with(['masterFakturs.principal'])
+            ->with(['masterFakturs.principal', 'zatAktifs'])
             ->orderBy('nama')
             ->get(['id', 'nama', 'is_generik']);
 
@@ -592,6 +592,13 @@ class ObatController extends Controller
                 ->values()
                 ->all();
 
+            $zatAktifNames = $obat->zatAktifs
+                ->pluck('nama')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             $latestMasterFaktur = $obat->masterFakturs
                 ->sortByDesc('id')
                 ->first();
@@ -604,6 +611,7 @@ class ObatController extends Controller
                 'obat_nama' => $obat->nama,
                 'is_generik' => $obat->is_generik,
                 'principal_names' => $principalNames,
+                'zat_aktif_names' => $zatAktifNames,
                 'master_faktur_id' => $latestMasterFaktur?->id,
                 'master_faktur_notes' => $latestMasterFaktur?->notes,
                 'master_faktur_is_favorite' => (bool) ($latestMasterFaktur?->is_favorite ?? false),

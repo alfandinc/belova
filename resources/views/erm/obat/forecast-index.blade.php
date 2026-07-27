@@ -578,6 +578,13 @@
         return nameHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>' + notesHtml;
     }
 
+    function renderForecastObatFilterText(row) {
+        return [
+            row && row.obat_nama ? row.obat_nama : '',
+            row && row.zat_aktif_names ? row.zat_aktif_names.join(' ') : ''
+        ].join(' ').trim();
+    }
+
     function renderForecastBoxSummary(row) {
         var qtyPesan = row && row.qty_pesan !== null && row.qty_pesan !== undefined ? formatForecastNumber(row.qty_pesan) : '-';
         var isiPerBox = row && row.isi_per_box !== null && row.isi_per_box !== undefined ? formatForecastNumber(row.isi_per_box) : '-';
@@ -782,6 +789,14 @@
                     data: null,
                     name: 'obat_nama',
                     render: function(data, type, row) {
+                        if (type === 'filter') {
+                            return renderForecastObatFilterText(row);
+                        }
+
+                        if (type === 'sort') {
+                            return row.obat_nama || '';
+                        }
+
                         return renderForecastObatName(row);
                     }
                 },
