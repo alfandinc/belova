@@ -578,6 +578,13 @@ class ObatController extends Controller
                 ->values()
                 ->all();
 
+            $latestMasterFaktur = $obat->masterFakturs
+                ->sortByDesc('id')
+                ->first();
+
+            $qtyPerBox = $latestMasterFaktur ? (float) ($latestMasterFaktur->qty_per_box ?? 0) : 0;
+            $jumlahPesanBox = $qtyPerBox > 0 ? ceil($qtyPesan / $qtyPerBox) : null;
+
             return [
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
@@ -588,6 +595,8 @@ class ObatController extends Controller
                 'average_monthly_keluar' => $averageMonthlyKeluar,
                 'limit_stok' => $limitStok,
                 'qty_pesan' => $qtyPesan,
+                'isi_per_box' => $qtyPerBox > 0 ? round($qtyPerBox, 2) : null,
+                'jumlah_pesan_box' => $jumlahPesanBox,
             ];
         })->values();
 

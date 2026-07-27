@@ -82,6 +82,8 @@
                                         <th>Rata-rata Keluar / Bulan</th>
                                         <th>Limit Stok</th>
                                         <th>QTY Pesan</th>
+                                        <th>Isi per Box</th>
+                                        <th>Jumlah Pesan Box</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
@@ -315,11 +317,15 @@
     #forecastTable td:nth-child(4),
     #forecastTable td:nth-child(5),
     #forecastTable td:nth-child(6),
+    #forecastTable td:nth-child(7),
+    #forecastTable td:nth-child(8),
     #forecastTable th:nth-child(2),
     #forecastTable th:nth-child(3),
     #forecastTable th:nth-child(4),
     #forecastTable th:nth-child(5),
-    #forecastTable th:nth-child(6) {
+    #forecastTable th:nth-child(6),
+    #forecastTable th:nth-child(7),
+    #forecastTable th:nth-child(8) {
         text-align: right;
     }
 
@@ -835,6 +841,20 @@
                     name: 'qty_pesan',
                     render: function(data) {
                         return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'isi_per_box',
+                    name: 'isi_per_box',
+                    render: function(data) {
+                        return data === null ? '-' : formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'jumlah_pesan_box',
+                    name: 'jumlah_pesan_box',
+                    render: function(data) {
+                        return data === null ? '-' : formatForecastNumber(data);
                     }
                 },
                 {
