@@ -82,7 +82,6 @@
                                         <th>Rata-rata Keluar / Bulan</th>
                                         <th>Limit Stok</th>
                                         <th>Pesan / Box</th>
-                                        <th>Favorite</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
@@ -351,13 +350,6 @@
     #forecastTable td:nth-child(3),
     #forecastTable td:nth-child(4),
     #forecastTable td:nth-child(5),
-    #forecastTable td:nth-child(6),
-    #forecastTable th:nth-child(2),
-    #forecastTable th:nth-child(3),
-    #forecastTable th:nth-child(4),
-    #forecastTable th:nth-child(5),
-    #forecastTable th:nth-child(6) {
-        text-align: right;
     }
 
     #forecastTable td:nth-child(7),
@@ -608,7 +600,10 @@
             return '-';
         }
 
-        return '<button type="button" class="btn btn-sm btn-outline-primary btn-forecast-similar" data-id="' + escapeHtml(row.obat_id) + '" data-name="' + escapeHtml(row.obat_nama || '') + '">Obat Serupa</button>';
+        var favoriteButton = renderFavoriteButton(row);
+        var similarButton = '<button type="button" class="btn btn-sm btn-outline-primary btn-forecast-similar" data-id="' + escapeHtml(row.obat_id) + '" data-name="' + escapeHtml(row.obat_nama || '') + '">Obat Serupa</button>';
+
+        return '<div class="d-flex align-items-center justify-content-center flex-wrap" style="gap:8px;">' + favoriteButton + similarButton + '</div>';
     }
 
     function setSimilarObatLoading(isLoading) {
@@ -910,15 +905,6 @@
                     name: 'qty_pesan',
                     render: function(data, type, row) {
                         return renderForecastBoxSummary(row);
-                    }
-                },
-                {
-                    data: null,
-                    name: 'master_faktur_is_favorite',
-                    orderable: false,
-                    searchable: false,
-                    render: function(data, type, row) {
-                        return renderFavoriteButton(row);
                     }
                 },
                 {
