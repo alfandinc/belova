@@ -952,6 +952,13 @@
                     render: function(data, type, row) {
                         return renderSimilarActionButton(row);
                     }
+                },
+                {
+                    data: 'search_keywords',
+                    name: 'search_keywords',
+                    visible: false,
+                    searchable: true,
+                    orderable: false
                 }
             ]
         });

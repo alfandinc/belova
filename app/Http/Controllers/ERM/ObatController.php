@@ -612,6 +612,9 @@ class ObatController extends Controller
                 'is_generik' => $obat->is_generik,
                 'principal_names' => $principalNames,
                 'zat_aktif_names' => $zatAktifNames,
+                'search_keywords' => trim(implode(' ', array_filter(array_merge([
+                    $obat->nama,
+                ], $zatAktifNames)))),
                 'master_faktur_id' => $latestMasterFaktur?->id,
                 'master_faktur_notes' => $latestMasterFaktur?->notes,
                 'master_faktur_is_favorite' => (bool) ($latestMasterFaktur?->is_favorite ?? false),
