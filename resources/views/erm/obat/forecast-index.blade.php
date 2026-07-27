@@ -181,6 +181,47 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="forecastKeluarDetailModal" tabindex="-1" role="dialog" aria-labelledby="forecastKeluarDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="forecastKeluarDetailModalLabel">Detail Forecast Keluar</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="forecastKeluarDetailLoadingState" class="text-center py-4 d-none">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <div class="mt-2 text-muted">Memuat detail visitation...</div>
+                    </div>
+                    <div id="forecastKeluarDetailContent">
+                        <div class="mb-3">
+                            <h5 class="mb-1" id="forecastKeluarDetailObatName">-</h5>
+                            <small class="text-muted d-block" id="forecastKeluarDetailPeriodInfo">-</small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm mb-0" id="forecastKeluarDetailTable">
+                                <thead>
+                                    <tr>
+                                        <th>Visitation</th>
+                                        <th>Tanggal Visit</th>
+                                        <th>Pasien</th>
+                                        <th>Jumlah</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -245,6 +286,10 @@
         margin-top: 6px;
     }
 
+    .forecast-keluar-row {
+        cursor: pointer;
+    }
+
     #similarObatTable td:nth-child(2),
     #similarObatTable td:nth-child(3),
     #similarObatTable th:nth-child(2),
@@ -284,6 +329,13 @@
         text-align: center;
         white-space: nowrap;
         width: 90px;
+    }
+
+    #forecastKeluarDetailTable td:last-child,
+    #forecastKeluarDetailTable th:last-child {
+        text-align: right;
+        white-space: nowrap;
+        width: 100px;
     }
 
     @media (max-width: 991.98px) {
@@ -437,6 +489,11 @@
         $('#forecastKeluarContent').toggleClass('d-none', isLoading);
     }
 
+    function setForecastKeluarDetailLoading(isLoading) {
+        $('#forecastKeluarDetailLoadingState').toggleClass('d-none', !isLoading);
+        $('#forecastKeluarDetailContent').toggleClass('d-none', isLoading);
+    }
+
     function formatForecastDate(value) {
         if (!value) {
             return '-';
@@ -548,6 +605,53 @@
         });
     }
 
+    function renderForecastKeluarDetailRows(rows) {
+        var html = '';
+
+        if (!rows || !rows.length) {
+            html = '<tr><td colspan="4" class="text-center text-muted">Tidak ada visitation pada periode ini.</td></tr>';
+            $('#forecastKeluarDetailTable tbody').html(html);
+            return;
+        }
+
+        rows.forEach(function(row) {
+            html += '<tr>' +
+                '<td>' + escapeHtml(row.visitation_id || '-') + '</td>' +
+                '<td>' + escapeHtml(formatForecastDate(row.tanggal_visitation)) + '</td>' +
+                '<td>' + escapeHtml(row.pasien_nama || '-') + '</td>' +
+                '<td>' + formatForecastNumber(row.jumlah) + '</td>' +
+                '</tr>';
+        });
+
+        $('#forecastKeluarDetailTable tbody').html(html);
+    }
+
+    function loadForecastKeluarDetail(obatId) {
+        setForecastKeluarDetailLoading(true);
+        $('#forecastKeluarDetailTable tbody').html('');
+
+        $.ajax({
+            url: '/erm/obat/forecast-keluar/' + obatId + '/detail',
+            type: 'GET',
+            data: {
+                period: $('#forecast_keluar_period').val()
+            },
+            success: function(response) {
+                $('#forecastKeluarDetailObatName').text(response.obat_nama || '-');
+                $('#forecastKeluarDetailPeriodInfo').text('Periode ' + response.period_start + ' s/d ' + response.period_end + ' (' + response.period_label + ')');
+                renderForecastKeluarDetailRows(response.rows || []);
+                $('#forecastKeluarDetailModal').modal('show');
+            },
+            error: function(xhr) {
+                var message = xhr.responseJSON?.message || 'Gagal memuat detail forecast keluar.';
+                alert(message);
+            },
+            complete: function() {
+                setForecastKeluarDetailLoading(false);
+            }
+        });
+    }
+
     function renderForecastKeluarRows(rows) {
         var sortedRows = (rows || []).slice().sort(function(a, b) {
             if (Number(a.dibutuhkan || 0) !== Number(b.dibutuhkan || 0)) {
@@ -574,6 +678,9 @@
             info: true,
             autoWidth: false,
             order: [],
+            createdRow: function(row) {
+                $(row).addClass('forecast-keluar-row');
+            },
             language: {
                 search: 'Cari Obat:',
                 emptyTable: 'Tidak ada data obat keluar pada periode ini.',
@@ -773,6 +880,19 @@
         $(document).on('click', '.btn-forecast-similar', function() {
             var obatId = $(this).data('id');
             loadSimilarObats(obatId);
+        });
+
+        $('#forecastKeluarTable tbody').on('click', 'tr', function() {
+            if (!forecastKeluarTable) {
+                return;
+            }
+
+            var rowData = forecastKeluarTable.row(this).data();
+            if (!rowData || !rowData.obat_id) {
+                return;
+            }
+
+            loadForecastKeluarDetail(rowData.obat_id);
         });
 
         $('#forecast_keluar_period').on('change', function() {

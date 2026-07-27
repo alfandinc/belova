@@ -299,6 +299,43 @@ class ObatController extends Controller
         return view('erm.obat.forecast-index');
     }
 
+    private function resolveForecastKeluarPeriod(string $period): array
+    {
+        $today = Carbon::today();
+
+        switch ($period) {
+            case 'week':
+                return [
+                    'period' => 'week',
+                    'start' => $today->copy()->startOfDay(),
+                    'end' => $today->copy()->endOfWeek()->endOfDay(),
+                    'label' => 'Hari ini s/d akhir minggu',
+                ];
+            case 'month':
+                return [
+                    'period' => 'month',
+                    'start' => $today->copy()->startOfDay(),
+                    'end' => $today->copy()->endOfMonth()->endOfDay(),
+                    'label' => 'Hari ini s/d akhir bulan',
+                ];
+            case 'next_month':
+                return [
+                    'period' => 'next_month',
+                    'start' => $today->copy()->startOfDay(),
+                    'end' => $today->copy()->addMonthNoOverflow()->endOfMonth()->endOfDay(),
+                    'label' => 'Hari ini s/d akhir bulan depan',
+                ];
+            case 'today':
+            default:
+                return [
+                    'period' => 'today',
+                    'start' => $today->copy()->startOfDay(),
+                    'end' => $today->copy()->endOfDay(),
+                    'label' => 'Hari ini',
+                ];
+        }
+    }
+
     public function similarObats($id)
     {
         $obat = Obat::withInactive()
@@ -382,33 +419,11 @@ class ObatController extends Controller
 
     public function forecastKeluar(Request $request)
     {
-        $period = (string) $request->input('period', 'today');
-        $today = Carbon::today();
-
-        switch ($period) {
-            case 'week':
-                $periodStart = $today->copy()->startOfDay();
-                $periodEnd = $today->copy()->endOfWeek()->endOfDay();
-                $periodLabel = 'Hari ini s/d akhir minggu';
-                break;
-            case 'month':
-                $periodStart = $today->copy()->startOfDay();
-                $periodEnd = $today->copy()->endOfMonth()->endOfDay();
-                $periodLabel = 'Hari ini s/d akhir bulan';
-                break;
-            case 'next_month':
-                $periodStart = $today->copy()->startOfDay();
-                $periodEnd = $today->copy()->addMonthNoOverflow()->endOfMonth()->endOfDay();
-                $periodLabel = 'Hari ini s/d akhir bulan depan';
-                break;
-            case 'today':
-            default:
-                $period = 'today';
-                $periodStart = $today->copy()->startOfDay();
-                $periodEnd = $today->copy()->endOfDay();
-                $periodLabel = 'Hari ini';
-                break;
-        }
+        $periodConfig = $this->resolveForecastKeluarPeriod((string) $request->input('period', 'today'));
+        $period = $periodConfig['period'];
+        $periodStart = $periodConfig['start'];
+        $periodEnd = $periodConfig['end'];
+        $periodLabel = $periodConfig['label'];
 
         $rawRows = DB::table('erm_resepfarmasi as rf')
             ->join('erm_visitations as v', 'rf.visitation_id', '=', 'v.id')
@@ -460,6 +475,46 @@ class ObatController extends Controller
         return response()->json([
             'period' => $period,
             'period_label' => $periodLabel,
+            'period_start' => $periodStart->format('Y-m-d'),
+            'period_end' => $periodEnd->format('Y-m-d'),
+            'rows' => $rows,
+        ]);
+    }
+
+    public function forecastKeluarDetail(Request $request, $id)
+    {
+        $periodConfig = $this->resolveForecastKeluarPeriod((string) $request->input('period', 'today'));
+        $periodStart = $periodConfig['start'];
+        $periodEnd = $periodConfig['end'];
+
+        $obat = Obat::withInactive()->findOrFail($id, ['id', 'nama']);
+
+        $rows = \App\Models\ERM\ResepFarmasi::query()
+            ->with(['visitation.pasien'])
+            ->where('obat_id', $obat->id)
+            ->whereHas('visitation', function ($query) use ($periodStart, $periodEnd) {
+                $query->whereBetween('tanggal_visitation', [
+                    $periodStart->toDateString(),
+                    $periodEnd->toDateString(),
+                ]);
+            })
+            ->get()
+            ->map(function ($resep) {
+                return [
+                    'visitation_id' => $resep->visitation_id,
+                    'tanggal_visitation' => optional($resep->visitation)->tanggal_visitation,
+                    'pasien_nama' => optional(optional($resep->visitation)->pasien)->nama ?? '-',
+                    'jumlah' => round((float) ($resep->jumlah ?? 0), 2),
+                ];
+            })
+            ->sortByDesc('tanggal_visitation')
+            ->values();
+
+        return response()->json([
+            'obat_id' => $obat->id,
+            'obat_nama' => $obat->nama,
+            'period' => $periodConfig['period'],
+            'period_label' => $periodConfig['label'],
             'period_start' => $periodStart->format('Y-m-d'),
             'period_end' => $periodEnd->format('Y-m-d'),
             'rows' => $rows,
