@@ -81,9 +81,7 @@
                                         <th>Obat Keluar</th>
                                         <th>Rata-rata Keluar / Bulan</th>
                                         <th>Limit Stok</th>
-                                        <th>QTY Pesan</th>
-                                        <th>Isi per Box</th>
-                                        <th>Jumlah Pesan Box</th>
+                                        <th>Pesan / Box</th>
                                         <th>Aksi</th>
                                     </tr>
                                 </thead>
@@ -255,6 +253,17 @@
         gap: 6px;
     }
 
+    .forecast-box-summary {
+        text-align: right;
+        line-height: 1.35;
+    }
+
+    .forecast-box-summary small {
+        display: block;
+        color: #6c757d;
+        font-size: 12px;
+    }
+
     .badge-principal-forecast {
         background-color: #17a2b8;
         color: #fff;
@@ -317,15 +326,11 @@
     #forecastTable td:nth-child(4),
     #forecastTable td:nth-child(5),
     #forecastTable td:nth-child(6),
-    #forecastTable td:nth-child(7),
-    #forecastTable td:nth-child(8),
     #forecastTable th:nth-child(2),
     #forecastTable th:nth-child(3),
     #forecastTable th:nth-child(4),
     #forecastTable th:nth-child(5),
-    #forecastTable th:nth-child(6),
-    #forecastTable th:nth-child(7),
-    #forecastTable th:nth-child(8) {
+    #forecastTable th:nth-child(6) {
         text-align: right;
     }
 
@@ -532,6 +537,18 @@
         }
 
         return nameHtml + '<div class="forecast-obat-meta">' + badges.join('') + '</div>';
+    }
+
+    function renderForecastBoxSummary(row) {
+        var qtyPesan = row && row.qty_pesan !== null && row.qty_pesan !== undefined ? formatForecastNumber(row.qty_pesan) : '-';
+        var isiPerBox = row && row.isi_per_box !== null && row.isi_per_box !== undefined ? formatForecastNumber(row.isi_per_box) : '-';
+        var jumlahPesanBox = row && row.jumlah_pesan_box !== null && row.jumlah_pesan_box !== undefined ? formatForecastNumber(row.jumlah_pesan_box) : '-';
+
+        return '<div class="forecast-box-summary">'
+            + '<div>' + qtyPesan + '</div>'
+            + '<small>Isi/box: ' + isiPerBox + '</small>'
+            + '<small>Pesan box: ' + jumlahPesanBox + '</small>'
+            + '</div>';
     }
 
     function renderSimilarActionButton(row) {
@@ -837,24 +854,10 @@
                     }
                 },
                 {
-                    data: 'qty_pesan',
+                    data: null,
                     name: 'qty_pesan',
-                    render: function(data) {
-                        return formatForecastNumber(data);
-                    }
-                },
-                {
-                    data: 'isi_per_box',
-                    name: 'isi_per_box',
-                    render: function(data) {
-                        return data === null ? '-' : formatForecastNumber(data);
-                    }
-                },
-                {
-                    data: 'jumlah_pesan_box',
-                    name: 'jumlah_pesan_box',
-                    render: function(data) {
-                        return data === null ? '-' : formatForecastNumber(data);
+                    render: function(data, type, row) {
+                        return renderForecastBoxSummary(row);
                     }
                 },
                 {
