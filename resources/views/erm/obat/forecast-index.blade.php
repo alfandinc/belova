@@ -128,7 +128,6 @@
                                     <tr>
                                         <th>Nama Obat</th>
                                         <th>Dibutuhkan</th>
-                                        <th>Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -280,12 +279,80 @@
     }
 
     #forecastKeluarTable td:last-child,
-    #forecastKeluarTable th:last-child,
     #forecastTable td:last-child,
     #forecastTable th:last-child {
         text-align: center;
         white-space: nowrap;
         width: 90px;
+    }
+
+    @media (max-width: 991.98px) {
+        .forecast-sidebar-header {
+            min-height: 0;
+        }
+
+        .forecast-sidebar-header,
+        .container-fluid > .d-flex {
+            flex-direction: column;
+            align-items: stretch !important;
+        }
+
+        .container-fluid > .d-flex > div:last-child,
+        .container-fluid > .d-flex .btn {
+            width: 100%;
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        #forecastTable,
+        #forecastKeluarTable,
+        #similarObatTable {
+            font-size: 0.9rem;
+        }
+
+        .dataTables_wrapper .dataTables_filter,
+        .dataTables_wrapper .dataTables_info,
+        .dataTables_wrapper .dataTables_paginate {
+            float: none;
+            text-align: left;
+            margin-top: .5rem;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            width: 100%;
+            margin-left: 0;
+            margin-top: .35rem;
+        }
+
+        .btn-forecast-similar {
+            width: 100%;
+            margin-top: 0;
+        }
+
+        #similarObatTable td:nth-child(2),
+        #similarObatTable td:nth-child(3),
+        #similarObatTable th:nth-child(2),
+        #similarObatTable th:nth-child(3) {
+            width: auto;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .breadcrumb {
+            margin-bottom: .75rem !important;
+        }
+
+        .forecast-obat-meta {
+            gap: 4px;
+        }
+
+        #forecastTable,
+        #forecastKeluarTable,
+        #similarObatTable {
+            font-size: 0.85rem;
+        }
     }
 </style>
 <script>
@@ -531,15 +598,6 @@
                     name: 'dibutuhkan',
                     render: function(data) {
                         return formatForecastNumber(data);
-                    }
-                },
-                {
-                    data: null,
-                    name: 'action',
-                    orderable: false,
-                    searchable: false,
-                    render: function(data, type, row) {
-                        return renderSimilarActionButton(row);
                     }
                 }
             ]
