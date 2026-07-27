@@ -667,7 +667,10 @@
                 $('#similarObatName').text(response.obat_nama || 'Obat Serupa');
                 $('#similarObatSharedZatAktif').html(renderBadgeList(response.shared_zat_aktif || [], 'badge badge-zat-aktif'));
                 $('#similarObatSelectedPrices').html(
-                    'Harga Beli: <strong>' + formatRupiah(response.harga_beli) + '</strong> | Harga Jual: <strong>' + formatRupiah(response.harga_jual) + '</strong>'
+                    'Total Stok: <strong>' + formatForecastNumber(response.total_stock) + '</strong>'
+                    + ' | Isi/Box: <strong>' + (response.isi_per_box === null || response.isi_per_box === undefined ? '-' : formatForecastNumber(response.isi_per_box)) + '</strong>'
+                    + ' | Harga Beli: <strong>' + formatRupiah(response.harga_beli) + '</strong>'
+                    + ' | Harga Jual: <strong>' + formatRupiah(response.harga_jual) + '</strong>'
                 );
 
                 if (response.message) {

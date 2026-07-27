@@ -346,12 +346,22 @@ class ObatController extends Controller
             ->sortByDesc('id')
             ->first();
 
+        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
+            ->groupBy('obat_id')
+            ->pluck('total_stock', 'obat_id');
+
         $zatAktifIds = $obat->zatAktifs->pluck('id')->filter()->values();
 
         if ($zatAktifIds->isEmpty()) {
             return response()->json([
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
+                'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
+                'isi_per_box' => $selectedMasterFaktur ? round((float) ($selectedMasterFaktur->qty_per_box ?? 0), 2) : null,
                 'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
                 'harga_jual' => $obat->harga_nonfornas,
                 'shared_zat_aktif' => [],
@@ -366,14 +376,6 @@ class ObatController extends Controller
             ->unique()
             ->values()
             ->all();
-
-        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
-            ->whereHas('gudang', function ($query) {
-                $query->where('nama', '!=', 'Gudang ED');
-            })
-            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
-            ->groupBy('obat_id')
-            ->pluck('total_stock', 'obat_id');
 
         $rows = Obat::query()
             ->with(['zatAktifs', 'masterFakturs.principal'])
@@ -420,6 +422,8 @@ class ObatController extends Controller
         return response()->json([
             'obat_id' => $obat->id,
             'obat_nama' => $obat->nama,
+            'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
+            'isi_per_box' => $selectedMasterFaktur ? round((float) ($selectedMasterFaktur->qty_per_box ?? 0), 2) : null,
             'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
             'harga_jual' => $obat->harga_nonfornas,
             'shared_zat_aktif' => $sharedZatAktif,
