@@ -380,8 +380,6 @@ class BillingController extends Controller
                 ->findOrFail($request->query('visitation_id'));
 
             abort_if((int) ($visitation->jenis_kunjungan ?? 0) !== 4, 404);
-            abort_if((string) ($visitation->pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT, 404);
-            abort_if((string) ($visitation->pasien->referral_detail ?? '') !== (string) $event->kode_event, 404);
         }
 
         return view('finance.billing.create', array_merge(
@@ -632,16 +630,42 @@ class BillingController extends Controller
 
         $visitation->loadMissing('pasien');
 
-        if ((string) ($visitation->pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT) {
+        if ((string) ($visitation->pasien->referral_type ?? '') === Pasien::REFERRAL_TYPE_EVENT) {
+            $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
+            if ($eventCode !== '') {
+                $event = MarketingEvent::with('promos:id,name,start_date,end_date')->where('kode_event', $eventCode)->first();
+                if ($event) {
+                    return $event;
+                }
+            }
+        }
+
+        $visitationDate = !empty($visitation->tanggal_visitation)
+            ? Carbon::parse($visitation->tanggal_visitation)->toDateString()
+            : null;
+
+        if (!$visitationDate || empty($visitation->klinik_id)) {
             return null;
         }
 
-        $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
-        if ($eventCode === '') {
-            return null;
-        }
+        $matchedEvents = MarketingEvent::with('promos:id,name,start_date,end_date')
+            ->where('status', 'aktif')
+            ->where('klinik_id', $visitation->klinik_id)
+            ->where(function ($query) use ($visitationDate) {
+                $query->where(function ($rangeQuery) use ($visitationDate) {
+                    $rangeQuery->whereNotNull('tanggal_mulai')
+                        ->whereNotNull('tanggal_selesai')
+                        ->whereDate('tanggal_mulai', '<=', $visitationDate)
+                        ->whereDate('tanggal_selesai', '>=', $visitationDate);
+                })->orWhere(function ($openEndedQuery) use ($visitationDate) {
+                    $openEndedQuery->whereNotNull('tanggal_mulai')
+                        ->whereNull('tanggal_selesai')
+                        ->whereDate('tanggal_mulai', '<=', $visitationDate);
+                });
+            })
+            ->get();
 
-        return MarketingEvent::with('promos:id,name,start_date,end_date')->where('kode_event', $eventCode)->first();
+        return $matchedEvents->count() === 1 ? $matchedEvents->first() : null;
     }
 
     private function getEventPromoItemMap(MarketingEvent $event): array
@@ -751,12 +775,30 @@ class BillingController extends Controller
         abort_if($event->status !== 'aktif', 404);
 
         $data = $request->validate([
-            'nama' => 'required|string|max:255',
-            'no_hp' => 'required|string|max:15',
-            'gender' => 'required|in:Laki-laki,Perempuan',
+            'patient_mode' => 'required|in:new,existing',
+            'pasien_id' => 'nullable|string|exists:erm_pasiens,id',
+            'nama' => 'nullable|string|max:255',
+            'no_hp' => 'nullable|string|max:15',
+            'gender' => 'nullable|in:Laki-laki,Perempuan',
             'tanggal_lahir' => 'nullable|date',
             'alamat' => 'nullable|string',
         ]);
+
+        $patientMode = (string) ($data['patient_mode'] ?? 'new');
+        if ($patientMode === 'existing' && empty($data['pasien_id'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pilih pasien lama terlebih dahulu.',
+            ], 422);
+        }
+
+        if ($patientMode === 'new') {
+            validator($data, [
+                'nama' => 'required|string|max:255',
+                'no_hp' => 'required|string|max:15',
+                'gender' => 'required|in:Laki-laki,Perempuan',
+            ])->validate();
+        }
 
         if (!$event->klinik_id) {
             return response()->json([
@@ -768,26 +810,30 @@ class BillingController extends Controller
         DB::beginTransaction();
 
         try {
-            $lastPasienId = DB::table('erm_pasiens')
-                ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
-                ->lockForUpdate()
-                ->value('max_id');
+            if ($patientMode === 'existing') {
+                $pasien = Pasien::findOrFail($data['pasien_id']);
+            } else {
+                $lastPasienId = DB::table('erm_pasiens')
+                    ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
+                    ->lockForUpdate()
+                    ->value('max_id');
 
-            $newPasienId = $lastPasienId ? str_pad((int) $lastPasienId + 1, 6, '0', STR_PAD_LEFT) : '000001';
-            $pasien = Pasien::create([
-                'id' => $newPasienId,
-                'identity_document' => 'ktp',
-                'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
-                'referral_detail' => $event->kode_event,
-                'nama' => $data['nama'],
-                'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
-                'gender' => $data['gender'],
-                'alamat' => isset($data['alamat']) ? trim((string) $data['alamat']) : null,
-                'no_hp' => $data['no_hp'],
-                'status_pasien' => 'Regular',
-                'status_akses' => 'normal',
-                'user_id' => Auth::id(),
-            ]);
+                $newPasienId = $lastPasienId ? str_pad((int) $lastPasienId + 1, 6, '0', STR_PAD_LEFT) : '000001';
+                $pasien = Pasien::create([
+                    'id' => $newPasienId,
+                    'identity_document' => 'ktp',
+                    'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
+                    'referral_detail' => $event->kode_event,
+                    'nama' => $data['nama'],
+                    'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
+                    'gender' => $data['gender'],
+                    'alamat' => isset($data['alamat']) ? trim((string) $data['alamat']) : null,
+                    'no_hp' => $data['no_hp'],
+                    'status_pasien' => 'Regular',
+                    'status_akses' => 'normal',
+                    'user_id' => Auth::id(),
+                ]);
+            }
 
             $visitationId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
             $now = Carbon::now();

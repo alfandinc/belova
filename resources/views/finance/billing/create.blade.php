@@ -245,6 +245,17 @@
                     @if($isEventBilling && !$hasVisitation)
                     <div class="row">
                         <div class="col-12">
+                            <ul class="nav nav-tabs event-patient-tabs mb-3" id="eventPatientTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="event-patient-new-tab" data-toggle="tab" href="#event-patient-new-pane" role="tab" aria-controls="event-patient-new-pane" aria-selected="true">Pasien Baru</a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="event-patient-existing-tab" data-toggle="tab" href="#event-patient-existing-pane" role="tab" aria-controls="event-patient-existing-pane" aria-selected="false">Pasien Lama</a>
+                                </li>
+                            </ul>
+                            <input type="hidden" id="event_patient_mode" value="new">
+                            <div class="tab-content" id="eventPatientTabsContent">
+                                <div class="tab-pane fade show active" id="event-patient-new-pane" role="tabpanel" aria-labelledby="event-patient-new-tab">
                             <div class="form-row align-items-end event-patient-row">
                                 <div class="form-group col-md-4 event-patient-field">
                                     <label for="event_pasien_nama"><strong>Nama Pasien</strong></label>
@@ -273,6 +284,22 @@
                                     <button id="createEventBillingBtn" type="button" class="btn btn-primary event-create-billing-btn">
                                         <i class="fas fa-user-plus mr-1"></i> Create Billing
                                     </button>
+                                </div>
+                            </div>
+                                </div>
+                                <div class="tab-pane fade" id="event-patient-existing-pane" role="tabpanel" aria-labelledby="event-patient-existing-tab">
+                                    <div class="form-row align-items-end event-patient-row">
+                                        <div class="form-group col-md-10 event-patient-field">
+                                            <label for="event_existing_pasien_id"><strong>Pilih Pasien Lama</strong></label>
+                                            <select id="event_existing_pasien_id" class="form-control"></select>
+                                        </div>
+                                        <div class="form-group col-md-2 event-patient-field event-patient-action">
+                                            <label class="event-patient-action-label" aria-hidden="true">&nbsp;</label>
+                                            <button id="createExistingEventBillingBtn" type="button" class="btn btn-primary event-create-billing-btn">
+                                                <i class="fas fa-user-plus mr-1"></i> Create Billing
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1363,6 +1390,32 @@
         updatePaymentActionButtons($('#payment_method').val() || 'piutang');
         $('.select2').select2({ width: '100%' });
         applyBillingLockUi();
+
+        if ($('#event_existing_pasien_id').length) {
+            $('#event_existing_pasien_id').select2({
+                width: '100%',
+                placeholder: 'Cari pasien lama...',
+                ajax: {
+                    url: '{{ route('erm.pasiens.select2') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return { q: params.term };
+                    },
+                    processResults: function(data) {
+                        return data && data.results ? data : { results: [] };
+                    }
+                },
+                minimumInputLength: 1
+            });
+        }
+
+        $('a[data-toggle="tab"][href="#event-patient-new-pane"]').on('shown.bs.tab', function() {
+            $('#event_patient_mode').val('new');
+        });
+        $('a[data-toggle="tab"][href="#event-patient-existing-pane"]').on('shown.bs.tab', function() {
+            $('#event_patient_mode').val('existing');
+        });
 
             // Initialize header badge state from server-provided invoice (if any)
             try {
@@ -4084,6 +4137,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 type: 'POST',
                 data: {
                     _token: '{{ csrf_token() }}',
+                    patient_mode: 'new',
                     nama: nama,
                     no_hp: noHp,
                     gender: gender
@@ -4098,6 +4152,44 @@ $('#saveAllChangesBtn').on('click', function() {
                 },
                 error: function(xhr) {
                     showReadableAjaxError('Gagal Membuat Billing Event', xhr, 'Terjadi kesalahan saat membuat pasien event:');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false);
+                }
+            });
+        });
+
+        $('#createExistingEventBillingBtn').on('click', function() {
+            const startUrl = window.billingPage && window.billingPage.eventStartUrl ? window.billingPage.eventStartUrl : null;
+            const pasienId = ($('#event_existing_pasien_id').val() || '').toString().trim();
+            if (!startUrl) return;
+
+            if (!pasienId) {
+                Swal.fire({ title: 'Info', text: 'Pilih pasien lama terlebih dahulu.', icon: 'info' });
+                return;
+            }
+
+            const $btn = $(this);
+            $btn.prop('disabled', true);
+
+            $.ajax({
+                url: startUrl,
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    patient_mode: 'existing',
+                    pasien_id: pasienId
+                },
+                success: function(response) {
+                    if (response && response.redirect_url) {
+                        window.location.href = response.redirect_url;
+                        return;
+                    }
+
+                    Swal.fire({ title: 'Error', text: 'Redirect billing tidak tersedia.', icon: 'error' });
+                },
+                error: function(xhr) {
+                    showReadableAjaxError('Gagal Membuat Billing Event', xhr, 'Terjadi kesalahan saat membuat kunjungan pasien lama:');
                 },
                 complete: function() {
                     $btn.prop('disabled', false);

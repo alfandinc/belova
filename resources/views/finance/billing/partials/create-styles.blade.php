@@ -43,6 +43,9 @@
     .event-patient-row {
         margin-bottom: -0.5rem;
     }
+    .event-patient-tabs .nav-link {
+        font-weight: 600;
+    }
     .event-patient-field {
         display: flex;
         flex-direction: column;
