@@ -349,6 +349,35 @@ class ObatController extends Controller
         }
     }
 
+    private function buildForecastKeluarSourceVisitationQuery(Carbon $periodStart, Carbon $periodEnd)
+    {
+        return DB::table('erm_visitations as target_visit')
+            ->select(
+                'target_visit.id as target_visitation_id',
+                'target_visit.pasien_id',
+                'target_visit.tanggal_visitation as target_tanggal_visitation'
+            )
+            ->selectSub(function ($query) {
+                $query->from('erm_visitations as previous_visit')
+                    ->select('previous_visit.id')
+                    ->whereColumn('previous_visit.pasien_id', 'target_visit.pasien_id')
+                    ->whereColumn('previous_visit.tanggal_visitation', '<', 'target_visit.tanggal_visitation')
+                    ->whereExists(function ($resepQuery) {
+                        $resepQuery->select(DB::raw(1))
+                            ->from('erm_resepfarmasi as source_resep')
+                            ->whereColumn('source_resep.visitation_id', 'previous_visit.id');
+                    })
+                    ->orderByDesc('previous_visit.tanggal_visitation')
+                    ->orderByDesc('previous_visit.id')
+                    ->limit(1);
+            }, 'source_visitation_id')
+            ->whereNotNull('target_visit.pasien_id')
+            ->whereBetween('target_visit.tanggal_visitation', [
+                $periodStart->toDateString(),
+                $periodEnd->toDateString(),
+            ]);
+    }
+
     public function similarObats($id)
     {
         $obat = Obat::withInactive()
@@ -452,21 +481,21 @@ class ObatController extends Controller
         $periodEnd = $periodConfig['end'];
         $periodLabel = $periodConfig['label'];
 
-        $rawRows = DB::table('erm_resepfarmasi as rf')
-            ->join('erm_visitations as v', 'rf.visitation_id', '=', 'v.id')
+        $sourceVisitations = $this->buildForecastKeluarSourceVisitationQuery($periodStart, $periodEnd);
+
+        $rawRows = DB::query()
+            ->fromSub($sourceVisitations, 'fv')
+            ->join('erm_resepfarmasi as rf', 'fv.source_visitation_id', '=', 'rf.visitation_id')
             ->join('erm_obat as o', 'rf.obat_id', '=', 'o.id')
             ->select(
                 'rf.obat_id',
                 'o.nama as obat_nama',
                 DB::raw('SUM(COALESCE(rf.jumlah, 0)) as total_keluar'),
                 DB::raw('COUNT(rf.id) as jumlah_resep'),
-                DB::raw('COUNT(DISTINCT rf.visitation_id) as jumlah_kunjungan'),
-                DB::raw('MAX(v.tanggal_visitation) as tanggal_terakhir')
+                DB::raw('COUNT(DISTINCT fv.target_visitation_id) as jumlah_kunjungan'),
+                DB::raw('MAX(fv.target_tanggal_visitation) as tanggal_terakhir')
             )
-            ->whereBetween('v.tanggal_visitation', [
-                $periodStart->toDateString(),
-                $periodEnd->toDateString(),
-            ])
+            ->whereNotNull('fv.source_visitation_id')
             ->groupBy('rf.obat_id', 'o.nama')
             ->orderByDesc('total_keluar')
             ->orderBy('o.nama')
@@ -516,21 +545,40 @@ class ObatController extends Controller
 
         $obat = Obat::withInactive()->findOrFail($id, ['id', 'nama']);
 
-        $rows = \App\Models\ERM\ResepFarmasi::query()
-            ->with(['visitation.pasien'])
-            ->where('obat_id', $obat->id)
-            ->whereHas('visitation', function ($query) use ($periodStart, $periodEnd) {
-                $query->whereBetween('tanggal_visitation', [
-                    $periodStart->toDateString(),
-                    $periodEnd->toDateString(),
-                ]);
-            })
+        $sourceVisitations = $this->buildForecastKeluarSourceVisitationQuery($periodStart, $periodEnd);
+
+        $rows = DB::query()
+            ->fromSub($sourceVisitations, 'fv')
+            ->join('erm_resepfarmasi as rf', 'fv.source_visitation_id', '=', 'rf.visitation_id')
+            ->join('erm_visitations as target_visit', 'fv.target_visitation_id', '=', 'target_visit.id')
+            ->leftJoin('erm_visitations as source_visit', 'fv.source_visitation_id', '=', 'source_visit.id')
+            ->leftJoin('erm_pasiens as p', 'target_visit.pasien_id', '=', 'p.id')
+            ->where('rf.obat_id', $obat->id)
+            ->whereNotNull('fv.source_visitation_id')
+            ->select(
+                'fv.target_visitation_id as visitation_id',
+                'fv.target_tanggal_visitation as tanggal_visitation',
+                'p.nama as pasien_nama',
+                'fv.source_visitation_id',
+                'source_visit.tanggal_visitation as source_tanggal_visitation',
+                DB::raw('SUM(COALESCE(rf.jumlah, 0)) as jumlah')
+            )
+            ->groupBy(
+                'fv.target_visitation_id',
+                'fv.target_tanggal_visitation',
+                'p.nama',
+                'fv.source_visitation_id',
+                'source_visit.tanggal_visitation'
+            )
+            ->orderByDesc('fv.target_tanggal_visitation')
             ->get()
             ->map(function ($resep) {
                 return [
                     'visitation_id' => $resep->visitation_id,
-                    'tanggal_visitation' => optional($resep->visitation)->tanggal_visitation,
-                    'pasien_nama' => optional(optional($resep->visitation)->pasien)->nama ?? '-',
+                    'tanggal_visitation' => $resep->tanggal_visitation,
+                    'pasien_nama' => $resep->pasien_nama ?? '-',
+                    'source_visitation_id' => $resep->source_visitation_id,
+                    'source_tanggal_visitation' => $resep->source_tanggal_visitation,
                     'jumlah' => round((float) ($resep->jumlah ?? 0), 2),
                 ];
             })
