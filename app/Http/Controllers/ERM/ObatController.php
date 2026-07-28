@@ -585,7 +585,7 @@ class ObatController extends Controller
         $obats = Obat::query()
             ->with(['masterFakturs.principal', 'zatAktifs'])
             ->orderBy('nama')
-            ->get(['id', 'nama', 'is_generik']);
+            ->get(['id', 'nama', 'is_generik', 'is_favorite']);
 
         $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat) {
             $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
