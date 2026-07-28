@@ -875,8 +875,7 @@
         if (forecastTable) {
             forecastTable.clear();
             forecastTable.rows.add(sortedRows);
-            forecastTable.search('');
-            forecastTable.draw();
+            forecastTable.draw(false);
             return;
         }
 
@@ -963,6 +962,25 @@
         });
     }
 
+    function updateForecastFavoriteState(obatId, isFavorite) {
+        if (!forecastTable || !obatId) {
+            return;
+        }
+
+        forecastTable.rows().every(function() {
+            var rowData = this.data();
+
+            if (!rowData || String(rowData.obat_id) !== String(obatId)) {
+                return;
+            }
+
+            rowData.is_favorite = isFavorite;
+            this.data(rowData);
+        });
+
+        forecastTable.draw(false);
+    }
+
     function loadForecastData() {
         setForecastLoading(true);
 
@@ -997,10 +1015,17 @@
 
         $(document).on('click', '.btn-obat-favorite', function() {
             var obatId = $(this).data('id');
+            var $button = $(this);
 
             if (!obatId) {
                 return;
             }
+
+            if ($button.prop('disabled')) {
+                return;
+            }
+
+            $button.prop('disabled', true);
 
             $.ajax({
                 url: '/erm/obat/' + obatId + '/toggle-favorite',
@@ -1008,12 +1033,15 @@
                 data: {
                     _token: '{{ csrf_token() }}'
                 },
-                success: function() {
-                    loadForecastData();
+                success: function(response) {
+                    updateForecastFavoriteState(obatId, !!response.is_favorite);
                 },
                 error: function(xhr) {
                     var message = xhr.responseJSON?.message || 'Gagal mengubah favorite obat.';
                     alert(message);
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
                 }
             });
         });
