@@ -128,6 +128,7 @@
                                     <tr>
                                         <th>Nama Obat</th>
                                         <th>Dibutuhkan</th>
+                                        <th>Total Stok</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -809,6 +810,13 @@
                 {
                     data: 'dibutuhkan',
                     name: 'dibutuhkan',
+                    render: function(data) {
+                        return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: 'total_stock',
+                    name: 'total_stock',
                     render: function(data) {
                         return formatForecastNumber(data);
                     }

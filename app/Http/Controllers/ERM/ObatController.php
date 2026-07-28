@@ -502,25 +502,36 @@ class ObatController extends Controller
             ->get();
 
         $obatIds = $rawRows->pluck('obat_id')->filter()->unique()->values();
+        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->whereIn('obat_id', $obatIds)
+            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
+            ->groupBy('obat_id')
+            ->pluck('total_stock', 'obat_id');
+
         $obatMeta = Obat::withoutGlobalScope('active')
             ->with(['masterFakturs.principal'])
             ->whereIn('id', $obatIds)
             ->get(['id', 'is_generik'])
             ->keyBy('id');
 
-        $rows = $rawRows->map(function ($row) use ($obatMeta) {
+        $rows = $rawRows->map(function ($row) use ($obatMeta, $stockPerObat) {
             $obat = $obatMeta->get($row->obat_id);
             $principalNames = $obat
                 ? $obat->masterFakturs->pluck('principal.nama')->filter()->unique()->values()->all()
                 : [];
 
             $isGenerik = $obat ? $obat->is_generik : null;
+            $totalStock = (float) ($stockPerObat[$row->obat_id] ?? 0);
 
             return [
                 'obat_id' => $row->obat_id,
                 'obat_nama' => $row->obat_nama,
                 'is_generik' => $isGenerik,
                 'principal_names' => $principalNames,
+                'total_stock' => round($totalStock, 2),
                 'dibutuhkan' => round((float) $row->total_keluar, 2),
                 'jumlah_resep' => (int) $row->jumlah_resep,
                 'jumlah_kunjungan' => (int) $row->jumlah_kunjungan,
