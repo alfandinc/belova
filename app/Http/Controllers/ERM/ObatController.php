@@ -930,19 +930,29 @@ class ObatController extends Controller
 
     public function search(Request $request)
     {
-        $query = $request->get('q');
+        $query = trim((string) $request->get('q'));
         $metodeBayarId = $request->get('metode_bayar_id');
         $visitationId = $request->get('visitation_id');
+        $searchTerms = $this->buildObatSearchTerms($query);
+        $relatedZatAktifIds = $this->findRelatedZatAktifIds($searchTerms);
 
         // Search by obat name, dosis, satuan, or zat aktif name, and filter by metode_bayar_id if provided
         $obatsQuery = Obat::where('status_aktif', 1)
-            ->where(function($q) use ($query) {
-                $q->where('nama', 'LIKE', "%{$query}%")
-                  ->orWhere('dosis', 'LIKE', "%{$query}%")
-                  ->orWhere('satuan', 'LIKE', "%{$query}%")
-                  ->orWhereHas('zatAktifs', function($z) use ($query) {
-                      $z->where('nama', 'LIKE', "%{$query}%");
-                  });
+            ->where(function($q) use ($searchTerms, $relatedZatAktifIds) {
+                foreach ($searchTerms as $term) {
+                    $q->orWhere('nama', 'LIKE', "%{$term}%")
+                      ->orWhere('dosis', 'LIKE', "%{$term}%")
+                      ->orWhere('satuan', 'LIKE', "%{$term}%")
+                      ->orWhereHas('zatAktifs', function($z) use ($term) {
+                          $z->where('nama', 'LIKE', "%{$term}%");
+                      });
+                }
+
+                if (!empty($relatedZatAktifIds)) {
+                    $q->orWhereHas('zatAktifs', function ($z) use ($relatedZatAktifIds) {
+                        $z->whereIn('erm_zataktif.id', $relatedZatAktifIds);
+                    });
+                }
             });
         // If visitation_id provided, exclude obat that contain any zat aktif the patient is allergic to
         if ($visitationId) {
@@ -1001,15 +1011,94 @@ class ObatController extends Controller
                 'id' => $obat->id,
                 'text' => $text,
                 'nama' => $obat->nama,
+                'zat_aktif' => $zatAktifNames,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
                 // Use gudang stock as the authoritative 'stok' for frontend checks
                 'stok' => $stokGudang,
                 'stok_gudang' => $stokGudang,
                 'harga_nonfornas' => $obat->harga_nonfornas,
+                'harga_nonfornas_formatted' => $obat->harga_nonfornas !== null
+                    ? 'Rp ' . number_format((float) $obat->harga_nonfornas, 0, ',', '.')
+                    : null,
             ];
         })->values();
         return response()->json(['results' => $results]);
+    }
+
+    private function buildObatSearchTerms(string $query): array
+    {
+        if ($query === '') {
+            return [''];
+        }
+
+        $normalized = Str::lower($query);
+
+        return collect([
+            $query,
+            $normalized,
+            $this->normalizeObatSearchTerm($normalized),
+            Str::endsWith($normalized, 'in') ? $normalized . 'e' : null,
+            Str::endsWith($normalized, 'ine') ? substr($normalized, 0, -1) : null,
+        ])
+            ->filter(fn ($term) => filled($term))
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function findRelatedZatAktifIds(array $searchTerms): array
+    {
+        if (empty($searchTerms)) {
+            return [];
+        }
+
+        $matchedObatIds = Obat::query()
+            ->where(function ($query) use ($searchTerms) {
+                foreach ($searchTerms as $term) {
+                    $query->orWhere('nama', 'LIKE', "%{$term}%")
+                        ->orWhere('dosis', 'LIKE', "%{$term}%")
+                        ->orWhere('satuan', 'LIKE', "%{$term}%");
+                }
+            })
+            ->pluck('id');
+
+        $zatAktifIds = ZatAktif::query()
+            ->where(function ($query) use ($searchTerms) {
+                foreach ($searchTerms as $term) {
+                    $query->orWhere('nama', 'LIKE', "%{$term}%");
+                }
+            })
+            ->pluck('id');
+
+        if ($matchedObatIds->isNotEmpty()) {
+            $obatZatAktifIds = DB::table('erm_kandungan_obat')
+                ->whereIn('obat_id', $matchedObatIds)
+                ->pluck('zataktif_id');
+
+            $zatAktifIds = $zatAktifIds->merge($obatZatAktifIds);
+        }
+
+        return $zatAktifIds
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function normalizeObatSearchTerm(string $term): string
+    {
+        $normalized = str_replace(['ph', 'y'], ['f', 'i'], $term);
+
+        if (Str::endsWith($normalized, 'ine')) {
+            return substr($normalized, 0, -1);
+        }
+
+        if (Str::endsWith($normalized, 'in')) {
+            return $normalized . 'e';
+        }
+
+        return $normalized;
     }
 
     public function destroy($id)

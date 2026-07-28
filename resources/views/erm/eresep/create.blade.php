@@ -424,6 +424,76 @@
         setInterval(checkOnce, 5000);
     }
 
+    function formatHargaNonFornas(value) {
+        const numericValue = Number(value);
+
+        if (!Number.isFinite(numericValue) || numericValue <= 0) {
+            return 'Harga non fornas belum diatur';
+        }
+
+        return `Harga Non Fornas: Rp ${new Intl.NumberFormat('id-ID').format(numericValue)}`;
+    }
+
+    function escapeObatMarkup(value) {
+        return $('<div>').text(value || '').html();
+    }
+
+    function mapObatSearchResults(data) {
+        const items = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
+
+        return {
+            results: items.map(function(item) {
+                const text = item.text || [item.nama, item.dosis, item.satuan].filter(Boolean).join(' ');
+
+                return {
+                    id: item.id,
+                    text: text,
+                    nama: item.nama,
+                    zat_aktif: item.zat_aktif || '',
+                    dosis: item.dosis,
+                    satuan: item.satuan,
+                    stok: item.stok,
+                    stok_gudang: item.stok_gudang,
+                    harga_nonfornas: item.harga_nonfornas,
+                    harga_nonfornas_formatted: item.harga_nonfornas_formatted || formatHargaNonFornas(item.harga_nonfornas)
+                };
+            })
+        };
+    }
+
+    function renderObatOption(item) {
+        if (!item.id) {
+            return item.text || '';
+        }
+
+        const secondaryText = item.harga_nonfornas_formatted || formatHargaNonFornas(item.harga_nonfornas);
+
+        return `${escapeObatMarkup(item.text)} - ${escapeObatMarkup(secondaryText)}`;
+    }
+
+    function renderObatSelection(item) {
+        if (!item.id) {
+            return item.text || '';
+        }
+
+        const secondaryText = item.harga_nonfornas_formatted || formatHargaNonFornas(item.harga_nonfornas);
+
+        return `${item.text} | ${secondaryText}`;
+    }
+
+    function getObatSearchParams(params, includeMetodeBayar) {
+        const payload = {
+            q: params.term || '',
+            visitation_id: $('#visitation_id').val()
+        };
+
+        if (includeMetodeBayar) {
+            payload.metode_bayar_id = {{ $visitation->metode_bayar_id ?? 'null' }};
+        }
+
+        return payload;
+    }
+
         // MODAL HTML for editing dosis
         const editObatModalHtml = `
         <div class="modal fade" id="editObatModal" tabindex="-1" role="dialog" aria-labelledby="editObatModalLabel" aria-hidden="true">
@@ -550,48 +620,21 @@
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    // Get metode_bayar_id from visitation (from blade or JS variable)
-                    var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
-                    return {
-                        q: params.term,
-                        metode_bayar_id: metodeBayarId,
-                        visitation_id: $('#visitation_id').val()
-                    };
+                    return getObatSearchParams(params, true);
                 },
                 processResults: function (data) {
-                    // If your endpoint returns {results: [...]}, use that
-                    if (Array.isArray(data.results)) {
-                        return {
-                            results: data.results.map(function(item) {
-                                return {
-                                    id: item.id,
-                                    text: item.text,
-                                    nama: item.nama,
-                                    dosis: item.dosis,
-                                    satuan: item.satuan,
-                                    stok: item.stok,
-                                    harga_nonfornas: item.harga_nonfornas
-                                };
-                            })
-                        };
-                    } else {
-                        // fallback for array response
-                        return {
-                            results: data.map(function(item) {
-                                return {
-                                    id: item.id,
-                                    text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
-                                    nama: item.nama,
-                                    dosis: item.dosis,
-                                    satuan: item.satuan,
-                                    stok: item.stok,
-                                    harga_nonfornas: item.harga_nonfornas
-                                };
-                            })
-                        };
-                    }
+                    return mapObatSearchResults(data);
                 },
                 cache: true
+            },
+            escapeMarkup: function (markup) {
+                return markup;
+            },
+            templateResult: function (data) {
+                return renderObatOption(data);
+            },
+            templateSelection: function (data) {
+                return renderObatSelection(data);
             }
         });
 
@@ -973,49 +1016,21 @@
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
-                        return {
-                            q: params.term,
-                            metode_bayar_id: metodeBayarId,
-                            visitation_id: $('#visitation_id').val()
-                        };
+                        return getObatSearchParams(params, true);
                     },
                     processResults: function (data) {
-                        // Ensure zat aktif and stok_gudang are shown in dropdown
-                        if (Array.isArray(data.results)) {
-                            return {
-                                results: data.results.map(function(item) {
-                                    return {
-                                        id: item.id,
-                                        text: item.text,
-                                        nama: item.nama,
-                                        dosis: item.dosis,
-                                        satuan: item.satuan,
-                                        stok: item.stok,
-                                        stok_gudang: item.stok_gudang,
-                                        harga_nonfornas: item.harga_nonfornas
-                                    };
-                                })
-                            };
-                        } else {
-                            return {
-                                results: data.map(function(item) {
-                                    var zatAktif = item.zat_aktif ? ' [' + item.zat_aktif + ']' : '';
-                                    return {
-                                        id: item.id,
-                                        text: item.nama + zatAktif + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
-                                        nama: item.nama,
-                                        dosis: item.dosis,
-                                        satuan: item.satuan,
-                                        stok: item.stok,
-                                        stok_gudang: item.stok_gudang,
-                                        harga_nonfornas: item.harga_nonfornas
-                                    };
-                                })
-                            };
-                        }
+                        return mapObatSearchResults(data);
                     },
                     cache: true
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                templateResult: function (data) {
+                    return renderObatOption(data);
+                },
+                templateSelection: function (data) {
+                    return renderObatSelection(data);
                 },
                 minimumInputLength: 3
             });
@@ -2643,43 +2658,10 @@
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return {
-                            q: params.term || '',
-                            visitation_id: $('#visitation_id').val()
-                        };
+                        return getObatSearchParams(params, false);
                     },
                     processResults: function (data) {
-                        // If your endpoint returns {results: [...]}, use that
-                        if (Array.isArray(data.results)) {
-                            return {
-                                results: data.results.map(function(item) {
-                                    return {
-                                        id: item.id,
-                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
-                                        nama: item.nama,
-                                        dosis: item.dosis,
-                                        satuan: item.satuan,
-                                        harga_nonfornas: item.harga_nonfornas,
-                                        stok: item.stok
-                                    };
-                                })
-                            };
-                        } else {
-                            // fallback for array response
-                            return {
-                                results: data.map(function(item) {
-                                    return {
-                                        id: item.id,
-                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
-                                        nama: item.nama,
-                                        dosis: item.dosis,
-                                        satuan: item.satuan,
-                                        harga_nonfornas: item.harga_nonfornas,
-                                        stok: item.stok
-                                    };
-                                })
-                            };
-                        }
+                        return mapObatSearchResults(data);
                     },
                     cache: true
                 },
@@ -2687,10 +2669,10 @@
                     return markup;
                 },
                 templateResult: function (data) {
-                    return data.text;
+                    return renderObatOption(data);
                 },
                 templateSelection: function (data) {
-                    return data.text;
+                    return renderObatSelection(data);
                 }
             });
         }
