@@ -556,29 +556,30 @@ class ObatController extends Controller
             ->where('rf.obat_id', $obat->id)
             ->whereNotNull('fv.source_visitation_id')
             ->select(
-                'fv.target_visitation_id as visitation_id',
-                'fv.target_tanggal_visitation as tanggal_visitation',
+                'fv.target_visitation_id',
+                'fv.target_tanggal_visitation',
                 'p.nama as pasien_nama',
-                'fv.source_visitation_id',
-                'source_visit.tanggal_visitation as source_tanggal_visitation',
+                'fv.source_visitation_id as visitation_id',
+                'source_visit.tanggal_visitation as tanggal_visitation',
                 DB::raw('SUM(COALESCE(rf.jumlah, 0)) as jumlah')
             )
             ->groupBy(
+                'p.nama',
                 'fv.target_visitation_id',
                 'fv.target_tanggal_visitation',
-                'p.nama',
                 'fv.source_visitation_id',
                 'source_visit.tanggal_visitation'
             )
-            ->orderByDesc('fv.target_tanggal_visitation')
+            ->orderByDesc('source_visit.tanggal_visitation')
+            ->orderByDesc('fv.source_visitation_id')
             ->get()
             ->map(function ($resep) {
                 return [
                     'visitation_id' => $resep->visitation_id,
                     'tanggal_visitation' => $resep->tanggal_visitation,
                     'pasien_nama' => $resep->pasien_nama ?? '-',
-                    'source_visitation_id' => $resep->source_visitation_id,
-                    'source_tanggal_visitation' => $resep->source_tanggal_visitation,
+                    'target_visitation_id' => $resep->target_visitation_id,
+                    'target_tanggal_visitation' => $resep->target_tanggal_visitation,
                     'jumlah' => round((float) ($resep->jumlah ?? 0), 2),
                 ];
             })
