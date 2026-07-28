@@ -55,7 +55,6 @@
                 <th>Harga</th>
                 <th>Qty/Box</th>
                 <th>Diskon</th>
-                <th>Favorite</th>
                 <th>Notes</th>
                 <th>Action</th>
             </tr>
@@ -138,10 +137,6 @@
                     <label>Notes</label>
                     <textarea name="notes" class="form-control" id="mf_notes" rows="3" placeholder="Catatan master faktur"></textarea>
                 </div>
-                <div class="form-group form-check mb-3">
-                    <input type="checkbox" class="form-check-input" id="mf_is_favorite" name="is_favorite" value="1">
-                    <label class="form-check-label" for="mf_is_favorite">Is Favorite</label>
-                </div>
                 <button type="submit" class="btn btn-primary">Simpan</button>
             </form>
           </div>
@@ -216,13 +211,6 @@ $(document).ready(function() {
                     } else {
                         return 'Rp ' + parseFloat(row.diskon).toLocaleString('id-ID', {minimumFractionDigits: 0});
                     }
-                }
-            },
-            {
-                data: 'is_favorite',
-                name: 'is_favorite',
-                render: function(data) {
-                    return data ? '<span class="text-warning"><i class="fas fa-star"></i></span>' : '<span class="text-muted"><i class="far fa-star"></i></span>';
                 }
             },
             {
@@ -392,7 +380,6 @@ $(document).ready(function() {
             $('#mf_diskon').val(data.diskon);
             $('#mf_diskon_type').val(data.diskon_type);
             $('#mf_notes').val(data.notes || '');
-            $('#mf_is_favorite').prop('checked', !!data.is_favorite);
             $('#masterFakturModal').modal('show');
         });
     });

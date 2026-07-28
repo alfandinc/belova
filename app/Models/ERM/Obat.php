@@ -66,10 +66,12 @@ class Obat extends Model
         'hpp',
         'hpp_jual',
         'is_generik',
+        'is_favorite',
     ];
     
     protected $casts = [
         'is_generik' => 'boolean',
+        'is_favorite' => 'boolean',
     ];
     /**
      * The "booted" method of the model.

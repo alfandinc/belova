@@ -56,7 +56,6 @@ class MasterFakturController extends Controller
             'diskon' => $masterFaktur->diskon,
             'diskon_type' => $masterFaktur->diskon_type,
             'notes' => $masterFaktur->notes,
-            'is_favorite' => (bool) $masterFaktur->is_favorite,
         ]);
     }
     public function index()
@@ -117,7 +116,6 @@ class MasterFakturController extends Controller
                     'diskon' => $mf->diskon,
                     'diskon_type' => $mf->diskon_type,
                     'notes' => $mf->notes,
-                    'is_favorite' => (bool) $mf->is_favorite,
                     'action' => '<button class="btn btn-sm btn-info btn-edit-mf" data-id="'.$mf->id.'">Edit</button> '
                         .'<button class="btn btn-sm btn-danger deleteMasterFaktur" data-id="'.$mf->id.'">Delete</button>',
                 ];
@@ -148,7 +146,6 @@ class MasterFakturController extends Controller
             'diskon' => 'required|numeric',
             'diskon_type' => 'required|in:percent,nominal',
             'notes' => 'nullable|string',
-            'is_favorite' => 'nullable|boolean',
         ]);
 
         // Check for duplicate combination
@@ -173,7 +170,6 @@ class MasterFakturController extends Controller
             'diskon_type',
             'notes',
         ]);
-        $payload['is_favorite'] = $request->boolean('is_favorite');
 
         $mf = MasterFaktur::create($payload);
         if ($request->ajax()) {
@@ -201,7 +197,6 @@ class MasterFakturController extends Controller
             'diskon' => 'required|numeric',
             'diskon_type' => 'required|in:percent,nominal',
             'notes' => 'nullable|string',
-            'is_favorite' => 'nullable|boolean',
         ]);
         $masterFaktur = MasterFaktur::findOrFail($id);
         $payload = $request->only([
@@ -214,26 +209,12 @@ class MasterFakturController extends Controller
             'diskon_type',
             'notes',
         ]);
-        $payload['is_favorite'] = $request->boolean('is_favorite');
 
         $masterFaktur->update($payload);
         if ($request->ajax()) {
             return response()->json(['success' => true]);
         }
         return redirect()->route('erm.masterfaktur.index')->with('success', 'Master Faktur updated!');
-    }
-
-    public function toggleFavorite($id)
-    {
-        $masterFaktur = MasterFaktur::findOrFail($id);
-        $masterFaktur->is_favorite = ! $masterFaktur->is_favorite;
-        $masterFaktur->save();
-
-        return response()->json([
-            'success' => true,
-            'id' => $masterFaktur->id,
-            'is_favorite' => (bool) $masterFaktur->is_favorite,
-        ]);
     }
 
     public function destroy($id)

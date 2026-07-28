@@ -20,11 +20,6 @@ class MasterFaktur extends Model
         'diskon',
         'diskon_type',
         'notes',
-        'is_favorite',
-    ];
-
-    protected $casts = [
-        'is_favorite' => 'boolean',
     ];
 
     public function obat()

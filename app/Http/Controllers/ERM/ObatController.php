@@ -299,6 +299,19 @@ class ObatController extends Controller
         return view('erm.obat.forecast-index');
     }
 
+    public function toggleFavorite($id)
+    {
+        $obat = Obat::findOrFail($id);
+        $obat->is_favorite = ! $obat->is_favorite;
+        $obat->save();
+
+        return response()->json([
+            'success' => true,
+            'id' => $obat->id,
+            'is_favorite' => (bool) $obat->is_favorite,
+        ]);
+    }
+
     private function resolveForecastKeluarPeriod(string $period): array
     {
         $today = Carbon::today();
@@ -615,9 +628,8 @@ class ObatController extends Controller
                 'search_keywords' => trim(implode(' ', array_filter(array_merge([
                     $obat->nama,
                 ], $zatAktifNames)))),
-                'master_faktur_id' => $latestMasterFaktur?->id,
+                'is_favorite' => (bool) $obat->is_favorite,
                 'master_faktur_notes' => $latestMasterFaktur?->notes,
-                'master_faktur_is_favorite' => (bool) ($latestMasterFaktur?->is_favorite ?? false),
                 'total_stock' => round($totalStock, 2),
                 'obat_keluar' => round($obatKeluar, 2),
                 'average_monthly_keluar' => $averageMonthlyKeluar,

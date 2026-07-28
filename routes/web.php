@@ -892,7 +892,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('permintaan/{id}/reject', [App\Http\Controllers\ERM\PermintaanController::class, 'reject'])->name('erm.permintaan.reject');
     Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur');
     Route::get('masterfaktur-data', [App\Http\Controllers\ERM\MasterFakturController::class, 'data'])->name('erm.masterfaktur.data');
-    Route::patch('masterfaktur/{id}/toggle-favorite', [App\Http\Controllers\ERM\MasterFakturController::class, 'toggleFavorite'])->name('erm.masterfaktur.toggle-favorite');
 
     // AJAX form for create/edit modal
     Route::get('masterfaktur/form/{id?}', [App\Http\Controllers\ERM\MasterFakturController::class, 'form'])->name('erm.masterfaktur.form');
@@ -1145,6 +1144,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat/forecast-keluar/{id}/detail', [ObatController::class, 'forecastKeluarDetail'])->name('erm.obat.forecast-keluar.detail');
     Route::get('/obat/forecast-all', [ObatController::class, 'forecastAll'])->name('erm.obat.forecast-all');
     Route::get('/obat/{id}/similar', [ObatController::class, 'similarObats'])->name('erm.obat.similar');
+    Route::patch('/obat/{id}/toggle-favorite', [ObatController::class, 'toggleFavorite'])->name('erm.obat.toggle-favorite');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
     Route::get('/obat/{id}/forecast', [ObatController::class, 'forecast'])->name('erm.obat.forecast');

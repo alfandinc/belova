@@ -272,12 +272,11 @@
     }
 
     .forecast-box-summary small {
-        display: block;
         color: #6c757d;
         font-size: 12px;
     }
 
-    .btn-master-faktur-favorite {
+    .btn-obat-favorite {
         border: 0;
         background: transparent;
         padding: 0;
@@ -286,11 +285,11 @@
         line-height: 1;
     }
 
-    .btn-master-faktur-favorite.is-favorite {
+    .btn-obat-favorite.is-favorite {
         color: #f0ad4e;
     }
 
-    .btn-master-faktur-favorite:focus {
+    .btn-obat-favorite:focus {
         outline: none;
         box-shadow: none;
     }
@@ -605,16 +604,16 @@
     }
 
     function renderFavoriteButton(row) {
-        if (!row || !row.master_faktur_id) {
+        if (!row || !row.obat_id) {
             return '<span class="text-muted">-</span>';
         }
 
-        var isFavorite = row.master_faktur_is_favorite === true || row.master_faktur_is_favorite === 1 || String(row.master_faktur_is_favorite) === '1';
-        var className = 'btn-master-faktur-favorite' + (isFavorite ? ' is-favorite' : '');
+        var isFavorite = row.is_favorite === true || row.is_favorite === 1 || String(row.is_favorite) === '1';
+        var className = 'btn-obat-favorite' + (isFavorite ? ' is-favorite' : '');
         var iconClass = isFavorite ? 'fas fa-star' : 'far fa-star';
         var title = isFavorite ? 'Hapus favorite' : 'Jadikan favorite';
 
-        return '<button type="button" class="' + className + '" data-id="' + row.master_faktur_id + '" title="' + title + '">'
+        return '<button type="button" class="' + className + '" data-id="' + row.obat_id + '" title="' + title + '">'
             + '<i class="' + iconClass + '"></i>'
             + '</button>';
     }
@@ -996,15 +995,15 @@
             loadSimilarObats(obatId);
         });
 
-        $(document).on('click', '.btn-master-faktur-favorite', function() {
-            var masterFakturId = $(this).data('id');
+        $(document).on('click', '.btn-obat-favorite', function() {
+            var obatId = $(this).data('id');
 
-            if (!masterFakturId) {
+            if (!obatId) {
                 return;
             }
 
             $.ajax({
-                url: '/erm/masterfaktur/' + masterFakturId + '/toggle-favorite',
+                url: '/erm/obat/' + obatId + '/toggle-favorite',
                 type: 'PATCH',
                 data: {
                     _token: '{{ csrf_token() }}'
@@ -1013,7 +1012,7 @@
                     loadForecastData();
                 },
                 error: function(xhr) {
-                    var message = xhr.responseJSON?.message || 'Gagal mengubah favorite master faktur.';
+                    var message = xhr.responseJSON?.message || 'Gagal mengubah favorite obat.';
                     alert(message);
                 }
             });
