@@ -19,6 +19,114 @@ use Yajra\DataTables\Facades\DataTables;
 
 class ObatController extends Controller
 {
+    private function getCsvField(array $data, array $names)
+    {
+        foreach ($names as $name) {
+            if (isset($data[$name])) {
+                return trim((string) $data[$name]);
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeCsvDecimal($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $value = str_replace(["\xc2\xa0", ' '], '', $value);
+        $value = preg_replace('/[^0-9,.-]/', '', $value);
+
+        if ($value === '' || $value === '-' || $value === ',' || $value === '.') {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $value = ltrim($value, '-');
+
+        $lastComma = strrpos($value, ',');
+        $lastDot = strrpos($value, '.');
+        $decimalSeparator = null;
+
+        if ($lastComma !== false && $lastDot !== false) {
+            $decimalSeparator = $lastComma > $lastDot ? ',' : '.';
+        } elseif ($lastComma !== false) {
+            $digitsAfterComma = strlen($value) - $lastComma - 1;
+            $decimalSeparator = $digitsAfterComma > 0 && $digitsAfterComma <= 2 ? ',' : null;
+        } elseif ($lastDot !== false) {
+            $digitsAfterDot = strlen($value) - $lastDot - 1;
+            $decimalSeparator = $digitsAfterDot > 0 && $digitsAfterDot <= 2 ? '.' : null;
+        }
+
+        if ($decimalSeparator !== null) {
+            $parts = explode($decimalSeparator, $value);
+            $fraction = array_pop($parts);
+            $integer = implode('', $parts);
+            $integer = str_replace([',', '.'], '', $integer);
+            $normalized = $integer . '.' . preg_replace('/[^0-9]/', '', $fraction);
+        } else {
+            $normalized = str_replace([',', '.'], '', $value);
+        }
+
+        if ($negative) {
+            $normalized = '-' . $normalized;
+        }
+
+        return is_numeric($normalized) ? $normalized : null;
+    }
+
+    private function normalizeCsvBoolean($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        $normalized = strtolower($value);
+
+        if (in_array($normalized, ['1', 'true', 'yes', 'y', 'ya', 'aktif', 'generik'], true)) {
+            return 1;
+        }
+
+        if (in_array($normalized, ['0', 'false', 'no', 'n', 'tidak', 'non', 'non-generik'], true)) {
+            return 0;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    private function csvValueChanged($existing, $incoming, $numeric = false)
+    {
+        if ($incoming === null || $incoming === '') {
+            return false;
+        }
+
+        if ($numeric) {
+            if ($existing === null || $existing === '') {
+                return true;
+            }
+
+            return abs((float) $existing - (float) $incoming) > 0.00001;
+        }
+
+        return (string) $incoming !== (string) ($existing ?? '');
+    }
+
     /**
      * Update the specified Obat in storage.
      */
@@ -1173,15 +1281,7 @@ class ObatController extends Controller
                 if (count($row) === 0) continue;
                 $data = array_combine($header, $row);
 
-                // helper to fetch field case-insensitively
-                $get = function($names) use ($data) {
-                    foreach ($names as $n) {
-                        if (isset($data[$n])) return trim($data[$n]);
-                    }
-                    return null;
-                };
-
-                $id = $get(['ID','Id','id']);
+                $id = $this->getCsvField($data, ['ID', 'Id', 'id']);
                 if (!$id || !is_numeric($id)) continue;
 
                 $obat = Obat::withInactive()->find($id);
@@ -1191,21 +1291,39 @@ class ObatController extends Controller
                     'dosis' => $obat ? $obat->dosis : null,
                     'satuan' => $obat ? $obat->satuan : null,
                     'is_generik' => $obat ? $obat->is_generik : null,
+                    'hpp' => $obat ? $obat->hpp : null,
+                    'hna' => $obat ? $obat->hna : null,
                 ];
 
+                $isGenerik = $this->normalizeCsvBoolean($this->getCsvField($data, ['IsGenerik', 'is_generik', 'Is Generik', 'Generik', 'generik']));
                 $new = [
-                    'nama' => $get(['Nama','nama','NAME','Name']),
-                    'dosis' => $get(['Dosis','dosis']),
-                    'satuan' => $get(['Satuan','satuan']),
-                    'is_generik' => $get(['IsGenerik','is_generik','Is Generik','Generik','generik']),
+                    'nama' => $this->getCsvField($data, ['Nama', 'nama', 'NAME', 'Name']),
+                    'dosis' => $this->getCsvField($data, ['Dosis', 'dosis']),
+                    'satuan' => $this->getCsvField($data, ['Satuan', 'satuan']),
+                    'is_generik' => $isGenerik,
+                    'hpp' => $this->normalizeCsvDecimal($this->getCsvField($data, ['HPP', 'hpp'])),
+                    'hna' => $this->normalizeCsvDecimal($this->getCsvField($data, ['HNA', 'hna'])),
                 ];
 
                 $changes = false;
                 if ($obat) {
-                    foreach (['nama','dosis','satuan','is_generik'] as $f) {
-                        $nval = $new[$f];
-                        if ($nval !== null && trim((string)$nval) !== '' && (string)$nval !== (string)($existing[$f] ?? '')) {
-                            $changes = true; break;
+                    foreach (['nama', 'dosis', 'satuan'] as $field) {
+                        if ($this->csvValueChanged($existing[$field] ?? null, $new[$field] ?? null)) {
+                            $changes = true;
+                            break;
+                        }
+                    }
+
+                    if (!$changes && $this->csvValueChanged($existing['is_generik'] ?? null, $new['is_generik'] ?? null)) {
+                        $changes = true;
+                    }
+
+                    if (!$changes) {
+                        foreach (['hpp', 'hna'] as $field) {
+                            if ($this->csvValueChanged($existing[$field] ?? null, $new[$field] ?? null, true)) {
+                                $changes = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1257,32 +1375,22 @@ class ObatController extends Controller
                     $obat = Obat::withInactive()->find($id);
                     if (!$obat) { $notFound[] = $id; continue; }
 
-                    // helper to fetch field case-insensitively
-                    $getField = function($names) use ($data) {
-                        foreach ($names as $n) {
-                            if (isset($data[$n])) return trim($data[$n]);
-                        }
-                        return null;
-                    };
-
                     $up = [];
-                    $nama = $getField(['Nama','nama','NAME','Name']);
-                    $dosis = $getField(['Dosis','dosis']);
-                    $satuan = $getField(['Satuan','satuan']);
-                    $isGenerikRaw = $getField(['IsGenerik','is_generik','Is Generik','Generik','generik']);
+                    $nama = $this->getCsvField($data, ['Nama', 'nama', 'NAME', 'Name']);
+                    $dosis = $this->getCsvField($data, ['Dosis', 'dosis']);
+                    $satuan = $this->getCsvField($data, ['Satuan', 'satuan']);
+                    $isGenerik = $this->normalizeCsvBoolean($this->getCsvField($data, ['IsGenerik', 'is_generik', 'Is Generik', 'Generik', 'generik']));
+                    $hpp = $this->normalizeCsvDecimal($this->getCsvField($data, ['HPP', 'hpp']));
+                    $hna = $this->normalizeCsvDecimal($this->getCsvField($data, ['HNA', 'hna']));
 
                     if ($nama !== null && $nama !== '') $up['nama'] = $nama;
                     if ($dosis !== null && $dosis !== '') $up['dosis'] = $dosis;
                     if ($satuan !== null && $satuan !== '') $up['satuan'] = $satuan;
+                    if ($hpp !== null) $up['hpp'] = $hpp;
+                    if ($hna !== null) $up['hna'] = $hna;
 
-                    if ($isGenerikRaw !== null && $isGenerikRaw !== '') {
-                        $v = strtolower($isGenerikRaw);
-                        if (in_array($v, ['1','true','yes','y','ya','aktif','generik'], true)) $norm = 1;
-                        elseif (in_array($v, ['0','false','no','n','tidak','non','non-generik'], true)) $norm = 0;
-                        elseif (is_numeric($isGenerikRaw)) $norm = (int)$isGenerikRaw;
-                        else $norm = null;
-
-                        if ($norm !== null) $up['is_generik'] = $norm;
+                    if ($isGenerik !== null) {
+                        $up['is_generik'] = $isGenerik;
                     }
 
                     if (!empty($up)) {

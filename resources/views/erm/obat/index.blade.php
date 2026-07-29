@@ -6,6 +6,25 @@
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<style>
+    #importCsvModal .modal-dialog {
+        max-width: 95vw;
+    }
+
+    #importCsvModal .modal-content {
+        max-height: 90vh;
+    }
+
+    #importCsvModal .modal-body {
+        overflow-y: auto;
+    }
+
+    #importPreviewArea {
+        max-height: 60vh;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+</style>
 <div class="container-fluid">
         @if(session('success'))
             <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -342,7 +361,7 @@
 
                         <!-- Modal: Import CSV -->
                         <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-xl" role="document">
+                            <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
                                 <div class="modal-content">
                                     <div class="modal-header">
                                         <h5 class="modal-title" id="importCsvModalLabel">Import CSV - Update Obat by ID</h5>
@@ -353,12 +372,12 @@
                                     <form id="importCsvForm" enctype="multipart/form-data" onsubmit="return false;">
                                         @csrf
                                         <div class="modal-body">
-                                            <p class="small text-muted">File must be CSV with header containing at least <strong>ID</strong>. Other columns supported: <strong>Nama</strong>, <strong>Dosis</strong>, <strong>Satuan</strong>, <strong>Generik</strong> (values: 1/0, yes/no, true/false).</p>
+                                            <p class="small text-muted">File must be CSV with header containing at least <strong>ID</strong>. Other columns supported: <strong>Nama</strong>, <strong>Dosis</strong>, <strong>Satuan</strong>, <strong>Generik</strong>, <strong>HPP</strong>, and <strong>HNA</strong>. Decimal values may use <strong>1.234,56</strong> or <strong>1234.56</strong>.</p>
                                             <div class="form-group">
                                                 <label for="csv_file">Pilih file CSV</label>
                                                 <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" class="form-control-file" required>
                                             </div>
-                                            <div id="importPreviewArea" style="display:none; max-height:60vh; overflow:auto; margin-top:12px;"></div>
+                                            <div id="importPreviewArea" style="display:none; margin-top:12px;"></div>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -1107,7 +1126,7 @@
                 return;
             }
             var html = '<div class="mb-2"><strong>Preview ('+rows.length+' baris)</strong></div>';
-            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th><th>Generik (Lama)</th><th>Generik (Baru)</th></tr></thead><tbody>';
+            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th><th>Generik (Lama)</th><th>Generik (Baru)</th><th>HPP (Lama)</th><th>HPP (Baru)</th><th>HNA (Lama)</th><th>HNA (Baru)</th></tr></thead><tbody>';
             rows.forEach(function(r){
                 var rowClass = r.found ? '' : 'table-secondary';
                 html += '<tr class="'+rowClass+'">';
@@ -1134,6 +1153,16 @@
                 var genChanged = r.found && newG !== '' && String(newG) !== String(existingG);
                 var newGHtml = genChanged ? '<span class="badge badge-warning">'+labelGen(newG)+'</span>' : labelGen(newG);
                 html += '<td>'+ labelGen(existingG) +'</td><td>'+ newGHtml +'</td>';
+
+                ['hpp', 'hna'].forEach(function(f){
+                    var existing = (r.existing && r.existing[f] !== undefined && r.existing[f] !== null) ? r.existing[f] : '';
+                    var ne = (r.new && r.new[f] !== undefined && r.new[f] !== null) ? r.new[f] : '';
+                    var existingNumber = existing === '' ? null : parseFloat(existing);
+                    var newNumber = ne === '' ? null : parseFloat(ne);
+                    var changed = r.found && newNumber !== null && (existingNumber === null || Math.abs(existingNumber - newNumber) > 0.00001);
+                    var newHtml = changed ? '<span class="badge badge-warning">'+escapeHtml(ne)+'</span>' : escapeHtml(ne);
+                    html += '<td>'+ escapeHtml(existing) +'</td><td>'+ newHtml +'</td>';
+                });
                 html += '</tr>';
             });
             html += '</tbody></table></div>';
