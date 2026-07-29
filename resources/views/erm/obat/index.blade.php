@@ -7,22 +7,32 @@
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
-    #importCsvModal .modal-dialog {
-        max-width: 95vw;
-    }
-
-    #importCsvModal .modal-content {
-        max-height: 90vh;
-    }
-
-    #importCsvModal .modal-body {
-        overflow-y: auto;
-    }
-
     #importPreviewArea {
+        display: none;
+        margin-top: 12px;
+    }
+
+    #importPreviewArea .csv-preview-scroll {
         max-height: 60vh;
         overflow: auto;
+        cursor: grab;
         -webkit-overflow-scrolling: touch;
+    }
+
+    #importPreviewArea .csv-preview-scroll.is-dragging {
+        cursor: grabbing;
+        user-select: none;
+    }
+
+    #importPreviewArea table {
+        min-width: 1400px;
+    }
+
+    #importPreviewArea thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f8f9fa;
     }
 </style>
 <div class="container-fluid">
@@ -361,7 +371,7 @@
 
                         <!-- Modal: Import CSV -->
                         <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+                            <div class="modal-dialog modal-xl" role="document">
                                 <div class="modal-content">
                                     <div class="modal-header">
                                         <h5 class="modal-title" id="importCsvModalLabel">Import CSV - Update Obat by ID</h5>
@@ -377,7 +387,7 @@
                                                 <label for="csv_file">Pilih file CSV</label>
                                                 <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" class="form-control-file" required>
                                             </div>
-                                            <div id="importPreviewArea" style="display:none; margin-top:12px;"></div>
+                                            <div id="importPreviewArea"></div>
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -1068,6 +1078,56 @@
 </script>
 
 <script>
+    function enablePreviewDragScroll() {
+        var container = document.querySelector('#importPreviewArea .csv-preview-scroll');
+        if (!container || container.dataset.dragReady === '1') {
+            return;
+        }
+
+        container.dataset.dragReady = '1';
+
+        var isDown = false;
+        var startX = 0;
+        var startY = 0;
+        var scrollLeft = 0;
+        var scrollTop = 0;
+
+        container.addEventListener('mousedown', function (event) {
+            if (event.target.closest('button, a, input, select, textarea, label')) {
+                return;
+            }
+
+            isDown = true;
+            container.classList.add('is-dragging');
+            startX = event.pageX - container.offsetLeft;
+            startY = event.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            scrollTop = container.scrollTop;
+        });
+
+        container.addEventListener('mouseleave', function () {
+            isDown = false;
+            container.classList.remove('is-dragging');
+        });
+
+        container.addEventListener('mouseup', function () {
+            isDown = false;
+            container.classList.remove('is-dragging');
+        });
+
+        container.addEventListener('mousemove', function (event) {
+            if (!isDown) {
+                return;
+            }
+
+            event.preventDefault();
+            var x = event.pageX - container.offsetLeft;
+            var y = event.pageY - container.offsetTop;
+            container.scrollLeft = scrollLeft - (x - startX);
+            container.scrollTop = scrollTop - (y - startY);
+        });
+    }
+
     // Global fallback functions for CSV preview/import (exposed so onclick attributes work)
     window.previewCsvAction = window.previewCsvAction || function(){
         try {
@@ -1126,7 +1186,8 @@
                 return;
             }
             var html = '<div class="mb-2"><strong>Preview ('+rows.length+' baris)</strong></div>';
-            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th><th>Generik (Lama)</th><th>Generik (Baru)</th><th>HPP (Lama)</th><th>HPP (Baru)</th><th>HNA (Lama)</th><th>HNA (Baru)</th></tr></thead><tbody>';
+            html += '<div class="small text-muted mb-2">Geser tabel ke kiri/kanan dengan scrollbar atau drag pada area tabel.</div>';
+            html += '<div class="table-responsive csv-preview-scroll"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th><th>Generik (Lama)</th><th>Generik (Baru)</th><th>HPP (Lama)</th><th>HPP (Baru)</th><th>HNA (Lama)</th><th>HNA (Baru)</th></tr></thead><tbody>';
             rows.forEach(function(r){
                 var rowClass = r.found ? '' : 'table-secondary';
                 html += '<tr class="'+rowClass+'">';
@@ -1167,6 +1228,7 @@
             });
             html += '</tbody></table></div>';
             $('#importPreviewArea').html(html).show();
+            enablePreviewDragScroll();
             var anyApply = rows.some(function(r){ return r.found && r.changes; });
             $('#btnConfirmImport').prop('disabled', !anyApply);
         }catch(e){ console.error(e); $('#importPreviewArea').html('<div class="alert alert-danger">Gagal menampilkan preview.</div>'); }

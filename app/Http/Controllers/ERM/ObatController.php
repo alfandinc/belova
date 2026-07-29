@@ -54,15 +54,15 @@ class ObatController extends Controller
         $lastComma = strrpos($value, ',');
         $lastDot = strrpos($value, '.');
         $decimalSeparator = null;
+        $commaCount = substr_count($value, ',');
+        $dotCount = substr_count($value, '.');
 
         if ($lastComma !== false && $lastDot !== false) {
             $decimalSeparator = $lastComma > $lastDot ? ',' : '.';
         } elseif ($lastComma !== false) {
-            $digitsAfterComma = strlen($value) - $lastComma - 1;
-            $decimalSeparator = $digitsAfterComma > 0 && $digitsAfterComma <= 2 ? ',' : null;
+            $decimalSeparator = $commaCount === 1 ? ',' : null;
         } elseif ($lastDot !== false) {
-            $digitsAfterDot = strlen($value) - $lastDot - 1;
-            $decimalSeparator = $digitsAfterDot > 0 && $digitsAfterDot <= 2 ? '.' : null;
+            $decimalSeparator = $dotCount === 1 ? '.' : null;
         }
 
         if ($decimalSeparator !== null) {
