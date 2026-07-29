@@ -80,6 +80,23 @@
     </div>
 </div>
 
+<style>
+    .kpi-star-rating {
+        display: inline-block;
+    }
+
+    .kpi-star-rating .star {
+        font-size: 22px;
+        color: #ddd;
+        cursor: pointer;
+        padding: 0 4px;
+    }
+
+    .kpi-star-rating .star.selected {
+        color: #f5b301;
+    }
+</style>
+
 <script>
     (function(){
         function initStars($container){
