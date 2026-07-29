@@ -15,6 +15,25 @@ class MasterFakturController extends Controller
 {
     public function exportExcel(Request $request)
     {
+        return $this->downloadExport($request);
+    }
+
+    protected function buildFilteredQuery(Request $request)
+    {
+        return MasterFaktur::with(['obat', 'pemasok', 'principal'])
+            ->when($request->filled('obat_id'), function ($query) use ($request) {
+                $query->where('obat_id', $request->input('obat_id'));
+            })
+            ->when($request->filled('pemasok_id'), function ($query) use ($request) {
+                $query->where('pemasok_id', $request->input('pemasok_id'));
+            })
+            ->when($request->filled('principal_id'), function ($query) use ($request) {
+                $query->where('principal_id', $request->input('principal_id'));
+            });
+    }
+
+    protected function downloadExport(Request $request)
+    {
         $principalId = $request->filled('principal_id') ? (int) $request->input('principal_id') : null;
         $principalName = 'semua-principal';
 
@@ -96,19 +115,11 @@ class MasterFakturController extends Controller
 
     public function data(Request $request)
     {
-            $query = MasterFaktur::with(['obat', 'pemasok', 'principal']);
-            // Filter by obat_id
-            if ($request->filled('obat_id')) {
-                $query->where('obat_id', $request->input('obat_id'));
+            if ($request->input('export') === 'excel') {
+                return $this->downloadExport($request);
             }
-            // Filter by pemasok_id
-            if ($request->filled('pemasok_id')) {
-                $query->where('pemasok_id', $request->input('pemasok_id'));
-            }
-            // Filter by principal_id
-            if ($request->filled('principal_id')) {
-                $query->where('principal_id', $request->input('principal_id'));
-            }
+
+            $query = $this->buildFilteredQuery($request);
             $total = $query->count();
             // DataTables server-side params
             $start = $request->input('start', 0);

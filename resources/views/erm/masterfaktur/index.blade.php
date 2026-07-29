@@ -328,7 +328,7 @@ $(document).ready(function() {
                 return;
             }
 
-            var exportUrl = '{{ route('erm.masterfaktur.export-excel') }}?principal_id=' + encodeURIComponent(principalId);
+            var exportUrl = '{{ route('erm.masterfaktur.data') }}?export=excel&principal_id=' + encodeURIComponent(principalId);
 
             window.location.href = exportUrl;
         });
