@@ -23,8 +23,8 @@
                 <div class="card-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle mr-2"></i>
-                        <strong>Informasi:</strong> Setiap tipe transaksi (Resep/Tindakan) hanya boleh memiliki satu mapping aktif. 
-                        Mapping aktif akan digunakan sebagai default gudang untuk pengurangan stok.
+                        <strong>Informasi:</strong> Setiap kombinasi tipe transaksi dan scope hanya boleh memiliki satu mapping aktif.
+                        Mapping dapat dibuat global, per spesialisasi, atau khusus untuk Event Billing global.
                     </div>
                     
                     <div class="table-responsive">
@@ -90,6 +90,24 @@
                                     <option value="{{ $s->id }}">{{ $s->nama }}</option>
                                 @endforeach
                             @endisset
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="secondaryEntityType">Scope Tambahan (opsional)</label>
+                        <select class="form-control" id="secondaryEntityType" name="secondary_entity_type">
+                            <option value="">-- Tidak ada scope tambahan --</option>
+                            <option value="billing_context">Konteks Billing</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="secondaryEntitySelectorWrapper" style="display:none;">
+                        <label for="secondaryEntityId">Pilih Konteks Billing</label>
+                        <select class="form-control" id="secondaryEntityId" name="secondary_entity_id">
+                            <option value="">-- Pilih Konteks Billing --</option>
+                            @foreach($billingContexts as $key => $label)
+                                <option value="{{ $key }}">{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
                     
@@ -194,6 +212,8 @@ $(document).ready(function() {
         $('#mappingModalLabel').text('Tambah Mapping Gudang');
         $('#mappingForm')[0].reset();
         $('#mappingId').val('');
+        $('#entitySelectorWrapper').hide();
+        $('#secondaryEntitySelectorWrapper').hide();
     });
 
     // Edit mapping function
@@ -216,6 +236,16 @@ $(document).ready(function() {
                 $('#entityType').val('');
                 $('#entitySelectorWrapper').hide();
                 $('#entityId').val('');
+            }
+
+            if (data.secondary_entity_type) {
+                $('#secondaryEntityType').val(data.secondary_entity_type);
+                $('#secondaryEntitySelectorWrapper').show();
+                $('#secondaryEntityId').val(data.secondary_entity_id);
+            } else {
+                $('#secondaryEntityType').val('');
+                $('#secondaryEntitySelectorWrapper').hide();
+                $('#secondaryEntityId').val('');
             }
         });
     };
@@ -262,6 +292,8 @@ $(document).ready(function() {
             gudang_id: $('#gudangId').val(),
             entity_type: $('#entityType').val() || null,
             entity_id: $('#entityId').val() || null,
+            secondary_entity_type: $('#secondaryEntityType').val() || null,
+            secondary_entity_id: $('#secondaryEntityId').val() || null,
             is_active: $('#isActive').is(':checked'),
             _token: "{{ csrf_token() }}"
         };
@@ -304,6 +336,16 @@ $(document).ready(function() {
         } else {
             $('#entitySelectorWrapper').hide();
             $('#entityId').val('');
+        }
+    });
+
+    $('#secondaryEntityType').on('change', function() {
+        const v = $(this).val();
+        if (v) {
+            $('#secondaryEntitySelectorWrapper').show();
+        } else {
+            $('#secondaryEntitySelectorWrapper').hide();
+            $('#secondaryEntityId').val('');
         }
     });
 });

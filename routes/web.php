@@ -1413,6 +1413,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/billing/stock-info-modal', [BillingController::class, 'stockInfoModal'])->name('finance.billing.stock-info-modal');
         // Stock modal (tindakan): load obat rows from riwayat tindakan pivot
         Route::get('/billing/riwayat-tindakan-obats', [BillingController::class, 'riwayatTindakanObats'])->name('finance.billing.riwayat-tindakan-obats');
+        Route::get('/billing/tindakan-obats', [BillingController::class, 'tindakanObats'])->name('finance.billing.tindakan-obats');
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');

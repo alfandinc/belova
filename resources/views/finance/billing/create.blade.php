@@ -81,9 +81,15 @@
             return $.ajax({
                 url: '{{ route('finance.billing.gudang-data') }}',
                 type: 'GET',
+                data: {
+                    visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
+                },
                 success: function(response) {
                     window.gudangData.gudangs = response.gudangs || [];
                     window.gudangData.mappings = response.mappings || {};
+                    window.gudangData.eventMappings = response.event_mappings || {};
+                    window.gudangData.spesialisasiMappings = response.spesialisasi_mappings || {};
+                    window.gudangData.eventSpesialisasiMappings = response.event_spesialisasi_mappings || {};
                     window.gudangData.loaded = true;
                 },
                 error: function(xhr, status, error) {
@@ -2079,7 +2085,7 @@
             }
 
             // Only check tracked stock types (obat/racikan/tindakan)
-            const isTindakan = item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan';
+            const isTindakan = item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan' || item.billable_type === 'App\\Models\\ERM\\Tindakan';
             const isObat = item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || item.billable_type === 'App\\Models\\ERM\\Obat' || !!item.obat_id;
             const isRacikan = !!item.is_racikan;
             if (!isTindakan && !isObat && !isRacikan) {
@@ -2094,7 +2100,7 @@
             const baseRows = buildObatRowsForStockModal(item);
 
             // Special-case tindakan: pull obat needs from pivot table
-            if ((!baseRows || !baseRows.length) && isTindakan) {
+            if ((!baseRows || !baseRows.length) && item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
                 const riwayatTindakanIds = getGroupedRiwayatTindakanIds(item);
                 return getGroupedRiwayatTindakanObatRowsCached(riwayatTindakanIds)
                     .then(function(resp) {
@@ -2127,6 +2133,61 @@
                             }, function() {
                                 return false;
                             });
+                    });
+            }
+
+            if ((!baseRows || !baseRows.length) && item.billable_type === 'App\\Models\\ERM\\Tindakan') {
+                const key = 'tindakan:' + String(item.billable_id || item.id || '');
+                const cached = tindakanObatRowsCache.get(key);
+                const now = Date.now();
+                const qtyMultiplier = Math.max(1, parseFloat(item.qty) || 1);
+
+                const consumeResponse = function(resp) {
+                    const tindakanRows = ((resp && resp.rows) ? resp.rows : []).map(function(row) {
+                        return Object.assign({}, row, { needed: (parseFloat(row.needed) || 0) * qtyMultiplier });
+                    });
+                    const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
+
+                    const explicitGudangFromItem = (item && item.selected_gudang_id) ? item.selected_gudang_id : null;
+                    if (!explicitGudangFromItem && suggestedGudangId) {
+                        gudangId = suggestedGudangId;
+                        try { item.selected_gudang_id = gudangId; } catch (e) { }
+                    }
+
+                    if (!tindakanRows.length) return false;
+
+                    const requests = tindakanRows.map(function(r) {
+                        return loadStockTotal(r.obatId, gudangId);
+                    });
+
+                    return $.when.apply($, requests)
+                        .then(function() {
+                            const args = Array.prototype.slice.call(arguments);
+                            const normalized = (requests.length === 1) ? [arguments[0]] : args;
+                            let out = false;
+                            tindakanRows.forEach(function(r, idx) {
+                                const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
+                                const needed = Number(r.needed) || 0;
+                                if (needed > 0 && stok < needed) out = true;
+                            });
+                            return out;
+                        }, function() {
+                            return false;
+                        });
+                };
+
+                if (cached && cached.at && (now - cached.at) <= TINDAKAN_ROWS_TTL_MS) {
+                    return consumeResponse({ rows: cached.rows || [], suggestedGudangId: cached.suggestedGudangId || null });
+                }
+
+                return loadTindakanObatRows(item.billable_id)
+                    .then(function(resp) {
+                        tindakanObatRowsCache.set(key, {
+                            rows: resp && resp.rows ? resp.rows : [],
+                            suggestedGudangId: resp && resp.suggestedGudangId ? resp.suggestedGudangId : null,
+                            at: Date.now()
+                        });
+                        return consumeResponse(resp);
                     });
             }
 
@@ -4045,6 +4106,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 id: itemType + '-' + itemId + '-' + Date.now(),
                 billable_id: itemId,
                 billable_type: itemType === 'tindakan' ? 'App\\Models\\ERM\\Tindakan' : 'App\\Models\\ERM\\Obat',
+                spesialis_id: data.spesialis_id || null,
                 nama_item: selectedText || (itemType === 'tindakan' ? 'Tindakan' : 'Obat'),
                 jumlah: 'Rp ' + formatCurrency(harga),
                 jumlah_raw: harga,

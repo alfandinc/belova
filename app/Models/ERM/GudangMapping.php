@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class GudangMapping extends Model
 {
+    public const ENTITY_TYPE_SPESIALISASI = 'spesialisasi';
+    public const ENTITY_TYPE_BILLING_CONTEXT = 'billing_context';
+    public const BILLING_CONTEXT_EVENT = 1;
+
     protected $table = 'erm_gudang_mapping';
 
     protected $fillable = [
@@ -13,7 +17,9 @@ class GudangMapping extends Model
         'gudang_id',
         'is_active',
         'entity_type',
-        'entity_id'
+        'entity_id',
+        'secondary_entity_type',
+        'secondary_entity_id'
     ];
 
     protected $casts = [
@@ -39,6 +45,8 @@ class GudangMapping extends Model
         return self::where('transaction_type', $transactionType)
                    ->whereNull('entity_type')
                    ->whereNull('entity_id')
+                   ->whereNull('secondary_entity_type')
+                   ->whereNull('secondary_entity_id')
                    ->where('is_active', true)
                    ->with('gudang')
                    ->first();
@@ -67,21 +75,70 @@ class GudangMapping extends Model
      * @param int|null $entityId
      * @return GudangMapping|null
      */
-    public static function resolveGudangForTransaction($transactionType, $entityType = null, $entityId = null)
+    public static function resolveGudangForTransaction($transactionType, $entityType = null, $entityId = null, $secondaryEntityType = null, $secondaryEntityId = null)
     {
-        if ($entityType && $entityId) {
-            $m = self::where('transaction_type', $transactionType)
-                ->where('entity_type', $entityType)
-                ->where('entity_id', $entityId)
-                ->where('is_active', true)
-                ->with('gudang')
-                ->first();
+        $scopes = [
+            [
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'secondary_entity_type' => $secondaryEntityType,
+                'secondary_entity_id' => $secondaryEntityId,
+            ],
+        ];
 
-            if ($m) return $m;
+        if ($entityType && $entityId) {
+            $scopes[] = [
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
+                'secondary_entity_type' => null,
+                'secondary_entity_id' => null,
+            ];
         }
 
-        // fallback to default mapping (no entity)
-        return self::getActiveMapping($transactionType);
+        if ($secondaryEntityType && $secondaryEntityId) {
+            $scopes[] = [
+                'entity_type' => null,
+                'entity_id' => null,
+                'secondary_entity_type' => $secondaryEntityType,
+                'secondary_entity_id' => $secondaryEntityId,
+            ];
+        }
+
+        $scopes[] = [
+            'entity_type' => null,
+            'entity_id' => null,
+            'secondary_entity_type' => null,
+            'secondary_entity_id' => null,
+        ];
+
+        foreach ($scopes as $scope) {
+            $query = self::where('transaction_type', $transactionType)
+                ->where('is_active', true)
+                ->with('gudang');
+
+            if ($scope['entity_type'] && $scope['entity_id']) {
+                $query->where('entity_type', $scope['entity_type'])
+                    ->where('entity_id', $scope['entity_id']);
+            } else {
+                $query->whereNull('entity_type')
+                    ->whereNull('entity_id');
+            }
+
+            if ($scope['secondary_entity_type'] && $scope['secondary_entity_id']) {
+                $query->where('secondary_entity_type', $scope['secondary_entity_type'])
+                    ->where('secondary_entity_id', $scope['secondary_entity_id']);
+            } else {
+                $query->whereNull('secondary_entity_type')
+                    ->whereNull('secondary_entity_id');
+            }
+
+            $mapping = $query->first();
+            if ($mapping) {
+                return $mapping;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -93,7 +150,7 @@ class GudangMapping extends Model
      * @param int|null $entityId
      * @return GudangMapping
      */
-    public static function setActiveMappingForEntity($transactionType, $gudangId, $entityType = null, $entityId = null)
+    public static function setActiveMappingForEntity($transactionType, $gudangId, $entityType = null, $entityId = null, $secondaryEntityType = null, $secondaryEntityId = null)
     {
         // Deactivate existing mappings for this transaction type & same entity scope
         $query = self::where('transaction_type', $transactionType);
@@ -101,6 +158,13 @@ class GudangMapping extends Model
             $query->where('entity_type', $entityType)->where('entity_id', $entityId);
         } else {
             $query->whereNull('entity_type')->whereNull('entity_id');
+        }
+
+        if ($secondaryEntityType && $secondaryEntityId) {
+            $query->where('secondary_entity_type', $secondaryEntityType)
+                ->where('secondary_entity_id', $secondaryEntityId);
+        } else {
+            $query->whereNull('secondary_entity_type')->whereNull('secondary_entity_id');
         }
 
         $query->update(['is_active' => false]);
@@ -112,6 +176,8 @@ class GudangMapping extends Model
                 'gudang_id' => $gudangId,
                 'entity_type' => $entityType,
                 'entity_id' => $entityId,
+                'secondary_entity_type' => $secondaryEntityType,
+                'secondary_entity_id' => $secondaryEntityId,
             ],
             [
                 'is_active' => true
@@ -125,10 +191,17 @@ class GudangMapping extends Model
      * @param string $transactionType
      * @return int|null
      */
-    public static function getDefaultGudangId($transactionType)
+    public static function getDefaultGudangId($transactionType, $entityType = null, $entityId = null, $secondaryEntityType = null, $secondaryEntityId = null)
     {
-        $mapping = self::getActiveMapping($transactionType);
+        $mapping = self::resolveGudangForTransaction($transactionType, $entityType, $entityId, $secondaryEntityType, $secondaryEntityId);
         return $mapping ? $mapping->gudang_id : null;
+    }
+
+    public static function getBillingContextOptions()
+    {
+        return [
+            self::BILLING_CONTEXT_EVENT => 'Event Billing (global)',
+        ];
     }
 
     /**

@@ -27,16 +27,7 @@ class GudangMappingController extends Controller
                     return $row->gudang ? $row->gudang->nama : '-';
                 })
                 ->addColumn('entity', function ($row) {
-                    if ($row->entity_type && $row->entity_id) {
-                        switch ($row->entity_type) {
-                            case 'spesialisasi':
-                                $s = \App\Models\ERM\Spesialisasi::find($row->entity_id);
-                                return $s ? 'Spesialisasi: ' . $s->nama : 'Spesialisasi: #' . $row->entity_id;
-                            default:
-                                return $row->entity_type . ': #' . $row->entity_id;
-                        }
-                    }
-                    return '-';
+                    return $this->formatMappingScopeLabel($row);
                 })
                 ->addColumn('status', function ($row) {
                     if ($row->is_active) {
@@ -61,8 +52,9 @@ class GudangMappingController extends Controller
         $gudangs = Gudang::orderBy('nama')->get();
         $transactionTypes = GudangMapping::getTransactionTypes();
         $spesialisasis = \App\Models\ERM\Spesialisasi::orderBy('nama')->get();
+        $billingContexts = GudangMapping::getBillingContextOptions();
 
-        return view('erm.gudang-mapping.index', compact('gudangs', 'transactionTypes', 'spesialisasis'));
+        return view('erm.gudang-mapping.index', compact('gudangs', 'transactionTypes', 'spesialisasis', 'billingContexts'));
     }
 
     /**
@@ -75,20 +67,26 @@ class GudangMappingController extends Controller
         $request->validate([
             'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
-            'entity_type' => 'nullable|string',
-            'entity_id' => 'nullable|integer'
+            'entity_type' => 'nullable|string|in:' . GudangMapping::ENTITY_TYPE_SPESIALISASI,
+            'entity_id' => 'nullable|integer|required_with:entity_type',
+            'secondary_entity_type' => 'nullable|string|in:' . GudangMapping::ENTITY_TYPE_BILLING_CONTEXT,
+            'secondary_entity_id' => 'nullable|integer|required_with:secondary_entity_type'
         ]);
 
         try {
             $entityType = $request->input('entity_type');
             $entityId = $request->input('entity_id');
+            $secondaryEntityType = $request->input('secondary_entity_type');
+            $secondaryEntityId = $request->input('secondary_entity_id');
 
             // Use new entity-aware setter
             GudangMapping::setActiveMappingForEntity(
                 $request->transaction_type,
                 $request->gudang_id,
                 $entityType,
-                $entityId
+                $entityId,
+                $secondaryEntityType,
+                $secondaryEntityId
             );
 
             return response()->json([
@@ -122,8 +120,10 @@ class GudangMappingController extends Controller
         $request->validate([
             'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
-            'entity_type' => 'nullable|string',
-            'entity_id' => 'nullable|integer'
+            'entity_type' => 'nullable|string|in:' . GudangMapping::ENTITY_TYPE_SPESIALISASI,
+            'entity_id' => 'nullable|integer|required_with:entity_type',
+            'secondary_entity_type' => 'nullable|string|in:' . GudangMapping::ENTITY_TYPE_BILLING_CONTEXT,
+            'secondary_entity_id' => 'nullable|integer|required_with:secondary_entity_type'
         ]);
 
         try {
@@ -131,6 +131,8 @@ class GudangMappingController extends Controller
 
             $entityType = $request->input('entity_type');
             $entityId = $request->input('entity_id');
+            $secondaryEntityType = $request->input('secondary_entity_type');
+            $secondaryEntityId = $request->input('secondary_entity_id');
 
             // If we're making this active, deactivate others of same type and entity scope
             if ($request->is_active) {
@@ -141,6 +143,13 @@ class GudangMappingController extends Controller
                 } else {
                     $q->whereNull('entity_type')->whereNull('entity_id');
                 }
+
+                if ($secondaryEntityType && $secondaryEntityId) {
+                    $q->where('secondary_entity_type', $secondaryEntityType)
+                        ->where('secondary_entity_id', $secondaryEntityId);
+                } else {
+                    $q->whereNull('secondary_entity_type')->whereNull('secondary_entity_id');
+                }
                 $q->update(['is_active' => false]);
             }
 
@@ -150,6 +159,8 @@ class GudangMappingController extends Controller
                 'is_active' => $request->is_active ?? false,
                 'entity_type' => $entityType,
                 'entity_id' => $entityId,
+                'secondary_entity_type' => $secondaryEntityType,
+                'secondary_entity_id' => $secondaryEntityId,
             ]);
 
             return response()->json([
@@ -224,5 +235,30 @@ class GudangMappingController extends Controller
             'success' => false,
             'message' => 'Tidak ada mapping aktif untuk transaksi: ' . $transactionType
         ]);
+    }
+
+    private function formatMappingScopeLabel(GudangMapping $mapping)
+    {
+        $parts = [];
+
+        if ($mapping->entity_type && $mapping->entity_id) {
+            if ($mapping->entity_type === GudangMapping::ENTITY_TYPE_SPESIALISASI) {
+                $spesialisasi = \App\Models\ERM\Spesialisasi::find($mapping->entity_id);
+                $parts[] = $spesialisasi ? 'Spesialisasi: ' . $spesialisasi->nama : 'Spesialisasi: #' . $mapping->entity_id;
+            } else {
+                $parts[] = $mapping->entity_type . ': #' . $mapping->entity_id;
+            }
+        }
+
+        if ($mapping->secondary_entity_type && $mapping->secondary_entity_id) {
+            if ($mapping->secondary_entity_type === GudangMapping::ENTITY_TYPE_BILLING_CONTEXT) {
+                $contexts = GudangMapping::getBillingContextOptions();
+                $parts[] = 'Konteks Billing: ' . ($contexts[$mapping->secondary_entity_id] ?? ('#' . $mapping->secondary_entity_id));
+            } else {
+                $parts[] = $mapping->secondary_entity_type . ': #' . $mapping->secondary_entity_id;
+            }
+        }
+
+        return empty($parts) ? '-' : implode(' | ', $parts);
     }
 }

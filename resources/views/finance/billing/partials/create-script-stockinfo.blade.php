@@ -51,8 +51,27 @@ function escapeHtml(value) {
             .replace(/'/g, '&#039;');
 }
 
+function getItemSpesialisasiId(item) {
+    if (!item) return null;
+
+    try {
+        if (item.spesialis_id) return item.spesialis_id;
+        if (item.tindakan && item.tindakan.spesialis_id) return item.tindakan.spesialis_id;
+        if (item.billable && item.billable.spesialis_id) return item.billable.spesialis_id;
+        if (item.billable && item.billable.tindakan && item.billable.tindakan.spesialis_id) {
+            return item.billable.tindakan.spesialis_id;
+        }
+    } catch (e) {
+        return null;
+    }
+
+    return null;
+}
+
 // Helper function to get default gudang for an item
 function getDefaultGudangForItem(item) {
+    const isEventBilling = !!(window.billingPage && window.billingPage.isEventBilling);
+
     // Determine transaction type based on item
     let transactionType = 'tindakan'; // default
 
@@ -72,6 +91,23 @@ function getDefaultGudangForItem(item) {
     else if (item.billable_type === 'App\\Models\\ERM\\Obat' &&
         item.keterangan && item.keterangan.includes('Obat Bundled:')) {
         transactionType = 'tindakan';
+    }
+
+    if (transactionType === 'kode_tindakan') {
+        const spesialisId = getItemSpesialisasiId(item);
+        if (isEventBilling && spesialisId && window.gudangData.eventSpesialisasiMappings && window.gudangData.eventSpesialisasiMappings.kode_tindakan) {
+            const mappedGudangId = window.gudangData.eventSpesialisasiMappings.kode_tindakan[String(spesialisId)] || window.gudangData.eventSpesialisasiMappings.kode_tindakan[spesialisId];
+            if (mappedGudangId) return mappedGudangId;
+        }
+
+        if (spesialisId && window.gudangData.spesialisasiMappings && window.gudangData.spesialisasiMappings.kode_tindakan) {
+            const mappedGudangId = window.gudangData.spesialisasiMappings.kode_tindakan[String(spesialisId)] || window.gudangData.spesialisasiMappings.kode_tindakan[spesialisId];
+            if (mappedGudangId) return mappedGudangId;
+        }
+    }
+
+    if (isEventBilling && window.gudangData.eventMappings && window.gudangData.eventMappings[transactionType]) {
+        return window.gudangData.eventMappings[transactionType];
     }
 
     return window.gudangData.mappings[transactionType] ||
@@ -211,7 +247,10 @@ function loadRiwayatTindakanObatRows(riwayatTindakanId) {
         return $.Deferred().resolve([]).promise();
     }
 
-    return $.getJSON("{{ route('finance.billing.riwayat-tindakan-obats') }}", { riwayat_tindakan_id: riwayatTindakanId })
+    return $.getJSON("{{ route('finance.billing.riwayat-tindakan-obats') }}", {
+        riwayat_tindakan_id: riwayatTindakanId,
+        visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
+    })
         .then(function(resp) {
             const data = (resp && resp.data) ? resp.data : [];
             const rows = [];
@@ -227,6 +266,31 @@ function loadRiwayatTindakanObatRows(riwayatTindakanId) {
         }, function() {
             return { rows: [], suggestedGudangId: null };
         });
+}
+
+function loadTindakanObatRows(tindakanId) {
+    if (!tindakanId) {
+        return $.Deferred().resolve({ rows: [], suggestedGudangId: null }).promise();
+    }
+
+    return $.getJSON("{{ route('finance.billing.tindakan-obats') }}", {
+        tindakan_id: tindakanId,
+        visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
+    }).then(function(resp) {
+        const data = (resp && resp.data) ? resp.data : [];
+        const rows = [];
+        data.forEach(function(d) {
+            if (!d || !d.obat_id) return;
+            const needed = (typeof d.qty !== 'undefined' && d.qty !== null) ? (parseFloat(d.qty) || 0) : 0;
+            rows.push({ obatId: d.obat_id, name: (d.obat_nama || ('Obat #' + d.obat_id)), needed: needed });
+        });
+        return {
+            rows: rows,
+            suggestedGudangId: (resp && resp.suggested_gudang_id) ? resp.suggested_gudang_id : null
+        };
+    }, function() {
+        return { rows: [], suggestedGudangId: null };
+    });
 }
 
 function openStockInfoModalForItem(itemId, item) {
@@ -252,7 +316,7 @@ function openStockInfoModalForItem(itemId, item) {
         return;
     }
 
-    // Special case: tindakan (RiwayatTindakan) should resolve its obat needs from pivot table
+    // Special case: tindakan rows should resolve their obat needs from backend.
     if (!rows.length && item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
         $('#stockInfoContent').html('<div class="text-muted">Memuat stok tindakan...</div>');
         getGroupedRiwayatTindakanObatRowsCached(
@@ -287,6 +351,47 @@ function openStockInfoModalForItem(itemId, item) {
                         const args = Array.prototype.slice.call(arguments);
                         const normalized = (requests.length === 1) ? [arguments[0]] : args;
                         const html = renderStockRowsToHtml(pivotRows, normalized);
+                        $('#stockInfoContent').html(html);
+                    })
+                    .fail(function() {
+                        $('#stockInfoContent').html('<div class="text-danger">Gagal memuat stok. Coba lagi.</div>');
+                    });
+            });
+        return;
+    }
+
+    if (!rows.length && item.billable_type === 'App\\Models\\ERM\\Tindakan') {
+        $('#stockInfoContent').html('<div class="text-muted">Memuat stok tindakan...</div>');
+        loadTindakanObatRows(item.billable_id)
+            .then(function(resp) {
+                const tindakanRows = ((resp && resp.rows) ? resp.rows : []).map(function(row) {
+                    const qtyMultiplier = Math.max(1, parseFloat(item.qty) || 1);
+                    return Object.assign({}, row, { needed: (parseFloat(row.needed) || 0) * qtyMultiplier });
+                });
+                const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
+
+                const explicitGudangFromItem = (item && item.selected_gudang_id) ? item.selected_gudang_id : null;
+                if (!explicitGudangFromItem && suggestedGudangId) {
+                    gudangId = suggestedGudangId;
+                    const resolvedName = getGudangNameById(gudangId);
+                    $('#stockInfoGudangName').text(resolvedName || '-');
+                    try { item.selected_gudang_id = gudangId; } catch (e) { }
+                }
+
+                if (!tindakanRows.length) {
+                    $('#stockInfoContent').html('<div class="text-muted">Item ini tidak memiliki stok (tidak ada obat terkait).</div>');
+                    return;
+                }
+
+                const requests = tindakanRows.map(function(r) {
+                    return loadStockTotal(r.obatId, gudangId);
+                });
+
+                $.when.apply($, requests)
+                    .done(function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        const normalized = (requests.length === 1) ? [arguments[0]] : args;
+                        const html = renderStockRowsToHtml(tindakanRows, normalized);
                         $('#stockInfoContent').html(html);
                     })
                     .fail(function() {

@@ -27,6 +27,7 @@ use App\Models\ERM\PaketRacikan;
 use App\Models\ERM\RiwayatTindakan;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\KartuStok;
+use App\Models\ERM\Tindakan;
 use Carbon\Carbon;
 
 
@@ -543,7 +544,7 @@ class BillingController extends Controller
                 ->where('nama', 'like', '%' . $search . '%')
                 ->orderBy('nama')
                 ->limit(15)
-                ->get(['id', 'nama', 'harga']);
+                ->get(['id', 'nama', 'harga', 'spesialis_id']);
 
             foreach ($tindakans as $tindakan) {
                 $promoRule = $allowedItems['tindakan|' . $tindakan->id] ?? [];
@@ -553,6 +554,7 @@ class BillingController extends Controller
                     'item_type' => 'tindakan',
                     'text' => '[Tindakan] ' . $tindakan->nama,
                     'harga' => $tindakan->harga,
+                    'spesialis_id' => $tindakan->spesialis_id,
                     'discount_type' => $promoRule['discount_type'] ?? 'percent',
                     'discount_value' => $promoRule['discount_value'] ?? 0,
                     'discount_percent' => $promoRule['discount_percent'] ?? 0,
@@ -990,19 +992,36 @@ class BillingController extends Controller
         }
 
         $suggestedGudangId = null;
+        [$secondaryEntityType, $secondaryEntityId] = $this->resolveGudangSecondaryScope($request);
         try {
             $rt = \App\Models\ERM\RiwayatTindakan::with('tindakan')->find($riwayatTindakanId);
             if ($rt && $rt->tindakan && !empty($rt->tindakan->spesialis_id)) {
-                $mapping = GudangMapping::resolveGudangForTransaction('kode_tindakan', 'spesialisasi', $rt->tindakan->spesialis_id);
+                $mapping = GudangMapping::resolveGudangForTransaction(
+                    'kode_tindakan',
+                    GudangMapping::ENTITY_TYPE_SPESIALISASI,
+                    $rt->tindakan->spesialis_id,
+                    $secondaryEntityType,
+                    $secondaryEntityId
+                );
                 if ($mapping && !empty($mapping->gudang_id)) {
                     $suggestedGudangId = $mapping->gudang_id;
                 }
+            }
+
+            if (!$suggestedGudangId) {
+                $suggestedGudangId = GudangMapping::getDefaultGudangId(
+                    'kode_tindakan',
+                    null,
+                    null,
+                    $secondaryEntityType,
+                    $secondaryEntityId
+                );
             }
         } catch (\Exception $e) {
             $suggestedGudangId = null;
         }
 
-        $rows = DB::table('erm_riwayat_tindakan_obat as rto')
+            $rows = DB::table('erm_riwayat_tindakan_obat as rto')
             ->leftJoin('erm_obat as o', 'o.id', '=', 'rto.obat_id')
             ->select([
                 'rto.obat_id',
@@ -1013,9 +1032,80 @@ class BillingController extends Controller
             ->groupBy('rto.obat_id', 'o.nama')
             ->get();
 
+        if ($rows->isEmpty()) {
+            $riwayat = RiwayatTindakan::with('tindakan.kodeTindakans.obats')->find($riwayatTindakanId);
+            if ($riwayat && $riwayat->tindakan) {
+                $rows = collect($this->buildKodeTindakanObatRowsFromTindakan($riwayat->tindakan));
+            }
+        }
+
         return response()->json([
             'suggested_gudang_id' => $suggestedGudangId,
             'data' => $rows
+        ]);
+    }
+
+    public function tindakanObats(Request $request)
+    {
+        $tindakanId = (int) $request->query('tindakan_id');
+        if ($tindakanId <= 0) {
+            return response()->json([
+                'message' => 'tindakan_id is required',
+                'data' => []
+            ], 422);
+        }
+
+        $suggestedGudangId = null;
+        try {
+            $tindakan = Tindakan::with('kodeTindakans.obats')->find($tindakanId);
+            if ($tindakan && !empty($tindakan->spesialis_id)) {
+                [$secondaryEntityType, $secondaryEntityId] = $this->resolveGudangSecondaryScope($request);
+                $mapping = GudangMapping::resolveGudangForTransaction(
+                    'kode_tindakan',
+                    GudangMapping::ENTITY_TYPE_SPESIALISASI,
+                    $tindakan->spesialis_id,
+                    $secondaryEntityType,
+                    $secondaryEntityId
+                );
+                if ($mapping && !empty($mapping->gudang_id)) {
+                    $suggestedGudangId = $mapping->gudang_id;
+                }
+            }
+        } catch (\Exception $e) {
+            $suggestedGudangId = null;
+        }
+
+        $rows = [];
+        $merged = [];
+
+        $tindakan = Tindakan::with('kodeTindakans.obats')->find($tindakanId);
+        if ($tindakan) {
+            foreach ($tindakan->kodeTindakans as $kodeTindakan) {
+                foreach ($kodeTindakan->obats as $obat) {
+                    $obatId = (int) ($obat->id ?? 0);
+                    if ($obatId <= 0) {
+                        continue;
+                    }
+
+                    $qty = (float) ($obat->pivot->qty ?? 1);
+                    if (!isset($merged[$obatId])) {
+                        $merged[$obatId] = [
+                            'obat_id' => $obatId,
+                            'obat_nama' => $obat->nama ?? ('Obat #' . $obatId),
+                            'qty' => 0,
+                        ];
+                    }
+
+                    $merged[$obatId]['qty'] += $qty > 0 ? $qty : 1;
+                }
+            }
+        }
+
+        $rows = array_values($merged);
+
+        return response()->json([
+            'suggested_gudang_id' => $suggestedGudangId,
+            'data' => $rows,
         ]);
     }
 
@@ -3021,6 +3111,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $selectedGudangId = $gudangSelections['resep_' . $resep->obat->id];
                         }
 
+                        if (!$selectedGudangId) {
+                            $selectedGudangId = $this->getGudangForItem($request, $resep->obat->id, 'resep', $item->id);
+                        }
+
                         if ($selectedGudangId) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
                                 ->where('gudang_id', $selectedGudangId)
@@ -3049,6 +3143,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $selectedGudangId = $gudangSelections[$billingKey];
                         } elseif (isset($gudangSelections['tindakan_' . $obat->id]) && $gudangSelections['tindakan_' . $obat->id]) {
                             $selectedGudangId = $gudangSelections['tindakan_' . $obat->id];
+                        }
+
+                        if (!$selectedGudangId) {
+                            $selectedGudangId = $this->getGudangForItem($request, $obat->id, 'tindakan', $item->id);
                         }
 
                         if ($selectedGudangId) {
@@ -4745,6 +4843,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'paket_tindakan_id' => null,
                 ]);
 
+                $this->syncRiwayatTindakanObatsFromTindakan($riwayatTindakan->id, (int) $billableId);
+
                 $createdBillings->push(Billing::create([
                     'visitation_id' => $visitation->id,
                     'billable_type' => RiwayatTindakan::class,
@@ -4764,6 +4864,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         if ($billableType === 'App\\Models\\ERM\\Obat') {
             $resepId = now()->format('YmdHis') . strtoupper(substr(md5(uniqid((string) mt_rand(), true)), 0, 7));
             $harga = (float) ($item['jumlah_raw'] ?? 0);
+
             $diskonValue = (float) ($billingMeta['diskon'] ?? 0);
             $diskonType = (string) ($billingMeta['diskon_type'] ?? 'nominal');
             $lineTotal = (float) ($item['harga_akhir_raw'] ?? $jumlah);
@@ -4894,6 +4995,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'paket_tindakan_id' => $sourceRiwayat->paket_tindakan_id,
             ]);
 
+            $this->cloneRiwayatTindakanObats($sourceRiwayat->id, $newRiwayat->id);
+
             $linkedBillings->push(Billing::create([
                 'visitation_id' => $visitation->id,
                 'billable_type' => RiwayatTindakan::class,
@@ -4944,6 +5047,102 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             $linkedBilling->save();
         }
+    }
+
+    private function buildKodeTindakanObatRowsFromTindakan(Tindakan $tindakan): array
+    {
+        $merged = [];
+
+        foreach ($tindakan->kodeTindakans as $kodeTindakan) {
+            foreach ($kodeTindakan->obats as $obat) {
+                $obatId = (int) ($obat->id ?? 0);
+                if ($obatId <= 0) {
+                    continue;
+                }
+
+                if (!isset($merged[$obatId])) {
+                    $merged[$obatId] = [
+                        'obat_id' => $obatId,
+                        'obat_nama' => $obat->nama ?? ('Obat #' . $obatId),
+                        'qty' => 0,
+                    ];
+                }
+
+                $merged[$obatId]['qty'] += (float) ($obat->pivot->qty ?? 1);
+            }
+        }
+
+        return array_values($merged);
+    }
+
+    private function syncRiwayatTindakanObatsFromTindakan(int $riwayatTindakanId, int $tindakanId): void
+    {
+        if ($riwayatTindakanId <= 0 || $tindakanId <= 0) {
+            return;
+        }
+
+        $tindakan = Tindakan::with('kodeTindakans.obats')->find($tindakanId);
+        if (!$tindakan) {
+            return;
+        }
+
+        DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $riwayatTindakanId)->delete();
+
+        $inserts = [];
+        foreach ($tindakan->kodeTindakans as $kodeTindakan) {
+            foreach ($kodeTindakan->obats as $obat) {
+                $inserts[] = [
+                    'riwayat_tindakan_id' => $riwayatTindakanId,
+                    'kode_tindakan_id' => $kodeTindakan->id,
+                    'obat_id' => $obat->id,
+                    'qty' => $obat->pivot->qty ?? 1,
+                    'dosis' => $obat->pivot->dosis ?? null,
+                    'satuan_dosis' => $obat->pivot->satuan_dosis ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+        }
+
+        if (!empty($inserts)) {
+            DB::table('erm_riwayat_tindakan_obat')->insert($inserts);
+        }
+    }
+
+    private function cloneRiwayatTindakanObats(int $sourceRiwayatTindakanId, int $targetRiwayatTindakanId): void
+    {
+        if ($sourceRiwayatTindakanId <= 0 || $targetRiwayatTindakanId <= 0) {
+            return;
+        }
+
+        $sourceRows = DB::table('erm_riwayat_tindakan_obat')
+            ->where('riwayat_tindakan_id', $sourceRiwayatTindakanId)
+            ->get();
+
+        if ($sourceRows->isEmpty()) {
+            $sourceRiwayat = RiwayatTindakan::find($sourceRiwayatTindakanId);
+            if ($sourceRiwayat && !empty($sourceRiwayat->tindakan_id)) {
+                $this->syncRiwayatTindakanObatsFromTindakan($targetRiwayatTindakanId, (int) $sourceRiwayat->tindakan_id);
+            }
+            return;
+        }
+
+        $inserts = [];
+        foreach ($sourceRows as $row) {
+            $inserts[] = [
+                'riwayat_tindakan_id' => $targetRiwayatTindakanId,
+                'kode_tindakan_id' => $row->kode_tindakan_id,
+                'obat_id' => $row->obat_id,
+                'qty' => $row->qty,
+                'dosis' => $row->dosis,
+                'satuan_dosis' => $row->satuan_dosis,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $targetRiwayatTindakanId)->delete();
+        DB::table('erm_riwayat_tindakan_obat')->insert($inserts);
     }
 
     private function syncEditedResepFarmasiBilling(Billing $billing, array $item, bool $isAdmin): void
@@ -5525,9 +5724,47 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'lab' => GudangMapping::getDefaultGudangId('lab'),
         ];
 
+        $eventMappings = [
+            'resep' => GudangMapping::getDefaultGudangId('resep', null, null, GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT),
+            'tindakan' => GudangMapping::getDefaultGudangId('tindakan', null, null, GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT),
+            'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan', null, null, GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT),
+            'lab' => GudangMapping::getDefaultGudangId('lab', null, null, GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT),
+        ];
+
+        $spesialisasiMappings = GudangMapping::query()
+            ->where('transaction_type', 'kode_tindakan')
+            ->where('entity_type', GudangMapping::ENTITY_TYPE_SPESIALISASI)
+            ->whereNotNull('entity_id')
+            ->whereNull('secondary_entity_type')
+            ->whereNull('secondary_entity_id')
+            ->where('is_active', true)
+            ->pluck('gudang_id', 'entity_id')
+            ->map(function ($gudangId) {
+                return (int) $gudangId;
+            });
+
+        $eventSpesialisasiMappings = GudangMapping::query()
+            ->where('transaction_type', 'kode_tindakan')
+            ->where('entity_type', GudangMapping::ENTITY_TYPE_SPESIALISASI)
+            ->whereNotNull('entity_id')
+            ->where('secondary_entity_type', GudangMapping::ENTITY_TYPE_BILLING_CONTEXT)
+            ->where('secondary_entity_id', GudangMapping::BILLING_CONTEXT_EVENT)
+            ->where('is_active', true)
+            ->pluck('gudang_id', 'entity_id')
+            ->map(function ($gudangId) {
+                return (int) $gudangId;
+            });
+
         return response()->json([
             'gudangs' => $gudangs,
             'mappings' => $gudangMappings,
+            'event_mappings' => $eventMappings,
+            'spesialisasi_mappings' => [
+                'kode_tindakan' => $spesialisasiMappings,
+            ],
+            'event_spesialisasi_mappings' => [
+                'kode_tindakan' => $eventSpesialisasiMappings,
+            ],
         ]);
     }
 
@@ -5630,6 +5867,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     private function getGudangForItem($request, $obatId, $transactionType, $billingId = null)
     {
+        [$secondaryEntityType, $secondaryEntityId] = $this->resolveGudangSecondaryScope($request);
+
         // Check if frontend sent specific gudang selection for this item
         $gudangSelections = $request->input('gudang_selections', []);
 
@@ -5653,7 +5892,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $riwayat = \App\Models\ERM\RiwayatTindakan::with('tindakan')->find($billingRow->billable_id);
                         if ($riwayat && $riwayat->tindakan && isset($riwayat->tindakan->spesialis_id)) {
                             $spesialisId = $riwayat->tindakan->spesialis_id;
-                            $mapping = GudangMapping::resolveGudangForTransaction($transactionType, 'spesialisasi', $spesialisId);
+                            $mapping = GudangMapping::resolveGudangForTransaction(
+                                $transactionType,
+                                GudangMapping::ENTITY_TYPE_SPESIALISASI,
+                                $spesialisId,
+                                $secondaryEntityType,
+                                $secondaryEntityId
+                            );
                             if ($mapping && $mapping->gudang_id) {
                                 return $mapping->gudang_id;
                             }
@@ -5667,7 +5912,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         // 4) Fallback to mapping default (transaction-only)
-        $defaultGudangId = GudangMapping::resolveGudangForTransaction($transactionType);
+        $defaultGudangId = GudangMapping::resolveGudangForTransaction(
+            $transactionType,
+            null,
+            null,
+            $secondaryEntityType,
+            $secondaryEntityId
+        );
         if ($defaultGudangId) {
             return $defaultGudangId->gudang_id ?? ($defaultGudangId);
         }
@@ -5675,6 +5926,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         // 4) Last resort: use first available gudang
         $defaultGudang = \App\Models\ERM\Gudang::first();
         return $defaultGudang ? $defaultGudang->id : null;
+    }
+
+    private function resolveGudangSecondaryScope($request)
+    {
+        $visitationId = $request->input('visitation_id') ?: $request->query('visitation_id');
+        if (!$visitationId) {
+            return [null, null];
+        }
+
+        $visitation = Visitation::query()->select(['id', 'jenis_kunjungan'])->find($visitationId);
+        if ($visitation && (int) ($visitation->jenis_kunjungan ?? 0) === 4) {
+            return [GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT];
+        }
+
+        return [null, null];
     }
 
     /**
