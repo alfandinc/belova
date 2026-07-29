@@ -74,10 +74,19 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
+                                                        <label for="hna">HNA</label>
+                                                        <input type="text" class="form-control numeric-input" id="hna" name="hna" inputmode="decimal" aria-label="HNA">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="form-group">
                                                         <label for="harga_nonfornas">Harga Non-Fornas</label>
                                                         <input type="text" class="form-control numeric-input" id="harga_nonfornas" name="harga_nonfornas" inputmode="decimal" aria-label="Harga Non-Fornas">
                                                     </div>
                                                 </div>
+                                                <div class="col-md-6"></div>
                                             </div>
                                             <div class="row">
                                                 <div class="col-md-6">
@@ -247,6 +256,10 @@
                                 <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-hpp-jual" value="hpp_jual" checked>
                                     <label class="custom-control-label" for="col-hpp-jual">HPP Jual</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-hna" value="hna" checked>
+                                    <label class="custom-control-label" for="col-hna">HNA</label>
                                 </div>
                                 <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-harga-nonfornas" value="harga_nonfornas" checked>
@@ -632,6 +645,7 @@
                 $('#hpp').val(formatNumericToRupiah(data.hpp));
                 $('#hpp_jual').val(formatNumericToRupiah(data.hpp_jual));
                 $('#harga_net').val(formatNumericToRupiah(data.harga_net));
+                $('#hna').val(formatNumericToRupiah(data.hna));
                 $('#harga_nonfornas').val(formatNumericToRupiah(data.harga_nonfornas));
                 $('#metode_bayar_id').val(data.metode_bayar_id).trigger('change');
                 $('#kategori').val(data.kategori).trigger('change');
@@ -906,7 +920,7 @@
             // Robust normalization for localized decimal inputs before serializing the form.
             // Handles formats like "3.241,20" (dot thousands, comma decimals) and
             // "3241.20" (dot decimal). Leaves already-correct dot-decimal values intact.
-            var decimalIds = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
+            var decimalIds = ['#hpp', '#hpp_jual', '#harga_net', '#hna', '#harga_nonfornas'];
             decimalIds.forEach(function(sel){
                 var $el = $(sel);
                 if ($el.length) {

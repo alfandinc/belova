@@ -102,6 +102,11 @@
                     </div>
 
                     <div class="form-group col-md-4">
+                        <label for="hna">HNA (Rp)</label>
+                        <input type="number" name="hna" id="hna" class="form-control" step="0.01" value="{{ $obat->hna ?? old('hna') }}">
+                    </div>
+
+                    <div class="form-group col-md-4">
                         <label for="harga_fornas">Harga Fornas (Rp)</label>
                         <input type="number" name="harga_fornas" id="harga_fornas" class="form-control" step="0.01" value="{{ $obat->harga_fornas ?? old('harga_fornas') }}">
                     </div>

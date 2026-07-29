@@ -33,6 +33,7 @@ class ObatController extends Controller
             'is_generik' => 'nullable|boolean',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
+            'hna' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
             'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
@@ -46,7 +47,7 @@ class ObatController extends Controller
             // Build update payload only from provided inputs to avoid overwriting unspecified fields
             $up = [];
             $fields = [
-                'nama','kode_obat','dosis','satuan','harga_net','harga_fornas','harga_nonfornas',
+                'nama','kode_obat','dosis','satuan','harga_net','hna','harga_fornas','harga_nonfornas',
                 'stok','kategori','is_generik','metode_bayar_id','status_aktif','hpp','hpp_jual'
             ];
             foreach ($fields as $f) {
@@ -795,6 +796,7 @@ class ObatController extends Controller
             'is_generik' => 'nullable|boolean',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
+            'hna' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
             'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
@@ -826,6 +828,7 @@ class ObatController extends Controller
                     'dosis' => $request->dosis,
                     'satuan' => $request->satuan,
                     'harga_net' => $request->harga_net,
+                    'hna' => $request->hna,
                     'harga_fornas' => $request->harga_fornas,
                     'harga_nonfornas' => $request->harga_nonfornas,
                     'stok' => $request->stok ?? 0,
@@ -844,6 +847,7 @@ class ObatController extends Controller
                     'dosis' => $request->dosis,
                     'satuan' => $request->satuan,
                     'harga_net' => $request->harga_net,
+                    'hna' => $request->hna,
                     'harga_fornas' => $request->harga_fornas,
                     'harga_nonfornas' => $request->harga_nonfornas,
                     'stok' => $request->stok ?? 0,
@@ -906,6 +910,7 @@ class ObatController extends Controller
                 'hpp' => $obat->hpp,
                 'hpp_jual' => $obat->hpp_jual,
                 'harga_net' => $obat->harga_net,
+                'hna' => $obat->hna,
                 'harga_nonfornas' => $obat->harga_nonfornas,
                 'metode_bayar_id' => $obat->metode_bayar_id,
                 'kategori' => $obat->kategori,

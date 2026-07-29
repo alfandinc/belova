@@ -57,6 +57,7 @@ class Obat extends Model
         'satuan',
         'dosis',
         'harga_net',
+        'hna',
         'harga_fornas',
         'harga_nonfornas',
         'stok',
