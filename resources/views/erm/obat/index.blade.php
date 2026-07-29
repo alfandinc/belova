@@ -440,6 +440,7 @@
                         <th>Nama Obat</th>
                         <th class="text-right">Stok Total</th>
                         <th class="text-right">HPP</th>
+                        <th class="text-right">HNA</th>
                         <!-- HPP Jual column removed -->
                         <!-- Harga Net column removed -->
                         <th class="text-right">Harga Jual</th>
@@ -498,7 +499,8 @@
     /* Right align for price columns (HPP and Harga Jual) */
     #obat-table td:nth-child(3),
     #obat-table td:nth-child(4),
-    #obat-table td:nth-child(5) {
+    #obat-table td:nth-child(5),
+    #obat-table td:nth-child(6) {
         text-align: right;
     }
     
@@ -550,7 +552,7 @@
     
     // Declare table variable globally
     let table;
-    const rupiahInputSelectors = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
+    const rupiahInputSelectors = ['#hpp', '#hpp_jual', '#harga_net', '#hna', '#harga_nonfornas'];
 
     function normalizeNumericInput(value) {
         var raw = (value || '').toString().replace(/[^0-9.,-]/g, '').trim();
@@ -768,6 +770,14 @@
                 {
                     data: 'hpp',
                     name: 'hpp',
+                    className: 'text-right',
+                    render: function(data) {
+                        return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
+                    }
+                },
+                {
+                    data: 'hna',
+                    name: 'hna',
                     className: 'text-right',
                     render: function(data) {
                         return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
