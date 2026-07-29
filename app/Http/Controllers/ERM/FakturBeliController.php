@@ -791,33 +791,62 @@ class FakturBeliController extends Controller
      */
     public function exportItemsExcel(Request $request)
     {
-        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat']);
-        // Only include items from faktur with status 'diapprove'
-        if ($request->filled('tanggal_terima_range')) {
-            // If date range provided, apply both status and date filters
-            $range = explode(' - ', $request->input('tanggal_terima_range'));
-            if (count($range) === 2) {
-                $start = $range[0];
-                $end = $range[1];
-                $query->whereHas('fakturbeli', function($q) use ($start, $end) {
-                    $q->where('status', 'diapprove')
-                      ->whereDate('received_date', '>=', $start)
-                      ->whereDate('received_date', '<=', $end);
-                });
-            } else {
-                // Fallback: just filter by status
-                $query->whereHas('fakturbeli', function($q) {
-                    $q->where('status', 'diapprove');
-                });
+        $items = $this->buildApprovedItemExportQuery($request)
+            ->with(['fakturbeli.pemasok', 'obat.principals', 'principal'])
+            ->get();
+
+        if ($request->input('export_type') === 'principal_summary') {
+            $summaryRows = [];
+
+            foreach ($items as $item) {
+                $principalName = $this->resolvePrincipalNameForItem($item);
+                $obatName = optional($item->obat)->nama ?: '-';
+                $satuan = optional($item->obat)->satuan ?: '';
+                $key = $principalName . '|' . ($item->obat_id ?? 0);
+
+                if (!isset($summaryRows[$key])) {
+                    $summaryRows[$key] = [
+                        'principal' => $principalName,
+                        'nama_obat' => $obatName,
+                        'satuan' => $satuan,
+                        'qty' => 0,
+                        'total_harga' => 0,
+                    ];
+                }
+
+                $summaryRows[$key]['qty'] += (float) ($item->qty ?? 0);
+                $summaryRows[$key]['total_harga'] += $this->calculateExportTotalHarga($item);
             }
-        } else {
-            // No date range — filter by status only
-            $query->whereHas('fakturbeli', function($q) {
-                $q->where('status', 'diapprove');
+
+            uasort($summaryRows, function ($left, $right) {
+                return [$left['principal'], $left['nama_obat']] <=> [$right['principal'], $right['nama_obat']];
             });
+
+            $exportArray = array_map(function ($row) {
+                return [
+                    $row['principal'],
+                    $row['nama_obat'],
+                    $row['satuan'],
+                    $row['qty'],
+                    $row['total_harga'],
+                ];
+            }, array_values($summaryRows));
+
+            $headings = ['Principal', 'Nama Obat', 'Satuan', 'Total Qty', 'Total Harga'];
+
+            $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
+                private $array;
+                private $headings;
+                public function __construct(array $array, array $headings) { $this->array = $array; $this->headings = $headings; }
+                public function array(): array { return $this->array; }
+                public function headings(): array { return $this->headings; }
+            };
+
+            $filename = 'faktur_items_principal_summary_' . date('Ymd_His') . '.xlsx';
+
+            return Excel::download($export, $filename);
         }
 
-        $items = $query->get();
         $rows = [];
 
         // Group items by fakturbeli so we can place global pajak only on the first row
@@ -868,8 +897,7 @@ class FakturBeliController extends Controller
                     'global_diskon_type' => $faktur->global_diskon_type ?? '',
                     'global_pajak' => $globalPajakValue,
                     'global_pajak_type' => $globalPajakType,
-                    // Add 11% to the total harga as requested
-                    'total_harga' => (float)($item->total_amount ?? 0) * 1.11,
+                    'total_harga' => $this->calculateExportTotalHarga($item),
                 ];
 
                 $first = false;
@@ -907,6 +935,69 @@ class FakturBeliController extends Controller
 
         $filename = 'faktur_items_' . date('Ymd_His') . '.xlsx';
         return Excel::download($export, $filename);
+    }
+
+    private function buildApprovedItemExportQuery(Request $request)
+    {
+        $query = FakturBeliItem::query();
+
+        if ($request->filled('tanggal_terima_range')) {
+            $range = explode(' - ', $request->input('tanggal_terima_range'));
+
+            if (count($range) === 2) {
+                $start = $range[0];
+                $end = $range[1];
+
+                return $query->whereHas('fakturbeli', function ($subQuery) use ($start, $end) {
+                    $subQuery->where('status', 'diapprove')
+                        ->whereDate('received_date', '>=', $start)
+                        ->whereDate('received_date', '<=', $end);
+                });
+            }
+        }
+
+        return $query->whereHas('fakturbeli', function ($subQuery) {
+            $subQuery->where('status', 'diapprove');
+        });
+    }
+
+    private function resolvePrincipalNameForItem(FakturBeliItem $item): string
+    {
+        if ($item->principal) {
+            return $item->principal->nama ?: 'Tanpa Principal';
+        }
+
+        $obatId = $item->obat_id;
+        $pemasokId = optional($item->fakturbeli)->pemasok_id;
+
+        if ($obatId && $pemasokId) {
+            $masterFaktur = \App\Models\ERM\MasterFaktur::where('obat_id', $obatId)
+                ->where('pemasok_id', $pemasokId)
+                ->first();
+
+            if ($masterFaktur && $masterFaktur->principal_id) {
+                $principal = \App\Models\ERM\Principal::find($masterFaktur->principal_id);
+                if ($principal && $principal->nama) {
+                    return $principal->nama;
+                }
+            }
+        }
+
+        if ($item->obat) {
+            $principals = $item->obat->principals ?? collect();
+            $names = $principals->pluck('nama')->filter()->values();
+
+            if ($names->isNotEmpty()) {
+                return $names->implode(', ');
+            }
+        }
+
+        return 'Tanpa Principal';
+    }
+
+    private function calculateExportTotalHarga(FakturBeliItem $item): float
+    {
+        return (float) ($item->total_amount ?? 0) * 1.11;
     }
 
     /**

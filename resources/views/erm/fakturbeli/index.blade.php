@@ -117,6 +117,13 @@
                                 <label for="exportTanggalTerimaRange">Tanggal Terima (Range)</label>
                                 <input type="text" id="exportTanggalTerimaRange" name="tanggal_terima_range" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
                             </div>
+                            <div class="form-group mb-0">
+                                <label for="exportType">Jenis Export</label>
+                                <select id="exportType" name="export_type" class="form-control">
+                                    <option value="detail">Detail Item Faktur</option>
+                                    <option value="principal_summary">Rekap Principal per Obat</option>
+                                </select>
+                            </div>
                         </form>
                     </div>
                     <div class="modal-footer">
