@@ -1,5 +1,6 @@
 <div class="card" id="kpiAssessmentFillSection">
     <div class="card-body">
+        @php($isHrdUser = auth()->user()?->hasAnyRole(['Hrd', 'HRD', 'hrd']))
         <div class="mb-3">
             <h4 class="mb-2">KPI Assessment - {{ optional($assessment->period)->period_name ?: (optional(optional($assessment->period)->month) ? \DateTime::createFromFormat('!m', optional($assessment->period)->month)->format('F') . ' ' . optional($assessment->period)->year : '') }}</h4>
             <p class="text-muted mb-0">Menilai: {{ optional($assessment->evaluateeEmployee)->nama ?? optional($assessment->evaluateeEmployee)->name ?? '-' }} | {{ optional($assessment->evaluateePosition)->name ?? '-' }}</p>
@@ -14,12 +15,27 @@
                     <table class="table table-striped table-sm">
                         <thead>
                             <tr>
-                                <th style="width:48px">No</th>
-                                <th>Indicator</th>
-                                <th style="width:120px">Weight</th>
-                                <th style="width:240px">Jawaban</th>
-                                <th style="width:320px">Catatan</th>
-                            </tr>
+                                            @if($isHrdUser)
+                                                <input
+                                                    type="number"
+                                                    name="scores[{{ optional($mapping->indicator)->id }}]"
+                                                    class="form-control form-control-sm"
+                                                    min="1"
+                                                    max="5"
+                                                    step="0.1"
+                                                    inputmode="decimal"
+                                                    value="{{ old('scores.' . optional($mapping->indicator)->id, optional($existingScore)->score) }}"
+                                                    placeholder="1.0 - 5.0"
+                                                    required>
+                                                <small class="text-muted d-block mt-1">Nilai boleh desimal, misalnya 1.5 atau 2.8. Maksimal 5.</small>
+                                            @else
+                                                <div class="kpi-star-rating" data-indicator-id="{{ optional($mapping->indicator)->id }}">
+                                                    @for($s = 1; $s <= 5; $s++)
+                                                        <span class="star" data-value="{{ $s }}">&#9733;</span>
+                                                    @endfor
+                                                    <input type="hidden" name="scores[{{ optional($mapping->indicator)->id }}]" class="star-value" value="{{ old('scores.' . optional($mapping->indicator)->id, optional($existingScore)->score ?: 0) }}" required>
+                                                </div>
+                                            @endif
                         </thead>
                         <tbody>
                             @php $i = 1; @endphp
@@ -61,12 +77,6 @@
         @endif
     </div>
 </div>
-
-<style>
-    .kpi-star-rating { display:inline-block; }
-    .kpi-star-rating .star { font-size:22px; color:#ddd; cursor:pointer; padding:0 4px; }
-    .kpi-star-rating .star.selected { color:#f5b301; }
-</style>
 
 <script>
     (function(){

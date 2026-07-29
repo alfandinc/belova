@@ -32,13 +32,20 @@ class KpiAssessmentController extends Controller
 
     public function submit(Request $request, KpiAssessment $assessment)
     {
-        $data = $request->input('scores', []);
-        $notes = $request->input('notes', []);
-
         // Prevent re-submission if already done
         if ($assessment->status === 'done') {
             return response()->json(['message' => 'Assessment already submitted and cannot be changed.'], 409);
         }
+
+        $validated = $request->validate([
+            'scores' => ['required', 'array', 'min:1'],
+            'scores.*' => ['required', 'numeric', 'between:1,5'],
+            'notes' => ['nullable', 'array'],
+            'notes.*' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $data = $validated['scores'];
+        $notes = $validated['notes'] ?? [];
 
         foreach ($data as $indicatorId => $score) {
             // try to fetch existing snapshot weights (ss_*) saved when assessment was generated
