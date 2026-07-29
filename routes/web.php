@@ -892,6 +892,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('permintaan/{id}/reject', [App\Http\Controllers\ERM\PermintaanController::class, 'reject'])->name('erm.permintaan.reject');
     Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur');
     Route::get('masterfaktur-data', [App\Http\Controllers\ERM\MasterFakturController::class, 'data'])->name('erm.masterfaktur.data');
+    Route::get('masterfaktur/export-excel', [App\Http\Controllers\ERM\MasterFakturController::class, 'exportExcel'])->name('erm.masterfaktur.export-excel');
 
     // AJAX form for create/edit modal
     Route::get('masterfaktur/form/{id?}', [App\Http\Controllers\ERM\MasterFakturController::class, 'form'])->name('erm.masterfaktur.form');

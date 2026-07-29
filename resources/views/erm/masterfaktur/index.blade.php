@@ -14,6 +14,7 @@
             <h2 class="mb-0">Master Pembelian</h2>
         </div>
         <div class="col-md-6 text-right">
+            <button id="downloadMasterFakturBtn" class="btn btn-success mr-2">Download by Principal</button>
             <button id="addMasterFakturBtn" class="btn btn-primary">Tambah Master Faktur</button>
         </div>
     </div>
@@ -308,15 +309,30 @@ $(document).ready(function() {
         });
 
         // Reload table on filter change
-        $('#filterObat, #filterPemasok').on('change', function() {
+            $('#filterObat, #filterPemasok, #filterPrincipal').on('change', function() {
             table.ajax.reload();
         });
         // Reset filters
         $('#resetMasterFakturFilter').on('click', function() {
             $('#filterObat').val(null).trigger('change');
             $('#filterPemasok').val(null).trigger('change');
+                $('#filterPrincipal').val(null).trigger('change');
             table.ajax.reload();
         });
+
+        $('#downloadMasterFakturBtn').on('click', function(e) {
+            e.preventDefault();
+            var principalId = $('#filterPrincipal').val();
+            if (!principalId) {
+                Swal.fire('Pilih Principal', 'Silakan pilih principal terlebih dahulu sebelum download.', 'warning');
+                return;
+            }
+
+            var exportUrl = '{{ route('erm.masterfaktur.export-excel') }}?principal_id=' + encodeURIComponent(principalId);
+
+            window.location.href = exportUrl;
+        });
+
     // Initialize select2 AJAX for Pemasok
     $('#mf_pemasok_id').select2({
         placeholder: 'Pilih Pemasok',

@@ -2,15 +2,35 @@
 
 namespace App\Http\Controllers\ERM;
 
+use App\Exports\ERM\MasterFakturByPrincipalExport;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\MasterFaktur;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Principal;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class MasterFakturController extends Controller
 {
+    public function exportExcel(Request $request)
+    {
+        $principalId = $request->filled('principal_id') ? (int) $request->input('principal_id') : null;
+        $principalName = 'semua-principal';
+
+        if ($principalId) {
+            $principal = Principal::find($principalId);
+            if ($principal) {
+                $principalName = str($principal->nama)->slug('-')->toString();
+            }
+        }
+
+        return Excel::download(
+            new MasterFakturByPrincipalExport($principalId),
+            'master_faktur_' . $principalName . '.xlsx'
+        );
+    }
+
     // AJAX for select2 Obat
     public function ajaxObat(Request $request)
     {
