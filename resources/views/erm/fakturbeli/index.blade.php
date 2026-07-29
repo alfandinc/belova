@@ -117,6 +117,15 @@
                                 <label for="exportTanggalTerimaRange">Tanggal Terima (Range)</label>
                                 <input type="text" id="exportTanggalTerimaRange" name="tanggal_terima_range" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
                             </div>
+                            <div class="form-group">
+                                <label for="exportPrincipalId">Principal</label>
+                                <select id="exportPrincipalId" name="principal_id" class="form-control">
+                                    <option value="">Semua Principal</option>
+                                    @foreach(($principals ?? collect()) as $principal)
+                                        <option value="{{ $principal->id }}">{{ $principal->nama }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
                             <div class="form-group mb-0">
                                 <label for="exportType">Jenis Export</label>
                                 <select id="exportType" name="export_type" class="form-control">

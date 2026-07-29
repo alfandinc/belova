@@ -9,6 +9,7 @@ use App\Models\ERM\FakturBeliItem;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
+use App\Models\ERM\Principal;
 use App\Services\ERM\StokService;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
@@ -128,7 +129,9 @@ class FakturBeliController extends Controller
                 ->rawColumns(['action'])
                 ->make(true);
         }
-        return view('erm.fakturbeli.index');
+        $principals = Principal::orderBy('nama')->get();
+
+        return view('erm.fakturbeli.index', compact('principals'));
     }
 
     /**
@@ -940,6 +943,29 @@ class FakturBeliController extends Controller
     private function buildApprovedItemExportQuery(Request $request)
     {
         $query = FakturBeliItem::query();
+
+        if ($request->filled('principal_id')) {
+            $principalId = (int) $request->input('principal_id');
+
+            $query->where(function ($principalQuery) use ($principalId) {
+                $principalQuery->where('principal_id', $principalId)
+                    ->orWhereHas('obat.principals', function ($obatPrincipalQuery) use ($principalId) {
+                        $obatPrincipalQuery->where('erm_principals.id', $principalId);
+                    })
+                    ->orWhereExists(function ($masterFakturQuery) use ($principalId) {
+                        $masterFakturQuery->select(DB::raw(1))
+                            ->from('erm_master_faktur')
+                            ->whereColumn('erm_master_faktur.obat_id', 'erm_fakturbeli_items.obat_id')
+                            ->where('erm_master_faktur.principal_id', $principalId)
+                            ->whereExists(function ($fakturQuery) {
+                                $fakturQuery->select(DB::raw(1))
+                                    ->from('erm_fakturbeli')
+                                    ->whereColumn('erm_fakturbeli.id', 'erm_fakturbeli_items.fakturbeli_id')
+                                    ->whereColumn('erm_fakturbeli.pemasok_id', 'erm_master_faktur.pemasok_id');
+                            });
+                    });
+            });
+        }
 
         if ($request->filled('tanggal_terima_range')) {
             $range = explode(' - ', $request->input('tanggal_terima_range'));
