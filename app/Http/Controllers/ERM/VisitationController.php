@@ -29,7 +29,7 @@ class VisitationController extends Controller
         // \Log::info($request->all()); // Tambahkan log ini untuk cek data terkirim
         $request->validate([
             'pasien_id' => 'required|exists:erm_pasiens,id',
-            'dokter_id' => 'required|string',
+            'dokter_id' => 'nullable|exists:erm_dokters,id',
             'tanggal_visitation' => 'required|date',
             // 'waktu_kunjungan' => 'date_format:H:i', // Validasi waktu kunjungan
             'metode_bayar_id' => 'required',
@@ -42,9 +42,14 @@ class VisitationController extends Controller
         // - jenis_kunjungan = 2/3 (Produk/Lab) => allow multiple
         $jenis = $request->jenis_kunjungan ?? 1;
         if ((int)$jenis === 1) {
+            $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
             $exists = Visitation::where('pasien_id', $request->pasien_id)
                 ->whereDate('tanggal_visitation', $request->tanggal_visitation)
-                ->where('dokter_id', $request->dokter_id)
+                ->when($dokterId, function ($query, $dokterId) {
+                    $query->where('dokter_id', $dokterId);
+                }, function ($query) {
+                    $query->whereNull('dokter_id');
+                })
                 ->where('status_kunjungan', '!=', 7)
                 ->where(function ($q) {
                     $q->where('jenis_kunjungan', 1)
@@ -62,14 +67,16 @@ class VisitationController extends Controller
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+        $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
+        $noAntrian = ((int) $jenis === 1 && $dokterId) ? $request->no_antrian : null;
 
         $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
-            'dokter_id' => $request->dokter_id,
+            'dokter_id' => $dokterId,
             'tanggal_visitation' => $request->tanggal_visitation,
             'waktu_kunjungan' => $request->waktu_kunjungan, // Menyimpan waktu kunjungan
-            'no_antrian' => $request->no_antrian,
+            'no_antrian' => $noAntrian,
             'metode_bayar_id' => $request->metode_bayar_id,
             'jenis_kunjungan' => $jenis,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
@@ -98,7 +105,7 @@ class VisitationController extends Controller
         // \Log::info($request->all()); // Tambahkan log ini untuk cek data terkirim
         $request->validate([
             'pasien_id' => 'required|exists:erm_pasiens,id',
-            'dokter_id' => 'required|string',
+            'dokter_id' => 'nullable|exists:erm_dokters,id',
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
@@ -106,11 +113,12 @@ class VisitationController extends Controller
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+        $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
 
         $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
-            'dokter_id' => $request->dokter_id,
+            'dokter_id' => $dokterId,
             'tanggal_visitation' => $request->tanggal_visitation,
             // 'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
@@ -141,7 +149,7 @@ class VisitationController extends Controller
         // \Log::info($request->all()); // Tambahkan log ini untuk cek data terkirim
         $request->validate([
             'pasien_id' => 'required|exists:erm_pasiens,id',
-            'dokter_id' => 'required|string',
+            'dokter_id' => 'nullable|exists:erm_dokters,id',
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
@@ -149,11 +157,12 @@ class VisitationController extends Controller
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+        $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
 
         $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
-            'dokter_id' => $request->dokter_id,
+            'dokter_id' => $dokterId,
             'tanggal_visitation' => $request->tanggal_visitation,
             // 'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,

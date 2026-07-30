@@ -30,8 +30,8 @@
 
                     <div class="form-group">
                         <label>Dokter</label>
-                        <select id="dokter_id_lab" name="dokter_id" class="form-control select2" required disabled>
-                            <option value="">Pilih Dokter</option>
+                        <select id="dokter_id_lab" name="dokter_id" class="form-control select2" disabled>
+                            <option value="">Tanpa Dokter</option>
                         </select>
                     </div>
 
@@ -130,7 +130,7 @@
                     type: 'GET',
                     success: function(data) {
                         console.log("API response:", data);
-                        dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+                        dokterSelect.empty().append('<option value="">Tanpa Dokter</option>');
 
                         // Check if we got data
                         if (data && data.length > 0) {
@@ -149,9 +149,6 @@
 
                                 dokterSelect.append(`<option value="${dokter.id}">${dokterName}${spesialis}</option>`);
                             });
-                        } else {
-                            // No doctors found for this clinic
-                            dokterSelect.append('<option value="" disabled>Tidak ada dokter di klinik ini</option>');
                         }
 
                         // Enable the doctor select
@@ -165,13 +162,13 @@
                             text: 'Gagal mengambil data dokter'
                         });
 
-                        dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
-                        dokterSelect.prop('disabled', true).trigger('change.select2');
+                        dokterSelect.empty().append('<option value="">Tanpa Dokter</option>');
+                        dokterSelect.prop('disabled', false).trigger('change.select2');
                     }
                 });
             } else {
                 // If no clinic selected, reset and disable doctor dropdown
-                dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+                dokterSelect.empty().append('<option value="">Tanpa Dokter</option>');
                 dokterSelect.prop('disabled', true).trigger('change.select2');
             }
         });
@@ -179,7 +176,7 @@
         // Reset form fields when modal is closed
         $('#modalKunjunganLab').on('hidden.bs.modal', function() {
             $('#form-kunjungan-lab')[0].reset();
-            $('#dokter_id_lab').empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
+            $('#dokter_id_lab').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
         });
 
         // // After selecting dokter and date, check for queue number

@@ -30,8 +30,8 @@
 
                     <div class="form-group">
                         <label>Dokter</label>
-                        <select id="rj_dokter_id" name="dokter_id" class="form-control select2" required disabled>
-                            <option value="">Pilih Dokter</option>
+                        <select id="rj_dokter_id" name="dokter_id" class="form-control select2" disabled>
+                            <option value="">Tanpa Dokter</option>
                         </select>
                     </div>
 
@@ -137,7 +137,10 @@ $(document).ready(function(){
     function cekAntrianRJ(){
         let dokterId = $('#rj_dokter_id').val();
         let tanggal = $('#rj_tanggal_visitation').val();
-        if (!dokterId || !tanggal) return;
+        if (!dokterId || !tanggal) {
+            $('#rj_no_antrian').val('');
+            return;
+        }
         if ($('#rj_mode').val() !== 'konsultasi') return;
 
         $.get("{{ route('erm.visitations.cekAntrian') }}", { dokter_id: dokterId, tanggal: tanggal }, function(res){
@@ -154,7 +157,8 @@ $(document).ready(function(){
 
         dokterSelect.empty().append('<option value="">Loading...</option>').prop('disabled', true);
         if (!klinikId) {
-            dokterSelect.empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
+            dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
+            $('#rj_no_antrian').val('');
             return;
         }
 
@@ -162,19 +166,17 @@ $(document).ready(function(){
             url: `/get-dokters/${klinikId}`,
             type: 'GET'
         }).done(function(data){
-            dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+            dokterSelect.empty().append('<option value="">Tanpa Dokter</option>');
             if (data && data.length) {
                 $.each(data, function(_, dokter){
                     let dokterName = (dokter.user && dokter.user.name) ? dokter.user.name : 'Unknown Doctor';
                     let spesialis = (dokter.spesialisasi && dokter.spesialisasi.nama) ? ` (${dokter.spesialisasi.nama})` : '';
                     dokterSelect.append(`<option value="${dokter.id}">${dokterName}${spesialis}</option>`);
                 });
-            } else {
-                dokterSelect.append('<option value="" disabled>Tidak ada dokter di klinik ini</option>');
             }
             dokterSelect.prop('disabled', false).trigger('change.select2');
         }).fail(function(){
-            dokterSelect.empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
+            dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', false).trigger('change.select2');
             Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengambil data dokter' });
         });
     });
@@ -204,7 +206,7 @@ $(document).ready(function(){
             $('#modalDaftarKunjunganRawatJalan').modal('hide');
             $('#form-daftar-kunjungan-rawatjalan')[0].reset();
             $('#rj_pasien_id').val(null).trigger('change');
-            $('#rj_dokter_id').empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
+            $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
             $('#rj_no_antrian').val('');
 
             var htmlParts = ['<div>' + $('<div>').text((res && res.message) ? res.message : 'Kunjungan berhasil disimpan.').html() + '</div>'];
@@ -254,7 +256,7 @@ $(document).ready(function(){
     $('#modalDaftarKunjunganRawatJalan').on('hidden.bs.modal', function(){
         try { $('#form-daftar-kunjungan-rawatjalan')[0].reset(); } catch(e) {}
         try { $('#rj_pasien_id').val(null).trigger('change'); } catch(e) {}
-        try { $('#rj_dokter_id').empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2'); } catch(e) {}
+        try { $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2'); } catch(e) {}
         $('#rj_no_antrian').val('');
         applyMode('konsultasi');
     });

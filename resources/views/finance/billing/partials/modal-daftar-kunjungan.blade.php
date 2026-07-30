@@ -32,8 +32,8 @@
 
                     <div class="form-group">
                         <label>Dokter</label>
-                        <select id="fb_dokter_id" name="dokter_id" class="form-control select2" required disabled>
-                            <option value="">Pilih Dokter</option>
+                        <select id="fb_dokter_id" name="dokter_id" class="form-control select2" disabled>
+                            <option value="">Tanpa Dokter</option>
                         </select>
                     </div>
 
