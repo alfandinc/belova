@@ -96,6 +96,17 @@
                         </select>
                     </div>
                     <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-calendar-alt"></i> Tanggal Dibuat</label>
+                        <input
+                            type="date"
+                            name="created_at"
+                            class="form-control"
+                            value="{{ optional($visitation?->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}"
+                            required
+                        >
+                        <small class="form-text text-muted">Default mengikuti tanggal visit, tapi masih bisa diubah.</small>
+                    </div>
+                    <div class="form-group mb-3">
                         <label class="form-label"><i class="fas fa-hospital"></i> Tujuan IGD</label>
                         <input type="text" name="tujuan_igd" class="form-control" placeholder="Contoh: IGD RS Premier Bintaro" required>
                     </div>
@@ -735,6 +746,7 @@ $(document).ready(function() {
     $('#modalSuratMondok').on('show.bs.modal', function() {
         $('#formSuratMondok')[0].reset();
         $('#dokter_id_mondok').trigger('change');
+        $('#formSuratMondok input[name="created_at"]').val('{{ optional($visitation?->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}');
     });
 
     // Saat tombol modal alergi ditekan

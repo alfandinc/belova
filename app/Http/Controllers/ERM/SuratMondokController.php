@@ -51,7 +51,7 @@ class SuratMondokController extends Controller
                 'alamat' => $suratMondok->pasien->alamat ?? '-',
                 'nama_dokter' => $suratMondok->dokter->user->name ?? '-',
                 'ttd' => $ttdPath,
-                'tanggal_surat' => Carbon::now()->translatedFormat('d F Y'),
+                'tanggal_surat' => optional($suratMondok->created_at)->translatedFormat('d F Y') ?? Carbon::now()->translatedFormat('d F Y'),
                 'umur' => $umur,
                 'tujuan_igd' => $suratMondok->tujuan_igd,
                 'diagnosa' => $suratMondok->diagnosa,

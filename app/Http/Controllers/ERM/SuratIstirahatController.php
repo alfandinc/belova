@@ -204,7 +204,20 @@ class SuratIstirahatController extends Controller
             'tujuan_igd' => 'required|string|max:255',
             'diagnosa' => 'required|string',
             'instruksi_terapi' => 'required|string',
+            'created_at' => 'nullable|date',
         ]);
+
+        $visitation = Visitation::where('pasien_id', $request->pasien_id)
+            ->latest('tanggal_visitation')
+            ->first();
+
+        if ($request->filled('created_at')) {
+            $suratDate = Carbon::parse($request->created_at);
+        } elseif ($visitation && $visitation->tanggal_visitation) {
+            $suratDate = Carbon::parse($visitation->tanggal_visitation);
+        } else {
+            $suratDate = now();
+        }
 
         $surat = SuratMondok::create([
             'pasien_id' => $request->pasien_id,
@@ -212,6 +225,8 @@ class SuratIstirahatController extends Controller
             'tujuan_igd' => $request->tujuan_igd,
             'diagnosa' => $request->diagnosa,
             'instruksi_terapi' => $request->instruksi_terapi,
+            'created_at' => $suratDate,
+            'updated_at' => $suratDate,
         ]);
 
         return response()->json($surat->load('pasien', 'dokter.user', 'dokter.spesialisasi'));

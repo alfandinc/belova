@@ -9,12 +9,19 @@ class SuratMondok extends Model
 {
     protected $table = 'erm_suratmondok';
 
+    protected $casts = [
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
     protected $fillable = [
         'pasien_id',
         'dokter_id',
         'tujuan_igd',
         'diagnosa',
         'instruksi_terapi',
+        'created_at',
+        'updated_at',
     ];
 
     public function pasien()
