@@ -707,7 +707,6 @@ class RawatJalanController extends Controller
                         $tindakanBadge = $tindakanCount > 0
                             ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $tindakanCount . '</span>'
                             : '';
-                        $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);
                             $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Asesmen"><i class="fas fa-user-md mr-1"></i>Asesmen</a>';
@@ -715,6 +714,7 @@ class RawatJalanController extends Controller
                             $url = route('erm.cppt.create', $v->id);
                             $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-success" style="font-weight:bold;" title="CPPT"><i class="fas fa-notes-medical mr-1"></i>CPPT</a>';
                         }
+                        $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                     }
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
                         $incomingWaCount = intval($v->incoming_wa_message_count ?? 0);
