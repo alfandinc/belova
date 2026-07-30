@@ -389,7 +389,7 @@ class PermintaanController extends Controller
         $printItems = $items->map(function ($item) {
             return [
                 'nama_obat' => optional($item->obat)->nama ?? '-',
-                'jumlah' => rtrim(rtrim(number_format((float) $item->qty_total, 2, ',', '.'), '0'), ','),
+                'jumlah' => rtrim(rtrim(number_format((float) $item->jumlah_box, 2, ',', '.'), '0'), ','),
             ];
         });
 

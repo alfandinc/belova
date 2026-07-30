@@ -15,12 +15,12 @@
             --page-height: 20cm;
             --font-main: Arial, Helvetica, sans-serif;
             --font-size-base: 10pt;
-            --no-top: 3.75cm;
-            --no-left: 1.95cm;
-            --tanggal-top: 3.75cm;
-            --tanggal-left: 7.35cm;
+            --no-top: 3.9cm;
+            --no-left: 3cm;
+            --tanggal-top: 3.9cm;
+            --tanggal-left: 8cm;
             --kepada-top: 4.63cm;
-            --kepada-left: 1.95cm;
+            --kepada-left: 3cm;
             --table-top: 6.18cm;
             --row-height: 0.92cm;
             --no-col-left: 0.9cm;
@@ -28,10 +28,7 @@
             --obat-col-width: 5.45cm;
             --jumlah-col-left: 8.2cm;
             --jumlah-col-width: 1.5cm;
-            --footer-name-top: 17.65cm;
-            --footer-sip-top: 18.3cm;
-            --footer-left: 1.25cm;
-            --footer-width: 7.7cm;
+            --print-scale: 0.97;
         }
 
         * {
@@ -96,7 +93,7 @@
             height: var(--page-height);
             margin: 0 auto 12px;
             background: #fff;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .field {
@@ -165,34 +162,20 @@
             font-weight: 600;
         }
 
-        .footer-name,
-        .footer-sip {
-            position: absolute;
-            left: var(--footer-left);
-            width: var(--footer-width);
-            text-align: center;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-        }
-
-        .footer-name {
-            top: var(--footer-name-top);
-            font-size: 11pt;
-        }
-
-        .footer-sip {
-            top: var(--footer-sip-top);
-            font-size: 10.5pt;
-            font-weight: 600;
-        }
-
         @media print {
+            html,
+            body {
+                overflow: visible;
+            }
+
             .screen-toolbar {
                 display: none;
             }
 
             .sheet {
                 margin: 0;
+                transform: scale(var(--print-scale));
+                transform-origin: top left;
                 page-break-after: always;
             }
 
@@ -222,9 +205,6 @@
                     <div class="cell cell-jumlah">{{ $row['jumlah'] ?? '' }}</div>
                 </div>
             @endforeach
-
-            <div class="footer-name">apt. Noor Hesthisara Hudana Reswar, S.Farm</div>
-            <div class="footer-sip">SIP : NR33722503003873</div>
         </div>
     @endforeach
 
