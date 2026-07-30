@@ -19,9 +19,9 @@
             --no-left: 3cm;
             --tanggal-top: 3.9cm;
             --tanggal-left: 8cm;
-            --kepada-top: 4.63cm;
+            --kepada-top: 4.5cm;
             --kepada-left: 3cm;
-            --table-top: 6.18cm;
+            --table-top: 6.3cm;
             --row-height: 0.7cm;
             --no-col-left: 0.9cm;
             --obat-col-left: 2.2cm;
