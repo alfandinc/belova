@@ -703,7 +703,11 @@ class RawatJalanController extends Controller
                         $actionButtons[] = '<button class="btn btn-sm btn-info btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien Memasuki Ruangan" data-visitation-id="' . $visitationId . '" data-pasien-nama="' . e($v->nama_pasien ?? 'Pasien') . '"><i class="fas fa-door-open"></i></button>';
                     } elseif ($user->hasRole('Dokter')) {
                         $tindakanUrl = route('erm.tindakan.create', $v->id);
-                        $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning" style="font-weight:bold;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan</a>';
+                        $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
+                        $tindakanBadge = $tindakanCount > 0
+                            ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $tindakanCount . '</span>'
+                            : '';
+                        $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);
                             $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Asesmen"><i class="fas fa-user-md mr-1"></i>Asesmen</a>';
