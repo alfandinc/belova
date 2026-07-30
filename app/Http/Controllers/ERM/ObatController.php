@@ -923,6 +923,7 @@ class ObatController extends Controller
             
             // The status_aktif value to be used - directly from the request
             $statusAktif = $request->input('status_aktif', 1); // Default to 1 (active) if not provided
+            $requestedHppJual = $request->has('hpp_jual') ? $request->input('hpp_jual') : null;
             
             \Illuminate\Support\Facades\Log::info('Status aktif processed: ' . $statusAktif);
             
@@ -930,6 +931,7 @@ class ObatController extends Controller
             if ($request->filled('id')) {
                 // Update existing record using find + update
                 $obat = Obat::withInactive()->findOrFail($request->id);
+                $hppJual = $requestedHppJual ?? $obat->hpp_jual ?? $request->hpp;
                 $obat->update([
                     'nama' => $request->nama,
                     'kode_obat' => $request->kode_obat,
@@ -945,10 +947,11 @@ class ObatController extends Controller
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
-                    'hpp_jual' => $request->hpp_jual,
+                    'hpp_jual' => $hppJual,
                 ]);
             } else {
                 // Create new record
+                $hppJual = $requestedHppJual ?? $request->hpp;
                 $obat = Obat::create([
                     'nama' => $request->nama,
                     'kode_obat' => $request->kode_obat,
@@ -964,7 +967,7 @@ class ObatController extends Controller
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
-                    'hpp_jual' => $request->hpp_jual,
+                    'hpp_jual' => $hppJual,
                 ]);
             }
 

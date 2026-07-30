@@ -89,8 +89,8 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
-                                                        <label for="hpp_jual">HPP Jual</label>
-                                                        <input type="text" class="form-control numeric-input" id="hpp_jual" name="hpp_jual" inputmode="decimal" aria-label="HPP Jual">
+                                                        <label for="hna">HNA</label>
+                                                        <input type="text" class="form-control numeric-input" id="hna" name="hna" inputmode="decimal" aria-label="HNA">
                                                     </div>
                                                 </div>
                                             </div>
@@ -103,19 +103,10 @@
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
-                                                        <label for="hna">HNA</label>
-                                                        <input type="text" class="form-control numeric-input" id="hna" name="hna" inputmode="decimal" aria-label="HNA">
+                                                        <label for="harga_nonfornas">Harga Jual</label>
+                                                        <input type="text" class="form-control numeric-input" id="harga_nonfornas" name="harga_nonfornas" inputmode="decimal" aria-label="Harga Jual">
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="form-group">
-                                                        <label for="harga_nonfornas">Harga Non-Fornas</label>
-                                                        <input type="text" class="form-control numeric-input" id="harga_nonfornas" name="harga_nonfornas" inputmode="decimal" aria-label="Harga Non-Fornas">
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-6"></div>
                                             </div>
                                             <div class="row">
                                                 <div class="col-md-6">
@@ -283,16 +274,12 @@
                                     <label class="custom-control-label" for="col-hpp">HPP</label>
                                 </div>
                                 <div class="custom-control custom-checkbox">
-                                    <input class="custom-control-input column-choice" type="checkbox" id="col-hpp-jual" value="hpp_jual" checked>
-                                    <label class="custom-control-label" for="col-hpp-jual">HPP Jual</label>
-                                </div>
-                                <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-hna" value="hna" checked>
                                     <label class="custom-control-label" for="col-hna">HNA</label>
                                 </div>
                                 <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-harga-nonfornas" value="harga_nonfornas" checked>
-                                    <label class="custom-control-label" for="col-harga-nonfornas">Harga Non-Fornas</label>
+                                    <label class="custom-control-label" for="col-harga-nonfornas">Harga Jual</label>
                                 </div>
                                 <div class="custom-control custom-checkbox">
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-metode-bayar" value="metode_bayar" checked>
@@ -581,7 +568,7 @@
     
     // Declare table variable globally
     let table;
-    const rupiahInputSelectors = ['#hpp', '#hpp_jual', '#harga_net', '#hna', '#harga_nonfornas'];
+    const rupiahInputSelectors = ['#hpp', '#harga_net', '#hna', '#harga_nonfornas'];
 
     function normalizeNumericInput(value) {
         var raw = (value || '').toString().replace(/[^0-9.,-]/g, '').trim();
@@ -674,7 +661,6 @@
                 $('#kode_obat').val(data.kode_obat);
                 $('#nama').val(data.nama);
                 $('#hpp').val(formatNumericToRupiah(data.hpp));
-                $('#hpp_jual').val(formatNumericToRupiah(data.hpp_jual));
                 $('#harga_net').val(formatNumericToRupiah(data.harga_net));
                 $('#hna').val(formatNumericToRupiah(data.hna));
                 $('#harga_nonfornas').val(formatNumericToRupiah(data.harga_nonfornas));
@@ -959,7 +945,7 @@
             // Robust normalization for localized decimal inputs before serializing the form.
             // Handles formats like "3.241,20" (dot thousands, comma decimals) and
             // "3241.20" (dot decimal). Leaves already-correct dot-decimal values intact.
-            var decimalIds = ['#hpp', '#hpp_jual', '#harga_net', '#hna', '#harga_nonfornas'];
+            var decimalIds = ['#hpp', '#harga_net', '#hna', '#harga_nonfornas'];
             decimalIds.forEach(function(sel){
                 var $el = $(sel);
                 if ($el.length) {

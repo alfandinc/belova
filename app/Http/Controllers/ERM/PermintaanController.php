@@ -7,6 +7,7 @@ use App\Models\ERM\Permintaan;
 use App\Models\ERM\PermintaanItem;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Pemasok;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -135,6 +136,7 @@ class PermintaanController extends Controller
             }
             if ($p->status === 'approved') {
                 $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print" target="_blank" class="btn btn-secondary btn-sm mr-1"><i class="fa fa-print"></i> Print</a>';
+                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print-surat-pemesanan" target="_blank" class="btn btn-primary btn-sm mr-1"><i class="fa fa-print"></i> Surat Pemesanan</a>';
             }
             if ($p->status === 'waiting_approval') {
                 $aksi .= '<a href="/erm/permintaan/'.$p->id.'/edit" class="btn btn-info btn-sm mr-1">Edit</a>';
@@ -370,6 +372,46 @@ class PermintaanController extends Controller
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="SuratPermintaan-'.$permintaan->no_permintaan.'.pdf"'
+        ]);
+    }
+
+    public function printSuratPemesanan($id)
+    {
+        $permintaan = Permintaan::findOrFail($id);
+
+        if ($permintaan->status !== 'approved') {
+            abort(403, 'Surat pemesanan hanya tersedia untuk permintaan yang sudah approved.');
+        }
+
+        $rowsPerPage = 12;
+        $items = $permintaan->items()->with(['obat', 'pemasok'])->get()->values();
+
+        $printItems = $items->map(function ($item) {
+            return [
+                'nama_obat' => optional($item->obat)->nama ?? '-',
+                'jumlah' => rtrim(rtrim(number_format((float) $item->qty_total, 2, ',', '.'), '0'), ','),
+            ];
+        });
+
+        $pages = $printItems->chunk($rowsPerPage)->map(function ($chunk) use ($rowsPerPage) {
+            return $chunk->pad($rowsPerPage, null)->values();
+        });
+
+        if ($pages->isEmpty()) {
+            $pages = collect([collect()->pad($rowsPerPage, null)->values()]);
+        }
+
+        $pemasokName = optional(optional($items->first())->pemasok)->nama ?? '-';
+        $requestDate = $permintaan->request_date
+            ? Carbon::parse($permintaan->request_date)->translatedFormat('d/m/Y')
+            : '-';
+
+        return view('erm.permintaan.print-surat-pemesanan', [
+            'permintaan' => $permintaan,
+            'pages' => $pages,
+            'pemasokName' => $pemasokName,
+            'requestDate' => $requestDate,
+            'rowsPerPage' => $rowsPerPage,
         ]);
     }
 }

@@ -17,9 +17,8 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
         'kode_obat' => 'Kode Obat',
         'nama' => 'Nama',
         'hpp' => 'HPP',
-        'hpp_jual' => 'HPP Jual',
         'hna' => 'HNA',
-        'harga_nonfornas' => 'Harga Non-Fornas',
+        'harga_nonfornas' => 'Harga Jual',
         'metode_bayar' => 'Metode Bayar',
         'kategori' => 'Kategori',
         'zat_aktif' => 'Zat Aktif',
@@ -29,7 +28,7 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
     ];
     /** @var string[] */
     protected $allowedColumns = [
-        'id','kode_obat','nama','hpp','hpp_jual','hna','harga_nonfornas','metode_bayar','kategori','zat_aktif','dosis','satuan','is_generik'
+        'id','kode_obat','nama','hpp','hna','harga_nonfornas','metode_bayar','kategori','zat_aktif','dosis','satuan','is_generik'
     ];
     public function __construct($request)
     {
@@ -90,8 +89,6 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                     $row[] = $obat->nama; break;
                 case 'hpp':
                     $row[] = $obat->hpp; break;
-                case 'hpp_jual':
-                    $row[] = $obat->hpp_jual; break;
                 case 'hna':
                     $row[] = $obat->hna; break;
                 case 'harga_nonfornas':
