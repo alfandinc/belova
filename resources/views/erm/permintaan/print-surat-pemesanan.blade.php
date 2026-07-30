@@ -22,7 +22,7 @@
             --kepada-top: 4.63cm;
             --kepada-left: 3cm;
             --table-top: 6.18cm;
-            --row-height: 0.92cm;
+            --row-height: 0.7cm;
             --no-col-left: 0.9cm;
             --obat-col-left: 2.2cm;
             --obat-col-width: 5.45cm;
