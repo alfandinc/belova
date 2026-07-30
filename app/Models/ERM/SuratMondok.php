@@ -15,6 +15,7 @@ class SuratMondok extends Model
     ];
 
     protected $fillable = [
+        'visitation_id',
         'pasien_id',
         'dokter_id',
         'tujuan_igd',
@@ -27,6 +28,11 @@ class SuratMondok extends Model
     public function pasien()
     {
         return $this->belongsTo(Pasien::class, 'pasien_id');
+    }
+
+    public function visitation()
+    {
+        return $this->belongsTo(Visitation::class, 'visitation_id', 'id');
     }
     
     public function dokter()

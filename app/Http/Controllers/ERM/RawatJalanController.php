@@ -622,7 +622,13 @@ class RawatJalanController extends Controller
                     $q->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
                 },
                 'suratMondoks as surat_mondok_count' => function ($q) {
-                    $q->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
+                    $q->where(function ($suratMondokQuery) {
+                        $suratMondokQuery->whereColumn('visitation_id', 'erm_visitations.id')
+                            ->orWhere(function ($legacyQuery) {
+                                $legacyQuery->whereNull('visitation_id')
+                                    ->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
+                            });
+                    });
                 }
             ]);
             return datatables()->of($visitations)

@@ -83,6 +83,7 @@
                     </button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
                     <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
                     <div class="form-group mb-3">
                         <label class="form-label"><i class="fas fa-user-md"></i> Dokter</label>
@@ -745,6 +746,7 @@ $(document).ready(function() {
     // Reset form when Surat Mondok modal is opened
     $('#modalSuratMondok').on('show.bs.modal', function() {
         $('#formSuratMondok')[0].reset();
+        $('#formSuratMondok input[name="visitation_id"]').val('{{ $visitation->id }}');
         $('#dokter_id_mondok').trigger('change');
         $('#formSuratMondok input[name="created_at"]').val('{{ optional($visitation?->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}');
     });

@@ -199,6 +199,7 @@ class SuratIstirahatController extends Controller
     public function storeMondok(Request $request)
     {
         $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
             'pasien_id' => 'required|exists:erm_pasiens,id',
             'dokter_id' => 'required',
             'tujuan_igd' => 'required|string|max:255',
@@ -207,9 +208,17 @@ class SuratIstirahatController extends Controller
             'created_at' => 'nullable|date',
         ]);
 
-        $visitation = Visitation::where('pasien_id', $request->pasien_id)
-            ->latest('tanggal_visitation')
+        $visitation = Visitation::where('id', $request->visitation_id)
+            ->where('pasien_id', $request->pasien_id)
             ->first();
+
+        if (! $visitation) {
+            return response()->json([
+                'errors' => [
+                    'visitation_id' => ['Kunjungan tidak sesuai dengan pasien.'],
+                ],
+            ], 422);
+        }
 
         if ($request->filled('created_at')) {
             $suratDate = Carbon::parse($request->created_at);
@@ -220,6 +229,7 @@ class SuratIstirahatController extends Controller
         }
 
         $surat = SuratMondok::create([
+            'visitation_id' => $visitation->id,
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
             'tujuan_igd' => $request->tujuan_igd,
