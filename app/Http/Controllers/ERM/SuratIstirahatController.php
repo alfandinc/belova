@@ -17,13 +17,32 @@ use Carbon\Carbon; // Ensure Carbon is imported
 
 class SuratIstirahatController extends Controller
 {
-    public function index($pasien_id)
+    public function index(Request $request, $pasien_id)
     {
-        $visitation = Visitation::where('pasien_id', $pasien_id)->latest()->first();
+        $visitationId = $request->query('visitation_id');
+
+        $visitationQuery = Visitation::where('pasien_id', $pasien_id);
+
+        if ($visitationId) {
+            $visitationQuery->where('id', $visitationId);
+        }
+
+        $visitation = $visitationQuery->latest('tanggal_visitation')->first();
+
+        if (! $visitation && $visitationId) {
+            $visitation = Visitation::where('pasien_id', $pasien_id)
+                ->latest('tanggal_visitation')
+                ->first();
+        }
+
         $visitId = $visitation->id;
 
         $pasien = Pasien::with(['suratIstirahats', 'suratMondoks'])->findOrFail($pasien_id);
         $surats = $pasien->suratIstirahats()->with('dokter.user', 'dokter.spesialisasi')->get();
+        $visitations = Visitation::where('pasien_id', $pasien_id)
+            ->with(['dokter.user', 'asesmenPenunjang'])
+            ->orderByDesc('tanggal_visitation')
+            ->get();
 
         $pasienData = PasienHelperController::getDataPasien($visitId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitId);
@@ -70,7 +89,7 @@ class SuratIstirahatController extends Controller
             'dokterUserId' => $dokterUserId,
             'asesmenPenunjang' => $asesmenPenunjang,
             'suratDiagnosas' => $suratDiagnosas,
-            'visitations' => $pasien->visitations ?? [],
+            'visitations' => $visitations,
         ], $pasienData, $createKunjunganData));
     }
 

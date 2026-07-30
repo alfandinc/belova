@@ -83,8 +83,22 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
                     <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
+                    <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-notes-medical"></i> Kunjungan</label>
+                        <select id="visitation_id_mondok" name="visitation_id" class="form-control select2" required>
+                            @foreach($visitations as $visit)
+                                <option
+                                    value="{{ $visit->id }}"
+                                    data-tanggal="{{ optional($visit->tanggal_visitation)->format('Y-m-d') ?? $visit->tanggal_visitation }}"
+                                    {{ $visit->id === $visitation->id ? 'selected' : '' }}
+                                >
+                                    {{ optional($visit->tanggal_visitation)->format('d/m/Y') ?? $visit->tanggal_visitation }} - {{ $visit->dokter->user->name ?? '-' }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="form-text text-muted">Tanggal dibuat akan mengikuti kunjungan yang dipilih.</small>
+                    </div>
                     <div class="form-group mb-3">
                         <label class="form-label"><i class="fas fa-user-md"></i> Dokter</label>
                         <select id="dokter_id_mondok" name="dokter_id" class="form-control select2" required>
@@ -456,6 +470,15 @@ $(document).ready(function() {
 
     $('.select2').select2({ width: '100%' });
 
+    function syncMondokDateFromVisit() {
+        const selectedVisit = $('#visitation_id_mondok').find('option:selected');
+        const tanggalVisit = selectedVisit.data('tanggal');
+
+        if (tanggalVisit) {
+            $('#formSuratMondok input[name="created_at"]').val(tanggalVisit);
+        }
+    }
+
     // Initialize Surat Diagnosa DataTable with AJAX
     let tableDiagnosa = $('#suratDiagnosaTable').DataTable({
         responsive: true,
@@ -659,7 +682,18 @@ $(document).ready(function() {
 
     // Auto fill button functionality for Surat Mondok
     $('#btnAutoFill').on('click', function() {
-        const visitationId = '{{ $visitation->id }}';
+        const visitationId = $('#visitation_id_mondok').val();
+
+        if (!visitationId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Pilih kunjungan',
+                text: 'Silakan pilih kunjungan terlebih dahulu.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#3085d6'
+            });
+            return;
+        }
         
         $.ajax({
             url: '{{ route("erm.suratmondok.asesmen-data", ":visitation_id") }}'.replace(':visitation_id', visitationId),
@@ -746,10 +780,12 @@ $(document).ready(function() {
     // Reset form when Surat Mondok modal is opened
     $('#modalSuratMondok').on('show.bs.modal', function() {
         $('#formSuratMondok')[0].reset();
-        $('#formSuratMondok input[name="visitation_id"]').val('{{ $visitation->id }}');
+        $('#visitation_id_mondok').val('{{ $visitation->id }}').trigger('change');
         $('#dokter_id_mondok').trigger('change');
-        $('#formSuratMondok input[name="created_at"]').val('{{ optional($visitation?->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}');
+        syncMondokDateFromVisit();
     });
+
+    $('#visitation_id_mondok').on('change', syncMondokDateFromVisit);
 
     // Saat tombol modal alergi ditekan
     $('#btnBukaAlergi').on('click', function () {

@@ -125,7 +125,7 @@
             </li>
 
             <li>
-                <a href="{{ route('erm.suratistirahat.index', $visitation->pasien_id) }}" target="_blank">
+                <a href="{{ route('erm.suratistirahat.index', ['pasien_id' => $visitation->pasien_id, 'visitation_id' => $visitation->id]) }}" target="_blank">
                     <i data-feather="home" class="align-self-center menu-icon"></i>
                     <span>Surat Istirahat & Mondok</span>
                 </a>
