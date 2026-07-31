@@ -39,4 +39,9 @@ class PermintaanItem extends Model
     {
         return $this->belongsTo(Principal::class, 'principal_id');
     }
+
+    public function fakturBeliItems()
+    {
+        return $this->hasMany(FakturBeliItem::class, 'permintaan_item_id');
+    }
 }

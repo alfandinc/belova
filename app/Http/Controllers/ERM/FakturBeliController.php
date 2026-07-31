@@ -9,6 +9,7 @@ use App\Models\ERM\FakturBeliItem;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
+use App\Models\ERM\Permintaan;
 use App\Models\ERM\Principal;
 use App\Services\ERM\StokService;
 use Yajra\DataTables\DataTables;
@@ -99,7 +100,7 @@ class FakturBeliController extends Controller
                 })
                 ->addColumn('approved_by_user_name', function($row) {
                     if (isset($row->approved_by) && $row->approved_by) {
-                        $user = \App\Models\User::find($row->approved_by);
+                        $user = \App\Models\User::query()->find($row->approved_by);
                         return $user ? $user->name : null;
                     }
                     return null;
@@ -140,12 +141,29 @@ class FakturBeliController extends Controller
     public function cariByNoPermintaan(Request $request)
     {
         $no = $request->input('no_permintaan');
-        $faktur = \App\Models\ERM\FakturBeli::where('no_permintaan', $no)->first();
-        if ($faktur) {
-            return response()->json(['success' => true, 'faktur_id' => $faktur->id]);
-        } else {
+        $fakturs = FakturBeli::with('pemasok')
+            ->where('no_permintaan', $no)
+            ->orderByRaw("CASE WHEN status = 'diminta' THEN 0 WHEN status = 'diterima' THEN 1 ELSE 2 END")
+            ->orderByDesc('id')
+            ->get();
+
+        if ($fakturs->isEmpty()) {
             return response()->json(['success' => false, 'message' => 'Faktur tidak ditemukan']);
         }
+
+        return response()->json([
+            'success' => true,
+            'fakturs' => $fakturs->map(function ($faktur) {
+                return [
+                    'id' => $faktur->id,
+                    'no_faktur' => $faktur->no_faktur,
+                    'pemasok' => optional($faktur->pemasok)->nama,
+                    'status' => $faktur->status,
+                    'requested_date' => $faktur->requested_date,
+                    'received_date' => $faktur->received_date,
+                ];
+            })->values(),
+        ]);
     }
 
     public function create()
@@ -160,6 +178,7 @@ class FakturBeliController extends Controller
     {
 
         $validated = $request->validate([
+            'permintaan_id' => 'nullable|exists:erm_permintaan,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
             'no_faktur' => 'required|string|unique:erm_fakturbeli,no_faktur',
             'received_date' => 'required|date',
@@ -169,6 +188,7 @@ class FakturBeliController extends Controller
             'notes' => 'nullable|string',
             'bukti' => 'nullable|image|max:10240',
             'items' => 'required|array',
+            'items.*.permintaan_item_id' => 'nullable|exists:erm_permintaan_items,id',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:1',
             'items.*.diminta' => 'nullable|integer|min:0',
@@ -194,6 +214,7 @@ class FakturBeliController extends Controller
         }
 
         $faktur = FakturBeli::create([
+            'permintaan_id' => $validated['permintaan_id'] ?? null,
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
             'received_date' => $validated['received_date'],
@@ -250,10 +271,11 @@ class FakturBeliController extends Controller
             $hpp = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;
 
             $faktur->items()->create([
+                'permintaan_item_id' => $item['permintaan_item_id'] ?? null,
                 'obat_id' => $item['obat_id'],
                 'qty' => $qty,
                 'diminta' => $item['diminta'] ?? $qty, // Default to qty if diminta not provided
-                'sisa' => $qty,
+                'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
                 'harga' => $harga,
                 'diskon' => $diskon,
                 'diskon_type' => $diskonType,
@@ -281,6 +303,7 @@ class FakturBeliController extends Controller
         public function update(Request $request, $id)
     {
         $validated = $request->validate([
+            'permintaan_id' => 'nullable|exists:erm_permintaan,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
             'no_faktur' => 'required|string',
             'received_date' => 'required|date',
@@ -290,6 +313,7 @@ class FakturBeliController extends Controller
             'notes' => 'nullable|string',
             'bukti' => 'nullable|image|max:10240',
             'items' => 'required|array',
+            'items.*.permintaan_item_id' => 'nullable|exists:erm_permintaan_items,id',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:0',
             'items.*.diminta' => 'nullable|integer|min:0',
@@ -305,7 +329,20 @@ class FakturBeliController extends Controller
             'global_diskon' => 'nullable|numeric',
             'global_pajak' => 'nullable|numeric',
             'total' => 'nullable|numeric',
-        ]);        $faktur = FakturBeli::findOrFail($id);
+        ]);
+
+        foreach ($validated['items'] as $item) {
+            $diminta = (int) ($item['diminta'] ?? 0);
+            $qty = (int) ($item['qty'] ?? 0);
+            if ($diminta > 0 && $qty > $diminta) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Qty diterima tidak boleh melebihi qty diminta.'
+                ], 422);
+            }
+        }
+
+        $faktur = FakturBeli::findOrFail($id);
 
         $buktiPath = $faktur->bukti;
         if ($request->hasFile('bukti')) {
@@ -315,6 +352,7 @@ class FakturBeliController extends Controller
         DB::beginTransaction();
         try {
         $faktur->update([
+            'permintaan_id' => $validated['permintaan_id'] ?? $faktur->permintaan_id,
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
             'received_date' => $validated['received_date'],
@@ -345,10 +383,11 @@ class FakturBeliController extends Controller
             $itemSubtotal = $base - $diskonValue + $taxValue;
 
             $faktur->items()->create([
+                'permintaan_item_id' => $item['permintaan_item_id'] ?? null,
                 'obat_id' => $item['obat_id'],
                 'qty' => $qty,
                 'diminta' => $item['diminta'] ?? $qty,
-                'sisa' => $qty,
+                'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
                 'harga' => $harga,
                 'diskon' => $diskon,
                 'diskon_type' => $diskonType,
@@ -566,15 +605,35 @@ class FakturBeliController extends Controller
 
         DB::beginTransaction();
         try {
-            // Pisahkan item yang diterima dan yang tidak
-            $itemsDiterima = [];
-            $itemsBelumDikirim = [];
             foreach ($faktur->items as $item) {
-                if (($item->qty ?? 0) > 0) {
-                    $itemsDiterima[] = $item;
-                } else {
-                    $itemsBelumDikirim[] = $item;
+                $diminta = (int) ($item->diminta ?? 0);
+                $qty = (int) ($item->qty ?? 0);
+
+                if ($diminta > 0 && $qty > $diminta) {
+                    throw new \RuntimeException('Qty diterima untuk ' . ($item->obat->nama ?? 'item') . ' melebihi qty diminta.');
                 }
+            }
+
+            // Pisahkan item yang diterima dan item yang masih outstanding
+            $itemsDiterima = [];
+            $itemsOutstanding = [];
+            foreach ($faktur->items as $item) {
+                $qtyDiterima = (int) ($item->qty ?? 0);
+                $qtyDiminta = (int) ($item->diminta ?? 0);
+                $sisaQty = max($qtyDiminta - $qtyDiterima, 0);
+
+                if ($qtyDiterima > 0) {
+                    $itemsDiterima[] = $item;
+                }
+
+                if ($sisaQty > 0) {
+                    $itemsOutstanding[] = [
+                        'item' => $item,
+                        'remaining_qty' => $sisaQty,
+                    ];
+                }
+
+                $item->update(['sisa' => $sisaQty]);
             }
 
             // Proses item yang diterima (qty > 0)
@@ -631,13 +690,14 @@ class FakturBeliController extends Controller
                 'approved_by' => Auth::id()
             ]);
 
-            // Jika ada item yang belum dikirim (qty == 0), buat faktur baru dengan status 'diminta'
-            if (count($itemsBelumDikirim) > 0) {
-                // Generate no_faktur baru (bisa disesuaikan dengan format yang diinginkan)
+            // Jika ada sisa item, buat faktur baru untuk delivery berikutnya
+            if (count($itemsOutstanding) > 0) {
                 $newNoFaktur = $faktur->no_faktur . '-NEXT-' . date('YmdHis');
                 $newFaktur = FakturBeli::create([
+                    'permintaan_id' => $faktur->permintaan_id,
                     'pemasok_id' => $faktur->pemasok_id,
                     'no_faktur' => $newNoFaktur,
+                    'no_permintaan' => $faktur->no_permintaan,
                     'received_date' => $faktur->received_date,
                     'requested_date' => $faktur->requested_date,
                     'due_date' => $faktur->due_date,
@@ -650,12 +710,16 @@ class FakturBeliController extends Controller
                     'total' => null,
                     'status' => 'diminta',
                 ]);
-                foreach ($itemsBelumDikirim as $item) {
+                foreach ($itemsOutstanding as $outstanding) {
+                    $item = $outstanding['item'];
+                    $remainingQty = $outstanding['remaining_qty'];
+
                     $newFaktur->items()->create([
+                        'permintaan_item_id' => $item->permintaan_item_id,
                         'obat_id' => $item->obat_id,
                         'qty' => 0,
-                        'diminta' => $item->diminta,
-                        'sisa' => 0,
+                        'diminta' => $remainingQty,
+                        'sisa' => $remainingQty,
                         'harga' => $item->harga,
                         'diskon' => $item->diskon,
                         'diskon_type' => $item->diskon_type,
@@ -672,7 +736,9 @@ class FakturBeliController extends Controller
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => 'Faktur berhasil diapprove dan stok telah diupdate. Faktur baru dibuat untuk item yang belum dikirim.'
+                'message' => count($itemsOutstanding) > 0
+                    ? 'Faktur berhasil diapprove dan stok telah diupdate. Faktur lanjutan dibuat untuk sisa item yang belum terpenuhi.'
+                    : 'Faktur berhasil diapprove dan stok telah diupdate.'
             ]);
         } catch (\Exception $e) {
             DB::rollback();
@@ -1032,6 +1098,17 @@ class FakturBeliController extends Controller
     public function showJson($id)
     {
         $faktur = FakturBeli::with(['pemasok', 'items.obat'])->findOrFail($id);
+        $items = collect($faktur->items)->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'obat_id' => $item->obat_id,
+                'obat_nama' => $item->obat ? $item->obat->nama : null,
+                'qty' => $item->qty,
+                'harga' => $item->harga,
+                'total_amount' => $item->total_amount,
+            ];
+        })->values()->all();
+
         // Return only necessary fields for UI
         return response()->json([
             'id' => $faktur->id,
@@ -1042,16 +1119,7 @@ class FakturBeliController extends Controller
             'global_pajak' => $faktur->global_pajak,
             'total' => $faktur->total,
             'status' => $faktur->status,
-            'items' => $faktur->items->map(function($it){
-                return [
-                    'id' => $it->id,
-                    'obat_id' => $it->obat_id,
-                    'obat_nama' => $it->obat ? $it->obat->nama : null,
-                    'qty' => $it->qty,
-                    'harga' => $it->harga,
-                    'total_amount' => $it->total_amount,
-                ];
-            })
+            'items' => $items
         ]);
     }
 }

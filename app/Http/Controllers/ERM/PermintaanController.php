@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ERM\Permintaan;
 use App\Models\ERM\PermintaanItem;
 use App\Models\ERM\Obat;
+use App\Models\ERM\FakturBeli;
+use App\Models\ERM\MasterFaktur;
 use App\Models\ERM\Pemasok;
+use App\Models\ERM\Principal;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,17 +61,59 @@ class PermintaanController extends Controller
     public function index()
     {
         // Just return the view, DataTables will fetch data via AJAX
-        return view('erm.permintaan.index');
+        $principals = Principal::orderBy('nama')->get(['id', 'nama']);
+
+        return view('erm.permintaan.index', compact('principals'));
     }
 
     // DataTables AJAX endpoint
     public function data(Request $request)
     {
-        $query = Permintaan::with(['items.obat', 'items.pemasok'])->orderBy('created_at', 'desc');
-        $total = $query->count();
+        $total = Permintaan::count();
+        $query = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal', 'items.fakturBeliItems'])->orderBy('created_at', 'desc');
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         $search = $request->input('search.value');
+        $statusFilter = $request->input('status');
+        $principalFilter = $request->input('principal_id');
+
+        $rangeInput = $request->input('request_date_range');
+        if (!empty($rangeInput)) {
+            $range = explode(' - ', $rangeInput);
+            if (count($range) === 2) {
+                try {
+                    $startDate = Carbon::createFromFormat('Y-m-d', trim($range[0]))->startOfDay();
+                    $endDate = Carbon::createFromFormat('Y-m-d', trim($range[1]))->endOfDay();
+                    $query->whereBetween('request_date', [$startDate->toDateString(), $endDate->toDateString()]);
+                } catch (\Exception $e) {
+                    // Ignore invalid range and continue without custom filter.
+                }
+            }
+        } else {
+            $query->whereBetween('request_date', [
+                Carbon::now()->subMonthsNoOverflow(3)->toDateString(),
+                Carbon::now()->toDateString(),
+            ]);
+        }
+
+        if (!empty($statusFilter)) {
+            $query->where('status', $statusFilter);
+        }
+
+        if (!empty($principalFilter)) {
+            $query->whereHas('items', function ($itemQuery) use ($principalFilter) {
+                $itemQuery->where(function ($principalQuery) use ($principalFilter) {
+                    $principalQuery->where('principal_id', $principalFilter)
+                        ->orWhere(function ($fallbackQuery) use ($principalFilter) {
+                            $fallbackQuery->whereNull('principal_id')
+                                ->whereHas('obat.principals', function ($obatPrincipalQuery) use ($principalFilter) {
+                                    $obatPrincipalQuery->where('erm_principals.id', $principalFilter);
+                                });
+                        });
+                });
+            });
+        }
+
         if ($search) {
             $query->where(function($q) use ($search) {
                 $q->where('no_permintaan', 'like', "%$search%")
@@ -89,7 +134,12 @@ class PermintaanController extends Controller
             ]);
         }
         $filtered = $query->count();
+        $filteredPermintaans = (clone $query)->get()->values();
         $permintaans = $query->skip($start)->take($length)->get()->values();
+        $legacyFakturItemsByPermintaan = $this->buildLegacyFakturItemsMap($permintaans);
+
+        $masterFakturs = $this->buildMasterFakturMap($filteredPermintaans);
+        $filteredTotalNilaiPembelian = $this->sumPermintaanPurchaseValues($filteredPermintaans, $masterFakturs);
 
         $obatIds = $permintaans->flatMap(function ($permintaan) {
             return $permintaan->items->pluck('obat_id');
@@ -99,31 +149,54 @@ class PermintaanController extends Controller
             return $permintaan->items->pluck('pemasok_id');
         })->filter()->unique()->values();
 
-        $masterFakturs = \App\Models\ERM\MasterFaktur::query()
-            ->whereIn('obat_id', $obatIds)
-            ->whereIn('pemasok_id', $pemasokIds)
-            ->get(['obat_id', 'pemasok_id', 'harga'])
-            ->keyBy(function ($master) {
-                return $master->obat_id . '|' . $master->pemasok_id;
-            });
-
-        $data = $permintaans->map(function($p, $i) use ($start, $masterFakturs) {
+        $data = $permintaans->map(function($p, $i) use ($start, $masterFakturs, $legacyFakturItemsByPermintaan) {
             $aksi = '';
-            $obatList = $p->items->map(function($item) use ($masterFakturs) {
-                $obatName = optional($item->obat)->nama ?? '-';
-                $masterKey = $item->obat_id . '|' . $item->pemasok_id;
-                $harga = optional($masterFakturs->get($masterKey))->harga;
-                $hargaLabel = $harga !== null ? 'Rp ' . number_format((float) $harga, 0, ',', '.') : '-';
+            $totalNilaiPembelian = $this->calculatePermintaanPurchaseValue($p, $masterFakturs);
 
-                return '<div class="mb-1 pb-1 border-bottom">'
-                    . '<div>' . e($obatName) . '</div>'
-                    . '<small class="text-muted">Qty Total: ' . e(number_format((float) $item->qty_total, 0, ',', '.'))
-                    . ' | Harga: ' . e($hargaLabel) . '</small>'
+            $obatList = $p->items->map(function($item) {
+                $obatName = optional($item->obat)->nama ?? '-';
+                $principalName = optional($item->principal)->nama
+                    ?? optional(optional($item->obat)->principals->first())->nama
+                    ?? null;
+                $jenisObat = optional($item->obat)->is_generik ? 'Generik' : 'Paten';
+                $principalBadge = $principalName
+                    ? '<span class="badge badge-info mr-1">' . e($principalName) . '</span>'
+                    : '';
+                $jenisBadgeClass = $jenisObat === 'Generik' ? 'badge-success' : 'badge-primary';
+                $jenisBadge = '<span class="badge ' . $jenisBadgeClass . '">' . e($jenisObat) . '</span>';
+
+                return '<div class="permintaan-stack-row">'
+                    . '<div class="font-weight-medium">' . e($obatName) . '</div>'
+                    . '<div class="mt-1">' . $principalBadge . $jenisBadge . '</div>'
+                    . '</div>';
+            })->implode('');
+
+            $qtyDimintaList = $p->items->map(function($item) {
+                return '<div class="permintaan-stack-row text-right">'
+                    . '<span class="font-weight-medium">' . e(number_format((float) $item->qty_total, 0, ',', '.')) . '</span>'
+                    . '</div>';
+            })->implode('');
+
+            $qtyTerpenuhiList = $p->items->map(function($item) use ($p, $legacyFakturItemsByPermintaan) {
+                $terpenuhi = $this->calculatePermintaanItemTerpenuhi($p, $item, $legacyFakturItemsByPermintaan);
+                $qtyDiminta = (float) ($item->qty_total ?? 0);
+                $terpenuhiClass = $terpenuhi < $qtyDiminta ? 'text-danger' : 'text-success';
+
+                return '<div class="permintaan-stack-row text-right">'
+                    . '<span class="font-weight-medium ' . $terpenuhiClass . '">' . e(number_format($terpenuhi, 0, ',', '.')) . '</span>'
                     . '</div>';
             })->implode('');
 
             if ($obatList === '') {
                 $obatList = '-';
+            }
+
+            if ($qtyDimintaList === '') {
+                $qtyDimintaList = '-';
+            }
+
+            if ($qtyTerpenuhiList === '') {
+                $qtyTerpenuhiList = '-';
             }
 
             // Get pemasok name (should be the same for all items in this permintaan)
@@ -135,24 +208,36 @@ class PermintaanController extends Controller
                 $approved_by_name = $user ? $user->name : null;
             }
             if ($p->status === 'approved') {
-                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print" target="_blank" class="btn btn-secondary btn-sm mr-1"><i class="fa fa-print"></i> Print</a>';
-                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print-surat-pemesanan" target="_blank" class="btn btn-primary btn-sm mr-1"><i class="fa fa-print"></i> Surat Pemesanan</a>';
+                $aksi .= '<div class="btn-group btn-group-sm mr-1" role="group">'
+                    . '<a href="/erm/permintaan/'.$p->id.'/print" target="_blank" class="btn btn-secondary"><i class="fa fa-print"></i> Print</a>'
+                    . '<a href="/erm/permintaan/'.$p->id.'/print-surat-pemesanan" target="_blank" class="btn btn-primary"><i class="fa fa-print"></i> Surat Pemesanan</a>'
+                    . '</div>';
             }
             if ($p->status === 'waiting_approval') {
-                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/edit" class="btn btn-info btn-sm mr-1">Edit</a>';
-                $aksi .= '<button class="btn btn-success btn-sm mr-1 btn-approve" data-id="'.$p->id.'">Approve</button>';
-                $aksi .= '<button class="btn btn-warning btn-sm mr-1 btn-reject" data-id="'.$p->id.'">Reject</button>';
-                $aksi .= '<button class="btn btn-danger btn-sm btn-delete" data-id="'.$p->id.'">Hapus</button>';
+                $aksi .= '<div class="btn-group btn-group-sm mr-1" role="group">'
+                    . '<a href="/erm/permintaan/'.$p->id.'/edit" class="btn btn-info">Edit</a>'
+                    . '<button class="btn btn-success btn-approve" data-id="'.$p->id.'">Approve</button>'
+                    . '<button class="btn btn-warning btn-reject" data-id="'.$p->id.'">Reject</button>'
+                    . '<button class="btn btn-danger btn-delete" data-id="'.$p->id.'">Hapus</button>'
+                    . '</div>';
             }
             if ($p->status === 'rejected') {
-                $aksi .= '<button class="btn btn-danger btn-sm btn-delete" data-id="'.$p->id.'">Hapus</button>';
+                $aksi .= '<div class="btn-group btn-group-sm mr-1" role="group">'
+                    . '<button class="btn btn-danger btn-delete" data-id="'.$p->id.'">Hapus</button>'
+                    . '</div>';
             }
             return [
+                'id' => $p->id,
                 'no' => $start + $i + 1,
-                'no_permintaan' => $p->no_permintaan,
-                'pemasok' => $pemasokName,
+                'no_permintaan' => '<div class="permintaan-request-cell">'
+                    . '<div class="font-weight-medium">' . e($p->no_permintaan) . '</div>'
+                    . '<small class="text-muted">' . e($pemasokName) . '</small>'
+                    . '</div>',
                 'obats' => $obatList,
+                'qty_diminta' => $qtyDimintaList,
+                'qty_terpenuhi' => $qtyTerpenuhiList,
                 'request_date' => $p->request_date,
+                'total_nilai_pembelian' => $totalNilaiPembelian,
                 'status' => $p->status,
                 'approved_by_name' => $approved_by_name,
                 'jumlah_item' => $p->items->count(),
@@ -165,7 +250,128 @@ class PermintaanController extends Controller
             'recordsTotal' => $total,
             'recordsFiltered' => $filtered,
             'data' => $data,
+            'total_nilai_pembelian_filtered' => $filteredTotalNilaiPembelian,
         ]);
+    }
+
+    protected function buildMasterFakturMap($permintaans)
+    {
+        $obatIds = collect($permintaans)->flatMap(function ($permintaan) {
+            return collect($permintaan->items)->pluck('obat_id');
+        })->filter()->unique()->values();
+
+        $pemasokIds = collect($permintaans)->flatMap(function ($permintaan) {
+            return collect($permintaan->items)->pluck('pemasok_id');
+        })->filter()->unique()->values();
+
+        if ($obatIds->isEmpty() || $pemasokIds->isEmpty()) {
+            return collect();
+        }
+
+        return MasterFaktur::query()
+            ->whereIn('obat_id', $obatIds)
+            ->whereIn('pemasok_id', $pemasokIds)
+            ->get(['obat_id', 'pemasok_id', 'harga', 'diskon', 'diskon_type'])
+            ->keyBy(function ($master) {
+                return $master->obat_id . '|' . $master->pemasok_id;
+            });
+    }
+
+    protected function calculatePermintaanPurchaseValue($permintaan, $masterFakturs)
+    {
+        return (float) collect($permintaan->items)->sum(function ($item) use ($masterFakturs) {
+            return $this->calculateItemPurchaseValue($item, $masterFakturs);
+        });
+    }
+
+    protected function sumPermintaanPurchaseValues($permintaans, $masterFakturs)
+    {
+        return (float) collect($permintaans)->sum(function ($permintaan) use ($masterFakturs) {
+            return $this->calculatePermintaanPurchaseValue($permintaan, $masterFakturs);
+        });
+    }
+
+    protected function calculateItemPurchaseValue($item, $masterFakturs)
+    {
+        $masterKey = $item->obat_id . '|' . $item->pemasok_id;
+        $master = $masterFakturs->get($masterKey);
+        $harga = (float) ($master->harga ?? 0);
+        $diskon = (float) ($master->diskon ?? 0);
+        $diskonType = strtolower(trim((string) ($master->diskon_type ?? 'nominal')));
+        $qty = (float) ($item->qty_total ?? 0);
+        $subtotal = $harga * $qty;
+        $diskonValue = in_array($diskonType, ['persen', 'percent', '%', 'pct', 'pc', 'per'])
+            ? ($subtotal * $diskon / 100)
+            : $diskon;
+        $setelahDiskon = max($subtotal - $diskonValue, 0);
+
+        return $setelahDiskon + ($setelahDiskon * 11 / 100);
+    }
+
+    protected function buildLegacyFakturItemsMap($permintaans)
+    {
+        $noPermintaans = collect($permintaans)
+            ->pluck('no_permintaan')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($noPermintaans->isEmpty()) {
+            return collect();
+        }
+
+        return FakturBeli::query()
+            ->with('items')
+            ->whereIn('no_permintaan', $noPermintaans)
+            ->get()
+            ->groupBy('no_permintaan')
+            ->map(function ($fakturs) {
+                return $fakturs->flatMap(function ($faktur) {
+                    return collect($faktur->items)->map(function ($item) use ($faktur) {
+                        return [
+                            'obat_id' => $item->obat_id,
+                            'principal_id' => $item->principal_id,
+                            'pemasok_id' => $faktur->pemasok_id,
+                            'qty' => (float) ($item->qty ?? 0),
+                            'permintaan_item_id' => $item->permintaan_item_id,
+                        ];
+                    });
+                })->values();
+            });
+    }
+
+    protected function calculatePermintaanItemTerpenuhi($permintaan, $item, $legacyFakturItemsByPermintaan)
+    {
+        $linkedFakturItems = collect($item->fakturBeliItems);
+        if ($linkedFakturItems->isNotEmpty()) {
+            return (float) $linkedFakturItems->sum(function ($fakturItem) {
+                return (float) ($fakturItem->qty ?? 0);
+            });
+        }
+
+        $legacyItems = collect($legacyFakturItemsByPermintaan->get($permintaan->no_permintaan, []))
+            ->filter(function ($legacyItem) use ($item) {
+                if ((int) ($legacyItem['obat_id'] ?? 0) !== (int) ($item->obat_id ?? 0)) {
+                    return false;
+                }
+
+                if ((int) ($legacyItem['pemasok_id'] ?? 0) !== (int) ($item->pemasok_id ?? 0)) {
+                    return false;
+                }
+
+                if (!empty($item->principal_id) && !empty($legacyItem['principal_id'])) {
+                    return (int) $legacyItem['principal_id'] === (int) $item->principal_id;
+                }
+
+                return true;
+            })
+            ->values();
+
+        if ($legacyItems->isNotEmpty()) {
+            return (float) $legacyItems->sum('qty');
+        }
+
+        return 0.0;
     }
 
     public function create()
@@ -288,6 +494,7 @@ class PermintaanController extends Controller
             $grouped = collect($permintaan->items)->groupBy('pemasok_id');
             foreach ($grouped as $pemasokId => $items) {
                 $faktur = \App\Models\ERM\FakturBeli::create([
+                    'permintaan_id' => $permintaan->id,
                     'pemasok_id' => $pemasokId,
                     'no_faktur' => null,
                     'no_permintaan' => $permintaan->no_permintaan,
@@ -304,9 +511,10 @@ class PermintaanController extends Controller
                         $diskon_type = $master ? ($master->diskon_type == 'percent' ? 'percent' : $master->diskon_type) : 'nominal';
                         \App\Models\ERM\FakturBeliItem::create([
                             'fakturbeli_id' => $faktur->id,
+                            'permintaan_item_id' => $item->id,
                             'obat_id' => $item->obat_id,
                             'principal_id' => $item->principal_id ?? null,
-                            'qty' => $item->qty_total,
+                            'qty' => 0,
                             'sisa' => $item->qty_total,
                             'harga' => $harga,
                             'diskon' => $diskon,
@@ -339,6 +547,67 @@ class PermintaanController extends Controller
         ]);
 
         return response()->json(['success' => true, 'message' => 'Permintaan berhasil direject.']);
+    }
+
+    public function nilaiPembelian($id)
+    {
+        $permintaan = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal'])->findOrFail($id);
+        $ppnRate = 11;
+
+        $details = collect($permintaan->items)->map(function ($item) use ($ppnRate) {
+            $master = MasterFaktur::query()
+                ->with('principal')
+                ->where('obat_id', $item->obat_id)
+                ->where('pemasok_id', $item->pemasok_id)
+                ->first();
+
+            $harga = (float) ($master->harga ?? 0);
+            $qty = (float) ($item->qty_total ?? 0);
+            $box = (float) ($item->jumlah_box ?? 0);
+            $diskon = (float) ($master->diskon ?? 0);
+            $diskonType = strtolower(trim((string) ($master->diskon_type ?? 'nominal')));
+            $subtotal = $harga * $qty;
+            $diskonValue = in_array($diskonType, ['persen', 'percent', '%', 'pct', 'pc', 'per'])
+                ? ($subtotal * $diskon / 100)
+                : $diskon;
+            $setelahDiskon = max($subtotal - $diskonValue, 0);
+            $ppnValue = $setelahDiskon * $ppnRate / 100;
+            $totalHarga = $setelahDiskon + $ppnValue;
+            $principalName = optional($item->principal)->nama
+                ?? optional($master?->principal)->nama
+                ?? optional(optional($item->obat)->principals->first())->nama
+                ?? '-';
+            $jenisObat = optional($item->obat)->is_generik ? 'Generik' : 'Paten';
+
+            return [
+                'nama_obat' => optional($item->obat)->nama ?? '-',
+                'principal_name' => $principalName,
+                'jenis_obat' => $jenisObat,
+                'qty' => $qty,
+                'box' => $box,
+                'harga' => $harga,
+                'diskon' => $diskon,
+                'diskon_type' => $diskonType,
+                'subtotal' => $subtotal,
+                'setelah_diskon' => $setelahDiskon,
+                'ppn_rate' => $ppnRate,
+                'ppn' => $ppnValue,
+                'total_harga' => $totalHarga,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'no_permintaan' => $permintaan->no_permintaan,
+            'request_date' => $permintaan->request_date,
+            'items' => $details,
+            'summary' => [
+                'subtotal' => (float) $details->sum('subtotal'),
+                'setelah_diskon' => (float) $details->sum('setelah_diskon'),
+                'ppn' => (float) $details->sum('ppn'),
+                'total_harga' => (float) $details->sum('total_harga'),
+            ],
+        ]);
     }
 
     public function destroy($id)

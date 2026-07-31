@@ -191,9 +191,38 @@ $(function() {
             type: 'GET',
             data: { no_permintaan: noPermintaan },
             success: function(res) {
-                if (res.success && res.faktur_id) {
-                    // Redirect to edit page
-                    window.location.href = '/erm/fakturpembelian/' + res.faktur_id + '/edit';
+                if (res.success && Array.isArray(res.fakturs) && res.fakturs.length > 0) {
+                    if (res.fakturs.length === 1) {
+                        window.location.href = '/erm/fakturpembelian/' + res.fakturs[0].id + '/edit';
+                        return;
+                    }
+
+                    var options = {};
+                    res.fakturs.forEach(function(faktur) {
+                        var noFaktur = faktur.no_faktur || ('Faktur #' + faktur.id);
+                        var pemasok = faktur.pemasok ? ' - ' + faktur.pemasok : '';
+                        options[faktur.id] = noFaktur + pemasok + ' [' + (faktur.status || '-') + ']';
+                    });
+
+                    Swal.fire({
+                        title: 'Pilih Faktur',
+                        text: 'Terdapat lebih dari satu faktur untuk nomor permintaan ini.',
+                        input: 'select',
+                        inputOptions: options,
+                        inputPlaceholder: 'Pilih faktur',
+                        showCancelButton: true,
+                        confirmButtonText: 'Buka Faktur',
+                        cancelButtonText: 'Batal',
+                        inputValidator: function(value) {
+                            if (!value) {
+                                return 'Pilih salah satu faktur terlebih dahulu.';
+                            }
+                        }
+                    }).then(function(result) {
+                        if (result.value) {
+                            window.location.href = '/erm/fakturpembelian/' + result.value + '/edit';
+                        }
+                    });
                 } else {
                     Swal.fire('Tidak ditemukan', res.message || 'Faktur dengan no permintaan tersebut tidak ditemukan', 'warning');
                 }

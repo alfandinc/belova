@@ -10,9 +10,14 @@ class FakturBeli extends Model
     use HasFactory;
     protected $table = 'erm_fakturbeli';
     protected $fillable = [
-        'pemasok_id', 'no_faktur', 'no_permintaan', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
+        'permintaan_id', 'pemasok_id', 'no_faktur', 'no_permintaan', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
         'subtotal', 'global_diskon', 'global_pajak', 'total', 'status', 'approved_by'
     ];
+
+    public function permintaan()
+    {
+        return $this->belongsTo(\App\Models\ERM\Permintaan::class, 'permintaan_id');
+    }
 
     public function pemasok()
     {

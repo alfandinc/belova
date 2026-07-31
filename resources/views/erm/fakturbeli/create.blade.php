@@ -12,6 +12,7 @@
         <div class="card-body">
             <form id="fakturbeli-form" enctype="multipart/form-data">
                 @csrf
+                <input type="hidden" name="permintaan_id" value="{{ $faktur->permintaan_id ?? '' }}">
                 <input type="hidden" name="subtotal" id="input-subtotal" value="{{ isset($faktur) && $faktur->subtotal !== null ? $faktur->subtotal : '' }}">
                 <input type="hidden" name="global_diskon" id="input-global-diskon" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : '' }}">
                 <input type="hidden" name="global_pajak" id="input-global-pajak" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : '' }}">
@@ -106,6 +107,7 @@
                                         @if(isset($faktur))
                                             <input type="hidden" name="items[{{ $i }}][obat_id]" value="{{ $item->obat->id ?? $item->obat_id }}">
                                         @endif
+                                        <input type="hidden" name="items[{{ $i }}][permintaan_item_id]" value="{{ $item->permintaan_item_id ?? '' }}">
                                     </td>
                                     <td>
                                         <input type="number" name="items[{{ $i }}][diminta]" class="form-control diminta-field" readonly value="{{ $item->diminta }}" {{ isset($faktur) && $faktur->status == 'diminta' ? 'readonly' : '' }}>
@@ -244,7 +246,7 @@ $(document).ready(function() {
 
 function itemRow(idx) {
     return `<tr data-item-index="${idx}">
-        <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select><span class="text-danger">*</span></td>
+        <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select><input type="hidden" name="items[${idx}][permintaan_item_id]" value=""><span class="text-danger">*</span></td>
         <td><input type="number" name="items[${idx}][diminta]" class="form-control diminta-field" readonly value="0"></td>
     <td><input type="number" name="items[${idx}][qty]" class="form-control item-qty" required><span class="text-danger">*</span></td>
         <td><input type="number" name="items[${idx}][harga]" class="form-control item-harga" step="0.01" required placeholder="Fill"><span class="text-danger">*</span></td>
@@ -452,6 +454,28 @@ $('#fakturbeli-form').on('submit', function(e) {
     $('.calculate-harga').remove();
     
     refreshItemRows();
+
+    let invalidItem = null;
+    $('#items-table tbody tr').each(function() {
+        const row = $(this);
+        const qty = parseFloat(row.find('input[name*="[qty]"]').val()) || 0;
+        const diminta = parseFloat(row.find('input[name*="[diminta]"]').val()) || 0;
+
+        if (diminta > 0 && qty > diminta) {
+            invalidItem = row.find('.obat-select option:selected').text() || 'Item';
+            return false;
+        }
+    });
+
+    if (invalidItem) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Qty tidak valid',
+            text: `Qty diterima untuk ${invalidItem} tidak boleh melebihi qty diminta.`
+        });
+        return;
+    }
+
     let formData = new FormData(this);
     let isEdit = {{ isset($faktur) ? 'true' : 'false' }};
     let url = isEdit ? '{{ isset($faktur) ? route('erm.fakturbeli.update', $faktur->id) : '' }}' : '{{ route('erm.fakturbeli.store') }}';

@@ -23,4 +23,9 @@ class Permintaan extends Model
     {
         return $this->hasMany(PermintaanItem::class, 'permintaan_id');
     }
+
+    public function fakturBelis()
+    {
+        return $this->hasMany(FakturBeli::class, 'permintaan_id');
+    }
 }
