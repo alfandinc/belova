@@ -71,6 +71,55 @@
             <tbody></tbody>
         </table>
     <button type="button" class="btn btn-success btn-sm mb-3" id="add-row">Tambah Item</button>
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-light d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                <h5 class="mb-2 mb-md-0">Nilai Permintaan Pembelian</h5>
+                <div class="d-flex align-items-center" style="gap: 8px;">
+                    <label for="preview_period_months" class="mb-0">Rata-rata Keluar</label>
+                    <select id="preview_period_months" class="form-control form-control-sm" style="width: 140px;">
+                        <option value="1">1 Bulan</option>
+                        <option value="3" selected>3 Bulan</option>
+                        <option value="6">6 Bulan</option>
+                        <option value="12">1 Tahun</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body px-0 py-0">
+                <div class="px-3 pt-2">
+                    <small class="text-muted" id="previewPeriodInfo">Periode -</small>
+                </div>
+                <div class="table-responsive mb-0">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Obat Diminta</th>
+                                <th class="text-right">Total Stok Saat Ini</th>
+                                <th class="text-right">Rata-rata Keluar / Bulan</th>
+                                <th class="text-right">Qty</th>
+                                <th class="text-right">Harga</th>
+                                <th class="text-right">Diskon</th>
+                                <th class="text-right">Setelah Diskon</th>
+                                <th class="text-right">PPN</th>
+                                <th class="text-right">Total Harga</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nilaiPermintaanPreviewBody">
+                            <tr>
+                                <td colspan="9" class="text-center text-muted">Pilih item untuk melihat estimasi nilai pembelian.</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="6" class="text-right font-weight-bold">Total Nilai Permintaan Pembelian</th>
+                                <th class="text-right font-weight-bold" id="nilaiPermintaanSubtotalDiskon">Rp 0</th>
+                                <th class="text-right font-weight-bold" id="nilaiPermintaanPpn">Rp 0</th>
+                                <th class="text-right font-weight-bold" id="nilaiPermintaanGrandTotal">Rp 0</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
         <br>
         <div class="text-right">
             <button type="submit" class="btn btn-primary">Simpan Permintaan</button>
@@ -104,6 +153,206 @@
 <script>
 let rowIdx = 0;
 let oldItems = @json($oldItems);
+const PPN_RATE = 11;
+let forecastMetricsByObatId = {};
+let forecastMetricRequests = {};
+
+function formatRupiah(value) {
+    return 'Rp ' + Number(value || 0).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    });
+}
+
+function parseNumber(value) {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+
+    const normalized = String(value).replace(/[^0-9,.-]/g, '').replace(',', '.');
+    const parsed = parseFloat(normalized);
+
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isPercentDiscount(diskonType) {
+    return ['persen', 'percent', '%', 'pct', 'pc', 'per'].includes(String(diskonType || '').trim().toLowerCase());
+}
+
+function getDiscountLabel(diskon, diskonType) {
+    if (!diskon) {
+        return '0';
+    }
+
+    return isPercentDiscount(diskonType) ? diskon + '%' : formatRupiah(diskon);
+}
+
+function getSelectedText($select) {
+    return $select.find('option:selected').text().trim() || '-';
+}
+
+function formatPeriodInfo(startDate, endDate) {
+    if (!startDate || !endDate) {
+        return '';
+    }
+
+    return 'Periode ' + startDate + ' s/d ' + endDate;
+}
+
+function getForecastCacheKey(obatId) {
+    return String(obatId) + '|' + String($('#preview_period_months').val() || '3');
+}
+
+function fetchForecastMetricForObat(obatId) {
+    if (!obatId) {
+        return;
+    }
+
+    const cacheKey = getForecastCacheKey(obatId);
+
+    if (forecastMetricRequests[cacheKey]) {
+        return;
+    }
+
+    forecastMetricRequests[cacheKey] = true;
+
+    $.ajax({
+        url: '/erm/obat/' + obatId + '/forecast',
+        type: 'GET',
+        data: {
+            period_months: $('#preview_period_months').val()
+        },
+        success: function(res) {
+            forecastMetricsByObatId[String(obatId)] = {
+                obat_id: obatId,
+                total_stock: res.total_stock,
+                average_monthly_keluar: res.average_monthly_keluar,
+                period_start: res.period_start,
+                period_end: res.period_end,
+            };
+
+            if (res.period_start && res.period_end) {
+                $('#previewPeriodInfo').text(formatPeriodInfo(res.period_start, res.period_end));
+            }
+
+            updatePurchasePreview();
+        },
+        complete: function() {
+            delete forecastMetricRequests[cacheKey];
+        }
+    });
+}
+
+function fetchForecastMetrics() {
+    const obatIds = $('#items-table tbody .obat-select').map(function() {
+        return $(this).val();
+    }).get().filter(Boolean);
+
+    forecastMetricRequests = {};
+
+    if (!obatIds.length) {
+        forecastMetricsByObatId = {};
+        $('#previewPeriodInfo').text('Periode -');
+        updatePurchasePreview();
+        return;
+    }
+
+    $.ajax({
+        url: '{{ route('erm.permintaan.forecast-preview') }}',
+        type: 'GET',
+        data: {
+            period_months: $('#preview_period_months').val(),
+            obat_ids: Array.from(new Set(obatIds))
+        },
+        traditional: true,
+        success: function(res) {
+            forecastMetricsByObatId = {};
+            (res.rows || []).forEach(function(row) {
+                forecastMetricsByObatId[String(row.obat_id)] = row;
+            });
+            $('#previewPeriodInfo').text(formatPeriodInfo(res.period_start, res.period_end) || 'Periode -');
+
+            Array.from(new Set(obatIds)).forEach(function(obatId) {
+                if (!forecastMetricsByObatId[String(obatId)]) {
+                    fetchForecastMetricForObat(obatId);
+                }
+            });
+
+            updatePurchasePreview();
+        },
+        error: function() {
+            forecastMetricsByObatId = {};
+            Array.from(new Set(obatIds)).forEach(function(obatId) {
+                fetchForecastMetricForObat(obatId);
+            });
+            updatePurchasePreview();
+        }
+    });
+}
+
+function updatePurchasePreview() {
+    let rows = '';
+    let totalSetelahDiskon = 0;
+    let totalPpn = 0;
+    let grandTotal = 0;
+
+    $('#items-table tbody tr').each(function() {
+        const $row = $(this);
+        const obatId = $row.find('.obat-select').val();
+        const pemasokId = $row.find('.pemasok-select').val();
+
+        if (!obatId || !pemasokId) {
+            return;
+        }
+
+        const namaObat = getSelectedText($row.find('.obat-select'));
+    const forecastMetrics = forecastMetricsByObatId[String(obatId)] || null;
+        const qty = parseNumber($row.find('.qty-total').val());
+        const jumlahBox = parseNumber($row.find('.jumlah-box').val());
+        const harga = parseNumber($row.find('.harga-master').val());
+        const diskon = parseNumber($row.find('.diskon-master').val());
+        const diskonType = $row.find('.diskontype-master').val();
+        const subtotal = harga * qty;
+        const diskonValue = isPercentDiscount(diskonType)
+            ? (subtotal * diskon / 100)
+            : diskon;
+        const setelahDiskon = Math.max(subtotal - diskonValue, 0);
+        const ppn = setelahDiskon * PPN_RATE / 100;
+        const totalHarga = setelahDiskon + ppn;
+
+        totalSetelahDiskon += setelahDiskon;
+        totalPpn += ppn;
+        grandTotal += totalHarga;
+
+        rows += '<tr>' +
+            '<td>' + (namaObat || '-') + '</td>' +
+            '<td class="text-right">' + (forecastMetrics ? formatForecastMetric(forecastMetrics.total_stock) : '-') + '</td>' +
+            '<td class="text-right">' + (forecastMetrics ? formatForecastMetric(forecastMetrics.average_monthly_keluar) : '-') + '</td>' +
+            '<td class="text-right">' + Number(qty || 0).toLocaleString('id-ID') + ' (' + Number(jumlahBox || 0).toLocaleString('id-ID') + ' Box)</td>' +
+            '<td class="text-right">' + formatRupiah(harga) + '</td>' +
+            '<td class="text-right">' + getDiscountLabel(diskon, diskonType) + '</td>' +
+            '<td class="text-right">' + formatRupiah(setelahDiskon) + '</td>' +
+            '<td class="text-right">' + formatRupiah(ppn) + '<br><small class="text-muted">' + PPN_RATE + '%</small></td>' +
+            '<td class="text-right font-weight-bold">' + formatRupiah(totalHarga) + '</td>' +
+            '</tr>';
+    });
+
+    if (!rows) {
+        rows = '<tr><td colspan="9" class="text-center text-muted">Pilih item untuk melihat estimasi nilai pembelian.</td></tr>';
+    }
+
+    $('#nilaiPermintaanPreviewBody').html(rows);
+    $('#nilaiPermintaanSubtotalDiskon').text(formatRupiah(totalSetelahDiskon));
+    $('#nilaiPermintaanPpn').text(formatRupiah(totalPpn));
+    $('#nilaiPermintaanGrandTotal').text(formatRupiah(grandTotal));
+}
+
+function formatForecastMetric(value) {
+    return Number(value || 0).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    });
+}
 
 function addPermintaanRow(item = null) {
     rowIdx++;
@@ -125,6 +374,8 @@ function addPermintaanRow(item = null) {
     initSelect2($row.find('.obat-select'), '/erm/ajax/obat', item ? {id: item.obat_id, text: item.obat_nama} : null);
     initSelect2($row.find('.pemasok-select'), '/erm/ajax/pemasok', item ? {id: item.pemasok_id, text: item.pemasok_nama} : null);
     initSelect2($row.find('.principal-select'), '/erm/ajax/principal', item ? {id: item.principal_id, text: item.principal_nama} : null);
+    updatePurchasePreview();
+    fetchForecastMetrics();
 }
 
 function initSelect2($el, url, selected = null) {
@@ -182,6 +433,12 @@ $(document).ready(function() {
     $('#add-row').on('click', function() { addPermintaanRow(); });
     $('#items-table').on('click', '.remove-row', function() {
         $(this).closest('tr').remove();
+        fetchForecastMetrics();
+        updatePurchasePreview();
+    });
+
+    $('#preview_period_months').on('change', function() {
+        fetchForecastMetrics();
     });
 
     // Autofill master faktur fields when obat or pemasok change
@@ -196,6 +453,12 @@ $(document).ready(function() {
         } else {
             applyMasterFakturToRow($row, { found: false });
         }
+
+        if ($(this).hasClass('obat-select')) {
+            fetchForecastMetrics();
+        }
+
+        updatePurchasePreview();
     });
 
     // helper: apply master faktur data to row
@@ -205,6 +468,7 @@ $(document).ready(function() {
             $row.find('.qtybox-master').val('');
             $row.find('.diskon-master').val('');
             $row.find('.diskontype-master').val('');
+            updatePurchasePreview();
             return;
         }
         $row.find('.harga-master').val(data.harga ?? '');
@@ -226,6 +490,8 @@ $(document).ready(function() {
         if (qtyBox > 0 && jumlahBox > 0) {
             $row.find('.qty-total').val(qtyBox * jumlahBox);
         }
+
+        updatePurchasePreview();
     }
 
     // Qty total autofill
@@ -239,6 +505,12 @@ $(document).ready(function() {
         } else {
             $qtyTotal.val('');
         }
+
+        updatePurchasePreview();
+    });
+
+    $('#items-table').on('input', '.qty-total', function() {
+        updatePurchasePreview();
     });
 
     // AJAX form submit

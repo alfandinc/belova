@@ -7,7 +7,9 @@ use App\Models\ERM\Permintaan;
 use App\Models\ERM\PermintaanItem;
 use App\Models\ERM\Obat;
 use App\Models\ERM\FakturBeli;
+use App\Models\ERM\KartuStok;
 use App\Models\ERM\MasterFaktur;
+use App\Models\ERM\ObatStokGudang;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Principal;
 use Carbon\Carbon;
@@ -481,6 +483,80 @@ class PermintaanController extends Controller
             'principal_nama' => $master->principal ? $master->principal->nama : null,
         ]);
     }
+
+    public function forecastPreview(Request $request)
+    {
+        $request->validate([
+            'period_months' => 'nullable|integer|in:1,3,6,12',
+            'obat_ids' => 'nullable|array',
+            'obat_ids.*' => 'integer|exists:erm_obat,id',
+        ]);
+
+        $periodMonths = (int) $request->input('period_months', 3);
+        $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
+        $obatIds = collect($request->input('obat_ids', []))
+            ->filter()
+            ->map(function ($id) {
+                return (int) $id;
+            })
+            ->unique()
+            ->values();
+
+        $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
+        $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
+
+        if ($obatIds->isEmpty()) {
+            return response()->json([
+                'period_months' => $periodMonths,
+                'period_start' => $periodStart->format('Y-m-d'),
+                'period_end' => $periodEnd->format('Y-m-d'),
+                'rows' => [],
+            ]);
+        }
+
+        $keluarPerObat = KartuStok::query()
+            ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
+            ->whereIn('obat_id', $obatIds)
+            ->where('tipe', 'keluar')
+            ->where('ref_type', 'invoice_penjualan')
+            ->whereBetween('tanggal', [$periodStart, $periodEnd])
+            ->groupBy('obat_id')
+            ->pluck('total_keluar', 'obat_id');
+
+        $stockPerObat = ObatStokGudang::query()
+            ->whereHas('gudang', function ($query) {
+                $query->where('nama', '!=', 'Gudang ED');
+            })
+            ->whereIn('obat_id', $obatIds)
+            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
+            ->groupBy('obat_id')
+            ->pluck('total_stock', 'obat_id');
+
+        $rows = Obat::withInactive()
+            ->whereIn('id', $obatIds)
+            ->get(['id', 'nama'])
+            ->map(function ($obat) use ($keluarPerObat, $stockPerObat, $periodMonths) {
+                $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
+                $averageMonthlyKeluar = $periodMonths > 0 ? ceil($obatKeluar / $periodMonths) : 0;
+
+                return [
+                    'obat_id' => $obat->id,
+                    'obat_nama' => $obat->nama,
+                    'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
+                    'obat_keluar' => round($obatKeluar, 2),
+                    'average_monthly_keluar' => $averageMonthlyKeluar,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'period_months' => $periodMonths,
+            'period_start' => $periodStart->format('Y-m-d'),
+            'period_end' => $periodEnd->format('Y-m-d'),
+            'rows' => $rows,
+        ]);
+    }
+
         public function approve($id)
     {
         $permintaan = Permintaan::with('items')->findOrFail($id);

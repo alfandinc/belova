@@ -886,6 +886,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
    
     Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data');
     Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur');
+    Route::get('permintaan/forecast-preview', [App\Http\Controllers\ERM\PermintaanController::class, 'forecastPreview'])->name('erm.permintaan.forecast-preview');
     Route::get('permintaan/{id}/nilai-pembelian', [App\Http\Controllers\ERM\PermintaanController::class, 'nilaiPembelian'])->name('erm.permintaan.nilai-pembelian');
     Route::get('permintaan/{id}/print', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPermintaan'])->name('erm.permintaan.print');
         Route::get('permintaan/{id}/print-surat-pemesanan', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPemesanan'])->name('erm.permintaan.print-surat-pemesanan');
