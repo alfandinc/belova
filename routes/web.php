@@ -205,7 +205,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('erm.dashboard');
 
     Route::get('/finance', [FinanceDashboardController::class, 'index'])
-        ->middleware('role:Kasir|Admin|Finance')
+        ->middleware('role:Kasir|Admin|Finance|Marketing')
         ->name('finance.dashboard');
 
     // Piutang routes
@@ -1369,8 +1369,9 @@ Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Head Manager|Employee|
 });
 
 
-Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
+Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd|Marketing')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
+    Route::middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
         Route::get('/transactions', [FinanceTransactionController::class, 'index'])->name('finance.transactions.index');
         Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
         Route::get('/transactions/stats', [FinanceTransactionController::class, 'stats'])->name('finance.transactions.stats');
@@ -1388,6 +1389,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.revenue-targets.index');
             Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
         });
+        });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::get('/billing/event/{event}', [BillingController::class, 'eventCreate'])->name('finance.billing.event-create');
         Route::get('/billing/event/{event}/items/search', [BillingController::class, 'searchEventItems'])->name('finance.billing.event-items');
@@ -1403,9 +1405,6 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
     Route::post('/billing/{id}/restore', [BillingController::class, 'restore'])->name('finance.billing.restore');
     Route::delete('/billing/{id}/force', [BillingController::class, 'forceDelete'])->name('finance.billing.forceDelete');
-    // Pengajuan paid history (AJAX DataTable)
-    Route::get('/pengajuan/paid-data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'paidData'])->name('finance.pengajuan.paid.data');
-
     // Visitation-level bulk actions from index
     Route::post('/billing/visitation/{visitation_id}/trash', [BillingController::class, 'trashByVisitation'])->name('finance.billing.trashByVisitation');
     Route::post('/billing/visitation/{visitation_id}/restore', [BillingController::class, 'restoreByVisitation'])->name('finance.billing.restoreByVisitation');
@@ -1438,6 +1437,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
         Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
         Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->name('finance.invoice.print-nota-v2');
+        Route::middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
         // Rekap Penjualan
         Route::get('/rekap-penjualan', [BillingController::class, 'rekapPenjualanForm'])->name('finance.rekap-penjualan.form');
         Route::get('/rekap-penjualan/download', [BillingController::class, 'downloadRekapPenjualanExcel'])->name('finance.rekap-penjualan.download');
@@ -1460,6 +1460,9 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
         Route::get('/retur-pembelian/invoice/{id}/items', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoiceItems'])->name('finance.retur-pembelian.invoice-items');
         
+    // Pengajuan paid history (AJAX DataTable)
+    Route::get('/pengajuan/paid-data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'paidData'])->name('finance.pengajuan.paid.data');
+
     // Pengajuan Dana (AJAX + DataTables)
     Route::get('/pengajuan-dana', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'index'])->name('finance.pengajuan.index');
     Route::get('/pengajuan-dana/data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'data'])->name('finance.pengajuan.data');
@@ -1492,6 +1495,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::get('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'show'])->name('finance.pengajuan.approver.show');
     Route::put('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'update'])->name('finance.pengajuan.approver.update');
     Route::delete('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'destroy'])->name('finance.pengajuan.approver.destroy');
+    });
     }
 );
 

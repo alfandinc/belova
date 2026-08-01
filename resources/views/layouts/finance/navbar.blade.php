@@ -41,7 +41,7 @@
                             <li class="nav-item"><a class="nav-link" href="/finance"><i class="ti-control-record"></i>Analytics</a></li>
                         </ul>
                     </li> --}}
-                    @hasanyrole('Kasir|Admin|Finance')
+                    @hasanyrole('Kasir|Admin|Finance|Marketing')
                     <li class="menu-label mt-0">Kasir</li>
                     <li>
                         <a href="/finance/billing">
@@ -49,6 +49,8 @@
                             <span>Daftar Billing</span>
                         </a>
                     </li>
+                    @endhasanyrole
+                    @hasanyrole('Kasir|Admin|Finance')
                     <li>
                         <a href="{{ route('finance.transactions.index') }}">
                             <i class="fas fa-receipt align-self-center menu-icon"></i>
