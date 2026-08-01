@@ -48,4 +48,13 @@ class KodeTindakan extends Model
             ->withPivot('qty', 'dosis', 'satuan_dosis')
             ->withTimestamps();
     }
+
+    /**
+     * Many-to-many relationship to KategoriTindakan
+     */
+    public function kategoris()
+    {
+        return $this->belongsToMany(KategoriTindakan::class, 'erm_kode_tindakan_kategori', 'kode_tindakan_id', 'kategori_tindakan_id')
+            ->withTimestamps();
+    }
 }

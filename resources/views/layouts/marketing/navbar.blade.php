@@ -82,6 +82,8 @@
                     || request()->is('marketing/tindakan/*')
                     || request()->is('marketing/kodetindakan')
                     || request()->is('marketing/kodetindakan/*')
+                    || request()->is('marketing/kategori-tindakan')
+                    || request()->is('marketing/kategori-tindakan/*')
                     || request()->is('marketing/survey-questions')
                     || request()->is('marketing/survey-questions/*');
             @endphp
@@ -157,6 +159,7 @@
                     <li><a href="/marketing/master-merchandise"><i data-feather="package" class="align-self-center menu-icon"></i>Master Merchandise</a></li>
                     <li><a href="/marketing/tindakan"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i>Paket Tindakan</a></li>
                     <li><a href="/marketing/kodetindakan"><i data-feather="key" class="align-self-center menu-icon"></i>Kode Tindakan</a></li>
+                    <li><a href="/erm/marketing/kategori-tindakan"><i data-feather="layers" class="align-self-center menu-icon"></i>Kategori Tindakan</a></li>
                     <li><a href="/marketing/survey-questions"><i data-feather="edit-3" class="align-self-center menu-icon"></i>Survey Questions</a></li>
                 </ul>
             </li>

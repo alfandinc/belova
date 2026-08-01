@@ -257,6 +257,11 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Marketing|Admin|Finance')
         ->name('marketing.dashboard');
 
+    // compatibility redirect: old link without 'erm' prefix
+    Route::get('/marketing/kategori-tindakan', function() {
+        return redirect('/erm/marketing/kategori-tindakan');
+    })->middleware('auth');
+
     Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')
         ->name('workdoc.dashboard');
@@ -720,6 +725,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role
     Route::get('/kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search']);
     Route::get('/kodetindakan/{id}/obats', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
+    // Kategori Tindakan routes (marketing master data)
+    Route::get('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'index'])->name('marketing.kategori.index');
+    Route::post('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'store']);
+    Route::delete('/marketing/kategori-tindakan/{id}', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'destroy']);
+    Route::post('/marketing/kategori-tindakan/import', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importCsv']);
+    // Select2 search for kategori (used by kode tindakan form)
+    Route::get('/erm/kategori-tindakan/search', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'search'])->name('marketing.kategori.search');
     // Provide endpoints to toggle active status for bulk actions (accept POST here to avoid being shadowed by the {id} route)
     Route::post('/kodetindakan/action/make-all-inactive', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllInactive']);
     Route::post('/kodetindakan/action/make-all-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllActive']);

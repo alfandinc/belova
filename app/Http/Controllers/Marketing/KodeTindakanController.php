@@ -147,6 +147,8 @@ class KodeTindakanController extends Controller
             'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
+            'kategori_ids' => 'array',
+            'kategori_ids.*' => 'exists:erm_kategori_tindakan,id',
         ]);
         $kodeTindakan = KodeTindakan::create($validated);
         // Attach obat to pivot
@@ -160,6 +162,10 @@ class KodeTindakanController extends Controller
                 ];
             }
             $kodeTindakan->obats()->attach($pivotData);
+        }
+        // Attach categories if provided
+        if ($request->has('kategori_ids')) {
+            $kodeTindakan->kategoris()->sync($request->input('kategori_ids', []));
         }
         return response()->json(['success' => true, 'data' => $kodeTindakan]);
     }
@@ -183,6 +189,8 @@ class KodeTindakanController extends Controller
             'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
+            'kategori_ids' => 'array',
+            'kategori_ids.*' => 'exists:erm_kategori_tindakan,id',
         ]);
         $kodeTindakan->update($validated);
         // Sync obat to pivot
@@ -197,6 +205,10 @@ class KodeTindakanController extends Controller
             }
         }
         $kodeTindakan->obats()->sync($pivotData);
+        // sync categories
+        if ($request->has('kategori_ids')) {
+            $kodeTindakan->kategoris()->sync($request->input('kategori_ids', []));
+        }
         return response()->json(['success' => true, 'data' => $kodeTindakan]);
     }
 

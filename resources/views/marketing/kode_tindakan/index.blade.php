@@ -159,6 +159,13 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group col-md-12">
+                            <label for="kategori">Kategori</label>
+                            <select id="kategoriSelect" name="kategori_ids[]" class="form-control kategori-select" multiple="multiple" style="width:100%"></select>
+                            <small class="form-text text-muted">Pilih satu atau lebih kategori untuk kode tindakan ini.</small>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
                             <input type="hidden" name="is_active" value="0">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" value="1" id="is_active" name="is_active" checked>
@@ -386,6 +393,41 @@ $(document).ready(function() {
         }
     }
 
+    function initKategoriSelect2(selected = null) {
+        $('#kategoriSelect').select2({
+            placeholder: 'Cari atau pilih kategori',
+            minimumInputLength: 1,
+            ajax: {
+                url: '{{ route('marketing.kategori.search') }}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) { return { q: params.term }; },
+                processResults: function(data) {
+                    var results = [];
+                    if (Array.isArray(data.results)) results = data.results;
+                    else if (Array.isArray(data)) results = data;
+                    else if (data && Array.isArray(data.data)) results = data.data;
+                    return { results: results.map(function(item){ return { id: item.id, text: item.nama || item.text || item.name }; }) };
+                },
+                cache: true
+            },
+            tags: false,
+            width: '100%',
+            allowClear: true
+        });
+
+        if (selected && Array.isArray(selected)) {
+            // selected: array of {id, nama}
+            selected.forEach(function(s) {
+                var option = new Option(s.nama || s.text || s.name || s.id, s.id, true, true);
+                $('#kategoriSelect').append(option);
+            });
+            $('#kategoriSelect').trigger('change');
+        } else {
+            $('#kategoriSelect').val(null).trigger('change');
+        }
+    }
+
     // Add new row
     $('#addObatRow').on('click', function() {
         let idx = $('#obatTable tbody tr').length;
@@ -393,6 +435,9 @@ $(document).ready(function() {
         $('#obatTable tbody').append($row);
         initObatSelect2($row);
     });
+
+    // Initialize kategori select on page load
+    initKategoriSelect2();
 
     // Remove row
     $(document).on('click', '.remove-obat', function() {
@@ -408,6 +453,8 @@ $(document).ready(function() {
         // default new kode tindakan to active
         $('#is_active').prop('checked', true);
         $('#kodeTindakanModalLabel').text('Tambah Kode Tindakan');
+        // clear kategori selection
+        initKategoriSelect2();
         $('#kodeTindakanModal').modal('show');
     });
 
@@ -518,6 +565,13 @@ $(document).ready(function() {
             }
             // set active checkbox
             $('#is_active').prop('checked', data.is_active ? true : false);
+            // populate kategori selection if provided by API
+            if (data.kategoris && Array.isArray(data.kategoris)) {
+                // each kategori should be {id, nama}
+                initKategoriSelect2(data.kategoris.map(function(k){ return {id: k.id, nama: k.nama || k.text || k.name}; }));
+            } else {
+                initKategoriSelect2();
+            }
             $('#kodeTindakanModalLabel').text('Edit Kode Tindakan');
             $('#kodeTindakanModal').modal('show');
         });
