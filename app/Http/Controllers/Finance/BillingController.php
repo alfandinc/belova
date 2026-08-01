@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
+use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\ObatStokGudang;
 use App\Models\Marketing\MarketingEvent;
 use App\Models\Marketing\PromoItem;
@@ -812,6 +813,8 @@ class BillingController extends Controller
         DB::beginTransaction();
 
         try {
+            $defaultMetodeBayarId = $this->resolveDefaultEventMetodeBayarId();
+
             if ($patientMode === 'existing') {
                 $pasien = Pasien::findOrFail($data['pasien_id']);
             } else {
@@ -843,7 +846,7 @@ class BillingController extends Controller
             $visitation = Visitation::create([
                 'id' => $visitationId,
                 'pasien_id' => $pasien->id,
-                'metode_bayar_id' => 1,
+                'metode_bayar_id' => $defaultMetodeBayarId,
                 'dokter_id' => null,
                 'user_id' => Auth::id(),
                 'klinik_id' => $event->klinik_id,
@@ -873,11 +876,17 @@ class BillingController extends Controller
             Log::error('Failed to start event billing', [
                 'event_id' => $event->id,
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
+
+            $message = 'Gagal membuat pasien dan kunjungan event.';
+            if (config('app.debug')) {
+                $message .= ' ' . $e->getMessage();
+            }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal membuat pasien dan kunjungan event.',
+                'message' => $message,
             ], 500);
         }
     }
@@ -958,6 +967,19 @@ class BillingController extends Controller
     /**
      * Poll for unread notifications for Farmasi
      */
+    private function resolveDefaultEventMetodeBayarId(): ?int
+    {
+        $umumMetodeBayarId = MetodeBayar::query()
+            ->whereRaw('LOWER(nama) = ?', ['umum'])
+            ->value('id');
+
+        if ($umumMetodeBayarId) {
+            return (int) $umumMetodeBayarId;
+        }
+
+        return null;
+    }
+
     public function getNotif(Request $request)
     {
         $user = Auth::user();
