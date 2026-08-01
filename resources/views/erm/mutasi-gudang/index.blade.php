@@ -505,6 +505,20 @@ $(document).ready(function() {
         return name;
     }
 
+    function normalizeDecimalInput(value) {
+        if (value === undefined || value === null) {
+            return null;
+        }
+
+        var normalized = String(value).trim().replace(',', '.');
+        if (normalized === '') {
+            return null;
+        }
+
+        var parsed = parseFloat(normalized);
+        return isNaN(parsed) ? null : parsed;
+    }
+
     // --- Dynamic items management for multi-obat mutasi ---
     function initItemSelect2($select) {
         $select.select2({
@@ -551,7 +565,7 @@ $(document).ready(function() {
         var $tr = $('<tr data-row-id="' + rowId + '"></tr>');
         var obatSelect = '<select name="items['+rowId+'][obat_id]" class="form-control item-obat" required><option value="">Pilih Obat</option></select>';
             var jumlahInput = '<div class="input-group">'
-                + '<input type="number" min="1" name="items['+rowId+'][jumlah]" class="form-control item-jumlah" required value="1">'
+                + '<input type="text" inputmode="decimal" name="items['+rowId+'][jumlah]" class="form-control item-jumlah" required value="1" placeholder="Contoh: 1,5 atau 1.5">'
                 + '<div class="input-group-append">'
                     + '<span class="input-group-text item-satuan" style="min-width:60px"></span>'
                 + '</div>'
@@ -690,13 +704,13 @@ $(document).ready(function() {
         var valid = true;
         $('#mutasi-items-table tbody tr').each(function() {
             var obatId = $(this).find('.item-obat').val();
-            var jumlah = $(this).find('.item-jumlah').val();
+            var jumlah = normalizeDecimalInput($(this).find('.item-jumlah').val());
             var keterangan = $(this).find('.item-keterangan').val();
-            if (!obatId || !jumlah || parseInt(jumlah) <= 0) {
+            if (!obatId || jumlah === null || jumlah <= 0) {
                 valid = false;
                 return false; // break
             }
-            items.push({ obat_id: obatId, jumlah: parseInt(jumlah), keterangan: keterangan });
+            items.push({ obat_id: obatId, jumlah: jumlah, keterangan: keterangan });
         });
 
         if (!valid || items.length === 0) {

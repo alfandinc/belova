@@ -17,7 +17,7 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->unsignedBigInteger('mutasi_id');
             $table->unsignedBigInteger('obat_id');
-            $table->integer('jumlah')->default(0);
+            $table->decimal('jumlah', 12, 2)->default(0);
             $table->string('keterangan')->nullable();
             $table->timestamps();
 

@@ -18,7 +18,7 @@ class MutasiGudangItem extends Model
     ];
 
     protected $casts = [
-        'jumlah' => 'integer',
+        'jumlah' => 'float',
     ];
 
     public function mutasi()

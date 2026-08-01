@@ -203,6 +203,26 @@ class MutasiGudangController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->has('items')) {
+            $items = collect($request->input('items', []))
+                ->map(function ($item) {
+                    if (array_key_exists('jumlah', $item)) {
+                        $item['jumlah'] = str_replace(',', '.', (string) $item['jumlah']);
+                    }
+
+                    return $item;
+                })
+                ->toArray();
+
+            $request->merge(['items' => $items]);
+        }
+
+        if ($request->filled('jumlah')) {
+            $request->merge([
+                'jumlah' => str_replace(',', '.', (string) $request->input('jumlah')),
+            ]);
+        }
+
         // Support multiple items: items = [{obat_id, jumlah, keterangan}, ...]
         $rules = [
             'gudang_asal_id' => 'required|exists:erm_gudang,id',
@@ -212,11 +232,11 @@ class MutasiGudangController extends Controller
         if ($request->has('items')) {
             $rules['items'] = 'required|array|min:1';
             $rules['items.*.obat_id'] = 'required|exists:erm_obat,id';
-            $rules['items.*.jumlah'] = 'required|integer|min:1';
+            $rules['items.*.jumlah'] = 'required|numeric|min:0.01';
             $rules['items.*.keterangan'] = 'nullable|string|max:255';
         } else {
             $rules['obat_id'] = 'required|exists:erm_obat,id';
-            $rules['jumlah'] = 'required|integer|min:1';
+            $rules['jumlah'] = 'required|numeric|min:0.01';
         }
 
         $request->validate($rules);
@@ -266,7 +286,7 @@ class MutasiGudangController extends Controller
                 \App\Models\ERM\MutasiGudangItem::create([
                     'mutasi_id' => $mutasi->id,
                     'obat_id' => $it['obat_id'],
-                    'jumlah' => $it['jumlah'],
+                    'jumlah' => (float) $it['jumlah'],
                     'keterangan' => $it['keterangan'] ?? null
                 ]);
             }
