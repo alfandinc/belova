@@ -13,4 +13,10 @@ class Icd10 extends Model
         'description',
         'category',
     ];
+
+    public function kategoriTindakans()
+    {
+        return $this->belongsToMany(KategoriTindakan::class, 'erm_kategori_tindakan_icd10', 'icd10_id', 'kategori_tindakan_id')
+            ->withTimestamps();
+    }
 }

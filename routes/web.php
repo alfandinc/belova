@@ -727,9 +727,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/kodetindakan/{id}/obats', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
     // Kategori Tindakan routes (marketing master data)
     Route::get('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'index'])->name('marketing.kategori.index');
-    Route::post('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'store']);
-    Route::delete('/marketing/kategori-tindakan/{id}', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'destroy']);
-    Route::post('/marketing/kategori-tindakan/import', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importCsv']);
+    Route::post('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'store'])->name('marketing.kategori.store');
+    Route::delete('/marketing/kategori-tindakan/{id}', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'destroy'])->name('marketing.kategori.destroy');
+    Route::post('/marketing/kategori-tindakan/import', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importPreview'])->name('marketing.kategori.import.preview');
+    Route::post('/marketing/kategori-tindakan/import/apply', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importApply'])->name('marketing.kategori.import.apply');
     // Select2 search for kategori (used by kode tindakan form)
     Route::get('/erm/kategori-tindakan/search', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'search'])->name('marketing.kategori.search');
     // Provide endpoints to toggle active status for bulk actions (accept POST here to avoid being shadowed by the {id} route)
@@ -2121,6 +2122,13 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+
+        // ICD10 management
+        Route::get('/icd10', [\App\Http\Controllers\Admin\Icd10Controller::class, 'index'])->name('admin.icd10.index');
+        Route::post('/icd10', [\App\Http\Controllers\Admin\Icd10Controller::class, 'store'])->name('admin.icd10.store');
+        Route::get('/icd10/{id}', [\App\Http\Controllers\Admin\Icd10Controller::class, 'show'])->name('admin.icd10.show');
+        Route::put('/icd10/{id}', [\App\Http\Controllers\Admin\Icd10Controller::class, 'update'])->name('admin.icd10.update');
+        Route::delete('/icd10/{id}', [\App\Http\Controllers\Admin\Icd10Controller::class, 'destroy'])->name('admin.icd10.destroy');
 
         //Role Management
         Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');

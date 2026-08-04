@@ -20,4 +20,10 @@ class KategoriTindakan extends Model
         return $this->belongsToMany(KodeTindakan::class, 'erm_kode_tindakan_kategori', 'kategori_tindakan_id', 'kode_tindakan_id')
             ->withTimestamps();
     }
+
+    public function icd10s()
+    {
+        return $this->belongsToMany(Icd10::class, 'erm_kategori_tindakan_icd10', 'kategori_tindakan_id', 'icd10_id')
+            ->withTimestamps();
+    }
 }

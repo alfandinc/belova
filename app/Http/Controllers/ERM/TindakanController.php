@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
 use App\Models\ERM\Spk;
+use App\Models\ERM\AsesmenPenunjang;
 use App\Models\User;
 use Carbon\Carbon;
 use App\Models\ERM\MultiVisitUsage;
@@ -295,7 +296,7 @@ class TindakanController extends Controller
 
         $visitation = Visitation::findOrFail($data['visitation_id']);
         $pasien = $visitation->pasien;
-        $tindakan = Tindakan::findOrFail($data['tindakan_id']);
+        $tindakan = Tindakan::with('kodeTindakans.kategoris.icd10s')->findOrFail($data['tindakan_id']);
 
         // Always create RiwayatTindakan (we may attach multi-visit usage after)
         $riwayatTindakan = RiwayatTindakan::create([
@@ -662,6 +663,8 @@ class TindakanController extends Controller
             $obatBillings[] = $obatBilling;
         }
 
+        $this->syncKategoriIcd10ToAsesmenPenunjang($visitation->id, $tindakan);
+
         return response()->json([
             'success' => true,
             'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
@@ -673,6 +676,72 @@ class TindakanController extends Controller
             'obatBillings' => $obatBillings,
             'riwayatTindakan' => $riwayatTindakan
         ]);
+    }
+
+    private function syncKategoriIcd10ToAsesmenPenunjang($visitationId, Tindakan $tindakan): void
+    {
+        $diagnosisCandidates = [];
+
+        foreach ($tindakan->kodeTindakans as $kodeTindakan) {
+            foreach ($kodeTindakan->kategoris as $kategori) {
+                foreach ($kategori->icd10s as $icd10) {
+                    $label = $this->formatIcd10DiagnosaKerja($icd10);
+                    if ($label !== null) {
+                        $diagnosisCandidates[$label] = $label;
+                    }
+                }
+            }
+        }
+
+        if (empty($diagnosisCandidates)) {
+            return;
+        }
+
+        $asesmen = AsesmenPenunjang::firstOrCreate(['visitation_id' => $visitationId]);
+        $fields = ['diagnosakerja_1', 'diagnosakerja_2', 'diagnosakerja_3', 'diagnosakerja_4', 'diagnosakerja_5', 'diagnosakerja_6'];
+
+        $existingValues = [];
+        foreach ($fields as $field) {
+            $value = trim((string) ($asesmen->{$field} ?? ''));
+            if ($value !== '') {
+                $existingValues[mb_strtolower($value)] = true;
+            }
+        }
+
+        foreach ($diagnosisCandidates as $label) {
+            if (isset($existingValues[mb_strtolower($label)])) {
+                continue;
+            }
+
+            foreach ($fields as $field) {
+                $currentValue = trim((string) ($asesmen->{$field} ?? ''));
+                if ($currentValue === '') {
+                    $asesmen->{$field} = $label;
+                    $existingValues[mb_strtolower($label)] = true;
+                    break;
+                }
+            }
+        }
+
+        if ($asesmen->isDirty($fields)) {
+            $asesmen->save();
+        }
+    }
+
+    private function formatIcd10DiagnosaKerja($icd10): ?string
+    {
+        $code = trim((string) ($icd10->code ?? ''));
+        $description = trim((string) ($icd10->description ?? ''));
+
+        if ($code !== '' && $description !== '') {
+            return $code . ' - ' . $description;
+        }
+
+        if ($code !== '') {
+            return $code;
+        }
+
+        return $description !== '' ? $description : null;
     }
 
     public function getRiwayatTindakanHistory($visitationId)
