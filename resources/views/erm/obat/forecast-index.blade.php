@@ -39,7 +39,7 @@
                         <small class="text-muted">Bagian utama dengan proporsi 3 dari 4. Perhitungan kebutuhan stok berdasarkan histori obat keluar.</small>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
+                            <div class="col-md-4">
                             <div class="form-group">
                                 <label for="forecast_period_months">Obat Keluar</label>
                                 <select class="form-control" id="forecast_period_months">
@@ -50,7 +50,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                            <div class="col-md-4">
                             <div class="form-group">
                                 <label for="forecast_pengadaan_frequency">Pengadaan</label>
                                 <select class="form-control" id="forecast_pengadaan_frequency">
@@ -59,6 +59,22 @@
                                     <option value="twice_weekly" selected>1 Minggu 2x</option>
                                 </select>
                             </div>
+                        </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="forecast_kuota_divisor">Kuota</label>
+                                    <select class="form-control" id="forecast_kuota_divisor">
+                                        <option value="2">1/2 x Rata-rata Keluar / Bulan</option>
+                                        <option value="4" selected>1/4 x Rata-rata Keluar / Bulan</option>
+                                        <option value="8">1/8 x Rata-rata Keluar / Bulan</option>
+                                    </select>
+                                </div>
+                            </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="forecast_only_below_kuota">
+                            <label class="custom-control-label" for="forecast_only_below_kuota">Tampilkan hanya obat dengan total stok kurang dari kuota</label>
                         </div>
                     </div>
 
@@ -78,8 +94,10 @@
                                     <tr>
                                         <th>Nama Obat</th>
                                         <th>Total Stok</th>
+                                        <th>Total Stok + Pending</th>
                                         <th>Obat Keluar</th>
                                         <th>Rata-rata Keluar / Bulan</th>
+                                        <th>Kuota</th>
                                         <th>Limit Stok</th>
                                         <th>Pesan / Box</th>
                                         <th>Aksi</th>
@@ -277,6 +295,16 @@
         font-size: 12px;
     }
 
+    .forecast-stock-plus-permintaan {
+        text-align: right;
+        line-height: 1.35;
+    }
+
+    .forecast-stock-plus-permintaan small {
+        color: #6c757d;
+        font-size: 12px;
+    }
+
     .btn-obat-favorite {
         border: 0;
         background: transparent;
@@ -338,7 +366,7 @@
     #similarObatTable td:nth-child(5),
     #similarObatTable th:nth-child(2),
     #similarObatTable th:nth-child(3),
-    #similarObatTable th:nth-child(4) {
+    #similarObatTable th:nth-child(4),
     #similarObatTable th:nth-child(5) {
         text-align: right;
         white-space: nowrap;
@@ -360,10 +388,20 @@
     #forecastTable td:nth-child(3),
     #forecastTable td:nth-child(4),
     #forecastTable td:nth-child(5),
+    #forecastTable td:nth-child(6),
+    #forecastTable td:nth-child(7),
+    #forecastTable th:nth-child(2),
+    #forecastTable th:nth-child(3),
+    #forecastTable th:nth-child(4),
+    #forecastTable th:nth-child(5),
+    #forecastTable th:nth-child(6),
+    #forecastTable th:nth-child(7) {
+        text-align: right;
+        white-space: nowrap;
     }
 
-    #forecastTable td:nth-child(7),
-    #forecastTable th:nth-child(7) {
+    #forecastTable td:nth-child(9),
+    #forecastTable th:nth-child(9) {
         text-align: center;
         white-space: nowrap;
         width: 70px;
@@ -461,6 +499,7 @@
     let forecastKeluarTable = null;
     let forecastTable = null;
     let similarObatRows = [];
+    let latestForecastFormulaLabel = '-';
 
     function formatForecastNumber(value) {
         var numeric = Number(value || 0);
@@ -477,6 +516,56 @@
 
         return 'Rp ' + formatForecastNumber(value);
     }
+
+    function getForecastKuotaDivisor() {
+        return Number($('#forecast_kuota_divisor').val() || 4);
+    }
+
+    function getForecastKuotaLabel() {
+        return $('#forecast_kuota_divisor option:selected').text() || '1/4 x Rata-rata Keluar / Bulan';
+    }
+
+    function calculateForecastKuota(row) {
+        var averageMonthlyKeluar = Number(row && row.average_monthly_keluar || 0);
+        var divisor = getForecastKuotaDivisor();
+
+        if (!divisor) {
+            return 0;
+        }
+
+        return Math.ceil(averageMonthlyKeluar / divisor);
+    }
+
+    function updateForecastFormulaInfo() {
+        $('#forecastFormulaInfo').text('Rumus Limit Stok: ' + latestForecastFormulaLabel + '. Rumus Kuota: ' + getForecastKuotaLabel() + '. QTY Pesan = Limit Stok x 3.');
+    }
+
+    function isForecastBelowKuotaFilterActive() {
+        return $('#forecast_only_below_kuota').is(':checked');
+    }
+
+    function shouldShowForecastRow(row) {
+        if (!isForecastBelowKuotaFilterActive()) {
+            return true;
+        }
+
+        return Number(row && row.total_stock || 0) < calculateForecastKuota(row);
+    }
+
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+        if (!settings || !settings.nTable || settings.nTable.id !== 'forecastTable') {
+            return true;
+        }
+
+        var tableApi = new $.fn.dataTable.Api(settings);
+        var rowData = tableApi.row(dataIndex).data();
+
+        if (!rowData) {
+            return true;
+        }
+
+        return shouldShowForecastRow(rowData);
+    });
 
     function comparePriceClass(value, baseline) {
         if (value === null || value === undefined || value === '' || baseline === null || baseline === undefined || baseline === '') {
@@ -601,6 +690,20 @@
             + '<div>' + qtyPesan + '</div>'
             + '<small>Isi/box: ' + isiPerBox + '</small>'
             + '<small>Pesan box: ' + jumlahPesanBox + '</small>'
+            + '</div>';
+    }
+
+    function renderForecastStockWithApprovedPermintaan(row) {
+        var totalCombined = row && row.total_stock_with_approved_permintaan !== null && row.total_stock_with_approved_permintaan !== undefined
+            ? formatForecastNumber(row.total_stock_with_approved_permintaan)
+            : '-';
+        var approvedOutstanding = row && row.approved_outstanding_permintaan !== null && row.approved_outstanding_permintaan !== undefined
+            ? formatForecastNumber(row.approved_outstanding_permintaan)
+            : '-';
+
+        return '<div class="forecast-stock-plus-permintaan">'
+            + '<div>' + totalCombined + '</div>'
+            + '<small>Pending: ' + approvedOutstanding + '</small>'
             + '</div>';
     }
 
@@ -923,6 +1026,17 @@
                     }
                 },
                 {
+                    data: null,
+                    name: 'total_stock_with_approved_permintaan',
+                    render: function(data, type, row) {
+                        if (type === 'sort' || type === 'type') {
+                            return Number(row.total_stock_with_approved_permintaan || 0);
+                        }
+
+                        return renderForecastStockWithApprovedPermintaan(row);
+                    }
+                },
+                {
                     data: 'obat_keluar',
                     name: 'obat_keluar',
                     render: function(data) {
@@ -934,6 +1048,19 @@
                     name: 'average_monthly_keluar',
                     render: function(data) {
                         return formatForecastNumber(data);
+                    }
+                },
+                {
+                    data: null,
+                    name: 'kuota',
+                    render: function(data, type, row) {
+                        var kuota = calculateForecastKuota(row);
+
+                        if (type === 'sort' || type === 'type') {
+                            return kuota;
+                        }
+
+                        return formatForecastNumber(kuota);
                     }
                 },
                 {
@@ -1002,8 +1129,9 @@
             success: function(response) {
                 $('#forecastObatName').text('Semua Obat Aktif');
                 $('#forecastPeriodInfo').text('Periode ' + response.period_start + ' s/d ' + response.period_end);
+                latestForecastFormulaLabel = response.formula_label || '-';
                 renderForecastRows(response.rows || []);
-                $('#forecastFormulaInfo').text('Rumus: ' + response.formula_label + '. QTY Pesan = Limit Stok x 3.');
+                updateForecastFormulaInfo();
             },
             error: function(xhr) {
                 var message = xhr.responseJSON?.message || 'Gagal memuat forecast stok obat.';
@@ -1075,6 +1203,20 @@
 
         $('#forecast_period_months, #forecast_pengadaan_frequency').on('change', function() {
             loadForecastData();
+        });
+
+        $('#forecast_kuota_divisor').on('change', function() {
+            updateForecastFormulaInfo();
+
+            if (forecastTable) {
+                forecastTable.rows().invalidate('data').draw(false);
+            }
+        });
+
+        $('#forecast_only_below_kuota').on('change', function() {
+            if (forecastTable) {
+                forecastTable.draw(false);
+            }
         });
 
         loadForecastData();
