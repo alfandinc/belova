@@ -183,6 +183,7 @@
                                     <th>Tunjangan Masa Kerja</th>
                                     <th>Uang Makan</th>
                                     <th>Uang KPI</th>
+                                    <th>KPI Poin</th>
                                     <th>Jam Lembur</th>
                                     <th>Uang Lembur</th>
                                     <th>Jasa Medis</th>

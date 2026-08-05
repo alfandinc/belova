@@ -169,6 +169,12 @@ $(function() {
         return normalized === 'draft' || normalized === 'rejected';
     }
 
+    var canEditKpiPoin = @json(
+        auth()->check()
+        && method_exists(auth()->user(), 'hasAnyRole')
+        && auth()->user()->hasAnyRole(['Hrd', 'Admin'])
+    );
+
     function getAvailableStatusTransitions(status) {
         var normalized = normalizeStatus(status);
 
@@ -233,9 +239,9 @@ $(function() {
     // Column indices (match the `columns:` array below)
     var COL_ID = 0;
     var COL_NAMA = 1;
-    var COL_TOTAL_GAJI = 15;
-    var COL_ACTION = 16;
-    var COL_CHECKBOX = 17;
+    var COL_TOTAL_GAJI = 16;
+    var COL_ACTION = 17;
+    var COL_CHECKBOX = 18;
 
     var table = $('#slipGajiTable').DataTable({
         processing: true,
@@ -370,6 +376,15 @@ $(function() {
                     if (type === 'display') {
                         var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_kpi" value="' + formatMoneyInputValue(row.uang_kpi || 0) + '">';
+                    }
+                    return data;
+                }
+            },
+            { data: 'kpi_poin', name: 'pr_slip_gaji.kpi_poin', render: function(data, type, row) {
+                    if (type === 'display') {
+                        var dis = (isEditableStatus(row && row.status) && canEditKpiPoin) ? '' : 'disabled';
+                        var value = (row && row.kpi_poin !== undefined && row.kpi_poin !== null) ? row.kpi_poin : (data || 0);
+                        return '<input type="number" step="0.01" min="0" class="form-control form-control-sm slip-inline-edit" ' + dis + ' data-id="' + row.id + '" data-field="kpi_poin" value="' + value + '">';
                     }
                     return data;
                 }
@@ -721,6 +736,12 @@ $(function() {
         var field = $el.data('field');
         var value = $el.val();
         var unit = $el.data('unit');
+
+        if (field === 'kpi_poin' && !canEditKpiPoin) {
+            Swal.fire('Info', 'Hanya HRD atau Admin yang dapat mengubah KPI poin.', 'info');
+            reloadTablePreserveScroll(table);
+            return;
+        }
 
         function parseNum(v) {
             return parseToNumber(v);

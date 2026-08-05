@@ -43,6 +43,14 @@
     </div>
 @endif
 
+@php
+    $canEditKpiPoin = !$isPaid
+        && !$isCeoSlipView
+        && auth()->check()
+        && method_exists(auth()->user(), 'hasAnyRole')
+        && auth()->user()->hasAnyRole(['Hrd', 'Admin']);
+@endphp
+
 <form id="formEditSlipGaji" enctype="multipart/form-data">
     <input type="hidden" name="id" id="slip_gaji_id" value="{{ $slip->id }}">
 <div class="row">
@@ -93,7 +101,7 @@
                 <td>
                     <div class="form-row">
                         <div class="col">
-                            <input type="number" class="form-control" name="kpi_poin" id="kpi_poin" value="{{ $slip->kpi_poin }}" readonly placeholder="Total KPI">
+                            <input type="number" step="0.01" class="form-control" name="kpi_poin" id="kpi_poin" value="{{ $slip->kpi_poin }}" {{ $canEditKpiPoin ? '' : 'readonly' }} placeholder="Total KPI">
                         </div>
                         <div class="col">
                             <input type="number" class="form-control" name="poin_kehadiran" id="poin_kehadiran" value="{{ $slip->poin_kehadiran ?? '' }}" placeholder="Kehadiran" {{ $isPaid ? 'disabled' : '' }}>
@@ -107,21 +115,6 @@
                     </div>
                 </td>
             </tr>
-<script>
-$(function() {
-    function updateKpiTotal() {
-        var kehadiran = parseFloat($('#poin_kehadiran').val()) || 0;
-        var penilaian = parseFloat($('#poin_penilaian').val()) || 0;
-        var marketing = parseFloat($('#poin_marketing').val()) || 0;
-        var total = kehadiran + penilaian + marketing;
-        $('#kpi_poin').val(total);
-    }
-    // Ensure we don't double-bind handlers when modal/script runs multiple times
-    $('#poin_kehadiran, #poin_penilaian, #poin_marketing').off('input').on('input', updateKpiTotal);
-    // Inisialisasi saat modal dibuka
-    updateKpiTotal();
-});
-</script>
             <tr><th>Jumlah Pendapatan</th><td><input type="number" step="0.01" class="form-control" name="total_pendapatan" id="total_pendapatan" value="{{ $slip->total_pendapatan }}" readonly></td></tr>
             <tr><th>Jumlah Potongan</th><td><input type="number" step="0.01" class="form-control" name="total_potongan" id="total_potongan" value="{{ $slip->total_potongan }}" readonly></td></tr>
             <tr><th>Total Gaji</th><td><input type="number" step="0.01" class="form-control" name="total_gaji" id="total_gaji" value="{{ $slip->total_gaji }}" readonly></td></tr>

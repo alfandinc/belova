@@ -39,6 +39,13 @@ class PrSlipGajiController extends Controller
             && $user->hasAnyRole(['Hrd', 'Admin', 'Manager']);
     }
 
+    protected function canEditSlipKpiPoin($user)
+    {
+        return $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(['Hrd', 'Admin']);
+    }
+
     protected function validateSlipStatusTransition($user, $currentStatus, $nextStatus)
     {
         $current = $this->normalizeSlipStatus($currentStatus);
@@ -402,6 +409,27 @@ class PrSlipGajiController extends Controller
                     'message' => $transitionError,
                 ], 403);
             }
+        }
+
+        $kpiPoinChanged = false;
+        if ($request->has('kpi_poin')) {
+            $incomingKpiPoin = $request->input('kpi_poin');
+            $incomingKpiPoin = $incomingKpiPoin === '' ? null : floatval($incomingKpiPoin);
+            $currentKpiPoin = $slip->kpi_poin;
+            $currentKpiPoin = $currentKpiPoin === null ? null : floatval($currentKpiPoin);
+
+            if (($incomingKpiPoin === null) !== ($currentKpiPoin === null)) {
+                $kpiPoinChanged = true;
+            } elseif ($incomingKpiPoin !== null && $currentKpiPoin !== null) {
+                $kpiPoinChanged = abs($incomingKpiPoin - $currentKpiPoin) > 0.0001;
+            }
+        }
+
+        if ($kpiPoinChanged && !$this->canEditSlipKpiPoin($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya HRD atau Admin yang dapat mengubah KPI poin slip gaji.'
+            ], 403);
         }
 
         // Accept basic editable fields
