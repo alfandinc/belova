@@ -7,6 +7,7 @@ use App\Models\HRD\Position;
 use App\Models\KPI\KpiIndicator;
 use App\Models\KPI\KpiPositionIndicator;
 use App\Models\KPI\KpiIndicatorCategory;
+use App\Models\KPI\KpiScore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -456,6 +457,21 @@ class IndicatorController extends Controller
 
     public function destroyCategory(KpiIndicatorCategory $category): JsonResponse
     {
+        $hasHistoricalScores = KpiScore::query()
+            ->whereIn('indicators_id', function ($query) use ($category) {
+                $query->select('id')
+                    ->from('kpi_indicators')
+                    ->where('category_id', $category->id);
+            })
+            ->exists();
+
+        if ($hasHistoricalScores) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Category tidak bisa dihapus karena sudah dipakai pada KPI period lama. Nonaktifkan atau ubah namanya jika hanya ingin menghentikan pemakaian.',
+            ], 422);
+        }
+
         $category->delete();
 
         return response()->json([
@@ -570,6 +586,17 @@ class IndicatorController extends Controller
 
     public function destroyIndicator(KpiIndicator $indicator): JsonResponse
     {
+        $hasHistoricalScores = KpiScore::query()
+            ->where('indicators_id', $indicator->id)
+            ->exists();
+
+        if ($hasHistoricalScores) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Indicator tidak bisa dihapus karena sudah dipakai pada KPI period lama. Nonaktifkan atau ubah indikator jika hanya ingin menghentikan pemakaian.',
+            ], 422);
+        }
+
         $indicator->delete();
 
         return response()->json([
