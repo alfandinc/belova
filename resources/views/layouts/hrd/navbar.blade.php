@@ -390,7 +390,17 @@ function getPasswordVerificationModal() {
     }
 
     if (window.bootstrap && window.bootstrap.Modal) {
-        return window.bootstrap.Modal.getOrCreateInstance(modalElement);
+        if (typeof window.bootstrap.Modal.getOrCreateInstance === 'function') {
+            return window.bootstrap.Modal.getOrCreateInstance(modalElement);
+        }
+
+        if (typeof window.bootstrap.Modal === 'function') {
+            if (!modalElement._passwordVerificationModalInstance) {
+                modalElement._passwordVerificationModalInstance = new window.bootstrap.Modal(modalElement);
+            }
+
+            return modalElement._passwordVerificationModalInstance;
+        }
     }
 
     return null;
