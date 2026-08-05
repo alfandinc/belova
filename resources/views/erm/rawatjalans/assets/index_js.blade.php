@@ -680,7 +680,21 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             var pasienId = row.pasien_id || '';
                             var patientName = $('<div>').text(data || '').html();
                             var catatanPasien = $.trim(row.catatan_pasien || '');
-                            var patientLabelHtml = '<span>' + patientName + '</span>';
+                            var missingFields = [];
+                            if (!$.trim(row.identity_number || '')) missingFields.push('Dokumen Identitas');
+                            if (!$.trim(data || '')) missingFields.push('Nama');
+                            if (!$.trim(row.tanggal_lahir || '')) missingFields.push('Tanggal Lahir');
+                            if (!$.trim(row.gender || '')) missingFields.push('Gender');
+                            if (!$.trim(row.alamat || '')) missingFields.push('Alamat');
+                            if (!$.trim(row.telepon_pasien || '')) missingFields.push('No. HP');
+
+                            var warningIconHtml = '';
+                            if (missingFields.length > 0) {
+                                var warningTitle = 'Data pasien belum lengkap: ' + missingFields.join(', ');
+                                warningIconHtml = ' <span class="text-danger blinking" title="' + $('<div>').text(warningTitle).html() + '"><i class="fas fa-exclamation-triangle"></i></span>';
+                            }
+
+                            var patientLabelHtml = '<span>' + patientName + '</span>' + warningIconHtml;
                             if (catatanPasien) {
                                 patientLabelHtml += ' <span style="font-weight:400;color:inherit;">(' + $('<div>').text(catatanPasien).html() + ')</span>';
                             }

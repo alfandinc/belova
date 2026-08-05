@@ -544,9 +544,11 @@ class RawatJalanController extends Controller
 
                         'erm_pasiens.nama as nama_pasien',
                         'erm_pasiens.id as no_rm',
+                        'erm_pasiens.identity_number as identity_number',
                         'erm_pasiens.no_hp as telepon_pasien',
                         'erm_pasiens.gender as gender',
                         'erm_pasiens.tanggal_lahir as tanggal_lahir',
+                        'erm_pasiens.alamat as alamat',
                         'erm_pasiens.notes as catatan_pasien',
                         'erm_pasiens.status_pasien as status_pasien',
                         'erm_pasiens.status_akses as status_akses',
