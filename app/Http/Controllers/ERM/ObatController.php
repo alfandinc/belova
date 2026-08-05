@@ -886,11 +886,9 @@ class ObatController extends Controller
     private function calculateForecastPermintaanItemTerpenuhi($permintaan, $item, $legacyFakturItemsByPermintaan)
     {
         $linkedFakturItems = collect($item->fakturBeliItems);
-        if ($linkedFakturItems->isNotEmpty()) {
-            return (float) $linkedFakturItems->sum(function ($fakturItem) {
-                return (float) ($fakturItem->qty ?? 0);
-            });
-        }
+        $linkedQty = (float) $linkedFakturItems->sum(function ($fakturItem) {
+            return (float) ($fakturItem->qty ?? 0);
+        });
 
         $legacyItems = collect($legacyFakturItemsByPermintaan->get($permintaan->no_permintaan, []))
             ->filter(function ($legacyItem) use ($item) {
@@ -910,11 +908,9 @@ class ObatController extends Controller
             })
             ->values();
 
-        if ($legacyItems->isNotEmpty()) {
-            return (float) $legacyItems->sum('qty');
-        }
+        $legacyQty = (float) $legacyItems->sum('qty');
 
-        return 0.0;
+        return max($linkedQty, $legacyQty, 0.0);
     }
 
     public function forecast(Request $request, $id)
