@@ -146,6 +146,7 @@ class KpiPeriodController extends Controller
                                     'indicator_id' => $s->indicators_id,
                                     'indicator_name' => optional($s->indicator)->indicator_name ?? ($s->ss_indicator_name ?? null),
                                     'category_name' => optional(optional($s->indicator)->category)->category_name ?? ($s->ss_category_name ?? null) ?? 'Uncategorized',
+                                    'category_weight' => $s->ss_category_weight_percentage ?? null,
                                     'indicator_weight' => $s->indicator?->weight_percentage ?? $s->ss_indicator_weight_percentage ?? $s->indicator?->indicator_weight ?? null,
                                     'score' => $s->score,
                                     'final_calculated_score' => $s->final_calculated_score,

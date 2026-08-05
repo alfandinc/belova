@@ -485,8 +485,8 @@ $(function(){
                     html += '<tr>';
                     html += '<td>' + escapeHtml(s.indicator_name || '') + '</td>';
                     html += '<td class="text-right">' + weightPct + '</td>';
-                    html += '<td><input type="number" step="0.01" min="1" max="5" class="form-control form-control-sm text-right" name="scores[' + s.indicator_id + ']" value="' + escapeHtml(scoreValue) + '" required></td>';
-                    html += '<td class="text-right">' + weighted + '</td>';
+                    html += '<td><input type="number" step="0.01" min="1" max="5" class="form-control form-control-sm text-right" name="scores[' + s.indicator_id + ']" value="' + escapeHtml(scoreValue) + '" data-indicator-weight="' + escapeHtml(s.indicator_weight) + '" data-category-weight="' + escapeHtml(s.category_weight) + '" required></td>';
+                    html += '<td class="text-right weighted-score-value">' + weighted + '</td>';
                     html += '<td><textarea class="form-control form-control-sm" name="notes[' + s.indicator_id + ']" rows="2">' + escapeHtml(noteValue) + '</textarea></td>';
                     html += '</tr>';
                 });
@@ -536,10 +536,29 @@ $(function(){
         $('#evaluateeDetailsModal').modal('show');
     }
 
+    function recalcWeightedScore($input) {
+        var score = parseFloat($input.val());
+        var indicatorWeight = parseFloat($input.attr('data-indicator-weight'));
+        var categoryWeight = parseFloat($input.attr('data-category-weight'));
+        var $cell = $input.closest('tr').find('.weighted-score-value');
+
+        if (isNaN(score) || isNaN(indicatorWeight) || isNaN(categoryWeight)) {
+            $cell.text('-');
+            return;
+        }
+
+        var weighted = (score / 5) * (indicatorWeight / 100) * categoryWeight;
+        $cell.text(String(Math.round(weighted * 100) / 100));
+    }
+
     // show modal with evaluator details for a specific evaluatee
     $(document).on('click', '.btn-evaluatee-details', function(){
         var rowKey = String($(this).data('row-key'));
         renderEvaluateeDetailsModal(rowKey);
+    });
+
+    $(document).on('input change', '.edit-evaluation-form input[name^="scores["]', function(){
+        recalcWeightedScore($(this));
     });
 
     $(document).on('submit', '.edit-evaluation-form', function(e){
