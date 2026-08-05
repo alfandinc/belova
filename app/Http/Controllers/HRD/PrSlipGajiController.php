@@ -384,15 +384,17 @@ class PrSlipGajiController extends Controller
             ], 403);
         }
 
-        // Safety: paid slips are read-only
-        if ($currentStatus === 'paid') {
+        $isKpiOnlyUpdate = count($nonStatusKeys) === 1 && in_array('kpi_poin', $nonStatusKeys, true);
+
+        // Safety: paid slips are read-only, except KPI poin for HRD/Admin
+        if ($currentStatus === 'paid' && !$isKpiOnlyUpdate) {
             return response()->json([
                 'success' => false,
                 'message' => 'Slip dengan status Paid tidak bisa diedit.'
             ], 403);
         }
 
-        if (!empty($nonStatusKeys) && !in_array($currentStatus, ['draft', 'rejected'], true)) {
+        if (!empty($nonStatusKeys) && !$isKpiOnlyUpdate && !in_array($currentStatus, ['draft', 'rejected'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Hanya slip dengan status Draft atau Rejected yang bisa diedit.'

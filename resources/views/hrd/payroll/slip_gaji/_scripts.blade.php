@@ -169,6 +169,14 @@ $(function() {
         return normalized === 'draft' || normalized === 'rejected';
     }
 
+    function canEditField(row, field) {
+        if (field === 'kpi_poin') {
+            return canEditKpiPoin;
+        }
+
+        return isEditableStatus(row && row.status);
+    }
+
     var canEditKpiPoin = @json(
         auth()->check()
         && method_exists(auth()->user(), 'hasAnyRole')
@@ -333,7 +341,7 @@ $(function() {
             },
             { data: 'jumlah_hari_masuk', name: 'pr_slip_gaji.total_hari_masuk', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'total_hari_masuk') ? '' : 'disabled';
                         var v = (row.jumlah_hari_masuk !== undefined && row.jumlah_hari_masuk !== null) ? row.jumlah_hari_masuk : (data || 0);
                         return '<input type="number" step="1" min="0" class="form-control form-control-sm slip-inline-edit" ' + dis + ' data-id="' + row.id + '" data-field="total_hari_masuk" value="' + (v || 0) + '">';
                     }
@@ -342,7 +350,7 @@ $(function() {
             },
             { data: 'gaji_pokok', name: 'pr_slip_gaji.gaji_pokok', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'gaji_pokok') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="gaji_pokok" value="' + formatMoneyInputValue(row.gaji_pokok || 0) + '">';
                     }
                     return data;
@@ -350,7 +358,7 @@ $(function() {
             },
             { data: 'tunjangan_jabatan', name: 'pr_slip_gaji.tunjangan_jabatan', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'tunjangan_jabatan') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_jabatan" value="' + formatMoneyInputValue(row.tunjangan_jabatan || 0) + '">';
                     }
                     return data;
@@ -358,7 +366,7 @@ $(function() {
             },
             { data: 'tunjangan_masa_kerja', name: 'pr_slip_gaji.tunjangan_masa_kerja', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'tunjangan_masa_kerja') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="tunjangan_masa_kerja" value="' + formatMoneyInputValue(row.tunjangan_masa_kerja || 0) + '">';
                     }
                     return data;
@@ -366,7 +374,7 @@ $(function() {
             },
             { data: 'uang_makan', name: 'pr_slip_gaji.uang_makan', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'uang_makan') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_makan" value="' + formatMoneyInputValue(row.uang_makan || 0) + '">';
                     }
                     return data;
@@ -374,7 +382,7 @@ $(function() {
             },
             { data: 'uang_kpi', name: 'pr_slip_gaji.uang_kpi', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'uang_kpi') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_kpi" value="' + formatMoneyInputValue(row.uang_kpi || 0) + '">';
                     }
                     return data;
@@ -382,7 +390,7 @@ $(function() {
             },
             { data: 'kpi_poin', name: 'pr_slip_gaji.kpi_poin', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = (isEditableStatus(row && row.status) && canEditKpiPoin) ? '' : 'disabled';
+                        var dis = canEditField(row, 'kpi_poin') ? '' : 'disabled';
                         var value = (row && row.kpi_poin !== undefined && row.kpi_poin !== null) ? row.kpi_poin : (data || 0);
                         return '<input type="number" step="0.01" min="0" class="form-control form-control-sm slip-inline-edit" ' + dis + ' data-id="' + row.id + '" data-field="kpi_poin" value="' + value + '">';
                     }
@@ -391,7 +399,7 @@ $(function() {
             },
             { data: 'total_jam_lembur', name: 'pr_slip_gaji.total_jam_lembur', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'total_jam_lembur') ? '' : 'disabled';
                         // Stored as minutes; show/edit as hours
                         var minutes = (row.total_jam_lembur !== undefined && row.total_jam_lembur !== null) ? row.total_jam_lembur : (data || 0);
                         var n = parseFloat(minutes);
@@ -404,7 +412,7 @@ $(function() {
             },
             { data: 'uang_lembur', name: 'pr_slip_gaji.uang_lembur', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'uang_lembur') ? '' : 'disabled';
                         return '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="uang_lembur" value="' + formatMoneyInputValue(row.uang_lembur || 0) + '">';
                     }
                     return data;
@@ -412,7 +420,7 @@ $(function() {
             },
             { data: 'jasa_medis', name: 'pr_slip_gaji.jasa_medis', render: function(data, type, row) {
                     if (type === 'display') {
-                        var dis = isEditableStatus(row && row.status) ? '' : 'disabled';
+                        var dis = canEditField(row, 'jasa_medis') ? '' : 'disabled';
                         var inputHtml = '<input type="text" inputmode="decimal" autocomplete="off" class="form-control form-control-sm slip-inline-edit slip-money" ' + dis + ' data-id="' + row.id + '" data-field="jasa_medis" value="' + formatMoneyInputValue(row.jasa_medis || 0) + '">';
                         var hasFile = !!(row && row.jasmed_file);
                         var iconClass = hasFile ? 'fa fa-upload text-success' : 'fa fa-upload';
@@ -728,8 +736,11 @@ $(function() {
         try {
             rowData = table.row($tr).data();
         } catch (e) {}
-        if (rowData && !isEditableStatus(rowData.status)) {
-            Swal.fire('Info', 'Hanya slip dengan status Draft yang bisa diedit.', 'info');
+        if (rowData && !canEditField(rowData, field)) {
+            var infoText = field === 'kpi_poin'
+                ? 'Hanya HRD atau Admin yang dapat mengubah KPI poin.'
+                : 'Hanya slip dengan status Draft atau Rejected yang bisa diedit.';
+            Swal.fire('Info', infoText, 'info');
             return;
         }
         var id = $el.data('id');
