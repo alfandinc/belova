@@ -112,4 +112,14 @@ class RndProduk extends Model
     {
         return $this->hasOne(RndNotif::class, 'produk_id')->latestOfMany();
     }
+
+    public function additionalDocuments()
+    {
+        return $this->hasMany(\App\Models\Rnd\RndProdukDocument::class, 'produk_id');
+    }
+
+    public function timelines()
+    {
+        return $this->hasMany('App\\Models\\Rnd\\RndProdukTimeline', 'produk_id');
+    }
 }

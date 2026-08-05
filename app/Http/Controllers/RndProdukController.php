@@ -9,9 +9,11 @@ use App\Models\Rnd\RndMasterSediaan;
 use App\Models\Rnd\RndMasterVendor;
 use App\Models\Rnd\RndProduk;
 use App\Models\Rnd\RndProdukLog;
+use App\Models\Rnd\RndProdukTimeline;
 use App\Models\Rnd\RndNotif;
 use App\Models\Rnd\RndSampleLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
@@ -124,17 +126,64 @@ class RndProdukController extends Controller
             ->make(true);
     }
 
+    public function timelineData(Request $request)
+    {
+        abort_unless($request->ajax(), 404);
+
+        if (!$this->hasTimelineTable()) {
+            return response()->json([
+                'data' => [],
+            ]);
+        }
+
+        $timelines = RndProdukTimeline::query()
+            ->with(['produk:id,nama_produk'])
+            ->orderByDesc('timeline_date')
+            ->latest('id')
+            ->get()
+            ->map(function (RndProdukTimeline $timeline) {
+                return [
+                    'id' => $timeline->id,
+                    'produk_id' => $timeline->produk_id,
+                    'produk_name' => optional($timeline->produk)->nama_produk ?? '-',
+                    'timeline_date' => $timeline->timeline_date?->toDateString(),
+                    'notes' => $timeline->notes,
+                    'created_at' => optional($timeline->created_at)?->toIso8601String(),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $timelines,
+        ]);
+    }
+
     public function show(RndProduk $produk)
     {
-        $produk->load([
+        $relations = [
             'bahanAktif:id,nama_bahan_aktif',
             'sampleLogs' => fn ($query) => $query->latest(),
             'productLogs' => fn ($query) => $query->latest('log_date_time'),
-        ]);
+        ];
+
+        if ($this->hasAdditionalDocumentsTable()) {
+            $relations['additionalDocuments'] = fn ($query) => $query->latest();
+        }
+
+        $produk->load($relations);
 
         return response()->json([
             'data' => array_merge($produk->toArray(), [
                 'bahan_aktif_ids' => $produk->bahanAktif->pluck('id')->all(),
+                'additional_documents' => ($this->hasAdditionalDocumentsTable() ? $produk->additionalDocuments : collect())->map(function (\App\Models\Rnd\RndProdukDocument $document) {
+                    return [
+                        'id' => $document->id,
+                        'original_name' => $document->original_name,
+                        'url' => route('rnd.products.documents.show', $document),
+                        'size_bytes' => $document->size_bytes,
+                        'created_at' => optional($document->created_at)?->toIso8601String(),
+                    ];
+                })->values()->all(),
             ]),
         ]);
     }
@@ -144,13 +193,16 @@ class RndProdukController extends Controller
         $validated = $this->validatedPayload($request);
         $produk = RndProduk::create($validated['attributes']);
         $produk->bahanAktif()->sync($validated['bahan_aktif_ids']);
+        $uploadedCount = $this->storeAdditionalDocuments($request, $produk);
 
-        $this->writeProdukLog($produk->id, 'created', 'Produk dibuat melalui halaman Produk RND.');
+        $this->writeProdukLog($produk->id, 'created', $uploadedCount > 0
+            ? 'Produk dibuat melalui halaman Produk RND. Dokumen tambahan diunggah: ' . $uploadedCount . ' file.'
+            : 'Produk dibuat melalui halaman Produk RND.');
 
         return response()->json([
             'success' => true,
             'message' => 'Produk berhasil disimpan.',
-            'data' => $produk->load('bahanAktif:id,nama_bahan_aktif'),
+            'data' => $produk->load(['bahanAktif:id,nama_bahan_aktif', 'additionalDocuments']),
         ]);
     }
 
@@ -177,7 +229,75 @@ class RndProdukController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Produk berhasil diperbarui.',
-            'data' => $produk->fresh()->load('bahanAktif:id,nama_bahan_aktif'),
+            'data' => $produk->fresh()->load(['bahanAktif:id,nama_bahan_aktif', 'additionalDocuments']),
+        ]);
+    }
+
+    public function uploadProdukDocuments(Request $request, RndProduk $produk)
+    {
+        abort_unless($this->hasAdditionalDocumentsTable(), 404);
+
+        $request->validate([
+            'additional_documents' => 'required|array|min:1',
+            'additional_documents.*' => 'file|max:10240|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png',
+        ]);
+
+        $uploadedCount = $this->storeAdditionalDocuments($request, $produk);
+
+        $this->writeProdukLog($produk->id, 'document-uploaded', 'Dokumen tambahan diunggah: ' . $uploadedCount . ' file.');
+
+        $produk->load(['additionalDocuments' => fn ($query) => $query->latest()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Dokumen tambahan berhasil diunggah.',
+            'data' => [
+                'additional_documents' => $produk->additionalDocuments->map(function (\App\Models\Rnd\RndProdukDocument $document) {
+                    return [
+                        'id' => $document->id,
+                        'original_name' => $document->original_name,
+                        'url' => route('rnd.products.documents.show', $document),
+                        'size_bytes' => $document->size_bytes,
+                        'created_at' => optional($document->created_at)?->toIso8601String(),
+                    ];
+                })->values()->all(),
+            ],
+        ]);
+    }
+
+    public function storeProdukTimeline(Request $request, RndProduk $produk)
+    {
+        abort_unless($this->hasTimelineTable(), 404);
+
+        $validated = $request->validate([
+            'timeline_date' => ['required', 'date'],
+            'notes' => ['required', 'string'],
+        ]);
+
+        $produk->timelines()->create([
+            'timeline_date' => $validated['timeline_date'],
+            'notes' => trim($validated['notes']),
+        ]);
+
+        $this->writeProdukLog($produk->id, 'timeline-added', 'Timeline produk ditambahkan untuk tanggal ' . $validated['timeline_date'] . '.');
+
+        $produk->load([
+            'timelines' => fn ($query) => $query->orderByDesc('timeline_date')->latest('id'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Timeline produk berhasil ditambahkan.',
+            'data' => [
+                'product_timelines' => $produk->timelines->map(function ($timeline) {
+                    return [
+                        'id' => $timeline->id,
+                        'timeline_date' => $timeline->timeline_date?->toDateString(),
+                        'notes' => $timeline->notes,
+                        'created_at' => optional($timeline->created_at)?->toIso8601String(),
+                    ];
+                })->values()->all(),
+            ],
         ]);
     }
 
@@ -188,6 +308,27 @@ class RndProdukController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Produk berhasil dihapus.',
+        ]);
+    }
+
+    public function storeProdukNote(Request $request, RndProduk $produk)
+    {
+        $validated = $request->validate([
+            'notes' => ['required', 'string'],
+        ]);
+
+        $this->writeProdukLog($produk->id, 'user-note', trim($validated['notes']));
+
+        $produk->load([
+            'productLogs' => fn ($query) => $query->latest('log_date_time'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Catatan produk berhasil ditambahkan.',
+            'data' => [
+                'product_logs' => $produk->productLogs->values()->all(),
+            ],
         ]);
     }
 
@@ -223,6 +364,40 @@ class RndProdukController extends Controller
         ]);
     }
 
+    public function destroyProdukDocument(\App\Models\Rnd\RndProdukDocument $document)
+    {
+        abort_unless($this->hasAdditionalDocumentsTable(), 404);
+
+        $produk = $document->produk()->firstOrFail();
+
+        if ($document->file_path && Storage::disk('public')->exists($document->file_path)) {
+            Storage::disk('public')->delete($document->file_path);
+        }
+
+        $documentName = $document->original_name ?: basename((string) $document->file_path);
+        $document->delete();
+
+        $this->writeProdukLog($produk->id, 'document-deleted', 'Dokumen tambahan dihapus: ' . $documentName . '.');
+
+        $produk->load(['additionalDocuments' => fn ($query) => $query->latest()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Dokumen tambahan berhasil dihapus.',
+            'data' => [
+                'additional_documents' => $produk->additionalDocuments->map(function (\App\Models\Rnd\RndProdukDocument $remainingDocument) {
+                    return [
+                        'id' => $remainingDocument->id,
+                        'original_name' => $remainingDocument->original_name,
+                        'url' => route('rnd.products.documents.show', $remainingDocument),
+                        'size_bytes' => $remainingDocument->size_bytes,
+                        'created_at' => optional($remainingDocument->created_at)?->toIso8601String(),
+                    ];
+                })->values()->all(),
+            ],
+        ]);
+    }
+
     public function viewNotifDocument(RndNotif $notif)
     {
         if (!$notif->doc_path || !Storage::disk('public')->exists($notif->doc_path)) {
@@ -236,6 +411,19 @@ class RndProdukController extends Controller
         ]);
     }
 
+    public function viewProdukDocument(\App\Models\Rnd\RndProdukDocument $document)
+    {
+        if (!$document->file_path || !Storage::disk('public')->exists($document->file_path)) {
+            abort(404);
+        }
+
+        $path = Storage::disk('public')->path($document->file_path);
+
+        return response()->file($path, [
+            'Content-Disposition' => 'inline; filename="' . ($document->original_name ?: basename($document->file_path)) . '"',
+        ]);
+    }
+
     private function validatedPayload(Request $request, bool $isUpdate = false): array
     {
         $requiredRule = $isUpdate ? 'nullable' : 'required';
@@ -246,6 +434,8 @@ class RndProdukController extends Controller
             'produsen_vendor_id' => 'nullable|exists:rnd_master_vendor,id',
             'bahan_aktif_ids' => 'nullable|array',
             'bahan_aktif_ids.*' => 'exists:rnd_master_bahan_aktif,id',
+            'additional_documents' => 'nullable|array',
+            'additional_documents.*' => 'file|max:10240|mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png',
             'kemasan_premier_id' => $requiredRule . '|exists:rnd_master_kemasan,id',
             'kemasan_sekunder_id' => 'nullable|exists:rnd_master_kemasan,id',
             'kemasan_primer_vendor_id' => 'nullable|exists:rnd_master_vendor,id',
@@ -264,7 +454,7 @@ class RndProdukController extends Controller
         ]);
 
         $attributes = collect($validated)
-            ->except(['bahan_aktif_ids']);
+            ->except(['bahan_aktif_ids', 'additional_documents']);
 
         if ($isUpdate) {
             $attributes = $attributes->reject(function ($value, $key) {
@@ -276,6 +466,62 @@ class RndProdukController extends Controller
             'attributes' => $attributes->all(),
             'bahan_aktif_ids' => $validated['bahan_aktif_ids'] ?? [],
         ];
+    }
+
+    private function storeAdditionalDocuments(Request $request, RndProduk $produk): int
+    {
+        if (!$this->hasAdditionalDocumentsTable()) {
+            return 0;
+        }
+
+        $files = $request->file('additional_documents', []);
+
+        if (!is_array($files) || $files === []) {
+            return 0;
+        }
+
+        $storedCount = 0;
+
+        foreach ($files as $file) {
+            if (!$file) {
+                continue;
+            }
+
+            $path = $file->store('rnd/produk-documents', 'public');
+
+            $produk->additionalDocuments()->create([
+                'file_path' => $path,
+                'original_name' => $file->getClientOriginalName(),
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => $file->getSize(),
+            ]);
+
+            $storedCount++;
+        }
+
+        return $storedCount;
+    }
+
+    private function hasAdditionalDocumentsTable(): bool
+    {
+        static $hasTable;
+
+        if ($hasTable === null) {
+            $hasTable = Schema::hasTable('rnd_produk_document');
+        }
+
+        return $hasTable;
+    }
+
+    private function hasTimelineTable(): bool
+    {
+        static $hasTable;
+
+        if ($hasTable === null) {
+            $hasTable = Schema::hasTable('rnd_produk_timeline');
+        }
+
+        return $hasTable;
     }
 
     private function updateInlineStatus(Request $request, RndProduk $produk)

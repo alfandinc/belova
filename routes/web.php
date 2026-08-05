@@ -300,6 +300,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/rnd/produk/data', [RndProdukController::class, 'data'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.products.data');
+    Route::get('/rnd/produk/timeline-data', [RndProdukController::class, 'timelineData'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.timeline-data');
     Route::put('/rnd/produk/sample-log/{sampleLog}', [RndProdukController::class, 'updateSampleLog'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.products.sample-log.update');
@@ -309,9 +312,24 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/rnd/produk/notif/{notif}/document', [RndProdukController::class, 'viewNotifDocument'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.products.notif.document');
+    Route::get('/rnd/produk/documents/{document}', [RndProdukController::class, 'viewProdukDocument'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.documents.show');
+    Route::delete('/rnd/produk/documents/{document}', [RndProdukController::class, 'destroyProdukDocument'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.documents.destroy');
     Route::get('/rnd/produk/{produk}', [RndProdukController::class, 'show'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.products.show');
+    Route::post('/rnd/produk/{produk}/notes', [RndProdukController::class, 'storeProdukNote'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.notes.store');
+    Route::post('/rnd/produk/{produk}/timelines', [RndProdukController::class, 'storeProdukTimeline'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.timelines.store');
+    Route::post('/rnd/produk/{produk}/documents', [RndProdukController::class, 'uploadProdukDocuments'])
+        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->name('rnd.products.documents.upload');
     Route::post('/rnd/produk', [RndProdukController::class, 'store'])
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.products.store');

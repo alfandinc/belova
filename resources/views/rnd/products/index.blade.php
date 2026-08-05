@@ -29,6 +29,34 @@
         font-weight: 600;
     }
 
+    .produk-page-tabs {
+        border-bottom: 0;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .produk-page-tabs .nav-link {
+        border: 1px solid #cbd5e1;
+        border-radius: 999px;
+        color: #334155;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 0.65rem 1rem;
+        background: #fff;
+    }
+
+    .produk-page-tabs .nav-link.active,
+    .produk-page-tabs .nav-link:hover,
+    .produk-page-tabs .nav-link:focus {
+        color: #0f766e;
+        border-color: rgba(20, 184, 166, 0.35);
+        background: rgba(20, 184, 166, 0.12);
+    }
+
+    .produk-page-pane {
+        min-width: 0;
+    }
+
     .produk-status-badge {
         display: inline-flex;
         align-items: center;
@@ -69,6 +97,30 @@
     #produkTable th,
     #produkTable td {
         vertical-align: top;
+        white-space: normal;
+    }
+
+    .rnd-products-card .card-body {
+        padding: 1rem;
+    }
+
+    #produkTable_wrapper .row {
+        align-items: center;
+    }
+
+    #produkTable_wrapper .dataTables_length label,
+    #produkTable_wrapper .dataTables_filter label {
+        margin-bottom: 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    #produkTable_wrapper .dataTables_filter input,
+    #produkTable_wrapper .dataTables_length select {
+        max-width: 100%;
     }
 
     #produkTable tbody tr:nth-child(even) {
@@ -198,6 +250,397 @@
         color: #0f172a;
     }
 
+    .produk-form-tabs {
+        border-bottom: 1px solid #e2e8f0;
+        gap: 8px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        margin-bottom: 20px;
+    }
+
+    .produk-form-tabs .nav-item {
+        margin-bottom: 0;
+    }
+
+    .produk-form-tabs .nav-link {
+        border: 1px solid #dbe4f0;
+        border-radius: 999px;
+        color: #475569;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 0.55rem 0.95rem;
+        white-space: nowrap;
+        background: #fff;
+    }
+
+    .produk-form-tabs .nav-link.active,
+    .produk-form-tabs .nav-link:hover,
+    .produk-form-tabs .nav-link:focus {
+        color: #0f766e;
+        border-color: rgba(20, 184, 166, 0.35);
+        background: rgba(20, 184, 166, 0.1);
+    }
+
+    .produk-tab-pane {
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        background: #fff;
+        padding: 20px;
+    }
+
+    .produk-tab-pane + .produk-tab-pane {
+        margin-top: 16px;
+    }
+
+    .produk-tab-caption {
+        margin-bottom: 16px;
+    }
+
+    .produk-tab-caption h6 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .produk-tab-caption p {
+        margin: 0;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .produk-section-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .produk-section-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #f8fafc;
+        padding: 16px;
+    }
+
+    .produk-section-card.is-disabled {
+        opacity: 0.6;
+    }
+
+    .produk-section-head {
+        margin-bottom: 14px;
+    }
+
+    .produk-section-head h6 {
+        margin: 0 0 4px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .produk-section-head p {
+        margin: 0;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .produk-section-card .form-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .produk-upload-panel {
+        margin-top: 16px;
+        border: 1px dashed #cbd5e1;
+        border-radius: 14px;
+        background: #f8fafc;
+        padding: 16px;
+    }
+
+    .produk-upload-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .produk-upload-button {
+        min-width: 148px;
+    }
+
+    .produk-upload-summary {
+        font-size: 12px;
+        color: #475569;
+    }
+
+    .produk-upload-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .produk-upload-submit {
+        min-width: 132px;
+    }
+
+    .produk-timeline-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .produk-timeline-calendar-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+        gap: 18px;
+        align-items: start;
+    }
+
+    .produk-timeline-calendar-card,
+    .produk-timeline-detail-card {
+        border: 1px solid #dbe7f3;
+        border-radius: 16px;
+        background: #fff;
+        padding: 16px;
+    }
+
+    #productTimelineCalendar {
+        max-width: 100%;
+        min-height: 640px;
+    }
+
+    .produk-timeline-detail-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .produk-timeline-detail-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .produk-timeline-detail-caption {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .produk-timeline-detail-count {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        background: rgba(15, 118, 110, 0.12);
+        color: #0f766e;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 0.35rem 0.65rem;
+        white-space: nowrap;
+    }
+
+    .produk-timeline-selected-date {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f766e;
+    }
+
+    .produk-timeline-calendar-shell .fc {
+        font-size: 13px;
+    }
+
+    .produk-timeline-calendar-shell .fc .fc-toolbar-title {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .produk-timeline-calendar-shell .fc .fc-button {
+        background: #0f766e;
+        border-color: #0f766e;
+        box-shadow: none;
+    }
+
+    .produk-timeline-calendar-shell .fc .fc-button:hover,
+    .produk-timeline-calendar-shell .fc .fc-button:focus,
+    .produk-timeline-calendar-shell .fc .fc-button.fc-button-active {
+        background: #0d9488;
+        border-color: #0d9488;
+    }
+
+    .produk-timeline-calendar-shell .fc .fc-daygrid-event {
+        border: 0;
+        border-radius: 8px;
+        padding: 2px 4px;
+    }
+
+    .produk-timeline-calendar-shell .fc .fc-day-today {
+        background: rgba(20, 184, 166, 0.08) !important;
+    }
+
+    .produk-timeline-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        background: #f8fafc;
+        padding: 14px 16px;
+    }
+
+    .produk-timeline-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .produk-timeline-date {
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .produk-timeline-product {
+        font-size: 14px;
+        font-weight: 700;
+        color: #0f766e;
+    }
+
+    .produk-timeline-created {
+        font-size: 11px;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
+    .produk-timeline-notes {
+        font-size: 12px;
+        color: #334155;
+        line-height: 1.6;
+        white-space: pre-wrap;
+    }
+
+    .produk-timeline-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .produk-document-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 14px;
+    }
+
+    .produk-document-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .produk-document-link {
+        color: #0f766e;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        word-break: break-word;
+    }
+
+    .produk-document-link:hover,
+    .produk-document-link:focus {
+        color: #0d9488;
+        text-decoration: underline;
+        outline: none;
+    }
+
+    .produk-document-meta {
+        flex: 0 0 auto;
+        font-size: 11px;
+        color: #64748b;
+        white-space: nowrap;
+    }
+
+    .produk-document-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .produk-document-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+    }
+
+    .produk-document-delete {
+        border: 0;
+        border-radius: 999px;
+        background: rgba(220, 38, 38, 0.12);
+        color: #b91c1c;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 0.4rem 0.65rem;
+        cursor: pointer;
+    }
+
+    .produk-document-delete:hover,
+    .produk-document-delete:focus {
+        background: rgba(220, 38, 38, 0.18);
+        outline: none;
+    }
+
+    .produk-table-actions {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .produk-action-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 76px;
+        padding: 0.45rem 0.75rem;
+        border: 0;
+        border-radius: 999px;
+        background: #0f766e;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .produk-action-button:hover,
+    .produk-action-button:focus {
+        background: #0d9488;
+        color: #fff;
+        outline: none;
+    }
+
+    .produk-action-button-secondary {
+        background: rgba(15, 118, 110, 0.12);
+        color: #0f766e;
+    }
+
+    .produk-action-button-secondary:hover,
+    .produk-action-button-secondary:focus {
+        background: rgba(15, 118, 110, 0.18);
+        color: #0f766e;
+    }
+
     .produk-log-list {
         display: flex;
         flex-direction: column;
@@ -229,6 +672,34 @@
         color: #0f766e;
     }
 
+    .produk-log-item-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .produk-log-source {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.55rem;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .produk-log-source-user {
+        background: rgba(37, 99, 235, 0.14);
+        color: #1d4ed8;
+    }
+
+    .produk-log-source-system {
+        background: rgba(15, 118, 110, 0.14);
+        color: #0f766e;
+    }
+
     .produk-log-item-time {
         font-size: 11px;
         color: #64748b;
@@ -252,6 +723,10 @@
     @media (max-width: 1199.98px) {
         .produk-modal-layout {
             flex-direction: column;
+        }
+
+        .produk-timeline-calendar-shell {
+            grid-template-columns: minmax(0, 1fr);
         }
 
         .produk-log-pane {
@@ -429,10 +904,6 @@
         padding: 16px 0;
     }
 
-    .produk-form-create-only.is-hidden {
-        display: none;
-    }
-
     .produk-cell-stack {
         display: flex;
         flex-direction: column;
@@ -496,6 +967,19 @@
         color: #475569;
     }
 
+    .produk-kemasan-compact {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .produk-kemasan-compact-section {
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #f8fafc;
+    }
+
     .produk-name-stack {
         display: flex;
         flex-direction: column;
@@ -539,6 +1023,113 @@
         align-items: center;
         justify-content: center;
     }
+
+    @media (max-width: 991.98px) {
+        .rnd-products-card .card-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .rnd-products-card .btn-light {
+            width: 100%;
+        }
+
+        .table-responsive {
+            overflow-x: visible;
+        }
+
+        #produkTable_wrapper > .row:first-child > div,
+        #produkTable_wrapper > .row:last-child > div {
+            width: 100%;
+            max-width: 100%;
+            flex: 0 0 100%;
+        }
+
+        #produkTable_wrapper .dataTables_length,
+        #produkTable_wrapper .dataTables_filter,
+        #produkTable_wrapper .dataTables_paginate,
+        #produkTable_wrapper .dataTables_info {
+            text-align: left;
+        }
+
+        #produkTable_wrapper .dataTables_filter {
+            margin-top: 12px;
+        }
+
+        #produkTable_wrapper .dataTables_filter label {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        #produkTable_wrapper .dataTables_filter input {
+            margin-left: 0;
+            width: 100%;
+        }
+
+        .produk-kemasan-line {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .produk-kemasan-badges,
+        .produk-action-group {
+            width: 100%;
+        }
+
+        .produk-progress-stack,
+        .produk-history-head,
+        .produk-history-footer {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .produk-progress-meta {
+            min-width: 0;
+            text-align: left;
+        }
+
+        .produk-form-tabs {
+            margin-bottom: 16px;
+        }
+
+        .produk-tab-pane {
+            padding: 16px;
+        }
+
+        .produk-section-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .produk-document-item,
+        .produk-upload-toolbar,
+        .produk-timeline-head {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .container-fluid {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        .rnd-products-card .card-body {
+            padding: 0.75rem;
+        }
+
+        #produkTable th,
+        #produkTable td {
+            padding: 0.75rem;
+        }
+
+        .produk-cell-stack,
+        .produk-kemasan-stack {
+            min-width: 0;
+        }
+    }
 </style>
 @endsection
 
@@ -553,26 +1144,67 @@
         </div>
     </div>
 
-    <div class="card rnd-products-card shadow-sm">
-        <div class="card-header">
-            <h4 class="card-title">Daftar Produk</h4>
-            <button type="button" class="btn btn-light btn-sm" id="createNewProduk">Tambah Produk</button>
+    <ul class="nav nav-tabs produk-page-tabs" id="produkPageTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link active" id="produk-list-tab" data-toggle="tab" href="#produk-list-pane" role="tab" aria-controls="produk-list-pane" aria-selected="true">Daftar Produk</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="produk-timeline-index-tab" data-toggle="tab" href="#produk-timeline-index-pane" role="tab" aria-controls="produk-timeline-index-pane" aria-selected="false">Timeline</a>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="produkPageTabContent">
+        <div class="tab-pane fade show active produk-page-pane" id="produk-list-pane" role="tabpanel" aria-labelledby="produk-list-tab">
+            <div class="card rnd-products-card shadow-sm">
+                <div class="card-header">
+                    <h4 class="card-title">Daftar Produk</h4>
+                    <button type="button" class="btn btn-light btn-sm" id="createNewProduk">Tambah Produk</button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered dt-responsive nowrap w-100" id="produkTable">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama</th>
+                                    <th>Status Sample</th>
+                                    <th>Kemasan</th>
+                                    <th>Status Administrasi</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered dt-responsive nowrap w-100" id="produkTable">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>Nama</th>
-                            <th>Status Sample</th>
-                            <th>Kemasan Primer</th>
-                            <th>Kemasan Sekunder</th>
-                            <th>Status Administrasi</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+
+        <div class="tab-pane fade produk-page-pane" id="produk-timeline-index-pane" role="tabpanel" aria-labelledby="produk-timeline-index-tab">
+            <div class="card rnd-products-card shadow-sm">
+                <div class="card-header">
+                    <h4 class="card-title">Timeline Produk</h4>
+                </div>
+                <div class="card-body">
+                    <div class="produk-timeline-calendar-shell">
+                        <div class="produk-timeline-calendar-card">
+                            <div id="productTimelineCalendar"></div>
+                        </div>
+                        <div class="produk-timeline-detail-card">
+                            <div class="produk-timeline-detail-header">
+                                <div>
+                                    <h6 class="produk-timeline-detail-title">Detail Timeline</h6>
+                                    <p class="produk-timeline-detail-caption" id="productTimelineDetailCaption">Klik tanggal atau event pada kalender untuk melihat detail.</p>
+                                </div>
+                                <span class="produk-timeline-detail-count" id="productTimelineDetailCount">0 item</span>
+                            </div>
+                            <div class="produk-timeline-selected-date" id="productTimelineSelectedDate">Belum ada tanggal dipilih</div>
+                            <div class="produk-timeline-list mt-3" id="productTimelineIndexList">
+                                <div class="produk-log-empty">Belum ada timeline produk.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -592,76 +1224,267 @@
                     <input type="hidden" id="produk_id" value="">
                     <div class="produk-modal-layout">
                         <div class="produk-form-pane">
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    <label for="brand_id">Brand</label>
-                                    <select class="form-control select2-produk" id="brand_id" name="brand_id" required>
-                                        <option value="">Pilih Brand</option>
-                                        @foreach($brands as $brand)
-                                            <option value="{{ $brand->id }}">{{ $brand->nama_brand }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="form-group col-md-6">
-                                    <label for="nama_produk">Nama Produk</label>
-                                    <input type="text" class="form-control" id="nama_produk" name="nama_produk" required>
-                                </div>
-                            </div>
+                            <ul class="nav nav-tabs produk-form-tabs" id="produkFormTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" id="produk-base-tab" data-toggle="tab" href="#produk-base-pane" role="tab" aria-controls="produk-base-pane" aria-selected="true">Informasi Produk</a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="produk-kemasan-tab" data-toggle="tab" href="#produk-kemasan-pane" role="tab" aria-controls="produk-kemasan-pane" aria-selected="false">Informasi Kemasan</a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" id="produk-administrasi-tab" data-toggle="tab" href="#produk-administrasi-pane" role="tab" aria-controls="produk-administrasi-pane" aria-selected="false">Administrasi</a>
+                                </li>
+                            </ul>
 
-                            <div class="form-row">
-                                <div class="form-group col-md-3">
-                                    <label for="netto">Netto</label>
-                                    <input type="text" class="form-control" id="netto" name="netto" placeholder="Contoh: 15 ml">
-                                </div>
-                                <div class="form-group col-md-3">
-                                    <label for="sediaan_id">Sediaan</label>
-                                    <select class="form-control select2-produk" id="sediaan_id" name="sediaan_id" required>
-                                        <option value="">Pilih Sediaan</option>
-                                        @foreach($sediaans as $sediaan)
-                                            <option value="{{ $sediaan->id }}">{{ $sediaan->nama_sediaan }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="form-group col-md-6">
-                                    <label for="produsen_vendor_id">Produsen Vendor</label>
-                                    <select class="form-control select2-produk" id="produsen_vendor_id" name="produsen_vendor_id">
-                                        <option value="">Pilih Produsen Vendor</option>
-                                        @foreach($produsenVendors as $vendor)
-                                            <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
+                            <div class="tab-content" id="produkFormTabContent">
+                                <div class="tab-pane fade show active" id="produk-base-pane" role="tabpanel" aria-labelledby="produk-base-tab">
+                                    <div class="produk-tab-pane">
+                                        <div class="produk-tab-caption">
+                                            <h6>Informasi dasar produk</h6>
+                                            <p>Kelola identitas utama produk, sediaan, produsen, dan bahan aktif.</p>
+                                        </div>
 
-                            <div class="form-row">
-                                <div class="form-group col-md-6">
-                                    <label for="bahan_aktif_ids">Bahan Aktif</label>
-                                    <select class="form-control select2-produk" id="bahan_aktif_ids" name="bahan_aktif_ids[]" multiple>
-                                        @foreach($bahanAktifs as $bahanAktif)
-                                            <option value="{{ $bahanAktif->id }}">{{ $bahanAktif->nama_bahan_aktif }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
+                                        <div class="form-row">
+                                            <div class="form-group col-md-6">
+                                                <label for="brand_id">Brand</label>
+                                                <select class="form-control select2-produk" id="brand_id" name="brand_id" required>
+                                                    <option value="">Pilih Brand</option>
+                                                    @foreach($brands as $brand)
+                                                        <option value="{{ $brand->id }}">{{ $brand->nama_brand }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <label for="nama_produk">Nama Produk</label>
+                                                <input type="text" class="form-control" id="nama_produk" name="nama_produk" required>
+                                            </div>
+                                        </div>
 
-                            <div class="form-row produk-form-create-only">
-                                <div class="form-group col-md-6">
-                                    <label for="kemasan_premier_id">Kemasan Primer</label>
-                                    <select class="form-control select2-produk" id="kemasan_premier_id" name="kemasan_premier_id" required>
-                                        <option value="">Pilih Kemasan Primer</option>
-                                        @foreach($kemasanPrimerOptions as $kemasan)
-                                            <option value="{{ $kemasan->id }}">{{ $kemasan->nama_kemasan }}{{ $kemasan->ukuran ? ' (' . $kemasan->ukuran . ')' : '' }}</option>
-                                        @endforeach
-                                    </select>
+                                        <div class="form-row">
+                                            <div class="form-group col-md-3">
+                                                <label for="netto">Netto</label>
+                                                <input type="text" class="form-control" id="netto" name="netto" placeholder="Contoh: 15 ml">
+                                            </div>
+                                            <div class="form-group col-md-3">
+                                                <label for="sediaan_id">Sediaan</label>
+                                                <select class="form-control select2-produk" id="sediaan_id" name="sediaan_id" required>
+                                                    <option value="">Pilih Sediaan</option>
+                                                    @foreach($sediaans as $sediaan)
+                                                        <option value="{{ $sediaan->id }}">{{ $sediaan->nama_sediaan }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <label for="produsen_vendor_id">Produsen Vendor</label>
+                                                <select class="form-control select2-produk" id="produsen_vendor_id" name="produsen_vendor_id">
+                                                    <option value="">Pilih Produsen Vendor</option>
+                                                    @foreach($produsenVendors as $vendor)
+                                                        <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row">
+                                            <div class="form-group col-md-12 mb-0">
+                                                <label for="bahan_aktif_ids">Bahan Aktif</label>
+                                                <select class="form-control select2-produk" id="bahan_aktif_ids" name="bahan_aktif_ids[]" multiple>
+                                                    @foreach($bahanAktifs as $bahanAktif)
+                                                        <option value="{{ $bahanAktif->id }}">{{ $bahanAktif->nama_bahan_aktif }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="form-group col-md-6">
-                                    <label for="kemasan_sekunder_id">Kemasan Sekunder</label>
-                                    <select class="form-control select2-produk" id="kemasan_sekunder_id" name="kemasan_sekunder_id">
-                                        <option value="">Pilih Kemasan Sekunder</option>
-                                        @foreach($kemasanSekunderOptions as $kemasan)
-                                            <option value="{{ $kemasan->id }}">{{ $kemasan->nama_kemasan }}{{ $kemasan->ukuran ? ' (' . $kemasan->ukuran . ')' : '' }}</option>
-                                        @endforeach
-                                    </select>
+
+                                <div class="tab-pane fade" id="produk-kemasan-pane" role="tabpanel" aria-labelledby="produk-kemasan-tab">
+                                    <div class="produk-tab-pane">
+                                        <div class="produk-tab-caption">
+                                            <h6>Informasi kemasan</h6>
+                                            <p>Fokuskan data primer terlebih dulu. Isi sekunder hanya jika produk memang memakai kemasan tambahan.</p>
+                                        </div>
+
+                                        <div class="produk-section-grid">
+                                            <section class="produk-section-card">
+                                                <div class="produk-section-head">
+                                                    <h6>Kemasan primer</h6>
+                                                    <p>Data utama kemasan produk.</p>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="kemasan_premier_id">Jenis Kemasan</label>
+                                                    <select class="form-control select2-produk" id="kemasan_premier_id" name="kemasan_premier_id" required>
+                                                        <option value="">Pilih Kemasan Primer</option>
+                                                        @foreach($kemasanPrimerOptions as $kemasan)
+                                                            <option value="{{ $kemasan->id }}">{{ $kemasan->nama_kemasan }}{{ $kemasan->ukuran ? ' (' . $kemasan->ukuran . ')' : '' }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="kemasan_primer_vendor_id">Vendor Kemasan</label>
+                                                    <select class="form-control select2-produk" id="kemasan_primer_vendor_id" name="kemasan_primer_vendor_id">
+                                                        <option value="">Pilih Vendor Kemasan Primer</option>
+                                                        @foreach($kemasanVendors as $vendor)
+                                                            <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="desain_kemasan_primer_id">Vendor Desain</label>
+                                                    <select class="form-control select2-produk" id="desain_kemasan_primer_id" name="desain_kemasan_primer_id">
+                                                        <option value="">Pilih Vendor Desain Primer</option>
+                                                        @foreach($desainVendors as $vendor)
+                                                            <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-row mb-0">
+                                                    <div class="form-group col-md-6">
+                                                        <label for="status_kemasan_primer">Status Kemasan</label>
+                                                        <select class="form-control" id="status_kemasan_primer" name="status_kemasan_primer">
+                                                            <option value="">Pilih Status</option>
+                                                            @foreach($statusKemasanOptions as $status)
+                                                                <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group col-md-6 mb-0">
+                                                        <label for="status_desain_kemasan_primer">Status Desain</label>
+                                                        <select class="form-control" id="status_desain_kemasan_primer" name="status_desain_kemasan_primer">
+                                                            <option value="">Pilih Status</option>
+                                                            @foreach($statusDesainOptions as $status)
+                                                                <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </section>
+
+                                            <section class="produk-section-card" id="produkSekunderCard">
+                                                <div class="produk-section-head">
+                                                    <h6>Kemasan sekunder</h6>
+                                                    <p>Opsional. Aktifkan hanya jika produk memakai kemasan tambahan.</p>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="kemasan_sekunder_id">Jenis Kemasan</label>
+                                                    <select class="form-control select2-produk" id="kemasan_sekunder_id" name="kemasan_sekunder_id">
+                                                        <option value="">Tanpa Kemasan Sekunder</option>
+                                                        @foreach($kemasanSekunderOptions as $kemasan)
+                                                            <option value="{{ $kemasan->id }}">{{ $kemasan->nama_kemasan }}{{ $kemasan->ukuran ? ' (' . $kemasan->ukuran . ')' : '' }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="kemasan_sekunder_vendor_id">Vendor Kemasan</label>
+                                                    <select class="form-control select2-produk js-kemasan-sekunder-dependent" id="kemasan_sekunder_vendor_id" name="kemasan_sekunder_vendor_id">
+                                                        <option value="">Pilih Vendor Kemasan Sekunder</option>
+                                                        @foreach($kemasanVendors as $vendor)
+                                                            <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-group">
+                                                    <label for="desain_kemasan_sekunder_id">Vendor Desain</label>
+                                                    <select class="form-control select2-produk js-kemasan-sekunder-dependent" id="desain_kemasan_sekunder_id" name="desain_kemasan_sekunder_id">
+                                                        <option value="">Pilih Vendor Desain Sekunder</option>
+                                                        @foreach($desainVendors as $vendor)
+                                                            <option value="{{ $vendor->id }}">{{ $vendor->nama_vendor }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                <div class="form-row mb-0">
+                                                    <div class="form-group col-md-6">
+                                                        <label for="status_kemasan_sekunder">Status Kemasan</label>
+                                                        <select class="form-control js-kemasan-sekunder-dependent" id="status_kemasan_sekunder" name="status_kemasan_sekunder">
+                                                            <option value="">Pilih Status</option>
+                                                            @foreach($statusKemasanOptions as $status)
+                                                                <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group col-md-6 mb-0">
+                                                        <label for="status_desain_kemasan_sekunder">Status Desain</label>
+                                                        <select class="form-control js-kemasan-sekunder-dependent" id="status_desain_kemasan_sekunder" name="status_desain_kemasan_sekunder">
+                                                            <option value="">Pilih Status</option>
+                                                            @foreach($statusDesainOptions as $status)
+                                                                <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </section>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="tab-pane fade" id="produk-administrasi-pane" role="tabpanel" aria-labelledby="produk-administrasi-tab">
+                                    <div class="produk-tab-pane">
+                                        <div class="produk-tab-caption">
+                                            <h6>Status administrasi</h6>
+                                            <p>Ubah progres dokumen administrasi produk langsung dari form edit.</p>
+                                        </div>
+
+                                        <div class="form-row mb-0">
+                                            <div class="form-group col-md-4">
+                                                <label for="status_administrasi_fpp">Status FPP</label>
+                                                <select class="form-control" id="status_administrasi_fpp" name="status_administrasi_fpp">
+                                                    <option value="">Pilih Status</option>
+                                                    @foreach($statusAdministrasiFppOptions as $status)
+                                                        <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="form-group col-md-4">
+                                                <label for="status_administrasi_spk">Status SPK</label>
+                                                <select class="form-control" id="status_administrasi_spk" name="status_administrasi_spk">
+                                                    <option value="">Pilih Status</option>
+                                                    @foreach($statusAdministrasiSpkOptions as $status)
+                                                        <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="form-group col-md-4 mb-0">
+                                                <label for="status_administrasi_notif">Status NOTIF</label>
+                                                <select class="form-control" id="status_administrasi_notif" name="status_administrasi_notif">
+                                                    <option value="">Pilih Status</option>
+                                                    @foreach($statusAdministrasiNotifOptions as $status)
+                                                        <option value="{{ $status }}">{{ ucfirst($status) }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="produk-upload-panel">
+                                            <div class="produk-section-head mb-0">
+                                                <h6>Dokumen tambahan</h6>
+                                                <p>Unggah dokumen pendukung produk. Bisa pilih beberapa file sekaligus.</p>
+                                            </div>
+
+                                            <input type="file" id="additional_documents" name="additional_documents[]" class="d-none" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+
+                                            <div class="produk-upload-toolbar mt-3">
+                                                <button type="button" class="produk-action-button produk-upload-button" id="pickAdditionalDocumentsBtn">Upload Dokumen</button>
+                                                <div class="produk-upload-actions">
+                                                    <button type="button" class="btn btn-outline-primary btn-sm produk-upload-submit" id="submitAdditionalDocumentsBtn" disabled>Proses Upload</button>
+                                                </div>
+                                                <div class="produk-upload-summary" id="additionalDocumentsSummary">Belum ada file dipilih.</div>
+                                            </div>
+
+                                            <div class="produk-meta mt-2">Format yang didukung: PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, PNG. Maksimum 10 MB per file.</div>
+
+                                            <div class="produk-document-list" id="additionalDocumentsList">
+                                                <div class="produk-log-empty">Belum ada dokumen tambahan.</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -728,6 +1551,7 @@
 @endsection
 
 @section('scripts')
+<script src='{{ asset('fullcalendar/dist/index.global.js') }}'></script>
 <script>
     $(function () {
         $.ajaxSetup({
@@ -757,6 +1581,8 @@
             kemasanVendorValue: '',
             desainVendorValue: ''
         };
+        var productTimelineEntries = [];
+        var productTimelineCalendar = null;
 
         function getKemasanRelationConfig(field) {
             if (field === 'kemasan_premier_id') {
@@ -1039,6 +1865,55 @@
                 + '</div>';
         }
 
+        function renderCombinedKemasanColumn(row) {
+            var sections = [];
+
+            sections.push('<div class="produk-kemasan-compact-section">'
+                + '<div class="produk-cell-title">Kemasan Primer</div>'
+                + renderKemasanColumn(
+                    row.id,
+                    'kemasan_premier_id',
+                    row.kemasan_premier_id,
+                    'status_kemasan_primer',
+                    'status_desain_kemasan_primer',
+                    row.kemasan_premier_name,
+                    row.status_kemasan_primer,
+                    row.status_desain_kemasan_primer,
+                    row.kemasan_primer_vendor_id,
+                    row.desain_kemasan_primer_id,
+                    row.kemasan_primer_vendor_name,
+                    row.desain_kemasan_primer_vendor_name
+                )
+                + '</div>');
+
+            if (row.kemasan_sekunder_id) {
+                sections.push('<div class="produk-kemasan-compact-section">'
+                    + '<div class="produk-cell-title">Kemasan Sekunder</div>'
+                    + renderKemasanColumn(
+                        row.id,
+                        'kemasan_sekunder_id',
+                        row.kemasan_sekunder_id,
+                        'status_kemasan_sekunder',
+                        'status_desain_kemasan_sekunder',
+                        row.kemasan_sekunder_name,
+                        row.status_kemasan_sekunder,
+                        row.status_desain_kemasan_sekunder,
+                        row.kemasan_sekunder_vendor_id,
+                        row.desain_kemasan_sekunder_id,
+                        row.kemasan_sekunder_vendor_name,
+                        row.desain_kemasan_sekunder_vendor_name
+                    )
+                    + '</div>');
+            } else {
+                sections.push('<div class="produk-kemasan-compact-section">'
+                    + '<div class="produk-cell-title">Kemasan Sekunder</div>'
+                    + '<div class="produk-cell-value">-</div>'
+                    + '</div>');
+            }
+
+            return '<div class="produk-kemasan-compact">' + sections.join('') + '</div>';
+        }
+
         function renderAdministrasiColumn(row) {
             var parts = [];
 
@@ -1187,9 +2062,13 @@
             }
 
             return logs.map(function (log) {
+                var isUserLog = String(log.status_activity || '').toLowerCase() === 'user-note';
+                var sourceLabel = isUserLog ? 'User' : 'System';
+                var sourceClass = isUserLog ? ' produk-log-source-user' : ' produk-log-source-system';
+
                 return '<div class="produk-log-item">'
                     + '<div class="produk-log-item-head">'
-                    + '<div class="produk-log-item-status">' + escapeHtml(log.status_activity || '-') + '</div>'
+                    + '<div class="produk-log-item-meta"><div class="produk-log-item-status">' + escapeHtml(log.status_activity || '-') + '</div><span class="produk-log-source' + sourceClass + '">' + sourceLabel + '</span></div>'
                     + '<div class="produk-log-item-time">' + formatProdukLogDate(log.log_date_time) + '</div>'
                     + '</div>'
                     + '<div class="produk-log-item-notes">' + escapeHtml(log.notes || '-') + '</div>'
@@ -1317,18 +2196,402 @@
             });
         }
 
+        function toggleKemasanSekunderFields() {
+            var hasSekunder = $.trim($('#kemasan_sekunder_id').val() || '') !== '';
+            var $card = $('#produkSekunderCard');
+            var $fields = $('.js-kemasan-sekunder-dependent');
+
+            $card.toggleClass('is-disabled', !hasSekunder);
+            $fields.prop('disabled', !hasSekunder);
+
+            $fields.each(function () {
+                var $field = $(this);
+
+                if ($field.hasClass('select2-hidden-accessible')) {
+                    $field.trigger('change.select2');
+                }
+            });
+        }
+
+        function resetProdukTabs() {
+            $('#produk-base-tab').tab('show');
+        }
+
+        function formatDocumentFileSize(sizeBytes) {
+            if (!sizeBytes) {
+                return '';
+            }
+
+            if (sizeBytes >= 1024 * 1024) {
+                return (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB';
+            }
+
+            return Math.max(1, Math.round(sizeBytes / 1024)) + ' KB';
+        }
+
+        function formatTimelineDate(value) {
+            if (!value) {
+                return '-';
+            }
+
+            var date = new Date(value + 'T00:00:00');
+
+            if (isNaN(date.getTime())) {
+                return escapeHtml(value);
+            }
+
+            return escapeHtml(date.toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            }));
+        }
+
+        function buildProductTimelineEvents(entries) {
+            return (entries || []).map(function (entry) {
+                return {
+                    id: String(entry.id || ''),
+                    title: entry.produk_name || 'Produk',
+                    start: entry.timeline_date,
+                    allDay: true,
+                    backgroundColor: '#0f766e',
+                    borderColor: '#0f766e',
+                    extendedProps: {
+                        produkName: entry.produk_name || '-',
+                        notes: entry.notes || '-',
+                        createdAt: entry.created_at || '',
+                        timelineDate: entry.timeline_date || ''
+                    }
+                };
+            });
+        }
+
+        function filterTimelineEntriesByDate(dateString) {
+            return productTimelineEntries.filter(function (entry) {
+                return String(entry.timeline_date || '') === String(dateString || '');
+            });
+        }
+
+        function updateProductTimelineDetail(entries, dateLabel) {
+            var items = entries || [];
+            $('#productTimelineSelectedDate').text(dateLabel || 'Belum ada tanggal dipilih');
+            $('#productTimelineDetailCount').text(items.length + ' item');
+            $('#productTimelineDetailCaption').text(items.length ? 'Daftar timeline pada tanggal yang dipilih.' : 'Tidak ada timeline pada tanggal yang dipilih.');
+            setProductTimelineIndexList(items);
+        }
+
+        function openTimelineDetailByDate(dateString) {
+            updateProductTimelineDetail(filterTimelineEntriesByDate(dateString), formatTimelineDate(dateString));
+        }
+
+        function ensureProductTimelineCalendar() {
+            var calendarEl = document.getElementById('productTimelineCalendar');
+
+            if (!calendarEl || typeof FullCalendar === 'undefined') {
+                return;
+            }
+
+            if (!productTimelineCalendar) {
+                productTimelineCalendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    locale: 'id',
+                    height: 680,
+                    headerToolbar: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'dayGridMonth,listMonth'
+                    },
+                    buttonText: {
+                        today: 'Hari ini',
+                        month: 'Bulan',
+                        list: 'Daftar'
+                    },
+                    noEventsContent: 'Belum ada timeline produk.',
+                    eventClick: function (info) {
+                        openTimelineDetailByDate(info.event.startStr);
+                    },
+                    dateClick: function (info) {
+                        openTimelineDetailByDate(info.dateStr);
+                    }
+                });
+                productTimelineCalendar.render();
+            }
+
+            productTimelineCalendar.removeAllEvents();
+            productTimelineCalendar.addEventSource(buildProductTimelineEvents(productTimelineEntries));
+            productTimelineCalendar.updateSize();
+        }
+
+        function renderProductTimelineIndex(entries) {
+            if (!entries || !entries.length) {
+                return '<div class="produk-log-empty">Belum ada timeline untuk bagian ini.</div>';
+            }
+
+            return entries.map(function (entry) {
+                return '<div class="produk-timeline-item">'
+                    + '<div class="produk-timeline-head">'
+                    + '<div class="produk-timeline-meta">'
+                    + '<div class="produk-timeline-product">' + escapeHtml(entry.produk_name || '-') + '</div>'
+                    + '<div class="produk-timeline-date">' + formatTimelineDate(entry.timeline_date) + '</div>'
+                    + '</div>'
+                    + '<div class="produk-timeline-created">' + formatProdukLogDate(entry.created_at) + '</div>'
+                    + '</div>'
+                    + '<div class="produk-timeline-notes">' + escapeHtml(entry.notes || '-') + '</div>'
+                    + '</div>';
+            }).join('');
+        }
+
+        function setProductTimelineIndexList(entries) {
+            $('#productTimelineIndexList').html(renderProductTimelineIndex(entries || []));
+        }
+
+        function loadProductTimelineIndex() {
+            $.get('{{ route('rnd.products.timeline-data') }}', function (response) {
+                productTimelineEntries = response.data || [];
+                ensureProductTimelineCalendar();
+
+                if (productTimelineEntries.length) {
+                    updateProductTimelineDetail([productTimelineEntries[0]], formatTimelineDate(productTimelineEntries[0].timeline_date));
+                } else {
+                    updateProductTimelineDetail([], 'Belum ada tanggal dipilih');
+                }
+            }).fail(function () {
+                productTimelineEntries = [];
+                ensureProductTimelineCalendar();
+                updateProductTimelineDetail([], 'Belum ada tanggal dipilih');
+            });
+        }
+
+        function renderAdditionalDocumentList(documents) {
+            if (!documents || !documents.length) {
+                return '<div class="produk-log-empty">Belum ada dokumen tambahan.</div>';
+            }
+
+            return documents.map(function (documentItem) {
+                var meta = [];
+
+                if (documentItem.size_bytes) {
+                    meta.push(formatDocumentFileSize(documentItem.size_bytes));
+                }
+
+                return '<div class="produk-document-item">'
+                    + '<div class="produk-document-main">'
+                    + '<a class="produk-document-link" href="' + encodeURI(documentItem.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(documentItem.original_name || 'Dokumen tambahan') + '</a>'
+                    + '<div class="produk-document-meta">' + escapeHtml(meta.join(' | ') || 'File tersimpan') + '</div>'
+                    + '</div>'
+                    + '<div class="produk-document-actions">'
+                    + '<button type="button" class="produk-document-delete js-delete-additional-document" data-id="' + documentItem.id + '">Hapus</button>'
+                    + '</div>'
+                    + '</div>';
+            }).join('');
+        }
+
+        function deleteAdditionalDocument(documentId) {
+            $.ajax({
+                url: '{{ url('/rnd/produk/documents') }}/' + documentId,
+                type: 'POST',
+                data: {
+                    _method: 'DELETE'
+                },
+                success: function (response) {
+                    setAdditionalDocumentList(response.data && response.data.additional_documents ? response.data.additional_documents : []);
+                    table.ajax.reload(null, false);
+                    Swal.fire({
+                        title: 'Sukses',
+                        text: response.message || 'Dokumen tambahan berhasil dihapus.',
+                        icon: 'success',
+                        timer: 1400,
+                        showConfirmButton: false
+                    });
+                },
+                error: function (xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menghapus dokumen tambahan.';
+                    Swal.fire('Error', message, 'error');
+                }
+            });
+        }
+
+        function setAdditionalDocumentList(documents) {
+            $('#additionalDocumentsList').html(renderAdditionalDocumentList(documents || []));
+        }
+
+        function updateAdditionalDocumentsSummary() {
+            var input = $('#additional_documents')[0];
+            var files = input && input.files ? Array.prototype.slice.call(input.files) : [];
+            var canUpload = !!$.trim($('#produk_id').val() || '') && files.length > 0;
+
+            $('#submitAdditionalDocumentsBtn').prop('disabled', !canUpload);
+
+            if (!files.length) {
+                $('#additionalDocumentsSummary').text($.trim($('#produk_id').val() || '') ? 'Belum ada file dipilih.' : 'Simpan produk dulu sebelum upload dokumen.');
+                return;
+            }
+
+            if (files.length === 1) {
+                $('#additionalDocumentsSummary').text(files[0].name);
+                return;
+            }
+
+            $('#additionalDocumentsSummary').text(files.length + ' file dipilih');
+        }
+
+        function uploadAdditionalDocuments() {
+            var productId = $.trim($('#produk_id').val() || '');
+            var input = $('#additional_documents')[0];
+            var files = input && input.files ? Array.prototype.slice.call(input.files) : [];
+
+            if (!productId) {
+                Swal.fire('Informasi', 'Simpan produk terlebih dulu sebelum upload dokumen tambahan.', 'info');
+                return;
+            }
+
+            if (!files.length) {
+                Swal.fire('Informasi', 'Pilih minimal satu file untuk diunggah.', 'info');
+                return;
+            }
+
+            var formData = new FormData();
+
+            files.forEach(function (file) {
+                formData.append('additional_documents[]', file);
+            });
+
+            $.ajax({
+                url: '{{ url('/rnd/produk') }}/' + productId + '/documents',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    $('#additional_documents').val('');
+                    setAdditionalDocumentList(response.data && response.data.additional_documents ? response.data.additional_documents : []);
+                    updateAdditionalDocumentsSummary();
+                    table.ajax.reload(null, false);
+                    Swal.fire({
+                        title: 'Sukses',
+                        text: response.message || 'Dokumen tambahan berhasil diunggah.',
+                        icon: 'success',
+                        timer: 1400,
+                        showConfirmButton: false
+                    });
+                },
+                error: function (xhr) {
+                    var message = 'Gagal mengunggah dokumen tambahan.';
+
+                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    Swal.fire('Validasi gagal', message, 'warning');
+                }
+            });
+        }
+
         function resetForm() {
             $('#produkForm')[0].reset();
             $('#produk_id').val('');
             $('.select2-produk').val(null).trigger('change');
+            $('#additional_documents').val('');
             setProdukLogPanel([], false);
+            setAdditionalDocumentList([]);
+            updateAdditionalDocumentsSummary();
+            resetProdukTabs();
+            toggleKemasanSekunderFields();
         }
 
         function toggleProdukFormMode(isEdit) {
-            $('.produk-form-create-only').toggleClass('is-hidden', isEdit);
-            $('.produk-form-create-only').find('input, select, textarea').prop('disabled', isEdit);
             $('#deleteProdukBtn').toggleClass('d-none', !isEdit).attr('data-id', '');
             $('#produkLogPane').toggleClass('is-hidden', !isEdit);
+        }
+
+        function renderActionColumn(row) {
+            return '<div class="produk-table-actions">'
+                + '<button type="button" class="produk-action-button js-edit-product" data-id="' + row.id + '">Edit</button>'
+                + '<button type="button" class="produk-action-button produk-action-button-secondary js-add-product-timeline" data-id="' + row.id + '">Timeline</button>'
+                + '</div>';
+        }
+
+        function submitProductTimeline(productId, timelineDate, notes) {
+            $.ajax({
+                url: '{{ url('/rnd/produk') }}/' + productId + '/timelines',
+                type: 'POST',
+                data: {
+                    timeline_date: timelineDate,
+                    notes: notes
+                },
+                success: function (response) {
+                    var currentProductId = $.trim($('#produk_id').val() || '');
+
+                    loadProductTimelineIndex();
+
+                    $('#produk-timeline-index-tab').tab('show');
+
+                    if (String(currentProductId) === String(productId)) {
+                        $.get('{{ url('/rnd/produk') }}/' + productId, function (detailResponse) {
+                            var detailData = detailResponse.data || {};
+                            setProdukLogPanel(detailData.product_logs || [], true);
+                        });
+                    }
+
+                    Swal.fire({
+                        title: 'Sukses',
+                        text: response.message || 'Timeline produk berhasil ditambahkan.',
+                        icon: 'success',
+                        timer: 1400,
+                        showConfirmButton: false
+                    });
+                },
+                error: function (xhr) {
+                    var message = 'Gagal menambahkan timeline produk.';
+
+                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                        message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                    } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    }
+
+                    Swal.fire('Validasi gagal', message, 'warning');
+                }
+            });
+        }
+
+        function openEditProdukModal(id) {
+            resetForm();
+            toggleProdukFormMode(true);
+
+            $.get('{{ url('/rnd/produk') }}/' + id, function (response) {
+                var data = response.data || {};
+                $('#produkModalLabel').text('Edit Produk');
+                $('#produk_id').val(data.id || '');
+                $('#nama_produk').val(data.nama_produk || '');
+                $('#netto').val(data.netto || '');
+                $('#brand_id').val(data.brand_id || '').trigger('change');
+                $('#produsen_vendor_id').val(data.produsen_vendor_id || '').trigger('change');
+                $('#bahan_aktif_ids').val(data.bahan_aktif_ids || []).trigger('change');
+                $('#kemasan_premier_id').val(data.kemasan_premier_id || '').trigger('change');
+                $('#kemasan_sekunder_id').val(data.kemasan_sekunder_id || '').trigger('change');
+                $('#kemasan_primer_vendor_id').val(data.kemasan_primer_vendor_id || '').trigger('change');
+                $('#kemasan_sekunder_vendor_id').val(data.kemasan_sekunder_vendor_id || '').trigger('change');
+                $('#desain_kemasan_primer_id').val(data.desain_kemasan_primer_id || '').trigger('change');
+                $('#desain_kemasan_sekunder_id').val(data.desain_kemasan_sekunder_id || '').trigger('change');
+                $('#sediaan_id').val(data.sediaan_id || '').trigger('change');
+                $('#status_administrasi_fpp').val(data.status_administrasi_fpp || '');
+                $('#status_administrasi_spk').val(data.status_administrasi_spk || '');
+                $('#status_administrasi_notif').val(data.status_administrasi_notif || '');
+                $('#status_kemasan_primer').val(data.status_kemasan_primer || '');
+                $('#status_kemasan_sekunder').val(data.status_kemasan_sekunder || '');
+                $('#status_desain_kemasan_primer').val(data.status_desain_kemasan_primer || '');
+                $('#status_desain_kemasan_sekunder').val(data.status_desain_kemasan_sekunder || '');
+                $('#deleteProdukBtn').attr('data-id', data.id || '');
+                setProdukLogPanel(data.product_logs || [], true);
+                setAdditionalDocumentList(data.additional_documents || []);
+                updateAdditionalDocumentsSummary();
+                toggleKemasanSekunderFields();
+                resetProdukTabs();
+                $('#produkModal').modal('show');
+            });
         }
 
         function confirmDeleteProduk(id) {
@@ -1389,42 +2652,7 @@
                     orderable: false,
                     searchable: false,
                     render: function(data, type, row) {
-                        return renderKemasanColumn(
-                            row.id,
-                            'kemasan_premier_id',
-                            row.kemasan_premier_id,
-                            'status_kemasan_primer',
-                            'status_desain_kemasan_primer',
-                            row.kemasan_premier_name,
-                            row.status_kemasan_primer,
-                            row.status_desain_kemasan_primer,
-                            row.kemasan_primer_vendor_id,
-                            row.desain_kemasan_primer_id,
-                            row.kemasan_primer_vendor_name,
-                            row.desain_kemasan_primer_vendor_name
-                        );
-                    }
-                },
-                {
-                    data: null,
-                    name: 'kemasanSekunder.nama_kemasan',
-                    orderable: false,
-                    searchable: false,
-                    render: function(data, type, row) {
-                        return renderKemasanColumn(
-                            row.id,
-                            'kemasan_sekunder_id',
-                            row.kemasan_sekunder_id,
-                            'status_kemasan_sekunder',
-                            'status_desain_kemasan_sekunder',
-                            row.kemasan_sekunder_name,
-                            row.status_kemasan_sekunder,
-                            row.status_desain_kemasan_sekunder,
-                            row.kemasan_sekunder_vendor_id,
-                            row.desain_kemasan_sekunder_id,
-                            row.kemasan_sekunder_vendor_name,
-                            row.desain_kemasan_sekunder_vendor_name
-                        );
+                        return renderCombinedKemasanColumn(row);
                     }
                 },
                 {
@@ -1435,12 +2663,71 @@
                     render: function(data, type, row) {
                         return renderAdministrasiColumn(row);
                     }
+                },
+                {
+                    data: null,
+                    orderable: false,
+                    searchable: false,
+                    className: 'text-center',
+                    render: function(data, type, row) {
+                        return renderActionColumn(row);
+                    }
                 }
             ]
         });
 
         initProdukSelect2();
         initKemasanModalSelect2();
+        toggleKemasanSekunderFields();
+        loadProductTimelineIndex();
+
+        $('a[data-toggle="tab"][href="#produk-timeline-index-pane"]').on('shown.bs.tab', function () {
+            ensureProductTimelineCalendar();
+        });
+
+        $('#pickAdditionalDocumentsBtn').on('click', function () {
+            if (!$.trim($('#produk_id').val() || '')) {
+                Swal.fire('Informasi', 'Simpan produk terlebih dulu sebelum upload dokumen tambahan.', 'info');
+                return;
+            }
+
+            $('#additional_documents').trigger('click');
+        });
+
+        $('#additional_documents').on('change', function () {
+            updateAdditionalDocumentsSummary();
+        });
+
+        $('#submitAdditionalDocumentsBtn').on('click', function () {
+            uploadAdditionalDocuments();
+        });
+
+        $('body').on('click', '.js-delete-additional-document', function () {
+            var documentId = $(this).data('id');
+
+            Swal.fire({
+                title: 'Hapus dokumen?',
+                text: 'Dokumen tambahan yang dihapus tidak bisa dikembalikan.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, hapus',
+                cancelButtonText: 'Batal'
+            }).then(function (result) {
+                if (!result.value) {
+                    return;
+                }
+
+                deleteAdditionalDocument(documentId);
+            });
+        });
+
+        $('#kemasan_sekunder_id').on('change', function () {
+            if (!$.trim($(this).val() || '')) {
+                $('.js-kemasan-sekunder-dependent').val('').trigger('change');
+            }
+
+            toggleKemasanSekunderFields();
+        });
 
         $('#createNewProduk').on('click', function () {
             resetForm();
@@ -1450,32 +2737,49 @@
         });
 
         $('body').on('click', '.js-edit-product', function () {
-            var id = $(this).data('id');
-            resetForm();
-            toggleProdukFormMode(true);
+            openEditProdukModal($(this).data('id'));
+        });
 
-            $.get('{{ url('/rnd/produk') }}/' + id, function (response) {
-                var data = response.data || {};
-                $('#produkModalLabel').text('Edit Produk');
-                $('#produk_id').val(data.id || '');
-                $('#nama_produk').val(data.nama_produk || '');
-                $('#netto').val(data.netto || '');
-                $('#brand_id').val(data.brand_id || '').trigger('change');
-                $('#produsen_vendor_id').val(data.produsen_vendor_id || '').trigger('change');
-                $('#bahan_aktif_ids').val(data.bahan_aktif_ids || []).trigger('change');
-                $('#kemasan_premier_id').val(data.kemasan_premier_id || '').trigger('change');
-                $('#kemasan_sekunder_id').val(data.kemasan_sekunder_id || '').trigger('change');
-                $('#sediaan_id').val(data.sediaan_id || '').trigger('change');
-                $('#status_administrasi_fpp').val(data.status_administrasi_fpp || '');
-                $('#status_administrasi_spk').val(data.status_administrasi_spk || '');
-                $('#status_administrasi_notif').val(data.status_administrasi_notif || '');
-                $('#status_kemasan_primer').val(data.status_kemasan_primer || '');
-                $('#status_kemasan_sekunder').val(data.status_kemasan_sekunder || '');
-                $('#status_desain_kemasan_primer').val(data.status_desain_kemasan_primer || '');
-                $('#status_desain_kemasan_sekunder').val(data.status_desain_kemasan_sekunder || '');
-                $('#deleteProdukBtn').attr('data-id', data.id || '');
-                setProdukLogPanel(data.product_logs || [], true);
-                $('#produkModal').modal('show');
+        $('body').on('click', '.js-add-product-timeline', function () {
+            var productId = $(this).data('id');
+
+            Swal.fire({
+                title: 'Tambah Timeline',
+                html: ''
+                    + '<input type="date" id="swal-timeline-date" class="swal2-input">'
+                    + '<textarea id="swal-timeline-notes" class="swal2-textarea" placeholder="Tulis catatan timeline produk"></textarea>',
+                showCancelButton: true,
+                confirmButtonText: 'Simpan Timeline',
+                cancelButtonText: 'Batal',
+                focusConfirm: false,
+                didOpen: function () {
+                    $('#swal-timeline-date').val(new Date().toISOString().slice(0, 10));
+                },
+                preConfirm: function () {
+                    var timelineDate = $.trim($('#swal-timeline-date').val() || '');
+                    var notes = $.trim($('#swal-timeline-notes').val() || '');
+
+                    if (!timelineDate) {
+                        Swal.showValidationMessage('Tanggal timeline wajib diisi.');
+                        return false;
+                    }
+
+                    if (!notes) {
+                        Swal.showValidationMessage('Catatan timeline wajib diisi.');
+                        return false;
+                    }
+
+                    return {
+                        timelineDate: timelineDate,
+                        notes: notes
+                    };
+                }
+            }).then(function (result) {
+                if (!result.value) {
+                    return;
+                }
+
+                submitProductTimeline(productId, result.value.timelineDate, result.value.notes);
             });
         });
 
@@ -1483,16 +2787,27 @@
             e.preventDefault();
 
             var id = $('#produk_id').val();
-            var formData = $(this).serializeArray();
+            var formData = new FormData(this);
+
+            formData.delete('additional_documents[]');
+            formData.delete('additional_documents');
 
             if (id) {
-                formData.push({ name: '_method', value: 'PUT' });
+                formData.append('_method', 'PUT');
+            }
+
+            if (!$.trim($('#kemasan_sekunder_id').val() || '')) {
+                ['kemasan_sekunder_vendor_id', 'desain_kemasan_sekunder_id', 'status_kemasan_sekunder', 'status_desain_kemasan_sekunder'].forEach(function (field) {
+                    formData.append(field, '');
+                });
             }
 
             $.ajax({
                 url: id ? '{{ url('/rnd/produk') }}/' + id : '{{ route('rnd.products.store') }}',
                 type: 'POST',
-                data: $.param(formData),
+                data: formData,
+                processData: false,
+                contentType: false,
                 success: function (response) {
                     $('#produkModal').modal('hide');
                     table.ajax.reload(null, false);
