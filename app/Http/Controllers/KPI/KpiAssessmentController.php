@@ -4,12 +4,16 @@ namespace App\Http\Controllers\KPI;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use App\Models\HRD\Employee;
 use App\Models\KPI\KpiAssessment;
 
 class KpiAssessmentController extends Controller
 {
     public function fill(KpiAssessment $assessment)
     {
+        abort_unless($this->canAccessAssessment($assessment), 403);
+
         $scores = \App\Models\KPI\KpiScore::where('assessment_id', $assessment->id)->get()->keyBy('indicators_id');
 
         if ($scores->isNotEmpty()) {
@@ -32,8 +36,12 @@ class KpiAssessmentController extends Controller
 
     public function submit(Request $request, KpiAssessment $assessment)
     {
+        abort_unless($this->canAccessAssessment($assessment), 403);
+
+        $canManageOverride = $this->canManageAssessmentOverrides();
+
         // Prevent re-submission if already done
-        if ($assessment->status === 'done') {
+        if ($assessment->status === 'done' && !$canManageOverride) {
             return response()->json(['message' => 'Assessment already submitted and cannot be changed.'], 409);
         }
 
@@ -78,6 +86,24 @@ class KpiAssessmentController extends Controller
             $assessment->save();
         }
 
-        return response()->json(['message' => 'Assessment saved']);
+        return response()->json([
+            'message' => $canManageOverride ? 'Assessment updated.' : 'Assessment saved',
+        ]);
+    }
+
+    private function canAccessAssessment(KpiAssessment $assessment): bool
+    {
+        if ($this->canManageAssessmentOverrides()) {
+            return true;
+        }
+
+        $employee = Employee::where('user_id', Auth::id())->first();
+
+        return $employee && (int) $employee->id === (int) $assessment->evaluator_employee_id;
+    }
+
+    private function canManageAssessmentOverrides(): bool
+    {
+        return (bool) Auth::user()?->hasAnyRole(['Hrd', 'Admin']);
     }
 }

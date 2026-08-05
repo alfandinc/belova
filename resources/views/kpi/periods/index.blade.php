@@ -375,10 +375,23 @@ $(function(){
         $.ajax({ url: '/kpi/periods/' + id + '/open', type: 'POST', data: { _token: $('meta[name="csrf-token"]').attr('content') }, success: function(r){ periodsTable.ajax.reload(null,false); Swal.fire({icon:'success', title:'Opened', text: r.message}); }, error: function(xhr){ showAjaxError(xhr, 'Failed to open period'); } });
     });
 
-    // show details for a period (populate right panel)
-    $(document).on('click', '.btn-scores-period', function(){
-        var id = $(this).data('id');
-        if (!id) return;
+    var periodDetailsData = [];
+    var currentPeriodDetailsId = null;
+    var activeEvaluateeRowKey = null;
+    var canManageEvaluationScores = @json((bool) (auth()->user()?->hasAnyRole(['Hrd', 'Admin']) ?? false));
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function loadPeriodDetails(id, callback) {
+        currentPeriodDetailsId = id;
         $('#periodDetails').html('<div class="text-center py-4">Loading...</div>');
         $.get('/kpi/periods/' + id + '/details', function(res){
             if (!res.success) return showAjaxError({ responseJSON: res }, 'Failed to load details');
@@ -407,69 +420,113 @@ $(function(){
                 html += '</tbody></table></div>';
             }
             $('#periodDetails').html(html);
+            if (typeof callback === 'function') callback();
         }).fail(function(xhr){ showAjaxError(xhr, 'Failed to load details'); });
+    }
+
+    // show details for a period (populate right panel)
+    $(document).on('click', '.btn-scores-period', function(){
+        var id = $(this).data('id');
+        if (!id) return;
+        loadPeriodDetails(id);
     });
 
-    // store last loaded details data
-    var periodDetailsData = [];
-
-    // show modal with evaluator details for a specific evaluatee
-    $(document).on('click', '.btn-evaluatee-details', function(){
-        var rowKey = String($(this).data('row-key'));
-        var row = (periodDetailsData || []).find(function(r){ return String(r.row_key) == rowKey; });
+    function renderEvaluateeDetailsModal(rowKey) {
+        var row = (periodDetailsData || []).find(function(r){ return String(r.row_key) == String(rowKey); });
         if (!row) return Swal.fire('Info', 'No details available', 'info');
 
-        // Build a single clean table with header once: Evaluator | Indicator | Weight % | Score | Weighted Score | Notes
-        var html = '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>Evaluator</th><th>Indicator</th><th class="text-right">Weight %</th><th class="text-right">Score</th><th class="text-right">Weighted Score</th><th>Notes</th></tr></thead><tbody>';
+        activeEvaluateeRowKey = String(rowKey);
+
+        var html = '';
+        if (row.evaluatee_name) {
+            html += '<div class="mb-3"><h6 class="mb-1">' + escapeHtml(row.evaluatee_name) + '</h6>';
+            if (row.evaluatee_position) {
+                html += '<div class="small text-muted">' + row.evaluatee_position + '</div>';
+            }
+            html += '</div>';
+        }
+
         row.evaluations.forEach(function(a){
             var scores = (a.scores || []);
-            var evaluatorHtml = (a.evaluator_name || '-');
-            var rowClass = (a.status === 'pending') ? 'table-warning' : '';
-            if (scores.length === 0) {
-                html += '<tr' + (rowClass ? (' class="' + rowClass + '"') : '') + '>';
-                html += '<td>' + evaluatorHtml + '</td>';
-                html += '<td>-</td><td class="text-right">-</td><td>-</td><td class="text-right">-</td>';
-                html += '</tr>';
-            } else {
-                scores.forEach(function(s, idx){
-                    html += '<tr' + (rowClass ? (' class="' + rowClass + '"') : '') + '>';
-                    if (idx === 0) {
-                        html += '<td rowspan="' + scores.length + '">' + evaluatorHtml + '</td>';
+            var evaluatorHtml = escapeHtml(a.evaluator_name || '-');
+            var rowClass = (a.status === 'pending') ? 'border-warning' : 'border-light';
+            var statusBadge = a.status === 'pending'
+                ? '<span class="badge badge-warning">Pending</span>'
+                : '<span class="badge badge-success">Done</span>';
+
+            html += '<div class="card mb-3 ' + rowClass + '">';
+            html += '<div class="card-header d-flex justify-content-between align-items-center">';
+            html += '<div><strong>' + evaluatorHtml + '</strong></div>';
+            html += '<div>' + statusBadge + '</div>';
+            html += '</div>';
+            html += '<div class="card-body">';
+
+            if (!scores.length) {
+                html += '<div class="text-muted">No score details available.</div>';
+            } else if (canManageEvaluationScores) {
+                html += '<form class="edit-evaluation-form" data-assessment-id="' + a.assessment_id + '">';
+                html += '<input type="hidden" name="_token" value="{{ csrf_token() }}">';
+                html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-3"><thead><tr><th>Indicator</th><th class="text-right">Weight %</th><th class="text-right" style="width:120px">Score</th><th class="text-right">Weighted Score</th><th>Notes</th></tr></thead><tbody>';
+
+                scores.forEach(function(s){
+                    var scoreValue = (s.score !== null && s.score !== undefined && s.score !== '') ? s.score : '';
+                    var noteValue = s.notes ? s.notes : '';
+                    var weighted = '-';
+                    if (s.final_calculated_score !== null && s.final_calculated_score !== undefined && s.final_calculated_score !== '') {
+                        var w = Number(s.final_calculated_score);
+                        weighted = isFinite(w) ? String(Math.round(w * 100) / 100) : s.final_calculated_score;
                     }
+                    var weightPct = '-';
+                    if (s.indicator_weight !== null && s.indicator_weight !== undefined && s.indicator_weight !== '') {
+                        var iw = Number(s.indicator_weight);
+                        weightPct = isFinite(iw) ? String(Math.round(iw * 100) / 100) + '%' : s.indicator_weight;
+                    }
+
+                    html += '<tr>';
+                    html += '<td>' + escapeHtml(s.indicator_name || '') + '</td>';
+                    html += '<td class="text-right">' + weightPct + '</td>';
+                    html += '<td><input type="number" step="0.01" min="1" max="5" class="form-control form-control-sm text-right" name="scores[' + s.indicator_id + ']" value="' + escapeHtml(scoreValue) + '" required></td>';
+                    html += '<td class="text-right">' + weighted + '</td>';
+                    html += '<td><textarea class="form-control form-control-sm" name="notes[' + s.indicator_id + ']" rows="2">' + escapeHtml(noteValue) + '</textarea></td>';
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                html += '<div class="text-right"><button type="submit" class="btn btn-primary btn-sm">Save Score</button></div>';
+                html += '</form>';
+            } else {
+                html += '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Indicator</th><th class="text-right">Weight %</th><th class="text-right">Score</th><th class="text-right">Weighted Score</th><th>Notes</th></tr></thead><tbody>';
+                scores.forEach(function(s){
                     var noteText = s.notes ? s.notes : '';
                     var scoreText = '-';
                     if (s.score !== null && s.score !== undefined && s.score !== '') {
                         var n = Number(s.score);
-                        scoreText = isFinite(n) ? String(Math.round(n)) : s.score;
+                        scoreText = isFinite(n) ? String(Math.round(n * 100) / 100) : s.score;
                     }
                     var weighted = '-';
                     if (s.final_calculated_score !== null && s.final_calculated_score !== undefined && s.final_calculated_score !== '') {
                         var w = Number(s.final_calculated_score);
-                        weighted = isFinite(w) ? String(Math.round(w)) : s.final_calculated_score;
+                        weighted = isFinite(w) ? String(Math.round(w * 100) / 100) : s.final_calculated_score;
                     }
-                    // indicator weight (percent)
-                    var weightPct = '';
+                    var weightPct = '-';
                     if (s.indicator_weight !== null && s.indicator_weight !== undefined && s.indicator_weight !== '') {
                         var iw = Number(s.indicator_weight);
-                        weightPct = isFinite(iw) ? String(Math.round(iw)) + '%' : s.indicator_weight;
-                    } else if (s.weight !== null && s.weight !== undefined && s.weight !== '') {
-                        var iw2 = Number(s.weight);
-                        weightPct = isFinite(iw2) ? String(Math.round(iw2)) + '%' : s.weight;
-                    } else {
-                        weightPct = '-';
+                        weightPct = isFinite(iw) ? String(Math.round(iw * 100) / 100) + '%' : s.indicator_weight;
                     }
-                    html += '<td>' + (s.indicator_name || '') + '</td>';
+                    html += '<tr>';
+                    html += '<td>' + escapeHtml(s.indicator_name || '') + '</td>';
                     html += '<td class="text-right">' + weightPct + '</td>';
                     html += '<td class="text-right">' + scoreText + '</td>';
                     html += '<td class="text-right">' + weighted + '</td>';
-                    html += '<td>' + (noteText ? noteText : '-') + '</td>';
+                    html += '<td>' + (noteText ? escapeHtml(noteText) : '-') + '</td>';
                     html += '</tr>';
                 });
+                html += '</tbody></table></div>';
             }
-        });
-        html += '</tbody></table></div>';
 
-        // show in modal
+            html += '</div></div>';
+        });
+
         var $m = $('#evaluateeDetailsModal');
         if (!$m.length) {
             $('body').append('\n<div class="modal fade" id="evaluateeDetailsModal" tabindex="-1" role="dialog">\n  <div class="modal-dialog modal-xl" role="document">\n    <div class="modal-content">\n      <div class="modal-header">\n        <h5 class="modal-title">Evaluatee Details</h5>\n        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>\n      </div>\n      <div class="modal-body" id="evaluateeDetailsModalBody"></div>\n    </div>\n  </div>\n</div>\n');
@@ -477,6 +534,39 @@ $(function(){
         }
         $('#evaluateeDetailsModalBody').html(html);
         $('#evaluateeDetailsModal').modal('show');
+    }
+
+    // show modal with evaluator details for a specific evaluatee
+    $(document).on('click', '.btn-evaluatee-details', function(){
+        var rowKey = String($(this).data('row-key'));
+        renderEvaluateeDetailsModal(rowKey);
+    });
+
+    $(document).on('submit', '.edit-evaluation-form', function(e){
+        e.preventDefault();
+        var $form = $(this);
+        var assessmentId = $form.data('assessment-id');
+        if (!assessmentId) return;
+
+        $.ajax({
+            url: '/kpi/assessments/' + assessmentId + '/submit',
+            type: 'POST',
+            data: $form.serialize(),
+            success: function(res){
+                if (!currentPeriodDetailsId || !activeEvaluateeRowKey) {
+                    Swal.fire({icon:'success', title:'Saved', text: res.message || 'Assessment updated.'});
+                    return;
+                }
+
+                loadPeriodDetails(currentPeriodDetailsId, function(){
+                    renderEvaluateeDetailsModal(activeEvaluateeRowKey);
+                    Swal.fire({icon:'success', title:'Saved', text: res.message || 'Assessment updated.'});
+                });
+            },
+            error: function(xhr){
+                showAjaxError(xhr, 'Failed to save assessment');
+            }
+        });
     });
 
     // close period
