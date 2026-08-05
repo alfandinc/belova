@@ -150,6 +150,9 @@
         @endunless
         @unless($isCeoSlipView)
             <button class="btn btn-info btn-sm mr-2" id="btnSyncSlipGaji">Sync</button>
+            @if($canImportAssessment ?? false)
+                <button class="btn btn-outline-primary btn-sm mr-2" id="btnImportAssessmentKpi">KPI dari Assessment</button>
+            @endif
             <select id="bulkStatus" class="form-control form-control-sm mr-2" style="width:170px;">
                 <option value="">Bulk Status...</option>
                 <option value="submitted">Submitted</option>
@@ -226,6 +229,9 @@
 @endif
 @unless($isCeoSlipView)
     @include('hrd.payroll.slip_gaji.buat._modal')
+    @if($canImportAssessment ?? false)
+        @include('hrd.payroll.slip_gaji._modal_import_assessment_kpi')
+    @endif
     @include('hrd.payroll.slip_gaji._modal_potongan')
     @include('hrd.payroll.slip_gaji._modal_benefit')
 @endunless

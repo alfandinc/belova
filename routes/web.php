@@ -2370,6 +2370,12 @@ Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manag
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
     Route::put('/status/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'changeStatus'])->name('hrd.payroll.slip_gaji.status');
     Route::post('/update/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'update'])->name('hrd.payroll.slip_gaji.update');
+    Route::post('/import-assessment-kpi/preview', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'previewAssessmentKpiImport'])
+        ->middleware(['role:Hrd|Admin'])
+        ->name('hrd.payroll.slip_gaji.import_assessment_kpi.preview');
+    Route::post('/import-assessment-kpi/apply', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'applyAssessmentKpiImport'])
+        ->middleware(['role:Hrd|Admin'])
+        ->name('hrd.payroll.slip_gaji.import_assessment_kpi.apply');
     Route::post('/bulk-status', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'bulkStatus'])
         ->middleware(['role:Hrd|Admin|Manager|Head Manager|Ceo'])
         ->name('hrd.payroll.slip_gaji.bulk_status');

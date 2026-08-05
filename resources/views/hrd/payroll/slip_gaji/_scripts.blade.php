@@ -183,6 +183,23 @@ $(function() {
         && auth()->user()->hasAnyRole(['Hrd', 'Admin'])
     );
 
+    function renderSlipStatusBadge(status) {
+        var current = normalizeStatus(status || 'draft');
+        var badgeClass = 'badge-secondary';
+
+        if (current === 'submitted') {
+            badgeClass = 'badge-info';
+        } else if (current === 'approved') {
+            badgeClass = 'badge-warning';
+        } else if (current === 'rejected') {
+            badgeClass = 'badge-danger';
+        } else if (current === 'paid') {
+            badgeClass = 'badge-success';
+        }
+
+        return '<span class="badge ' + badgeClass + '">' + getStatusLabel(current) + '</span>';
+    }
+
     function getAvailableStatusTransitions(status) {
         var normalized = normalizeStatus(status);
 
@@ -1287,6 +1304,160 @@ $(function() {
                     }
                 },
                 error: function() {
+
+            if (canEditKpiPoin) {
+                function resetAssessmentImportPreview() {
+                    $('#importAssessmentKpiSummary').addClass('d-none').empty();
+                    $('#importAssessmentKpiPreviewWrapper').addClass('d-none');
+                    $('#importAssessmentKpiPreviewBody').empty();
+                    $('#importAssessmentKpiEmpty').removeClass('d-none').text('Pilih periode slip gaji dan periode KPI Assessment, lalu klik Preview.');
+                    $('#btnSaveAssessmentKpiImport').addClass('d-none').prop('disabled', true).data('preview-payload', null);
+                }
+
+                function findMatchingAssessmentPeriod(bulan) {
+                    var matchedValue = '';
+                    $('#importAssessmentPeriodId option').each(function() {
+                        if ($(this).data('assessment-month') === bulan) {
+                            matchedValue = $(this).val();
+                            return false;
+                        }
+                    });
+                    return matchedValue;
+                }
+
+                $('#btnImportAssessmentKpi').on('click', function(e) {
+                    e.preventDefault();
+                    var bulan = $('#filterBulan').val() || '{{ $bulan }}';
+                    $('#importAssessmentSlipBulan').val(bulan);
+                    var matchedPeriod = findMatchingAssessmentPeriod(bulan);
+                    if (matchedPeriod) {
+                        $('#importAssessmentPeriodId').val(matchedPeriod);
+                    }
+                    resetAssessmentImportPreview();
+                    $('#modalImportAssessmentKpi').modal('show');
+                });
+
+                $('#btnPreviewAssessmentKpiImport').on('click', function() {
+                    var slipBulan = $('#importAssessmentSlipBulan').val();
+                    var assessmentPeriodId = $('#importAssessmentPeriodId').val();
+
+                    if (!slipBulan || !assessmentPeriodId) {
+                        Swal.fire('Info', 'Pilih periode slip gaji dan periode KPI Assessment terlebih dahulu.', 'info');
+                        return;
+                    }
+
+                    $('#btnPreviewAssessmentKpiImport').prop('disabled', true);
+                    resetAssessmentImportPreview();
+                    $('#importAssessmentKpiEmpty').removeClass('d-none').text('Memuat preview KPI poin...');
+
+                    $.ajax({
+                        url: '{{ route('hrd.payroll.slip_gaji.import_assessment_kpi.preview') }}',
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            slip_bulan: slipBulan,
+                            assessment_period_id: assessmentPeriodId
+                        },
+                        success: function(res) {
+                            var rows = Array.isArray(res.rows) ? res.rows : [];
+                            var summaryHtml = '<div class="alert alert-info mb-0">'
+                                + '<strong>Periode Slip:</strong> ' + (res.slip_bulan_label || slipBulan)
+                                + ' | <strong>Assessment:</strong> ' + ((res.assessment_period && res.assessment_period.label) ? res.assessment_period.label : '-')
+                                + ' | <strong>Total Slip:</strong> ' + rows.length
+                                + '</div>';
+
+                            $('#importAssessmentKpiSummary').removeClass('d-none').html(summaryHtml);
+
+                            if (!rows.length) {
+                                $('#importAssessmentKpiEmpty').removeClass('d-none').text('Tidak ada slip gaji pada periode yang dipilih.');
+                                return;
+                            }
+
+                            var html = '';
+                            rows.forEach(function(row) {
+                                html += '<tr>'
+                                    + '<td><strong>' + (row.employee_name || '-') + '</strong></td>'
+                                    + '<td>' + (row.division_name || '-') + '</td>'
+                                    + '<td>' + renderSlipStatusBadge(row.status_gaji) + '</td>'
+                                    + '<td class="text-right">' + parseToNumber(row.current_kpi_poin).toFixed(2) + '</td>'
+                                    + '<td class="text-right">' + parseToNumber(row.assessment_kpi_poin).toFixed(2) + '</td>'
+                                    + '<td><input type="number" step="0.01" min="0" class="form-control form-control-sm assessment-kpi-poin-input" data-slip-id="' + row.slip_id + '" value="' + parseToNumber(row.proposed_kpi_poin).toFixed(2) + '"></td>'
+                                    + '</tr>';
+                            });
+
+                            $('#importAssessmentKpiPreviewBody').html(html);
+                            $('#importAssessmentKpiPreviewWrapper').removeClass('d-none');
+                            $('#importAssessmentKpiEmpty').addClass('d-none');
+                            $('#btnSaveAssessmentKpiImport')
+                                .removeClass('d-none')
+                                .prop('disabled', false)
+                                .data('preview-payload', {
+                                    slip_bulan: slipBulan,
+                                    assessment_period_id: assessmentPeriodId
+                                });
+                        },
+                        error: function(xhr) {
+                            var message = (xhr && xhr.responseJSON && xhr.responseJSON.message)
+                                ? xhr.responseJSON.message
+                                : 'Gagal memuat preview KPI dari assessment.';
+                            $('#importAssessmentKpiEmpty').removeClass('d-none').text(message);
+                            Swal.fire('Error', message, 'error');
+                        },
+                        complete: function() {
+                            $('#btnPreviewAssessmentKpiImport').prop('disabled', false);
+                        }
+                    });
+                });
+
+                $('#btnSaveAssessmentKpiImport').on('click', function() {
+                    var previewPayload = $(this).data('preview-payload');
+                    if (!previewPayload) {
+                        Swal.fire('Info', 'Silakan preview data terlebih dahulu.', 'info');
+                        return;
+                    }
+
+                    var rows = [];
+                    $('#importAssessmentKpiPreviewBody').find('.assessment-kpi-poin-input').each(function() {
+                        rows.push({
+                            slip_id: $(this).data('slip-id'),
+                            kpi_poin: parseToNumber($(this).val()).toFixed(2)
+                        });
+                    });
+
+                    if (!rows.length) {
+                        Swal.fire('Info', 'Tidak ada data KPI poin untuk disimpan.', 'info');
+                        return;
+                    }
+
+                    var $saveButton = $(this);
+                    $saveButton.prop('disabled', true);
+
+                    $.ajax({
+                        url: '{{ route('hrd.payroll.slip_gaji.import_assessment_kpi.apply') }}',
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            slip_bulan: previewPayload.slip_bulan,
+                            assessment_period_id: previewPayload.assessment_period_id,
+                            rows: rows
+                        },
+                        success: function(res) {
+                            Swal.fire('Sukses', res.message || 'KPI poin berhasil disimpan.', 'success');
+                            $('#modalImportAssessmentKpi').modal('hide');
+                            reloadTablePreserveScroll(table);
+                        },
+                        error: function(xhr) {
+                            var message = (xhr && xhr.responseJSON && xhr.responseJSON.message)
+                                ? xhr.responseJSON.message
+                                : 'Gagal menyimpan KPI poin dari assessment.';
+                            Swal.fire('Error', message, 'error');
+                        },
+                        complete: function() {
+                            $saveButton.prop('disabled', false);
+                        }
+                    });
+                });
+            }
                     Swal.fire('Error', 'Terjadi kesalahan saat sync.', 'error');
                 }
             });
