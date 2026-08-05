@@ -751,33 +751,16 @@ class ObatController extends Controller
             ->groupBy('obat_id')
             ->pluck('total_stock', 'obat_id');
 
-        $approvedPermintaans = \App\Models\ERM\Permintaan::query()
-            ->with(['items.fakturBeliItems'])
-            ->where('status', 'approved')
-            ->get(['id', 'no_permintaan', 'status']);
-
-        $legacyFakturItemsByPermintaan = $this->buildForecastLegacyFakturItemsMap($approvedPermintaans);
-
-        $approvedOutstandingPermintaanPerObat = $approvedPermintaans
-            ->flatMap(function ($permintaan) use ($legacyFakturItemsByPermintaan) {
-                return $permintaan->items->map(function ($item) use ($permintaan, $legacyFakturItemsByPermintaan) {
-                    $qtyDiminta = (float) ($item->qty_total ?? 0);
-                    $qtyTerpenuhi = $this->calculateForecastPermintaanItemTerpenuhi($permintaan, $item, $legacyFakturItemsByPermintaan);
-                    $qtyOutstanding = max($qtyDiminta - $qtyTerpenuhi, 0);
-
-                    return [
-                        'obat_id' => $item->obat_id,
-                        'qty_outstanding' => $qtyOutstanding,
-                    ];
-                });
-            })
-            ->filter(function ($item) {
-                return !empty($item['obat_id']) && (float) ($item['qty_outstanding'] ?? 0) > 0;
-            })
-            ->groupBy('obat_id')
-            ->map(function ($items) {
-                return (float) collect($items)->sum('qty_outstanding');
-            });
+        $approvedOutstandingPermintaanPerObat = \App\Models\ERM\FakturBeliItem::query()
+            ->join('erm_fakturbeli', 'erm_fakturbeli.id', '=', 'erm_fakturbeli_items.fakturbeli_id')
+            ->whereNotNull('erm_fakturbeli.permintaan_id')
+            ->whereIn('erm_fakturbeli.status', ['diminta', 'diterima'])
+            ->select(
+                'erm_fakturbeli_items.obat_id',
+                DB::raw('SUM(CASE WHEN COALESCE(erm_fakturbeli_items.sisa, 0) > 0 THEN COALESCE(erm_fakturbeli_items.sisa, 0) ELSE GREATEST(COALESCE(erm_fakturbeli_items.diminta, 0) - COALESCE(erm_fakturbeli_items.qty, 0), 0) END) as total_outstanding')
+            )
+            ->groupBy('erm_fakturbeli_items.obat_id')
+            ->pluck('total_outstanding', 'erm_fakturbeli_items.obat_id');
 
         $obats = Obat::query()
             ->with(['masterFakturs.principal', 'zatAktifs'])
@@ -849,68 +832,6 @@ class ObatController extends Controller
             'period_end' => $periodEnd->format('Y-m-d'),
             'rows' => $rows,
         ]);
-    }
-
-    private function buildForecastLegacyFakturItemsMap($permintaans)
-    {
-        $noPermintaans = collect($permintaans)
-            ->pluck('no_permintaan')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($noPermintaans->isEmpty()) {
-            return collect();
-        }
-
-        return \App\Models\ERM\FakturBeli::query()
-            ->with('items')
-            ->whereIn('no_permintaan', $noPermintaans)
-            ->get()
-            ->groupBy('no_permintaan')
-            ->map(function ($fakturs) {
-                return $fakturs->flatMap(function ($faktur) {
-                    return collect($faktur->items)->map(function ($item) use ($faktur) {
-                        return [
-                            'obat_id' => $item->obat_id,
-                            'principal_id' => $item->principal_id,
-                            'pemasok_id' => $faktur->pemasok_id,
-                            'qty' => (float) ($item->qty ?? 0),
-                            'permintaan_item_id' => $item->permintaan_item_id,
-                        ];
-                    });
-                })->values();
-            });
-    }
-
-    private function calculateForecastPermintaanItemTerpenuhi($permintaan, $item, $legacyFakturItemsByPermintaan)
-    {
-        $linkedFakturItems = collect($item->fakturBeliItems);
-        $linkedQty = (float) $linkedFakturItems->sum(function ($fakturItem) {
-            return (float) ($fakturItem->qty ?? 0);
-        });
-
-        $legacyItems = collect($legacyFakturItemsByPermintaan->get($permintaan->no_permintaan, []))
-            ->filter(function ($legacyItem) use ($item) {
-                if ((int) ($legacyItem['obat_id'] ?? 0) !== (int) ($item->obat_id ?? 0)) {
-                    return false;
-                }
-
-                if ((int) ($legacyItem['pemasok_id'] ?? 0) !== (int) ($item->pemasok_id ?? 0)) {
-                    return false;
-                }
-
-                if (!empty($item->principal_id) && !empty($legacyItem['principal_id'])) {
-                    return (int) $legacyItem['principal_id'] === (int) $item->principal_id;
-                }
-
-                return true;
-            })
-            ->values();
-
-        $legacyQty = (float) $legacyItems->sum('qty');
-
-        return max($linkedQty, $legacyQty, 0.0);
     }
 
     public function forecast(Request $request, $id)
