@@ -84,82 +84,92 @@ class KpiPeriodController extends Controller
 
             public function details(Request $request, KpiPeriod $period)
             {
-                // Aggregate assessments per evaluatee position so one employee with multiple positions
-                // does not get merged into a single total above 100.
+                // Aggregate assessments per employee. When an employee has multiple positions,
+                // calculate each position separately and average the position totals into one row.
                 $assessments = KpiAssessment::with(['evaluateeEmployee', 'evaluateePosition', 'scores.indicator', 'evaluatorEmployee'])
                     ->where('period_id', $period->id)
                     ->get()
-                    ->groupBy(function (KpiAssessment $assessment) {
-                        return $assessment->evaluatee_employee_id . ':' . $assessment->evaluatee_position_id;
-                    });
+                    ->groupBy('evaluatee_employee_id');
 
                 $rows = [];
-                foreach ($assessments as $rowKey => $group) {
+                foreach ($assessments as $evaluateeId => $group) {
                     $firstAssessment = $group->first();
                     $evaluatee = $firstAssessment->evaluateeEmployee;
-                    $evaluateePosition = $firstAssessment->evaluateePosition;
+                    $positionGroups = $group->groupBy('evaluatee_position_id');
+                    $positionNames = $group->map(function ($assessment) {
+                        return optional($assessment->evaluateePosition)->name;
+                    })->filter()->unique()->values()->all();
 
                     $totalScore = 0.0;
+                    $positionCount = 0;
                     $doneCount = 0;
                     $pendingCount = 0;
-                    $uniqueTotals = [];
-                    $filteredAssessments = collect();
+                    $evaluations = [];
 
-                    foreach ($group as $assessment) {
-                        $assessmentTotal = (float) $assessment->scores->sum('final_calculated_score');
+                    foreach ($positionGroups as $positionGroup) {
+                        $positionTotal = 0.0;
+                        $uniqueTotals = [];
+                        $filteredAssessments = collect();
 
-                        if ($assessment->assessment_type === 'bottom_up') {
-                            $totalScore += $assessmentTotal;
-                            $filteredAssessments->push($assessment);
-                        } else {
-                            $bucketKey = $assessment->assessment_type . ':' . ($assessment->evaluator_position_id ?? 0);
-                            if (array_key_exists($bucketKey, $uniqueTotals)) {
-                                continue;
+                        foreach ($positionGroup as $assessment) {
+                            $assessmentTotal = (float) $assessment->scores->sum('final_calculated_score');
+
+                            if ($assessment->assessment_type === 'bottom_up') {
+                                $positionTotal += $assessmentTotal;
+                                $filteredAssessments->push($assessment);
+                            } else {
+                                $bucketKey = $assessment->assessment_type . ':' . ($assessment->evaluator_position_id ?? 0);
+                                if (array_key_exists($bucketKey, $uniqueTotals)) {
+                                    continue;
+                                }
+
+                                $uniqueTotals[$bucketKey] = $assessmentTotal;
+                                $filteredAssessments->push($assessment);
                             }
 
-                            $uniqueTotals[$bucketKey] = $assessmentTotal;
-                            $filteredAssessments->push($assessment);
+                            if ($assessment->status === 'done') $doneCount++; else $pendingCount++;
                         }
 
-                        if ($assessment->status === 'done') $doneCount++; else $pendingCount++;
-                    }
+                        foreach ($uniqueTotals as $bucketTotal) {
+                            $positionTotal += $bucketTotal;
+                        }
 
-                    foreach ($uniqueTotals as $bucketTotal) {
-                        $totalScore += $bucketTotal;
-                    }
+                        if ($filteredAssessments->isNotEmpty()) {
+                            $totalScore += $positionTotal;
+                            $positionCount++;
+                        }
 
-                    // build evaluations details per evaluator
-                    $evaluations = [];
-                    foreach ($filteredAssessments as $assessment) {
-                        $scoresArr = [];
-                        foreach ($assessment->scores as $s) {
-                            $scoresArr[] = [
-                                'indicator_id' => $s->indicators_id,
-                                'indicator_name' => optional($s->indicator)->indicator_name ?? ($s->ss_indicator_name ?? null),
-                                'category_name' => optional(optional($s->indicator)->category)->category_name ?? ($s->ss_category_name ?? null) ?? 'Uncategorized',
-                                'indicator_weight' => $s->indicator?->weight_percentage ?? $s->ss_indicator_weight_percentage ?? $s->indicator?->indicator_weight ?? null,
-                                'score' => $s->score,
-                                'final_calculated_score' => $s->final_calculated_score,
-                                'notes' => $s->notes,
+                        foreach ($filteredAssessments as $assessment) {
+                            $scoresArr = [];
+                            foreach ($assessment->scores as $s) {
+                                $scoresArr[] = [
+                                    'indicator_id' => $s->indicators_id,
+                                    'indicator_name' => optional($s->indicator)->indicator_name ?? ($s->ss_indicator_name ?? null),
+                                    'category_name' => optional(optional($s->indicator)->category)->category_name ?? ($s->ss_category_name ?? null) ?? 'Uncategorized',
+                                    'indicator_weight' => $s->indicator?->weight_percentage ?? $s->ss_indicator_weight_percentage ?? $s->indicator?->indicator_weight ?? null,
+                                    'score' => $s->score,
+                                    'final_calculated_score' => $s->final_calculated_score,
+                                    'notes' => $s->notes,
+                                ];
+                            }
+
+                            $evaluations[] = [
+                                'assessment_id' => $assessment->id,
+                                'evaluator_id' => $assessment->evaluator_employee_id,
+                                'evaluator_name' => optional($assessment->evaluatorEmployee)->nama ?? optional($assessment->evaluatorEmployee)->name ?? ('Position ' . ($assessment->evaluator_position_id ?? '')),
+                                'status' => $assessment->status,
+                                'total_score' => round((float) array_sum(array_map(fn($x) => (float) ($x['final_calculated_score'] ?? 0), $scoresArr)), 2),
+                                'scores' => $scoresArr,
                             ];
                         }
-
-                        $evaluations[] = [
-                            'assessment_id' => $assessment->id,
-                            'evaluator_id' => $assessment->evaluator_employee_id,
-                            'evaluator_name' => optional($assessment->evaluatorEmployee)->nama ?? optional($assessment->evaluatorEmployee)->name ?? ('Position ' . ($assessment->evaluator_position_id ?? '')),
-                            'status' => $assessment->status,
-                            'total_score' => round((float) array_sum(array_map(fn($x) => (float) ($x['final_calculated_score'] ?? 0), $scoresArr)), 2),
-                            'scores' => $scoresArr,
-                        ];
                     }
 
                     $rows[] = [
-                        'row_key' => (string) $rowKey,
+                        'row_key' => (string) $evaluateeId,
                         'evaluatee_id' => $firstAssessment->evaluatee_employee_id,
                         'evaluatee_name' => optional($evaluatee)->nama ?? optional($evaluatee)->name ?? '-',
-                        'evaluatee_position' => optional($evaluateePosition)->name ?? '-',
-                        'total_score' => round($totalScore, 2),
+                        'evaluatee_position' => implode('<br>', $positionNames),
+                        'total_score' => round($positionCount > 0 ? ($totalScore / $positionCount) : 0, 2),
                         'done_count' => $doneCount,
                         'pending_count' => $pendingCount,
                         'total_count' => $doneCount + $pendingCount,
