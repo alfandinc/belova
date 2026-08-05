@@ -747,6 +747,10 @@ $(function() {
     // Inline edit handler (change on input/select)
     $('#slipGajiTable').on('change', '.slip-inline-edit', function() {
         var $el = $(this);
+        var id = $el.data('id');
+        var field = $el.data('field');
+        var value = $el.val();
+        var unit = $el.data('unit');
         // Hard guard: paid slips are read-only
         var $tr = $el.closest('tr');
         var rowData = null;
@@ -760,10 +764,6 @@ $(function() {
             Swal.fire('Info', infoText, 'info');
             return;
         }
-        var id = $el.data('id');
-        var field = $el.data('field');
-        var value = $el.val();
-        var unit = $el.data('unit');
 
         if (field === 'kpi_poin' && !canEditKpiPoin) {
             Swal.fire('Info', 'Hanya HRD atau Admin yang dapat mengubah KPI poin.', 'info');
@@ -1068,9 +1068,16 @@ $(function() {
             $('#modalSlipGajiDetail').modal('show');
 
             var isReadOnly = data && !isEditableStatus(data.status);
-            $('#btnSimpanSlipGaji').prop('disabled', isReadOnly);
+            var allowKpiOnly = isReadOnly && canEditKpiPoin;
+
+            $('#btnSimpanSlipGaji').prop('disabled', isReadOnly && !allowKpiOnly);
             if (isReadOnly) {
                 $('#slipGajiDetailBody').find('input,select,textarea,button').not('[data-dismiss="modal"], .close').prop('disabled', true);
+
+                if (allowKpiOnly) {
+                    $('#slipGajiDetailBody').find('#kpi_poin').prop('disabled', false).prop('readonly', false);
+                    $('#btnSimpanSlipGaji').prop('disabled', false);
+                }
             }
         });
     });
