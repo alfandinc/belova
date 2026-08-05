@@ -84,38 +84,53 @@ class KpiPeriodController extends Controller
 
             public function details(Request $request, KpiPeriod $period)
             {
-                // Aggregate assessments grouped by evaluatee: compute total score and counts
+                // Aggregate assessments per evaluatee position so one employee with multiple positions
+                // does not get merged into a single total above 100.
                 $assessments = KpiAssessment::with(['evaluateeEmployee', 'evaluateePosition', 'scores.indicator', 'evaluatorEmployee'])
                     ->where('period_id', $period->id)
                     ->get()
-                    ->groupBy('evaluatee_employee_id');
+                    ->groupBy(function (KpiAssessment $assessment) {
+                        return $assessment->evaluatee_employee_id . ':' . $assessment->evaluatee_position_id;
+                    });
 
                 $rows = [];
-                foreach ($assessments as $evaluateeId => $group) {
-                    $evaluatee = $group->first()->evaluateeEmployee;
+                foreach ($assessments as $rowKey => $group) {
+                    $firstAssessment = $group->first();
+                    $evaluatee = $firstAssessment->evaluateeEmployee;
+                    $evaluateePosition = $firstAssessment->evaluateePosition;
 
                     $totalScore = 0.0;
                     $doneCount = 0;
                     $pendingCount = 0;
-                    $directParentTotals = [];
+                    $uniqueTotals = [];
+                    $filteredAssessments = collect();
 
                     foreach ($group as $assessment) {
                         $assessmentTotal = (float) $assessment->scores->sum('final_calculated_score');
-                        if ($assessment->assessment_type === 'direct_parent') {
-                            $directParentTotals[] = $assessmentTotal;
-                        } else {
+
+                        if ($assessment->assessment_type === 'bottom_up') {
                             $totalScore += $assessmentTotal;
+                            $filteredAssessments->push($assessment);
+                        } else {
+                            $bucketKey = $assessment->assessment_type . ':' . ($assessment->evaluator_position_id ?? 0);
+                            if (array_key_exists($bucketKey, $uniqueTotals)) {
+                                continue;
+                            }
+
+                            $uniqueTotals[$bucketKey] = $assessmentTotal;
+                            $filteredAssessments->push($assessment);
                         }
+
                         if ($assessment->status === 'done') $doneCount++; else $pendingCount++;
                     }
 
-                    if (!empty($directParentTotals)) {
-                        $totalScore += array_sum($directParentTotals) / count($directParentTotals);
+                    foreach ($uniqueTotals as $bucketTotal) {
+                        $totalScore += $bucketTotal;
                     }
 
                     // build evaluations details per evaluator
                     $evaluations = [];
-                    foreach ($group as $assessment) {
+                    foreach ($filteredAssessments as $assessment) {
                         $scoresArr = [];
                         foreach ($assessment->scores as $s) {
                             $scoresArr[] = [
@@ -139,15 +154,11 @@ class KpiPeriodController extends Controller
                         ];
                     }
 
-                    $positionNames = $group->map(function ($assessment) {
-                        return optional($assessment->evaluateePosition)->name;
-                    })->filter()->unique()->values()->all();
-
                     $rows[] = [
-                        'row_key' => (string) $evaluateeId,
-                        'evaluatee_id' => $evaluateeId,
+                        'row_key' => (string) $rowKey,
+                        'evaluatee_id' => $firstAssessment->evaluatee_employee_id,
                         'evaluatee_name' => optional($evaluatee)->nama ?? optional($evaluatee)->name ?? '-',
-                        'evaluatee_position' => implode('<br>', $positionNames),
+                        'evaluatee_position' => optional($evaluateePosition)->name ?? '-',
                         'total_score' => round($totalScore, 2),
                         'done_count' => $doneCount,
                         'pending_count' => $pendingCount,
@@ -221,9 +232,15 @@ class KpiPeriodController extends Controller
 
                                 foreach ($evaluatorPositions as $evPos) {
                                     $evaluatorPositionId = $evPos->id ?? $evPos;
-                                    $evaluators = HRDEmployee::whereHas('positions', function ($q) use ($evaluatorPositionId) {
+                                    $evaluatorsQuery = HRDEmployee::whereHas('positions', function ($q) use ($evaluatorPositionId) {
                                         $q->where('hrd_employee_position.position_id', $evaluatorPositionId);
-                                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get()
+                                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
+
+                                    if ($assessmentType === 'specific_position') {
+                                        $selectedEvaluator = $evaluatorsQuery->first();
+                                        $evaluators = $selectedEvaluator ? collect([$selectedEvaluator]) : collect();
+                                    } else {
+                                        $evaluators = $evaluatorsQuery->get()
                                         ->filter(function ($evaluator) use ($evaluateePosition, $evaluatorPositionId) {
                                             return $this->shouldIncludeBottomUpEvaluator(
                                                 $evaluator,
@@ -231,6 +248,7 @@ class KpiPeriodController extends Controller
                                                 $evaluatorPositionId
                                             );
                                         })->values();
+                                    }
 
                                     foreach ($evaluators as $evaluator) {
                                         $assessment = KpiAssessment::firstOrCreate([
