@@ -85,8 +85,17 @@
 
                     <div id="forecastContent" class="d-flex flex-column flex-grow-1">
                         <div class="mb-3">
-                            <h5 class="mb-1" id="forecastObatName">Semua Obat Aktif</h5>
-                            <small class="text-muted" id="forecastPeriodInfo">-</small>
+                            <div class="d-flex align-items-start justify-content-between flex-wrap" style="gap:12px;">
+                                <div>
+                                    <h5 class="mb-1" id="forecastObatName">Semua Obat Aktif</h5>
+                                    <small class="text-muted" id="forecastPeriodInfo">-</small>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-outline-success btn-sm" id="downloadForecastTable">
+                                        <i class="fas fa-file-csv mr-1"></i> Download CSV
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="table-responsive flex-grow-1">
                             <table id="forecastTable" class="table table-bordered table-sm w-100">
@@ -538,6 +547,76 @@
 
     function updateForecastFormulaInfo() {
         $('#forecastFormulaInfo').text('Rumus Limit Stok: ' + latestForecastFormulaLabel + '. Rumus Kuota: ' + getForecastKuotaLabel() + '. QTY Pesan = Limit Stok x 3.');
+    }
+
+    function escapeCsvValue(value) {
+        var normalized = value === null || value === undefined ? '' : String(value);
+        return '"' + normalized.replace(/"/g, '""') + '"';
+    }
+
+    function downloadCsvFile(filename, rows) {
+        var csvContent = rows.map(function(row) {
+            return row.map(escapeCsvValue).join(',');
+        }).join('\r\n');
+
+        var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function buildForecastExportRows() {
+        if (!forecastTable) {
+            return [];
+        }
+
+        return forecastTable.rows({ search: 'applied', order: 'applied' }).data().toArray().map(function(row) {
+            return [
+                row.obat_nama || '',
+                Number(row.total_stock || 0),
+                Number(row.total_stock_with_approved_permintaan || 0),
+                Number(row.approved_outstanding_permintaan || 0),
+                Number(row.obat_keluar || 0),
+                Number(row.average_monthly_keluar || 0),
+                calculateForecastKuota(row),
+                Number(row.limit_stok || 0),
+                Number(row.qty_pesan || 0),
+                row.isi_per_box === null || row.isi_per_box === undefined ? '' : Number(row.isi_per_box),
+                row.jumlah_pesan_box === null || row.jumlah_pesan_box === undefined ? '' : Number(row.jumlah_pesan_box)
+            ];
+        });
+    }
+
+    function downloadForecastTableData() {
+        var exportRows = buildForecastExportRows();
+
+        if (!exportRows.length) {
+            alert('Tidak ada data forecast yang bisa diunduh.');
+            return;
+        }
+
+        var headers = [[
+            'Nama Obat',
+            'Total Stok',
+            'Total Stok + Pending',
+            'Pending Approved Belum Terpenuhi',
+            'Obat Keluar',
+            'Rata-rata Keluar / Bulan',
+            'Kuota',
+            'Limit Stok',
+            'Qty Pesan',
+            'Isi per Box',
+            'Jumlah Pesan Box'
+        ]];
+        var dateStamp = new Date().toISOString().slice(0, 10);
+
+        downloadCsvFile('forecast-pembelian-' + dateStamp + '.csv', headers.concat(exportRows));
     }
 
     function isForecastBelowKuotaFilterActive() {
@@ -1211,6 +1290,10 @@
             if (forecastTable) {
                 forecastTable.rows().invalidate('data').draw(false);
             }
+        });
+
+        $('#downloadForecastTable').on('click', function() {
+            downloadForecastTableData();
         });
 
         $('#forecast_only_below_kuota').on('change', function() {
