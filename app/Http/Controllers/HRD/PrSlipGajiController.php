@@ -371,7 +371,39 @@ class PrSlipGajiController extends Controller
         $user = Auth::user();
         $currentStatus = $this->normalizeSlipStatus($slip->status_gaji);
 
-        $payloadKeys = array_keys($request->except(['_token', '_method']));
+        $editablePayloadKeys = [
+            'status_gaji',
+            'total_hari_masuk',
+            'kpi_poin',
+            'gaji_pokok',
+            'tunjangan_jabatan',
+            'tunjangan_masa_kerja',
+            'uang_makan',
+            'poin_marketing',
+            'poin_penilaian',
+            'poin_kehadiran',
+            'uang_kpi',
+            'jasa_medis',
+            'jasmed_file',
+            'total_jam_lembur',
+            'uang_lembur',
+            'potongan_pinjaman',
+            'potongan_bpjs_kesehatan',
+            'potongan_jamsostek',
+            'potongan_penalty',
+            'potongan_lain',
+            'benefit_bpjs_kesehatan',
+            'benefit_jht',
+            'benefit_jkk',
+            'benefit_jkm',
+            'total_benefit',
+            'pendapatan_tambahan',
+        ];
+
+        $payloadKeys = array_values(array_intersect(
+            array_keys($request->except(['_token', '_method'])),
+            $editablePayloadKeys
+        ));
         $nonStatusKeys = array_values(array_diff($payloadKeys, ['status_gaji']));
 
         if ($this->isCeoSlipApprover($user) && !empty($nonStatusKeys)) {

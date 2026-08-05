@@ -31,12 +31,6 @@
     }
 @endphp
 
-@if($isPaid)
-    <div class="alert alert-info">
-        Slip ini sudah berstatus <strong>Paid</strong>. Data tidak bisa diedit.
-    </div>
-@endif
-
 @if($isCeoSlipView)
     <div class="alert alert-secondary">
         Mode CEO hanya untuk review dan approval status slip gaji.
@@ -44,12 +38,17 @@
 @endif
 
 @php
-    $canEditKpiPoin = !$isPaid
-        && !$isCeoSlipView
+    $canEditKpiPoin = !$isCeoSlipView
         && auth()->check()
         && method_exists(auth()->user(), 'hasAnyRole')
         && auth()->user()->hasAnyRole(['Hrd', 'Admin']);
 @endphp
+
+@if($isPaid)
+    <div class="alert alert-info">
+        Slip ini sudah berstatus <strong>Paid</strong>. Hanya KPI Poin yang masih bisa diedit oleh HRD atau Admin.
+    </div>
+@endif
 
 <form id="formEditSlipGaji" enctype="multipart/form-data">
     <input type="hidden" name="id" id="slip_gaji_id" value="{{ $slip->id }}">
