@@ -92,7 +92,7 @@
                                 </div>
                                 <div>
                                     <button type="button" class="btn btn-outline-success btn-sm" id="downloadForecastTable">
-                                        <i class="fas fa-file-csv mr-1"></i> Download CSV
+                                        <i class="fas fa-file-excel mr-1"></i> Download Excel
                                     </button>
                                 </div>
                             </div>
@@ -549,28 +549,6 @@
         $('#forecastFormulaInfo').text('Rumus Limit Stok: ' + latestForecastFormulaLabel + '. Rumus Kuota: ' + getForecastKuotaLabel() + '. QTY Pesan = Limit Stok x 3.');
     }
 
-    function escapeCsvValue(value) {
-        var normalized = value === null || value === undefined ? '' : String(value);
-        return '"' + normalized.replace(/"/g, '""') + '"';
-    }
-
-    function downloadCsvFile(filename, rows) {
-        var csvContent = rows.map(function(row) {
-            return row.map(escapeCsvValue).join(',');
-        }).join('\r\n');
-
-        var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        var url = URL.createObjectURL(blob);
-        var link = document.createElement('a');
-
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
-
     function buildForecastExportRows() {
         if (!forecastTable) {
             return [];
@@ -601,22 +579,45 @@
             return;
         }
 
-        var headers = [[
-            'Nama Obat',
-            'Total Stok',
-            'Total Stok + Pending',
-            'Pending Approved Belum Terpenuhi',
-            'Obat Keluar',
-            'Rata-rata Keluar / Bulan',
-            'Kuota',
-            'Limit Stok',
-            'Qty Pesan',
-            'Isi per Box',
-            'Jumlah Pesan Box'
-        ]];
-        var dateStamp = new Date().toISOString().slice(0, 10);
+        fetch('{{ route('erm.obat.forecast-all.export') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            },
+            body: JSON.stringify({ rows: exportRows })
+        })
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Gagal mengunduh file Excel forecast.');
+                }
 
-        downloadCsvFile('forecast-pembelian-' + dateStamp + '.csv', headers.concat(exportRows));
+                var disposition = response.headers.get('Content-Disposition') || '';
+                var filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/i);
+                var filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : 'forecast_pembelian.xlsx';
+
+                return response.blob().then(function(blob) {
+                    return {
+                        blob: blob,
+                        filename: filename
+                    };
+                });
+            })
+            .then(function(result) {
+                var url = window.URL.createObjectURL(result.blob);
+                var link = document.createElement('a');
+
+                link.href = url;
+                link.download = result.filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(function(error) {
+                alert(error.message || 'Gagal mengunduh file Excel forecast.');
+            });
     }
 
     function isForecastBelowKuotaFilterActive() {

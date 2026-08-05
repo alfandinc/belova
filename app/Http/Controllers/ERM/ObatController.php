@@ -834,6 +834,70 @@ class ObatController extends Controller
         ]);
     }
 
+    public function exportForecastDisplayed(Request $request)
+    {
+        $validated = $request->validate([
+            'rows' => 'required|array|min:1',
+            'rows.*' => 'array',
+        ]);
+
+        $headings = [
+            'Nama Obat',
+            'Total Stok',
+            'Total Stok + Pending',
+            'Pending Approved Belum Terpenuhi',
+            'Obat Keluar',
+            'Rata-rata Keluar / Bulan',
+            'Kuota',
+            'Limit Stok',
+            'Qty Pesan',
+            'Isi per Box',
+            'Jumlah Pesan Box',
+        ];
+
+        $exportArray = collect($validated['rows'])
+            ->map(function ($row) {
+                return [
+                    $row[0] ?? '',
+                    $row[1] ?? 0,
+                    $row[2] ?? 0,
+                    $row[3] ?? 0,
+                    $row[4] ?? 0,
+                    $row[5] ?? 0,
+                    $row[6] ?? 0,
+                    $row[7] ?? 0,
+                    $row[8] ?? 0,
+                    $row[9] ?? '',
+                    $row[10] ?? '',
+                ];
+            })
+            ->values()
+            ->all();
+
+        $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
+            private $array;
+            private $headings;
+
+            public function __construct(array $array, array $headings)
+            {
+                $this->array = $array;
+                $this->headings = $headings;
+            }
+
+            public function array(): array
+            {
+                return $this->array;
+            }
+
+            public function headings(): array
+            {
+                return $this->headings;
+            }
+        };
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, 'forecast_pembelian_' . now()->format('Ymd_His') . '.xlsx');
+    }
+
     public function forecast(Request $request, $id)
     {
         $periodMonths = (int) $request->input('period_months', 3);

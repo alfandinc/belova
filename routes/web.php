@@ -1178,6 +1178,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat/forecast-keluar', [ObatController::class, 'forecastKeluar'])->name('erm.obat.forecast-keluar');
     Route::get('/obat/forecast-keluar/{id}/detail', [ObatController::class, 'forecastKeluarDetail'])->name('erm.obat.forecast-keluar.detail');
     Route::get('/obat/forecast-all', [ObatController::class, 'forecastAll'])->name('erm.obat.forecast-all');
+    Route::post('/obat/forecast-all/export', [ObatController::class, 'exportForecastDisplayed'])->name('erm.obat.forecast-all.export');
     Route::get('/obat/{id}/similar', [ObatController::class, 'similarObats'])->name('erm.obat.similar');
     Route::patch('/obat/{id}/toggle-favorite', [ObatController::class, 'toggleFavorite'])->name('erm.obat.toggle-favorite');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
