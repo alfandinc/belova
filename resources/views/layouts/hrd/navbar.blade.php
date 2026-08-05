@@ -357,7 +357,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="passwordVerificationModalLabel">Verifikasi Password</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -370,7 +370,7 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" data-bs-dismiss="modal">Batal</button>
                 <button type="button" class="btn btn-primary" onclick="verifyPasswordAndGetSlip()">Verifikasi</button>
             </div>
         </div>
@@ -382,19 +382,59 @@
 // nextRedirect can be set by callers to override where to go after successful verification
 window.nextRedirect = null;
 
+function getPasswordVerificationModal() {
+    const modalElement = document.getElementById('passwordVerificationModal');
+
+    if (!modalElement) {
+        return null;
+    }
+
+    if (window.bootstrap && window.bootstrap.Modal) {
+        return window.bootstrap.Modal.getOrCreateInstance(modalElement);
+    }
+
+    return null;
+}
+
+function showPasswordVerificationModal() {
+    const modal = getPasswordVerificationModal();
+
+    if (modal) {
+        modal.show();
+        return;
+    }
+
+    if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
+        window.jQuery('#passwordVerificationModal').modal('show');
+    }
+}
+
+function hidePasswordVerificationModal() {
+    const modal = getPasswordVerificationModal();
+
+    if (modal) {
+        modal.hide();
+        return;
+    }
+
+    if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
+        window.jQuery('#passwordVerificationModal').modal('hide');
+    }
+}
+
 function checkSlipGaji(e) {
     e.preventDefault();
     // reset redirect to default behavior (use response.url)
     window.nextRedirect = null;
     // Show password verification modal
-    $('#passwordVerificationModal').modal('show');
+    showPasswordVerificationModal();
 }
 
 function checkGajiDokter(e) {
     e.preventDefault();
     // Set redirect to the Gaji Dokter index page after successful verification
     window.nextRedirect = '{{ route('hrd.payroll.slip_gaji_dokter.index') }}';
-    $('#passwordVerificationModal').modal('show');
+    showPasswordVerificationModal();
 }
 
 function verifyPasswordAndGetSlip() {
@@ -417,7 +457,7 @@ function verifyPasswordAndGetSlip() {
             _token: '{{ csrf_token() }}'
         },
         success: function(response) {
-            $('#passwordVerificationModal').modal('hide');
+            hidePasswordVerificationModal();
 
             if (!response.success) {
                 Swal.fire({
@@ -427,7 +467,7 @@ function verifyPasswordAndGetSlip() {
                 });
             } else {
                 // Password is correct and slip is available
-                $('#passwordVerificationModal').modal('hide');
+                hidePasswordVerificationModal();
                 // If a custom redirect was requested (e.g. Gaji Dokter), use it.
                 if (window.nextRedirect) {
                     var redirect = window.nextRedirect;
