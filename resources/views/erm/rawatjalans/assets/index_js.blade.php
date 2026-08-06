@@ -654,9 +654,16 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                         tokopedia: 'Tokopedia',
                                         lazada: 'Lazada'
                                     };
+                                    var marketplaceStyleMap = {
+                                        shopee: 'background-color:#f97316;color:#fff;',
+                                        tiktokshop: 'background-color:#111827;color:#fff;',
+                                        tokopedia: 'background-color:#16a34a;color:#fff;',
+                                        lazada: 'background-color:#2563eb;color:#fff;'
+                                    };
                                     var marketplaceKey = referralDetail.toLowerCase();
                                     var marketplaceLabel = marketplaceLabelMap[marketplaceKey] || referralDetail || 'Marketplace';
-                                    return '<span class="badge badge-warning"><i class="fas fa-store mr-1"></i>' + $('<div>').text(marketplaceLabel).html() + '</span>';
+                                    var marketplaceStyle = marketplaceStyleMap[marketplaceKey] || 'background-color:#d97706;color:#fff;';
+                                    return '<span class="badge" style="' + marketplaceStyle + '"><i class="fas fa-store mr-1"></i>' + $('<div>').text(marketplaceLabel).html() + '</span>';
                                 }
 
                                 if (referralType === 'event') {
