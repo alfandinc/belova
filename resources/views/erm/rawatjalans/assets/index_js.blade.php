@@ -2310,14 +2310,18 @@ function openManageModal(pasienId){
     if (!pasienId) return;
     $('#modalManagePasien').data('pasien-id', pasienId);
     $.get("{{ route('erm.pasien.show', '') }}/" + pasienId, function(resp){
+        $('#manage_identity_document').val(resp.identity_document || 'ktp');
+        $('#manage_identity_number').val(resp.identity_number || '');
+        $('#manage_nama').val(resp.nama || '');
+        $('#manage_tanggal_lahir').val(resp.tanggal_lahir || '');
+        $('#manage_gender').val(resp.gender || 'Laki-laki');
+        $('#manage_alamat').val(resp.alamat || '');
+        $('#manage_no_hp').val(resp.no_hp || '');
         $('#manage_status_pasien').val(resp.status_pasien || 'Regular');
         $('#manage_status_akses').val(resp.status_akses || 'normal');
         $('#manage_status_review').val(resp.status_review || 'belum');
         $('#managePasienNama').text(resp.nama || '-');
         $('#managePasienId').text(resp.id || pasienId);
-    }).always(function(){
-        let pid = $('#modalManagePasien').data('pasien-id');
-        loadManagePasienMerchandise(pid);
         $('#modalManagePasien').modal('show');
     });
 }
@@ -2327,18 +2331,45 @@ $(document).on('click', '.btn-merch-checklist', function(){ openManageModal($(th
 
 $(document).on('click', '#saveManagePasien', function(){
     let pasienId = $('#modalManagePasien').data('pasien-id');
-    let p = $('#manage_status_pasien').val();
-    let a = $('#manage_status_akses').val();
-    let r = $('#manage_status_review').val();
-    let reqs = [];
-    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status', { _token: $('meta[name="csrf-token"]').attr('content'), status_pasien: p }));
-    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-akses', { _token: $('meta[name="csrf-token"]').attr('content'), status_akses: a }));
-    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-review', { _token: $('meta[name="csrf-token"]').attr('content'), status_review: r }));
-    $.when.apply($, reqs).done(function(){
-        Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Status pasien diperbarui.', timer: 1500, showConfirmButton: false });
+    let payload = {
+        _token: $('meta[name="csrf-token"]').attr('content'),
+        pasien_id: pasienId,
+        identity_document: $('#manage_identity_document').val(),
+        identity_number: $('#manage_identity_number').val(),
+        nama: $('#manage_nama').val(),
+        tanggal_lahir: $('#manage_tanggal_lahir').val(),
+        gender: $('#manage_gender').val(),
+        alamat: $('#manage_alamat').val(),
+        no_hp: $('#manage_no_hp').val(),
+        status_pasien: $('#manage_status_pasien').val(),
+        status_akses: $('#manage_status_akses').val(),
+        status_review: $('#manage_status_review').val()
+    };
+
+    $.ajax({
+        url: '/erm/pasiens/' + pasienId,
+        type: 'PUT',
+        data: payload
+    }).done(function(){
+        Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Data pasien diperbarui.', timer: 1500, showConfirmButton: false });
+        $('#modalManagePasien').modal('hide');
         $('#rawatjalan-table').DataTable().ajax.reload(null, false);
-    }).fail(function(){
-        Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak dapat menyimpan status.' });
+    }).fail(function(xhr){
+        let message = 'Tidak dapat menyimpan data pasien.';
+        if (xhr.responseJSON && xhr.responseJSON.errors) {
+            let errors = [];
+            $.each(xhr.responseJSON.errors, function(field, fieldErrors) {
+                if (fieldErrors && fieldErrors.length) {
+                    errors.push(fieldErrors[0]);
+                }
+            });
+            if (errors.length) {
+                message = errors.join('\n');
+            }
+        } else if (xhr.responseJSON && xhr.responseJSON.message) {
+            message = xhr.responseJSON.message;
+        }
+        Swal.fire({ icon: 'error', title: 'Gagal', text: message });
     });
 });
 

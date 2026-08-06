@@ -3312,6 +3312,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $grandTotal = isset($totals['grandTotalInt']) ? intval($totals['grandTotalInt']) : floatval($totals['grandTotal'] ?? $subtotal);
             $amountPaid = isset($totals['amountPaidInt']) ? intval($totals['amountPaidInt']) : floatval($totals['amountPaid'] ?? 0);
             $paymentMethod = $totals['paymentMethod'] ?? null;
+            $transactionType = trim((string) ($totals['transactionType'] ?? 'Patient'));
+            $allowedTransactionTypes = ['Patient', 'Reseller', 'Employee', 'Event'];
+            if (!in_array($transactionType, $allowedTransactionTypes, true)) {
+                $transactionType = 'Patient';
+            }
 
             $amountPaidNumeric = floatval($amountPaid ?? 0);
             $grandTotalNumeric = floatval($grandTotal ?? 0);
@@ -3407,6 +3412,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'payment_method' => $paymentMethod,
                 'payment_date' => $paymentDate,
                 'status' => $invoiceStatus,
+                'transaction_type' => $transactionType,
                 'user_id' => Auth::id(),
                 'notes' => $request->notes ?? null,
             ];

@@ -53,6 +53,7 @@
             global_discount: @json($invoice?->discount_value ?? ''),
             global_discount_type: @json($invoice?->discount_type ?? ''),
             tax_percentage: @json($invoice?->tax_percentage ?? ''),
+            transaction_type: @json($invoice?->transaction_type ?? 'Patient'),
             admin_fee: @json($invoice?->items?->first(function($item) { return stripos($item->name ?? '', 'Biaya Administrasi') !== false; })?->unit_price ?? ''),
             shipping_fee: @json($invoice?->items?->where('name', 'Biaya Ongkir')->first()?->unit_price ?? ''),
             amount_paid: @json($invoice?->amount_paid ?? ''),
@@ -718,6 +719,16 @@
                             <h5 id="grand_total" class="text-primary font-weight-bold">Rp 0</h5>
                         </div>
                     </div>
+
+                    <div class="form-group mt-3 mb-0">
+                        <label for="transaction_type">Tipe Transaksi</label>
+                        <select class="form-control" id="transaction_type">
+                            <option value="Patient" selected>Patient</option>
+                            <option value="Reseller">Reseller</option>
+                            <option value="Employee">Employee</option>
+                            <option value="Event">Event</option>
+                        </select>
+                    </div>
                     
                     <!-- Payment Section -->
                     <div id="paymentSection" style="display:none;">
@@ -838,6 +849,7 @@
             if (window.oldInvoice.global_discount !== '') $('#global_discount').val(window.oldInvoice.global_discount);
             if (window.oldInvoice.global_discount_type !== '') $('#global_discount_type').val(window.oldInvoice.global_discount_type);
             if (window.oldInvoice.tax_percentage !== '') $('#tax_percentage').val(window.oldInvoice.tax_percentage);
+            if (window.oldInvoice.transaction_type !== '') $('#transaction_type').val(window.oldInvoice.transaction_type || 'Patient');
             if (window.oldInvoice.admin_fee !== '') {
                 let adminFeeValue = window.oldInvoice.admin_fee.toString().replace(/[,\.].*$/, '');
                 $('#admin_fee').val(adminFeeValue).trigger('change');
@@ -1093,7 +1105,8 @@
                     admin_fee: Math.ceil(parseHarga($('#admin_fee').val() || 0) || 0),
                     shipping_fee: Math.ceil(parseHarga($('#shipping_fee').val() || 0) || 0),
                     global_discount: Math.ceil(parseHarga($('#global_discount').val() || 0) || 0),
-                    global_discount_type: String($('#global_discount_type').val() || '')
+                    global_discount_type: String($('#global_discount_type').val() || ''),
+                    transaction_type: String($('#transaction_type').val() || 'Patient')
                 };
 
                 return JSON.stringify({ rows: rows, header: header });
@@ -1222,11 +1235,17 @@
                         const oldDiscType = (window.oldInvoice.global_discount_type !== null && typeof window.oldInvoice.global_discount_type !== 'undefined') ? String(window.oldInvoice.global_discount_type) : '';
                         const nowDiscType = String($('#global_discount_type').val() || '');
 
+                        const oldTransactionType = (window.oldInvoice.transaction_type !== null && typeof window.oldInvoice.transaction_type !== 'undefined' && window.oldInvoice.transaction_type !== '')
+                            ? String(window.oldInvoice.transaction_type)
+                            : 'Patient';
+                        const nowTransactionType = String($('#transaction_type').val() || 'Patient');
+
                         totalsChanged = (Math.abs(oldTax - nowTax) > 0.0001)
                             || (Math.ceil(oldAdmin) !== Math.ceil(nowAdmin))
                             || (Math.ceil(oldShip) !== Math.ceil(nowShip))
                             || (Math.ceil(oldDisc) !== Math.ceil(nowDisc))
-                            || (oldDiscType !== nowDiscType);
+                            || (oldDiscType !== nowDiscType)
+                            || (oldTransactionType !== nowTransactionType);
                     }
                 } catch (e) {
                     totalsChanged = false;
@@ -2933,6 +2952,7 @@
                 taxAmount: taxAmount,
                 adminFee: adminFee,
                 shippingFee: shippingFee,
+                transactionType: $('#transaction_type').val() || 'Patient',
                 grandTotal: grandTotal,
                 // integer-rounded rupiah values to avoid mismatch when frontend strips decimals
                 // use Math.ceil to always round up so payment value will never be under the actual price
@@ -2953,7 +2973,7 @@
         }
         
         // Event listeners for total calculation inputs
-        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee, #payment_method').on('change input', function() {
+        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee, #payment_method, #transaction_type').on('change input', function() {
             calculateTotals();
         });
 
@@ -3444,12 +3464,16 @@ $('#saveAllChangesBtn').on('click', function() {
                                             const nowDiscType = (typeof invoiceResponse.global_discount_type !== 'undefined')
                                                 ? invoiceResponse.global_discount_type
                                                 : ($('#global_discount_type').val() || '');
+                                            const nowTransactionType = (typeof invoiceResponse.transaction_type !== 'undefined')
+                                                ? invoiceResponse.transaction_type
+                                                : ($('#transaction_type').val() || 'Patient');
 
                                             window.oldInvoice.tax_percentage = nowTax;
                                             window.oldInvoice.admin_fee = nowAdmin;
                                             window.oldInvoice.shipping_fee = nowShip;
                                             window.oldInvoice.global_discount = nowDisc;
                                             window.oldInvoice.global_discount_type = nowDiscType;
+                                            window.oldInvoice.transaction_type = nowTransactionType;
                                         } catch (e) {
                                             // ignore
                                         }

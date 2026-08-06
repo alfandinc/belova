@@ -764,8 +764,6 @@ class RawatJalanController extends Controller
                 })
                 // Reduce JSON payload: keep only fields actually used by DataTables JS.
                 // Values still used inside the generated HTML (e.g. WA button) are embedded in `dokumen`.
-                ->removeColumn('telepon_pasien')
-                ->removeColumn('gender')
                 ->removeColumn('status_dokumen')
                 ->removeColumn('metode_bayar_nama')
                 ->removeColumn('dokter_user_name')

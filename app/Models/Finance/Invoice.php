@@ -25,6 +25,7 @@ class Invoice extends Model
         'shortage_amount',
         'payment_method',
         'status',
+        'transaction_type',
         'payment_date',
         'notes',
         'user_id',
@@ -42,6 +43,7 @@ class Invoice extends Model
         'amount_paid' => 'decimal:2',
         'change_amount' => 'decimal:2',
         'shortage_amount' => 'decimal:2',
+        'transaction_type' => 'string',
     ];
 
     public function items()

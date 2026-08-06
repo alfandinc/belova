@@ -1,8 +1,8 @@
 <!-- Rawat Jalan: Common modals (lazy-loaded to keep initial HTML light) -->
 
 <!-- Unified Manage Pasien Modal (copied from pasien index) -->
-<div class="modal fade" id="modalManagePasien" tabindex="-1" role="dialog" aria-labelledby="modalManagePasienLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+<div class="modal fade manage-pasien-modal" id="modalManagePasien" tabindex="-1" role="dialog" aria-labelledby="modalManagePasienLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalManagePasienLabel">Kelola Pasien</h5>
@@ -11,18 +11,60 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="mb-3">
+                <div class="manage-pasien-summary mb-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="font-weight-bold" id="managePasienNama">-</div>
-                            <div class="text-muted small">No. RM: <span id="managePasienId">-</span></div>
+                            <div class="manage-pasien-summary__name" id="managePasienNama">-</div>
+                            <div class="manage-pasien-summary__meta">No. RM: <span id="managePasienId">-</span></div>
                         </div>
                     </div>
                 </div>
-                <hr/>
-                <div class="row">
-                    <div class="col-md-6">
-                        <form id="manageStatusForm">
+                <form id="managePasienForm">
+                    <div class="row">
+                        <div class="col-lg-6 mb-4 mb-lg-0">
+                            <div class="manage-pasien-panel">
+                                <div class="manage-pasien-panel__title">Data Identitas</div>
+                                <div class="form-group">
+                                <label for="manage_identity_document">Dokumen Identitas</label>
+                                <select class="form-control" id="manage_identity_document" name="identity_document" required>
+                                    <option value="ktp">KTP</option>
+                                    <option value="sim">SIM</option>
+                                    <option value="paspor">Paspor</option>
+                                    <option value="kia">KIA</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_identity_number">Nomor Identitas</label>
+                                <input type="text" class="form-control" id="manage_identity_number" name="identity_number" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_nama">Nama Pasien</label>
+                                <input type="text" class="form-control" id="manage_nama" name="nama" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_tanggal_lahir">Tanggal Lahir</label>
+                                <input type="date" class="form-control" id="manage_tanggal_lahir" name="tanggal_lahir" required>
+                            </div>
+                            <div class="form-group mb-md-0">
+                                <label for="manage_gender">Gender</label>
+                                <select class="form-control" id="manage_gender" name="gender" required>
+                                    <option value="Laki-laki">Laki-laki</option>
+                                    <option value="Perempuan">Perempuan</option>
+                                </select>
+                            </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="manage-pasien-panel manage-pasien-panel--accent">
+                                <div class="manage-pasien-panel__title">Kontak dan Status</div>
+                                <div class="form-group">
+                                <label for="manage_alamat">Alamat</label>
+                                <textarea class="form-control" id="manage_alamat" name="alamat" rows="4" required></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_no_hp">No. HP</label>
+                                <input type="text" class="form-control" id="manage_no_hp" name="no_hp" required>
+                            </div>
                             <div class="form-group">
                                 <label for="manage_status_pasien">Status Pasien</label>
                                 <select class="form-control" id="manage_status_pasien" name="status_pasien" required>
@@ -40,20 +82,17 @@
                                     <option value="akses cepat">Akses Cepat</option>
                                 </select>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group mb-0">
                                 <label for="manage_status_review">Status Review</label>
                                 <select class="form-control" id="manage_status_review" name="status_review" required>
                                     <option value="sudah">Sudah</option>
                                     <option value="belum">Belum</option>
                                 </select>
                             </div>
-                        </form>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label class="d-block">Merchandise</label>
-                        <div id="unifiedMerchChecklistContainer"></div>
-                    </div>
-                </div>
+                </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>

@@ -449,6 +449,82 @@ class PasienController extends Controller
         return redirect()->route('erm.pasiens.index')->with('success', 'Pasien deleted successfully.');
     }
 
+    public function update(Request $request, $id)
+    {
+        $request->merge([
+            'identity_document' => $request->input('identity_document', 'ktp'),
+            'identity_number' => $request->input('identity_number', $request->input('nik')),
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'identity_document' => 'required|in:ktp,sim,paspor,kia',
+            'identity_number' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('erm_pasiens', 'identity_number')->ignore($id, 'id'),
+            ],
+            'nama' => 'required|string|max:255',
+            'tanggal_lahir' => 'required|date',
+            'gender' => 'required|in:Laki-laki,Perempuan',
+            'alamat' => 'required|string',
+            'no_hp' => 'required|string|max:15',
+            'status_pasien' => 'nullable|in:Regular,VIP,Familia,Black Card,Red Flag',
+            'status_akses' => 'nullable|in:normal,akses cepat',
+            'status_review' => 'nullable|in:sudah,belum',
+        ]);
+
+        $validator->after(function ($validator) use ($request) {
+            if ($request->identity_document === 'ktp') {
+                $identityNumber = (string) $request->identity_number;
+
+                if (!preg_match('/^\d{16}$/', $identityNumber)) {
+                    $validator->errors()->add('identity_number', 'Nomor identitas untuk KTP harus 16 digit angka.');
+                }
+            }
+        });
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $pasien = Pasien::findOrFail($id);
+            $pasien->update([
+                'identity_document' => $request->identity_document,
+                'identity_number' => $request->identity_number,
+                'nama' => $request->nama,
+                'tanggal_lahir' => $request->tanggal_lahir,
+                'gender' => $request->gender,
+                'alamat' => $request->alamat,
+                'no_hp' => $request->no_hp,
+                'status_pasien' => $request->status_pasien ?? 'Regular',
+                'status_akses' => $request->status_akses ?? 'normal',
+                'status_review' => $request->status_review ?? 'belum',
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data pasien berhasil diperbarui.',
+                'data' => [
+                    'id' => $pasien->id,
+                    'nama' => $pasien->nama,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memperbarui data pasien',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function cekAntrian(Request $request)
     {
         $dokterId = $request->dokter_id;
