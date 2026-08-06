@@ -21,6 +21,7 @@
                             <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="konsultasi">Konsultasi</a>
                             <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="produk">Produk</a>
                             <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="lab">Lab</a>
+                            <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="marketplace">Marketplace</a>
                         </div>
                     </div>
                     <div class="btn-group" role="group">

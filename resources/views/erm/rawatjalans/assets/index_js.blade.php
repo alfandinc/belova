@@ -642,11 +642,36 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                 // Show 'Belum Review' with a map marker icon for not-yet-reviewed
                                 return '<span class="badge badge-light text-dark"><i class="fas fa-map-marker-alt mr-1"></i>Belum Review</span>';
                             }
+                            function badgeReferral(type, detail, eventName){
+                                var referralType = (type || '').toString().toLowerCase().trim();
+                                var referralDetail = (detail || '').toString().trim();
+                                var resolvedEventName = (eventName || '').toString().trim();
+
+                                if (referralType === 'marketplace') {
+                                    var marketplaceLabelMap = {
+                                        shopee: 'Shopee',
+                                        tiktokshop: 'Tiktokshop',
+                                        tokopedia: 'Tokopedia',
+                                        lazada: 'Lazada'
+                                    };
+                                    var marketplaceKey = referralDetail.toLowerCase();
+                                    var marketplaceLabel = marketplaceLabelMap[marketplaceKey] || referralDetail || 'Marketplace';
+                                    return '<span class="badge badge-warning"><i class="fas fa-store mr-1"></i>' + $('<div>').text(marketplaceLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'event') {
+                                    var eventLabel = resolvedEventName || referralDetail || 'Event';
+                                    return '<span class="badge badge-info"><i class="fas fa-calendar-alt mr-1"></i>' + $('<div>').text(eventLabel).html() + '</span>';
+                                }
+
+                                return '';
+                            }
 
                             var badgesArr = [];
                             badgesArr.push(badgePasien(sp));
                             badgesArr.push(badgeAkses(sa));
                             badgesArr.push(badgeReview(sr));
+                            badgesArr.push(badgeReferral(row.referral_type, row.referral_detail, row.referral_event_name));
 
                             // Age badge (compute if tanggal_lahir present)
                             try {

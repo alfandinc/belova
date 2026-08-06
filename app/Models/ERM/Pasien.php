@@ -20,6 +20,8 @@ class Pasien extends Model
     public const REFERRAL_TYPE_OTHER_PASIEN = 'other_pasien';
     public const REFERRAL_TYPE_LAINNYA = 'lainnya';
     public const REFERRAL_TYPE_EVENT = 'event';
+    public const REFERRAL_TYPE_MARKETPLACE = 'marketplace';
+    public const MARKETPLACE_REFERRAL_DETAILS = ['shopee', 'tiktokshop', 'tokopedia', 'lazada'];
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -93,6 +95,11 @@ class Pasien extends Model
         }
 
         return $this->identity_label . ': ' . $identityNumber;
+    }
+
+    public static function marketplaceReferralOptions(): array
+    {
+        return self::MARKETPLACE_REFERRAL_DETAILS;
     }
 
     public function village()

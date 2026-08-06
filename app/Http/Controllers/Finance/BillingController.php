@@ -5495,6 +5495,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         case 4:
                         case '4':
                             return 'Event';
+                        case 5:
+                        case '5':
+                            return 'Marketplace';
                         default:
                             return $visitation->jenis_kunjungan;
                     }

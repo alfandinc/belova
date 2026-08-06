@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use App\Services\VisitationWhatsAppScheduler;
 
 class VisitationController extends Controller
@@ -187,6 +188,85 @@ class VisitationController extends Controller
             'message' => 'Kunjungan berhasil disimpan.',
             'whatsapp' => $waQueue,
         ]);
+    }
+
+    public function storeMarketplace(Request $request)
+    {
+        $validated = $request->validate([
+            'pasien_id' => 'nullable|exists:erm_pasiens,id',
+            'dokter_id' => 'nullable|exists:erm_dokters,id',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'required',
+            'klinik_id' => 'required',
+            'force_create_duplicate' => 'nullable|boolean',
+            'nama' => [Rule::requiredIf(fn () => !$request->filled('pasien_id')), 'nullable', 'string', 'max:255'],
+            'gender' => [Rule::requiredIf(fn () => !$request->filled('pasien_id')), 'nullable', 'in:Laki-laki,Perempuan'],
+            'alamat' => [Rule::requiredIf(fn () => !$request->filled('pasien_id')), 'nullable', 'string'],
+            'no_hp' => [Rule::requiredIf(fn () => !$request->filled('pasien_id')), 'nullable', 'string', 'max:20'],
+            'referral_detail' => [
+                Rule::requiredIf(fn () => !$request->filled('pasien_id')),
+                'nullable',
+                'string',
+                Rule::in(Pasien::marketplaceReferralOptions()),
+            ],
+        ]);
+
+        $forceCreateDuplicate = (bool) ($validated['force_create_duplicate'] ?? false);
+
+        DB::beginTransaction();
+
+        try {
+            if (!empty($validated['pasien_id'])) {
+                $pasien = Pasien::findOrFail($validated['pasien_id']);
+                $this->syncMarketplaceReferralToPasien($pasien, $validated['referral_detail'] ?? null);
+            } else {
+                $duplicatePasien = $this->findMarketplaceDuplicatePasien(
+                    (string) $validated['nama'],
+                    (string) $validated['referral_detail']
+                );
+
+                if ($duplicatePasien && !$forceCreateDuplicate) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'success' => false,
+                        'duplicate' => true,
+                        'message' => 'Sudah ada pasien marketplace dengan nama dan referral yang sama.',
+                        'pasien' => $this->formatMarketplaceDuplicatePasien($duplicatePasien),
+                    ], 409);
+                }
+
+                $pasien = $this->createMarketplacePasien($validated);
+            }
+
+            $visitation = $this->createMarketplaceVisitation($validated, $pasien->id);
+
+            DB::commit();
+
+            $waQueue = $this->queueVisitationWhatsApp($visitation);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Kunjungan marketplace berhasil disimpan.',
+                'pasien' => [
+                    'id' => $pasien->id,
+                    'nama' => $pasien->nama,
+                ],
+                'whatsapp' => $waQueue,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error creating marketplace visitation', [
+                'error' => $e->getMessage(),
+                'request' => $request->all(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan kunjungan marketplace.',
+            ], 500);
+        }
     }
 
     public function cekAntrian(Request $request)
@@ -498,6 +578,95 @@ class VisitationController extends Controller
                 'service_url' => $serviceUrl,
             ], 502);
         }
+    }
+
+    private function findMarketplaceDuplicatePasien(string $nama, string $referralDetail): ?Pasien
+    {
+        return Pasien::query()
+            ->where('referral_type', Pasien::REFERRAL_TYPE_MARKETPLACE)
+            ->whereRaw('LOWER(TRIM(nama)) = ?', [strtolower(trim($nama))])
+            ->whereRaw('LOWER(TRIM(referral_detail)) = ?', [strtolower(trim($referralDetail))])
+            ->first();
+    }
+
+    private function formatMarketplaceDuplicatePasien(Pasien $pasien): array
+    {
+        return [
+            'id' => $pasien->id,
+            'nama' => $pasien->nama,
+            'no_hp' => $pasien->no_hp,
+            'alamat' => $pasien->alamat,
+            'referral_detail' => $pasien->referral_detail,
+        ];
+    }
+
+    private function createMarketplacePasien(array $validated): Pasien
+    {
+        $lastPasienId = DB::table('erm_pasiens')
+            ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
+            ->lockForUpdate()
+            ->value('max_id');
+
+        $newPasienId = $lastPasienId ? str_pad((int) $lastPasienId + 1, 6, '0', STR_PAD_LEFT) : '000001';
+
+        return Pasien::create([
+            'id' => $newPasienId,
+            'identity_document' => Pasien::IDENTITY_DOCUMENT_KTP,
+            'identity_number' => null,
+            'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
+            'referral_detail' => strtolower(trim((string) $validated['referral_detail'])),
+            'nama' => trim((string) $validated['nama']),
+            'tanggal_lahir' => null,
+            'gender' => $validated['gender'],
+            'alamat' => trim((string) $validated['alamat']),
+            'no_hp' => trim((string) $validated['no_hp']),
+            'status_pasien' => 'Regular',
+            'status_akses' => 'normal',
+            'user_id' => Auth::id(),
+        ]);
+    }
+
+    private function syncMarketplaceReferralToPasien(Pasien $pasien, ?string $referralDetail): void
+    {
+        $referralDetail = $referralDetail !== null ? strtolower(trim($referralDetail)) : null;
+
+        if (empty($referralDetail)) {
+            return;
+        }
+
+        $pasien->forceFill([
+            'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
+            'referral_detail' => $referralDetail,
+            'user_id' => Auth::id(),
+        ])->save();
+    }
+
+    private function createMarketplaceVisitation(array $validated, string $pasienId): Visitation
+    {
+        $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+        $dokterId = !empty($validated['dokter_id']) ? $validated['dokter_id'] : null;
+
+        $visitation = Visitation::create([
+            'id' => $customId,
+            'pasien_id' => $pasienId,
+            'dokter_id' => $dokterId,
+            'tanggal_visitation' => $validated['tanggal_visitation'],
+            'waktu_kunjungan' => now()->format('H:i:s'),
+            'no_antrian' => null,
+            'metode_bayar_id' => $validated['metode_bayar_id'],
+            'jenis_kunjungan' => Visitation::TYPE_MARKETPLACE,
+            'klinik_id' => $validated['klinik_id'],
+            'status_kunjungan' => 2,
+            'user_id' => Auth::id(),
+        ]);
+
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => 'RSP' . $customId,
+            'catatan_dokter' => null,
+        ]);
+
+        return $visitation;
     }
 
     private function queueVisitationWhatsApp(Visitation $visitation): array

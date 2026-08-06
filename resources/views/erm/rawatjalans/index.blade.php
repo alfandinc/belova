@@ -165,6 +165,7 @@
                                 <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
                                 <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
                                 <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
+                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="marketplace">Marketplace</a>
                             </div>
                         </div>
                     </div>

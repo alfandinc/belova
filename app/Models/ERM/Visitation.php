@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class Visitation extends Model
 {
 
+    public const TYPE_KONSULTASI = 1;
+    public const TYPE_PRODUK = 2;
+    public const TYPE_LAB = 3;
+    public const TYPE_EVENT = 4;
+    public const TYPE_MARKETPLACE = 5;
+
     
     protected $table = 'erm_visitations';
     public $incrementing = false; // non auto-increment
@@ -27,6 +33,18 @@ class Visitation extends Model
         'no_antrian',
 
     ];
+
+    public static function typeLabel($type): string
+    {
+        return match ((int) $type) {
+            self::TYPE_KONSULTASI => 'Konsultasi Dokter',
+            self::TYPE_PRODUK => 'Beli Produk',
+            self::TYPE_LAB => 'Laboratorium',
+            self::TYPE_EVENT => 'Event',
+            self::TYPE_MARKETPLACE => 'Marketplace',
+            default => (string) $type,
+        };
+    }
 
         public function riwayatTindakanObats()
     {

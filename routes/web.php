@@ -939,9 +939,11 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
+    Route::get('/pasiens/marketplace/check-duplicate', [PasienController::class, 'checkMarketplaceDuplicate'])->name('erm.pasiens.marketplace.check-duplicate');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
+    Route::post('/visitations/marketplace', [VisitationController::class, 'storeMarketplace'])->name('erm.visitations.marketplace.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     
     // WhatsApp Integration Routes removed (waweb-js uninstalled)

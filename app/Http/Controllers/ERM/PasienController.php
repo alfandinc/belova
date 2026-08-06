@@ -56,6 +56,45 @@ class PasienController extends Controller
         return response()->json(['results' => $items]);
     }
 
+    public function checkMarketplaceDuplicate(Request $request)
+    {
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'referral_detail' => ['required', 'string', Rule::in(Pasien::marketplaceReferralOptions())],
+        ]);
+
+        $nama = trim((string) $validated['nama']);
+        $referralDetail = strtolower(trim((string) $validated['referral_detail']));
+
+        $pasien = Pasien::query()
+            ->select(['id', 'nama', 'no_hp', 'alamat', 'referral_type', 'referral_detail'])
+            ->where('referral_type', Pasien::REFERRAL_TYPE_MARKETPLACE)
+            ->whereRaw('LOWER(TRIM(nama)) = ?', [strtolower($nama)])
+            ->whereRaw('LOWER(TRIM(referral_detail)) = ?', [$referralDetail])
+            ->orderBy('id')
+            ->first();
+
+        if (!$pasien) {
+            return response()->json([
+                'exists' => false,
+                'message' => 'Tidak ditemukan pasien marketplace dengan nama dan referral yang sama.',
+            ]);
+        }
+
+        return response()->json([
+            'exists' => true,
+            'message' => 'Sudah ada pasien marketplace dengan nama dan referral yang sama.',
+            'pasien' => [
+                'id' => $pasien->id,
+                'nama' => $pasien->nama,
+                'no_hp' => $pasien->no_hp,
+                'alamat' => $pasien->alamat,
+                'referral_type' => $pasien->referral_type,
+                'referral_detail' => $pasien->referral_detail,
+            ],
+        ]);
+    }
+
     public function index(Request $request)
     {
         if ($request->ajax()) {

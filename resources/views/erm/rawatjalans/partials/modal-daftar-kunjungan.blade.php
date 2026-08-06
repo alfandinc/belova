@@ -5,6 +5,7 @@
             @csrf
             <input type="hidden" name="jenis_kunjungan" id="rj_jenis_kunjungan" value="1">
             <input type="hidden" id="rj_mode" value="konsultasi">
+            <input type="hidden" name="force_create_duplicate" id="rj_force_create_duplicate" value="0">
             <div class="modal-content">
                 <div class="modal-header bg-success text-white">
                     <h5 class="modal-title" id="modalDaftarKunjunganRawatJalanLabel">Daftarkan Kunjungan Pasien</h5>
@@ -13,9 +14,58 @@
                     </button>
                 </div>
                 <div class="modal-body">
+                    <div class="form-group" id="rj_marketplace_patient_mode_group" style="display:none;">
+                        <label>Tipe Pasien Marketplace</label>
+                        <select id="rj_marketplace_patient_mode" class="form-control">
+                            <option value="existing">Pasien Lama</option>
+                            <option value="new">Pasien Baru</option>
+                        </select>
+                    </div>
+
                     <div class="form-group">
-                        <label>Pasien</label>
+                        <label id="rj_pasien_label">Pasien</label>
                         <select id="rj_pasien_id" name="pasien_id" class="form-control select2" required></select>
+                        <small class="form-text text-muted d-none" id="rj_marketplace_pasien_hint">Pilih pasien lama jika sudah ada. Kosongkan pasien untuk membuat pasien marketplace baru.</small>
+                    </div>
+
+                    <div class="form-group" id="rj_marketplace_referral_group" style="display:none;">
+                        <label>Referral Marketplace</label>
+                        <select class="form-control" id="rj_marketplace_referral_detail" name="referral_detail">
+                            <option value="">Pilih Marketplace</option>
+                            <option value="shopee">Shopee</option>
+                            <option value="tiktokshop">Tiktokshop</option>
+                            <option value="tokopedia">Tokopedia</option>
+                            <option value="lazada">Lazada</option>
+                        </select>
+                        <small class="form-text text-muted">Untuk pasien lama, isi jika referral marketplace pasien belum ada.</small>
+                    </div>
+
+                    <div id="rj_marketplace_patient_section" style="display:none;">
+                        <div class="border rounded p-3 mb-3 bg-light">
+                            <div class="form-group mb-2">
+                                <label>Nama Pasien Baru</label>
+                                <input type="text" class="form-control" id="rj_marketplace_nama" name="nama" maxlength="255">
+                            </div>
+
+                            <div class="form-group mb-2">
+                                <label>Jenis Kelamin</label>
+                                <select class="form-control" id="rj_marketplace_gender" name="gender">
+                                    <option value="">Pilih Jenis Kelamin</option>
+                                    <option value="Laki-laki">Laki-laki</option>
+                                    <option value="Perempuan">Perempuan</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group mb-2">
+                                <label>Alamat</label>
+                                <textarea class="form-control" id="rj_marketplace_alamat" name="alamat" rows="2"></textarea>
+                            </div>
+
+                            <div class="form-group mb-2">
+                                <label>No HP</label>
+                                <input type="text" class="form-control" id="rj_marketplace_no_hp" name="no_hp" maxlength="20">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
@@ -93,6 +143,177 @@ $(document).ready(function(){
         }
     });
 
+    function isMarketplaceMode() {
+        return $('#rj_mode').val() === 'marketplace';
+    }
+
+    function marketplacePatientMode() {
+        return $('#rj_marketplace_patient_mode').val() || 'existing';
+    }
+
+    function isMarketplaceNewPatient() {
+        return isMarketplaceMode() && marketplacePatientMode() === 'new';
+    }
+
+    function syncMarketplaceState() {
+        const marketplaceMode = isMarketplaceMode();
+        const newMarketplacePatient = isMarketplaceNewPatient();
+        const existingMarketplacePatient = marketplaceMode && !newMarketplacePatient;
+
+        $('#rj_marketplace_patient_mode_group').toggle(marketplaceMode);
+        $('#rj_marketplace_referral_group').toggle(marketplaceMode);
+        $('#rj_marketplace_patient_section').toggle(newMarketplacePatient);
+        $('#rj_marketplace_pasien_hint').toggleClass('d-none', !marketplaceMode);
+        $('#rj_pasien_label').text(marketplaceMode ? 'Pasien Lama' : 'Pasien');
+        $('#rj_pasien_id').closest('.form-group').toggle(!marketplaceMode || existingMarketplacePatient);
+        $('#rj_pasien_id').prop('required', !marketplaceMode || existingMarketplacePatient);
+        $('#rj_force_create_duplicate').val('0');
+
+        $('#rj_marketplace_nama, #rj_marketplace_gender, #rj_marketplace_alamat, #rj_marketplace_no_hp')
+            .prop('required', newMarketplacePatient);
+        $('#rj_marketplace_referral_detail').prop('required', newMarketplacePatient);
+    }
+
+    function marketplaceDuplicatePayload() {
+        return {
+            nama: ($('#rj_marketplace_nama').val() || '').trim(),
+            referral_detail: ($('#rj_marketplace_referral_detail').val() || '').trim()
+        };
+    }
+
+    function marketplaceDuplicateHtml(pasien) {
+        pasien = pasien || {};
+        const lines = [
+            '<div>Sudah ada pasien marketplace dengan nama dan referral yang sama.</div>',
+            '<div class="mt-2 text-left">',
+            '<div><strong>No RM:</strong> ' + $('<div>').text(pasien.id || '-').html() + '</div>',
+            '<div><strong>Nama:</strong> ' + $('<div>').text(pasien.nama || '-').html() + '</div>',
+            '<div><strong>No HP:</strong> ' + $('<div>').text(pasien.no_hp || '-').html() + '</div>',
+            '<div><strong>Referral:</strong> ' + $('<div>').text(pasien.referral_detail || '-').html() + '</div>',
+            '</div>',
+            '<div class="mt-3">Lanjutkan membuat pasien baru?</div>'
+        ];
+
+        return lines.join('');
+    }
+
+    function resetRawatJalanMarketplaceFields() {
+        $('#rj_force_create_duplicate').val('0');
+        $('#rj_marketplace_patient_mode').val('existing');
+        $('#rj_marketplace_nama').val('');
+        $('#rj_marketplace_gender').val('');
+        $('#rj_marketplace_alamat').val('');
+        $('#rj_marketplace_no_hp').val('');
+        $('#rj_marketplace_referral_detail').val('');
+    }
+
+    function resolveSubmitUrl() {
+        const mode = $('#rj_mode').val();
+        if (mode === 'produk') {
+            return "{{ route('erm.visitations.produk.store') }}";
+        }
+        if (mode === 'lab') {
+            return "{{ route('erm.visitations.lab.store') }}";
+        }
+        if (mode === 'marketplace') {
+            return "{{ route('erm.visitations.marketplace.store') }}";
+        }
+
+        return "{{ route('erm.visitations.store') }}";
+    }
+
+    function showMarketplaceDuplicateWarning(onConfirm, pasien) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Data Mirip Ditemukan',
+            html: marketplaceDuplicateHtml(pasien),
+            showCancelButton: true,
+            confirmButtonText: 'Lanjut Buat Pasien Baru',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                $('#rj_force_create_duplicate').val('1');
+                onConfirm();
+            }
+        });
+    }
+
+    function submitRawatJalanForm() {
+        $.ajax({
+            url: resolveSubmitUrl(),
+            type: 'POST',
+            data: $('#form-daftar-kunjungan-rawatjalan').serialize()
+        }).done(function(res){
+            $('#modalDaftarKunjunganRawatJalan').modal('hide');
+            $('#form-daftar-kunjungan-rawatjalan')[0].reset();
+            $('#rj_pasien_id').val(null).trigger('change');
+            $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
+            $('#rj_no_antrian').val('');
+            resetRawatJalanMarketplaceFields();
+
+            var htmlParts = ['<div>' + $('<div>').text((res && res.message) ? res.message : 'Kunjungan berhasil disimpan.').html() + '</div>'];
+
+            if (res && res.whatsapp) {
+                var wa = res.whatsapp;
+                var waMessage = $('<div>').text(wa.message || '').html();
+                var statusClass = wa.queued ? 'text-success' : 'text-warning';
+                htmlParts.push('<div class="mt-2 ' + statusClass + '"><strong>WhatsApp:</strong> ' + waMessage + '</div>');
+
+                if (wa.schedule_at) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Jadwal kirim: ' + $('<div>').text(wa.schedule_at).html() + '</small></div>');
+                }
+
+                if (wa.client_id) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Session: ' + $('<div>').text(wa.client_id).html() + '</small></div>');
+                }
+
+                if (wa.session_note) {
+                    htmlParts.push('<div class="mt-1 text-muted"><small>Status bot: ' + $('<div>').text(wa.session_note).html() + '</small></div>');
+                }
+            }
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Berhasil',
+                html: htmlParts.join(''),
+                confirmButtonText: 'OK'
+            }).then(function(){
+                try {
+                    $('#rawatjalan-table').DataTable().ajax.reload(null, false);
+                } catch(e) {}
+                try {
+                    if (typeof updateStats === 'function') updateStats();
+                } catch(e) {}
+            });
+        }).fail(function(xhr){
+            if (xhr && xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.duplicate) {
+                showMarketplaceDuplicateWarning(submitRawatJalanForm, xhr.responseJSON.pasien || {});
+                return;
+            }
+
+            let msg = 'Terjadi kesalahan. Pastikan semua data valid.';
+            if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.message) {
+                msg = xhr.responseJSON.message;
+            }
+            Swal.fire({ icon: 'error', title: 'Gagal', text: msg, confirmButtonText: 'OK' });
+        });
+    }
+
+    function checkMarketplaceDuplicateThenSubmit() {
+        $.get("{{ route('erm.pasiens.marketplace.check-duplicate') }}", marketplaceDuplicatePayload())
+            .done(function(res) {
+                if (res && res.exists) {
+                    showMarketplaceDuplicateWarning(submitRawatJalanForm, res.pasien || {});
+                    return;
+                }
+
+                submitRawatJalanForm();
+            })
+            .fail(function() {
+                submitRawatJalanForm();
+            });
+    }
+
     function applyMode(mode){
         mode = (mode || 'konsultasi').toString();
         $('#rj_mode').val(mode);
@@ -111,12 +332,21 @@ $(document).ready(function(){
             $('#rj_no_antrian_group').hide();
             $('#rj_waktu_kunjungan').val('');
             $('#rj_no_antrian').val('');
+        } else if (mode === 'marketplace') {
+            $('#modalDaftarKunjunganRawatJalanLabel').text('Daftarkan Kunjungan Marketplace Pasien');
+            $('#rj_jenis_kunjungan').val('5');
+            $('#rj_waktu_group').hide();
+            $('#rj_no_antrian_group').hide();
+            $('#rj_waktu_kunjungan').val('');
+            $('#rj_no_antrian').val('');
         } else {
             $('#modalDaftarKunjunganRawatJalanLabel').text('Daftarkan Kunjungan Pasien');
             $('#rj_jenis_kunjungan').val('1');
             $('#rj_waktu_group').show();
             $('#rj_no_antrian_group').show();
         }
+
+        syncMarketplaceState();
     }
 
     // open modal (from dropdown)
@@ -186,70 +416,28 @@ $(document).ready(function(){
         cekAntrianRJ();
     });
 
+    $('#rj_marketplace_patient_mode').on('change', function() {
+        $('#rj_force_create_duplicate').val('0');
+        if (marketplacePatientMode() === 'new') {
+            $('#rj_pasien_id').val(null).trigger('change');
+        }
+        syncMarketplaceState();
+    });
+
+    $('#rj_pasien_id').on('change', function(){
+        syncMarketplaceState();
+    });
+
     // submit
     $('#form-daftar-kunjungan-rawatjalan').on('submit', function(e){
         e.preventDefault();
 
-        let url = "{{ route('erm.visitations.store') }}";
-        const mode = $('#rj_mode').val();
-        if (mode === 'produk') {
-            url = "{{ route('erm.visitations.produk.store') }}";
-        } else if (mode === 'lab') {
-            url = "{{ route('erm.visitations.lab.store') }}";
+        if (isMarketplaceNewPatient() && $('#rj_force_create_duplicate').val() !== '1') {
+            checkMarketplaceDuplicateThenSubmit();
+            return;
         }
 
-        $.ajax({
-            url: url,
-            type: 'POST',
-            data: $(this).serialize()
-        }).done(function(res){
-            $('#modalDaftarKunjunganRawatJalan').modal('hide');
-            $('#form-daftar-kunjungan-rawatjalan')[0].reset();
-            $('#rj_pasien_id').val(null).trigger('change');
-            $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
-            $('#rj_no_antrian').val('');
-
-            var htmlParts = ['<div>' + $('<div>').text((res && res.message) ? res.message : 'Kunjungan berhasil disimpan.').html() + '</div>'];
-
-            if (res && res.whatsapp) {
-                var wa = res.whatsapp;
-                var waMessage = $('<div>').text(wa.message || '').html();
-                var statusClass = wa.queued ? 'text-success' : 'text-warning';
-                htmlParts.push('<div class="mt-2 ' + statusClass + '"><strong>WhatsApp:</strong> ' + waMessage + '</div>');
-
-                if (wa.schedule_at) {
-                    htmlParts.push('<div class="mt-1 text-muted"><small>Jadwal kirim: ' + $('<div>').text(wa.schedule_at).html() + '</small></div>');
-                }
-
-                if (wa.client_id) {
-                    htmlParts.push('<div class="mt-1 text-muted"><small>Session: ' + $('<div>').text(wa.client_id).html() + '</small></div>');
-                }
-
-                if (wa.session_note) {
-                    htmlParts.push('<div class="mt-1 text-muted"><small>Status bot: ' + $('<div>').text(wa.session_note).html() + '</small></div>');
-                }
-            }
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Berhasil',
-                html: htmlParts.join(''),
-                confirmButtonText: 'OK'
-            }).then(function(){
-                try {
-                    $('#rawatjalan-table').DataTable().ajax.reload(null, false);
-                } catch(e) {}
-                try {
-                    if (typeof updateStats === 'function') updateStats();
-                } catch(e) {}
-            });
-        }).fail(function(xhr){
-            let msg = 'Terjadi kesalahan. Pastikan semua data valid.';
-            if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.message) {
-                msg = xhr.responseJSON.message;
-            }
-            Swal.fire({ icon: 'error', title: 'Gagal', text: msg, confirmButtonText: 'OK' });
-        });
+        submitRawatJalanForm();
     });
 
     // cleanup on close
@@ -258,6 +446,7 @@ $(document).ready(function(){
         try { $('#rj_pasien_id').val(null).trigger('change'); } catch(e) {}
         try { $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2'); } catch(e) {}
         $('#rj_no_antrian').val('');
+        resetRawatJalanMarketplaceFields();
         applyMode('konsultasi');
     });
 

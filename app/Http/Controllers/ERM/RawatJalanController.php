@@ -553,6 +553,8 @@ class RawatJalanController extends Controller
                         'erm_pasiens.status_pasien as status_pasien',
                         'erm_pasiens.status_akses as status_akses',
                         'erm_pasiens.status_review as status_review',
+                        'erm_pasiens.referral_type as referral_type',
+                        'erm_pasiens.referral_detail as referral_detail',
 
                         'mb.nama as metode_bayar_nama',
                         'u.name as dokter_user_name',
@@ -579,6 +581,13 @@ class RawatJalanController extends Controller
                             ->limit(1),
                         'cppt_created_at'
                     )
+                    ->selectSub(
+                        DB::table('marketing_event as me')
+                            ->select('me.nama_event')
+                            ->whereColumn('me.kode_event', 'erm_pasiens.referral_detail')
+                            ->limit(1),
+                        'referral_event_name'
+                    )
                     ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                     ->leftJoin('erm_metode_bayar as mb', 'erm_visitations.metode_bayar_id', '=', 'mb.id')
                     ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
@@ -589,7 +598,7 @@ class RawatJalanController extends Controller
                         $q->where('erm_visitations.jenis_kunjungan', 1);
                     }, function($q) {
                         // Non-dokter view: show Konsultasi + Produk/Obat + Event
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 4]);
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 4, 5]);
                     })
                     ->where('erm_visitations.status_kunjungan', '!=', 7);
 
@@ -846,7 +855,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1, 2, 4])
+                ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
                 ->whereDate('tanggal_visitation', $today);
 
             if ($dokter) {
@@ -923,7 +932,7 @@ class RawatJalanController extends Controller
                         SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                         SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                     )
-                    ->whereIn('jenis_kunjungan', [1, 2, 4])
+                    ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
                     ->whereDate('tanggal_visitation', '>=', $start)
                     ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1021,7 +1030,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1, 2, 4])
+                ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
                 ->whereDate('tanggal_visitation', '>=', $start)
                 ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1914,7 +1923,7 @@ class RawatJalanController extends Controller
 
         $query = Visitation::query()
             ->with(['pasien', 'dokter'])
-            ->whereIn('jenis_kunjungan', [1, 2, 4]);
+            ->whereIn('jenis_kunjungan', [1, 2, 4, 5]);
 
         // Status filter
         if ($status && $status !== 'total') {
