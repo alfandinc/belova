@@ -53,6 +53,7 @@
                                 <option value="diminta">Diminta</option>
                                 <option value="diterima">Diterima</option>
                                 <option value="diapprove">Diapprove</option>
+                                <option value="diretur">Diretur</option>
                             </select>
                         </div>
                         <div class="mb-2">
@@ -139,6 +140,32 @@
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         <button type="button" class="btn btn-success" id="btnExportItems">Download</button>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="modalRetur" tabindex="-1" role="dialog" aria-labelledby="modalReturLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalReturLabel">Ajukan Retur Obat</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="modalReturBody"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="modalDetailRetur" tabindex="-1" role="dialog" aria-labelledby="modalDetailReturLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalDetailReturLabel">Detail Retur Obat</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="modalDetailReturBody"></div>
                 </div>
             </div>
         </div>
@@ -259,11 +286,22 @@ $(function() {
                 }
 
                 var noFaktur = data ? data : '-';
+                var relationBadges = [];
                 var buktiLink = row.bukti
                     ? `<div class="mt-1"><a href='/storage/${row.bukti}' target='_blank'><em>Lihat Bukti</em></a></div>`
                     : '';
+                var replacedFrom = row.replaced_faktur_no
+                    ? `<div class="mt-1"><span class="badge badge-pill badge-primary">Pengganti</span> <small class="text-muted">asal: ${row.replaced_faktur_no}</small></div>`
+                    : '';
+                var sourceRetur = row.source_retur_no
+                    ? `<div class="mt-1"><span class="badge badge-pill badge-info">Retur Sumber</span> <small class="text-muted">${row.source_retur_no}</small></div>`
+                    : '';
 
-                return `<div>${noFaktur}${buktiLink}</div>`;
+                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
+                    relationBadges.push(`<div class="mt-1"><span class="badge badge-pill badge-light border">Punya Pengganti</span> <small class="text-muted">${row.replacement_invoice_nos.join(', ')}</small></div>`);
+                }
+
+                return `<div><strong>${noFaktur}</strong>${replacedFrom}${sourceRetur}${relationBadges.join('')}${buktiLink}</div>`;
             }},
             { data: 'nama_obat', name: 'nama_obat', orderable: false, searchable: false },
             { data: 'pemasok', name: 'pemasok' },
@@ -300,6 +338,18 @@ $(function() {
                     }
                 }
 
+                if (row.latest_retur_no) {
+                    lines.push('<div class="mt-1"><strong style="color:#b91c1c;">Retur:</strong> <span style="color:#b91c1c;">' + row.latest_retur_no + '</span></div>');
+                }
+
+                if (row.replaced_faktur_no) {
+                    lines.push('<div class="mt-1"><strong style="color:#1d4ed8;">Pengganti Dari:</strong> <span style="color:#1d4ed8;">' + row.replaced_faktur_no + '</span></div>');
+                }
+
+                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
+                    lines.push('<div class="mt-1"><strong style="color:#065f46;">Faktur Pengganti:</strong> <span style="color:#065f46;">' + row.replacement_invoice_nos.join(', ') + '</span></div>');
+                }
+
                 return lines.join('');
             }},
             { data: 'total', name: 'total', render: function(data) {
@@ -308,6 +358,8 @@ $(function() {
             { data: 'status', name: 'status', render: function(data, type, row) {
                 let badgeClass = '';
                 let approvedBy = '';
+                let extraInfo = '';
+                let relationInfo = '';
                 switch(data) {
                     case 'diminta': badgeClass = 'badge-warning'; break;
                     case 'diterima': badgeClass = 'badge-info'; break;
@@ -319,12 +371,25 @@ $(function() {
                     case 'diretur': badgeClass = 'badge-danger'; break;
                     default: badgeClass = 'badge-secondary'; break;
                 }
-                return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}`;
+                if (data === 'diretur' && row.action && row.action.indexOf('Faktur Pengganti') !== -1) {
+                    extraInfo = `<br><small class='text-danger'>Menunggu faktur pengganti</small>`;
+                }
+
+                if (row.replaced_faktur_no) {
+                    relationInfo += `<br><small class='text-primary'>Faktur pengganti</small>`;
+                }
+
+                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
+                    relationInfo += `<br><small class='text-success'>Sudah punya pengganti</small>`;
+                }
+
+                if (row.latest_retur_no && !row.replaced_faktur_no) {
+                    relationInfo += `<br><small class='text-info'>Retur: ${row.latest_retur_no}</small>`;
+                }
+
+                return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}${extraInfo}${relationInfo}`;
             }},
             { data: 'action', name: 'action', orderable: false, searchable: false, render: function(data, type, row) {
-                if (row.status === 'diretur') {
-                    return '';
-                }
                 return data;
             } },
         ],
@@ -415,6 +480,91 @@ $(function() {
         $('#formExportItems').submit();
         $('#modalExportItems').modal('hide');
     });
+
+    $('#fakturbeli-table').on('click', '.btn-create-retur-faktur', function() {
+        var id = $(this).data('id');
+        $.ajax({
+            url: '{{ route('erm.fakturretur.create') }}',
+            type: 'GET',
+            data: { fakturbeli_id: id },
+            success: function(res) {
+                $('#modalReturBody').html(res);
+                $('#modalRetur').modal('show');
+            },
+            error: function(xhr) {
+                Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal memuat form retur', 'error');
+            }
+        });
+    });
+
+    $('#fakturbeli-table').on('click', '.btn-detail-retur-faktur', function() {
+        var id = $(this).data('id');
+        $.ajax({
+            url: '/erm/fakturretur/' + id,
+            type: 'GET',
+            success: function(res) {
+                $('#modalDetailReturBody').html(res);
+                $('#modalDetailRetur').modal('show');
+            },
+            error: function(xhr) {
+                Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal memuat detail retur', 'error');
+            }
+        });
+    });
+
+    $(document).on('submit', '#formRetur', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            success: function(res) {
+                if (res.success) {
+                    $('#modalRetur').modal('hide');
+                    fakturTable.ajax.reload();
+                    toastr.success(res.message);
+                } else {
+                    toastr.error(res.message);
+                }
+            },
+            error: function(xhr) {
+                toastr.error(xhr.responseJSON?.message || 'Terjadi kesalahan');
+            }
+        });
+    });
+
+    $(document).on('click', '#btn-approve-retur', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Approve Retur?',
+            text: 'Yakin ingin approve retur ini?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Approve',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.value) {
+                $.post('/erm/fakturretur/' + id + '/approve', {_token: $('meta[name="csrf-token"]').attr('content')}, function(res) {
+                    if(res.success) {
+                        $('#modalDetailRetur').modal('hide');
+                        fakturTable.ajax.reload();
+                        Swal.fire('Berhasil!', res.message, 'success');
+                    } else {
+                        Swal.fire('Gagal!', res.message, 'error');
+                    }
+                }).fail(function(xhr) {
+                    Swal.fire('Error!', xhr.responseJSON?.message || 'Terjadi kesalahan', 'error');
+                });
+            }
+        });
+    });
+
+    $(document).on('click', '.btn-remove-item', function() {
+        $(this).closest('tr').remove();
+    });
+
     // Delete handler
     $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {
         if(confirm('Yakin ingin menghapus faktur ini?')) {

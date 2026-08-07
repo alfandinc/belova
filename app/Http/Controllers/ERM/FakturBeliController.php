@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\FakturBeli;
 use App\Models\ERM\FakturBeliItem;
+use App\Models\ERM\FakturRetur;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
@@ -32,7 +33,14 @@ class FakturBeliController extends Controller
     {
         if ($request->ajax()) {
             $isAdmin = Auth::check() && Auth::user()->hasAnyRole(['Admin']);
-            $data = FakturBeli::with(['pemasok', 'items.obat'])->select('erm_fakturbeli.*');
+            $data = FakturBeli::with([
+                'pemasok',
+                'items.obat',
+                'returs',
+                'replacementInvoices',
+                'replacedFaktur',
+                'sourceRetur',
+            ])->select('erm_fakturbeli.*');
             // Filter by received_date range if provided
             if ($request->filled('tanggal_terima_range')) {
                 $range = explode(' - ', $request->input('tanggal_terima_range'));
@@ -105,25 +113,71 @@ class FakturBeliController extends Controller
                     }
                     return null;
                 })
-                ->addColumn('action', function($row) use ($isAdmin) {
-                    if ($row->status === 'diapprove') {
-                        return '<a href="/erm/fakturpembelian/' . $row->id . '/print" target="_blank" class="btn btn-secondary btn-sm"><i class="fa fa-print"></i> Print</a>';
+                ->addColumn('replaced_faktur_no', function ($row) {
+                    return optional($row->replacedFaktur)->no_faktur;
+                })
+                ->addColumn('source_retur_no', function ($row) {
+                    return optional($row->sourceRetur)->no_retur;
+                })
+                ->addColumn('replacement_invoice_nos', function ($row) {
+                    if (!$row->relationLoaded('replacementInvoices')) {
+                        return [];
                     }
+
+                    return $row->replacementInvoices
+                        ->pluck('no_faktur')
+                        ->filter()
+                        ->values()
+                        ->all();
+                })
+                ->addColumn('latest_retur_no', function ($row) {
+                    if (!$row->relationLoaded('returs')) {
+                        return null;
+                    }
+
+                    return optional($row->returs->sortByDesc('id')->first())->no_retur;
+                })
+                ->addColumn('action', function($row) use ($isAdmin) {
                     $actionBtn = '';
+                    $latestRetur = $row->relationLoaded('returs')
+                        ? $row->returs->sortByDesc('id')->first()
+                        : null;
+                    $hasReplacementInvoice = $row->relationLoaded('replacementInvoices')
+                        ? $row->replacementInvoices->isNotEmpty()
+                        : false;
+
+                    if ($row->status === 'diapprove') {
+                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/print" target="_blank" class="btn btn-secondary btn-sm mb-1 mr-1"><i class="fa fa-print"></i> Print</a>';
+                    }
+
                     // Edit button with contextual label based on status
                     if ($row->status === 'diminta') {
-                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Input Faktur</a> ';
-                    } else {
-                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Edit</a> ';
+                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary mb-1 mr-1">Input Faktur</a>';
+                    } elseif (in_array($row->status, ['diterima', 'diapprove'], true)) {
+                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary mb-1 mr-1">Edit</a>';
                     }
+
                     // Approve button - only show for diterima status (not diminta or diapprove yet)
                     if ($row->status === 'diterima') {
-                        $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur" data-id="' . $row->id . '">Approve</button> ';
-                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Cek HPP</button> ';
+                        $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur mb-1 mr-1" data-id="' . $row->id . '">Approve</button>';
+                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp mb-1 mr-1" data-id="' . $row->id . '">Cek HPP</button>';
                     }
+
+                    if ($row->status === 'diapprove' && !$latestRetur) {
+                        $actionBtn .= '<button class="btn btn-sm btn-warning btn-create-retur-faktur mb-1 mr-1" data-id="' . $row->id . '">Retur</button>';
+                    }
+
+                    if ($latestRetur) {
+                        $actionBtn .= '<button class="btn btn-sm btn-outline-info btn-detail-retur-faktur mb-1 mr-1" data-id="' . $latestRetur->id . '">Detail Retur</button>';
+                    }
+
+                    if ($row->status === 'diretur' && $latestRetur && $latestRetur->status === 'diapprove' && !$hasReplacementInvoice) {
+                        $actionBtn .= '<a href="' . route('erm.fakturbeli.create', ['replace_retur_id' => $latestRetur->id]) . '" class="btn btn-sm btn-outline-primary mb-1 mr-1">Faktur Pengganti</a>';
+                    }
+
                     // Delete button
                     if ($isAdmin) {
-                        $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
+                        $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur mb-1" data-id="' . $row->id . '">Delete</button>';
                     }
                     return $actionBtn;
                 })
@@ -166,12 +220,70 @@ class FakturBeliController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $pemasoks = Pemasok::all();
         $gudangs = Gudang::all();
         $obats = Obat::all();
-        return view('erm.fakturbeli.create', compact('pemasoks', 'gudangs', 'obats'));
+
+        $sourceRetur = null;
+        $sourceFaktur = null;
+
+        if ($request->filled('replace_retur_id')) {
+            $sourceRetur = FakturRetur::with([
+                'fakturbeli.pemasok',
+                'items.obat',
+                'items.gudang',
+                'items.fakturbeliitem.obat',
+                'items.fakturbeliitem.gudang',
+            ])->findOrFail($request->input('replace_retur_id'));
+
+            abort_unless($sourceRetur->status === 'diapprove', 422, 'Retur harus diapprove sebelum membuat faktur pengganti.');
+
+            $originalFaktur = $sourceRetur->fakturbeli;
+            $sourceFaktur = new FakturBeli();
+            $sourceFaktur->pemasok_id = optional($originalFaktur)->pemasok_id;
+            $sourceFaktur->requested_date = optional($originalFaktur)->requested_date;
+            $sourceFaktur->ship_date = optional($originalFaktur)->ship_date;
+            $sourceFaktur->received_date = now()->toDateString();
+            $sourceFaktur->due_date = optional($originalFaktur)->due_date;
+            $sourceFaktur->notes = trim(collect([
+                optional($originalFaktur)->notes,
+                'Faktur pengganti dari retur ' . $sourceRetur->no_retur,
+            ])->filter()->implode(' | '));
+            $sourceFaktur->subtotal = null;
+            $sourceFaktur->global_diskon = 0;
+            $sourceFaktur->global_pajak = 0;
+            $sourceFaktur->total = null;
+            $sourceFaktur->setRelation('pemasok', optional($originalFaktur)->pemasok);
+            $replacementItems = collect($sourceRetur->items)->map(function ($returItem) {
+                $originalItem = $returItem->fakturbeliitem;
+
+                $item = new FakturBeliItem();
+                $item->permintaan_item_id = optional($originalItem)->permintaan_item_id;
+                $item->obat_id = $returItem->obat_id;
+                $item->principal_id = optional($originalItem)->principal_id;
+                $item->qty = $returItem->qty;
+                $item->diminta = $returItem->qty;
+                $item->sisa = 0;
+                $item->harga = optional($originalItem)->harga ?? 0;
+                $item->diskon = optional($originalItem)->diskon ?? 0;
+                $item->diskon_type = optional($originalItem)->diskon_type ?? 'nominal';
+                $item->tax = optional($originalItem)->tax ?? 0;
+                $item->tax_type = optional($originalItem)->tax_type ?? 'nominal';
+                $item->gudang_id = $returItem->gudang_id ?? optional($originalItem)->gudang_id;
+                $item->batch = $returItem->batch ?? optional($originalItem)->batch;
+                $item->expiration_date = $returItem->expiration_date ?? optional($originalItem)->expiration_date;
+                $item->total_amount = optional($originalItem)->total_amount ?? 0;
+                $item->setRelation('obat', $returItem->obat ?: optional($originalItem)->obat);
+                $item->setRelation('gudang', $returItem->gudang ?: optional($originalItem)->gudang);
+
+                return $item;
+            });
+            $sourceFaktur->setRelation('items', $replacementItems);
+        }
+
+        return view('erm.fakturbeli.create', compact('pemasoks', 'gudangs', 'obats', 'sourceRetur', 'sourceFaktur'));
     }
 
     public function store(Request $request)
@@ -179,6 +291,8 @@ class FakturBeliController extends Controller
 
         $validated = $request->validate([
             'permintaan_id' => 'nullable|exists:erm_permintaan,id',
+            'replaced_fakturbeli_id' => 'nullable|exists:erm_fakturbeli,id',
+            'source_retur_id' => 'nullable|exists:erm_fakturretur,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
             'no_faktur' => 'required|string|unique:erm_fakturbeli,no_faktur',
             'received_date' => 'required|date',
@@ -215,6 +329,8 @@ class FakturBeliController extends Controller
 
         $faktur = FakturBeli::create([
             'permintaan_id' => $validated['permintaan_id'] ?? null,
+            'replaced_fakturbeli_id' => $validated['replaced_fakturbeli_id'] ?? null,
+            'source_retur_id' => $validated['source_retur_id'] ?? null,
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
             'received_date' => $validated['received_date'],

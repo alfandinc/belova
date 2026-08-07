@@ -4,6 +4,13 @@
             <p><strong>No Retur:</strong> {{ $retur->no_retur }}</p>
             <p><strong>Tanggal Retur:</strong> {{ $retur->tanggal_retur }}</p>
             <p><strong>Status:</strong> <span id="retur-status">{{ $retur->status }}</span></p>
+            @if($retur->status == 'diapprove')
+            <div class="mb-3">
+                <a href="{{ route('erm.fakturbeli.create', ['replace_retur_id' => $retur->id]) }}" class="btn btn-primary">
+                    Buat Faktur Pengganti
+                </a>
+            </div>
+            @endif
             <table class="table table-bordered">
                 <thead>
                     <tr>

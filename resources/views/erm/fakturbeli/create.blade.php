@@ -4,32 +4,44 @@
 @include('layouts.erm.navbar')
 @endsection
 @section('content')
+@php
+    $isEdit = isset($faktur);
+    $formFaktur = $faktur ?? ($sourceFaktur ?? null);
+@endphp
 <div class="container-fluid">
     <div class="card">
         <div class="card-header">
-            <h4 class="mb-0">{{ isset($faktur) ? 'Edit Faktur Pembelian' : 'Tambah Faktur Pembelian' }}</h4>
+            <h4 class="mb-0">{{ $isEdit ? 'Edit Faktur Pembelian' : 'Tambah Faktur Pembelian' }}</h4>
         </div>
         <div class="card-body">
             <form id="fakturbeli-form" enctype="multipart/form-data">
                 @csrf
-                <input type="hidden" name="permintaan_id" value="{{ $faktur->permintaan_id ?? '' }}">
-                <input type="hidden" name="subtotal" id="input-subtotal" value="{{ isset($faktur) && $faktur->subtotal !== null ? $faktur->subtotal : '' }}">
-                <input type="hidden" name="global_diskon" id="input-global-diskon" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : '' }}">
-                <input type="hidden" name="global_pajak" id="input-global-pajak" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : '' }}">
-                <input type="hidden" name="total" id="input-total" value="{{ isset($faktur) && $faktur->total !== null ? $faktur->total : '' }}">
+                <input type="hidden" name="permintaan_id" value="{{ $isEdit ? ($faktur->permintaan_id ?? '') : '' }}">
+                <input type="hidden" name="replaced_fakturbeli_id" value="{{ $sourceRetur->fakturbeli_id ?? '' }}">
+                <input type="hidden" name="source_retur_id" value="{{ $sourceRetur->id ?? '' }}">
+                <input type="hidden" name="subtotal" id="input-subtotal" value="{{ $formFaktur && $formFaktur->subtotal !== null ? $formFaktur->subtotal : '' }}">
+                <input type="hidden" name="global_diskon" id="input-global-diskon" value="{{ $formFaktur && $formFaktur->global_diskon !== null ? $formFaktur->global_diskon : '' }}">
+                <input type="hidden" name="global_pajak" id="input-global-pajak" value="{{ $formFaktur && $formFaktur->global_pajak !== null ? $formFaktur->global_pajak : '' }}">
+                <input type="hidden" name="total" id="input-total" value="{{ $formFaktur && $formFaktur->total !== null ? $formFaktur->total : '' }}">
+                @if(isset($sourceRetur))
+                <div class="alert alert-info">
+                    Faktur ini dibuat sebagai pengganti dari retur <strong>{{ $sourceRetur->no_retur }}</strong>
+                    untuk faktur <strong>{{ optional($sourceRetur->fakturbeli)->no_faktur ?? '-' }}</strong>.
+                </div>
+                @endif
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
                                 <label>Pemasok <span class="text-danger">*</span></label>
-                            <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%" @if(isset($faktur)) disabled @endif>
-                                @if(isset($faktur) && isset($faktur->pemasok))
-                                    <option value="{{ $faktur->pemasok->id }}" selected>{{ $faktur->pemasok->nama }}</option>
-                                @elseif(isset($faktur) && isset($faktur->pemasok_id))
+                            <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%" @if($isEdit) disabled @endif>
+                                @if($formFaktur && isset($formFaktur->pemasok))
+                                    <option value="{{ $formFaktur->pemasok->id }}" selected>{{ $formFaktur->pemasok->nama }}</option>
+                                @elseif($formFaktur && isset($formFaktur->pemasok_id))
                                     {{-- fallback to pemasok_id if relation not loaded --}} 
-                                    <option value="{{ $faktur->pemasok_id }}" selected>{{ $faktur->pemasok->nama ?? 'Pemasok #' . $faktur->pemasok_id }}</option>
+                                    <option value="{{ $formFaktur->pemasok_id }}" selected>{{ $formFaktur->pemasok->nama ?? 'Pemasok #' . $formFaktur->pemasok_id }}</option>
                                 @endif
                             </select>
-                            @if(isset($faktur))
+                            @if($isEdit)
                                 {{-- Prefer relation id if available, otherwise use raw pemasok_id --}}
                                 <input type="hidden" name="pemasok_id" value="{{ $faktur->pemasok->id ?? $faktur->pemasok_id }}">
                             @endif
@@ -37,36 +49,36 @@
                         <div class="form-row">
                             <div class="form-group col-md-3">
                                 <label>Tanggal Permintaan</label>
-                                <input type="date" name="requested_date" class="form-control" value="{{ isset($faktur) ? $faktur->requested_date : '' }}" readonly>
+                                <input type="date" name="requested_date" class="form-control" value="{{ $formFaktur ? $formFaktur->requested_date : '' }}" readonly>
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Tanggal Kirim</label>
-                                <input type="date" name="ship_date" class="form-control" value="{{ isset($faktur) ? $faktur->ship_date : '' }}">
+                                <input type="date" name="ship_date" class="form-control" value="{{ $formFaktur ? $formFaktur->ship_date : '' }}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Tanggal Terima <span class="text-danger">*</span></label>
-                                <input type="date" name="received_date" class="form-control" required value="{{ old('received_date', isset($faktur) && $faktur->received_date ? $faktur->received_date : date('Y-m-d')) }}">
+                                <input type="date" name="received_date" class="form-control" required value="{{ old('received_date', $formFaktur && $formFaktur->received_date ? $formFaktur->received_date : date('Y-m-d')) }}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Jatuh Tempo</label>
-                                <input type="date" name="due_date" class="form-control" value="{{ isset($faktur) ? $faktur->due_date : '' }}">
+                                <input type="date" name="due_date" class="form-control" value="{{ $formFaktur ? $formFaktur->due_date : '' }}">
                             </div>
                         </div>
                         <div class="form-group">
                             <label>Catatan</label>
-                            <input type="text" name="notes" class="form-control" value="{{ $faktur->notes ?? '' }}">
+                            <input type="text" name="notes" class="form-control" value="{{ $formFaktur->notes ?? '' }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                                 <label>No Faktur <span class="text-danger">*</span></label>
-                                <input type="text" name="no_faktur" class="form-control" required value="{{ $faktur->no_faktur ?? '' }}">
+                                <input type="text" name="no_faktur" class="form-control" required value="{{ $isEdit ? ($faktur->no_faktur ?? '') : '' }}">
                         </div>
                         <!-- Tanggal Kirim now moved to the row above -->
                         <div class="form-group">
                             <label>Bukti (Foto)</label>
                             <input type="file" name="bukti" class="form-control">
-                            @if(isset($faktur) && $faktur->bukti)
+                            @if($isEdit && $faktur->bukti)
                                 <a href="{{ asset('storage/'.$faktur->bukti) }}" target="_blank">Lihat Bukti</a>
                             @endif
                         </div>
@@ -92,11 +104,11 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @if(isset($faktur))
-                                @foreach($faktur->items as $i => $item)
+                            @if($formFaktur)
+                                @foreach($formFaktur->items as $i => $item)
                                 <tr data-item-index="{{ $i }}">
                                     <td>
-                                        <select name="items[{{ $i }}][obat_id]" class="form-control obat-select" required style="width:100%" @if(isset($faktur)) disabled @endif>
+                                        <select name="items[{{ $i }}][obat_id]" class="form-control obat-select" required style="width:100%" @if($isEdit) disabled @endif>
                                             @if(isset($item->obat) && $item->obat)
                                                 <option value="{{ $item->obat->id }}" selected>{{ $item->obat->nama }}</option>
                                             @elseif(isset($item->obat_id))
@@ -104,13 +116,13 @@
                                                 <option value="{{ $item->obat_id }}" selected>{{ $item->obat->nama ?? 'Obat #' . $item->obat_id }}</option>
                                             @endif
                                         </select>
-                                        @if(isset($faktur))
+                                        @if($isEdit)
                                             <input type="hidden" name="items[{{ $i }}][obat_id]" value="{{ $item->obat->id ?? $item->obat_id }}">
                                         @endif
                                         <input type="hidden" name="items[{{ $i }}][permintaan_item_id]" value="{{ $item->permintaan_item_id ?? '' }}">
                                     </td>
                                     <td>
-                                        <input type="number" name="items[{{ $i }}][diminta]" class="form-control diminta-field" readonly value="{{ $item->diminta }}" {{ isset($faktur) && $faktur->status == 'diminta' ? 'readonly' : '' }}>
+                                        <input type="number" name="items[{{ $i }}][diminta]" class="form-control diminta-field" readonly value="{{ $item->diminta }}" {{ $isEdit && $faktur->status == 'diminta' ? 'readonly' : '' }}>
                                     </td>
                                     <td><input type="number" name="items[{{ $i }}][qty]" class="form-control item-qty" min="0" required value="{{ $item->qty }}"></td>
                                     <td><input type="number" name="items[{{ $i }}][harga]" class="form-control item-harga" step="0.01" required value="{{ $item->harga }}" placeholder="Fill"></td>
@@ -132,7 +144,7 @@
                                             </select>
                                         </div>
                                     </td>
-                                    <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->qty * $item->harga }}"></td>
+                                    <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->total_amount ?? ($item->qty * $item->harga) }}"></td>
                                     <td>
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
                                             @if(isset($item->gudang) && $item->gudang)
@@ -171,7 +183,7 @@
                                         </div>
                                         <div class="col-7">
                                             <div class="input-group">
-                                                <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : 0 }}" step="0.01" min="0">
+                                                <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ $formFaktur && $formFaktur->global_diskon !== null ? $formFaktur->global_diskon : 0 }}" step="0.01" min="0">
                                                 <select id="global-diskon-type" class="form-control form-control-sm" style="max-width:60px">
                                                     <option value="nominal" selected>Rp</option>
                                                     <option value="percent">%</option>
@@ -185,7 +197,7 @@
                                         </div>
                                         <div class="col-7">
                                             <div class="input-group">
-                                                <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : 11 }}" step="0.01" min="0">
+                                                <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ $formFaktur && $formFaktur->global_pajak !== null ? $formFaktur->global_pajak : 11 }}" step="0.01" min="0">
                                                 <select id="global-tax-type" class="form-control form-control-sm" style="max-width:60px">
                                                     <option value="nominal" selected>Rp</option>
                                                     <option value="percent">%</option>
@@ -208,7 +220,7 @@
                 </div>
                 <!-- Removed duplicate global diskon and pajak input row -->
                 <div class="d-flex justify-content-end mt-3">
-                    <button type="submit" class="btn btn-primary">{{ isset($faktur) ? 'Update' : 'Simpan' }}</button>
+                    <button type="submit" class="btn btn-primary">{{ $isEdit ? 'Update' : 'Simpan' }}</button>
                 </div>
             </form>
         </div>
@@ -477,8 +489,8 @@ $('#fakturbeli-form').on('submit', function(e) {
     }
 
     let formData = new FormData(this);
-    let isEdit = {{ isset($faktur) ? 'true' : 'false' }};
-    let url = isEdit ? '{{ isset($faktur) ? route('erm.fakturbeli.update', $faktur->id) : '' }}' : '{{ route('erm.fakturbeli.store') }}';
+    let isEdit = {{ $isEdit ? 'true' : 'false' }};
+    let url = isEdit ? '{{ $isEdit ? route('erm.fakturbeli.update', $faktur->id) : '' }}' : '{{ route('erm.fakturbeli.store') }}';
     $.ajax({
         url: url,
         method: 'POST',
@@ -501,8 +513,15 @@ $('#fakturbeli-form').on('submit', function(e) {
         },
         error: function(xhr) {
             let msg = 'Gagal menyimpan faktur!';
-            if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors && xhr.responseJSON.errors.no_faktur) {
-                msg = xhr.responseJSON.errors.no_faktur[0];
+            if (xhr.status === 422 && xhr.responseJSON) {
+                if (xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors)
+                        .flat()
+                        .filter(Boolean)
+                        .join('\n');
+                } else if (xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
             }
             Swal.fire({
                 icon: 'warning',
