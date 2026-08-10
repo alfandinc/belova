@@ -140,6 +140,7 @@ class ReturPembelianController extends Controller
 
             foreach ($request->items as $itemData) {
                 $invoiceItem = InvoiceItem::findOrFail($itemData['invoice_item_id']);
+                $quantityReturned = (float) $itemData['quantity_returned'];
                 
                 // Validate quantity
                 $alreadyReturned = ReturPembelianItem::where('invoice_item_id', $invoiceItem->id)
@@ -147,7 +148,7 @@ class ReturPembelianController extends Controller
                 
                 $maxReturnable = $invoiceItem->quantity - $alreadyReturned;
                 
-                if ($itemData['quantity_returned'] > $maxReturnable) {
+                if ($quantityReturned > $maxReturnable) {
                     throw new \Exception("Quantity to return exceeds available quantity for item: {$invoiceItem->name}");
                 }
 
@@ -156,7 +157,7 @@ class ReturPembelianController extends Controller
                 $percentageCut = $request->percentage_cut;
                 $reducedPrice = $originalPrice * (1 - ($percentageCut / 100));
                 
-                $itemTotal = $itemData['quantity_returned'] * $reducedPrice;
+                $itemTotal = $quantityReturned * $reducedPrice;
                 $totalAmount += $itemTotal;
 
                 // Create retur item record
@@ -164,7 +165,7 @@ class ReturPembelianController extends Controller
                     'retur_pembelian_id' => $retur->id,
                     'invoice_item_id' => $invoiceItem->id,
                     'name' => $invoiceItem->name,
-                    'quantity_returned' => $itemData['quantity_returned'],
+                    'quantity_returned' => $quantityReturned,
                     'original_unit_price' => $originalPrice,
                     'percentage_cut' => $percentageCut,
                     'unit_price' => $reducedPrice,
@@ -175,13 +176,15 @@ class ReturPembelianController extends Controller
 
                 // Handle stock return if it's an Obat (medicine) or ResepFarmasi
                 if ($invoiceItem->billable_type === 'App\Models\ERM\Obat' && $invoiceItem->billable_id) {
-                    $this->handleStockReturn($invoiceItem->billable_id, $itemData['quantity_returned'], $retur);
+                    $this->handleStockReturn($invoiceItem->billable_id, $quantityReturned, $retur);
                 } elseif ($invoiceItem->billable_type === 'App\Models\ERM\ResepFarmasi' && $invoiceItem->billable_id) {
                     // For ResepFarmasi, get the obat_id from the ResepFarmasi record
                     $resepFarmasi = ResepFarmasi::find($invoiceItem->billable_id);
                     if ($resepFarmasi && $resepFarmasi->obat_id) {
-                        $this->handleStockReturn($resepFarmasi->obat_id, $itemData['quantity_returned'], $retur);
+                        $this->handleStockReturn($resepFarmasi->obat_id, $quantityReturned, $retur);
                     }
+
+                    $this->syncResepFarmasiAfterReturn($invoiceItem, $quantityReturned);
                 }
             }
 
@@ -267,6 +270,31 @@ class ReturPembelianController extends Controller
             $retur->retur_number,
             $originalBatch // Pass the original or most recent batch
         );
+    }
+
+    private function syncResepFarmasiAfterReturn(InvoiceItem $invoiceItem, float $quantityReturned): void
+    {
+        if ($invoiceItem->billable_type !== ResepFarmasi::class || !$invoiceItem->billable_id) {
+            return;
+        }
+
+        $resepFarmasi = ResepFarmasi::find($invoiceItem->billable_id);
+        if (!$resepFarmasi) {
+            return;
+        }
+
+        $quantityField = $resepFarmasi->racikan_ke ? 'bungkus' : 'jumlah';
+        $currentQuantity = (float) ($resepFarmasi->{$quantityField} ?? 0);
+        $remainingQuantity = max(0, $currentQuantity - $quantityReturned);
+
+        if ($remainingQuantity <= 0) {
+            $resepFarmasi->delete();
+            return;
+        }
+
+        $resepFarmasi->{$quantityField} = $remainingQuantity;
+        $resepFarmasi->total = max(0, ((float) ($resepFarmasi->harga ?? 0) * $remainingQuantity) - (float) ($resepFarmasi->diskon ?? 0));
+        $resepFarmasi->save();
     }
 
     public function show($id)
