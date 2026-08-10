@@ -2,3 +2,4 @@
 @include('finance.billing.partials.modal-pdf-preview')
 @include('finance.billing.partials.modal-terima-pembayaran')
 @include('finance.billing.partials.modal-daftar-kunjungan')
+@include('finance.billing.partials.modal-merchandise-stock-out')

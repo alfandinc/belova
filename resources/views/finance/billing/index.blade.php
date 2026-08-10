@@ -41,6 +41,9 @@
                             @endforelse
                         </div>
                     </div>
+                    <button id="btn-merchandise-stock-out" type="button" class="btn btn-warning" title="Keluar Merchandise">
+                        <i class="fas fa-gift mr-1"></i> Merchandise
+                    </button>
                     <button id="btn-send-farmasi-notif" class="btn btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
                     <button id="btn-old-notifs-finance" type="button" class="btn btn-light" title="Lihat Notifikasi Lama">
                         <span style="color:#007bff; font-size:14px;">&#10084;</span>
@@ -762,10 +765,14 @@
             markFinReadBase: '{{ url("finance/notifications") }}',
             piutangReceiveBase: '{{ url('/finance/piutang') }}',
             ermPasiensSelect2Url: '{{ route("erm.pasiens.select2") }}',
+            ermPasienMerchandiseBaseUrl: '{{ url("erm/pasiens") }}',
             ermVisitationsStoreUrl: '{{ route("erm.visitations.store") }}',
             ermVisitationsProdukStoreUrl: '{{ route("erm.visitations.produk.store") }}',
             ermVisitationsLabStoreUrl: '{{ route("erm.visitations.lab.store") }}',
             ermCekAntrianUrl: '{{ route("erm.visitations.cekAntrian") }}',
+            marketingMasterMerchandiseDataUrl: '{{ route("marketing.master_merchandise.data") }}',
+            marketingMasterMerchandiseBaseUrl: '{{ url("marketing/master-merchandise") }}',
+            ermRawatjalanMerchandiseStockOutUrl: '{{ route("erm.rawatjalans.merchandise.stock-out") }}',
             getDoktersBaseUrl: '{{ url('/get-dokters') }}',
             csrfToken: '{{ csrf_token() }}'
         };
@@ -920,6 +927,24 @@
             if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openDaftarKunjunganModal === 'function') {
                 e.preventDefault();
                 window.financeBillingIndexModals.openDaftarKunjunganModal(mode);
+            }
+        });
+
+        $(document).on('click', '#btn-merchandise-stock-out', function (e) {
+            if (!window.__billingIndexLazyAssetsReady) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                ensureBillingIndexLazyAssets().then(function () {
+                    if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openMerchandiseStockOutModal === 'function') {
+                        window.financeBillingIndexModals.openMerchandiseStockOutModal();
+                    }
+                });
+                return;
+            }
+
+            if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openMerchandiseStockOutModal === 'function') {
+                e.preventDefault();
+                window.financeBillingIndexModals.openMerchandiseStockOutModal();
             }
         });
 

@@ -452,9 +452,11 @@
             + '<thead><tr><th>Tanggal</th><th>Tipe</th><th>Qty</th><th>Stok Saat Itu</th><th>Catatan</th></tr></thead><tbody>';
 
         rows.forEach(function (row) {
+            var typeText = String((row.type || '').toUpperCase() || '-');
+            var typeClass = typeText === 'OUT' ? 'text-danger font-weight-bold' : (typeText === 'IN' ? 'text-success font-weight-bold' : '');
             html += '<tr>'
                 + '<td>' + escapeHtml(row.tanggal || '-') + '</td>'
-                + '<td>' + escapeHtml((row.type || '').toUpperCase() || '-') + '</td>'
+                + '<td class="' + typeClass + '">' + escapeHtml(typeText) + '</td>'
                 + '<td>' + escapeHtml(row.qty || 0) + '</td>'
                 + '<td>' + escapeHtml(row.current_stock || 0) + '</td>'
                 + '<td>' + escapeHtml(row.notes || '-') + '</td>'
