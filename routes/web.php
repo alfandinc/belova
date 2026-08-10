@@ -955,6 +955,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/scheduled-messages', [RawatJalanController::class, 'scheduledMessages'])->name('erm.rawatjalans.scheduledMessages');
     Route::get('/rawatjalans/{visitation}/messages', [RawatJalanController::class, 'visitationMessages'])->name('erm.rawatjalans.visitationMessages');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
+    Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     Route::get('/rujuk/{id}/surat', [App\Http\Controllers\ERM\RawatJalanController::class, 'printRujukSurat'])->name('erm.rujuk.surat');

@@ -13,6 +13,8 @@ use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\ScreeningVaksin;
 use App\Models\ERM\Rujuk;
 use App\Models\ERM\LabPermintaan;
+use App\Models\ERM\Merchandise;
+use App\Models\ERM\MerchandiseKartuStok;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +110,54 @@ class RawatJalanController extends Controller
             ->view('erm.rawatjalans.assets.index_js', compact('dokters', 'metodeBayar', 'role', 'defaultDokterId', 'isDokter'))
             ->header('Content-Type', 'application/javascript; charset=UTF-8')
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    }
+
+    public function merchandiseStockOut(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $data = $request->validate([
+            'merchandise_id' => 'required|integer|exists:erm_merchandises,id',
+            'quantity' => 'required|integer|min:1',
+            'reason' => 'required|string|max:255',
+            'notes' => 'nullable|string',
+        ]);
+
+        $merchandise = Merchandise::findOrFail($data['merchandise_id']);
+        $quantity = (int) $data['quantity'];
+        $currentStock = MerchandiseKartuStok::getLatestCurrentStock($merchandise->id);
+
+        if ($quantity > $currentStock) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Qty merchandise melebihi stok yang tersedia. Sisa stok saat ini: ' . $currentStock,
+                'current_stock' => $currentStock,
+            ], 422);
+        }
+
+        DB::transaction(function () use ($merchandise, $quantity, $data) {
+            $notes = 'Pengeluaran merchandise untuk ' . trim($data['reason']);
+            if (!empty($data['notes'])) {
+                $notes .= ' | Catatan: ' . trim($data['notes']);
+            }
+
+            MerchandiseKartuStok::create([
+                'merchandise_id' => $merchandise->id,
+                'tanggal' => now(),
+                'type' => 'out',
+                'qty' => $quantity,
+                'current_stock' => MerchandiseKartuStok::calculateCurrentStock($merchandise->id, 'out', $quantity),
+                'notes' => $notes,
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengeluaran merchandise berhasil disimpan.',
+            'current_stock' => MerchandiseKartuStok::getLatestCurrentStock($merchandise->id),
+        ]);
     }
 
     /**

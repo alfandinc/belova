@@ -53,6 +53,9 @@
                                 <i class="fas fa-bell"></i> Notification
                                 <span id="notification-unread-badge" class="badge badge-danger position-absolute" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px; display:none;">0</span>
                             </button>
+                            <button id="btn-merchandise-stock-out" class="btn btn-info">
+                                <i class="fas fa-gift"></i> Merchandise
+                            </button>
                         @endif
                     </div>
                 </div>

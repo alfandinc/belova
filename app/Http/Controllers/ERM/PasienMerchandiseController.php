@@ -43,6 +43,19 @@ class PasienMerchandiseController extends Controller
         }
     }
 
+    protected function ensureCurrentStockAvailable(Merchandise $merchandise, int $requestedQty): void
+    {
+        $currentStock = MerchandiseKartuStok::getLatestCurrentStock($merchandise->id);
+
+        if ($requestedQty > $currentStock) {
+            abort(response()->json([
+                'success' => false,
+                'message' => 'Qty merchandise melebihi stok yang tersedia. Sisa stok saat ini: ' . $currentStock,
+                'current_stock' => $currentStock,
+            ], 422));
+        }
+    }
+
     protected function recordKartuStok(Merchandise $merchandise, string $type, int $qty, string $notes): void
     {
         MerchandiseKartuStok::create([
@@ -104,6 +117,7 @@ class PasienMerchandiseController extends Controller
 
         $rec = DB::transaction(function () use ($pasien, $data, $quantity, $merchandise) {
             $this->ensureMonthlyLimitAvailable($merchandise, $quantity);
+            $this->ensureCurrentStockAvailable($merchandise, $quantity);
 
             $rec = PasienMerchandise::create([
                 'pasien_id' => $pasien->id,
@@ -118,7 +132,7 @@ class PasienMerchandiseController extends Controller
                 $merchandise,
                 'out',
                 $quantity,
-                'Pemberian merchandise ke pasien ' . $pasien->id . ' - ' . ($pasien->nama ?? '-')
+                'Pemberian merchandise ke pasien ' . $pasien->id . ' - ' . ($pasien->nama ?? '-') . (!empty($data['notes']) ? ' | Catatan: ' . trim($data['notes']) : '')
             );
 
             return $rec;
@@ -157,6 +171,7 @@ class PasienMerchandiseController extends Controller
         DB::transaction(function () use ($pasien, $data, $rec, $merchandise, $newQty, $delta) {
             if ($delta > 0) {
                 $this->ensureMonthlyLimitAvailable($merchandise, $delta);
+                $this->ensureCurrentStockAvailable($merchandise, $delta);
             }
 
             if ($delta !== 0) {

@@ -371,6 +371,273 @@
         loadNotificationHistory();
     });
 
+    var merchandiseStockOutCatalog = null;
+
+    function resetMerchandiseStockOutForm() {
+        $('#form-merchandise-stock-out')[0].reset();
+        $('#merchandise-stock-out-item').val('').trigger('change');
+        $('#merchandise-history-item').val('').trigger('change');
+        $('#merchandise-stock-out-pasien').val(null).trigger('change');
+        $('#merchandise-stock-out-pasien').prop('required', true);
+        $('#merchandise-stock-out-reason').prop('required', false).val('');
+        $('#merchandise-stock-out-qty').attr('max', '').val(1);
+        $('#merchandise-stock-out-summary').text('Pilih item untuk melihat stok tersedia.');
+        $('#merchandise-history-content').html('<div class="text-muted">Pilih merchandise untuk melihat riwayat.</div>');
+        $('#merchandise-target-pasien').prop('checked', true);
+        $('#tab-berikan-merchandise').tab('show');
+        toggleMerchandiseStockOutTargetFields();
+    }
+
+    function toggleMerchandiseStockOutTargetFields() {
+        var targetType = $('input[name="target_type"]:checked', '#form-merchandise-stock-out').val();
+        var isPasien = targetType === 'pasien';
+
+        $('#merchandise-pasien-field').toggleClass('d-none', !isPasien);
+        $('#merchandise-reason-field').toggleClass('d-none', isPasien);
+        $('#merchandise-stock-out-pasien').prop('required', isPasien);
+        $('#merchandise-stock-out-reason').prop('required', !isPasien);
+    }
+
+    function renderMerchandiseStockOutSummary(item) {
+        if (!item) {
+            $('#merchandise-stock-out-summary').text('Pilih item untuk melihat stok tersedia.');
+            $('#merchandise-stock-out-qty').attr('max', '');
+            return;
+        }
+
+        var currentStock = parseInt(item.current_stock || 0, 10);
+        var remaining = item.remaining_monthly_stock;
+        var summary = 'Stok saat ini: ' + currentStock;
+        if (remaining !== null && remaining !== undefined && remaining !== '') {
+            summary += ' | Sisa limit bulanan: ' + remaining;
+        } else {
+            summary += ' | Tanpa limit bulanan';
+        }
+
+        $('#merchandise-stock-out-summary').text(summary);
+        $('#merchandise-stock-out-qty').attr('max', Math.max(currentStock, 1));
+    }
+
+    function getSelectedMerchandiseStockOutItem() {
+        var selectedId = String($('#merchandise-stock-out-item').val() || '');
+        if (!selectedId || !Array.isArray(merchandiseStockOutCatalog)) {
+            return null;
+        }
+
+        return merchandiseStockOutCatalog.find(function (item) {
+            return String(item.id) === selectedId;
+        }) || null;
+    }
+
+    function populateMerchandiseStockOutItems(items) {
+        var $select = $('#merchandise-stock-out-item');
+        var $historySelect = $('#merchandise-history-item');
+        var options = '<option value="">Pilih merchandise</option>';
+
+        (items || []).forEach(function (item) {
+            options += '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name || '-') + '</option>';
+        });
+
+        $select.html(options).trigger('change');
+        $historySelect.html(options).trigger('change');
+    }
+
+    function renderMerchandiseHistoryRows(rows) {
+        if (!rows || !rows.length) {
+            $('#merchandise-history-content').html('<div class="text-muted">Belum ada riwayat merchandise untuk item ini.</div>');
+            return;
+        }
+
+        var html = '<table class="table table-sm table-bordered mb-0">'
+            + '<thead><tr><th>Tanggal</th><th>Tipe</th><th>Qty</th><th>Stok Saat Itu</th><th>Catatan</th></tr></thead><tbody>';
+
+        rows.forEach(function (row) {
+            html += '<tr>'
+                + '<td>' + escapeHtml(row.tanggal || '-') + '</td>'
+                + '<td>' + escapeHtml((row.type || '').toUpperCase() || '-') + '</td>'
+                + '<td>' + escapeHtml(row.qty || 0) + '</td>'
+                + '<td>' + escapeHtml(row.current_stock || 0) + '</td>'
+                + '<td>' + escapeHtml(row.notes || '-') + '</td>'
+                + '</tr>';
+        });
+
+        html += '</tbody></table>';
+        $('#merchandise-history-content').html(html);
+    }
+
+    function loadMerchandiseHistory(merchandiseId) {
+        if (!merchandiseId) {
+            $('#merchandise-history-content').html('<div class="text-muted">Pilih merchandise untuk melihat riwayat.</div>');
+            return;
+        }
+
+        $('#merchandise-history-content').html('<div class="text-center text-muted"><span class="spinner-border spinner-border-sm mr-2"></span>Memuat riwayat...</div>');
+        $.get('{{ url("marketing/master-merchandise") }}/' + merchandiseId + '/stock-history')
+            .done(function (response) {
+                renderMerchandiseHistoryRows(response && response.data ? response.data : []);
+            })
+            .fail(function () {
+                $('#merchandise-history-content').html('<div class="text-danger">Gagal memuat riwayat merchandise.</div>');
+            });
+    }
+
+    function loadMerchandiseStockOutCatalog() {
+        if (Array.isArray(merchandiseStockOutCatalog)) {
+            return $.Deferred().resolve(merchandiseStockOutCatalog).promise();
+        }
+
+        return $.get('{{ route("marketing.master_merchandise.data") }}').then(function (response) {
+            merchandiseStockOutCatalog = response && response.data ? response.data : [];
+            populateMerchandiseStockOutItems(merchandiseStockOutCatalog);
+            return merchandiseStockOutCatalog;
+        });
+    }
+
+    function initializeMerchandiseStockOutModal() {
+        var $itemSelect = $('#merchandise-stock-out-item');
+        var $historySelect = $('#merchandise-history-item');
+        var $pasienSelect = $('#merchandise-stock-out-pasien');
+        var $modal = $('#modalMerchandiseStockOut');
+
+        if (!$itemSelect.hasClass('select2-hidden-accessible')) {
+            $itemSelect.select2({
+                width: '100%',
+                dropdownParent: $modal,
+                placeholder: 'Pilih merchandise'
+            });
+        }
+
+        if (!$pasienSelect.hasClass('select2-hidden-accessible')) {
+            $pasienSelect.select2({
+                width: '100%',
+                dropdownParent: $modal,
+                placeholder: 'Cari nama pasien atau no. RM',
+                ajax: {
+                    url: '{{ route("erm.pasiens.select2") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term || '' };
+                    },
+                    processResults: function (data) {
+                        return data;
+                    }
+                },
+                minimumInputLength: 1
+            });
+        }
+
+        if (!$historySelect.hasClass('select2-hidden-accessible')) {
+            $historySelect.select2({
+                width: '100%',
+                dropdownParent: $modal,
+                placeholder: 'Pilih merchandise'
+            });
+        }
+    }
+
+    function openMerchandiseStockOutModal() {
+        ensureRawatJalanCommonModalsLoaded().done(function () {
+            initializeMerchandiseStockOutModal();
+            resetMerchandiseStockOutForm();
+
+            loadMerchandiseStockOutCatalog().done(function () {
+                $('#modalMerchandiseStockOut').modal('show');
+            }).fail(function () {
+                Swal.fire('Gagal', 'Tidak dapat memuat daftar merchandise.', 'error');
+            });
+        });
+    }
+
+    $(document).on('click', '#btn-merchandise-stock-out', function () {
+        openMerchandiseStockOutModal();
+    });
+
+    $(document).on('change', 'input[name="target_type"]', function () {
+        toggleMerchandiseStockOutTargetFields();
+    });
+
+    $(document).on('change', '#merchandise-stock-out-item', function () {
+        renderMerchandiseStockOutSummary(getSelectedMerchandiseStockOutItem());
+    });
+
+    $(document).on('change', '#merchandise-history-item', function () {
+        loadMerchandiseHistory($(this).val());
+    });
+
+    $(document).on('shown.bs.tab', '#tab-riwayat-merchandise', function () {
+        var historyId = $('#merchandise-history-item').val() || $('#merchandise-stock-out-item').val();
+        if (historyId && !$('#merchandise-history-item').val()) {
+            $('#merchandise-history-item').val(historyId).trigger('change');
+            return;
+        }
+
+        loadMerchandiseHistory(historyId);
+    });
+
+    $(document).on('submit', '#form-merchandise-stock-out', function (e) {
+        e.preventDefault();
+
+        var targetType = $('input[name="target_type"]:checked', this).val();
+        var selectedItem = getSelectedMerchandiseStockOutItem();
+        var quantity = parseInt($('#merchandise-stock-out-qty').val() || 0, 10);
+        var notes = $('#merchandise-stock-out-notes').val();
+
+        if (!selectedItem) {
+            Swal.fire('Validasi', 'Pilih merchandise terlebih dahulu.', 'warning');
+            return;
+        }
+
+        if (!quantity || quantity < 1) {
+            Swal.fire('Validasi', 'Qty keluar harus lebih dari 0.', 'warning');
+            return;
+        }
+
+        if (quantity > parseInt(selectedItem.current_stock || 0, 10)) {
+            Swal.fire('Validasi', 'Qty keluar melebihi stok yang tersedia.', 'warning');
+            return;
+        }
+
+        var payload = {
+            _token: $('meta[name="csrf-token"]').attr('content'),
+            merchandise_id: selectedItem.id,
+            quantity: quantity,
+            notes: notes
+        };
+
+        var request;
+        if (targetType === 'pasien') {
+            var pasienId = $('#merchandise-stock-out-pasien').val();
+            if (!pasienId) {
+                Swal.fire('Validasi', 'Pilih pasien terlebih dahulu.', 'warning');
+                return;
+            }
+            request = $.post('{{ url("erm/pasiens") }}/' + pasienId + '/merchandises', payload);
+        } else {
+            var reason = $.trim($('#merchandise-stock-out-reason').val() || '');
+            if (!reason) {
+                Swal.fire('Validasi', 'Isi keperluan pengeluaran terlebih dahulu.', 'warning');
+                return;
+            }
+            payload.reason = reason;
+            request = $.post('{{ route("erm.rawatjalans.merchandise.stock-out") }}', payload);
+        }
+
+        $('#btn-submit-merchandise-stock-out').prop('disabled', true);
+
+        request.done(function (response) {
+            var message = response && response.message ? response.message : 'Pengeluaran merchandise berhasil disimpan.';
+            $('#modalMerchandiseStockOut').modal('hide');
+            merchandiseStockOutCatalog = null;
+            $('#rawatjalan-table').DataTable().ajax.reload(null, false);
+            Swal.fire('Berhasil', message, 'success');
+        }).fail(function (xhr) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Pengeluaran merchandise gagal disimpan.') });
+        }).always(function () {
+            $('#btn-submit-merchandise-stock-out').prop('disabled', false);
+        });
+    });
+
     $(document).on('click', '.btn-mark-notification-read', function () {
         var notificationId = $(this).data('notification-id');
         if (!notificationId) {
@@ -1538,6 +1805,7 @@ function ensureRawatJalanCommonModalsLoaded() {
         $('#modalVisitationList').length &&
         $('#modalNotificationHistory').length &&
         $('#modalPasienMerch').length &&
+        $('#modalMerchandiseStockOut').length &&
         $('#modalMetodeBayar').length &&
         $('#modalEditAntrian').length
     ) {
@@ -1550,7 +1818,7 @@ function ensureRawatJalanCommonModalsLoaded() {
 
     __rawatjalanCommonModalsLoading = $.get(__rawatjalanCommonModalsUrl)
         .done(function (html) {
-            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalNotificationHistory, #modalPasienMerch, #modalMetodeBayar, #modalEditAntrian').remove();
+            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalNotificationHistory, #modalPasienMerch, #modalMerchandiseStockOut, #modalMetodeBayar, #modalEditAntrian').remove();
             $('body').append(html);
         })
         .always(function () {
