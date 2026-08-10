@@ -1183,7 +1183,7 @@ class ObatController extends Controller
 
             $obatsQuery->whereIn('metode_bayar_id', $allowedMetodeBayarIds);
         }
-        $obats = $obatsQuery->limit(10)->get();
+        $obats = $obatsQuery->limit(20)->get();
 
         // Return the data in Select2 format (with 'results' key)
         // Get mapped gudang for resep
