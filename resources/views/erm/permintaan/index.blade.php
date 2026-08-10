@@ -39,6 +39,7 @@
             flex-direction: column;
             justify-content: center;
             gap: 0.15rem;
+            box-sizing: border-box;
         }
 
         #permintaan-table .permintaan-stack-row:last-child {
@@ -273,6 +274,41 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    function alignPermintaanStackRows() {
+        $('#permintaan-table tbody tr').each(function() {
+            var $cells = $(this).children('td');
+            var groups = [
+                $cells.eq(2).find('.permintaan-stack-row'),
+                $cells.eq(3).find('.permintaan-stack-row'),
+                $cells.eq(4).find('.permintaan-stack-row')
+            ];
+
+            groups.forEach(function($rows) {
+                $rows.css('min-height', '48px');
+            });
+
+            var maxRows = Math.max(groups[0].length, groups[1].length, groups[2].length);
+
+            for (var index = 0; index < maxRows; index++) {
+                var maxHeight = 48;
+
+                groups.forEach(function($rows) {
+                    var $row = $rows.eq(index);
+                    if ($row.length) {
+                        maxHeight = Math.max(maxHeight, $row.outerHeight());
+                    }
+                });
+
+                groups.forEach(function($rows) {
+                    var $row = $rows.eq(index);
+                    if ($row.length) {
+                        $row.css('min-height', maxHeight + 'px');
+                    }
+                });
+            }
+        });
+    }
+
     function formatRupiah(value) {
         return 'Rp ' + Number(value || 0).toLocaleString('id-ID', {
             minimumFractionDigits: 0,
@@ -392,6 +428,9 @@ $(document).ready(function() {
                 next: "Selanjutnya",
                 previous: "Sebelumnya"
             }
+        },
+        drawCallback: function() {
+            alignPermintaanStackRows();
         }
     });
 
@@ -400,6 +439,10 @@ $(document).ready(function() {
     });
 
     $('#permintaanTableFilters').prependTo('#permintaan-table_filter').removeClass('d-none');
+
+    $(window).on('resize', function() {
+        alignPermintaanStackRows();
+    });
 
     $('#requestDateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
