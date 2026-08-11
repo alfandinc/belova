@@ -104,10 +104,19 @@
                         <form id="greetingForm">
                             <input type="hidden" id="pasien-id">
                             <input type="hidden" id="pasien-age">
-                            <input type="hidden" id="klinik-id">
                             <div class="form-group">
                                 <label for="patient-name">Nama Pasien</label>
                                 <input type="text" class="form-control" id="patient-name" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="greeting-klinik">Klinik Template</label>
+                                <select class="form-control" id="greeting-klinik">
+                                    <option value="">Pilih Klinik</option>
+                                    @foreach($kliniks as $klinik)
+                                        <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                                    @endforeach
+                                </select>
+                                <small class="text-muted">Template kartu ucapan akan mengikuti klinik yang dipilih</small>
                             </div>
                             <div class="form-group">
                                 <label for="greeting-prefix">Sapaan</label>
@@ -238,18 +247,32 @@
             return phoneNumber;
         }
 
+        function resetImagePreview() {
+            $('#image-preview').html('<p class="text-muted">Klik "Generate Kartu Ucapan" untuk membuat gambar</p>');
+            $('#image-actions').hide();
+            $('#download-image').attr('href', '#').removeAttr('download');
+        }
+
         // Handle click on "Ucapkan" button
         $(document).on('click', '.send-greeting', function() {
             let patientId = $(this).data('id');
             let patientName = $(this).data('name');
             let phoneNumber = $(this).data('phone') || '';
             let prefix = $(this).data('prefix');
+            let klinikId = $(this).data('klinik') || '';
+            let age = $(this).data('age');
             
-            // Set hidden input
+            resetImagePreview();
+
+            // Set hidden inputs
             $('#pasien-id').val(patientId);
+            $('#pasien-age').val(age);
             
             // Set prefix in dropdown
             $('#greeting-prefix').val(prefix);
+
+            // Default template clinic from patient/latest visitation, still editable by user
+            $('#greeting-klinik').val(klinikId);
             
             // Set patient name
             $('#patient-name').val(patientName);
@@ -269,6 +292,10 @@
             let prefix = $(this).val();
             let patientName = $('#patient-name').val();
             updateGreetingMessage(prefix, patientName);
+        });
+
+        $('#greeting-klinik').change(function() {
+            resetImagePreview();
         });
 
         // Function to update greeting message
@@ -321,48 +348,20 @@
     });
 });
 
-$(document).on('click', '.send-greeting', function() {
-    let patientId = $(this).data('id');
-    let patientName = $(this).data('name');
-    let phoneNumber = $(this).data('phone') || '';
-    let prefix = $(this).data('prefix');
-    let klinikId = $(this).data('klinik') || '';
-    let age = $(this).data('age');
-    
-    // Reset image preview
-    $('#image-preview').html('<p class="text-muted">Klik "Generate Kartu Ucapan" untuk membuat gambar</p>');
-    $('#image-actions').hide();
-    
-    // Set hidden inputs
-    $('#pasien-id').val(patientId);
-    $('#pasien-age').val(age);
-    $('#klinik-id').val(klinikId);
-    
-    // Set prefix in dropdown
-    $('#greeting-prefix').val(prefix);
-    
-    // Set patient name
-    $('#patient-name').val(patientName);
-    
-    // Set phone number
-    $('#phone-number').val(phoneNumber);
-    
-    // Update greeting message based on prefix and name
-    updateGreetingMessage(prefix, patientName);
-    
-    // Show modal
-    $('#greetingModal').modal('show');
-});
-
 // Generate birthday greeting image
 $('#generate-image').click(function() {
     let name = $('#patient-name').val();
     let prefix = $('#greeting-prefix').val();
     let age = $('#pasien-age').val();
-    let klinikId = $('#klinik-id').val();
+    let klinikId = $('#greeting-klinik').val();
     
     if (!name) {
         alert('Nama pasien tidak boleh kosong');
+        return;
+    }
+
+    if (!klinikId) {
+        alert('Silakan pilih klinik template terlebih dahulu');
         return;
     }
     
