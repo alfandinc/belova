@@ -59,6 +59,7 @@ use App\Http\Controllers\ERM\{
 };
 use App\Http\Controllers\ERM\ObatMappingController;
 use App\Http\Controllers\ERM\AturanPakaiController;
+use App\Http\Controllers\ERM\LabPaketController;
 
 use App\Http\Controllers\HRD\{
     EmployeeController,
@@ -2250,7 +2251,9 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
 
     // Data endpoints for DataTables
     Route::get('/lab-tests/data', [\App\Http\Controllers\ERM\LabTestController::class, 'data'])->name('erm.labtests.data');
+    Route::get('/lab-tests/list', [\App\Http\Controllers\ERM\LabTestController::class, 'list'])->name('erm.labtests.list');
     Route::get('/lab-kategories/data', [\App\Http\Controllers\ERM\LabKategoriController::class, 'data'])->name('erm.labkategories.data');
+    Route::get('/lab-pakets/data', [LabPaketController::class, 'data'])->name('erm.labpakets.data');
     // Export master lab tests to Excel
     Route::get('/lab-tests/export', [\App\Http\Controllers\ERM\LabTestController::class, 'export'])->name('erm.labtests.export');
 
@@ -2265,6 +2268,10 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
     Route::post('/lab-tests', [\App\Http\Controllers\ERM\LabTestController::class, 'store'])->name('erm.labtests.store');
     Route::put('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'update'])->name('erm.labtests.update');
     Route::delete('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'destroy'])->name('erm.labtests.destroy');
+    Route::get('/lab-pakets/{id}', [LabPaketController::class, 'show'])->name('erm.labpakets.show');
+    Route::post('/lab-pakets', [LabPaketController::class, 'store'])->name('erm.labpakets.store');
+    Route::put('/lab-pakets/{id}', [LabPaketController::class, 'update'])->name('erm.labpakets.update');
+    Route::delete('/lab-pakets/{id}', [LabPaketController::class, 'destroy'])->name('erm.labpakets.destroy');
     // Toggle availability
     Route::post('/lab-tests/{id}/toggle-availability', [\App\Http\Controllers\ERM\LabTestController::class, 'toggleAvailability'])->name('erm.labtests.toggle_availability');
 });

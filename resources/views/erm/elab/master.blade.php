@@ -38,7 +38,7 @@
     </div>
 
     <div class="row">
-        <div class="col-md-7">
+        <div class="col-lg-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Lab Tests</h5>
@@ -62,7 +62,31 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-5">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Paket Lab</h5>
+                    <button class="btn btn-sm btn-info" id="btn-add-paket">Tambah Paket Lab</button>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered w-100" id="labpakets-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Nama</th>
+                                <th>Harga Paket</th>
+                                <th>Jumlah Test</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-lg-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Kategori</h5>
@@ -173,12 +197,79 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Paket Lab -->
+<div class="modal fade" id="modalLabPaket" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="labPaketModalTitle">Tambah Paket Lab</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="form-lab-paket">
+                <div class="modal-body">
+                        <input type="hidden" id="lab_paket_id">
+                        <div class="form-group">
+                                <label>Nama Paket</label>
+                                <input type="text" class="form-control" id="paket_nama" required>
+                                <div class="invalid-feedback" id="err_paket_nama"></div>
+                        </div>
+                        <div class="form-row">
+                                <div class="form-group col-md-4">
+                                        <label>Harga Paket</label>
+                                        <input type="number" min="0" class="form-control" id="paket_harga" required>
+                                        <div class="invalid-feedback" id="err_paket_harga"></div>
+                                </div>
+                                <div class="form-group col-md-8">
+                                        <label>Deskripsi</label>
+                                        <textarea class="form-control" id="paket_deskripsi" rows="2"></textarea>
+                                        <div class="invalid-feedback" id="err_paket_deskripsi"></div>
+                                </div>
+                        </div>
+                        <div class="form-group mb-0">
+                            <label>Cari Lab Test</label>
+                            <select id="paket_lab_test_search" class="form-control" style="width:100%"></select>
+                            <small class="form-text text-muted">Cari lab test, lalu item yang dipilih akan masuk ke tabel isi paket.</small>
+                        </div>
+                        <div class="form-group mt-3 mb-0">
+                            <label>Isi Lab Test</label>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered mb-0" id="paket-lab-test-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nama</th>
+                                            <th>Kategori</th>
+                                            <th>Harga</th>
+                                            <th style="width:80px;">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paket-lab-test-list">
+                                        <tr class="paket-empty-row">
+                                            <td colspan="4" class="text-center text-muted">Belum ada lab test di dalam paket.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="invalid-feedback d-block" id="err_paket_lab_test_ids"></div>
+                        </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="btn-save-labpaket">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
 $(function(){
     let csrf = $('meta[name="csrf-token"]').attr('content');
+    let paketLabTests = [];
 
     // --- DataTables Init ---
     let testTable = $('#labtests-table').DataTable({
@@ -189,6 +280,18 @@ $(function(){
             {data:'nama'},
             {data:'kategori', name:'labKategori.nama'},
             {data:'harga', render:function(d){ if(!d) return '0'; return Number(d).toLocaleString('id-ID'); }},
+            {data:'actions', orderable:false, searchable:false}
+        ]
+    });
+
+    let paketTable = $('#labpakets-table').DataTable({
+        processing:true, serverSide:true, responsive:true,
+        ajax: '{!! route('erm.labpakets.data') !!}',
+        columns:[
+            {data:'DT_RowIndex', orderable:false, searchable:false},
+            {data:'nama'},
+            {data:'harga_paket', render:function(d){ if(!d) return '0'; return Number(d).toLocaleString('id-ID'); }},
+            {data:'lab_tests_count', orderable:false, searchable:false},
             {data:'actions', orderable:false, searchable:false}
         ]
     });
@@ -217,6 +320,91 @@ $(function(){
             if(selected) select.val(selected);
         });
     }
+    function formatMoney(value){
+        if(!value) return 'Rp 0';
+        return 'Rp ' + Number(value).toLocaleString('id-ID');
+    }
+    $('#paket_lab_test_search').select2({
+        dropdownParent: $('#modalLabPaket'),
+        placeholder: 'Cari dan pilih lab test',
+        width: '100%',
+        ajax: {
+            url: '{!! route('erm.labtests.list') !!}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params){
+                return { q: params.term };
+            },
+            processResults: function(data){
+                return {
+                    results: (data || []).map(function(item){
+                        return {
+                            id: item.id,
+                            text: `${item.nama} | ${item.kategori || '-'} | ${formatMoney(item.harga)}`,
+                            nama: item.nama,
+                            kategori: item.kategori || '-',
+                            harga: item.harga || 0
+                        };
+                    })
+                };
+            }
+        }
+    });
+
+    function renderPaketLabTestRows(){
+        let tbody = $('#paket-lab-test-list');
+        tbody.empty();
+
+        if(!paketLabTests.length){
+            tbody.append(`
+                <tr class="paket-empty-row">
+                    <td colspan="4" class="text-center text-muted">Belum ada lab test di dalam paket.</td>
+                </tr>
+            `);
+            return;
+        }
+
+        paketLabTests.forEach(function(item){
+            tbody.append(`
+                <tr data-id="${item.id}">
+                    <td>${item.nama}</td>
+                    <td>${item.kategori || '-'}</td>
+                    <td>${formatMoney(item.harga)}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-danger btn-remove-paket-test" data-id="${item.id}">Hapus</button>
+                    </td>
+                </tr>
+            `);
+        });
+    }
+
+    function setPaketLabTests(items){
+        paketLabTests = items.map(function(item){
+            return {
+                id: Number(item.id),
+                nama: item.nama,
+                kategori: item.kategori || item.lab_kategori?.nama || '-',
+                harga: item.harga || 0
+            };
+        });
+        renderPaketLabTestRows();
+    }
+
+    function addPaketLabTest(item){
+        let exists = paketLabTests.some(function(row){ return Number(row.id) === Number(item.id); });
+        if(exists){
+            return;
+        }
+
+        paketLabTests.push({
+            id: Number(item.id),
+            nama: item.nama,
+            kategori: item.kategori || '-',
+            harga: item.harga || 0
+        });
+        renderPaketLabTestRows();
+        $('#err_paket_lab_test_ids').text('');
+    }
 
     // Reset helpers
     function resetLabTestForm(){
@@ -227,6 +415,17 @@ $(function(){
         $('#lab-obat-list').empty();
         clearErrors('#form-lab-test');
         $('#labTestModalTitle').text('Tambah Lab Test');
+    }
+    function resetLabPaketForm(){
+        $('#lab_paket_id').val('');
+        $('#paket_nama').val('');
+        $('#paket_harga').val('');
+        $('#paket_deskripsi').val('');
+        paketLabTests = [];
+        $('#paket_lab_test_search').val(null).trigger('change');
+        renderPaketLabTestRows();
+        clearErrors('#form-lab-paket');
+        $('#labPaketModalTitle').text('Tambah Paket Lab');
     }
     function resetKategoriForm(){
         $('#kategori_id').val('');
@@ -253,6 +452,20 @@ $(function(){
         resetLabTestForm();
         loadKategoriSelect();
         $('#modalLabTest').modal('show');
+    });
+    $('#btn-add-paket').on('click', function(){
+        resetLabPaketForm();
+        $('#modalLabPaket').modal('show');
+    });
+    $('#paket_lab_test_search').on('select2:select', function(e){
+        let item = e.params.data || {};
+        addPaketLabTest(item);
+        $(this).val(null).trigger('change');
+    });
+    $(document).on('click', '.btn-remove-paket-test', function(){
+        let id = Number($(this).data('id'));
+        paketLabTests = paketLabTests.filter(function(item){ return Number(item.id) !== id; });
+        renderPaketLabTestRows();
     });
     // Add obat row
     function initObatSelect($el){
@@ -329,6 +542,19 @@ $(function(){
             $('#modalLabTest').modal('show');
         }).fail(function(){ alert('Gagal mengambil data'); });
     });
+    $(document).on('click','.edit-paket', function(){
+        resetLabPaketForm();
+        let id = $(this).data('id');
+        $('#lab_paket_id').val(id);
+        $.getJSON(`/erm/lab-pakets/${id}`, function(resp){
+            $('#paket_nama').val(resp.nama);
+            $('#paket_harga').val(resp.harga_paket);
+            $('#paket_deskripsi').val(resp.deskripsi || '');
+            setPaketLabTests(resp.lab_tests || []);
+            $('#labPaketModalTitle').text('Edit Paket Lab');
+            $('#modalLabPaket').modal('show');
+        }).fail(function(){ alert('Gagal mengambil data paket'); });
+    });
     $(document).on('click','.edit-kategori', function(){
         resetKategoriForm();
         $('#kategori_id').val($(this).data('id'));
@@ -372,6 +598,17 @@ $(function(){
             error: xhr=>{ alert(xhr.responseJSON?.message || 'Error'); }
         });
     });
+    $(document).on('click','.delete-paket', function(){
+        if(!confirm('Hapus paket lab ini?')) return;
+        let id = $(this).data('id');
+        $.ajax({
+            url: `/erm/lab-pakets/${id}`,
+            type:'DELETE',
+            headers:{'X-CSRF-TOKEN':csrf},
+            success: res=>{ paketTable.ajax.reload(null,false); },
+            error: xhr=>{ alert(xhr.responseJSON?.message || 'Error'); }
+        });
+    });
 
     // Submit lab test
     $('#form-lab-test').on('submit', function(e){
@@ -406,6 +643,42 @@ $(function(){
                 if(xhr.status === 422){
                     showErrors('#form-lab-test', xhr.responseJSON.errors || {nama:[xhr.responseJSON.message]});
                 } else { alert(xhr.responseJSON?.message || 'Error'); }
+            }
+        });
+    });
+
+    // Submit paket lab
+    $('#form-lab-paket').on('submit', function(e){
+        e.preventDefault();
+        clearErrors('#form-lab-paket');
+        let id = $('#lab_paket_id').val();
+        let method = id ? 'PUT' : 'POST';
+        let url = id ? `/erm/lab-pakets/${id}` : `/erm/lab-pakets`;
+        $.ajax({
+            url, type: method,
+            headers:{'X-CSRF-TOKEN':csrf},
+            data:{
+                nama: $('#paket_nama').val(),
+                harga_paket: $('#paket_harga').val(),
+                deskripsi: $('#paket_deskripsi').val(),
+                lab_test_ids: paketLabTests.map(function(item){ return item.id; })
+            },
+            success: function(){
+                $('#modalLabPaket').modal('hide');
+                paketTable.ajax.reload();
+            },
+            error: function(xhr){
+                if(xhr.status === 422){
+                    let errors = xhr.responseJSON.errors || {};
+                    if(errors.nama){ $('#paket_nama').addClass('is-invalid'); $('#err_paket_nama').text(errors.nama[0]); }
+                    if(errors.harga_paket){ $('#paket_harga').addClass('is-invalid'); $('#err_paket_harga').text(errors.harga_paket[0]); }
+                    if(errors.deskripsi){ $('#paket_deskripsi').addClass('is-invalid'); $('#err_paket_deskripsi').text(errors.deskripsi[0]); }
+                    if(errors.lab_test_ids || errors['lab_test_ids.0']){
+                        $('#err_paket_lab_test_ids').text((errors.lab_test_ids || errors['lab_test_ids.0'])[0]);
+                    }
+                } else {
+                    alert(xhr.responseJSON?.message || 'Error');
+                }
             }
         });
     });

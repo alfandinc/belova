@@ -3,6 +3,7 @@
 namespace App\Models\ERM;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\ERM\LabPaket;
 
 class LabTest extends Model
 {
@@ -27,5 +28,11 @@ class LabTest extends Model
         return $this->belongsToMany(Obat::class, 'erm_lab_test_obat', 'lab_test_id', 'obat_id')
                     ->withPivot('dosis')
                     ->withTimestamps();
+    }
+
+    public function labPakets()
+    {
+        return $this->belongsToMany(LabPaket::class, 'erm_lab_paket_detail', 'lab_test_id', 'lab_paket_id')
+            ->withTimestamps();
     }
 }

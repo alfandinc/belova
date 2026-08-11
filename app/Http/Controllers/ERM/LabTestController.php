@@ -145,6 +145,29 @@ class LabTestController extends Controller
         return response()->json($results);
     }
 
+    public function list(Request $request)
+    {
+        $query = LabTest::query()
+            ->with('labKategori:id,nama')
+            ->orderBy('nama');
+
+        if ($request->filled('q')) {
+            $q = $request->input('q');
+            $query->where('nama', 'like', "%$q%");
+        }
+
+        $results = $query->get(['id', 'nama', 'lab_kategori_id', 'harga']);
+
+        return response()->json($results->map(function ($test) {
+            return [
+                'id' => $test->id,
+                'nama' => $test->nama,
+                'harga' => $test->harga,
+                'kategori' => optional($test->labKategori)->nama,
+            ];
+        })->values());
+    }
+
     /**
      * Export lab tests (nama, kategori, harga) to Excel
      */
