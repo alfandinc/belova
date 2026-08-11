@@ -10,6 +10,7 @@ use App\Models\ERM\HasilLis;
 use App\Models\ERM\HasilEksternal;
 use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
+use App\Models\ERM\LabPaket;
 use App\Models\ERM\LabPermintaan;
 use App\Models\ERM\Pasien;
 use App\Models\ERM\AsesmenPenunjang;
@@ -25,6 +26,72 @@ use Yajra\DataTables\Facades\DataTables;
 
 class ElabController extends Controller
 {
+    private function calculateVisitationTotalHarga($visitationId): float
+    {
+        $requests = LabPermintaan::with(['labTest:id,harga', 'labPaket:id,harga_paket'])
+            ->where('visitation_id', $visitationId)
+            ->get();
+
+        $standaloneTotal = $requests
+            ->whereNull('lab_paket_id')
+            ->sum(function ($item) {
+                return (float) optional($item->labTest)->harga;
+            });
+
+        $packageTotal = $requests
+            ->whereNotNull('lab_paket_id')
+            ->pluck('labPaket')
+            ->filter()
+            ->unique('id')
+            ->sum(function ($paket) {
+                return (float) $paket->harga_paket;
+            });
+
+        return $standaloneTotal + $packageTotal;
+    }
+
+    private function syncPackageBillingForVisitation($visitationId, $packageIds): void
+    {
+        $packageIds = collect($packageIds)
+            ->filter()
+            ->map(function ($id) {
+                return (int) $id;
+            })
+            ->unique()
+            ->values();
+
+        DB::table('finance_billing')
+            ->where('visitation_id', $visitationId)
+            ->where('billable_type', LabPaket::class)
+            ->when($packageIds->isNotEmpty(), function ($query) use ($packageIds) {
+                $query->whereNotIn('billable_id', $packageIds->all());
+            }, function ($query) {
+                return $query;
+            })
+            ->delete();
+
+        $pakets = LabPaket::whereIn('id', $packageIds->all())->get();
+        foreach ($pakets as $paket) {
+            $billing = $paket->billings()
+                ->where('visitation_id', $visitationId)
+                ->first();
+
+            if ($billing) {
+                $billing->update([
+                    'jumlah' => $paket->harga_paket,
+                    'keterangan' => 'Paket Lab: ' . $paket->nama,
+                ]);
+                continue;
+            }
+
+            $paket->billings()->create([
+                'visitation_id' => $visitationId,
+                'jumlah' => $paket->harga_paket,
+                'keterangan' => 'Paket Lab: ' . $paket->nama,
+            ]);
+        }
+    }
+
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -323,6 +390,24 @@ class ElabController extends Controller
         $labCategories = LabKategori::with(['labTests' => function($query) {
             $query->orderBy('nama');
         }])->orderBy('nama')->get();
+
+        $labPakets = LabPaket::with(['labTests.labKategori:id,nama'])
+            ->orderBy('nama')
+            ->get();
+        $labPaketPayload = $labPakets->map(function ($paket) {
+            return [
+                'id' => $paket->id,
+                'nama' => $paket->nama,
+                'harga_paket' => $paket->harga_paket,
+                'lab_tests' => $paket->labTests->map(function ($test) {
+                    return [
+                        'id' => $test->id,
+                        'nama' => $test->nama,
+                        'harga' => $test->harga,
+                    ];
+                })->values(),
+            ];
+        })->values();
         
         // Get all lab tests with their kategori for Select2 dropdown
         $labTests = LabTest::with('labKategori')->orderBy('nama')->get();
@@ -333,12 +418,11 @@ class ElabController extends Controller
                                 ->get();
         
         // Get total estimated price
-        $totalHarga = $existingLabRequests->sum(function($item) {
-            return $item->labTest->harga;
-        });
+        $totalHarga = $this->calculateVisitationTotalHarga($visitationId);
         
-        // Get existing lab test IDs for pre-checking checkboxes
-        $existingLabTestIds = $existingLabRequests->pluck('lab_test_id')->toArray();
+        // Get existing standalone lab test IDs for pre-checking checkboxes
+        $existingLabTestIds = $existingLabRequests->whereNull('lab_paket_id')->pluck('lab_test_id')->toArray();
+        $existingLabPaketIds = $existingLabRequests->pluck('lab_paket_id')->filter()->unique()->values()->toArray();
         // Map: lab_test_id => status
         $existingLabTestStatuses = $existingLabRequests->pluck('status', 'lab_test_id')->toArray();
 
@@ -355,9 +439,12 @@ class ElabController extends Controller
         return view('erm.elab.create', array_merge([
             'visitation' => $visitation,
             'labCategories' => $labCategories,
+            'labPakets' => $labPakets,
+            'labPaketPayload' => $labPaketPayload,
             'labTests' => $labTests,
             'totalHarga' => $totalHarga,
             'existingLabTestIds' => $existingLabTestIds,
+            'existingLabPaketIds' => $existingLabPaketIds,
             'existingLabTestStatuses' => $existingLabTestStatuses,
             'lastAsesmen' => $lastAsesmen
         ], $pasienData, $createKunjunganData));
@@ -414,7 +501,8 @@ class ElabController extends Controller
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'lab_test_id' => 'required|exists:erm_lab_test,id'
+            'lab_test_id' => 'required|exists:erm_lab_test,id',
+            'lab_paket_id' => 'nullable|exists:erm_lab_paket,id'
         ]);
 
         // Check if a lab request already exists for this visitation and lab test
@@ -425,10 +513,11 @@ class ElabController extends Controller
         if ($existingRequest) {
             // If it exists, update its status to 'requested' (reactivate it)
             $existingRequest->status = 'requested';
+            $existingRequest->lab_paket_id = $request->input('lab_paket_id');
             $existingRequest->save();
             
             // Make sure there's a billing entry
-            if (!$existingRequest->billings()->exists()) {
+            if (!$request->filled('lab_paket_id') && !$existingRequest->billings()->exists()) {
                 $labTest = LabTest::find($request->lab_test_id);
                 $billing = new \App\Models\Finance\Billing([
                     'visitation_id' => $request->visitation_id,
@@ -446,30 +535,33 @@ class ElabController extends Controller
             $labRequest = LabPermintaan::create([
                 'visitation_id' => $request->visitation_id,
                 'lab_test_id' => $request->lab_test_id,
+                'lab_paket_id' => $request->input('lab_paket_id'),
                 'status' => 'requested',
                 'dokter_id' => Auth::id()
             ]);
 
-            $labRequest->load(['labTest.labKategori', 'dokter']);
+            $labRequest->load(['labTest.labKategori', 'labPaket', 'dokter']);
             
             // Create billing entry
-            $labTest = LabTest::find($request->lab_test_id);
-            $billing = new \App\Models\Finance\Billing([
-                'visitation_id' => $request->visitation_id,
-                'jumlah' => $labTest->harga,
-                'keterangan' => 'Lab: ' . $labTest->nama
-            ]);
-            
-            $labRequest->billings()->save($billing);
+            if (!$request->filled('lab_paket_id')) {
+                $labTest = LabTest::find($request->lab_test_id);
+                $billing = new \App\Models\Finance\Billing([
+                    'visitation_id' => $request->visitation_id,
+                    'jumlah' => $labTest->harga,
+                    'keterangan' => 'Lab: ' . $labTest->nama
+                ]);
+                
+                $labRequest->billings()->save($billing);
+            }
+        }
+
+        if ($request->filled('lab_paket_id')) {
+            $labRequest->billings()->delete();
+            $this->syncPackageBillingForVisitation($request->visitation_id, [$request->input('lab_paket_id')]);
         }
 
         // Get updated total price
-        $totalHarga = LabPermintaan::where('visitation_id', $request->visitation_id)
-                        ->with('labTest')
-                        ->get()
-                        ->sum(function($item) {
-                            return $item->labTest->harga;
-                        });
+        $totalHarga = $this->calculateVisitationTotalHarga($request->visitation_id);
 
         return response()->json([
             'success' => true,
@@ -485,20 +577,33 @@ class ElabController extends Controller
         try {
             $permintaan = LabPermintaan::findOrFail($id);
             $visitation_id = $permintaan->visitation_id;
-            
-            // Delete related billing entries
-            $permintaan->billings()->delete();
-            
-            // Delete the lab request
-            $permintaan->delete();
+            $packageId = $permintaan->lab_paket_id;
+
+            if ($packageId) {
+                $packageRequests = LabPermintaan::where('visitation_id', $visitation_id)
+                    ->where('lab_paket_id', $packageId)
+                    ->get();
+
+                foreach ($packageRequests as $packageRequest) {
+                    $packageRequest->billings()->delete();
+                    $packageRequest->delete();
+                }
+
+                DB::table('finance_billing')
+                    ->where('visitation_id', $visitation_id)
+                    ->where('billable_type', LabPaket::class)
+                    ->where('billable_id', $packageId)
+                    ->delete();
+            } else {
+                // Delete related billing entries
+                $permintaan->billings()->delete();
+                
+                // Delete the lab request
+                $permintaan->delete();
+            }
             
             // Get updated total price
-            $totalHarga = LabPermintaan::where('visitation_id', $visitation_id)
-                            ->with('labTest')
-                            ->get()
-                            ->sum(function($item) {
-                                return $item->labTest->harga;
-                            });
+            $totalHarga = $this->calculateVisitationTotalHarga($visitation_id);
             
             return response()->json([
                 'success' => true,
@@ -672,8 +777,11 @@ class ElabController extends Controller
                 'id' => $item->id,
                 'tanggal' => $item->created_at->format('d-m-Y H:i'),
                 'nama_pemeriksaan' => $item->labTest->nama,
+                'paket_lab' => optional($item->labPaket)->nama,
                 'kategori' => $item->labTest->labKategori->nama,
-                'harga' => 'Rp ' . number_format($item->labTest->harga, 0, ',', '.'),
+                'harga' => $item->labPaket
+                    ? 'Paket: Rp ' . number_format($item->labPaket->harga_paket, 0, ',', '.')
+                    : 'Rp ' . number_format($item->labTest->harga, 0, ',', '.'),
                 'status_label' => $statusLabel,
                 'dokter' => $item->dokter->user->name ?? 'N/A'
             ];
@@ -699,9 +807,13 @@ class ElabController extends Controller
             
             // Get all lab tests that are checked (included in the request)
             $labTestIds = [];
+            $selectedPackageIds = [];
             foreach ($requestsData as $key => $requestData) {
                 if (isset($key) && is_numeric($key)) {
-                    $labTestIds[] = $key;
+                    $labTestIds[] = (int) $key;
+                    if (!empty($requestData['lab_paket_id'])) {
+                        $selectedPackageIds[] = (int) $requestData['lab_paket_id'];
+                    }
                 }
             }
             
@@ -712,13 +824,16 @@ class ElabController extends Controller
             // Delete any existing requests that are not in the new request data
             foreach ($existingRequests as $existingRequest) {
                 if (!in_array($existingRequest->lab_test_id, $labTestIds)) {
-                    // Delete related billing entries
-                    $existingRequest->billings()->delete();
-                    
-                    // Delete the request
-                    $existingRequest->delete();
+                    if ($existingRequest->lab_paket_id) {
+                        $existingRequest->delete();
+                    } else {
+                        $existingRequest->billings()->delete();
+                        $existingRequest->delete();
+                    }
                 }
             }
+
+            $this->syncPackageBillingForVisitation($visitationId, $selectedPackageIds);
             
             // Process each lab test in the request
             foreach ($requestsData as $labTestId => $requestData) {
@@ -727,8 +842,11 @@ class ElabController extends Controller
                     $existingRequest = LabPermintaan::where('visitation_id', $visitationId)
                                         ->where('lab_test_id', $labTestId)
                                         ->first();
+                    $currentRequest = $existingRequest;
+                    $labTest = LabTest::find($labTestId);
                     
                     $status = $requestData['status'] ?? 'requested';
+                    $labPaketId = !empty($requestData['lab_paket_id']) ? (int) $requestData['lab_paket_id'] : null;
                     
                     if ($existingRequest) {
                         // Update existing request & apply timestamps if status changed
@@ -736,28 +854,50 @@ class ElabController extends Controller
                             $this->applyStatusTimestamps($existingRequest, $status);
                             $existingRequest->status = $status;
                         }
+                        $existingRequest->lab_paket_id = $labPaketId;
                         $existingRequest->save();
+
+                        if ($labPaketId) {
+                            $existingRequest->billings()->delete();
+                        }
                     } else {
                         // Create new request
                         $labRequest = new LabPermintaan([
                             'visitation_id' => $visitationId,
                             'lab_test_id' => $labTestId,
+                            'lab_paket_id' => $labPaketId,
                             'status' => $status,
                             'dokter_id' => Auth::id()
                         ]);
                         // Ensure requested_at is populated explicitly (model event will also do this, but be defensive)
                         $this->applyStatusTimestamps($labRequest, $status);
                         $labRequest->save();
+                        $currentRequest = $labRequest;
                         
-                        // Create billing entry
-                        $labTest = LabTest::find($labTestId);
-                        if ($labTest) {
+                        // Create billing entry for standalone lab tests only
+                        if ($labTest && !$labPaketId) {
                             $billing = new \App\Models\Finance\Billing([
                                 'visitation_id' => $visitationId,
                                 'jumlah' => $labTest->harga,
                                 'keterangan' => 'Lab: ' . $labTest->nama
                             ]);
                             $labRequest->billings()->save($billing);
+                        }
+                    }
+
+                    if (!$labPaketId) {
+                        $existingStandaloneBilling = DB::table('finance_billing')
+                            ->where('visitation_id', $visitationId)
+                            ->where('billable_type', LabPermintaan::class)
+                            ->where('billable_id', $currentRequest?->id)
+                            ->exists();
+
+                        if (!$existingStandaloneBilling && isset($labTest) && $labTest) {
+                            $currentRequest->billings()->create([
+                                'visitation_id' => $visitationId,
+                                'jumlah' => $labTest->harga,
+                                'keterangan' => 'Lab: ' . $labTest->nama,
+                            ]);
                         }
                     }
                 }

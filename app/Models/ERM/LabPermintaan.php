@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class LabPermintaan extends Model
 {
     protected $table = 'erm_lab_permintaan';
-    protected $fillable = ['visitation_id', 'lab_test_id', 'status', 'hasil', 'dokter_id', 'requested_at', 'processed_at', 'completed_at', 'cancelled_at'];
+    protected $fillable = ['visitation_id', 'lab_test_id', 'lab_paket_id', 'status', 'hasil', 'dokter_id', 'requested_at', 'processed_at', 'completed_at', 'cancelled_at'];
     protected $casts = [
         'requested_at' => 'datetime',
         'processed_at' => 'datetime',
@@ -76,6 +76,11 @@ class LabPermintaan extends Model
     public function labTest()
     {
         return $this->belongsTo(LabTest::class);
+    }
+
+    public function labPaket()
+    {
+        return $this->belongsTo(LabPaket::class, 'lab_paket_id');
     }
     
     public function dokter()

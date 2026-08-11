@@ -166,6 +166,27 @@
         animation: pulse-animation 2s infinite;
         position: relative;
     }
+
+    .lab-package-card {
+        border: 1px solid #d8e5f5;
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(0, 51, 102, 0.06);
+        height: 100%;
+    }
+
+    .lab-package-card .package-price {
+        color: #00509e;
+        font-weight: 700;
+    }
+
+    .lab-package-summary td {
+        background: #eef5ff;
+        font-weight: 700;
+    }
+
+    .lab-package-child-name {
+        padding-left: 18px;
+    }
 </style>
 
 <div class="container-fluid custom-container-padding">
@@ -454,6 +475,40 @@
                     <form id="labRequestForm">
                         @csrf
                         <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                        @if($labPakets->count() > 0)
+                        <div class="mb-4">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h6 class="mb-0"><strong>PILIH PAKET LAB</strong></h6>
+                                <small class="text-muted">Memilih paket akan membuat permintaan untuk semua test di dalam paket.</small>
+                            </div>
+                            <div class="row">
+                                @foreach($labPakets as $paket)
+                                <div class="col-md-4 mb-3">
+                                    <div class="card lab-package-card">
+                                        <div class="card-body py-3">
+                                            <div class="custom-control custom-checkbox mb-2">
+                                                <input class="custom-control-input lab-paket-checkbox" type="checkbox"
+                                                    id="paket-{{ $paket->id }}"
+                                                    data-id="{{ $paket->id }}"
+                                                    {{ in_array($paket->id, $existingLabPaketIds) ? 'checked' : '' }}>
+                                                <label class="custom-control-label font-weight-bold" for="paket-{{ $paket->id }}">
+                                                    {{ $paket->nama }}
+                                                </label>
+                                            </div>
+                                            <div class="small package-price mb-2">Rp {{ number_format($paket->harga_paket, 0, ',', '.') }}</div>
+                                            <div class="small text-muted mb-1">Isi paket:</div>
+                                            <ul class="small mb-0 pl-3">
+                                                @foreach($paket->labTests as $test)
+                                                <li>{{ $test->nama }}</li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
                         <div class="row">
                             @foreach($labCategories as $category)
                             <div class="col-md-3 mb-3">
@@ -572,10 +627,97 @@
 <script>  
 // Define lab test statuses from PHP to JavaScript
 var existingLabTestStatuses = @json($existingLabTestStatuses);
+var labPakets = @json($labPaketPayload);
 
 $(document).ready(function () {
     // Make it available in the window scope too
     window.existingLabTestStatuses = existingLabTestStatuses;
+    const labPaketMap = {};
+    (labPakets || []).forEach(function (paket) {
+        labPaketMap[String(paket.id)] = paket;
+    });
+
+    function formatCurrency(value) {
+        return 'Rp ' + (parseInt(value, 10) || 0).toLocaleString('id-ID');
+    }
+
+    function getStatusBadge(status) {
+        if (status === 'processing') {
+            return '<span class="badge badge-info text-white w-100 py-2">Diproses</span>';
+        }
+        if (status === 'completed') {
+            return '<span class="badge badge-success text-white w-100 py-2">Selesai</span>';
+        }
+        return '<span class="badge badge-warning text-dark w-100 py-2">Diminta</span>';
+    }
+
+    function getSelectedPackageGroups() {
+        const groups = [];
+        const coveredTestIds = new Set();
+
+        $('.lab-paket-checkbox:checked').each(function () {
+            const paketId = String($(this).data('id'));
+            const paket = labPaketMap[paketId];
+            if (!paket) {
+                return;
+            }
+
+            const tests = [];
+            (paket.lab_tests || []).forEach(function (test) {
+                const testKey = String(test.id);
+                if (coveredTestIds.has(testKey)) {
+                    return;
+                }
+
+                coveredTestIds.add(testKey);
+                tests.push({
+                    testId: Number(test.id),
+                    name: test.nama,
+                    price: Number(test.harga || 0),
+                    labPaketId: Number(paket.id),
+                    packageName: paket.nama,
+                });
+            });
+
+            groups.push({
+                id: Number(paket.id),
+                name: paket.nama,
+                price: Number(paket.harga_paket || 0),
+                tests: tests,
+            });
+        });
+
+        return { groups: groups, coveredTestIds: coveredTestIds };
+    }
+
+    function getSelectedStandaloneItems(excludedTestIds) {
+        const items = [];
+
+        $('.lab-test-checkbox:checked').each(function () {
+            const testId = String($(this).data('id'));
+            if (excludedTestIds.has(testId)) {
+                return;
+            }
+
+            items.push({
+                testId: Number(testId),
+                name: $(this).data('name'),
+                price: Number($(this).data('price') || 0),
+                labPaketId: null,
+                packageName: null,
+            });
+        });
+
+        return items;
+    }
+
+    function buildSelectedRequests() {
+        const packageData = getSelectedPackageGroups();
+        return {
+            groups: packageData.groups,
+            standaloneItems: getSelectedStandaloneItems(packageData.coveredTestIds),
+        };
+    }
     
     // Initialize select2
     $('.select2').select2();
@@ -610,115 +752,15 @@ $(document).ready(function () {
         }
     });
     
-    // Handle lab test checkbox clicks
-    $('.lab-test-checkbox').on('change', function() {
-        let testId = $(this).data('id');
-        let testName = $(this).data('name');
-        let testPrice = $(this).data('price');
-        let checkbox = $(this);
-        
-        if (this.checked) {
-            // Add to lab request
-            $.ajax({
-                url: '{{ route("erm.elab.store") }}',
-                type: 'POST',
-                data: {
-                    visitation_id: '{{ $visitation->id }}',
-                    lab_test_id: testId,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Update price and refresh table
-                        $('#totalEstimasi').text(response.totalHargaFormatted);
-                        riwayatTable.ajax.reload();
-                        
-                        // Show success message using SweetAlert2
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: 'Permintaan lab berhasil ditambahkan',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                    }
-                },
-                error: function(xhr) {
-                    console.error(xhr);
-                    
-                    // Show error message using SweetAlert2
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: 'Gagal menambahkan permintaan lab',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    
-                    // Uncheck the checkbox on error
-                    checkbox.prop('checked', false);
-                }
-            });
-        } else {
-            // Remove from lab request - find the request in the table first
-            let rowData = riwayatTable.rows().data().toArray();
-            let requestId = null;
-            
-            for (let i = 0; i < rowData.length; i++) {
-                if (rowData[i].lab_test_id == testId) {
-                    // Extract the ID from the checkbox HTML
-                    let checkboxHtml = $(rowData[i].checkbox);
-                    requestId = checkboxHtml.val();
-                    break;
-                }
-            }
-            
-            if (requestId) {
-                $.ajax({
-                    url: '/erm/elab/' + requestId,
-                    type: 'DELETE',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(response) {
-                        // Update price and refresh table
-                        $('#totalEstimasi').text(response.totalHargaFormatted);
-                        riwayatTable.ajax.reload();
-                        
-                        // Show success message using SweetAlert2
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: 'Permintaan lab berhasil dihapus',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                    },
-                    error: function(xhr) {
-                        console.error(xhr);
-                        
-                        // Show error message using SweetAlert2
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Gagal',
-                            text: 'Gagal menghapus permintaan lab',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                        // Need to use the original element context
-                        $('.lab-test-checkbox[data-id="' + testId + '"]').prop('checked', true);
-                    }
-                });
-            }
-        }
-    });
-    
     // --- Estimasi Harga calculation ---
     function updateEstimasiHarga() {
         let total = 0;
-        $('.lab-test-checkbox:checked').each(function() {
-            let price = parseInt($(this).data('price')) || 0;
-            total += price;
+        const selected = buildSelectedRequests();
+        selected.groups.forEach(function(group) {
+            total += group.price;
+        });
+        selected.standaloneItems.forEach(function(item) {
+            total += item.price;
         });
         // Format as currency (Rp)
         let formatted = total.toLocaleString('id-ID');
@@ -727,13 +769,14 @@ $(document).ready(function () {
 
     // Update on page load and whenever a checkbox changes
     updateEstimasiHarga();
-    $(document).on('change', '.lab-test-checkbox', updateEstimasiHarga);
+    $(document).on('change', '.lab-test-checkbox, .lab-paket-checkbox', updateEstimasiHarga);
     
     // Update checked lab tests table
     function updateCheckedLabTable() {
         let tbody = $('#checkedLabTable tbody');
         tbody.empty();
-        let checked = $('.lab-test-checkbox:checked');
+        const selected = buildSelectedRequests();
+        const selectedRows = [];
         
         // Store existing row checkbox states before updating the table
         let rowCheckStates = {};
@@ -741,40 +784,56 @@ $(document).ready(function () {
             let testId = $(this).data('test-id');
             rowCheckStates[testId] = $(this).prop('checked');
         });
-        
-        checked.each(function(idx) {
-            let name = $(this).data('name');
-            let price = parseInt($(this).data('price')) || 0;
-            let formatted = price.toLocaleString('id-ID');
-            let testId = $(this).data('id');
-            // Use old status if exists, otherwise default to 'requested'
-            // Convert testId to string to ensure consistent lookup
+        let statusStates = {};
+        $('.status-container').each(function() {
+            let testId = $(this).data('test-id');
+            if (testId) {
+                statusStates[String(testId)] = $(this).find('.status-select').val() || 'requested';
+            }
+        });
+
+        selected.groups.forEach(function(group) {
+            if (!group.tests.length) {
+                return;
+            }
+
+            tbody.append(`<tr class="lab-package-summary"><td colspan="4">Paket Lab: ${group.name}<span class="float-right">${formatCurrency(group.price)}</span></td></tr>`);
+            group.tests.forEach(function(item) {
+                selectedRows.push({
+                    testId: item.testId,
+                    name: item.name,
+                    price: item.price,
+                    labPaketId: item.labPaketId,
+                    includedInPackage: true,
+                });
+            });
+        });
+
+        selected.standaloneItems.forEach(function(item) {
+            selectedRows.push({
+                testId: item.testId,
+                name: item.name,
+                price: item.price,
+                labPaketId: null,
+                includedInPackage: false,
+            });
+        });
+
+        selectedRows.forEach(function(item, idx) {
+            let testId = item.testId;
             let testIdStr = String(testId);
-            
-            // Find the status - handle both number and string keys
-            let selectedStatus = 'requested'; // Default
-            if (window.existingLabTestStatuses) {
+            let selectedStatus = statusStates[testIdStr] || 'requested';
+            if (!statusStates[testIdStr] && window.existingLabTestStatuses) {
                 if (window.existingLabTestStatuses[testId] !== undefined) {
                     selectedStatus = window.existingLabTestStatuses[testId];
                 } else if (window.existingLabTestStatuses[testIdStr] !== undefined) {
                     selectedStatus = window.existingLabTestStatuses[testIdStr];
                 }
             }
-            
-            // Create the status display element based on the current status
-            let statusDisplay;
-            if (selectedStatus === 'requested') {
-                statusDisplay = `<span class="badge badge-warning text-dark w-100 py-2">Diminta</span>`;
-            } else if (selectedStatus === 'processing') {
-                statusDisplay = `<span class="badge badge-info text-white w-100 py-2">Diproses</span>`;
-            } else if (selectedStatus === 'completed') {
-                statusDisplay = `<span class="badge badge-success text-white w-100 py-2">Selesai</span>`;
-            }
-            
-            // Create dropdown with hidden select
+
             let statusOptions = `
-                <div class="status-container" data-test-id="${testId}">
-                    <div class="status-display">${statusDisplay}</div>
+                <div class="status-container" data-test-id="${testId}" data-package-id="${item.labPaketId || ''}">
+                    <div class="status-display">${getStatusBadge(selectedStatus)}</div>
                     <select class="form-control form-control-sm status-select d-none" data-test-id="${testId}">
                         <option value="requested" ${selectedStatus === 'requested' ? 'selected' : ''}>Diminta</option>
                         <option value="processing" ${selectedStatus === 'processing' ? 'selected' : ''}>Diproses</option>
@@ -782,25 +841,26 @@ $(document).ready(function () {
                     </select>
                 </div>
             `;
-            
-            // Determine if the row checkbox should be checked based on previous state
+
             let isChecked = rowCheckStates[testId] !== undefined ? rowCheckStates[testId] : false;
-            
-            let row = `<tr>
-                <td>
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input row-checkbox" id="rowCheck-${testId}" data-test-id="${testId}" ${isChecked ? 'checked' : ''}>
-                        <label class="custom-control-label" for="rowCheck-${testId}">${idx + 1}</label>
-                    </div>
-                </td>
-                <td>${name}</td>
-                <td>Rp ${formatted}</td>
-                <td>${statusOptions}</td>
-            </tr>`;
-            tbody.append(row);
+            let hargaDisplay = item.includedInPackage ? '<span class="text-info font-weight-bold">Termasuk Paket</span>' : formatCurrency(item.price);
+
+            tbody.append(`
+                <tr data-test-id="${testId}" data-package-id="${item.labPaketId || ''}">
+                    <td>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input row-checkbox" id="rowCheck-${testId}" data-test-id="${testId}" ${isChecked ? 'checked' : ''}>
+                            <label class="custom-control-label" for="rowCheck-${testId}">${idx + 1}</label>
+                        </div>
+                    </td>
+                    <td class="${item.includedInPackage ? 'lab-package-child-name' : ''}">${item.includedInPackage ? '&rdsh; ' : ''}${item.name}</td>
+                    <td>${hargaDisplay}</td>
+                    <td>${statusOptions}</td>
+                </tr>
+            `);
         });
         
-        if (checked.length === 0) {
+        if (selectedRows.length === 0) {
             tbody.append('<tr><td colspan="4" class="text-center text-muted">Belum ada permintaan dipilih</td></tr>');
             $('.bulk-status-container').hide();
         } else {
@@ -829,7 +889,7 @@ $(document).ready(function () {
     }
     // Update on page load and whenever a checkbox changes
     updateCheckedLabTable();
-    $(document).on('change', '.lab-test-checkbox', updateCheckedLabTable);
+    $(document).on('change', '.lab-test-checkbox, .lab-paket-checkbox', updateCheckedLabTable);
     
     // Handle clicks on the status display to show dropdown
     $(document).on('click', '.status-display', function() {
@@ -884,45 +944,16 @@ $(document).ready(function () {
     $('#submitLabRequests').on('click', function() {
         let visitationId = $('#visitationId').val();
         let requestsData = {};
-        let hasChanges = false;
+        $('#checkedLabTable tbody tr[data-test-id]').each(function() {
+            let testId = String($(this).data('test-id'));
+            let packageId = $(this).data('package-id') || null;
+            let status = $(this).find('.status-select').val() || 'requested';
 
-        // Get all lab tests (both checked and unchecked)
-        $('.lab-test-checkbox').each(function() {
-            let testId = String($(this).data('id'));
-            let isChecked = $(this).prop('checked');
-
-            // Get current status for this test (default to 'requested')
-            let status = $('.status-container[data-test-id="' + testId + '"] .status-select').val() || 'requested';
-
-            if (isChecked) {
-                // Add to requests object with test ID as key
-                requestsData[testId] = {
-                    status: status
-                };
-
-                // If it wasn't present before or status changed, mark change
-                if (typeof existingLabTestStatuses === 'undefined' || existingLabTestStatuses[testId] === undefined || existingLabTestStatuses[String(testId)] != status) {
-                    hasChanges = true;
-                }
-            } else {
-                // If it was present before but now unchecked, that's a deletion -> mark change
-                if (typeof existingLabTestStatuses !== 'undefined' && existingLabTestStatuses[testId] !== undefined) {
-                    hasChanges = true;
-                }
-            }
+            requestsData[testId] = {
+                status: status,
+                lab_paket_id: packageId ? Number(packageId) : null
+            };
         });
-
-        // If there are no changes, inform the user
-        if (!hasChanges) {
-            Swal.fire({
-                icon: 'info',
-                title: 'Tidak Ada Perubahan',
-                text: 'Pilih minimal satu permintaan lab untuk disimpan atau ubah status untuk menyimpan',
-                timer: 2000,
-                showConfirmButton: false
-            });
-            return;
-        }
 
         // Send the (possibly empty) requestsData object to the server so deletions are processed
         $.ajax({
@@ -1320,8 +1351,8 @@ $(document).ready(function () {
         }
     });
     
-    // When a lab test checkbox changes, update the table
-    $(document).on('change', '.lab-test-checkbox', function() {
+    // When a lab selection changes, update the table
+    $(document).on('change', '.lab-test-checkbox, .lab-paket-checkbox', function() {
         // Update the table and price calculation
         updateCheckedLabTable();
         updateEstimasiHarga();

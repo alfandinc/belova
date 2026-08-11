@@ -28,6 +28,7 @@ use App\Models\ERM\PaketRacikan;
 use App\Models\ERM\RiwayatTindakan;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\KartuStok;
+use App\Models\ERM\LabPaket;
 use App\Models\ERM\Tindakan;
 use Carbon\Carbon;
 
@@ -1246,6 +1247,7 @@ class BillingController extends Controller
             $billings->loadMorph('billable', [
                 \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
                 \App\Models\ERM\LabPermintaan::class => ['labTest:id,nama'],
+                \App\Models\ERM\LabPaket::class => ['labTests:id,nama'],
                 \App\Models\ERM\RadiologiPermintaan::class => ['radiologiTest:id,nama'],
                 \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,nama,spesialis_id,harga,harga_diskon,diskon_active'],
             ]);
@@ -2378,6 +2380,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
                         $labName = optional(optional($row->billable)->labTest)->nama;
                         return 'Lab: ' . ($labName ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
+                    } else if ($row->billable_type == 'App\Models\ERM\LabPaket') {
+                        $paketName = optional($row->billable)->nama;
+                        return 'Paket Lab: ' . ($paketName ?? preg_replace('/^Paket Lab: /', '', $row->keterangan ?? 'Paket'));
                     } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
                         $radName = optional(optional($row->billable)->radiologiTest)->nama;
                         return 'Radiologi: ' . ($radName ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
@@ -2593,6 +2598,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }, $tindakanList);
 
                     return implode("<br>", $formattedList);
+                } else if ($row->billable_type == 'App\\Models\\ERM\\LabPaket') {
+                    $labTestList = optional($row->billable)->labTests ? optional($row->billable)->labTests()->pluck('nama')->toArray() : [];
+
+                    if (empty($labTestList)) {
+                        return '-';
+                    }
+
+                    return implode("<br>", array_map(function ($item) {
+                        return '- ' . $item;
+                    }, $labTestList));
                 } else if ($row->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
                     $deskripsi = [];
                     if (optional($row->billable)->keterangan) {
@@ -3294,6 +3309,65 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             ];
                         }
                     }
+                } elseif (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPaket') {
+                    $packageRequests = \App\Models\ERM\LabPermintaan::with('labTest.obats')
+                        ->where('visitation_id', $item->visitation_id)
+                        ->where('lab_paket_id', $item->billable_id)
+                        ->get();
+
+                    foreach ($packageRequests as $labPermintaan) {
+                        if (!$labPermintaan->labTest) {
+                            continue;
+                        }
+
+                        foreach ($labPermintaan->labTest->obats as $obat) {
+                            $dosisRaw = $obat->pivot->dosis ?? 0;
+                            $dosis = is_string($dosisRaw)
+                                ? floatval(str_replace(',', '.', $dosisRaw))
+                                : floatval($dosisRaw);
+                            $required = $dosis;
+                            if ($required <= 0) {
+                                continue;
+                            }
+
+                            $billingKey = $item->id;
+                            $selectedGudangId = null;
+                            if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                                $selectedGudangId = $gudangSelections[$billingKey];
+                            } elseif (isset($gudangSelections['lab_' . $obat->id]) && $gudangSelections['lab_' . $obat->id]) {
+                                $selectedGudangId = $gudangSelections['lab_' . $obat->id];
+                            }
+
+                            if ($selectedGudangId) {
+                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                    ->where('gudang_id', $selectedGudangId)
+                                    ->sum('stok');
+                            } else {
+                                $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
+                                if ($mappedGudangId) {
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->where('gudang_id', $mappedGudangId)
+                                        ->sum('stok');
+                                } else {
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->sum('stok');
+                                }
+                            }
+
+                            if ($required > $currentStock) {
+                                $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
+                                $packageName = optional(LabPaket::find($item->billable_id))->nama ?? 'Paket Lab';
+                                $stockErrors[] = "Stok {$obat->nama} untuk {$packageName} ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia: {$currentStock}";
+                            }
+
+                            $labRequiredObats[] = [
+                                'billing_id' => $item->id,
+                                'obat_id' => $obat->id,
+                                'qty' => $required,
+                                'lab_test_id' => $labPermintaan->labTest->id,
+                            ];
+                        }
+                    }
                 }
             }
 
@@ -3756,6 +3830,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest')->find($item->billable_id);
                     if ($labPermintaan && $labPermintaan->labTest) {
                         $name = $labPermintaan->labTest->nama ?? 'Lab Test';
+                    }
+                } elseif ($item->billable_type == 'App\\Models\\ERM\\LabPaket' && !empty($item->billable_id)) {
+                    $labPaket = LabPaket::find($item->billable_id);
+                    if ($labPaket) {
+                        $name = $labPaket->nama ?? 'Paket Lab';
                     }
                 }
                 if (empty($name) || $name === 'Unknown Item') {
