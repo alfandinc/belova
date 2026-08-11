@@ -4,12 +4,15 @@ namespace App\Models\ERM;
 
 use App\Models\Finance\Billing;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Finance\InvoiceItem;
 use App\Models\Finance\Invoice;
 use Illuminate\Support\Facades\Log;
 
 class ResepFarmasi extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'erm_resepfarmasi';
     public $incrementing = false; // non auto-increment
     protected $keyType = 'string'; // jika ID-nya string (bukan integer)
@@ -155,6 +158,10 @@ class ResepFarmasi extends Model
         // On delete: remove related billing and invoice items, then recalc invoices
         static::deleted(function (ResepFarmasi $resep) {
             try {
+                if (method_exists($resep, 'isForceDeleting') && !$resep->isForceDeleting()) {
+                    return;
+                }
+
                 // Delete billing(s)
                 Billing::where('billable_type', ResepFarmasi::class)
                        ->where('billable_id', $resep->id)
