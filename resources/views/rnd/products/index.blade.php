@@ -2232,12 +2232,16 @@
         }
 
         function validateProdukForm() {
+            var isEdit = $.trim($('#produk_id').val() || '') !== '';
             var requiredFields = [
-                { selector: '#brand_id', label: 'Brand', tab: '#produk-base-tab' },
-                { selector: '#nama_produk', label: 'Nama Produk', tab: '#produk-base-tab' },
-                { selector: '#sediaan_id', label: 'Sediaan', tab: '#produk-base-tab' },
-                { selector: '#kemasan_premier_id', label: 'Jenis Kemasan Primer', tab: '#produk-kemasan-tab' }
+                { selector: '#nama_produk', label: 'Nama Produk', tab: '#produk-base-tab' }
             ];
+
+            if (!isEdit) {
+                requiredFields.unshift({ selector: '#brand_id', label: 'Brand', tab: '#produk-base-tab' });
+                requiredFields.push({ selector: '#sediaan_id', label: 'Sediaan', tab: '#produk-base-tab' });
+                requiredFields.push({ selector: '#kemasan_premier_id', label: 'Jenis Kemasan Primer', tab: '#produk-kemasan-tab' });
+            }
 
             var firstInvalid = null;
 
