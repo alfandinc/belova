@@ -600,6 +600,10 @@
         outline: none;
     }
 
+    .select2-container .select2-selection.is-invalid {
+        border-color: #dc3545;
+    }
+
     .produk-table-actions {
         display: flex;
         justify-content: center;
@@ -1219,7 +1223,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="produkForm">
+            <form id="produkForm" novalidate>
                 <div class="modal-body">
                     <input type="hidden" id="produk_id" value="">
                     <div class="produk-modal-layout">
@@ -2196,6 +2200,79 @@
             });
         }
 
+        function clearProdukFieldError($field) {
+            $field.removeClass('is-invalid');
+
+            if ($field.hasClass('select2-hidden-accessible')) {
+                $field.next('.select2-container').find('.select2-selection').removeClass('is-invalid');
+            }
+        }
+
+        function markProdukFieldError($field) {
+            $field.addClass('is-invalid');
+
+            if ($field.hasClass('select2-hidden-accessible')) {
+                $field.next('.select2-container').find('.select2-selection').addClass('is-invalid');
+            }
+        }
+
+        function showProdukValidationTab(tabSelector) {
+            if (tabSelector) {
+                $(tabSelector).tab('show');
+            }
+        }
+
+        function focusProdukField($field) {
+            if ($field.hasClass('select2-hidden-accessible')) {
+                $field.next('.select2-container').find('.select2-selection').trigger('focus');
+                return;
+            }
+
+            $field.trigger('focus');
+        }
+
+        function validateProdukForm() {
+            var requiredFields = [
+                { selector: '#brand_id', label: 'Brand', tab: '#produk-base-tab' },
+                { selector: '#nama_produk', label: 'Nama Produk', tab: '#produk-base-tab' },
+                { selector: '#sediaan_id', label: 'Sediaan', tab: '#produk-base-tab' },
+                { selector: '#kemasan_premier_id', label: 'Jenis Kemasan Primer', tab: '#produk-kemasan-tab' }
+            ];
+
+            var firstInvalid = null;
+
+            requiredFields.forEach(function (fieldConfig) {
+                var $field = $(fieldConfig.selector);
+                var value = $field.val();
+                var isEmpty = Array.isArray(value) ? value.length === 0 : $.trim(String(value || '')) === '';
+
+                clearProdukFieldError($field);
+
+                if (isEmpty && !firstInvalid) {
+                    firstInvalid = {
+                        field: $field,
+                        label: fieldConfig.label,
+                        tab: fieldConfig.tab
+                    };
+                }
+            });
+
+            if (!firstInvalid) {
+                return true;
+            }
+
+            markProdukFieldError(firstInvalid.field);
+            showProdukValidationTab(firstInvalid.tab);
+
+            setTimeout(function () {
+                focusProdukField(firstInvalid.field);
+            }, 150);
+
+            Swal.fire('Validasi gagal', firstInvalid.label + ' wajib diisi.', 'warning');
+
+            return false;
+        }
+
         function toggleKemasanSekunderFields() {
             var hasSekunder = $.trim($('#kemasan_sekunder_id').val() || '') !== '';
             var $card = $('#produkSekunderCard');
@@ -2786,6 +2863,10 @@
         $('#produkForm').on('submit', function (e) {
             e.preventDefault();
 
+            if (!validateProdukForm()) {
+                return;
+            }
+
             var id = $('#produk_id').val();
             var formData = new FormData(this);
 
@@ -2833,6 +2914,10 @@
             }
 
             confirmDeleteProduk(id);
+        });
+
+        $('#produkForm').on('input change', 'input, select, textarea', function () {
+            clearProdukFieldError($(this));
         });
 
         $('body').on('click', '.js-inline-status', function () {
