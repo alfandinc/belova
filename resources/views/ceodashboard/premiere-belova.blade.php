@@ -424,11 +424,13 @@
                                                     <th style="width:56px;">#</th>
                                                     <th>Alamat</th>
                                                     <th class="text-end">Patients</th>
+                                                    <th class="text-end">Total Visit</th>
+                                                    <th class="text-end">Total Revenue</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="patient-address-breakdown-body">
                                                 <tr>
-                                                    <td colspan="3" class="text-muted">-</td>
+                                                    <td colspan="5" class="text-muted">-</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -448,11 +450,13 @@
                                                     <th style="width:56px;">#</th>
                                                     <th>District</th>
                                                     <th class="text-end">Patients</th>
+                                                    <th class="text-end">Total Visit</th>
+                                                    <th class="text-end">Total Revenue</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="patient-district-breakdown-body">
                                                 <tr>
-                                                    <td colspan="3" class="text-muted">-</td>
+                                                    <td colspan="5" class="text-muted">-</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -472,11 +476,13 @@
                                                     <th style="width:56px;">#</th>
                                                     <th>Regency</th>
                                                     <th class="text-end">Patients</th>
+                                                    <th class="text-end">Total Visit</th>
+                                                    <th class="text-end">Total Revenue</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="patient-regency-breakdown-body">
                                                 <tr>
-                                                    <td colspan="3" class="text-muted">-</td>
+                                                    <td colspan="5" class="text-muted">-</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -496,11 +502,13 @@
                                                     <th style="width:56px;">#</th>
                                                     <th>Province</th>
                                                     <th class="text-end">Patients</th>
+                                                    <th class="text-end">Total Visit</th>
+                                                    <th class="text-end">Total Revenue</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="patient-province-breakdown-body">
                                                 <tr>
-                                                    <td colspan="3" class="text-muted">-</td>
+                                                    <td colspan="5" class="text-muted">-</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1422,7 +1430,7 @@
                 }) : [];
 
                 if (!filteredItems.length) {
-                    body.innerHTML = '<tr><td colspan="3" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
+                    body.innerHTML = '<tr><td colspan="5" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
                     return;
                 }
 
@@ -1440,9 +1448,19 @@
                     countCell.className = 'text-end';
                     countCell.textContent = formatNumber(item.count || 0);
 
+                    var visitCell = document.createElement('td');
+                    visitCell.className = 'text-end';
+                    visitCell.textContent = formatNumber(item.total_visits || 0);
+
+                    var revenueCell = document.createElement('td');
+                    revenueCell.className = 'text-end';
+                    revenueCell.textContent = formatCurrency(item.total_revenue || 0);
+
                     row.appendChild(rankCell);
                     row.appendChild(labelCell);
                     row.appendChild(countCell);
+                    row.appendChild(visitCell);
+                    row.appendChild(revenueCell);
                     body.appendChild(row);
                 });
             }

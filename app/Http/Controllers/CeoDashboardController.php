@@ -722,11 +722,13 @@ class CeoDashboardController extends Controller
                 ->where('status_kunjungan', 2)
                 ->whereBetween('tanggal_visitation', [$startDate, $endDate]);
 
+            $this->applyVisitTypeFilter($visQ, $visitTypeFilter);
+
             $rangeStartCarbon = \Illuminate\Support\Carbon::parse($startDate)->startOfDay();
             $rangeEndCarbon = \Illuminate\Support\Carbon::parse($endDate)->endOfDay();
             $rangeDays = $rangeStartCarbon->diffInDays($rangeEndCarbon) + 1;
 
-            $patientIds = $visQ->pluck('pasien_id')->unique()->filter()->values()->all();
+            $patientIds = (clone $visQ)->pluck('pasien_id')->unique()->filter()->values()->all();
             $total = count($patientIds);
             $stats['total_patients'] = (int)$total;
 
@@ -739,14 +741,6 @@ class CeoDashboardController extends Controller
             }
 
             $revenueVisitCount = $totalVisits;
-            if ($visitTypeFilter !== null) {
-                $revenueVisitCount = (int) \Illuminate\Support\Facades\DB::table('erm_visitations')
-                    ->where('klinik_id', $clinicId)
-                    ->where('status_kunjungan', 2)
-                    ->where('jenis_kunjungan', $visitTypeFilter)
-                    ->whereBetween('tanggal_visitation', [$startDate, $endDate])
-                    ->count();
-            }
 
             $stats['revenue_total'] = round($totalRevenue, 2);
             $stats['avg_revenue_per_visit'] = $revenueVisitCount > 0 ? round($totalRevenue / $revenueVisitCount, 2) : 0.0;
@@ -797,31 +791,81 @@ class CeoDashboardController extends Controller
             $regencyCounts = [];
             $provinceCounts = [];
 
-            $incrementLocationCount = function (array &$target, $label): void {
+            $patientVisitCounts = [];
+            $patientRevenueTotals = [];
+            if (!empty($patientIds)) {
+                $patientVisitCounts = (clone $visQ)
+                    ->selectRaw('pasien_id, COUNT(*) as total_visits')
+                    ->whereNotNull('pasien_id')
+                    ->groupBy('pasien_id')
+                    ->pluck('total_visits', 'pasien_id')
+                    ->map(function ($count) {
+                        return (int) $count;
+                    })
+                    ->toArray();
+
+                $patientRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
+                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                    ->selectRaw('v.pasien_id as pasien_id')
+                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->where('v.klinik_id', $clinicId)
+                    ->where('v.status_kunjungan', 2)
+                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereIn('v.pasien_id', $patientIds)
+                    ->whereNotNull('v.pasien_id');
+
+                $this->applyVisitTypeFilter($patientRevenueRows, $visitTypeFilter);
+
+                $patientRevenueTotals = $patientRevenueRows
+                    ->groupBy('v.pasien_id')
+                    ->pluck('revenue', 'pasien_id')
+                    ->map(function ($revenue) {
+                        return round((float) $revenue, 2);
+                    })
+                    ->toArray();
+            }
+
+            $incrementLocationCount = function (array &$target, $label, int $visitCount, float $revenue): void {
                 $label = trim((string) $label);
                 if ($label === '') {
                     return;
                 }
 
                 if (!isset($target[$label])) {
-                    $target[$label] = 0;
+                    $target[$label] = [
+                        'count' => 0,
+                        'total_visits' => 0,
+                        'total_revenue' => 0.0,
+                    ];
                 }
 
-                $target[$label]++;
+                $target[$label]['count']++;
+                $target[$label]['total_visits'] += $visitCount;
+                $target[$label]['total_revenue'] += $revenue;
             };
 
             $formatLocationCounts = function (array $counts): array {
                 $rows = [];
-                foreach ($counts as $name => $count) {
+                foreach ($counts as $name => $values) {
                     $rows[] = [
                         'name' => (string) $name,
-                        'count' => (int) $count,
+                        'count' => (int) ($values['count'] ?? 0),
+                        'total_visits' => (int) ($values['total_visits'] ?? 0),
+                        'total_revenue' => round((float) ($values['total_revenue'] ?? 0), 2),
                     ];
                 }
 
                 usort($rows, function (array $left, array $right): int {
                     if ($left['count'] === $right['count']) {
-                        return strcasecmp($left['name'], $right['name']);
+                        if ($left['total_visits'] === $right['total_visits']) {
+                            if ((float) $left['total_revenue'] === (float) $right['total_revenue']) {
+                                return strcasecmp($left['name'], $right['name']);
+                            }
+
+                            return ((float) $right['total_revenue']) <=> ((float) $left['total_revenue']);
+                        }
+
+                        return $right['total_visits'] <=> $left['total_visits'];
                     }
 
                     return $right['count'] <=> $left['count'];
@@ -862,10 +906,14 @@ class CeoDashboardController extends Controller
                         }
                     }
 
-                    $incrementLocationCount($addressCounts, $pasien->alamat);
-                    $incrementLocationCount($districtCounts, data_get($pasien, 'village.district.name'));
-                    $incrementLocationCount($regencyCounts, data_get($pasien, 'village.district.regency.name'));
-                    $incrementLocationCount($provinceCounts, data_get($pasien, 'village.district.regency.province.name'));
+                    $patientId = (string) $pasien->id;
+                    $visitCount = (int) ($patientVisitCounts[$patientId] ?? $patientRevenueTotals[$patientId] ?? 0);
+                    $revenue = (float) ($patientRevenueTotals[$patientId] ?? 0);
+
+                    $incrementLocationCount($addressCounts, $pasien->alamat, $visitCount, $revenue);
+                    $incrementLocationCount($districtCounts, data_get($pasien, 'village.district.name'), $visitCount, $revenue);
+                    $incrementLocationCount($regencyCounts, data_get($pasien, 'village.district.regency.name'), $visitCount, $revenue);
+                    $incrementLocationCount($provinceCounts, data_get($pasien, 'village.district.regency.province.name'), $visitCount, $revenue);
                 }
             }
 
