@@ -907,7 +907,7 @@ class CeoDashboardController extends Controller
                     }
 
                     $patientId = (string) $pasien->id;
-                    $visitCount = (int) ($patientVisitCounts[$patientId] ?? $patientRevenueTotals[$patientId] ?? 0);
+                    $visitCount = (int) ($patientVisitCounts[$patientId] ?? 0);
                     $revenue = (float) ($patientRevenueTotals[$patientId] ?? 0);
 
                     $incrementLocationCount($addressCounts, $pasien->alamat, $visitCount, $revenue);
