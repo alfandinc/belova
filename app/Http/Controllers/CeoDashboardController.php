@@ -805,13 +805,13 @@ class CeoDashboardController extends Controller
                     })
                     ->toArray();
 
-                $patientRevenueRows = \Illuminate\Support\Facades\DB::table('finance_transactions as ft')
-                    ->join('erm_visitations as v', 'ft.visitation_id', '=', 'v.id')
+                $patientRevenueRows = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                    ->leftJoin('finance_invoices as inv', 'v.id', '=', 'inv.visitation_id')
                     ->selectRaw('v.pasien_id as pasien_id')
-                    ->selectRaw("SUM(CASE WHEN LOWER(COALESCE(ft.jenis_transaksi, 'in')) = 'out' THEN -COALESCE(ft.jumlah, 0) ELSE COALESCE(ft.jumlah, 0) END) as revenue")
+                    ->selectRaw('SUM(CASE WHEN inv.amount_paid IS NOT NULL THEN COALESCE(inv.total_amount, 0) ELSE 0 END) as revenue')
                     ->where('v.klinik_id', $clinicId)
                     ->where('v.status_kunjungan', 2)
-                    ->whereBetween('ft.tanggal', [$rangeStartCarbon->toDateTimeString(), $rangeEndCarbon->toDateTimeString()])
+                    ->whereBetween('v.tanggal_visitation', [$startDate, $endDate])
                     ->whereIn('v.pasien_id', $patientIds)
                     ->whereNotNull('v.pasien_id');
 
