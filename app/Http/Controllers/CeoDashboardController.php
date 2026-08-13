@@ -790,6 +790,7 @@ class CeoDashboardController extends Controller
             $districtCounts = [];
             $regencyCounts = [];
             $provinceCounts = [];
+            $combinedLocationCounts = [];
 
             $patientVisitCounts = [];
             $patientRevenueTotals = [];
@@ -844,6 +845,42 @@ class CeoDashboardController extends Controller
                 $target[$label]['total_revenue'] += $revenue;
             };
 
+            $incrementCombinedLocationCount = function (
+                array &$target,
+                $address,
+                $district,
+                $regency,
+                $province,
+                int $visitCount,
+                float $revenue
+            ): void {
+                $address = trim((string) $address);
+                $district = trim((string) $district);
+                $regency = trim((string) $regency);
+                $province = trim((string) $province);
+
+                if ($address === '' && $district === '' && $regency === '' && $province === '') {
+                    return;
+                }
+
+                $key = implode('|', [$address, $district, $regency, $province]);
+                if (!isset($target[$key])) {
+                    $target[$key] = [
+                        'address' => $address,
+                        'district' => $district,
+                        'regency' => $regency,
+                        'province' => $province,
+                        'count' => 0,
+                        'total_visits' => 0,
+                        'total_revenue' => 0.0,
+                    ];
+                }
+
+                $target[$key]['count']++;
+                $target[$key]['total_visits'] += $visitCount;
+                $target[$key]['total_revenue'] += $revenue;
+            };
+
             $formatLocationCounts = function (array $counts): array {
                 $rows = [];
                 foreach ($counts as $name => $values) {
@@ -872,6 +909,41 @@ class CeoDashboardController extends Controller
                 });
 
                 return array_values($rows);
+            };
+
+            $formatCombinedLocationCounts = function (array $counts): array {
+                $rows = array_values($counts);
+
+                usort($rows, function (array $left, array $right): int {
+                    if ($left['count'] === $right['count']) {
+                        if ($left['total_visits'] === $right['total_visits']) {
+                            if ((float) $left['total_revenue'] === (float) $right['total_revenue']) {
+                                return strcasecmp(
+                                    implode(' ', [$left['address'], $left['district'], $left['regency'], $left['province']]),
+                                    implode(' ', [$right['address'], $right['district'], $right['regency'], $right['province']])
+                                );
+                            }
+
+                            return ((float) $right['total_revenue']) <=> ((float) $left['total_revenue']);
+                        }
+
+                        return $right['total_visits'] <=> $left['total_visits'];
+                    }
+
+                    return $right['count'] <=> $left['count'];
+                });
+
+                return array_map(function (array $row): array {
+                    return [
+                        'address' => (string) ($row['address'] ?? ''),
+                        'district' => (string) ($row['district'] ?? ''),
+                        'regency' => (string) ($row['regency'] ?? ''),
+                        'province' => (string) ($row['province'] ?? ''),
+                        'count' => (int) ($row['count'] ?? 0),
+                        'total_visits' => (int) ($row['total_visits'] ?? 0),
+                        'total_revenue' => round((float) ($row['total_revenue'] ?? 0), 2),
+                    ];
+                }, $rows);
             };
 
             if (!empty($patientIds)) {
@@ -909,11 +981,15 @@ class CeoDashboardController extends Controller
                     $patientId = (string) $pasien->id;
                     $visitCount = (int) ($patientVisitCounts[$patientId] ?? 0);
                     $revenue = (float) ($patientRevenueTotals[$patientId] ?? 0);
+                    $districtName = (string) data_get($pasien, 'village.district.name', '');
+                    $regencyName = (string) data_get($pasien, 'village.district.regency.name', '');
+                    $provinceName = (string) data_get($pasien, 'village.district.regency.province.name', '');
 
                     $incrementLocationCount($addressCounts, $pasien->alamat, $visitCount, $revenue);
-                    $incrementLocationCount($districtCounts, data_get($pasien, 'village.district.name'), $visitCount, $revenue);
-                    $incrementLocationCount($regencyCounts, data_get($pasien, 'village.district.regency.name'), $visitCount, $revenue);
-                    $incrementLocationCount($provinceCounts, data_get($pasien, 'village.district.regency.province.name'), $visitCount, $revenue);
+                    $incrementLocationCount($districtCounts, $districtName, $visitCount, $revenue);
+                    $incrementLocationCount($regencyCounts, $regencyName, $visitCount, $revenue);
+                    $incrementLocationCount($provinceCounts, $provinceName, $visitCount, $revenue);
+                    $incrementCombinedLocationCount($combinedLocationCounts, $pasien->alamat, $districtName, $regencyName, $provinceName, $visitCount, $revenue);
                 }
             }
 
@@ -924,6 +1000,7 @@ class CeoDashboardController extends Controller
                     'average' => !empty($ages) ? round(array_sum($ages) / count($ages), 1) : null,
                 ],
                 'locations' => [
+                    'combined' => $formatCombinedLocationCounts($combinedLocationCounts),
                     'addresses' => $formatLocationCounts($addressCounts),
                     'districts' => $formatLocationCounts($districtCounts),
                     'regencies' => $formatLocationCounts($regencyCounts),

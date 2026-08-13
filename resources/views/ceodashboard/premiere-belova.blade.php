@@ -449,160 +449,43 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-lg-6 mb-3">
+                            <div class="col-12 mb-3">
                                 <div class="border rounded p-3 h-100">
                                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
-                                        <h6 class="mb-0">Patients by Alamat</h6>
-                                        <input type="text" id="patient-address-search" class="form-control form-control-sm" placeholder="Search alamat" style="max-width:220px;">
+                                        <h6 class="mb-0">Patients by Location</h6>
+                                        <input type="text" id="patient-location-search" class="form-control form-control-sm" placeholder="Search alamat, district, regency, province" style="max-width:320px;">
                                     </div>
                                     <div class="patient-location-summary">
                                         <div class="patient-location-summary-card">
                                             <span class="patient-location-summary-label">Displayed Patients</span>
-                                            <span class="patient-location-summary-value" id="patient-address-total-patients">0</span>
+                                            <span class="patient-location-summary-value" id="patient-location-total-patients">0</span>
                                         </div>
                                         <div class="patient-location-summary-card">
                                             <span class="patient-location-summary-label">Displayed Visits</span>
-                                            <span class="patient-location-summary-value" id="patient-address-total-visits">0</span>
+                                            <span class="patient-location-summary-value" id="patient-location-total-visits">0</span>
                                         </div>
                                         <div class="patient-location-summary-card">
                                             <span class="patient-location-summary-label">Displayed Revenue</span>
-                                            <span class="patient-location-summary-value" id="patient-address-total-revenue">Rp 0</span>
+                                            <span class="patient-location-summary-value" id="patient-location-total-revenue">Rp 0</span>
                                         </div>
                                     </div>
-                                    <div class="table-responsive" style="max-height:280px;">
+                                    <div class="table-responsive" style="max-height:420px;">
                                         <table class="table table-sm mb-0">
                                             <thead>
                                                 <tr>
                                                     <th style="width:56px;">#</th>
                                                     <th>Alamat</th>
-                                                    <th class="text-end">Patients</th>
-                                                    <th class="text-end">Total Visit</th>
-                                                    <th class="text-end">Total Revenue</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="patient-address-breakdown-body">
-                                                <tr>
-                                                    <td colspan="5" class="text-muted">-</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-6 mb-3">
-                                <div class="border rounded p-3 h-100">
-                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
-                                        <h6 class="mb-0">Patients by District</h6>
-                                        <input type="text" id="patient-district-search" class="form-control form-control-sm" placeholder="Search district" style="max-width:220px;">
-                                    </div>
-                                    <div class="patient-location-summary">
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Patients</span>
-                                            <span class="patient-location-summary-value" id="patient-district-total-patients">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Visits</span>
-                                            <span class="patient-location-summary-value" id="patient-district-total-visits">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Revenue</span>
-                                            <span class="patient-location-summary-value" id="patient-district-total-revenue">Rp 0</span>
-                                        </div>
-                                    </div>
-                                    <div class="table-responsive" style="max-height:280px;">
-                                        <table class="table table-sm mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width:56px;">#</th>
                                                     <th>District</th>
-                                                    <th class="text-end">Patients</th>
-                                                    <th class="text-end">Total Visit</th>
-                                                    <th class="text-end">Total Revenue</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="patient-district-breakdown-body">
-                                                <tr>
-                                                    <td colspan="5" class="text-muted">-</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-6 mb-3">
-                                <div class="border rounded p-3 h-100">
-                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
-                                        <h6 class="mb-0">Patients by Regency</h6>
-                                        <input type="text" id="patient-regency-search" class="form-control form-control-sm" placeholder="Search regency" style="max-width:220px;">
-                                    </div>
-                                    <div class="patient-location-summary">
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Patients</span>
-                                            <span class="patient-location-summary-value" id="patient-regency-total-patients">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Visits</span>
-                                            <span class="patient-location-summary-value" id="patient-regency-total-visits">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Revenue</span>
-                                            <span class="patient-location-summary-value" id="patient-regency-total-revenue">Rp 0</span>
-                                        </div>
-                                    </div>
-                                    <div class="table-responsive" style="max-height:280px;">
-                                        <table class="table table-sm mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width:56px;">#</th>
                                                     <th>Regency</th>
-                                                    <th class="text-end">Patients</th>
-                                                    <th class="text-end">Total Visit</th>
-                                                    <th class="text-end">Total Revenue</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="patient-regency-breakdown-body">
-                                                <tr>
-                                                    <td colspan="5" class="text-muted">-</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-6 mb-3">
-                                <div class="border rounded p-3 h-100">
-                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
-                                        <h6 class="mb-0">Patients by Province</h6>
-                                        <input type="text" id="patient-province-search" class="form-control form-control-sm" placeholder="Search province" style="max-width:220px;">
-                                    </div>
-                                    <div class="patient-location-summary">
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Patients</span>
-                                            <span class="patient-location-summary-value" id="patient-province-total-patients">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Visits</span>
-                                            <span class="patient-location-summary-value" id="patient-province-total-visits">0</span>
-                                        </div>
-                                        <div class="patient-location-summary-card">
-                                            <span class="patient-location-summary-label">Displayed Revenue</span>
-                                            <span class="patient-location-summary-value" id="patient-province-total-revenue">Rp 0</span>
-                                        </div>
-                                    </div>
-                                    <div class="table-responsive" style="max-height:280px;">
-                                        <table class="table table-sm mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th style="width:56px;">#</th>
                                                     <th>Province</th>
                                                     <th class="text-end">Patients</th>
                                                     <th class="text-end">Total Visit</th>
                                                     <th class="text-end">Total Revenue</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="patient-province-breakdown-body">
+                                            <tbody id="patient-location-breakdown-body">
                                                 <tr>
-                                                    <td colspan="5" class="text-muted">-</td>
+                                                    <td colspan="8" class="text-muted">-</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -1315,7 +1198,7 @@
             var doctorDetailVisitationChart = null;
             var doctorDetailGenderChart = null;
             var doctorDetailAgeChart = null;
-            var currentPatientLocationData = { addresses: [], districts: [], regencies: [], provinces: [] };
+            var currentPatientLocationData = [];
             var initialData = window.INIT_VISITS || null;
             var latestData = initialData;
             var selectedStart = "{{ $initialFilters['start_date'] ?? now()->startOfYear()->toDateString() }}";
@@ -1451,12 +1334,7 @@
                 var gender = demographics.gender || { male: 0, female: 0, other: 0 };
                 var ageBuckets = demographics.age && demographics.age.buckets ? demographics.age.buckets : {};
                 var locations = demographics.locations || {};
-                currentPatientLocationData = {
-                    addresses: Array.isArray(locations.addresses) ? locations.addresses : [],
-                    districts: Array.isArray(locations.districts) ? locations.districts : [],
-                    regencies: Array.isArray(locations.regencies) ? locations.regencies : [],
-                    provinces: Array.isArray(locations.provinces) ? locations.provinces : [],
-                };
+                currentPatientLocationData = Array.isArray(locations.combined) ? locations.combined : [];
 
                 var genderEl = document.getElementById('patientGenderChart');
                 if (genderEl) {
@@ -1500,19 +1378,16 @@
                 renderAllLocationBreakdownTables();
             }
 
-            function getLocationSearchValue(inputId) {
-                var input = document.getElementById(inputId);
+            function getLocationSearchValue() {
+                var input = document.getElementById('patient-location-search');
                 return input ? String(input.value || '').trim().toLowerCase() : '';
             }
 
             function renderAllLocationBreakdownTables() {
-                renderLocationBreakdownTable('patient-address-breakdown-body', currentPatientLocationData.addresses, 'Tidak ada data alamat', getLocationSearchValue('patient-address-search'));
-                renderLocationBreakdownTable('patient-district-breakdown-body', currentPatientLocationData.districts, 'Tidak ada data district', getLocationSearchValue('patient-district-search'));
-                renderLocationBreakdownTable('patient-regency-breakdown-body', currentPatientLocationData.regencies, 'Tidak ada data regency', getLocationSearchValue('patient-regency-search'));
-                renderLocationBreakdownTable('patient-province-breakdown-body', currentPatientLocationData.provinces, 'Tidak ada data province', getLocationSearchValue('patient-province-search'));
+                renderLocationBreakdownTable('patient-location-breakdown-body', currentPatientLocationData, 'Tidak ada data lokasi', getLocationSearchValue());
             }
 
-            function updateLocationBreakdownSummary(prefix, items) {
+            function updateLocationBreakdownSummary(items) {
                 var totalPatients = 0;
                 var totalVisits = 0;
                 var totalRevenue = 0;
@@ -1523,9 +1398,9 @@
                     totalRevenue += Number(item.total_revenue || 0);
                 });
 
-                var patientsEl = document.getElementById(prefix + '-total-patients');
-                var visitsEl = document.getElementById(prefix + '-total-visits');
-                var revenueEl = document.getElementById(prefix + '-total-revenue');
+                var patientsEl = document.getElementById('patient-location-total-patients');
+                var visitsEl = document.getElementById('patient-location-total-visits');
+                var revenueEl = document.getElementById('patient-location-total-revenue');
 
                 if (patientsEl) patientsEl.textContent = formatNumber(totalPatients);
                 if (visitsEl) visitsEl.textContent = formatNumber(totalVisits);
@@ -1540,20 +1415,16 @@
 
                 var filteredItems = Array.isArray(items) ? items.filter(function(item) {
                     if (!query) return true;
-                    return String(item.name || '').toLowerCase().indexOf(query) !== -1;
+                    var haystack = [item.address || '', item.district || '', item.regency || '', item.province || '']
+                        .join(' ')
+                        .toLowerCase();
+                    return haystack.indexOf(query) !== -1;
                 }) : [];
 
-                var summaryPrefixMap = {
-                    'patient-address-breakdown-body': 'patient-address',
-                    'patient-district-breakdown-body': 'patient-district',
-                    'patient-regency-breakdown-body': 'patient-regency',
-                    'patient-province-breakdown-body': 'patient-province'
-                };
-
-                updateLocationBreakdownSummary(summaryPrefixMap[bodyId], filteredItems);
+                updateLocationBreakdownSummary(filteredItems);
 
                 if (!filteredItems.length) {
-                    body.innerHTML = '<tr><td colspan="5" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
+                    body.innerHTML = '<tr><td colspan="8" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
                     return;
                 }
 
@@ -1564,8 +1435,17 @@
                     rankCell.scope = 'row';
                     rankCell.textContent = index + 1;
 
-                    var labelCell = document.createElement('td');
-                    labelCell.textContent = item.name || '-';
+                    var addressCell = document.createElement('td');
+                    addressCell.textContent = item.address || '-';
+
+                    var districtCell = document.createElement('td');
+                    districtCell.textContent = item.district || '-';
+
+                    var regencyCell = document.createElement('td');
+                    regencyCell.textContent = item.regency || '-';
+
+                    var provinceCell = document.createElement('td');
+                    provinceCell.textContent = item.province || '-';
 
                     var countCell = document.createElement('td');
                     countCell.className = 'text-end';
@@ -1580,7 +1460,10 @@
                     revenueCell.textContent = formatCurrency(item.total_revenue || 0);
 
                     row.appendChild(rankCell);
-                    row.appendChild(labelCell);
+                    row.appendChild(addressCell);
+                    row.appendChild(districtCell);
+                    row.appendChild(regencyCell);
+                    row.appendChild(provinceCell);
                     row.appendChild(countCell);
                     row.appendChild(visitCell);
                     row.appendChild(revenueCell);
@@ -2969,7 +2852,7 @@
                     runItemRevenueSearch('treatment', true);
                 });
 
-                $('#patient-address-search, #patient-district-search, #patient-regency-search, #patient-province-search').on('input', function(){
+                $('#patient-location-search').on('input', function(){
                     renderAllLocationBreakdownTables();
                 });
 
