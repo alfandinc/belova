@@ -58,6 +58,44 @@
             margin-left: 8px;
             vertical-align: middle;
         }
+
+        .patient-location-summary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .patient-location-summary-card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px 12px;
+            background: #f8fafc;
+        }
+
+        .patient-location-summary-label {
+            display: block;
+            font-size: 11px;
+            line-height: 1.2;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+        }
+
+        .patient-location-summary-value {
+            display: block;
+            font-size: 18px;
+            line-height: 1.2;
+            font-weight: 600;
+            color: #1f2d3d;
+        }
+
+        @media (max-width: 767.98px) {
+            .patient-location-summary {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 @endsection                                                                                                                                                              
 
@@ -417,6 +455,20 @@
                                         <h6 class="mb-0">Patients by Alamat</h6>
                                         <input type="text" id="patient-address-search" class="form-control form-control-sm" placeholder="Search alamat" style="max-width:220px;">
                                     </div>
+                                    <div class="patient-location-summary">
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Patients</span>
+                                            <span class="patient-location-summary-value" id="patient-address-total-patients">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Visits</span>
+                                            <span class="patient-location-summary-value" id="patient-address-total-visits">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Revenue</span>
+                                            <span class="patient-location-summary-value" id="patient-address-total-revenue">Rp 0</span>
+                                        </div>
+                                    </div>
                                     <div class="table-responsive" style="max-height:280px;">
                                         <table class="table table-sm mb-0">
                                             <thead>
@@ -442,6 +494,20 @@
                                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
                                         <h6 class="mb-0">Patients by District</h6>
                                         <input type="text" id="patient-district-search" class="form-control form-control-sm" placeholder="Search district" style="max-width:220px;">
+                                    </div>
+                                    <div class="patient-location-summary">
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Patients</span>
+                                            <span class="patient-location-summary-value" id="patient-district-total-patients">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Visits</span>
+                                            <span class="patient-location-summary-value" id="patient-district-total-visits">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Revenue</span>
+                                            <span class="patient-location-summary-value" id="patient-district-total-revenue">Rp 0</span>
+                                        </div>
                                     </div>
                                     <div class="table-responsive" style="max-height:280px;">
                                         <table class="table table-sm mb-0">
@@ -469,6 +535,20 @@
                                         <h6 class="mb-0">Patients by Regency</h6>
                                         <input type="text" id="patient-regency-search" class="form-control form-control-sm" placeholder="Search regency" style="max-width:220px;">
                                     </div>
+                                    <div class="patient-location-summary">
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Patients</span>
+                                            <span class="patient-location-summary-value" id="patient-regency-total-patients">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Visits</span>
+                                            <span class="patient-location-summary-value" id="patient-regency-total-visits">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Revenue</span>
+                                            <span class="patient-location-summary-value" id="patient-regency-total-revenue">Rp 0</span>
+                                        </div>
+                                    </div>
                                     <div class="table-responsive" style="max-height:280px;">
                                         <table class="table table-sm mb-0">
                                             <thead>
@@ -494,6 +574,20 @@
                                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
                                         <h6 class="mb-0">Patients by Province</h6>
                                         <input type="text" id="patient-province-search" class="form-control form-control-sm" placeholder="Search province" style="max-width:220px;">
+                                    </div>
+                                    <div class="patient-location-summary">
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Patients</span>
+                                            <span class="patient-location-summary-value" id="patient-province-total-patients">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Visits</span>
+                                            <span class="patient-location-summary-value" id="patient-province-total-visits">0</span>
+                                        </div>
+                                        <div class="patient-location-summary-card">
+                                            <span class="patient-location-summary-label">Displayed Revenue</span>
+                                            <span class="patient-location-summary-value" id="patient-province-total-revenue">Rp 0</span>
+                                        </div>
                                     </div>
                                     <div class="table-responsive" style="max-height:280px;">
                                         <table class="table table-sm mb-0">
@@ -1418,6 +1512,26 @@
                 renderLocationBreakdownTable('patient-province-breakdown-body', currentPatientLocationData.provinces, 'Tidak ada data province', getLocationSearchValue('patient-province-search'));
             }
 
+            function updateLocationBreakdownSummary(prefix, items) {
+                var totalPatients = 0;
+                var totalVisits = 0;
+                var totalRevenue = 0;
+
+                (items || []).forEach(function(item) {
+                    totalPatients += Number(item.count || 0);
+                    totalVisits += Number(item.total_visits || 0);
+                    totalRevenue += Number(item.total_revenue || 0);
+                });
+
+                var patientsEl = document.getElementById(prefix + '-total-patients');
+                var visitsEl = document.getElementById(prefix + '-total-visits');
+                var revenueEl = document.getElementById(prefix + '-total-revenue');
+
+                if (patientsEl) patientsEl.textContent = formatNumber(totalPatients);
+                if (visitsEl) visitsEl.textContent = formatNumber(totalVisits);
+                if (revenueEl) revenueEl.textContent = formatCurrency(totalRevenue);
+            }
+
             function renderLocationBreakdownTable(bodyId, items, emptyText, query) {
                 var body = document.getElementById(bodyId);
                 if (!body) return;
@@ -1428,6 +1542,15 @@
                     if (!query) return true;
                     return String(item.name || '').toLowerCase().indexOf(query) !== -1;
                 }) : [];
+
+                var summaryPrefixMap = {
+                    'patient-address-breakdown-body': 'patient-address',
+                    'patient-district-breakdown-body': 'patient-district',
+                    'patient-regency-breakdown-body': 'patient-regency',
+                    'patient-province-breakdown-body': 'patient-province'
+                };
+
+                updateLocationBreakdownSummary(summaryPrefixMap[bodyId], filteredItems);
 
                 if (!filteredItems.length) {
                     body.innerHTML = '<tr><td colspan="5" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
