@@ -409,6 +409,105 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-lg-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
+                                        <h6 class="mb-0">Patients by Alamat</h6>
+                                        <input type="text" id="patient-address-search" class="form-control form-control-sm" placeholder="Search alamat" style="max-width:220px;">
+                                    </div>
+                                    <div class="table-responsive" style="max-height:280px;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:56px;">#</th>
+                                                    <th>Alamat</th>
+                                                    <th class="text-end">Patients</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="patient-address-breakdown-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
+                                        <h6 class="mb-0">Patients by District</h6>
+                                        <input type="text" id="patient-district-search" class="form-control form-control-sm" placeholder="Search district" style="max-width:220px;">
+                                    </div>
+                                    <div class="table-responsive" style="max-height:280px;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:56px;">#</th>
+                                                    <th>District</th>
+                                                    <th class="text-end">Patients</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="patient-district-breakdown-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
+                                        <h6 class="mb-0">Patients by Regency</h6>
+                                        <input type="text" id="patient-regency-search" class="form-control form-control-sm" placeholder="Search regency" style="max-width:220px;">
+                                    </div>
+                                    <div class="table-responsive" style="max-height:280px;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:56px;">#</th>
+                                                    <th>Regency</th>
+                                                    <th class="text-end">Patients</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="patient-regency-breakdown-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-6 mb-3">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px;">
+                                        <h6 class="mb-0">Patients by Province</h6>
+                                        <input type="text" id="patient-province-search" class="form-control form-control-sm" placeholder="Search province" style="max-width:220px;">
+                                    </div>
+                                    <div class="table-responsive" style="max-height:280px;">
+                                        <table class="table table-sm mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width:56px;">#</th>
+                                                    <th>Province</th>
+                                                    <th class="text-end">Patients</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="patient-province-breakdown-body">
+                                                <tr>
+                                                    <td colspan="3" class="text-muted">-</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="tab-pane fade" id="tab-medicine" role="tabpanel">
@@ -1114,6 +1213,7 @@
             var doctorDetailVisitationChart = null;
             var doctorDetailGenderChart = null;
             var doctorDetailAgeChart = null;
+            var currentPatientLocationData = { addresses: [], districts: [], regencies: [], provinces: [] };
             var initialData = window.INIT_VISITS || null;
             var latestData = initialData;
             var selectedStart = "{{ $initialFilters['start_date'] ?? now()->startOfYear()->toDateString() }}";
@@ -1248,6 +1348,13 @@
                 var demographics = stats && stats.patient_demographics ? stats.patient_demographics : {};
                 var gender = demographics.gender || { male: 0, female: 0, other: 0 };
                 var ageBuckets = demographics.age && demographics.age.buckets ? demographics.age.buckets : {};
+                var locations = demographics.locations || {};
+                currentPatientLocationData = {
+                    addresses: Array.isArray(locations.addresses) ? locations.addresses : [],
+                    districts: Array.isArray(locations.districts) ? locations.districts : [],
+                    regencies: Array.isArray(locations.regencies) ? locations.regencies : [],
+                    provinces: Array.isArray(locations.provinces) ? locations.provinces : [],
+                };
 
                 var genderEl = document.getElementById('patientGenderChart');
                 if (genderEl) {
@@ -1287,6 +1394,57 @@
                         ageChart.render();
                     } catch (e) { console.error(e); }
                 }
+
+                renderAllLocationBreakdownTables();
+            }
+
+            function getLocationSearchValue(inputId) {
+                var input = document.getElementById(inputId);
+                return input ? String(input.value || '').trim().toLowerCase() : '';
+            }
+
+            function renderAllLocationBreakdownTables() {
+                renderLocationBreakdownTable('patient-address-breakdown-body', currentPatientLocationData.addresses, 'Tidak ada data alamat', getLocationSearchValue('patient-address-search'));
+                renderLocationBreakdownTable('patient-district-breakdown-body', currentPatientLocationData.districts, 'Tidak ada data district', getLocationSearchValue('patient-district-search'));
+                renderLocationBreakdownTable('patient-regency-breakdown-body', currentPatientLocationData.regencies, 'Tidak ada data regency', getLocationSearchValue('patient-regency-search'));
+                renderLocationBreakdownTable('patient-province-breakdown-body', currentPatientLocationData.provinces, 'Tidak ada data province', getLocationSearchValue('patient-province-search'));
+            }
+
+            function renderLocationBreakdownTable(bodyId, items, emptyText, query) {
+                var body = document.getElementById(bodyId);
+                if (!body) return;
+
+                body.innerHTML = '';
+
+                var filteredItems = Array.isArray(items) ? items.filter(function(item) {
+                    if (!query) return true;
+                    return String(item.name || '').toLowerCase().indexOf(query) !== -1;
+                }) : [];
+
+                if (!filteredItems.length) {
+                    body.innerHTML = '<tr><td colspan="3" class="text-muted">' + (emptyText || 'Tidak ada data') + '</td></tr>';
+                    return;
+                }
+
+                filteredItems.forEach(function(item, index) {
+                    var row = document.createElement('tr');
+
+                    var rankCell = document.createElement('th');
+                    rankCell.scope = 'row';
+                    rankCell.textContent = index + 1;
+
+                    var labelCell = document.createElement('td');
+                    labelCell.textContent = item.name || '-';
+
+                    var countCell = document.createElement('td');
+                    countCell.className = 'text-end';
+                    countCell.textContent = formatNumber(item.count || 0);
+
+                    row.appendChild(rankCell);
+                    row.appendChild(labelCell);
+                    row.appendChild(countCell);
+                    body.appendChild(row);
+                });
             }
 
             function renderVaksinVisitsTable(stats) {
@@ -2668,6 +2826,10 @@
 
                 $('#top-treatment-revenue-specialty-filter').on('change', function(){
                     runItemRevenueSearch('treatment', true);
+                });
+
+                $('#patient-address-search, #patient-district-search, #patient-regency-search, #patient-province-search').on('input', function(){
+                    renderAllLocationBreakdownTables();
                 });
 
                 $('#premiereDoctorSelect').on('change', function(){

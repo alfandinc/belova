@@ -665,6 +665,12 @@ class CeoDashboardController extends Controller
                     'buckets' => ['0-17' => 0, '18-30' => 0, '31-45' => 0, '46-60' => 0, '61+' => 0],
                     'average' => null,
                 ],
+                'locations' => [
+                    'addresses' => [],
+                    'districts' => [],
+                    'regencies' => [],
+                    'provinces' => [],
+                ],
             ],
             'medicine' => [
                 'total_prescription_items' => 0,
@@ -786,9 +792,49 @@ class CeoDashboardController extends Controller
                 '61+' => 0,
             ];
             $ages = [];
+            $addressCounts = [];
+            $districtCounts = [];
+            $regencyCounts = [];
+            $provinceCounts = [];
+
+            $incrementLocationCount = function (array &$target, $label): void {
+                $label = trim((string) $label);
+                if ($label === '') {
+                    return;
+                }
+
+                if (!isset($target[$label])) {
+                    $target[$label] = 0;
+                }
+
+                $target[$label]++;
+            };
+
+            $formatLocationCounts = function (array $counts): array {
+                $rows = [];
+                foreach ($counts as $name => $count) {
+                    $rows[] = [
+                        'name' => (string) $name,
+                        'count' => (int) $count,
+                    ];
+                }
+
+                usort($rows, function (array $left, array $right): int {
+                    if ($left['count'] === $right['count']) {
+                        return strcasecmp($left['name'], $right['name']);
+                    }
+
+                    return $right['count'] <=> $left['count'];
+                });
+
+                return array_values($rows);
+            };
 
             if (!empty($patientIds)) {
-                $pasiens = \App\Models\ERM\Pasien::whereIn('id', $patientIds)->get(['id', 'tanggal_lahir', 'gender']);
+                $pasiens = \App\Models\ERM\Pasien::with(['village.district.regency.province'])
+                    ->whereIn('id', $patientIds)
+                    ->get(['id', 'tanggal_lahir', 'gender', 'alamat', 'village_id']);
+
                 foreach ($pasiens as $pasien) {
                     $gender = strtolower(trim((string) $pasien->gender));
                     $maleValues = ['l', 'm', 'male', 'man', 'laki-laki', 'laki laki', 'laki', 'pria'];
@@ -815,6 +861,11 @@ class CeoDashboardController extends Controller
                             // ignore invalid tanggal_lahir
                         }
                     }
+
+                    $incrementLocationCount($addressCounts, $pasien->alamat);
+                    $incrementLocationCount($districtCounts, data_get($pasien, 'village.district.name'));
+                    $incrementLocationCount($regencyCounts, data_get($pasien, 'village.district.regency.name'));
+                    $incrementLocationCount($provinceCounts, data_get($pasien, 'village.district.regency.province.name'));
                 }
             }
 
@@ -823,6 +874,12 @@ class CeoDashboardController extends Controller
                 'age' => [
                     'buckets' => $ageBuckets,
                     'average' => !empty($ages) ? round(array_sum($ages) / count($ages), 1) : null,
+                ],
+                'locations' => [
+                    'addresses' => $formatLocationCounts($addressCounts),
+                    'districts' => $formatLocationCounts($districtCounts),
+                    'regencies' => $formatLocationCounts($regencyCounts),
+                    'provinces' => $formatLocationCounts($provinceCounts),
                 ],
             ];
 
