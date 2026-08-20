@@ -6,9 +6,7 @@
 @section('content')
 
 @php
-    $filteredJenisKonsultasi = collect($jenisKonsultasi)
-        ->filter(fn ($konsultasi) => stripos($konsultasi->nama, 'Konsultasi') !== false)
-        ->values();
+    $filteredJenisKonsultasi = collect($jenisKonsultasi)->values();
     $defaultJenisKonsultasi = (string) old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2);
     if (!$filteredJenisKonsultasi->contains('id', (int) $defaultJenisKonsultasi)) {
         $defaultJenisKonsultasi = (string) optional($filteredJenisKonsultasi->first())->id;

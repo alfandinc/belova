@@ -59,7 +59,7 @@ class AsesmenController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        $jenisKonsultasi = Konsultasi::get();
+        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->dokter->spesialisasi->nama);
 
         // Get previous visitation for this patient (exclude current)
         $lastVisitation = Visitation::where('pasien_id', $visitation->pasien_id)
@@ -92,6 +92,42 @@ class AsesmenController extends Controller
             'prefill_riwayat_penyakit_dahulu' => $prefill_riwayat_penyakit_dahulu,
             'prefill_obat_dikonsumsi' => $prefill_obat_dikonsumsi,
         ], $pasienData, $createKunjunganData));
+    }
+
+    private function getJenisKonsultasiForSpesialisasi(string $spesialisasiNama)
+    {
+        $jenisKonsultasi = Konsultasi::query()
+            ->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%'])
+            ->orderBy('kategori')
+            ->orderBy('nama')
+            ->get();
+
+        $normalizedSpesialisasi = $this->normalizeKonsultasiKategori($spesialisasiNama);
+
+        $spesialisasiItems = $jenisKonsultasi->filter(function (Konsultasi $konsultasi) use ($normalizedSpesialisasi) {
+            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
+
+            return $kategori !== '' && str_contains($kategori, $normalizedSpesialisasi);
+        })->values();
+
+        if ($spesialisasiItems->isNotEmpty()) {
+            return $spesialisasiItems;
+        }
+
+        return $jenisKonsultasi->filter(function (Konsultasi $konsultasi) {
+            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
+
+            return $kategori === '' || $kategori === 'konsultasi';
+        })->values();
+    }
+
+    private function normalizeKonsultasiKategori(?string $value): string
+    {
+        return (string) Str::of((string) $value)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9\s]/', ' ')
+            ->replaceMatches('/\s+/', ' ')
+            ->trim();
     }
 
     public function store(Request $request)

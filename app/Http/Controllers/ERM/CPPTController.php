@@ -5,10 +5,12 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\Konsultasi;
 use App\Models\ERM\Visitation;
 use Illuminate\Http\Request;
 use App\Models\ERM\Cppt;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class CPPTController extends Controller
 {
@@ -47,7 +49,7 @@ class CPPTController extends Controller
     }
     public function create($visitationId)
     {
-        $visitation = Visitation::findOrFail($visitationId);
+        $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($visitationId);
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
@@ -69,13 +71,49 @@ class CPPTController extends Controller
         });
 
         // Get konsultasi list for select
-        $jenisKonsultasi = \App\Models\ERM\Konsultasi::get();
+        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->dokter->spesialisasi->nama);
 
         return view('erm.cppt.create', array_merge([
             'visitation' => $visitation,
             'cpptList' => $cpptList,
             'jenisKonsultasi' => $jenisKonsultasi,
         ], $pasienData, $createKunjunganData));
+    }
+
+    private function getJenisKonsultasiForSpesialisasi(string $spesialisasiNama)
+    {
+        $jenisKonsultasi = Konsultasi::query()
+            ->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%'])
+            ->orderBy('kategori')
+            ->orderBy('nama')
+            ->get();
+
+        $normalizedSpesialisasi = $this->normalizeKonsultasiKategori($spesialisasiNama);
+
+        $spesialisasiItems = $jenisKonsultasi->filter(function (Konsultasi $konsultasi) use ($normalizedSpesialisasi) {
+            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
+
+            return $kategori !== '' && str_contains($kategori, $normalizedSpesialisasi);
+        })->values();
+
+        if ($spesialisasiItems->isNotEmpty()) {
+            return $spesialisasiItems;
+        }
+
+        return $jenisKonsultasi->filter(function (Konsultasi $konsultasi) {
+            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
+
+            return $kategori === '' || $kategori === 'konsultasi';
+        })->values();
+    }
+
+    private function normalizeKonsultasiKategori(?string $value): string
+    {
+        return (string) Str::of((string) $value)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9\s]/', ' ')
+            ->replaceMatches('/\s+/', ' ')
+            ->trim();
     }
 
     public function store(Request $request)

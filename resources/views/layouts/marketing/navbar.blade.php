@@ -78,6 +78,8 @@
                     || request()->is('marketing/before-after-gallery')
                     || request()->is('marketing/hari-penting');
                 $isMasterDataOpen = request()->is('marketing/master-merchandise')
+                    || request()->is('marketing/biaya-konsultasi')
+                    || request()->is('marketing/biaya-konsultasi/*')
                     || request()->is('marketing/tindakan')
                     || request()->is('marketing/tindakan/*')
                     || request()->is('marketing/kodetindakan')
@@ -157,6 +159,7 @@
                 </a>
                 <ul class="nav-second-level" aria-expanded="{{ $isMasterDataOpen ? 'true' : 'false' }}">
                     <li><a href="/marketing/master-merchandise"><i data-feather="package" class="align-self-center menu-icon"></i>Master Merchandise</a></li>
+                    <li><a href="/marketing/biaya-konsultasi"><i data-feather="credit-card" class="align-self-center menu-icon"></i>Biaya Konsultasi dan Lain Lain</a></li>
                     <li><a href="/marketing/tindakan"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i>Paket Tindakan</a></li>
                     <li><a href="/marketing/kodetindakan"><i data-feather="key" class="align-self-center menu-icon"></i>Kode Tindakan</a></li>
                     <li><a href="/erm/marketing/kategori-tindakan"><i data-feather="layers" class="align-self-center menu-icon"></i>Kategori Tindakan</a></li>

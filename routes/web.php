@@ -1868,6 +1868,10 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/master-merchandise/{id}/edit', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'edit']);
     Route::put('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'update']);
     Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);
+    Route::get('/biaya-konsultasi', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'index'])->name('marketing.konsultasi.index');
+    Route::post('/biaya-konsultasi', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'store'])->name('marketing.konsultasi.store');
+    Route::put('/biaya-konsultasi/{konsultasi}', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'update'])->name('marketing.konsultasi.update');
+    Route::delete('/biaya-konsultasi/{konsultasi}', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'destroy'])->name('marketing.konsultasi.destroy');
     // AJAX search for kode tindakan (for Select2 in tindakan modal)
     Route::get('kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
 

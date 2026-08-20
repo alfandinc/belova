@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Konsultasi extends Model
 {
     protected $table = 'erm_konsultasi';
-    protected $fillable = ['nama', 'harga'];
+    protected $fillable = ['nama', 'kategori', 'harga'];
 
     public function billing()
     {
