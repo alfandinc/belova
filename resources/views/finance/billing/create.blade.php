@@ -400,17 +400,24 @@
                 <div class="card-body">
                     @php
                         $today = \Carbon\Carbon::today()->format('Y-m-d');
-                        $activePromos = \App\Models\Marketing\Promo::where(function($q) use ($today){
-                            $q->whereNotNull('start_date')->whereNotNull('end_date')
-                                ->where('start_date','<=',$today)
-                                ->where('end_date','>=',$today);
-                        })->orWhere(function($q) use ($today){
-                            $q->whereNotNull('start_date')->whereNull('end_date')
-                                ->where('start_date','<=',$today);
-                        })->orWhere(function($q) use ($today){
-                            $q->whereNull('start_date')->whereNotNull('end_date')
-                                ->where('end_date','>=',$today);
-                        })->orderBy('start_date','desc')->take(5)->get();
+                        $activePromosQuery = \App\Models\Marketing\Promo::query()
+                            ->where(function($q) use ($today){
+                                $q->whereNotNull('start_date')->whereNotNull('end_date')
+                                    ->where('start_date','<=',$today)
+                                    ->where('end_date','>=',$today);
+                            })->orWhere(function($q) use ($today){
+                                $q->whereNotNull('start_date')->whereNull('end_date')
+                                    ->where('start_date','<=',$today);
+                            })->orWhere(function($q) use ($today){
+                                $q->whereNull('start_date')->whereNotNull('end_date')
+                                    ->where('end_date','>=',$today);
+                            });
+                        if (!$isEventBilling) {
+                            $activePromosQuery->whereDoesntHave('events', function($q) {
+                                $q->where('status', 'aktif');
+                            });
+                        }
+                        $activePromos = $activePromosQuery->orderBy('start_date','desc')->take(5)->get();
                         $displayPromos = $activePromos;
                         if ($isEventBilling && !empty($event)) {
                             $displayPromos = $event->promos

@@ -637,7 +637,10 @@ class BillingController extends Controller
         if ((string) ($visitation->pasien->referral_type ?? '') === Pasien::REFERRAL_TYPE_EVENT) {
             $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
             if ($eventCode !== '') {
-                $event = MarketingEvent::with('promos:id,name,start_date,end_date')->where('kode_event', $eventCode)->first();
+                $event = MarketingEvent::with('promos:id,name,start_date,end_date')
+                    ->where('status', 'aktif')
+                    ->where('kode_event', $eventCode)
+                    ->first();
                 if ($event) {
                     return $event;
                 }
@@ -768,6 +771,10 @@ class BillingController extends Controller
                 if ($event) {
                     $query->whereHas('events', function ($eventQuery) use ($event) {
                         $eventQuery->where('marketing_event.id', $event->id);
+                    });
+                } else {
+                    $query->whereDoesntHave('events', function ($eventQuery) {
+                        $eventQuery->where('status', 'aktif');
                     });
                 }
             })
