@@ -911,6 +911,10 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                 // Show 'Belum Review' with a map marker icon for not-yet-reviewed
                                 return '<span class="badge badge-light text-dark"><i class="fas fa-map-marker-alt mr-1"></i>Belum Review</span>';
                             }
+                            function badgeEmployee(employeeId){
+                                if (!employeeId) return '';
+                                return '<span class="badge badge-success"><i class="fas fa-id-badge mr-1"></i>Employee</span>';
+                            }
                             function badgeReferral(type, detail, eventName){
                                 var referralType = (type || '').toString().toLowerCase().trim();
                                 var referralDetail = (detail || '').toString().trim();
@@ -947,6 +951,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             badgesArr.push(badgePasien(sp));
                             badgesArr.push(badgeAkses(sa));
                             badgesArr.push(badgeReview(sr));
+                            badgesArr.push(badgeEmployee(row.employee_id));
                             badgesArr.push(badgeReferral(row.referral_type, row.referral_detail, row.referral_event_name));
 
                             // Age badge (compute if tanggal_lahir present)

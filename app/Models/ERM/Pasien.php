@@ -5,6 +5,7 @@ namespace App\Models\ERM;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Area\Village;
+use App\Models\HRD\Employee;
 use App\Models\ERM\KelasPasien;
 
 class Pasien extends Model
@@ -58,6 +59,7 @@ class Pasien extends Model
         'status_akses',
         'status_review',
         'user_id',
+        'employee_id',
     ];
 
     public function getNikAttribute()
@@ -105,6 +107,11 @@ class Pasien extends Model
     public function village()
     {
         return $this->belongsTo(Village::class, 'village_id');
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
     public function referralPasien()

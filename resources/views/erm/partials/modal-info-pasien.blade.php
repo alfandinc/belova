@@ -39,6 +39,10 @@
               <td>: <span id="info-marital-status"></span></td>
             </tr>
             <tr>
+              <th>Karyawan</th>
+              <td>: <span id="info-employee"></span></td>
+            </tr>
+            <tr>
               <th>Pendidikan</th>
               <td>: <span id="info-pendidikan"></span></td>
             </tr>

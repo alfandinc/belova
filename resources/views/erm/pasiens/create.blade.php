@@ -320,6 +320,19 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="employee_id">Karyawan</label>
+                                <select class="form-control select2" id="employee_id" name="employee_id">
+                                    <option value="">Pilih Karyawan</option>
+                                    @foreach($employees as $employee)
+                                        <option value="{{ $employee->id }}" {{ (string) old('employee_id', $pasien->employee_id ?? '') === (string) $employee->id ? 'selected' : '' }}>
+                                            {{ $employee->nama }}@if($employee->no_induk) ({{ $employee->no_induk }})@endif
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="row d-none" id="referral_pasien_wrapper">

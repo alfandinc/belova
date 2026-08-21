@@ -603,6 +603,7 @@ class RawatJalanController extends Controller
                         'erm_pasiens.status_pasien as status_pasien',
                         'erm_pasiens.status_akses as status_akses',
                         'erm_pasiens.status_review as status_review',
+                        'erm_pasiens.employee_id as employee_id',
                         'erm_pasiens.referral_type as referral_type',
                         'erm_pasiens.referral_detail as referral_detail',
 

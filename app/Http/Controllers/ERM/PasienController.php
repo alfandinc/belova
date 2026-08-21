@@ -15,6 +15,7 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
+use App\Models\HRD\Employee;
 use Illuminate\Validation\Rule;
 
 class PasienController extends Controller
@@ -290,6 +291,7 @@ class PasienController extends Controller
     $dokters = Dokter::with('spesialisasi')->get();
     $kliniks = Klinik::all();
     $provinces = Province::all();
+    $employees = Employee::active()->orderBy('nama')->get(['id', 'nama', 'no_induk']);
     
     // Check if we're editing an existing patient
     $pasien = null;
@@ -305,6 +307,7 @@ class PasienController extends Controller
         'metodeBayar', 
         'dokters', 
         'provinces', 
+        'employees',
         'kliniks', 
         'pasien', 
         'isEditing'
@@ -329,6 +332,7 @@ class PasienController extends Controller
         'referral_type' => 'nullable|in:social_media,website,other_pasien,lainnya,event',
         'referral_pasien_id' => 'nullable|string|exists:erm_pasiens,id',
         'referral_detail' => 'nullable|string|max:255',
+        'employee_id' => 'nullable|integer|exists:hrd_employee,id',
         'nama' => 'required|string|max:255',
         'tanggal_lahir' => 'required|date',
         'gender' => 'required|in:Laki-laki,Perempuan',
@@ -410,6 +414,7 @@ class PasienController extends Controller
                 'status_pasien' => $request->status_pasien ?? 'Regular',
                 'status_akses' => $request->status_akses ?? 'normal',
                 'user_id' => $userId,
+                'employee_id' => $request->employee_id,
             ]);
         } else {
             // Create new patient
@@ -447,6 +452,7 @@ class PasienController extends Controller
                 'status_pasien' => $request->status_pasien ?? 'Regular',
                 'status_akses' => $request->status_akses ?? 'normal',
                 'user_id' => $userId,
+                'employee_id' => $request->employee_id,
             ]);
         }
 
@@ -472,7 +478,7 @@ class PasienController extends Controller
     public function show($id)
     {
         // eager-load full area hierarchy so AJAX consumers can display names
-        $pasien = Pasien::with(['village.district.regency.province'])->findOrFail($id);
+        $pasien = Pasien::with(['village.district.regency.province', 'employee'])->findOrFail($id);
 
         return response()->json($pasien);
     }
@@ -503,6 +509,7 @@ class PasienController extends Controller
                 'max:50',
                 Rule::unique('erm_pasiens', 'identity_number')->ignore($id, 'id'),
             ],
+            'employee_id' => 'nullable|integer|exists:hrd_employee,id',
             'nama' => 'required|string|max:255',
             'tanggal_lahir' => 'required|date',
             'gender' => 'required|in:Laki-laki,Perempuan',
@@ -545,6 +552,7 @@ class PasienController extends Controller
                 'status_akses' => $request->status_akses ?? 'normal',
                 'status_review' => $request->status_review ?? 'belum',
                 'user_id' => Auth::id(),
+                'employee_id' => $request->employee_id,
             ]);
 
             return response()->json([

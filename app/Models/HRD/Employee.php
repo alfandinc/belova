@@ -2,6 +2,7 @@
 
 namespace App\Models\HRD;
 
+use App\Models\ERM\Pasien;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -159,6 +160,11 @@ class Employee extends Model
     public function pengajuanDanas()
     {
         return $this->hasMany(\App\Models\Finance\FinancePengajuanDana::class, 'employee_id');
+    }
+
+    public function pasiens()
+    {
+        return $this->hasMany(Pasien::class, 'employee_id');
     }
     
     public function contracts()

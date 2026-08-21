@@ -466,6 +466,12 @@ let currentPasienId;
             url: "{{ route('erm.pasien.show', '') }}/" + pasienId, // Fetch patient info
             type: "GET",
             success: function (response) {
+                const employeeName = response.employee && response.employee.nama ? response.employee.nama : '';
+                const employeeNoInduk = response.employee && response.employee.no_induk ? response.employee.no_induk : '';
+                const employeeLabel = employeeName
+                    ? employeeName + (employeeNoInduk ? ' (' + employeeNoInduk + ')' : '')
+                    : '-';
+
                 // Populate table cells with response data
                 $('#info-no-rm').text(response.id);
                 $('#info-nama').text(response.nama);
@@ -490,14 +496,15 @@ let currentPasienId;
                 $('#info-alamat').text(fullAddress);
                 $('#info-tanggal-lahir').text(response.tanggal_lahir);
                 $('#info-jenis-kelamin').text(response.gender);
-                $('#info-agama').text(response.agama);
-                $('#info-marital-status').text(response.martial_status);
-                $('#info-pendidikan').text(response.pendidikan);
-                $('#info-pekerjaan').text(response.pekerjaan);
-                $('#info-golongan-darah').text(response.gol_darah);
-                $('#info-no-hp').text(response.no_hp);
-                $('#info-email').text(response.email);
-                $('#info-instagram').text(response.instagram);
+                $('#info-agama').text(response.agama || '-');
+                $('#info-marital-status').text(response.marital_status || '-');
+                $('#info-employee').text(employeeLabel);
+                $('#info-pendidikan').text(response.pendidikan || '-');
+                $('#info-pekerjaan').text(response.pekerjaan || '-');
+                $('#info-golongan-darah').text(response.gol_darah || '-');
+                $('#info-no-hp').text(response.no_hp || '-');
+                $('#info-email').text(response.email || '-');
+                $('#info-instagram').text(response.instagram || '-');
                 // clear any leftover area spans if present
                 $('#info-village').text('');
                 $('#info-district').text('');
