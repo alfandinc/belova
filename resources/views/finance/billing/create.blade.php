@@ -1169,6 +1169,7 @@
         }
 
         function canDeleteBillingRow(row) {
+            if (isEventBilling) return true;
             if (!row) return !!canDeleteBilling;
             return !!canDeleteBilling || isKonsultasiBillingType(row.billable_type);
         }
