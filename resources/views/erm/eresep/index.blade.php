@@ -318,11 +318,18 @@ $(document).ready(function () {
                         // Jenis kunjungan badge
                         var jenisVal = (row && (row.jenis_kunjungan !== undefined && row.jenis_kunjungan !== null)) ? row.jenis_kunjungan : (row ? (row.jenis || row.jenis_kunjungan_id || null) : null);
                         var jenisLabel = '';
+                            var jenisIconHtml = '';
+                            var jenisStyle = '';
                         if (jenisVal !== null && jenisVal !== undefined && jenisVal !== '') {
                             var j = String(jenisVal);
                             if (j === '1') jenisLabel = 'Konsultasi';
                             else if (j === '2') jenisLabel = 'Beli Produk';
                             else if (j === '3') jenisLabel = 'Lab';
+                                else if (j === '5') {
+                                    jenisLabel = 'Marketplace';
+                                    jenisIconHtml = '<i class="fas fa-store mr-1"></i>';
+                                    jenisStyle = 'background-color:#d97706;color:#fff;';
+                                }
                             else jenisLabel = j;
                         }
                         if (!jenisLabel && row && row.jenis_kunjungan_text) {
@@ -335,9 +342,11 @@ $(document).ready(function () {
                             if (j2 === '1') jenisCls = 'badge badge-primary';      // Konsultasi
                             else if (j2 === '2') jenisCls = 'badge badge-warning'; // Beli Produk
                             else if (j2 === '3') jenisCls = 'badge badge-danger';  // Lab
+                            else if (j2 === '5') jenisCls = 'badge';              // Marketplace
                         } catch (e) {}
 
-                        var jenisHtml = jenisLabel ? '<div class="mt-1"><span class="' + jenisCls + '">' + jenisLabel + '</span></div>' : '';
+                        var jenisBadgeAttrs = jenisStyle ? ' class="' + jenisCls + '" style="' + jenisStyle + '"' : ' class="' + jenisCls + '"';
+                        var jenisHtml = jenisLabel ? '<div class="mt-1"><span' + jenisBadgeAttrs + '>' + jenisIconHtml + jenisLabel + '</span></div>' : '';
                         return '<div><span class="'+ cls +'">'+ name +'</span>' + jenisHtml + '</div>';
                     }
                     if (type === 'filter') return data || row.metode_bayar || '';
