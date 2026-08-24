@@ -507,14 +507,21 @@ class ObatController extends Controller
 
         $zatAktifIds = $obat->zatAktifs->pluck('id')->filter()->values();
 
+        $selectedHarga = (float) ($selectedMasterFaktur->harga ?? 0);
+        $selectedDiskon = (float) ($selectedMasterFaktur->diskon ?? 0);
+        $selectedDiskonType = (string) ($selectedMasterFaktur->diskon_type ?? 'nominal');
+        $selectedSetelahDiskon = $this->calculateMasterFakturNetPrice($selectedHarga, $selectedDiskon, $selectedDiskonType);
+
         if ($zatAktifIds->isEmpty()) {
             return response()->json([
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
                 'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
                 'isi_per_box' => $selectedMasterFaktur ? round((float) ($selectedMasterFaktur->qty_per_box ?? 0), 2) : null,
-                'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
-                'harga_jual' => $obat->harga_nonfornas,
+                'harga' => $selectedMasterFaktur ? $selectedHarga : null,
+                'diskon' => $selectedMasterFaktur ? $selectedDiskon : null,
+                'diskon_type' => $selectedMasterFaktur ? $selectedDiskonType : null,
+                'setelah_diskon' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
                 'shared_zat_aktif' => [],
                 'rows' => [],
                 'message' => 'Obat ini belum memiliki zat aktif.',
@@ -548,6 +555,11 @@ class ObatController extends Controller
                     ->sortByDesc('id')
                     ->first();
 
+                $harga = (float) ($latestMasterFaktur->harga ?? 0);
+                $diskon = (float) ($latestMasterFaktur->diskon ?? 0);
+                $diskonType = (string) ($latestMasterFaktur->diskon_type ?? 'nominal');
+                $setelahDiskon = $this->calculateMasterFakturNetPrice($harga, $diskon, $diskonType);
+
                 $matchedZatAktif = $similarObat->zatAktifs
                     ->whereIn('id', $zatAktifIds)
                     ->pluck('nama')
@@ -563,8 +575,10 @@ class ObatController extends Controller
                     'principal_names' => $principalNames,
                     'total_stock' => round((float) ($stockPerObat[$similarObat->id] ?? 0), 2),
                     'isi_per_box' => $latestMasterFaktur ? round((float) ($latestMasterFaktur->qty_per_box ?? 0), 2) : null,
-                    'harga_beli' => $latestMasterFaktur ? $latestMasterFaktur->harga : null,
-                    'harga_jual' => $similarObat->harga_nonfornas,
+                    'harga' => $latestMasterFaktur ? $harga : null,
+                    'diskon' => $latestMasterFaktur ? $diskon : null,
+                    'diskon_type' => $latestMasterFaktur ? $diskonType : null,
+                    'setelah_diskon' => $latestMasterFaktur ? $setelahDiskon : null,
                     'matched_zat_aktif' => $matchedZatAktif,
                 ];
             })
@@ -575,11 +589,23 @@ class ObatController extends Controller
             'obat_nama' => $obat->nama,
             'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
             'isi_per_box' => $selectedMasterFaktur ? round((float) ($selectedMasterFaktur->qty_per_box ?? 0), 2) : null,
-            'harga_beli' => $selectedMasterFaktur ? $selectedMasterFaktur->harga : null,
-            'harga_jual' => $obat->harga_nonfornas,
+            'harga' => $selectedMasterFaktur ? $selectedHarga : null,
+            'diskon' => $selectedMasterFaktur ? $selectedDiskon : null,
+            'diskon_type' => $selectedMasterFaktur ? $selectedDiskonType : null,
+            'setelah_diskon' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
             'shared_zat_aktif' => $sharedZatAktif,
             'rows' => $rows,
         ]);
+    }
+
+    protected function calculateMasterFakturNetPrice(float $harga, float $diskon, string $diskonType): float
+    {
+        $normalizedType = strtolower(trim($diskonType));
+        $diskonValue = in_array($normalizedType, ['persen', 'percent', '%', 'pct', 'pc', 'per'])
+            ? ($harga * $diskon / 100)
+            : $diskon;
+
+        return max($harga - $diskonValue, 0);
     }
 
     public function forecastKeluar(Request $request)

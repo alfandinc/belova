@@ -484,17 +484,86 @@ class PermintaanController extends Controller
         ]);
     }
 
+    public function getObatOptions(Request $request)
+    {
+        $request->validate([
+            'obat_id' => 'required|exists:erm_obat,id',
+        ]);
+
+        $masters = MasterFaktur::query()
+            ->with(['pemasok:id,nama', 'principal:id,nama'])
+            ->where('obat_id', $request->obat_id)
+            ->orderBy('pemasok_id')
+            ->orderBy('principal_id')
+            ->get();
+
+        $pemasoks = $masters
+            ->filter(function ($master) {
+                return $master->pemasok_id && $master->pemasok;
+            })
+            ->unique('pemasok_id')
+            ->map(function ($master) {
+                return [
+                    'id' => $master->pemasok_id,
+                    'text' => $master->pemasok->nama,
+                ];
+            })
+            ->values();
+
+        $principals = $masters
+            ->filter(function ($master) {
+                return $master->principal_id && $master->principal;
+            })
+            ->unique('principal_id')
+            ->map(function ($master) {
+                return [
+                    'id' => $master->principal_id,
+                    'text' => $master->principal->nama,
+                ];
+            })
+            ->values();
+
+        $principalsByPemasok = $masters
+            ->groupBy(function ($master) {
+                return (string) $master->pemasok_id;
+            })
+            ->map(function ($groupedMasters) {
+                return $groupedMasters
+                    ->filter(function ($master) {
+                        return $master->principal_id && $master->principal;
+                    })
+                    ->unique('principal_id')
+                    ->map(function ($master) {
+                        return [
+                            'id' => $master->principal_id,
+                            'text' => $master->principal->nama,
+                        ];
+                    })
+                    ->values();
+            });
+
+        return response()->json([
+            'pemasoks' => $pemasoks,
+            'principals' => $principals,
+            'principals_by_pemasok' => $principalsByPemasok,
+        ]);
+    }
+
     public function forecastPreview(Request $request)
     {
         $request->validate([
             'period_months' => 'nullable|integer|in:1,3,6,12',
-            'obat_ids' => 'nullable|array',
-            'obat_ids.*' => 'integer|exists:erm_obat,id',
         ]);
 
         $periodMonths = (int) $request->input('period_months', 3);
         $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
-        $obatIds = collect($request->input('obat_ids', []))
+
+        $rawObatIds = $request->input('obat_ids', []);
+        if (!is_array($rawObatIds)) {
+            $rawObatIds = [$rawObatIds];
+        }
+
+        $obatIds = collect($rawObatIds)
             ->filter()
             ->map(function ($id) {
                 return (int) $id;
@@ -502,8 +571,22 @@ class PermintaanController extends Controller
             ->unique()
             ->values();
 
+        if ($obatIds->isNotEmpty()) {
+            $validatedObatIds = Obat::withInactive()
+                ->whereIn('id', $obatIds)
+                ->pluck('id')
+                ->map(function ($id) {
+                    return (int) $id;
+                })
+                ->values();
+
+            $obatIds = $obatIds->intersect($validatedObatIds)->values();
+        }
+
         $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
         $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
+    $currentMonthStart = Carbon::now()->startOfMonth()->startOfDay();
+    $currentMonthEnd = Carbon::now()->endOfMonth()->endOfDay();
 
         if ($obatIds->isEmpty()) {
             return response()->json([
@@ -532,12 +615,30 @@ class PermintaanController extends Controller
             ->groupBy('obat_id')
             ->pluck('total_stock', 'obat_id');
 
+        $orderedThisMonth = PermintaanItem::query()
+            ->select(
+                'obat_id',
+                DB::raw('SUM(qty_total) as total_qty_ordered'),
+                DB::raw('SUM(jumlah_box) as total_box_ordered')
+            )
+            ->whereIn('obat_id', $obatIds)
+            ->whereHas('permintaan', function ($query) use ($currentMonthStart, $currentMonthEnd) {
+                $query->whereBetween('request_date', [
+                    $currentMonthStart->toDateString(),
+                    $currentMonthEnd->toDateString(),
+                ])->where('status', '!=', 'rejected');
+            })
+            ->groupBy('obat_id')
+            ->get()
+            ->keyBy('obat_id');
+
         $rows = Obat::withInactive()
             ->whereIn('id', $obatIds)
             ->get(['id', 'nama'])
-            ->map(function ($obat) use ($keluarPerObat, $stockPerObat, $periodMonths) {
+            ->map(function ($obat) use ($keluarPerObat, $stockPerObat, $periodMonths, $orderedThisMonth) {
                 $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
                 $averageMonthlyKeluar = $periodMonths > 0 ? ceil($obatKeluar / $periodMonths) : 0;
+                $ordered = $orderedThisMonth->get($obat->id);
 
                 return [
                     'obat_id' => $obat->id,
@@ -545,6 +646,8 @@ class PermintaanController extends Controller
                     'total_stock' => round((float) ($stockPerObat[$obat->id] ?? 0), 2),
                     'obat_keluar' => round($obatKeluar, 2),
                     'average_monthly_keluar' => $averageMonthlyKeluar,
+                    'ordered_this_month_qty' => round((float) ($ordered->total_qty_ordered ?? 0), 2),
+                    'ordered_this_month_box' => round((float) ($ordered->total_box_ordered ?? 0), 2),
                 ];
             })
             ->values();
