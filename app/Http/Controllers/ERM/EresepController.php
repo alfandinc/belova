@@ -141,7 +141,8 @@ class EresepController extends Controller
                 $visitations->where('klinik_id', $request->klinik_id);
             }
 
-            $visitations->whereIn('jenis_kunjungan', [1, 2]);
+                $visitations->whereIn('jenis_kunjungan', [1, 2, 5]);
+                $visitations->where('status_kunjungan', '!=', 7);
 
             $user = Auth::user();
             if ($user->hasRole('Farmasi')) {
