@@ -172,6 +172,8 @@ class EresepController extends Controller
                     }
                 })
                 ->addColumn('pasien_alamat', fn($v) => $v->pasien->alamat ?? '')
+                ->addColumn('referral_type', fn($v) => $v->pasien->referral_type ?? '')
+                ->addColumn('referral_detail', fn($v) => $v->pasien->referral_detail ?? '')
                 ->addColumn('tanggal_visitation', function($v) {
                     if (!$v->tanggal_visitation) return '-';
                     \Carbon\Carbon::setLocale('id');

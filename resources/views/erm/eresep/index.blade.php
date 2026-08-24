@@ -320,15 +320,34 @@ $(document).ready(function () {
                         var jenisLabel = '';
                             var jenisIconHtml = '';
                             var jenisStyle = '';
+                        var referralType = (row && row.referral_type ? String(row.referral_type) : '').toLowerCase().trim();
+                        var referralDetail = (row && row.referral_detail ? String(row.referral_detail) : '').toLowerCase().trim();
                         if (jenisVal !== null && jenisVal !== undefined && jenisVal !== '') {
                             var j = String(jenisVal);
                             if (j === '1') jenisLabel = 'Konsultasi';
                             else if (j === '2') jenisLabel = 'Beli Produk';
                             else if (j === '3') jenisLabel = 'Lab';
                                 else if (j === '5') {
-                                    jenisLabel = 'Marketplace';
-                                    jenisIconHtml = '<i class="fas fa-store mr-1"></i>';
-                                    jenisStyle = 'background-color:#d97706;color:#fff;';
+                                var marketplaceLabelMap = {
+                                    shopee: 'Shopee',
+                                    tiktokshop: 'Tiktokshop',
+                                    tokopedia: 'Tokopedia',
+                                    lazada: 'Lazada'
+                                };
+                                var marketplaceStyleMap = {
+                                    shopee: 'background-color:#f97316;color:#fff;',
+                                    tiktokshop: 'background-color:#111827;color:#fff;',
+                                    tokopedia: 'background-color:#16a34a;color:#fff;',
+                                    lazada: 'background-color:#2563eb;color:#fff;'
+                                };
+
+                                jenisLabel = referralType === 'marketplace'
+                                    ? (marketplaceLabelMap[referralDetail] || (row.referral_detail || 'Marketplace'))
+                                    : 'Marketplace';
+                                jenisIconHtml = '<i class="fas fa-store mr-1"></i>';
+                                jenisStyle = referralType === 'marketplace'
+                                    ? (marketplaceStyleMap[referralDetail] || 'background-color:#d97706;color:#fff;')
+                                    : 'background-color:#d97706;color:#fff;';
                                 }
                             else jenisLabel = j;
                         }
