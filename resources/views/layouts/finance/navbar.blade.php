@@ -81,6 +81,21 @@
                         </a>
                     </li>
                     @hasanyrole('Admin|Finance')
+                    <li class="menu-label">Akuntansi</li>
+                    <li>
+                        <a href="{{ route('finance.akun.index') }}">
+                            <i class="fas fa-sitemap align-self-center menu-icon"></i>
+                            <span>Master Akun</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ route('finance.jurnal.index') }}">
+                            <i class="fas fa-book align-self-center menu-icon"></i>
+                            <span>Jurnal Umum</span>
+                        </a>
+                    </li>
+                    @endhasanyrole
+                    @hasanyrole('Admin|Finance')
                     <li>
                         <a href="{{ route('finance.revenue-targets.index') }}">
                             <i class="fas fa-bullseye align-self-center menu-icon"></i>

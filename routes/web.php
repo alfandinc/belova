@@ -20,7 +20,9 @@ use App\Http\Controllers\Admin\{
 };
 use App\Http\Controllers\Finance\{
     BillingController,
+    FinanceAkunController,
     FinanceReportController,
+    FinanceJurnalController,
     FinanceTransactionController,
     InvoiceController,
     PiutangController,
@@ -1411,6 +1413,18 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/laporan-keuangan/detail-data', [FinanceReportController::class, 'detailData'])->name('finance.laporan-keuangan.detail-data');
         });
         Route::middleware('role:Admin|Finance')->group(function () {
+            Route::get('/akun', [FinanceAkunController::class, 'index'])->name('finance.akun.index');
+            Route::get('/akun/data', [FinanceAkunController::class, 'data'])->name('finance.akun.data');
+            Route::post('/akun', [FinanceAkunController::class, 'store'])->name('finance.akun.store');
+            Route::get('/akun/{akun}', [FinanceAkunController::class, 'show'])->name('finance.akun.show');
+            Route::put('/akun/{akun}', [FinanceAkunController::class, 'update'])->name('finance.akun.update');
+            Route::delete('/akun/{akun}', [FinanceAkunController::class, 'destroy'])->name('finance.akun.destroy');
+            Route::get('/jurnal', [FinanceJurnalController::class, 'index'])->name('finance.jurnal.index');
+            Route::get('/jurnal/data', [FinanceJurnalController::class, 'data'])->name('finance.jurnal.data');
+            Route::post('/jurnal', [FinanceJurnalController::class, 'store'])->name('finance.jurnal.store');
+            Route::get('/jurnal/{jurnal}', [FinanceJurnalController::class, 'show'])->name('finance.jurnal.show');
+            Route::put('/jurnal/{jurnal}', [FinanceJurnalController::class, 'update'])->name('finance.jurnal.update');
+            Route::delete('/jurnal/{jurnal}', [FinanceJurnalController::class, 'destroy'])->name('finance.jurnal.destroy');
             Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.revenue-targets.index');
             Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
         });
