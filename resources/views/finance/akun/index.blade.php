@@ -12,9 +12,6 @@
                 <div class="text-muted small">Kelola struktur akun berjenjang, status aktif, dan pemakaian jurnal dengan pola kerja yang dekat dengan software akuntansi operasional.</div>
             </div>
             <div class="d-flex flex-wrap justify-content-end" style="gap:.75rem;">
-                <button type="button" class="btn btn-primary" id="btn-create-akun">
-                    <i class="fas fa-plus mr-1"></i> Tambah Akun
-                </button>
                 <div class="card shadow-sm border-0 mb-0" style="min-width:150px;">
                     <div class="card-body py-2 px-3">
                         <div class="text-muted small">Total Akun</div>
@@ -83,7 +80,12 @@
                     <div class="font-weight-bold">Daftar akun</div>
                     <div class="text-muted small">Akun induk dan detail dapat dikelola dari layar yang sama untuk menjaga struktur COA tetap rapi.</div>
                 </div>
-                <div class="badge badge-light border px-3 py-2 text-muted">CRUD aktif</div>
+                <div class="d-flex flex-wrap align-items-center" style="gap:.75rem;">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-create-akun">
+                        <i class="fas fa-plus mr-1"></i> Tambah Akun
+                    </button>
+                    <div class="badge badge-light border px-3 py-2 text-muted">CRUD aktif</div>
+                </div>
             </div>
             <div class="table-responsive">
                 <table id="datatable-finance-akun" class="table table-bordered table-striped" style="width:100%;">

@@ -12,9 +12,6 @@
                 <div class="text-muted small">Buat, edit, dan posting jurnal multi-baris dengan kontrol keseimbangan debit-kredit sebelum penyimpanan.</div>
             </div>
             <div class="d-flex flex-wrap justify-content-end" style="gap:.75rem;">
-                <button type="button" class="btn btn-primary" id="btn-create-jurnal">
-                    <i class="fas fa-plus mr-1"></i> Buat Jurnal
-                </button>
                 <div class="card shadow-sm border-0 mb-0" style="min-width:160px;">
                     <div class="card-body py-2 px-3">
                         <div class="text-muted small">Entry Jurnal</div>
@@ -88,7 +85,12 @@
                     <div class="font-weight-bold">Daftar entry jurnal</div>
                     <div class="text-muted small">Setiap nomor jurnal dapat berisi banyak akun. Sistem hanya menyimpan jurnal yang balance.</div>
                 </div>
-                <div class="badge badge-light border px-3 py-2 text-muted">Balance check aktif</div>
+                <div class="d-flex flex-wrap align-items-center" style="gap:.75rem;">
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-create-jurnal">
+                        <i class="fas fa-plus mr-1"></i> Buat Jurnal
+                    </button>
+                    <div class="badge badge-light border px-3 py-2 text-muted">Balance check aktif</div>
+                </div>
             </div>
             <div class="table-responsive">
                 <table id="datatable-finance-jurnal" class="table table-bordered table-striped" style="width:100%;">
