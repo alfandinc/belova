@@ -2445,7 +2445,7 @@
             $('#diskon').val(diskonRaw);
             $('#diskon_type').val(normalizedDiskonType).trigger('change');
             $('#edit_qty').val(qty);
-            $('#edit_qty').prop('disabled', $('#edit_qty').prop('disabled') || isGroupedExistingRow);
+            $('#edit_qty').prop('disabled', $('#edit_qty').prop('disabled') || (isGroupedExistingRow && !isEventBilling));
 
             // Extra safety: if diskon already filled and type is empty, flip it to nominal
             if (diskonValue > 0 && !$('#diskon_type').val()) {
@@ -3193,7 +3193,7 @@ $('#saveAllChangesBtn').on('click', function() {
                         racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
                     };
 
-                    if (isGroupedExistingBillingRow(it) && !it.is_racikan) {
+                    if (isGroupedExistingBillingRow(it) && !it.is_racikan && !isEventBilling) {
                         payload.qty = null;
                     }
 

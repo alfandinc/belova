@@ -4846,7 +4846,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Normal edit for non-racikan items
                     $billing = Billing::find($item['id']);
                     if ($billing) {
-                        $this->syncEditedBillingWithMedicalSource($visitation, $billing, $item, $isAdmin);
+                        $canEditQty = $isAdmin || (int) ($visitation->jenis_kunjungan ?? 0) === 4;
+                        $this->syncEditedBillingWithMedicalSource($visitation, $billing, $item, $canEditQty);
                     }
                 }
             }
@@ -5052,30 +5053,30 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $billing->delete();
     }
 
-    private function syncEditedBillingWithMedicalSource(Visitation $visitation, Billing $billing, array $item, bool $isAdmin): void
+    private function syncEditedBillingWithMedicalSource(Visitation $visitation, Billing $billing, array $item, bool $canEditQty): void
     {
         $billableType = (string) ($billing->billable_type ?? '');
 
         if ($billableType === RiwayatTindakan::class) {
-            $this->syncEditedRiwayatTindakanBilling($visitation, $billing, $item, $isAdmin);
+            $this->syncEditedRiwayatTindakanBilling($visitation, $billing, $item, $canEditQty);
             return;
         }
 
         if ($billableType === ResepFarmasi::class) {
-            $this->syncEditedResepFarmasiBilling($billing, $item, $isAdmin);
+            $this->syncEditedResepFarmasiBilling($billing, $item, $canEditQty);
             return;
         }
 
         $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
         $billing->diskon = $item['diskon_raw'] ?? null;
         $billing->diskon_type = $item['diskon_type'] ?? null;
-        if (isset($item['qty']) && $isAdmin) {
+        if (isset($item['qty']) && $canEditQty) {
             $billing->qty = $item['qty'];
         }
         $billing->save();
     }
 
-    private function syncEditedRiwayatTindakanBilling(Visitation $visitation, Billing $billing, array $item, bool $isAdmin): void
+    private function syncEditedRiwayatTindakanBilling(Visitation $visitation, Billing $billing, array $item, bool $canEditQty): void
     {
         $billingIds = collect($item['group_member_ids'] ?? [$billing->id])
             ->map(function ($id) { return (int) $id; })
@@ -5093,7 +5094,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $desiredQty = $linkedBillings->count();
-        if ($isAdmin && isset($item['qty'])) {
+        if ($canEditQty && isset($item['qty'])) {
             $desiredQty = max(1, (int) $item['qty']);
         }
 
