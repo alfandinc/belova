@@ -60,11 +60,7 @@
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
-                <div class="col-md-2 mb-2">
-                    <label class="small text-muted mb-1">Level</label>
-                    <input type="number" min="0" id="filter-level-akun" class="form-control form-control-sm" placeholder="Semua">
-                </div>
-                <div class="col-md-3 mb-2 text-md-right">
+                <div class="col-md-5 mb-2 text-md-right">
                     <button type="button" id="reset-filter-akun" class="btn btn-light btn-sm border mt-4 mt-md-0">
                         <i class="fas fa-sync-alt mr-1"></i> Reset Filter
                     </button>
@@ -92,12 +88,9 @@
                     <thead>
                         <tr>
                             <th>No</th>
-                            <th>Kode & Nama Akun</th>
-                            <th>Induk Akun</th>
-                            <th>Tipe</th>
-                            <th>Level</th>
-                            <th>Status</th>
-                            <th>Jumlah Jurnal</th>
+                            <th>Kode Akun</th>
+                            <th>Nama Akun</th>
+                            <th>Saldo</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -194,18 +187,14 @@
                 data: function (d) {
                     d.tipe_akun = $('#filter-tipe-akun').val();
                     d.status = $('#filter-status-akun').val();
-                    d.level = $('#filter-level-akun').val();
                 }
             },
             order: [[1, 'asc']],
             columns: [
                 { data: null, orderable: false, searchable: false, render: function (data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
-                { data: 'kode_nama_display', name: 'kode_akun' },
-                { data: 'parent_display', name: 'parent.nama_akun', orderable: false },
-                { data: 'type_display', name: 'tipe_akun' },
-                { data: 'level_display', name: 'level' },
-                { data: 'status_display', name: 'is_active' },
-                { data: 'usage_display', name: 'jurnal_count', searchable: false },
+                { data: 'kode_display', name: 'kode_akun' },
+                { data: 'nama_display', name: 'nama_akun' },
+                { data: 'saldo_display', name: 'saldo_display', searchable: false },
                 { data: 'actions_display', orderable: false, searchable: false }
             ]
         });
@@ -251,14 +240,9 @@
             akunTable.ajax.reload();
         });
 
-        $('#filter-level-akun').on('input', function () {
-            akunTable.ajax.reload();
-        });
-
         $('#reset-filter-akun').on('click', function () {
             $('#filter-tipe-akun').val('');
             $('#filter-status-akun').val('');
-            $('#filter-level-akun').val('');
             akunTable.ajax.reload();
         });
 

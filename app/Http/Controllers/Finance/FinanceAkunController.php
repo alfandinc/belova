@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Finance\FinanceAkun;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\Facades\DataTables;
@@ -38,10 +39,17 @@ class FinanceAkunController extends Controller
 
     public function data(Request $request)
     {
+        $journalBalanceSubquery = DB::table('finance_jurnal')
+            ->selectRaw('akun_id, COALESCE(SUM(debet), 0) as total_debet, COALESCE(SUM(kredit), 0) as total_kredit')
+            ->whereNull('deleted_at')
+            ->groupBy('akun_id');
+
         $query = FinanceAkun::query()
             ->with('parent:id,kode_akun,nama_akun')
-            ->withCount('jurnal')
-            ->select('finance_akun.*');
+            ->leftJoinSub($journalBalanceSubquery, 'journal_balances', function ($join) {
+                $join->on('journal_balances.akun_id', '=', 'finance_akun.id');
+            })
+            ->selectRaw('finance_akun.*, COALESCE(journal_balances.total_debet, 0) as total_debet, COALESCE(journal_balances.total_kredit, 0) as total_kredit');
 
         $type = trim((string) $request->input('tipe_akun', ''));
         if ($type !== '') {
@@ -53,59 +61,90 @@ class FinanceAkunController extends Controller
             $query->where('is_active', $status === 'active');
         }
 
-        $level = $request->input('level');
-        if ($level !== null && $level !== '') {
-            $query->where('level', (int) $level);
+        $search = $request->get('search');
+        $searchValue = is_array($search) && isset($search['value']) ? trim((string) $search['value']) : '';
+
+        if ($searchValue !== '') {
+            $query->where(function ($subQuery) use ($searchValue) {
+                $subQuery->where('kode_akun', 'like', "%{$searchValue}%")
+                    ->orWhere('nama_akun', 'like', "%{$searchValue}%")
+                    ->orWhere('tipe_akun', 'like', "%{$searchValue}%")
+                    ->orWhereHas('parent', function ($parentQuery) use ($searchValue) {
+                        $parentQuery->where('kode_akun', 'like', "%{$searchValue}%")
+                            ->orWhere('nama_akun', 'like', "%{$searchValue}%");
+                    });
+            });
         }
 
-        return DataTables::of($query)
-            ->filter(function ($query) use ($request) {
-                $search = $request->get('search');
-                $value = is_array($search) && isset($search['value']) ? trim((string) $search['value']) : '';
+        $accounts = $query
+            ->orderBy('kode_akun')
+            ->get();
 
-                if ($value === '') {
-                    return;
-                }
+        $accountsById = $accounts->keyBy('id');
+        $childrenByParent = $accounts->groupBy('parent_id');
+        $rollup = [];
 
-                $query->where(function ($subQuery) use ($value) {
-                    $subQuery->where('kode_akun', 'like', "%{$value}%")
-                        ->orWhere('nama_akun', 'like', "%{$value}%")
-                        ->orWhere('tipe_akun', 'like', "%{$value}%")
-                        ->orWhere('level', 'like', "%{$value}%")
-                        ->orWhereHas('parent', function ($parentQuery) use ($value) {
-                            $parentQuery->where('kode_akun', 'like', "%{$value}%")
-                                ->orWhere('nama_akun', 'like', "%{$value}%");
-                        });
-                });
-            })
-            ->addColumn('kode_nama_display', function (FinanceAkun $akun) {
-                return '<div class="font-weight-bold">' . e($akun->kode_akun) . '</div>'
-                    . '<div class="text-muted small">' . e($akun->nama_akun) . '</div>';
-            })
-            ->addColumn('parent_display', function (FinanceAkun $akun) {
-                if (!$akun->parent) {
-                    return '<span class="text-muted">Akun Induk</span>';
-                }
+        $calculateRollup = function ($accountId) use (&$calculateRollup, &$rollup, $accountsById, $childrenByParent) {
+            if (isset($rollup[$accountId])) {
+                return $rollup[$accountId];
+            }
 
-                return '<div>' . e($akun->parent->kode_akun) . '</div>'
-                    . '<div class="text-muted small">' . e($akun->parent->nama_akun) . '</div>';
-            })
-            ->addColumn('type_display', function (FinanceAkun $akun) {
-                $label = $akun->tipe_akun ?: '-';
-                return '<span class="badge badge-info">' . e($label) . '</span>';
-            })
-            ->addColumn('level_display', function (FinanceAkun $akun) {
-                return '<span class="badge badge-light border">Level ' . e((string) $akun->level) . '</span>';
-            })
-            ->addColumn('status_display', function (FinanceAkun $akun) {
-                if ($akun->is_active) {
-                    return '<span class="badge badge-success">Active</span>';
-                }
+            $account = $accountsById->get($accountId);
+            if (!$account) {
+                return ['debet' => 0.0, 'kredit' => 0.0];
+            }
 
-                return '<span class="badge badge-secondary">Inactive</span>';
+            $debet = (float) ($account->total_debet ?? 0);
+            $kredit = (float) ($account->total_kredit ?? 0);
+
+            foreach ($childrenByParent->get($accountId, collect()) as $child) {
+                $childRollup = $calculateRollup($child->id);
+                $debet += (float) $childRollup['debet'];
+                $kredit += (float) $childRollup['kredit'];
+            }
+
+            $rollup[$accountId] = [
+                'debet' => $debet,
+                'kredit' => $kredit,
+            ];
+
+            return $rollup[$accountId];
+        };
+
+        $accounts->transform(function (FinanceAkun $account) use ($calculateRollup) {
+            $totals = $calculateRollup($account->id);
+            $account->rolled_total_debet = (float) $totals['debet'];
+            $account->rolled_total_kredit = (float) $totals['kredit'];
+
+            return $account;
+        });
+
+        return DataTables::of($accounts)
+            ->addColumn('kode_display', function (FinanceAkun $akun) {
+                $class = (int) $akun->level === 0 ? 'font-weight-bold text-dark' : 'text-dark';
+                $indentLevel = max(0, (int) $akun->level);
+                $indentPx = $indentLevel * 26;
+
+                return '<div style="padding-left:' . $indentPx . 'px;" class="' . $class . '">' . e($akun->kode_akun) . '</div>';
             })
-            ->addColumn('usage_display', function (FinanceAkun $akun) {
-                return '<div class="text-right font-weight-bold">' . number_format((int) $akun->jurnal_count, 0, ',', '.') . '</div>';
+            ->addColumn('nama_display', function (FinanceAkun $akun) {
+                $indentLevel = max(0, (int) $akun->level);
+                $indentPx = $indentLevel * 26;
+                $nameClass = $indentLevel === 0 ? 'font-weight-bold text-dark' : 'text-dark';
+
+                return '<div style="padding-left:' . $indentPx . 'px;" class="' . $nameClass . '">' . e($akun->nama_akun) . '</div>';
+            })
+            ->addColumn('saldo_display', function (FinanceAkun $akun) {
+                $tipeAkun = strtolower((string) ($akun->tipe_akun ?? ''));
+                $normalDebitTypes = ['asset', 'expense', 'beban'];
+                $usesDebitNormal = in_array($tipeAkun, $normalDebitTypes, true);
+                $saldo = $usesDebitNormal
+                    ? ((float) $akun->rolled_total_debet - (float) $akun->rolled_total_kredit)
+                    : ((float) $akun->rolled_total_kredit - (float) $akun->rolled_total_debet);
+                $weightClass = (int) $akun->level === 0 ? 'font-weight-bold' : 'font-weight-normal';
+                $colorClass = $saldo < 0 ? 'text-danger' : 'text-dark';
+
+                return '<div class="text-right ' . $weightClass . ' ' . $colorClass . '">Rp ' . number_format($saldo, 2, ',', '.') . '</div>';
             })
             ->addColumn('actions_display', function (FinanceAkun $akun) {
                 return '<div class="d-flex justify-content-center" style="gap:.4rem;">'
@@ -113,7 +152,7 @@ class FinanceAkunController extends Controller
                     . '<button type="button" class="btn btn-outline-danger btn-sm btn-delete-akun" data-id="' . e((string) $akun->id) . '" data-label="' . e($akun->kode_akun . ' - ' . $akun->nama_akun) . '"><i class="fas fa-trash"></i></button>'
                     . '</div>';
             })
-            ->rawColumns(['kode_nama_display', 'parent_display', 'type_display', 'level_display', 'status_display', 'usage_display', 'actions_display'])
+            ->rawColumns(['kode_display', 'nama_display', 'saldo_display', 'actions_display'])
             ->make(true);
     }
 
