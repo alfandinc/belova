@@ -825,6 +825,18 @@ class BillingController extends Controller
 
             if ($patientMode === 'existing') {
                 $pasien = Pasien::findOrFail($data['pasien_id']);
+
+                // Event billing for an existing patient must point back to the current
+                // event so later billing validation resolves promo items from the same event.
+                if (
+                    (string) ($pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT ||
+                    trim((string) ($pasien->referral_detail ?? '')) !== (string) $event->kode_event
+                ) {
+                    $pasien->forceFill([
+                        'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
+                        'referral_detail' => $event->kode_event,
+                    ])->save();
+                }
             } else {
                 $lastPasienId = DB::table('erm_pasiens')
                     ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
