@@ -83,7 +83,7 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-3" style="gap:.75rem;">
                 <div>
                     <div class="font-weight-bold">Daftar entry jurnal</div>
-                    <div class="text-muted small">Setiap nomor jurnal dapat berisi banyak akun. Sistem hanya menyimpan jurnal yang balance.</div>
+                    <div class="text-muted small">Setiap baris akun tampil langsung di tabel, seperti lembar jurnal umum manual.</div>
                 </div>
                 <div class="d-flex flex-wrap align-items-center" style="gap:.75rem;">
                     <button type="button" class="btn btn-primary btn-sm" id="btn-create-jurnal">
@@ -99,12 +99,10 @@
                             <th>No</th>
                             <th>Tanggal</th>
                             <th>No Jurnal</th>
-                            <th>Ringkasan Akun</th>
+                            <th>Nama Akun</th>
+                            <th>Referensi</th>
                             <th>Debit</th>
                             <th>Kredit</th>
-                            <th>Selisih</th>
-                            <th>Status</th>
-                            <th>User</th>
                             <th>Keterangan</th>
                             <th>Aksi</th>
                         </tr>
@@ -306,20 +304,32 @@
                     d.pos = $('#filter-jurnal-pos').val();
                 }
             },
-            order: [[1, 'desc']],
+            order: [[1, 'asc']],
             columns: [
                 { data: null, orderable: false, searchable: false, render: function (data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
                 { data: 'tanggal_display', name: 'tanggal' },
-                { data: 'nomor_display', name: 'no_jurnal' },
-                { data: 'akun_display', name: 'akun_summary', orderable: false },
-                { data: 'debet_display', name: 'total_debet' },
-                { data: 'kredit_display', name: 'total_kredit' },
-                { data: 'balance_display', name: 'balance', orderable: false, searchable: false },
-                { data: 'status_display', name: 'status', orderable: false, searchable: false },
-                { data: 'user_display', name: 'user_name', orderable: false },
+                { data: 'no_jurnal_display', name: 'no_jurnal' },
+                { data: 'akun_display', name: 'fa.nama_akun', orderable: false },
+                { data: 'referensi_display', name: 'ref_id' },
+                { data: 'debet_display', name: 'fj.debet' },
+                { data: 'kredit_display', name: 'fj.kredit' },
                 { data: 'keterangan', name: 'keterangan', defaultContent: '-' },
                 { data: 'actions_display', orderable: false, searchable: false }
-            ]
+            ],
+            rowCallback: function (row, data, displayIndex) {
+                var api = this.api();
+                var currentIndex = api.row(row).index();
+                var previousData = currentIndex > 0 ? api.row(currentIndex - 1).data() : null;
+                var isSameJournalAsPrevious = previousData && previousData.journal_key === data.journal_key;
+
+                if (isSameJournalAsPrevious) {
+                    $('td:eq(1)', row).html('');
+                    $('td:eq(2)', row).html('');
+                    $('td:eq(3)', row).html('');
+                    $('td:eq(7)', row).html('');
+                    $('td:eq(8)', row).html('');
+                }
+            }
         });
 
         function buildUrl(template, id) {

@@ -44,19 +44,20 @@ class FinanceJurnalController extends Controller
             ->leftJoin('finance_akun as fa', 'fa.id', '=', 'fj.akun_id')
             ->leftJoin('users as u', 'u.id', '=', 'fj.user_id')
             ->whereNull('fj.deleted_at')
-            ->groupBy(DB::raw('COALESCE(NULLIF(fj.no_jurnal, ""), CONCAT("ROW-", fj.id))'))
-            ->selectRaw('MIN(fj.id) as representative_id')
-            ->selectRaw('COALESCE(NULLIF(fj.no_jurnal, ""), CONCAT("ROW-", fj.id)) as journal_key')
-            ->selectRaw('MAX(fj.no_jurnal) as no_jurnal')
-            ->selectRaw('MAX(fj.tanggal) as tanggal')
-            ->selectRaw('MAX(fj.ref_id) as ref_id')
-            ->selectRaw('MAX(fj.keterangan) as keterangan')
-            ->selectRaw('SUM(COALESCE(fj.debet, 0)) as total_debet')
-            ->selectRaw('SUM(COALESCE(fj.kredit, 0)) as total_kredit')
-            ->selectRaw('COUNT(*) as line_count')
-            ->selectRaw('SUM(CASE WHEN fj.pos IS NULL THEN 1 ELSE 0 END) as draft_line_count')
-            ->selectRaw('MAX(u.name) as user_name')
-            ->selectRaw("GROUP_CONCAT(DISTINCT CONCAT(COALESCE(fa.kode_akun, '-'), ' - ', COALESCE(fa.nama_akun, '-')) ORDER BY fa.kode_akun SEPARATOR '||') as akun_summary");
+            ->select([
+                'fj.id',
+                'fj.no_jurnal',
+                'fj.tanggal',
+                'fj.ref_id',
+                'fj.keterangan',
+                'fj.debet',
+                'fj.kredit',
+                'fj.pos',
+                'u.name as user_name',
+                'fa.kode_akun',
+                'fa.nama_akun',
+            ])
+            ->selectRaw('COALESCE(NULLIF(fj.no_jurnal, ""), CONCAT("ROW-", fj.id)) as journal_key');
 
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
@@ -96,63 +97,50 @@ class FinanceJurnalController extends Controller
                         ->orWhere('u.name', 'like', "%{$value}%");
                 });
             })
+            ->order(function ($query) {
+                $query->orderBy('fj.tanggal', 'asc')
+                    ->orderByRaw('COALESCE(NULLIF(fj.no_jurnal, ""), CONCAT("ROW-", fj.id)) asc')
+                    ->orderBy('fj.id', 'asc');
+            })
             ->addColumn('tanggal_display', function ($jurnal) {
                 return $jurnal->tanggal ? date('d M Y', strtotime($jurnal->tanggal)) : '-';
             })
-            ->addColumn('nomor_display', function ($jurnal) {
-                $label = $jurnal->no_jurnal ?: ('Draft #' . $jurnal->representative_id);
-
-                return '<div class="font-weight-bold">' . e($label) . '</div>'
-                    . '<div class="text-muted small">Ref: ' . e($jurnal->ref_id ?: '-') . '</div>';
-            })
             ->addColumn('akun_display', function ($jurnal) {
-                if (!$jurnal->akun_summary) {
-                    return '<span class="text-muted">-</span>';
-                }
+                $akun = trim(implode(' - ', array_filter([
+                    $jurnal->kode_akun,
+                    $jurnal->nama_akun,
+                ], function ($value) {
+                    return $value !== null && $value !== '';
+                })));
 
-                $lines = array_filter(explode('||', (string) $jurnal->akun_summary));
-                $html = collect($lines)->map(function ($line) {
-                    return '<div class="text-muted small">' . e($line) . '</div>';
-                })->implode('');
-
-                return '<div class="font-weight-bold">' . e((string) $jurnal->line_count) . ' baris akun</div>' . $html;
+                return $akun !== ''
+                    ? '<div class="font-weight-bold">' . e($akun) . '</div>'
+                    : '<span class="text-muted">-</span>';
+            })
+            ->addColumn('no_jurnal_display', function ($jurnal) {
+                return '<div class="font-weight-bold">' . e($jurnal->no_jurnal ?: ('Draft #' . $jurnal->id)) . '</div>';
+            })
+            ->addColumn('referensi_display', function ($jurnal) {
+                return '<div class="text-muted small">' . e($jurnal->ref_id ?: '-') . '</div>';
             })
             ->addColumn('debet_display', function ($jurnal) {
-                return '<div class="text-right text-success font-weight-bold">' . number_format((float) $jurnal->total_debet, 2, ',', '.') . '</div>';
+                $value = (float) ($jurnal->debet ?? 0);
+
+                return '<div class="text-right text-success font-weight-bold">' . ($value > 0 ? number_format($value, 2, ',', '.') : '-') . '</div>';
             })
             ->addColumn('kredit_display', function ($jurnal) {
-                return '<div class="text-right text-danger font-weight-bold">' . number_format((float) $jurnal->total_kredit, 2, ',', '.') . '</div>';
-            })
-            ->addColumn('status_display', function ($jurnal) {
-                $balance = round((float) $jurnal->total_debet - (float) $jurnal->total_kredit, 2);
+                $value = (float) ($jurnal->kredit ?? 0);
 
-                if ((int) $jurnal->draft_line_count > 0) {
-                    return '<span class="badge badge-warning">Draft</span>';
-                }
-
-                if ($balance === 0.0) {
-                    return '<span class="badge badge-success">Balanced</span>';
-                }
-
-                return '<span class="badge badge-danger">Unbalanced</span>';
-            })
-            ->addColumn('balance_display', function ($jurnal) {
-                $balance = (float) $jurnal->total_debet - (float) $jurnal->total_kredit;
-                $class = abs($balance) < 0.005 ? 'text-success' : 'text-danger';
-
-                return '<div class="text-right font-weight-bold ' . $class . '">' . number_format($balance, 2, ',', '.') . '</div>';
-            })
-            ->addColumn('user_display', function ($jurnal) {
-                return e($jurnal->user_name ?: '-');
+                return '<div class="text-right text-danger font-weight-bold">' . ($value > 0 ? number_format($value, 2, ',', '.') : '-') . '</div>';
             })
             ->addColumn('actions_display', function ($jurnal) {
                 return '<div class="d-flex justify-content-center" style="gap:.4rem;">'
-                    . '<button type="button" class="btn btn-outline-info btn-sm btn-view-jurnal" data-id="' . e((string) $jurnal->representative_id) . '"><i class="fas fa-eye"></i></button>'
-                    . '<button type="button" class="btn btn-outline-primary btn-sm btn-edit-jurnal" data-id="' . e((string) $jurnal->representative_id) . '"><i class="fas fa-pen"></i></button>'
-                    . '<button type="button" class="btn btn-outline-danger btn-sm btn-delete-jurnal" data-id="' . e((string) $jurnal->representative_id) . '" data-label="' . e($jurnal->no_jurnal ?: ('Draft #' . $jurnal->representative_id)) . '"><i class="fas fa-trash"></i></button>'
+                    . '<button type="button" class="btn btn-outline-info btn-sm btn-view-jurnal" data-id="' . e((string) $jurnal->id) . '"><i class="fas fa-eye"></i></button>'
+                    . '<button type="button" class="btn btn-outline-primary btn-sm btn-edit-jurnal" data-id="' . e((string) $jurnal->id) . '"><i class="fas fa-pen"></i></button>'
+                    . '<button type="button" class="btn btn-outline-danger btn-sm btn-delete-jurnal" data-id="' . e((string) $jurnal->id) . '" data-label="' . e($jurnal->no_jurnal ?: ('Draft #' . $jurnal->id)) . '"><i class="fas fa-trash"></i></button>'
                     . '</div>';
             })
-            ->rawColumns(['nomor_display', 'akun_display', 'debet_display', 'kredit_display', 'status_display', 'balance_display', 'actions_display'])
+                ->rawColumns(['akun_display', 'no_jurnal_display', 'referensi_display', 'debet_display', 'kredit_display', 'actions_display'])
             ->make(true);
     }
 

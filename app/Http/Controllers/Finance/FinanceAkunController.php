@@ -15,6 +15,25 @@ class FinanceAkunController extends Controller
 {
     public function index()
     {
+        $predefinedTypes = [
+            'Kas/Bank',
+            'Akun Piutang',
+            'Persediaan',
+            'Aset Lancar Lainnya',
+            'Aset Tetap',
+            'Akumulasi Penyusutan',
+            'Aset Lainnya',
+            'Akun Hutang',
+            'Kewajiban Jangka Pendek',
+            'Kewajiban Jangka Panjang',
+            'Ekuitas',
+            'Pendapatan',
+            'Harga Pokok Penjualan',
+            'Beban',
+            'Pendapatan Lainnya',
+            'Beban Lainnya',
+        ];
+
         $summary = [
             'total' => FinanceAkun::count(),
             'active' => FinanceAkun::where('is_active', true)->count(),
@@ -29,6 +48,14 @@ class FinanceAkunController extends Controller
             ->distinct()
             ->orderBy('tipe_akun')
             ->pluck('tipe_akun');
+
+        $types = collect($predefinedTypes)
+            ->merge($types)
+            ->filter(function ($type) {
+                return trim((string) $type) !== '';
+            })
+            ->unique()
+            ->values();
 
         $parentOptions = FinanceAkun::query()
             ->orderBy('kode_akun')

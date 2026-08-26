@@ -45,7 +45,7 @@
             <div class="row align-items-end">
                 <div class="col-md-4 mb-2">
                     <label class="small text-muted mb-1">Tipe Akun</label>
-                    <select id="filter-tipe-akun" class="form-control form-control-sm">
+                    <select id="filter-tipe-akun" class="form-control form-control-sm select2-akun-filter" data-placeholder="Semua Tipe">
                         <option value="">Semua Tipe</option>
                         @foreach($types as $type)
                             <option value="{{ $type }}">{{ $type }}</option>
@@ -54,7 +54,7 @@
                 </div>
                 <div class="col-md-3 mb-2">
                     <label class="small text-muted mb-1">Status</label>
-                    <select id="filter-status-akun" class="form-control form-control-sm">
+                    <select id="filter-status-akun" class="form-control form-control-sm select2-akun-filter" data-placeholder="Semua Status">
                         <option value="">Semua Status</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -123,7 +123,7 @@
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="small text-muted mb-1">Parent Akun</label>
-                                    <select class="form-control" id="akun-parent-id" name="parent_id">
+                                    <select class="form-control select2-akun-modal" id="akun-parent-id" name="parent_id" data-placeholder="Tanpa Parent / Akun Induk">
                                         <option value="">Tanpa Parent / Akun Induk</option>
                                         @foreach($parentOptions as $parent)
                                             <option value="{{ $parent->id }}" data-level="{{ $parent->level }}">{{ $parent->kode_akun }} - {{ $parent->nama_akun }}</option>
@@ -144,17 +144,12 @@
                                 </div>
                                 <div class="col-md-8 mb-3">
                                     <label class="small text-muted mb-1">Tipe Akun</label>
-                                    <input type="text" class="form-control" id="akun-tipe" name="tipe_akun" list="akun-type-list" placeholder="Contoh: Asset, Liability, Revenue">
-                                    <datalist id="akun-type-list">
+                                    <select class="form-control select2-akun-modal" id="akun-tipe" name="tipe_akun" data-placeholder="Pilih atau ketik tipe akun">
+                                        <option value=""></option>
                                         @foreach($types as $type)
-                                            <option value="{{ $type }}"></option>
+                                            <option value="{{ $type }}">{{ $type }}</option>
                                         @endforeach
-                                        <option value="Asset"></option>
-                                        <option value="Liability"></option>
-                                        <option value="Equity"></option>
-                                        <option value="Revenue"></option>
-                                        <option value="Expense"></option>
-                                    </datalist>
+                                    </select>
                                 </div>
                                 <div class="col-md-4 mb-3 d-flex align-items-center">
                                     <div class="custom-control custom-switch mt-4">
@@ -179,6 +174,43 @@
 @section('scripts')
 <script>
     $(function () {
+        function initAkunSelect2() {
+            $('.select2-akun-filter').each(function () {
+                var $el = $(this);
+                if ($el.hasClass('select2-hidden-accessible')) {
+                    $el.select2('destroy');
+                }
+
+                $el.select2({
+                    width: '100%',
+                    allowClear: true,
+                    placeholder: $el.data('placeholder') || ''
+                });
+            });
+
+            $('.select2-akun-modal').each(function () {
+                var $el = $(this);
+                if ($el.hasClass('select2-hidden-accessible')) {
+                    $el.select2('destroy');
+                }
+
+                var options = {
+                    width: '100%',
+                    dropdownParent: $('#akunModal'),
+                    allowClear: true,
+                    placeholder: $el.data('placeholder') || ''
+                };
+
+                if ($el.attr('id') === 'akun-tipe') {
+                    options.tags = true;
+                }
+
+                $el.select2(options);
+            });
+        }
+
+        initAkunSelect2();
+
         var akunTable = $('#datatable-finance-akun').DataTable({
             processing: true,
             serverSide: true,
@@ -202,13 +234,15 @@
         function resetAkunForm() {
             $('#akunForm')[0].reset();
             $('#akun-id').val('');
-            $('#akun-parent-id').val('');
+            $('#akun-parent-id').val('').trigger('change');
+            $('#akun-tipe').val('').trigger('change');
             $('#akun-level-preview').val('0');
             $('#akun-is-active').prop('checked', true);
             $('#akunFormError').hide().empty();
             $('#akunModalLabel').text('Tambah Akun');
             $('#btn-save-akun').text('Simpan Akun');
             $('#akun-parent-id option').prop('disabled', false);
+            initAkunSelect2();
         }
 
         function updateLevelPreview() {
@@ -241,8 +275,8 @@
         });
 
         $('#reset-filter-akun').on('click', function () {
-            $('#filter-tipe-akun').val('');
-            $('#filter-status-akun').val('');
+            $('#filter-tipe-akun').val('').trigger('change');
+            $('#filter-status-akun').val('').trigger('change');
             akunTable.ajax.reload();
         });
 
@@ -261,10 +295,13 @@
                 .done(function (response) {
                     var data = response.data || {};
                     $('#akun-id').val(data.id || '');
-                    $('#akun-parent-id').val(data.parent_id || '');
+                    $('#akun-parent-id').val(data.parent_id || '').trigger('change');
                     $('#akun-kode').val(data.kode_akun || '');
                     $('#akun-nama').val(data.nama_akun || '');
-                    $('#akun-tipe').val(data.tipe_akun || '');
+                    if (data.tipe_akun && $('#akun-tipe option[value="' + data.tipe_akun.replace(/"/g, '\\"') + '"]').length === 0) {
+                        $('#akun-tipe').append(new Option(data.tipe_akun, data.tipe_akun, false, false));
+                    }
+                    $('#akun-tipe').val(data.tipe_akun || '').trigger('change');
                     $('#akun-is-active').prop('checked', !!data.is_active);
                     $('#akun-parent-id option[value="' + data.id + '"]').prop('disabled', true);
                     updateLevelPreview();
