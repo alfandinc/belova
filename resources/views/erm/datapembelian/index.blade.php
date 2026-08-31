@@ -37,21 +37,37 @@
                             <h4 class="card-title mb-0" id="summaryTitle">Ringkasan Pembelian per Pemasok</h4>
                             <p class="text-muted mb-0" id="summaryDescription">Data pembelian dikelompokkan berdasarkan pemasok dengan total nominal, pembelian terakhir, dan jumlah jenis item.</p>
                         </div>
-                        <div class="ml-3 d-flex align-items-center">
-                            <div class="mr-3">
+                        <div class="ml-3 d-flex align-items-end flex-wrap justify-content-end">
+                            <div class="mr-3 mb-2">
                                 <div class="text-muted" style="font-size:12px">Kelompokkan Data</div>
                                 <select id="groupByFilter" class="form-control form-control-sm">
                                     <option value="pemasok" selected>Pemasok</option>
                                     <option value="principal">Principal</option>
                                 </select>
                             </div>
-                            <div class="mr-3">
+                            <div class="mr-3 mb-2">
+                                <div class="text-muted" style="font-size:12px">Status Faktur</div>
+                                <select id="statusFilter" class="form-control form-control-sm">
+                                    <option value="exclude_retur" selected>Semua Selain Retur</option>
+                                    <option value="all">Semua Status</option>
+                                    <option value="diminta">Diminta</option>
+                                    <option value="diterima">Diterima</option>
+                                    <option value="diapprove">Diapprove</option>
+                                    <option value="diretur">Diretur</option>
+                                </select>
+                            </div>
+                            <div class="mr-3 mb-2">
                                 <div class="text-muted" style="font-size:12px">Tanggal Pembelian</div>
                                 <input type="text" id="purchaseDateRange" class="form-control form-control-sm" placeholder="Semua tanggal" autocomplete="off" />
                             </div>
-                            <div class="text-right align-self-center">
+                            <div class="mr-3 mb-2 text-right align-self-center">
                                 <div class="text-muted" style="font-size:12px">Total Pembelian</div>
                                 <div id="totalNominalDisplay" class="font-weight-bold" style="font-size:16px; color:#1e88e5">Rp 0</div>
+                            </div>
+                            <div class="mb-2">
+                                <button type="button" id="exportButton" class="btn btn-success btn-sm">
+                                    <i class="fa fa-download"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -147,6 +163,7 @@ $(function() {
     var selectedStartDate = null;
     var selectedEndDate = null;
     var currentGroupBy = $('#groupByFilter').val() || 'pemasok';
+    var currentStatusFilter = $('#statusFilter').val() || 'exclude_retur';
 
     function getCurrentEntityLabel() {
         return currentGroupBy === 'principal' ? 'Principal' : 'Pemasok';
@@ -194,6 +211,24 @@ $(function() {
         dataPembelianTable.ajax.reload();
     });
 
+    $('#statusFilter').on('change', function() {
+        currentStatusFilter = $(this).val() || 'exclude_retur';
+        dataPembelianTable.ajax.reload();
+    });
+
+    function buildExportUrl() {
+        return '{{ route('erm.datapembelian.export') }}?' + $.param({
+            start_date: selectedStartDate,
+            end_date: selectedEndDate,
+            group_by: currentGroupBy,
+            status: currentStatusFilter
+        });
+    }
+
+    $('#exportButton').on('click', function() {
+        window.location.href = buildExportUrl();
+    });
+
     var dataPembelianTable = $('#data-pembelian-table').DataTable({
         processing: true,
         serverSide: true,
@@ -203,6 +238,7 @@ $(function() {
                 d.start_date = selectedStartDate;
                 d.end_date = selectedEndDate;
                 d.group_by = currentGroupBy;
+                d.status = currentStatusFilter;
             }
         },
         order: [[4, 'desc']], // Order by total nominal (descending)
@@ -302,6 +338,11 @@ $(function() {
             currentGroupBy = json.group_by;
             $('#groupByFilter').val(currentGroupBy);
             updateGroupingLabels();
+        }
+
+        if (json && json.status_filter) {
+            currentStatusFilter = json.status_filter;
+            $('#statusFilter').val(currentStatusFilter);
         }
     });
 

@@ -1249,6 +1249,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // Data Pembelian Routes
     Route::get('/datapembelian', [\App\Http\Controllers\ERM\DataPembelianController::class, 'index'])->name('erm.datapembelian.index');
+    Route::get('/datapembelian/export', [\App\Http\Controllers\ERM\DataPembelianController::class, 'export'])->name('erm.datapembelian.export');
     Route::get('/datapembelian/{id}/detail', [\App\Http\Controllers\ERM\DataPembelianController::class, 'detail'])->name('erm.datapembelian.detail');
     Route::get('/datapembelian/principal/{id}/detail', [\App\Http\Controllers\ERM\DataPembelianController::class, 'detailPrincipal'])->name('erm.datapembelian.detailPrincipal');
 

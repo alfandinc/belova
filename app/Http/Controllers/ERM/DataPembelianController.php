@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ERM;
 
+use App\Exports\ERM\DataPembelianSummaryExport;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\FakturBeliItem;
 use App\Models\ERM\MasterFaktur;
@@ -9,19 +10,22 @@ use App\Models\ERM\Pemasok;
 use App\Models\ERM\Principal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 class DataPembelianController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $this->getSummaryFilters($request);
+
         if ($request->ajax()) {
-            $startDate = $request->input('start_date');
-            $endDate = $request->input('end_date');
-            $groupBy = $request->input('group_by', 'pemasok') === 'principal' ? 'principal' : 'pemasok';
-            $data = $groupBy === 'principal'
-                ? $this->getPrincipalPurchaseSummary($startDate, $endDate)
-                : $this->getPemasokPurchaseSummary($startDate, $endDate);
+            $data = $this->getPurchaseSummaryByGroup(
+                $filters['group_by'],
+                $filters['start_date'],
+                $filters['end_date'],
+                $filters['status']
+            );
             $filteredData = $this->applyPurchaseSummarySearch($data, $request->input('search.value'));
 
             $totalNominalAll = $filteredData->sum(function ($row) {
@@ -49,7 +53,8 @@ class DataPembelianController extends Controller
                 ->rawColumns(['action'])
                 ->with([
                     'total_nominal_all' => 'Rp ' . number_format($totalNominalAll, 0, ',', '.'),
-                    'group_by' => $groupBy,
+                    'group_by' => $filters['group_by'],
+                    'status_filter' => $filters['status'],
                 ])
                 ->make(true);
         }
@@ -57,12 +62,30 @@ class DataPembelianController extends Controller
         return view('erm.datapembelian.index');
     }
 
-    private function getPemasokPurchaseSummary($startDate, $endDate)
+    public function export(Request $request)
+    {
+        $filters = $this->getSummaryFilters($request);
+        $data = $this->getPurchaseSummaryByGroup(
+            $filters['group_by'],
+            $filters['start_date'],
+            $filters['end_date'],
+            $filters['status']
+        );
+
+        $filename = $this->buildExportFilename($filters);
+
+        return Excel::download(
+            new DataPembelianSummaryExport($data, $filters['group_by']),
+            $filename
+        );
+    }
+
+    private function getPemasokPurchaseSummary($startDate, $endDate, string $statusFilter = 'exclude_retur')
     {
         return Pemasok::select('erm_pemasok.*')
             ->leftJoin('erm_fakturbeli', 'erm_pemasok.id', '=', 'erm_fakturbeli.pemasok_id')
-            ->with(['fakturBeli' => function ($query) use ($startDate, $endDate) {
-                $query->where('status', '!=', 'diretur')
+            ->with(['fakturBeli' => function ($query) use ($startDate, $endDate, $statusFilter) {
+                $this->applyFakturStatusFilter($query, $statusFilter)
                     ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
                         $q->whereBetween('received_date', [$startDate, $endDate]);
                     })
@@ -104,14 +127,18 @@ class DataPembelianController extends Controller
                     'jumlah_faktur' => $pemasok->fakturBeli->count(),
                     'items_detail' => $uniqueItems->toArray(),
                 ];
-            });
+            })
+            ->filter(function ($row) {
+                return ($row['jumlah_faktur'] ?? 0) > 0;
+            })
+            ->values();
     }
 
-    private function getPrincipalPurchaseSummary($startDate, $endDate)
+    private function getPrincipalPurchaseSummary($startDate, $endDate, string $statusFilter = 'exclude_retur')
     {
         $purchaseItems = FakturBeliItem::with(['principal', 'obat.principals', 'fakturbeli'])
-            ->whereHas('fakturbeli', function ($query) use ($startDate, $endDate) {
-                $query->where('status', '!=', 'diretur')
+            ->whereHas('fakturbeli', function ($query) use ($startDate, $endDate, $statusFilter) {
+                $this->applyFakturStatusFilter($query, $statusFilter)
                     ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
                         $q->whereBetween('received_date', [$startDate, $endDate]);
                     });
@@ -341,5 +368,65 @@ class DataPembelianController extends Controller
 
             return false;
         })->values();
+    }
+
+    private function getPurchaseSummaryByGroup(string $groupBy, ?string $startDate, ?string $endDate, string $statusFilter): Collection
+    {
+        return $groupBy === 'principal'
+            ? $this->getPrincipalPurchaseSummary($startDate, $endDate, $statusFilter)
+            : $this->getPemasokPurchaseSummary($startDate, $endDate, $statusFilter);
+    }
+
+    private function getSummaryFilters(Request $request): array
+    {
+        return [
+            'start_date' => $request->input('start_date') ?: null,
+            'end_date' => $request->input('end_date') ?: null,
+            'group_by' => $this->normalizeGroupBy($request->input('group_by')),
+            'status' => $this->normalizeStatusFilter($request->input('status')),
+        ];
+    }
+
+    private function normalizeGroupBy(?string $groupBy): string
+    {
+        return $groupBy === 'principal' ? 'principal' : 'pemasok';
+    }
+
+    private function normalizeStatusFilter(?string $status): string
+    {
+        $allowedStatuses = ['exclude_retur', 'all', 'diminta', 'diterima', 'diapprove', 'diretur'];
+
+        return in_array($status, $allowedStatuses, true) ? $status : 'exclude_retur';
+    }
+
+    private function applyFakturStatusFilter($query, string $statusFilter)
+    {
+        if ($statusFilter === 'all') {
+            return $query;
+        }
+
+        if ($statusFilter === 'exclude_retur') {
+            return $query->where('status', '!=', 'diretur');
+        }
+
+        return $query->where('status', $statusFilter);
+    }
+
+    private function buildExportFilename(array $filters): string
+    {
+        $segments = [
+            'data_pembelian',
+            $filters['group_by'],
+            $filters['status'],
+        ];
+
+        if ($filters['start_date'] && $filters['end_date']) {
+            $segments[] = $filters['start_date'];
+            $segments[] = $filters['end_date'];
+        }
+
+        $segments[] = now()->format('Ymd_His');
+
+        return implode('_', $segments) . '.xlsx';
     }
 }
