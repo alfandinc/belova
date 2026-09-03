@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ERM;
 
+use App\Exports\ERM\DataPembelianEntityExport;
 use App\Exports\ERM\DataPembelianSummaryExport;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\FakturBeliItem;
@@ -236,8 +237,7 @@ class DataPembelianController extends Controller
     public function detail($id)
     {
         $pemasok = Pemasok::with(['fakturBeli' => function($query) {
-            $query->where('status', '!=', 'diretur')
-                  ->with(['items.obat'])
+            $query->with(['items.obat'])
                   ->orderBy('received_date', 'desc');
         }])->findOrFail($id);
 
@@ -248,49 +248,46 @@ class DataPembelianController extends Controller
     {
         $principal = Principal::findOrFail($id);
 
-        $purchaseItems = FakturBeliItem::with(['principal', 'obat.principals', 'fakturbeli.pemasok'])
-            ->whereHas('fakturbeli', function ($query) {
-                $query->where('status', '!=', 'diretur');
-            })
-            ->get();
-
-        $masterFakturMap = $this->buildMasterFakturPrincipalMap($purchaseItems);
-
-        $purchaseHistory = $purchaseItems
-            ->filter(function ($item) use ($principal, $masterFakturMap) {
-                $resolvedPrincipal = $this->resolvePrincipalForItem($item, $masterFakturMap);
-
-                return $resolvedPrincipal && (int) $resolvedPrincipal->id === (int) $principal->id;
-            })
-            ->groupBy('fakturbeli_id')
-            ->map(function ($items) {
-                $faktur = optional($items->first())->fakturbeli;
-
-                return [
-                    'no_faktur' => $faktur?->no_faktur ?: '-',
-                    'received_date' => $faktur?->received_date,
-                    'due_date' => $faktur?->due_date,
-                    'pemasok_nama' => $faktur?->pemasok?->nama ?: '-',
-                    'jumlah_item' => $items->pluck('obat_id')->filter()->unique()->count(),
-                    'qty_total' => $items->sum('qty'),
-                    'total_principal' => $items->sum(function ($item) {
-                        if (!is_null($item->total_amount)) {
-                            return (float) $item->total_amount;
-                        }
-
-                        return (float) ($item->qty ?? 0) * (float) ($item->harga ?? 0);
-                    }),
-                    'status' => $faktur?->status ?: '-',
-                    'obat_ids' => $items->pluck('obat_id')->filter()->unique()->values()->implode(','),
-                ];
-            })
-            ->sortByDesc('received_date')
-            ->values();
+        $purchaseHistory = $this->buildPrincipalPurchaseHistory($principal, null, null, 'all');
 
         return view('erm.datapembelian.detail-principal', [
             'principal' => $principal,
             'purchaseHistory' => $purchaseHistory,
         ]);
+    }
+
+    public function exportEntity(Request $request, string $groupBy, $id)
+    {
+        $filters = $this->getSummaryFilters($request);
+        $entityType = $this->normalizeGroupBy($groupBy);
+
+        if ($entityType === 'principal') {
+            $principal = Principal::findOrFail($id);
+            $rows = $this->buildPrincipalPurchaseHistory(
+                $principal,
+                $filters['start_date'],
+                $filters['end_date'],
+                $filters['status']
+            );
+
+            return Excel::download(
+                new DataPembelianEntityExport($rows, 'principal', $principal->nama),
+                $this->buildEntityExportFilename('principal', $principal->nama, $filters)
+            );
+        }
+
+        $pemasok = Pemasok::findOrFail($id);
+        $rows = $this->buildPemasokPurchaseHistory(
+            $pemasok,
+            $filters['start_date'],
+            $filters['end_date'],
+            $filters['status']
+        );
+
+        return Excel::download(
+            new DataPembelianEntityExport($rows, 'pemasok', $pemasok->nama),
+            $this->buildEntityExportFilename('pemasok', $pemasok->nama, $filters)
+        );
     }
 
     private function buildMasterFakturPrincipalMap(Collection $purchaseItems): Collection
@@ -417,6 +414,102 @@ class DataPembelianController extends Controller
         $segments = [
             'data_pembelian',
             $filters['group_by'],
+            $filters['status'],
+        ];
+
+        if ($filters['start_date'] && $filters['end_date']) {
+            $segments[] = $filters['start_date'];
+            $segments[] = $filters['end_date'];
+        }
+
+        $segments[] = now()->format('Ymd_His');
+
+        return implode('_', $segments) . '.xlsx';
+    }
+
+    private function buildPemasokPurchaseHistory(Pemasok $pemasok, ?string $startDate, ?string $endDate, string $statusFilter): Collection
+    {
+        return $pemasok->fakturBeli()
+            ->with(['items.obat'])
+            ->when($startDate && $endDate, function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('received_date', [$startDate, $endDate]);
+            })
+            ->when(true, function ($query) use ($statusFilter) {
+                $this->applyFakturStatusFilter($query, $statusFilter);
+            })
+            ->orderBy('received_date', 'desc')
+            ->get()
+            ->map(function ($faktur) {
+                return [
+                    'no_faktur' => $faktur->no_faktur ?: '-',
+                    'received_date' => $faktur->received_date,
+                    'due_date' => $faktur->due_date,
+                    'jumlah_item' => $faktur->items->count(),
+                    'subtotal' => (float) ($faktur->subtotal ?: 0),
+                    'global_diskon' => (float) ($faktur->global_diskon ?: 0),
+                    'global_pajak' => (float) ($faktur->global_pajak ?: 0),
+                    'total' => (float) ($faktur->total ?: 0),
+                    'status' => $faktur->status ?: '-',
+                    'obat_ids' => $faktur->items->pluck('obat_id')->filter()->values()->implode(','),
+                ];
+            })
+            ->values();
+    }
+
+    private function buildPrincipalPurchaseHistory(Principal $principal, ?string $startDate, ?string $endDate, string $statusFilter): Collection
+    {
+        $purchaseItems = FakturBeliItem::with(['principal', 'obat.principals', 'fakturbeli.pemasok'])
+            ->whereHas('fakturbeli', function ($query) use ($startDate, $endDate, $statusFilter) {
+                $this->applyFakturStatusFilter($query, $statusFilter)
+                    ->when($startDate && $endDate, function ($q) use ($startDate, $endDate) {
+                        $q->whereBetween('received_date', [$startDate, $endDate]);
+                    });
+            })
+            ->get();
+
+        $masterFakturMap = $this->buildMasterFakturPrincipalMap($purchaseItems);
+
+        return $purchaseItems
+            ->filter(function ($item) use ($principal, $masterFakturMap) {
+                $resolvedPrincipal = $this->resolvePrincipalForItem($item, $masterFakturMap);
+
+                return $resolvedPrincipal && (int) $resolvedPrincipal->id === (int) $principal->id;
+            })
+            ->groupBy('fakturbeli_id')
+            ->map(function ($items) {
+                $faktur = optional($items->first())->fakturbeli;
+
+                return [
+                    'no_faktur' => $faktur?->no_faktur ?: '-',
+                    'received_date' => $faktur?->received_date,
+                    'due_date' => $faktur?->due_date,
+                    'pemasok_nama' => $faktur?->pemasok?->nama ?: '-',
+                    'jumlah_item' => $items->pluck('obat_id')->filter()->unique()->count(),
+                    'qty_total' => $items->sum('qty'),
+                    'total_principal' => $items->sum(function ($item) {
+                        if (!is_null($item->total_amount)) {
+                            return (float) $item->total_amount;
+                        }
+
+                        return (float) ($item->qty ?? 0) * (float) ($item->harga ?? 0);
+                    }),
+                    'status' => $faktur?->status ?: '-',
+                    'obat_ids' => $items->pluck('obat_id')->filter()->unique()->values()->implode(','),
+                ];
+            })
+            ->sortByDesc('received_date')
+            ->values();
+    }
+
+    private function buildEntityExportFilename(string $entityType, string $entityName, array $filters): string
+    {
+        $safeName = trim(preg_replace('/[^A-Za-z0-9]+/', '_', $entityName), '_');
+        $safeName = $safeName !== '' ? strtolower($safeName) : $entityType;
+
+        $segments = [
+            'data_pembelian',
+            $entityType,
+            $safeName,
             $filters['status'],
         ];
 

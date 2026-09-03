@@ -148,9 +148,21 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-inline justify-content-end">
+                                <label for="statusFakturFilter" class="mr-2">Status:</label>
+                                <select id="statusFakturFilter" class="form-control" style="width:180px;">
+                                    <option value="exclude_retur" selected>Semua Selain Retur</option>
+                                    <option value="all">Semua Status</option>
+                                    <option value="diminta">Diminta</option>
+                                    <option value="diterima">Diterima</option>
+                                    <option value="diapprove">Diapprove</option>
+                                    <option value="diretur">Diretur</option>
+                                </select>
                                 <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
                                 <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
                                 <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
+                                <button class="btn btn-success btn-sm ml-2" id="exportPembelianBtn">
+                                    <i class="fa fa-download"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -177,6 +189,7 @@
                                     data-received-date="{{ $faktur->received_date }}"
                                     data-original-index="{{ $loop->iteration }}"
                                     data-total="{{ $faktur->total ?: 0 }}"
+                                    data-status="{{ $faktur->status ?: '-' }}"
                                     data-obat-ids="{{ $faktur->items->pluck('obat_id')->join(',') }}">
                                     <td>{{ $faktur->no_faktur ?: '-' }}</td>
                                     <td>{{ $faktur->received_date ? \Carbon\Carbon::parse($faktur->received_date)->format('d/m/Y') : '-' }}</td>
@@ -224,7 +237,10 @@
 @push('scripts')
 <script>
 $(function() {
-    // Date Range Picker for Tanggal Terima
+    var selectedStartDate = null;
+    var selectedEndDate = null;
+    var currentStatusFilter = $('#statusFakturFilter').val() || 'exclude_retur';
+
     $('#tanggalTerimaRange').daterangepicker({
         autoUpdateInput: false,
         locale: {
@@ -244,76 +260,88 @@ $(function() {
     });
 
     $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
-        var startDate = picker.startDate.format('DD/MM/YYYY');
-        var endDate = picker.endDate.format('DD/MM/YYYY');
-        $(this).val(startDate + ' - ' + endDate);
-        
-        // Filter the table
-        filterPurchaseHistory(picker.startDate, picker.endDate);
-        updateSummary();
+        selectedStartDate = picker.startDate.clone();
+        selectedEndDate = picker.endDate.clone();
+        $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+        applyFilters();
     });
 
-    $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+    $('#tanggalTerimaRange').on('cancel.daterangepicker', function() {
+        selectedStartDate = null;
+        selectedEndDate = null;
         $(this).val('');
-        showAllPurchases();
+        applyFilters();
     });
 
-    $('#resetTanggalTerima').on('click', function() {
+    $('#resetTanggalTerima, #showAllPurchases').on('click', function() {
+        currentStatusFilter = 'exclude_retur';
+        selectedStartDate = null;
+        selectedEndDate = null;
+        $('#statusFakturFilter').val(currentStatusFilter);
         $('#tanggalTerimaRange').val('');
-        showAllPurchases();
+        applyFilters();
     });
 
-    $('#showAllPurchases').on('click', function() {
-        $('#tanggalTerimaRange').val('');
-        showAllPurchases();
+    $('#statusFakturFilter').on('change', function() {
+        currentStatusFilter = $(this).val() || 'exclude_retur';
+        applyFilters();
     });
 
-    function filterPurchaseHistory(startDate, endDate) {
+    $('#exportPembelianBtn').on('click', function() {
+        var exportUrl = '{{ route('erm.datapembelian.exportEntity', ['groupBy' => 'pemasok', 'id' => $pemasok->id]) }}?' + $.param({
+            start_date: selectedStartDate ? selectedStartDate.format('YYYY-MM-DD') : null,
+            end_date: selectedEndDate ? selectedEndDate.format('YYYY-MM-DD') : null,
+            status: currentStatusFilter
+        });
+
+        window.location.href = exportUrl;
+    });
+
+    function applyFilters() {
         var visibleRows = 0;
-        var rowCounter = 1;
-        
+
         $('.purchase-row').each(function() {
             var receivedDate = $(this).data('received-date');
-            
-            if (receivedDate && receivedDate !== '-') {
-                var rowDate = moment(receivedDate, 'YYYY-MM-DD');
-                
-                if (rowDate.isSameOrAfter(startDate, 'day') && rowDate.isSameOrBefore(endDate, 'day')) {
-                    $(this).show();
-                    visibleRows++;
-                    rowCounter++;
+            var status = String($(this).data('status') || '');
+            var matchesDate = true;
+            var matchesStatus = true;
+
+            if (selectedStartDate && selectedEndDate) {
+                if (receivedDate && receivedDate !== '-') {
+                    var rowDate = moment(receivedDate, 'YYYY-MM-DD');
+                    matchesDate = rowDate.isSameOrAfter(selectedStartDate, 'day') && rowDate.isSameOrBefore(selectedEndDate, 'day');
                 } else {
-                    $(this).hide();
+                    matchesDate = false;
                 }
+            }
+
+            if (currentStatusFilter === 'exclude_retur') {
+                matchesStatus = status !== 'diretur';
+            } else if (currentStatusFilter !== 'all') {
+                matchesStatus = status === currentStatusFilter;
+            }
+
+            if (matchesDate && matchesStatus) {
+                $(this).show();
+                visibleRows++;
             } else {
-                // Hide rows without received_date when filtering
                 $(this).hide();
             }
         });
 
-        // Show/hide no results message
         if (visibleRows === 0) {
-            var dateRangeText = $('#tanggalTerimaRange').val();
-            $('#dateRangeTerm').text(dateRangeText);
+            var activeFilterText = currentStatusFilter === 'exclude_retur' ? 'semua selain retur' : currentStatusFilter;
+            if ($('#tanggalTerimaRange').val()) {
+                activeFilterText += ' pada ' + $('#tanggalTerimaRange').val();
+            }
+            $('#dateRangeTerm').text(activeFilterText);
             $('#no-filter-results').show();
             $('#no-data-row').hide();
         } else {
             $('#no-filter-results').hide();
             $('#no-data-row').hide();
         }
-            updateSummary();
-    }
 
-    function showAllPurchases() {
-        $('.purchase-row').show();
-        $('#no-filter-results').hide();
-        
-        // Show original no-data row if no purchases exist
-        if ($('.purchase-row').length === 0) {
-            $('#no-data-row').show();
-        } else {
-            $('#no-data-row').hide();
-        }
         updateSummary();
     }
 
@@ -334,7 +362,9 @@ $(function() {
             var ids = String($(this).data('obat-ids') || '');
             if (ids.length) {
                 ids.split(',').forEach(function(id) {
-                    if (id !== '') obatSet[id] = true;
+                    if (id !== '') {
+                        obatSet[id] = true;
+                    }
                 });
             }
         });
@@ -344,9 +374,11 @@ $(function() {
         $('#jenisItemValue').text(Object.keys(obatSet).length);
     }
 
-    // Initialize: show all purchases
-    showAllPurchases();
-    updateSummary();
+    applyFilters();
+
+    if ($('.purchase-row').length === 0) {
+        $('#no-data-row').show();
+    }
 });
 </script>
 @endpush

@@ -144,9 +144,21 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-inline justify-content-end">
+                                <label for="statusFakturFilter" class="mr-2">Status:</label>
+                                <select id="statusFakturFilter" class="form-control" style="width:180px;">
+                                    <option value="exclude_retur" selected>Semua Selain Retur</option>
+                                    <option value="all">Semua Status</option>
+                                    <option value="diminta">Diminta</option>
+                                    <option value="diterima">Diterima</option>
+                                    <option value="diapprove">Diapprove</option>
+                                    <option value="diretur">Diretur</option>
+                                </select>
                                 <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
                                 <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
                                 <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
+                                <button class="btn btn-success btn-sm ml-2" id="exportPembelianBtn">
+                                    <i class="fa fa-download"></i> Export Excel
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -171,6 +183,7 @@
                                 <tr class="purchase-row"
                                     data-received-date="{{ $history['received_date'] }}"
                                     data-total="{{ $history['total_principal'] }}"
+                                    data-status="{{ $history['status'] }}"
                                     data-obat-ids="{{ $history['obat_ids'] }}">
                                     <td>{{ $history['no_faktur'] }}</td>
                                     <td>{{ $history['pemasok_nama'] }}</td>
@@ -216,6 +229,10 @@
 @push('scripts')
 <script>
 $(function() {
+    var selectedStartDate = null;
+    var selectedEndDate = null;
+    var currentStatusFilter = $('#statusFakturFilter').val() || 'exclude_retur';
+
     $('#tanggalTerimaRange').daterangepicker({
         autoUpdateInput: false,
         locale: {
@@ -234,64 +251,102 @@ $(function() {
     });
 
     $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
-        var startDate = picker.startDate.format('DD/MM/YYYY');
-        var endDate = picker.endDate.format('DD/MM/YYYY');
-        $(this).val(startDate + ' - ' + endDate);
-        filterPurchaseHistory(picker.startDate, picker.endDate);
-        updateSummary();
+        selectedStartDate = picker.startDate.clone();
+        selectedEndDate = picker.endDate.clone();
+        $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+        applyFilters();
     });
 
     $('#tanggalTerimaRange').on('cancel.daterangepicker', function() {
+        selectedStartDate = null;
+        selectedEndDate = null;
         $(this).val('');
-        showAllPurchases();
+        applyFilters();
     });
 
     $('#resetTanggalTerima, #showAllPurchases').on('click', function() {
+        currentStatusFilter = 'exclude_retur';
+        selectedStartDate = null;
+        selectedEndDate = null;
+        $('#statusFakturFilter').val(currentStatusFilter);
         $('#tanggalTerimaRange').val('');
-        showAllPurchases();
+        applyFilters();
     });
 
-    function filterPurchaseHistory(startDate, endDate) {
+    $('#statusFakturFilter').on('change', function() {
+        currentStatusFilter = $(this).val() || 'exclude_retur';
+        applyFilters();
+    });
+
+    $('#exportPembelianBtn').on('click', function() {
+        var exportUrl = '{{ route('erm.datapembelian.exportEntity', ['groupBy' => 'principal', 'id' => $principal->id]) }}?' + $.param({
+            start_date: selectedStartDate ? selectedStartDate.format('YYYY-MM-DD') : null,
+            end_date: selectedEndDate ? selectedEndDate.format('YYYY-MM-DD') : null,
+            status: currentStatusFilter
+        });
+
+        window.location.href = exportUrl;
+    });
+
+    function applyFilters() {
         var visibleRows = 0;
 
         $('.purchase-row').each(function() {
             var receivedDate = $(this).data('received-date');
+            var status = String($(this).data('status') || '');
+            var matchesDate = true;
+            var matchesStatus = true;
 
-            if (receivedDate && receivedDate !== '-') {
-                var rowDate = moment(receivedDate, 'YYYY-MM-DD');
-
-                if (rowDate.isSameOrAfter(startDate, 'day') && rowDate.isSameOrBefore(endDate, 'day')) {
-                    $(this).show();
-                    visibleRows++;
+            if (selectedStartDate && selectedEndDate) {
+                if (receivedDate && receivedDate !== '-') {
+                    var rowDate = moment(receivedDate, 'YYYY-MM-DD');
+                    matchesDate = rowDate.isSameOrAfter(selectedStartDate, 'day') && rowDate.isSameOrBefore(selectedEndDate, 'day');
                 } else {
-                    $(this).hide();
+                    matchesDate = false;
                 }
+            }
+
+            if (currentStatusFilter === 'exclude_retur') {
+                matchesStatus = status !== 'diretur';
+            } else if (currentStatusFilter !== 'all') {
+                matchesStatus = status === currentStatusFilter;
+            }
+
+            if (matchesDate && matchesStatus) {
+                $(this).show();
+                visibleRows++;
             } else {
                 $(this).hide();
             }
         });
 
         if (visibleRows === 0) {
-            $('#dateRangeTerm').text($('#tanggalTerimaRange').val());
+            var activeFilterText = currentStatusFilter === 'exclude_retur' ? 'semua selain retur' : currentStatusFilter;
+            if ($('#tanggalTerimaRange').val()) {
+                activeFilterText += ' pada ' + $('#tanggalTerimaRange').val();
+            }
+            $('#dateRangeTerm').text(activeFilterText);
             $('#no-filter-results').show();
             $('#no-data-row').hide();
         } else {
             $('#no-filter-results').hide();
             $('#no-data-row').hide();
         }
+
+        updateSummary();
     }
 
     function showAllPurchases() {
-        $('.purchase-row').show();
-        $('#no-filter-results').hide();
+        currentStatusFilter = 'exclude_retur';
+        $('#statusFakturFilter').val(currentStatusFilter);
+        selectedStartDate = null;
+        selectedEndDate = null;
+        $('#tanggalTerimaRange').val('');
+        applyFilters();
 
         if ($('.purchase-row').length === 0) {
             $('#no-data-row').show();
-        } else {
-            $('#no-data-row').hide();
         }
-
-        updateSummary();
     }
 
     function formatRp(amount) {
@@ -323,8 +378,11 @@ $(function() {
         $('#jenisItemValue').text(Object.keys(obatSet).length);
     }
 
-    showAllPurchases();
-    updateSummary();
+    applyFilters();
+
+    if ($('.purchase-row').length === 0) {
+        $('#no-data-row').show();
+    }
 });
 </script>
 @endpush
