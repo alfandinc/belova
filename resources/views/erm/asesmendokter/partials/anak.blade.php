@@ -238,19 +238,34 @@
                             <div class="col-md-4">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="tb" class="me-2 mb-0 mr-2" style="width: 40px;">TB</label>
-                                    <input type="text" class="form-control" id="tb" name="tb" value="{{ old('tb', $asesmen->tb ?? $dataperawat->tb ?? '') }}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="tb" name="tb" value="{{ old('tb', $asesmen->tb ?? $dataperawat->tb ?? '') }}">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">cm</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="bb" class="me-2 mb-0 mr-2" style="width: 40px;">BB</label>
-                                    <input type="text" class="form-control" id="bb" name="bb" value="{{ old('bb', $asesmen->bb ?? $dataperawat->bb ?? '') }}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="bb" name="bb" value="{{ old('bb', $asesmen->bb ?? $dataperawat->bb ?? '') }}">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">kg</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-4">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="lk" class="me-2 mb-0 mr-2" style="width: 110px;">Lingkar Kepala</label>
-                                    <input type="text" class="form-control" id="lk" name="lk" value="{{ old('lk', $asesmen->lk ?? '') }}">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="lk" name="lk" value="{{ old('lk', $asesmen->lk ?? '') }}">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">cm</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
