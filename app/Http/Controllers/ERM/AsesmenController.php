@@ -321,6 +321,9 @@ class AsesmenController extends Controller
                 'n' => $request->n,
                 's' => $request->s,
                 'r' => $request->r,
+                'tb' => $request->tb,
+                'bb' => $request->bb,
+                'lk' => $request->lk,
             ]
         );
     }

@@ -39,6 +39,9 @@ class AsesmenAnak extends Model
         'n',
         's',
         'r',
+        'tb',
+        'bb',
+        'lk',
     ];
 
     public function visitation()
