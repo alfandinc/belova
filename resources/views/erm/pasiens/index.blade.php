@@ -665,6 +665,34 @@ $(document).ready(function () {
         };
     }
 
+    function hasPrimarySearchFilters() {
+        return [
+            $('#filter_no_rm').val(),
+            $('#filter_nama').val(),
+            $('#filter_nik').val(),
+            $('#filter_alamat').val()
+        ].some(function(value) {
+            return (value || '').toString().trim() !== '';
+        });
+    }
+
+    function isDefaultDateRangeSelected() {
+        let payload = getDateRangePayload();
+
+        return payload.start_date === defaultStartDate && payload.end_date === defaultEndDate;
+    }
+
+    function getTableDateRangePayload() {
+        if (hasPrimarySearchFilters() && isDefaultDateRangeSelected()) {
+            return {
+                start_date: '',
+                end_date: ''
+            };
+        }
+
+        return getDateRangePayload();
+    }
+
     function renderStatsCards(targetSelector, items, group) {
         let html = Object.keys(items || {}).map(function(key) {
             let item = items[key] || {};
@@ -733,14 +761,16 @@ $(document).ready(function () {
         ajax: {
             url: "{{ route('erm.pasiens.index') }}",
             data: function (d) {
+                let tableDateRange = getTableDateRangePayload();
+
                 d.no_rm = $('#filter_no_rm').val();
                 d.nama = $('#filter_nama').val();
                 d.nik = $('#filter_nik').val();
                 d.alamat = $('#filter_alamat').val();
                 d.status_pasien = $('#filter_status_pasien').val();
                 d.referral_type = $('#filter_referral_type').val();
-                d.start_date = getDateRangePayload().start_date;
-                d.end_date = getDateRangePayload().end_date;
+                d.start_date = tableDateRange.start_date;
+                d.end_date = tableDateRange.end_date;
             }
         },
         columns: [

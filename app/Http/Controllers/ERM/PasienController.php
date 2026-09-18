@@ -174,6 +174,7 @@ class PasienController extends Controller
     public function index(Request $request)
     {
         [$startDate, $endDate] = $this->resolveIndexDateRange($request);
+        $shouldApplyAjaxDateFilter = $request->filled('start_date') || $request->filled('end_date');
 
         if ($request->ajax() && $request->boolean('stats')) {
             return response()->json($this->getPatientIndexStats($startDate, $endDate));
@@ -231,8 +232,10 @@ class PasienController extends Controller
             if ($request->referral_type) {
                 $pasiens->where('referral_type', $request->referral_type);
             }
-            $pasiens->whereDate('created_at', '>=', $startDate->toDateString())
-                ->whereDate('created_at', '<=', $endDate->toDateString());
+            if ($shouldApplyAjaxDateFilter) {
+                $pasiens->whereDate('created_at', '>=', $startDate->toDateString())
+                    ->whereDate('created_at', '<=', $endDate->toDateString());
+            }
             if ($request->status_akses) {
                 $pasiens->where('status_akses', $request->status_akses);
             }
