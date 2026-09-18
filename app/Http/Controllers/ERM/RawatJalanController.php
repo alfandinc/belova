@@ -546,25 +546,82 @@ class RawatJalanController extends Controller
             $dokterFilter = $dokter ? $dokter->id : null;
         }
 
+        $isDokterUser = (bool) ($user && method_exists($user, 'hasRole') && $user->hasRole('Dokter'));
+
+        $allowedVisitTypes = $isDokterUser ? [1] : [1, 2, 3, 4, 5];
+        $visitTypeMap = [
+            1 => 'konsultasi',
+            2 => 'produk',
+            3 => 'lab',
+            4 => 'event',
+            5 => 'marketplace',
+        ];
+
         $query = DB::table('erm_visitations')
-            ->selectRaw('DATE(tanggal_visitation) as visit_date, COUNT(*) as total')
-            ->whereIn('jenis_kunjungan', $user && $user->hasRole('Dokter') ? [1] : [1, 2, 4, 5])
+            ->selectRaw('DATE(tanggal_visitation) as visit_date, jenis_kunjungan, COUNT(*) as total')
+            ->whereIn('jenis_kunjungan', $allowedVisitTypes)
             ->where('status_kunjungan', '!=', 7)
+            ->whereDate('tanggal_visitation', '>=', $month->toDateString())
+            ->whereDate('tanggal_visitation', '<=', $monthEnd->toDateString());
+
+        $completedQuery = DB::table('erm_visitations')
+            ->selectRaw('DATE(tanggal_visitation) as visit_date, jenis_kunjungan, COUNT(*) as total')
+            ->whereIn('jenis_kunjungan', $allowedVisitTypes)
+            ->where('status_kunjungan', 2)
             ->whereDate('tanggal_visitation', '>=', $month->toDateString())
             ->whereDate('tanggal_visitation', '<=', $monthEnd->toDateString());
 
         if ($dokterFilter) {
             $query->where('dokter_id', $dokterFilter);
+            $completedQuery->where('dokter_id', $dokterFilter);
         }
 
         if ($request->filled('klinik_id')) {
             $query->where('klinik_id', $request->input('klinik_id'));
+            $completedQuery->where('klinik_id', $request->input('klinik_id'));
         }
 
         $dailyCounts = $query
             ->groupBy(DB::raw('DATE(tanggal_visitation)'))
+            ->groupBy('jenis_kunjungan')
             ->orderBy('visit_date')
-            ->pluck('total', 'visit_date');
+            ->get();
+
+        $completedDailyCounts = $completedQuery
+            ->groupBy(DB::raw('DATE(tanggal_visitation)'))
+            ->groupBy('jenis_kunjungan')
+            ->orderBy('visit_date')
+            ->get();
+
+        $buildDailyBreakdown = function ($rows) use ($visitTypeMap) {
+            $result = [];
+
+            foreach ($rows as $row) {
+                $dateKey = (string) $row->visit_date;
+                $typeKey = $visitTypeMap[(int) $row->jenis_kunjungan] ?? null;
+
+                if (!$typeKey) {
+                    continue;
+                }
+
+                if (!isset($result[$dateKey])) {
+                    $result[$dateKey] = [
+                        'konsultasi' => 0,
+                        'produk' => 0,
+                        'lab' => 0,
+                        'event' => 0,
+                        'marketplace' => 0,
+                    ];
+                }
+
+                $result[$dateKey][$typeKey] = (int) $row->total;
+            }
+
+            return $result;
+        };
+
+        $dailyBreakdowns = $buildDailyBreakdown($dailyCounts);
+        $completedDailyBreakdowns = $buildDailyBreakdown($completedDailyCounts);
 
         $days = [];
         $cursor = $month->copy();
@@ -572,12 +629,29 @@ class RawatJalanController extends Controller
 
         while ($cursor->lte($monthEnd)) {
             $dateKey = $cursor->toDateString();
+            $isPast = $dateKey < $today;
+            $breakdown = $isPast
+                ? ($completedDailyBreakdowns[$dateKey] ?? null)
+                : ($dailyBreakdowns[$dateKey] ?? null);
+
+            $breakdown = $breakdown ?: [
+                'konsultasi' => 0,
+                'produk' => 0,
+                'lab' => 0,
+                'event' => 0,
+                'marketplace' => 0,
+            ];
+
+            $displayCount = array_sum($breakdown);
+
             $days[] = [
                 'date' => $dateKey,
                 'day' => $cursor->day,
                 'weekday' => $cursor->translatedFormat('D'),
-                'count' => (int) ($dailyCounts[$dateKey] ?? 0),
+                'count' => $displayCount,
+                'breakdown' => $breakdown,
                 'is_today' => $dateKey === $today,
+                'is_past' => $isPast,
             ];
 
             $cursor->addDay();

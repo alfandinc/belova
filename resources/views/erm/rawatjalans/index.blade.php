@@ -30,9 +30,18 @@
                         <div class="font-weight-bold" id="queue-calendar-month-label">Bulan Ini</div>
                         <small class="text-muted" id="queue-calendar-summary">Memuat data antrian...</small>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-queue-calendar">
-                        <i class="fas fa-sync-alt"></i> Refresh
-                    </button>
+                    <div class="d-flex align-items-center queue-calendar-toolbar-actions">
+                        <input type="month" id="queue-calendar-month-filter" class="form-control form-control-sm mr-2">
+                        <select id="queue-calendar-dokter-filter" class="form-control form-control-sm mr-2">
+                            <option value="">Semua Dokter</option>
+                            @foreach($dokters as $dokter)
+                                <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-queue-calendar">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="queue-calendar-content">
                     <div class="text-center text-muted py-5">

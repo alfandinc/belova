@@ -220,6 +220,18 @@
     gap: 12px;
 }
 
+.queue-calendar-toolbar-actions {
+    gap: 8px;
+}
+
+#queue-calendar-month-filter {
+    min-width: 150px;
+}
+
+#queue-calendar-dokter-filter {
+    min-width: 280px;
+}
+
 .queue-calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -247,6 +259,19 @@
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
 
+.queue-calendar-day-breakdown {
+    margin-top: auto;
+    display: grid;
+    gap: 2px;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    color: #5f6c8c;
+}
+
+.queue-calendar-day-breakdown small {
+    display: block;
+}
+
 .queue-calendar-day.is-empty {
     background: #f5f7fb;
     border-style: dashed;
@@ -254,8 +279,34 @@
 }
 
 .queue-calendar-day.is-today {
-    border-color: #2563eb;
-    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.16);
+    border-color: #facc15;
+    background: linear-gradient(180deg, #fffbea 0%, #fef3c7 100%);
+    box-shadow: 0 10px 24px rgba(234, 179, 8, 0.18);
+}
+
+.queue-calendar-day.is-today .queue-calendar-day-number,
+.queue-calendar-day.is-today .queue-calendar-day-value {
+    color: #a16207;
+}
+
+.queue-calendar-day.is-today .queue-calendar-visit-count {
+    background: linear-gradient(135deg, #eab308, #facc15);
+    color: #fff;
+}
+
+.queue-calendar-day.is-past {
+    border-color: #86efac;
+    background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+}
+
+.queue-calendar-day.is-past .queue-calendar-day-number,
+.queue-calendar-day.is-past .queue-calendar-day-value {
+    color: #15803d;
+}
+
+.queue-calendar-day.is-past .queue-calendar-visit-count {
+    background: linear-gradient(135deg, #16a34a, #22c55e);
+    color: #fff;
 }
 
 .queue-calendar-day.is-busy {
@@ -306,11 +357,6 @@
     font-weight: 700;
     line-height: 1.1;
     color: #1d4ed8;
-}
-
-.queue-calendar-day-note {
-    font-size: 0.78rem;
-    color: #7c8aa5;
 }
 
 /* Smooth blinking animation for lab and tindakan icons */
@@ -510,6 +556,20 @@
     .queue-calendar-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 10px;
+    }
+
+    .queue-calendar-toolbar-actions {
+        width: 100%;
+    }
+
+    #queue-calendar-dokter-filter {
+        min-width: 0;
+        width: 100%;
+    }
+
+    #queue-calendar-month-filter {
+        min-width: 0;
+        width: 100%;
     }
 
     .queue-calendar-day {

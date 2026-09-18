@@ -310,6 +310,16 @@
         var startsOn = parseInt(month.starts_on || 1, 10);
         var html = '<div class="queue-calendar-grid">';
 
+        function renderBreakdownItem(label, value) {
+            var parsedValue = parseInt(value || 0, 10);
+
+            if (parsedValue <= 0) {
+                return '';
+            }
+
+            return '<small>' + escapeHtml(label) + ': ' + escapeHtml(parsedValue) + '</small>';
+        }
+
         weekdays.forEach(function(label) {
             html += '<div class="queue-calendar-weekday">' + label + '</div>';
         });
@@ -321,6 +331,21 @@
         days.forEach(function(day) {
             var count = parseInt(day.count || 0, 10);
             var classes = ['queue-calendar-day'];
+            var breakdown = day && day.breakdown ? day.breakdown : {};
+            var breakdownItems = [
+                renderBreakdownItem('Konsul', breakdown.konsultasi),
+                renderBreakdownItem('Produk', breakdown.produk),
+                renderBreakdownItem('Lab', breakdown.lab),
+                renderBreakdownItem('Event', breakdown.event),
+                renderBreakdownItem('Marketplace', breakdown.marketplace)
+            ].join('');
+            var detailHtml = breakdownItems
+                ? '<div class="queue-calendar-day-breakdown">' + breakdownItems + '</div>'
+                : '';
+
+            if (day.is_past) {
+                classes.push('is-past');
+            }
 
             if (day.is_today) {
                 classes.push('is-today');
@@ -338,9 +363,7 @@
                 + '</div>'
                 + '<div class="queue-calendar-visit-count">' + escapeHtml(count) + '</div>'
                 + '</div>'
-                + '<div class="queue-calendar-day-label">Jumlah Visit</div>'
-                + '<div class="queue-calendar-day-value">' + escapeHtml(count) + '</div>'
-                + '<div class="queue-calendar-day-note">' + (count > 0 ? 'Ada antrian kunjungan' : 'Belum ada kunjungan') + '</div>'
+                + detailHtml
                 + '</div>';
         });
 
@@ -356,13 +379,16 @@
     }
 
     function loadQueueCalendar() {
+        var selectedDokterId = $('#queue-calendar-dokter-filter').val();
+        var selectedMonth = $('#queue-calendar-month-filter').val() || moment().format('YYYY-MM');
+
         $('#queue-calendar-month-label').text('Bulan Ini');
         $('#queue-calendar-summary').text('Memuat data antrian...');
         $('#queue-calendar-content').html('<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm mr-2"></span>Memuat kalender antrian...</div>');
 
         $.get('{{ route("erm.rawatjalans.queueCalendar") }}', {
-            month: moment().format('YYYY-MM'),
-            dokter_id: $('#filter_dokter').val(),
+            month: selectedMonth,
+            dokter_id: selectedDokterId,
             klinik_id: $('#filter_klinik').val()
         }).done(function(response) {
             renderQueueCalendar(response || {});
@@ -856,11 +882,22 @@
     });
 
     $('#btn-queue-calendar').on('click', function() {
+        if (!$('#queue-calendar-month-filter').val()) {
+            $('#queue-calendar-month-filter').val(moment().format('YYYY-MM'));
+        }
         $('#modalKalenderAntrian').modal('show');
         loadQueueCalendar();
     });
 
     $('#btn-refresh-queue-calendar').on('click', function() {
+        loadQueueCalendar();
+    });
+
+    $('#queue-calendar-dokter-filter').on('change', function() {
+        loadQueueCalendar();
+    });
+
+    $('#queue-calendar-month-filter').on('change', function() {
         loadQueueCalendar();
     });
 
