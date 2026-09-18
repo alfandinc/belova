@@ -16,7 +16,10 @@ use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
 use App\Models\HRD\Employee;
+use App\Models\Marketing\MarketingEvent;
 use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Carbon\Carbon;
 
 class PasienController extends Controller
 {
@@ -96,23 +99,119 @@ class PasienController extends Controller
         ]);
     }
 
+    public function checkDuplicateNameBirthdate(Request $request)
+    {
+        $validated = $request->validate([
+            'nama' => 'required|string|max:255',
+            'tanggal_lahir' => 'required|date',
+            'pasien_id' => 'nullable|string',
+        ]);
+
+        $patients = $this->findPatientsWithSameNameAndBirthdate(
+            $validated['nama'],
+            $validated['tanggal_lahir'],
+            $validated['pasien_id'] ?? null
+        );
+
+        return response()->json([
+            'exists' => $patients->isNotEmpty(),
+            'count' => $patients->count(),
+            'patients' => $patients->values(),
+            'message' => $patients->isNotEmpty()
+                ? 'Ditemukan pasien dengan kombinasi nama dan tanggal lahir yang sama.'
+                : 'Tidak ditemukan pasien dengan kombinasi nama dan tanggal lahir yang sama.',
+        ]);
+    }
+
+    public function checkIdentityNumber(Request $request)
+    {
+        $validated = $request->validate([
+            'identity_document' => 'required|in:ktp,sim,paspor,kia',
+            'identity_number' => 'required|string|max:50',
+            'pasien_id' => 'nullable|string',
+        ]);
+
+        $identityNumber = trim((string) $validated['identity_number']);
+        $documentType = $validated['identity_document'];
+
+        if ($documentType === 'ktp' && !preg_match('/^\d{16}$/', $identityNumber)) {
+            return response()->json([
+                'valid' => false,
+                'exists' => false,
+                'message' => 'Nomor identitas untuk KTP harus 16 digit angka.',
+            ]);
+        }
+
+        $pasien = Pasien::query()
+            ->select(['id', 'nama', 'identity_document', 'identity_number'])
+            ->where('identity_number', $identityNumber)
+            ->when(!empty($validated['pasien_id']), function ($query) use ($validated) {
+                $query->where('id', '!=', $validated['pasien_id']);
+            })
+            ->first();
+
+        if (!$pasien) {
+            return response()->json([
+                'valid' => true,
+                'exists' => false,
+                'message' => 'Nomor identitas tersedia.',
+            ]);
+        }
+
+        return response()->json([
+            'valid' => false,
+            'exists' => true,
+            'message' => 'Nomor identitas sudah digunakan pasien lain.',
+            'pasien' => [
+                'id' => (string) $pasien->id,
+                'nama' => $pasien->nama,
+                'identity_document' => $pasien->identity_document,
+                'identity_number' => $pasien->identity_number,
+            ],
+        ]);
+    }
+
     public function index(Request $request)
     {
+        [$startDate, $endDate] = $this->resolveIndexDateRange($request);
+
+        if ($request->ajax() && $request->boolean('stats')) {
+            return response()->json($this->getPatientIndexStats($startDate, $endDate));
+        }
+
         if ($request->ajax()) {
             // eager-load nested area relations so DataTables payload includes village/district/regency/province
-            $pasiens = Pasien::with('village.district.regency.province')
+            $pasiens = Pasien::with([
+                    'village.district.regency.province',
+                    'referralable' => function (MorphTo $morphTo) {
+                        $morphTo->morphWith([
+                            Pasien::class => [],
+                            Employee::class => [],
+                            Dokter::class => ['user', 'spesialisasi'],
+                            MarketingEvent::class => [],
+                        ]);
+                    },
+                ])
                 ->select([
                     'id',
                     'nama',
                     'identity_document',
                     'identity_number',
+                    'tanggal_lahir',
+                    'notes',
                     'alamat',
                     'village_id',
                     'no_hp',
+                    'referral_type',
+                    'referral_detail',
+                    'referralable_type',
+                    'referralable_id',
                     'status_pasien',
                     'status_akses',
                     'status_review',
-                ]);
+                    'created_at',
+                ])
+                ->withMax('visitations', 'tanggal_visitation');
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
@@ -129,6 +228,11 @@ class PasienController extends Controller
             if ($request->status_pasien) {
                 $pasiens->where('status_pasien', $request->status_pasien);
             }
+            if ($request->referral_type) {
+                $pasiens->where('referral_type', $request->referral_type);
+            }
+            $pasiens->whereDate('created_at', '>=', $startDate->toDateString())
+                ->whereDate('created_at', '<=', $endDate->toDateString());
             if ($request->status_akses) {
                 $pasiens->where('status_akses', $request->status_akses);
             }
@@ -143,40 +247,8 @@ class PasienController extends Controller
             }
 
             return DataTables::of($pasiens)
-                ->addColumn('status_pasien', function ($user) {
-                    // Status pasien configuration (exclude Regular from display)
-                    $statusConfig = [
-                        'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
-                        'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
-                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
-                        'Red Flag' => ['color' => '#FF0000', 'icon' => 'fas fa-exclamation-triangle', 'title' => 'Red Flag']
-                    ];
-                    
-                    $status = $user->status_pasien ?? 'Regular';
-                    
-                    // Create clickable status display
-                    $statusDisplay = '<div class="d-flex align-items-center">';
-                    
-                    // Only show icon for non-Regular status
-                    if ($status !== 'Regular' && isset($statusConfig[$status])) {
-                        $config = $statusConfig[$status];
-                        $statusDisplay .= '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" 
-                                              style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px;" 
-                                              title="' . $config['title'] . '">
-                                              <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
-                                          </span>';
-                    }
-                    
-                    $statusDisplay .= '<span class="status-text">' . $status . '</span>';
-                    $statusDisplay .= '<button class="btn btn-sm btn-link p-0 ml-2 edit-status-btn" 
-                                          data-pasien-id="' . $user->id . '" 
-                                          data-current-status="' . $status . '" 
-                                          title="Edit Status">
-                                          <i class="fas fa-edit text-primary"></i>
-                                      </button>';
-                    $statusDisplay .= '</div>';
-                    
-                    return $statusDisplay;
+                ->addColumn('status_pasien_icon', function ($user) {
+                    return $this->formatStatusPasienIcon($user->status_pasien);
                 })
                 ->addColumn('status_akses', function ($user) {
                     $status = $user->status_akses ?? 'normal';
@@ -237,61 +309,94 @@ class PasienController extends Controller
                 ->addColumn('merchandise', function ($user) {
                     return '<button class="btn btn-sm btn-outline-primary btn-merch-checklist" data-id="' . $user->id . '">Lihat</button>';
                 })
+                ->addColumn('tanggal_lahir_display', function ($user) {
+                    if (empty($user->tanggal_lahir)) {
+                        return '-';
+                    }
+
+                    $birthDate = Carbon::parse($user->tanggal_lahir);
+                    return $this->formatIndonesianDate($birthDate) . ' (' . $birthDate->age . ' th)';
+                })
+                ->addColumn('referral_display', function ($user) {
+                    return $this->formatReferralDisplay($user);
+                })
+                ->addColumn('last_visit_display', function ($user) {
+                    if (empty($user->visitations_max_tanggal_visitation)) {
+                        return '-';
+                    }
+
+                    return $this->formatIndonesianDate(Carbon::parse($user->visitations_max_tanggal_visitation));
+                })
+                ->addColumn('tanggal_daftar_display', function ($user) {
+                    if (empty($user->created_at)) {
+                        return '-';
+                    }
+
+                    return Carbon::parse($user->created_at)->format('Y-m-d H:i');
+                })
                 ->addColumn('actions', function ($user) {
+                    $tanggalLahir = $user->tanggal_lahir ?? '';
+
                     return '
-                <div class="btn-group-vertical w-100 mb-1">
-                    <div class="btn-group mb-1">
-                        <a href="javascript:void(0);" 
-                           class="btn btn-sm btn-success btn-daftar-visitation" 
-                           data-id="' . $user->id . '" 
-                           data-nama="' . e($user->nama) . '">
-                           <i class="fas fa-calendar-plus mr-1"></i> Buat Kunjungan
-                        </a>
+                <div class="btn-group action-button-group w-100" role="group">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <i class="fas fa-calendar-plus mr-1"></i> Daftarkan
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-right w-100">
+                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="konsultasi" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-stethoscope mr-2"></i>Konsultasi</a>
+                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="lab" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-flask mr-2"></i>Laboratorium</a>
+                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="produk" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-shopping-bag mr-2"></i>Produk dan Obat</a>
+                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="event" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-calendar-alt mr-2"></i>Event</a>
+                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="marketplace" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-store mr-2"></i>Marketplace</a>
+                            </div>
+                        </div>
                         <a href="javascript:void(0);" 
                             class="btn btn-sm btn-info btn-info-pasien" 
                             data-id="' . $user->id . '">
-                            <i class="fas fa-info-circle mr-1"></i> Info Pasien
+                            <i class="fas fa-info-circle mr-1"></i> Info
                         </a>
-                        
-                        
-                    </div>
-                    <div class="btn-group">
-                        <a href="javascript:void(0);" 
-                           class="btn btn-sm btn-primary btn-daftar-lab" 
-                           data-id="' . $user->id . '" 
-                           data-nama="' . e($user->nama) . '">
-                           <i class="fas fa-flask mr-1"></i> Daftar Lab
-                        </a>
-                        <a href="javascript:void(0);" 
-                           class="btn btn-sm btn-warning btn-daftar-produk" 
-                           data-id="' . $user->id . '" 
-                           data-nama="' . e($user->nama) . '">
-                           <i class="fas fa-shopping-cart mr-1"></i> Beli Produk
-                        </a>
-                        
-                    </div>
+                        <span class="ic-action"><button type="button" class="btn btn-sm btn-outline-primary btn-open-ic"
+                               title="Isi IC Pendaftaran"
+                               data-id="' . $user->id . '"
+                               data-nama="' . e($user->nama) . '"
+                               data-identity-label="' . e($user->identity_label ?? 'Identitas') . '"
+                               data-identity-number="' . e($user->identity_number ?? $user->nik ?? '') . '"
+                               data-alamat="' . e($user->alamat ?? '') . '"
+                               data-nohp="' . e($user->no_hp ?? '') . '"
+                               data-tgllahir="' . e($tanggalLahir) . '">
+                               <i class="fas fa-file-signature mr-1"></i> Isi IC
+                             </button></span>
                 </div>';
                 })
-                ->rawColumns(['status_pasien', 'status_akses', 'status_review', 'merchandise', 'actions'])
+                ->rawColumns(['status_pasien_icon', 'status_akses', 'status_review', 'merchandise', 'referral_display', 'actions'])
                 ->make(true);
         }
 
         $metodeBayar = MetodeBayar::all();
         $dokters = Dokter::with('spesialisasi')->get();
         $kliniks = Klinik::all();
+        $stats = $this->getPatientIndexStats($startDate, $endDate);
+        $defaultStartDate = $startDate->toDateString();
+        $defaultEndDate = $endDate->toDateString();
 
         $pasienName = '';
 
-        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks'));
+        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks', 'stats', 'defaultStartDate', 'defaultEndDate'));
     }
 
     public function create(Request $request)
     {
     $metodeBayar = MetodeBayar::all();
-    $dokters = Dokter::with('spesialisasi')->get();
+    $dokters = Dokter::with(['spesialisasi', 'user'])->get();
     $kliniks = Klinik::all();
     $provinces = Province::all();
     $employees = Employee::active()->orderBy('nama')->get(['id', 'nama', 'no_induk']);
+    $events = MarketingEvent::query()
+        ->orderByRaw("CASE WHEN status = 'aktif' THEN 0 ELSE 1 END")
+        ->orderByDesc('tanggal_mulai')
+        ->orderBy('nama_event')
+        ->get(['id', 'kode_event', 'nama_event', 'status']);
     
     // Check if we're editing an existing patient
     $pasien = null;
@@ -299,7 +404,7 @@ class PasienController extends Controller
     
         if ($request->has('edit_id')) {
             // eager-load nested area relations so the view can access province/regency/district
-            $pasien = Pasien::with(['village.district.regency.province', 'referralPasien'])->find($request->edit_id);
+            $pasien = Pasien::with(['village.district.regency.province', 'referralable'])->find($request->edit_id);
             $isEditing = true;
         }
     
@@ -308,6 +413,7 @@ class PasienController extends Controller
         'dokters', 
         'provinces', 
         'employees',
+        'events',
         'kliniks', 
         'pasien', 
         'isEditing'
@@ -319,6 +425,9 @@ class PasienController extends Controller
     $request->merge([
         'identity_document' => $request->input('identity_document', 'ktp'),
         'identity_number' => $request->input('identity_number', $request->input('nik')),
+        'referral_type' => $request->input('referral_type', Pasien::REFERRAL_TYPE_WALK_IN),
+        'no_hp' => $this->normalizePhoneNumber($request->input('no_hp')),
+        'no_hp2' => $this->normalizePhoneNumber($request->input('no_hp2')),
     ]);
 
     $validator = Validator::make($request->all(), [
@@ -329,9 +438,14 @@ class PasienController extends Controller
             'max:50',
             Rule::unique('erm_pasiens', 'identity_number')->ignore($request->pasien_id, 'id'),
         ],
-        'referral_type' => 'nullable|in:social_media,website,other_pasien,lainnya,event',
-        'referral_pasien_id' => 'nullable|string|exists:erm_pasiens,id',
+        'referral_type' => 'required|in:walk_in,pasien,dokter,employee,social_media,marketplace,event,website,partnership,google_maps',
+        'referral_target_pasien_id' => 'nullable|string|exists:erm_pasiens,id',
+        'referral_employee_id' => 'nullable|integer|exists:hrd_employee,id',
+        'referral_dokter_id' => 'nullable|integer|exists:erm_dokters,id',
+        'referral_event_id' => 'nullable|integer|exists:marketing_event,id',
         'referral_detail' => 'nullable|string|max:255',
+        'is_employee_patient' => 'nullable|in:0,1',
+        'duplicate_name_birthdate_acknowledged' => 'nullable|in:0,1',
         'employee_id' => 'nullable|integer|exists:hrd_employee,id',
         'nama' => 'required|string|max:255',
         'tanggal_lahir' => 'required|date',
@@ -342,6 +456,10 @@ class PasienController extends Controller
         'pekerjaan' => 'nullable',
         'gol_darah' => 'nullable',
         'alamat' => 'required',
+        'province' => 'required',
+        'regency' => 'required',
+        'district' => 'required',
+        'village' => 'required',
         'no_hp' => 'required|string|max:15',
         'email' => 'nullable|email',
         'instagram' => 'nullable|string|max:255',
@@ -358,12 +476,48 @@ class PasienController extends Controller
             }
         }
 
-        if ($request->referral_type === 'other_pasien' && empty($request->referral_pasien_id)) {
-            $validator->errors()->add('referral_pasien_id', 'Silakan pilih pasien sumber referral.');
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_PASIEN && empty($request->referral_target_pasien_id)) {
+            $validator->errors()->add('referral_target_pasien_id', 'Silakan pilih pasien sumber referral.');
         }
 
-        if ($request->referral_type === 'lainnya' && empty(trim((string) $request->referral_detail))) {
-            $validator->errors()->add('referral_detail', 'Silakan isi detail referral lainnya.');
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_EMPLOYEE && empty($request->referral_employee_id)) {
+            $validator->errors()->add('referral_employee_id', 'Silakan pilih karyawan sumber referral.');
+        }
+
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_DOKTER && empty($request->referral_dokter_id)) {
+            $validator->errors()->add('referral_dokter_id', 'Silakan pilih dokter sumber referral.');
+        }
+
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_EVENT && empty($request->referral_event_id)) {
+            $validator->errors()->add('referral_event_id', 'Silakan pilih event sumber referral.');
+        }
+
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_MARKETPLACE && !in_array(strtolower(trim((string) $request->referral_detail)), Pasien::marketplaceReferralOptions(), true)) {
+            $validator->errors()->add('referral_detail', 'Silakan pilih sumber marketplace yang valid.');
+        }
+
+        if ($request->referral_type === Pasien::REFERRAL_TYPE_SOCIAL_MEDIA && !in_array(strtolower(trim((string) $request->referral_detail)), Pasien::socialMediaReferralOptions(), true)) {
+            $validator->errors()->add('referral_detail', 'Silakan pilih sumber social media yang valid.');
+        }
+
+        if (in_array($request->referral_type, [Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true) && empty(trim((string) $request->referral_detail))) {
+            $validator->errors()->add('referral_detail', 'Silakan isi detail referral.');
+        }
+
+        if ($request->input('is_employee_patient') === '1' && empty($request->employee_id)) {
+            $validator->errors()->add('employee_id', 'Silakan pilih employee untuk pasien karyawan.');
+        }
+
+        if (!$this->startsWith62($request->input('no_hp'))) {
+            $validator->errors()->add('no_hp', 'No Telepon 1 harus diawali dengan 62.');
+        }
+
+        if (!empty($request->input('no_hp2')) && !$this->startsWith62($request->input('no_hp2'))) {
+            $validator->errors()->add('no_hp2', 'No Telepon Darurat harus diawali dengan 62.');
+        }
+
+        if (!empty($request->employee_id) && $this->employeeAlreadyLinkedToAnotherPatient($request->employee_id, $request->pasien_id)) {
+            $validator->errors()->add('employee_id', 'Employee tersebut sudah terhubung ke pasien lain. Satu employee hanya boleh menggunakan satu pasien.');
         }
     });
 
@@ -374,12 +528,56 @@ class PasienController extends Controller
         ], 422);
     }
 
+    $duplicateNameBirthdatePatients = $this->findPatientsWithSameNameAndBirthdate(
+        $request->nama,
+        $request->tanggal_lahir,
+        $request->pasien_id
+    );
+
+    if ($duplicateNameBirthdatePatients->isNotEmpty() && $request->input('duplicate_name_birthdate_acknowledged') !== '1') {
+        return response()->json([
+            'status' => 'duplicate_name_birthdate',
+            'message' => 'Terdapat pasien dengan kombinasi nama dan tanggal lahir yang sama.',
+            'duplicate_name_birthdate' => true,
+            'count' => $duplicateNameBirthdatePatients->count(),
+            'patients' => $duplicateNameBirthdatePatients->values(),
+        ], 422);
+    }
+
     $userId = Auth::id();
-    $referralType = $request->filled('referral_type') ? $request->referral_type : null;
-    $referralPasienId = $referralType === 'other_pasien' ? $request->referral_pasien_id : null;
-    $referralDetail = in_array($referralType, ['lainnya', 'event'], true)
-        ? trim((string) $request->referral_detail)
-        : null;
+    $referralType = $request->filled('referral_type') ? $request->referral_type : Pasien::REFERRAL_TYPE_WALK_IN;
+    $referralPasienId = $referralType === Pasien::REFERRAL_TYPE_PASIEN ? $request->input('referral_target_pasien_id') : null;
+    $referralEmployeeId = $referralType === Pasien::REFERRAL_TYPE_EMPLOYEE ? $request->input('referral_employee_id') : null;
+    $referralDokterId = $referralType === Pasien::REFERRAL_TYPE_DOKTER ? $request->input('referral_dokter_id') : null;
+    $referralEventId = $referralType === Pasien::REFERRAL_TYPE_EVENT ? $request->input('referral_event_id') : null;
+    $selectedEvent = null;
+
+    if ($referralEventId) {
+        $selectedEvent = MarketingEvent::query()->select(['id', 'kode_event'])->find($referralEventId);
+    }
+
+    $referralableId = null;
+    if ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && $referralEmployeeId) {
+        $referralableId = (string) $referralEmployeeId;
+    } elseif ($referralType === Pasien::REFERRAL_TYPE_DOKTER && $referralDokterId) {
+        $referralableId = (string) $referralDokterId;
+    } elseif ($referralType === Pasien::REFERRAL_TYPE_EVENT && $selectedEvent) {
+        $referralableId = (string) $selectedEvent->id;
+    }
+
+    $referralDetail = null;
+    if ($referralType === Pasien::REFERRAL_TYPE_EVENT && $selectedEvent) {
+        $referralDetail = trim((string) $selectedEvent->kode_event);
+    } elseif (in_array($referralType, [Pasien::REFERRAL_TYPE_MARKETPLACE, Pasien::REFERRAL_TYPE_SOCIAL_MEDIA, Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true)) {
+        $referralDetail = strtolower(trim((string) $request->referral_detail));
+    }
+    $referralAttributes = Pasien::buildReferralAttributes(
+        $referralType,
+        $referralPasienId,
+        $referralDetail,
+        null,
+        $referralableId
+    );
 
     DB::beginTransaction();
 
@@ -394,8 +592,9 @@ class PasienController extends Controller
                 'identity_document' => $request->identity_document,
                 'identity_number' => $request->identity_number,
                 'referral_type' => $referralType,
-                'referral_pasien_id' => $referralPasienId,
-                'referral_detail' => $referralDetail,
+                'referral_detail' => $referralAttributes['referral_detail'],
+                'referralable_type' => $referralAttributes['referralable_type'],
+                'referralable_id' => $referralAttributes['referralable_id'],
                 'nama' => $request->nama,
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'gender' => $request->gender,
@@ -411,7 +610,7 @@ class PasienController extends Controller
                 'no_hp2' => $request->no_hp2,
                 'email' => $request->email,
                 'instagram' => $request->instagram,
-                'status_pasien' => $request->status_pasien ?? 'Regular',
+                'status_pasien' => $request->filled('status_pasien') ? $request->status_pasien : ($pasien->status_pasien ?? 'Regular'),
                 'status_akses' => $request->status_akses ?? 'normal',
                 'user_id' => $userId,
                 'employee_id' => $request->employee_id,
@@ -432,8 +631,9 @@ class PasienController extends Controller
                 'identity_document' => $request->identity_document,
                 'identity_number' => $request->identity_number,
                 'referral_type' => $referralType,
-                'referral_pasien_id' => $referralPasienId,
-                'referral_detail' => $referralDetail,
+                'referral_detail' => $referralAttributes['referral_detail'],
+                'referralable_type' => $referralAttributes['referralable_type'],
+                'referralable_id' => $referralAttributes['referralable_id'],
                 'nama' => $request->nama,
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'gender' => $request->gender,
@@ -478,7 +678,7 @@ class PasienController extends Controller
     public function show($id)
     {
         // eager-load full area hierarchy so AJAX consumers can display names
-        $pasien = Pasien::with(['village.district.regency.province', 'employee'])->findOrFail($id);
+        $pasien = Pasien::with(['village.district.regency.province', 'employee', 'referralable'])->findOrFail($id);
 
         return response()->json($pasien);
     }
@@ -499,6 +699,8 @@ class PasienController extends Controller
         $request->merge([
             'identity_document' => $request->input('identity_document', 'ktp'),
             'identity_number' => $request->input('identity_number', $request->input('nik')),
+            'no_hp' => $this->normalizePhoneNumber($request->input('no_hp')),
+            'no_hp2' => $this->normalizePhoneNumber($request->input('no_hp2')),
         ]);
 
         $validator = Validator::make($request->all(), [
@@ -514,19 +716,35 @@ class PasienController extends Controller
             'tanggal_lahir' => 'required|date',
             'gender' => 'required|in:Laki-laki,Perempuan',
             'alamat' => 'required|string',
+            'province' => 'required',
+            'regency' => 'required',
+            'district' => 'required',
+            'village' => 'required',
             'no_hp' => 'required|string|max:15',
             'status_pasien' => 'nullable|in:Regular,VIP,Familia,Black Card,Red Flag',
             'status_akses' => 'nullable|in:normal,akses cepat',
             'status_review' => 'nullable|in:sudah,belum',
         ]);
 
-        $validator->after(function ($validator) use ($request) {
+        $validator->after(function ($validator) use ($request, $id) {
             if ($request->identity_document === 'ktp') {
                 $identityNumber = (string) $request->identity_number;
 
                 if (!preg_match('/^\d{16}$/', $identityNumber)) {
                     $validator->errors()->add('identity_number', 'Nomor identitas untuk KTP harus 16 digit angka.');
                 }
+            }
+
+            if (!$this->startsWith62($request->input('no_hp'))) {
+                $validator->errors()->add('no_hp', 'No Telepon 1 harus diawali dengan 62.');
+            }
+
+            if (!empty($request->input('no_hp2')) && !$this->startsWith62($request->input('no_hp2'))) {
+                $validator->errors()->add('no_hp2', 'No Telepon Darurat harus diawali dengan 62.');
+            }
+
+            if (!empty($request->employee_id) && $this->employeeAlreadyLinkedToAnotherPatient($request->employee_id, $id)) {
+                $validator->errors()->add('employee_id', 'Employee tersebut sudah terhubung ke pasien lain. Satu employee hanya boleh menggunakan satu pasien.');
             }
         });
 
@@ -727,5 +945,240 @@ class PasienController extends Controller
                 'message' => 'Terjadi kesalahan saat memperbarui status review pasien'
             ], 500);
         }
+    }
+
+    private function employeeAlreadyLinkedToAnotherPatient($employeeId, $exceptPasienId = null): bool
+    {
+        return Pasien::query()
+            ->where('employee_id', $employeeId)
+            ->when($exceptPasienId, function ($query) use ($exceptPasienId) {
+                $query->where('id', '!=', $exceptPasienId);
+            })
+            ->exists();
+    }
+
+    private function normalizePhoneNumber($phoneNumber): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phoneNumber);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '62')) {
+            return substr($digits, 0, 15);
+        }
+
+        if (str_starts_with($digits, '0')) {
+            return substr('62' . substr($digits, 1), 0, 15);
+        }
+
+        return substr('62' . $digits, 0, 15);
+    }
+
+    private function startsWith62($phoneNumber): bool
+    {
+        return is_string($phoneNumber) && str_starts_with($phoneNumber, '62');
+    }
+
+    private function resolveIndexDateRange(Request $request): array
+    {
+        $startDate = $request->filled('start_date')
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : now()->startOfMonth()->startOfDay();
+
+        $endDate = $request->filled('end_date')
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : now()->endOfMonth()->endOfDay();
+
+        if ($startDate->gt($endDate)) {
+            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
+        }
+
+        return [$startDate, $endDate];
+    }
+
+    private function getPatientIndexStats(Carbon $startDate, Carbon $endDate): array
+    {
+        $baseQuery = Pasien::query()
+            ->whereDate('created_at', '>=', $startDate->toDateString())
+            ->whereDate('created_at', '<=', $endDate->toDateString());
+
+        $statusCounts = (clone $baseQuery)
+            ->selectRaw("COALESCE(NULLIF(status_pasien, ''), 'Regular') as stat_key, COUNT(*) as total")
+            ->groupBy('stat_key')
+            ->pluck('total', 'stat_key');
+
+        $referralCounts = (clone $baseQuery)
+            ->selectRaw("COALESCE(NULLIF(referral_type, ''), 'walk_in') as stat_key, COUNT(*) as total")
+            ->groupBy('stat_key')
+            ->pluck('total', 'stat_key');
+
+        $statusDefinitions = [
+            'Regular' => ['label' => 'Regular', 'icon' => 'fas fa-user', 'theme' => 'primary'],
+            'VIP' => ['label' => 'VIP', 'icon' => 'fas fa-crown', 'theme' => 'warning'],
+            'Familia' => ['label' => 'Familia', 'icon' => 'fas fa-users', 'theme' => 'success'],
+            'Black Card' => ['label' => 'Black Card', 'icon' => 'fas fa-credit-card', 'theme' => 'dark'],
+            'Red Flag' => ['label' => 'Red Flag', 'icon' => 'fas fa-exclamation-triangle', 'theme' => 'danger'],
+        ];
+
+        $referralDefinitions = [
+            Pasien::REFERRAL_TYPE_WALK_IN => ['label' => 'Walk-in', 'icon' => 'fas fa-walking', 'theme' => 'primary'],
+            Pasien::REFERRAL_TYPE_PASIEN => ['label' => 'Pasien', 'icon' => 'fas fa-user-friends', 'theme' => 'info'],
+            Pasien::REFERRAL_TYPE_DOKTER => ['label' => 'Dokter', 'icon' => 'fas fa-user-md', 'theme' => 'success'],
+            Pasien::REFERRAL_TYPE_EMPLOYEE => ['label' => 'Karyawan', 'icon' => 'fas fa-id-badge', 'theme' => 'teal'],
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => ['label' => 'Social Media', 'icon' => 'fas fa-hashtag', 'theme' => 'rose'],
+            Pasien::REFERRAL_TYPE_MARKETPLACE => ['label' => 'Marketplace', 'icon' => 'fas fa-store', 'theme' => 'orange'],
+            Pasien::REFERRAL_TYPE_EVENT => ['label' => 'Event', 'icon' => 'fas fa-calendar-alt', 'theme' => 'purple'],
+            Pasien::REFERRAL_TYPE_WEBSITE => ['label' => 'Website', 'icon' => 'fas fa-globe', 'theme' => 'cyan'],
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => ['label' => 'Partnership', 'icon' => 'fas fa-handshake', 'theme' => 'slate'],
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => ['label' => 'Google Maps', 'icon' => 'fas fa-map-marker-alt', 'theme' => 'danger'],
+        ];
+
+        $statuses = [];
+        foreach ($statusDefinitions as $key => $definition) {
+            $statuses[$key] = $definition + [
+                'count' => (int) ($statusCounts[$key] ?? 0),
+            ];
+        }
+
+        $referrals = [];
+        foreach ($referralDefinitions as $key => $definition) {
+            $referrals[$key] = $definition + [
+                'count' => (int) ($referralCounts[$key] ?? 0),
+            ];
+        }
+
+        return [
+            'total_new' => [
+                'label' => 'Pasien Baru',
+                'icon' => 'fas fa-user-plus',
+                'theme' => 'primary',
+                'count' => (clone $baseQuery)->count(),
+            ],
+            'statuses' => $statuses,
+            'referrals' => $referrals,
+            'range' => [
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+            ],
+        ];
+    }
+
+    private function formatReferralDisplay(Pasien $pasien): string
+    {
+        $typeLabel = match ($pasien->referral_type) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
+            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
+            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
+            Pasien::REFERRAL_TYPE_EVENT => 'Event',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'Partnership',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
+            default => 'Walk-in',
+        };
+
+        $iconClass = match ($pasien->referral_type) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
+            Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
+            Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
+            Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
+            default => 'fas fa-walking',
+        };
+
+        $detail = null;
+
+        if ($pasien->referral_type === Pasien::REFERRAL_TYPE_PASIEN && $pasien->referralable) {
+            $detail = $pasien->referralable->nama . ' (RM: ' . $pasien->referralable->id . ')';
+        } elseif ($pasien->referral_type === Pasien::REFERRAL_TYPE_EMPLOYEE && $pasien->referralable) {
+            $detail = $pasien->referralable->nama;
+        } elseif ($pasien->referral_type === Pasien::REFERRAL_TYPE_DOKTER && $pasien->referralable) {
+            $detail = $pasien->referralable->user->name ?? ('Dokter ID ' . $pasien->referralable->id);
+        } elseif ($pasien->referral_type === Pasien::REFERRAL_TYPE_EVENT && $pasien->referralable) {
+            $detail = $pasien->referralable->nama_event ?? $pasien->referral_detail;
+        } elseif (!empty($pasien->referral_detail)) {
+            $detail = ucwords(str_replace('_', ' ', (string) $pasien->referral_detail));
+        }
+
+        $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
+
+        return '<span class="d-inline-flex align-items-center">'
+            . '<i class="' . e($iconClass) . ' mr-2"></i>'
+            . '<span>' . e($label) . '</span>'
+            . '</span>';
+    }
+
+    private function formatStatusPasienIcon(?string $statusPasien): string
+    {
+        $statusConfig = [
+            'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
+            'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
+            'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
+            'Red Flag' => ['color' => '#FF0000', 'icon' => 'fas fa-exclamation-triangle', 'title' => 'Red Flag'],
+        ];
+
+        $status = $statusPasien ?? 'Regular';
+
+        if (!isset($statusConfig[$status])) {
+            return '';
+        }
+
+        $config = $statusConfig[$status];
+
+        return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center ml-2" '
+            . 'style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 50%;" '
+            . 'title="' . e($config['title']) . '">'
+            . '<i class="' . e($config['icon']) . ' text-white" style="font-size: 11px;"></i>'
+            . '</span>';
+    }
+
+    private function formatIndonesianDate(Carbon $date): string
+    {
+        $months = [
+            1 => 'Januari',
+            2 => 'Februari',
+            3 => 'Maret',
+            4 => 'April',
+            5 => 'Mei',
+            6 => 'Juni',
+            7 => 'Juli',
+            8 => 'Agustus',
+            9 => 'September',
+            10 => 'Oktober',
+            11 => 'November',
+            12 => 'Desember',
+        ];
+
+        return $date->day . ' ' . $months[(int) $date->month] . ' ' . $date->year;
+    }
+
+    private function findPatientsWithSameNameAndBirthdate($nama, $tanggalLahir, $exceptPasienId = null)
+    {
+        return Pasien::query()
+            ->select(['id', 'nama', 'tanggal_lahir', 'alamat'])
+            ->whereRaw('LOWER(TRIM(nama)) = ?', [strtolower(trim((string) $nama))])
+            ->whereDate('tanggal_lahir', $tanggalLahir)
+            ->when($exceptPasienId, function ($query) use ($exceptPasienId) {
+                $query->where('id', '!=', $exceptPasienId);
+            })
+            ->orderBy('id')
+            ->get()
+            ->map(function ($pasien) {
+                return [
+                    'id' => (string) $pasien->id,
+                    'nama' => $pasien->nama,
+                    'tanggal_lahir' => !empty($pasien->tanggal_lahir) ? date('Y-m-d', strtotime((string) $pasien->tanggal_lahir)) : null,
+                    'alamat' => $pasien->alamat,
+                ];
+            });
     }
 }

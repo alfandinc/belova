@@ -4,7 +4,26 @@
     @include('layouts.erm.navbar')
 @endsection
 @section('content')
+<link rel="stylesheet" href="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/css/fixedColumns.bootstrap4.min.css') }}">
 <style>
+:root.theme-light {
+    --pasien-fixed-bg: #ffffff;
+    --pasien-fixed-bg-alt: #f7f8fc;
+    --pasien-fixed-header-bg: #2f6df6;
+    --pasien-fixed-text: #212529;
+    --pasien-fixed-border: rgba(0, 0, 0, 0.08);
+    --pasien-header-text: #ffffff;
+}
+
+:root.theme-dark {
+    --pasien-fixed-bg: #2a3042;
+    --pasien-fixed-bg-alt: #3a4058;
+    --pasien-fixed-header-bg: #2f6df6;
+    --pasien-fixed-text: #dfe7ff;
+    --pasien-fixed-border: rgba(255, 255, 255, 0.08);
+    --pasien-header-text: #ffffff;
+}
+
 /* Status Pasien styling in DataTable */
 .status-pasien-icon {
     display: inline-flex !important;
@@ -30,11 +49,319 @@
 .status-text {
     font-weight: 500;
 }
+
+.pasien-notes-preview {
+    font-size: 11px;
+    line-height: 1.35;
+    color: #8a94b8;
+    margin-top: 0.2rem;
+    white-space: normal;
+}
+
+:root.theme-light .pasien-notes-preview {
+    color: #5f6b8a;
+}
+
+:root.theme-dark .pasien-notes-preview {
+    color: #aeb8d8;
+}
+
+.pasien-filter-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+}
+
+.pasien-filter-item {
+    flex: 0 0 170px;
+    min-width: 170px;
+}
+
+.pasien-filter-item.date-range-filter {
+    flex-basis: 150px;
+    min-width: 150px;
+}
+
+.pasien-filter-item.alamat-filter {
+    flex-basis: 220px;
+    min-width: 220px;
+}
+
+.pasien-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 0 auto;
+}
+
+.pasien-filter-actions .btn {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pasien-filter-actions .btn i {
+    margin-right: 0 !important;
+}
+
+.pasien-stats-board {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.35rem;
+    margin-bottom: 1.25rem;
+}
+
+.pasien-stats-section {
+    flex: 0 0 auto;
+    min-width: 165px;
+}
+
+.pasien-stats-group-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+    color: var(--pasien-fixed-text);
+    opacity: 0.85;
+}
+
+.pasien-stats-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+}
+
+.pasien-stats-grid > * {
+    flex: 0 0 132px;
+}
+
+.pasien-stat-card {
+    border: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+    min-height: 100%;
+}
+
+.pasien-stat-card .card-body {
+    padding: 0.6rem 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pasien-stat-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.pasien-stat-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.88;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.pasien-stat-value {
+    font-size: 1rem;
+    line-height: 1.1;
+    font-weight: 700;
+    color: #fff;
+}
+
+.pasien-stat-theme-primary { background: linear-gradient(135deg, #2f6df6, #4f8bff); }
+.pasien-stat-theme-success { background: linear-gradient(135deg, #18a957, #2fd27a); }
+.pasien-stat-theme-warning { background: linear-gradient(135deg, #d99a00, #f0b429); }
+.pasien-stat-theme-danger { background: linear-gradient(135deg, #cf3e5e, #ef5a7a); }
+.pasien-stat-theme-info { background: linear-gradient(135deg, #1f88d6, #42a5f5); }
+.pasien-stat-theme-dark { background: linear-gradient(135deg, #1f2432, #394055); }
+.pasien-stat-theme-teal { background: linear-gradient(135deg, #0f8b8d, #28b7b3); }
+.pasien-stat-theme-orange { background: linear-gradient(135deg, #d97706, #f59e0b); }
+.pasien-stat-theme-purple { background: linear-gradient(135deg, #7c3aed, #9f67ff); }
+.pasien-stat-theme-cyan { background: linear-gradient(135deg, #0891b2, #22c1dc); }
+.pasien-stat-theme-rose { background: linear-gradient(135deg, #db2777, #f472b6); }
+.pasien-stat-theme-slate { background: linear-gradient(135deg, #475569, #64748b); }
+
+@media (max-width: 767.98px) {
+    .pasien-filter-toolbar {
+        gap: 0.5rem;
+    }
+
+    .pasien-filter-item {
+        flex-basis: 150px;
+        min-width: 150px;
+    }
+
+    .pasien-filter-item.alamat-filter {
+        flex-basis: 200px;
+        min-width: 200px;
+    }
+
+    .pasien-filter-item.date-range-filter {
+        flex-basis: 205px;
+        min-width: 205px;
+    }
+
+    .pasien-filter-actions {
+        flex: 0 0 auto;
+    }
+
+    .pasien-stats-section {
+        min-width: 165px;
+    }
+
+    .pasien-stats-grid > * {
+        flex-basis: 120px;
+    }
+}
+
+body {
+    overflow-x: auto !important;
+}
+
+.page-wrapper,
+.page-content,
+.container-fluid,
+.card,
+.card-body {
+    min-width: 0;
+    overflow-x: visible;
+}
+
+#pasiens-table {
+    width: 100% !important;
+}
+
+#pasiens-table th,
+#pasiens-table td {
+    white-space: nowrap;
+}
+
+#pasiens-table thead th,
+#pasiens-table_wrapper table.dataTable thead th,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-end {
+    background-color: var(--pasien-fixed-header-bg) !important;
+    color: var(--pasien-header-text) !important;
+    text-transform: uppercase;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    vertical-align: middle;
+}
+
+#pasiens-table_wrapper {
+    width: 100%;
+    overflow-x: visible;
+}
+
+#pasiens-table_wrapper .dataTables_scrollBody {
+    overflow-x: auto !important;
+}
+
+#pasiens-table_wrapper .dataTables_scroll,
+#pasiens-table_wrapper .dataTables_scrollHead,
+#pasiens-table_wrapper .dataTables_scrollBody {
+    width: 100% !important;
+}
+
+#pasiens-table_wrapper .dtfc-fixed-left,
+#pasiens-table_wrapper .dtfc-fixed-right,
+#pasiens-table_wrapper .dtfc-fixed-start,
+#pasiens-table_wrapper .dtfc-fixed-end {
+    color: var(--pasien-fixed-text) !important;
+    box-shadow: none !important;
+}
+
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable thead .dtfc-fixed-end,
+#pasiens-table_wrapper table.dataTable tfoot .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable tfoot .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable tfoot .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable tfoot .dtfc-fixed-end {
+    background-color: var(--pasien-fixed-header-bg) !important;
+    color: var(--pasien-header-text) !important;
+    text-transform: uppercase;
+    font-weight: 700 !important;
+    letter-spacing: 0.04em;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-end {
+    background-color: var(--pasien-fixed-bg) !important;
+    color: var(--pasien-fixed-text) !important;
+    border-color: var(--pasien-fixed-border) !important;
+}
+
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-end {
+    background-color: var(--pasien-fixed-bg-alt) !important;
+    color: var(--pasien-fixed-text) !important;
+    border-color: var(--pasien-fixed-border) !important;
+}
+
+#pasiens-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-left,
+#pasiens-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-right,
+#pasiens-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-start,
+#pasiens-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-end {
+    filter: brightness(1.03);
+}
+
+#pasiens-table_wrapper td:last-child,
+#pasiens-table_wrapper .dtfc-fixed-right td:last-child,
+#pasiens-table_wrapper .dtfc-fixed-end td:last-child {
+    position: relative;
+}
+
+#pasiens-table_wrapper td.action-dropdown-open,
+#pasiens-table_wrapper .dtfc-fixed-right td.action-dropdown-open,
+#pasiens-table_wrapper .dtfc-fixed-end td.action-dropdown-open {
+    z-index: 1055 !important;
+}
+
+#pasiens-table_wrapper td:last-child .btn-group,
+#pasiens-table_wrapper .dtfc-fixed-right td:last-child .btn-group,
+#pasiens-table_wrapper .dtfc-fixed-end td:last-child .btn-group {
+    position: static;
+}
+
+#pasiens-table_wrapper td:last-child .dropdown-menu,
+#pasiens-table_wrapper .dtfc-fixed-right td:last-child .dropdown-menu,
+#pasiens-table_wrapper .dtfc-fixed-end td:last-child .dropdown-menu {
+    z-index: 1060 !important;
+}
 </style>
-r
 @include('erm.partials.modal-daftarkunjungan')
 @include('erm.partials.modal-daftarkunjunganproduk')
 @include('erm.partials.modal-daftarkunjunganlab')
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 @include('erm.partials.modal-info-pasien')
 @include('erm.partials.modal-ic-pendaftaran')
 
@@ -184,26 +511,75 @@ r
 
     {{-- Table Pasien --}}
     <div class="card">
-        <div class="card-header bg-primary">
+        {{-- <div class="card-header bg-primary">
             <h4 class="card-title text-white">Daftar Pasien</h4>
-        </div>
+        </div> --}}
         <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-3 mb-2">
-                    <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
+            <div class="pasien-stats-board">
+                <div class="pasien-stats-section">
+                    <div class="pasien-stats-group-title">Pasien Baru</div>
+                    <div class="pasien-stats-grid" id="pasien-summary-stats">
+                        <div class="card pasien-stat-card pasien-stat-theme-{{ $stats['total_new']['theme'] }}">
+                            <div class="card-body">
+                                <div class="pasien-stat-icon"><i class="{{ $stats['total_new']['icon'] }}"></i></div>
+                                <div>
+                                    <div class="pasien-stat-label">{{ $stats['total_new']['label'] }}</div>
+                                    <div class="pasien-stat-value" data-stat-group="summary" data-stat-key="total_new">{{ number_format($stats['total_new']['count']) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 mb-2">
-                    <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
+                <div class="pasien-stats-section">
+                    <div class="pasien-stats-group-title">Status Pasien</div>
+                    <div class="pasien-stats-grid" id="pasien-status-stats">
+                        @foreach($stats['statuses'] as $statusKey => $statusStat)
+                            <div class="card pasien-stat-card pasien-stat-theme-{{ $statusStat['theme'] }}">
+                                <div class="card-body">
+                                    <div class="pasien-stat-icon"><i class="{{ $statusStat['icon'] }}"></i></div>
+                                    <div>
+                                        <div class="pasien-stat-label">{{ $statusStat['label'] }}</div>
+                                        <div class="pasien-stat-value" data-stat-group="statuses" data-stat-key="{{ $statusKey }}">{{ number_format($statusStat['count']) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
-                <div class="col-md-2 mb-2">
-                    <input type="text" id="filter_nik" class="form-control" placeholder="Identitas">
-                </div>
-                <div class="col-md-4 mb-2">
-                    <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
+                <div class="pasien-stats-section">
+                    <div class="pasien-stats-group-title">Referral</div>
+                    <div class="pasien-stats-grid" id="pasien-referral-stats">
+                        @foreach($stats['referrals'] as $referralKey => $referralStat)
+                            <div class="card pasien-stat-card pasien-stat-theme-{{ $referralStat['theme'] }}">
+                                <div class="card-body">
+                                    <div class="pasien-stat-icon"><i class="{{ $referralStat['icon'] }}"></i></div>
+                                    <div>
+                                        <div class="pasien-stat-label">{{ $referralStat['label'] }}</div>
+                                        <div class="pasien-stat-value" data-stat-group="referrals" data-stat-key="{{ $referralKey }}">{{ number_format($referralStat['count']) }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
             </div>
-            <div class="row mb-3 align-items-center">
-                <div class="col-md-3 mb-2">
+            <div class="pasien-filter-toolbar mb-3">
+                <div class="pasien-filter-item date-range-filter">
+                    <input type="text" id="filter_date_range" class="form-control" placeholder="Tanggal Daftar" value="{{ $defaultStartDate }} - {{ $defaultEndDate }}">
+                </div>
+                <div class="pasien-filter-item">
+                    <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
+                </div>
+                <div class="pasien-filter-item">
+                    <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
+                </div>
+                <div class="pasien-filter-item">
+                    <input type="text" id="filter_nik" class="form-control" placeholder="Identitas">
+                </div>
+                <div class="pasien-filter-item alamat-filter">
+                    <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
+                </div>
+                <div class="pasien-filter-item">
                     <select id="filter_status_pasien" class="form-control">
                         <option value="">Semua Status Pasien</option>
                         <option value="Regular">Regular</option>
@@ -213,34 +589,42 @@ r
                         <option value="Red Flag">Red Flag</option>
                     </select>
                 </div>
-                <div class="col-md-3 mb-2">
-                    <select id="filter_status_akses" class="form-control">
-                        <option value="">Semua Status Akses</option>
-                        <option value="normal">Normal</option>
-                        <option value="akses cepat">Akses Cepat</option>
+                <div class="pasien-filter-item">
+                    <select id="filter_referral_type" class="form-control">
+                        <option value="">Semua Referral</option>
+                        <option value="walk_in">Walk-in</option>
+                        <option value="pasien">Pasien</option>
+                        <option value="dokter">Dokter</option>
+                        <option value="employee">Karyawan</option>
+                        <option value="social_media">Social Media</option>
+                        <option value="marketplace">Marketplace</option>
+                        <option value="event">Event</option>
+                        <option value="website">Website</option>
+                        <option value="partnership">Partnership</option>
+                        <option value="google_maps">Google Maps</option>
                     </select>
                 </div>
-                <div class="col-md-3 mb-2">
-                    <select id="filter_status_review" class="form-control">
-                        <option value="">Semua Status Review</option>
-                        <option value="sudah">Sudah</option>
-                        <option value="belum">Belum</option>
-                    </select>
-                </div>
-                <div class="col-md-3 mb-2 d-flex">
-                    <button id="btn-filter" class="btn btn-primary mr-2"><i class="fas fa-search-plus mr-2"></i>Cari</button>
-                    <button id="btn-reset" class="btn btn-secondary"><i class="fas fa-undo mr-2"></i>Reset</button>
+                <div class="pasien-filter-actions">
+                    <button id="btn-filter" class="btn btn-primary" type="button" title="Cari" aria-label="Cari">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button id="btn-reset" class="btn btn-secondary" type="button" title="Reset" aria-label="Reset">
+                        <i class="fas fa-undo"></i>
+                    </button>
                 </div>
             </div>
             <table class="table table-bordered table-striped" id="pasiens-table">
                 <thead class="text-center font-weight-bold">
                     <tr>
-                        <th>No RM</th>
-                        <th>Name</th>
-                        <th>Identitas</th>
+                        <th>ID</th>
+                        <th>Nama</th>
+                        <th>No Identitas</th>
+                        <th>Tanggal Lahir</th>
                         <th>Alamat</th>
                         <th>No HP</th>
-                        <th>Inform Consent</th>
+                        <th>Referral</th>
+                        <th>Last Visit</th>
+                        <th>Tanggal Daftar</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -251,17 +635,101 @@ r
 @endsection
 
 @section('scripts')
+<script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
 <script>
 window.ERM_STAY_ON_PASIEN_INDEX = true;
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
 
+    const defaultStartDate = '{{ $defaultStartDate }}';
+    const defaultEndDate = '{{ $defaultEndDate }}';
+
+    function formatStatNumber(value) {
+        return new Intl.NumberFormat('id-ID').format(parseInt(value || 0, 10));
+    }
+
+    function getDateRangePayload() {
+        let value = ($('#filter_date_range').val() || '').trim();
+        let parts = value.split(' - ');
+
+        if (parts.length === 2 && parts[0] && parts[1]) {
+            return {
+                start_date: parts[0],
+                end_date: parts[1]
+            };
+        }
+
+        return {
+            start_date: defaultStartDate,
+            end_date: defaultEndDate
+        };
+    }
+
+    function renderStatsCards(targetSelector, items, group) {
+        let html = Object.keys(items || {}).map(function(key) {
+            let item = items[key] || {};
+            return '<div class="card pasien-stat-card pasien-stat-theme-' + (item.theme || 'primary') + '">' 
+                + '<div class="card-body">'
+                + '<div class="pasien-stat-icon"><i class="' + (item.icon || 'fas fa-chart-bar') + '"></i></div>'
+                + '<div>'
+                + '<div class="pasien-stat-label">' + $('<div>').text(item.label || '-').html() + '</div>'
+                + '<div class="pasien-stat-value" data-stat-group="' + group + '" data-stat-key="' + $('<div>').text(key).html() + '">' + formatStatNumber(item.count || 0) + '</div>'
+                + '</div>'
+                + '</div>'
+                + '</div>';
+        }).join('');
+
+        $(targetSelector).html(html);
+    }
+
+    function renderPasienStats(stats) {
+        if (!stats) {
+            return;
+        }
+
+        $('[data-stat-group="summary"][data-stat-key="total_new"]').text(formatStatNumber((stats.total_new || {}).count || 0));
+        renderStatsCards('#pasien-status-stats', stats.statuses || {}, 'statuses');
+        renderStatsCards('#pasien-referral-stats', stats.referrals || {}, 'referrals');
+    }
+
+    function updatePasienStats() {
+        let payload = getDateRangePayload();
+        payload.stats = 1;
+
+        return $.ajax({
+            url: "{{ route('erm.pasiens.index') }}",
+            type: 'GET',
+            data: payload
+        }).done(function(resp) {
+            renderPasienStats(resp);
+        });
+    }
+
+    $('#filter_date_range').daterangepicker({
+        autoUpdateInput: true,
+        startDate: defaultStartDate,
+        endDate: defaultEndDate,
+        locale: {
+            format: 'YYYY-MM-DD'
+        }
+    });
+
+    function reloadPasienIndex() {
+        table.ajax.reload();
+        updatePasienStats();
+    }
+
     let table = $('#pasiens-table').DataTable({
         processing: true,
         serverSide: true,
         searching: false,
-        deferLoading: 0, // Prevent initial load
         stripe: true,    // Enable row striping
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedColumns: {
+            right: 1
+        },
         ajax: {
             url: "{{ route('erm.pasiens.index') }}",
             data: function (d) {
@@ -270,24 +738,28 @@ $(document).ready(function () {
                 d.nik = $('#filter_nik').val();
                 d.alamat = $('#filter_alamat').val();
                 d.status_pasien = $('#filter_status_pasien').val();
-                d.status_akses = $('#filter_status_akses').val();
-                d.status_review = $('#filter_status_review').val();
+                d.referral_type = $('#filter_referral_type').val();
+                d.start_date = getDateRangePayload().start_date;
+                d.end_date = getDateRangePayload().end_date;
             }
         },
         columns: [
             { data: 'id', name: 'id' },
             { data: 'nama', name: 'nama' },
             { data: 'nik', name: 'identity_number' },
+            { data: 'tanggal_lahir_display', name: 'tanggal_lahir' },
             { data: 'alamat', name: 'alamat' },
             { data: 'no_hp', name: 'no_hp' },
-            { data: 'ic', name: 'ic', orderable: false, searchable: false, defaultContent: '' },
+            { data: 'referral_display', name: 'referral_type', orderable: false, searchable: false },
+            { data: 'last_visit_display', name: 'visitations_max_tanggal_visitation' },
+            { data: 'tanggal_daftar_display', name: 'created_at' },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         columnDefs: [
             { targets: 0, width: '50px' },
             {
                 // Full alamat renderer (village, district, regency, province)
-                targets: 3,
+                targets: 4,
                 render: function(data, type, row) {
                     var parts = [];
                     if (row.alamat) parts.push(row.alamat);
@@ -302,8 +774,9 @@ $(document).ready(function () {
                     return parts.filter(Boolean).join(', ');
                 }
             },
-            { targets: 5, width: '120px' }, // Inform Consent column
-            { targets: 6, width: '300px' }, // Action column
+            { targets: 7, width: '140px' },
+            { targets: 8, width: '140px' },
+            { targets: 9, width: '360px' },
             {
                 targets: 1,
                 render: function(data, type, row) {
@@ -311,31 +784,11 @@ $(document).ready(function () {
                         if (!unsafe && unsafe !== 0) return '';
                         return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
                     }
-                    function getTxt(v){ return $('<div>').html(v||'').text().trim(); }
-                    var sp = getTxt(row.status_pasien);
-                    var sa = getTxt(row.status_akses);
-                    var sr = getTxt(row.status_review);
-                    function badgePasien(val){
-                        var v = (val||'').toLowerCase();
-                        if (v.includes('vip')) return '<span class="badge badge-soft-warning badge-pill ml-2"><i class="fas fa-crown mr-1"></i>VIP</span>';
-                        if (v.includes('familia')) return '<span class="badge badge-soft-primary badge-pill ml-2"><i class="fas fa-users mr-1"></i>Familia</span>';
-                        if (v.includes('black')) return '<span class="badge badge-soft-dark badge-pill ml-2"><i class="fas fa-id-card mr-1"></i>Black</span>';
-                        if (v.includes('red')) return '<span class="badge badge-soft-danger badge-pill ml-2"><i class="fas fa-flag mr-1"></i>Red</span>';
-                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-user mr-1"></i>Regular</span>';
-                    }
-                    function badgeAkses(val){
-                        var v = (val||'').toLowerCase();
-                        if (v.includes('akses cepat')) return '<span class="badge badge-soft-primary badge-pill ml-2"><i class="fas fa-wheelchair mr-1"></i>Akses cepat</span>';
-                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-check-circle mr-1"></i>Normal</span>';
-                    }
-                    function badgeReview(val){
-                        var v = (val||'').toLowerCase();
-                        if (v.includes('sudah')) return '<span class="badge badge-soft-success badge-pill ml-2"><i class="fas fa-check mr-1"></i>Sudah</span>';
-                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-times mr-1"></i>Belum</span>';
-                    }
-                    var badges = '<div class="mt-2 d-flex flex-wrap" style="gap:6px;">' + badgePasien(sp) + badgeAkses(sa) + badgeReview(sr) + '</div>';
-                    var link = '<a href="#" class="open-manage-modal d-block font-weight-bold" data-id="'+ escapeHtml(row.id) +'">'+ escapeHtml(data) +'</a>';
-                    return '<div class="d-flex flex-column">'+ link + badges +'</div>';
+                    var statusIcon = row.status_pasien_icon || '';
+                    var notes = (row.notes || '').toString().trim();
+                    var link = '<a href="#" class="open-manage-modal d-inline-flex align-items-center font-weight-bold" data-id="'+ escapeHtml(row.id) +'">'+ escapeHtml(data) + statusIcon +'</a>';
+                    var notesHtml = notes ? '<small class="pasien-notes-preview">' + escapeHtml(notes) + '</small>' : '';
+                    return '<div class="d-flex flex-column">'+ link + notesHtml +'</div>';
                 }
             },
             {
@@ -349,27 +802,32 @@ $(document).ready(function () {
                 }
             },
             {
-                // Inform Consent column renderer (index 5)
-                targets: 5,
-                render: function(data, type, row) {
-                    var tgllahir = row.tanggal_lahir || '';
-                    var icBtn = ` <span class="ic-action"><button type="button" class="btn btn-sm btn-outline-primary btn-open-ic" 
-                                   title="Isi IC Pendaftaran"
-                                   data-id="${row.id}"
-                                   data-nama="${(row.nama||'').toString().replace(/"/g,'&quot;')}"
-                                   data-identity-label="${(row.identity_label||'Identitas').toString().replace(/"/g,'&quot;')}"
-                                   data-identity-number="${(row.identity_number||row.nik||'').toString().replace(/"/g,'&quot;')}"
-                                   data-alamat="${(row.alamat||'').toString().replace(/"/g,'&quot;')}"
-                                   data-nohp="${row.no_hp||''}"
-                                   data-tgllahir="${tgllahir}">
-                                   <i class="fas fa-file-signature mr-1"></i>Isi IC
-                                 </button></span>`;
-                    return icBtn;
+                targets: 3,
+                render: function(data) {
+                    return data || '-';
                 }
             },
             {
-                // Action column (index 6) — server may supply edit/delete HTML
                 targets: 6,
+                render: function(data) {
+                    return data || 'Walk-in';
+                }
+            },
+            {
+                targets: 7,
+                render: function(data) {
+                    return data || '-';
+                }
+            },
+            {
+                targets: 8,
+                render: function(data) {
+                    return data || '-';
+                }
+            },
+            {
+                // Action column — server may supply edit/delete HTML
+                targets: 9,
                 render: function(data, type, row) {
                     return (data || '');
                 }
@@ -381,7 +839,7 @@ $(document).ready(function () {
     window.pasiensTable = table;
 
     $('#btn-filter').click(function () {
-        table.ajax.reload();
+        reloadPasienIndex();
     });
 
     // Replace "Isi IC" with "View IC" for rows that already have IC
@@ -401,12 +859,22 @@ $(document).ready(function () {
             table.rows({ page: 'current' }).every(function(){
                 var d = this.data();
                 var has = map[(d.id || '').toString()];
-                var $cell = $(this.node()).find('td').eq(5);
-                var $holder = $cell.find('.ic-action');
+                var $holder = $(this.node()).find('.ic-action');
                 if (!$holder.length) return;
                 if (has) {
                     var pdfUrl = '{{ route('erm.ic_pendaftaran.pdf', ['pasien' => 'PID']) }}'.replace('PID', (d.id || '').toString());
                     $holder.html('<a href="' + pdfUrl + '" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat IC (PDF)"><i class="fas fa-file-pdf mr-1"></i>View IC</a>');
+                } else {
+                    $holder.html('<button type="button" class="btn btn-sm btn-outline-primary btn-open-ic"'
+                        + ' title="Isi IC Pendaftaran"'
+                        + ' data-id="' + (d.id || '') + '"'
+                        + ' data-nama="' + $('<div>').text(d.nama || '').html() + '"'
+                        + ' data-identity-label="' + $('<div>').text(d.identity_label || 'Identitas').html() + '"'
+                        + ' data-identity-number="' + $('<div>').text(d.identity_number || d.nik || '').html() + '"'
+                        + ' data-alamat="' + $('<div>').text(d.alamat || '').html() + '"'
+                        + ' data-nohp="' + $('<div>').text(d.no_hp || '').html() + '"'
+                        + ' data-tgllahir="' + $('<div>').text(d.tanggal_lahir || '').html() + '">'
+                        + '<i class="fas fa-file-signature mr-1"></i>Isi IC</button>');
                 }
             });
         });
@@ -414,6 +882,14 @@ $(document).ready(function () {
 
     table.on('draw', function(){ refreshIcButtons(); });
     refreshIcButtons();
+
+    $('#pasiens-table').on('show.bs.dropdown', '.btn-group', function () {
+        $(this).closest('td').addClass('action-dropdown-open');
+    });
+
+    $('#pasiens-table').on('hidden.bs.dropdown', '.btn-group', function () {
+        $(this).closest('td').removeClass('action-dropdown-open');
+    });
 
     // Reset button functionality
     $('#btn-reset').click(function () {
@@ -423,29 +899,33 @@ $(document).ready(function () {
         $('#filter_nik').val('');
         $('#filter_alamat').val('');
         $('#filter_status_pasien').val('');
-        $('#filter_status_akses').val('');
-        $('#filter_status_review').val('');
+        $('#filter_referral_type').val('');
+        $('#filter_date_range').data('daterangepicker').setStartDate(defaultStartDate);
+        $('#filter_date_range').data('daterangepicker').setEndDate(defaultEndDate);
+        $('#filter_date_range').val(defaultStartDate + ' - ' + defaultEndDate);
         
         // Reload table with cleared filters
-        table.ajax.reload();
+        reloadPasienIndex();
     });
 
     // Add Enter key functionality to search fields
     $('#filter_no_rm, #filter_nama, #filter_nik, #filter_alamat').on('keypress', function(e) {
         if (e.which === 13) { // Enter key code
-            table.ajax.reload();
+            reloadPasienIndex();
         }
     });
 
     // Add change event for select dropdowns
-    $('#filter_status_pasien, #filter_status_akses').on('change', function() {
-        table.ajax.reload();
+    $('#filter_status_pasien, #filter_referral_type').on('change', function() {
+        reloadPasienIndex();
     });
 
-    // Add change event for status_review filter
-    $('#filter_status_review').on('change', function () {
-        table.ajax.reload();
+    $('#filter_date_range').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+        reloadPasienIndex();
     });
+
+    updatePasienStats();
 
     // Optional: Add input event for real-time search (search as you type)
     // Uncomment the lines below if you want search-as-you-type functionality

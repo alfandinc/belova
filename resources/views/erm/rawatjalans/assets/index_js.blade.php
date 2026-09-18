@@ -915,10 +915,28 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                 if (!employeeId) return '';
                                 return '<span class="badge badge-success"><i class="fas fa-id-badge mr-1"></i>Employee</span>';
                             }
-                            function badgeReferral(type, detail, eventName){
+                            function badgeReferral(type, detail, eventName, patientName, employeeName, doctorName){
                                 var referralType = (type || '').toString().toLowerCase().trim();
                                 var referralDetail = (detail || '').toString().trim();
                                 var resolvedEventName = (eventName || '').toString().trim();
+                                var resolvedPatientName = (patientName || '').toString().trim();
+                                var resolvedEmployeeName = (employeeName || '').toString().trim();
+                                var resolvedDoctorName = (doctorName || '').toString().trim();
+
+                                if (referralType === 'pasien') {
+                                    var pasienLabel = resolvedPatientName || referralDetail || 'Pasien Referral';
+                                    return '<span class="badge badge-secondary"><i class="fas fa-user-friends mr-1"></i>' + $('<div>').text(pasienLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'employee') {
+                                    var employeeLabel = resolvedEmployeeName || referralDetail || 'Karyawan Referral';
+                                    return '<span class="badge badge-success"><i class="fas fa-id-badge mr-1"></i>' + $('<div>').text(employeeLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'dokter') {
+                                    var doctorLabel = resolvedDoctorName || referralDetail || 'Dokter Referral';
+                                    return '<span class="badge badge-primary"><i class="fas fa-user-md mr-1"></i>' + $('<div>').text(doctorLabel).html() + '</span>';
+                                }
 
                                 if (referralType === 'marketplace') {
                                     var marketplaceLabelMap = {
@@ -944,6 +962,38 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                     return '<span class="badge badge-info"><i class="fas fa-calendar-alt mr-1"></i>' + $('<div>').text(eventLabel).html() + '</span>';
                                 }
 
+                                if (referralType === 'social_media') {
+                                    var socialMediaLabelMap = {
+                                        instagram: 'Instagram',
+                                        tiktok: 'Tiktok',
+                                        facebook: 'Facebook',
+                                        threads: 'Threads',
+                                        twitter: 'Twitter',
+                                        whatsapp: 'Whatsapp'
+                                    };
+                                    var socialMediaKey = referralDetail.toLowerCase();
+                                    var socialMediaLabel = socialMediaLabelMap[socialMediaKey] || referralDetail || 'Social Media';
+                                    return '<span class="badge badge-dark"><i class="fas fa-hashtag mr-1"></i>' + $('<div>').text(socialMediaLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'website') {
+                                    return '<span class="badge badge-dark"><i class="fas fa-globe mr-1"></i>Website</span>';
+                                }
+
+                                if (referralType === 'partnership') {
+                                    var partnershipLabel = referralDetail || 'Partnership';
+                                    return '<span class="badge badge-warning"><i class="fas fa-handshake mr-1"></i>' + $('<div>').text(partnershipLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'google_maps') {
+                                    var mapsLabel = referralDetail || 'Google Maps';
+                                    return '<span class="badge badge-danger"><i class="fas fa-map-marked-alt mr-1"></i>' + $('<div>').text(mapsLabel).html() + '</span>';
+                                }
+
+                                if (referralType === 'walk_in') {
+                                    return '<span class="badge badge-light text-dark"><i class="fas fa-walking mr-1"></i>Walk-in</span>';
+                                }
+
                                 return '';
                             }
 
@@ -952,7 +1002,14 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             badgesArr.push(badgeAkses(sa));
                             badgesArr.push(badgeReview(sr));
                             badgesArr.push(badgeEmployee(row.employee_id));
-                            badgesArr.push(badgeReferral(row.referral_type, row.referral_detail, row.referral_event_name));
+                            badgesArr.push(badgeReferral(
+                                row.referral_type,
+                                row.referral_detail,
+                                row.referral_event_name,
+                                row.referral_patient_name,
+                                row.referral_employee_name,
+                                row.referral_dokter_name
+                            ));
 
                             // Age badge (compute if tanggal_lahir present)
                             try {

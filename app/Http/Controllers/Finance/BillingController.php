@@ -632,9 +632,15 @@ class BillingController extends Controller
             return null;
         }
 
-        $visitation->loadMissing('pasien');
+        $visitation->loadMissing('pasien.referralable');
 
         if ((string) ($visitation->pasien->referral_type ?? '') === Pasien::REFERRAL_TYPE_EVENT) {
+            $referralTarget = $visitation->pasien->referralable;
+
+            if ($referralTarget instanceof MarketingEvent && (string) ($referralTarget->status ?? '') === 'aktif') {
+                return $referralTarget->loadMissing('promos:id,name,start_date,end_date');
+            }
+
             $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
             if ($eventCode !== '') {
                 $event = MarketingEvent::with('promos:id,name,start_date,end_date')
@@ -830,11 +836,23 @@ class BillingController extends Controller
                 // event so later billing validation resolves promo items from the same event.
                 if (
                     (string) ($pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT ||
+                    (string) ($pasien->referralable_type ?? '') !== $event->getMorphClass() ||
+                    (string) ($pasien->referralable_id ?? '') !== (string) $event->id ||
                     trim((string) ($pasien->referral_detail ?? '')) !== (string) $event->kode_event
                 ) {
+                    $referralAttributes = Pasien::buildReferralAttributes(
+                        Pasien::REFERRAL_TYPE_EVENT,
+                        null,
+                        (string) $event->kode_event,
+                        null,
+                        (string) $event->id
+                    );
+
                     $pasien->forceFill([
                         'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
-                        'referral_detail' => $event->kode_event,
+                        'referral_detail' => $referralAttributes['referral_detail'],
+                        'referralable_type' => $referralAttributes['referralable_type'],
+                        'referralable_id' => $referralAttributes['referralable_id'],
                     ])->save();
                 }
             } else {
@@ -844,11 +862,20 @@ class BillingController extends Controller
                     ->value('max_id');
 
                 $newPasienId = $lastPasienId ? str_pad((int) $lastPasienId + 1, 6, '0', STR_PAD_LEFT) : '000001';
+                $referralAttributes = Pasien::buildReferralAttributes(
+                    Pasien::REFERRAL_TYPE_EVENT,
+                    null,
+                    (string) $event->kode_event,
+                    null,
+                    (string) $event->id
+                );
                 $pasien = Pasien::create([
                     'id' => $newPasienId,
                     'identity_document' => 'ktp',
                     'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
-                    'referral_detail' => $event->kode_event,
+                    'referral_detail' => $referralAttributes['referral_detail'],
+                    'referralable_type' => $referralAttributes['referralable_type'],
+                    'referralable_id' => $referralAttributes['referralable_id'],
                     'nama' => $data['nama'],
                     'tanggal_lahir' => $data['tanggal_lahir'] ?? null,
                     'gender' => $data['gender'],

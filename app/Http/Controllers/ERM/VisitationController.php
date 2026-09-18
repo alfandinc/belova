@@ -615,6 +615,8 @@ class VisitationController extends Controller
             'identity_number' => null,
             'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
             'referral_detail' => strtolower(trim((string) $validated['referral_detail'])),
+            'referralable_type' => null,
+            'referralable_id' => null,
             'nama' => trim((string) $validated['nama']),
             'tanggal_lahir' => null,
             'gender' => $validated['gender'],
@@ -637,6 +639,8 @@ class VisitationController extends Controller
         $pasien->forceFill([
             'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
             'referral_detail' => $referralDetail,
+            'referralable_type' => null,
+            'referralable_id' => null,
             'user_id' => Auth::id(),
         ])->save();
     }

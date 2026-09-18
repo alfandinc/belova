@@ -606,6 +606,8 @@ class RawatJalanController extends Controller
                         'erm_pasiens.employee_id as employee_id',
                         'erm_pasiens.referral_type as referral_type',
                         'erm_pasiens.referral_detail as referral_detail',
+                        'erm_pasiens.referralable_type as referralable_type',
+                        'erm_pasiens.referralable_id as referralable_id',
 
                         'mb.nama as metode_bayar_nama',
                         'u.name as dokter_user_name',
@@ -633,9 +635,41 @@ class RawatJalanController extends Controller
                         'cppt_created_at'
                     )
                     ->selectSub(
+                        DB::table('erm_pasiens as rp')
+                            ->select('rp.nama')
+                            ->whereColumn('rp.id', 'erm_pasiens.referralable_id')
+                            ->whereRaw("erm_pasiens.referralable_type = 'pasien'")
+                            ->limit(1),
+                        'referral_patient_name'
+                    )
+                    ->selectSub(
+                        DB::table('hrd_employee as he')
+                            ->select('he.nama')
+                            ->whereColumn('he.id', 'erm_pasiens.referralable_id')
+                            ->whereRaw("erm_pasiens.referralable_type = 'employee'")
+                            ->limit(1),
+                        'referral_employee_name'
+                    )
+                    ->selectSub(
+                        DB::table('erm_dokters as rd')
+                            ->leftJoin('users as ru', 'rd.user_id', '=', 'ru.id')
+                            ->selectRaw("COALESCE(NULLIF(TRIM(ru.name), ''), CONCAT('Dokter ID ', rd.id))")
+                            ->whereColumn('rd.id', 'erm_pasiens.referralable_id')
+                            ->whereRaw("erm_pasiens.referralable_type = 'dokter'")
+                            ->limit(1),
+                        'referral_dokter_name'
+                    )
+                    ->selectSub(
                         DB::table('marketing_event as me')
                             ->select('me.nama_event')
-                            ->whereColumn('me.kode_event', 'erm_pasiens.referral_detail')
+                            ->where(function ($query) {
+                                $query->whereColumn('me.id', 'erm_pasiens.referralable_id')
+                                    ->whereRaw("erm_pasiens.referralable_type = 'marketing_event'");
+                            })
+                            ->orWhere(function ($query) {
+                                $query->whereColumn('me.kode_event', 'erm_pasiens.referral_detail')
+                                    ->whereRaw("(erm_pasiens.referralable_type IS NULL OR erm_pasiens.referralable_id IS NULL)");
+                            })
                             ->limit(1),
                         'referral_event_name'
                     )

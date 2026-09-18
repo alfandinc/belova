@@ -2,9 +2,14 @@
 
 namespace App\Providers;
 
+use App\Models\ERM\Dokter;
+use App\Models\ERM\Pasien;
+use App\Models\HRD\Employee;
+use App\Models\Marketing\MarketingEvent;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Carbon\Carbon;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,7 +27,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Relation::morphMap([
+            'pasien' => Pasien::class,
+            'employee' => Employee::class,
+            'dokter' => Dokter::class,
+            'marketing_event' => MarketingEvent::class,
+        ]);
+
         config(['app.locale' => 'id']);
 	    Carbon::setLocale('id');
         Schema::defaultStringLength(191); 

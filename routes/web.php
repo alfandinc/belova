@@ -943,6 +943,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
+    Route::get('/pasiens/check-identity-number', [PasienController::class, 'checkIdentityNumber'])->name('erm.pasiens.check-identity-number');
+    Route::get('/pasiens/check-duplicate-name-birthdate', [PasienController::class, 'checkDuplicateNameBirthdate'])->name('erm.pasiens.check-duplicate-name-birthdate');
     Route::get('/pasiens/marketplace/check-duplicate', [PasienController::class, 'checkMarketplaceDuplicate'])->name('erm.pasiens.marketplace.check-duplicate');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');

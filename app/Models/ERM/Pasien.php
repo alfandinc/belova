@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Area\Village;
 use App\Models\HRD\Employee;
 use App\Models\ERM\KelasPasien;
+use App\Models\Marketing\MarketingEvent;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Pasien extends Model
 {
@@ -16,13 +18,18 @@ class Pasien extends Model
     public const IDENTITY_DOCUMENT_SIM = 'sim';
     public const IDENTITY_DOCUMENT_PASPOR = 'paspor';
     public const IDENTITY_DOCUMENT_KIA = 'kia';
+    public const REFERRAL_TYPE_WALK_IN = 'walk_in';
+    public const REFERRAL_TYPE_PASIEN = 'pasien';
     public const REFERRAL_TYPE_SOCIAL_MEDIA = 'social_media';
     public const REFERRAL_TYPE_WEBSITE = 'website';
-    public const REFERRAL_TYPE_OTHER_PASIEN = 'other_pasien';
-    public const REFERRAL_TYPE_LAINNYA = 'lainnya';
+    public const REFERRAL_TYPE_EMPLOYEE = 'employee';
+    public const REFERRAL_TYPE_DOKTER = 'dokter';
     public const REFERRAL_TYPE_EVENT = 'event';
     public const REFERRAL_TYPE_MARKETPLACE = 'marketplace';
+    public const REFERRAL_TYPE_PARTNERSHIP = 'partnership';
+    public const REFERRAL_TYPE_GOOGLE_MAPS = 'google_maps';
     public const MARKETPLACE_REFERRAL_DETAILS = ['shopee', 'tiktokshop', 'tokopedia', 'lazada'];
+    public const SOCIAL_MEDIA_REFERRAL_DETAILS = ['instagram', 'tiktok', 'facebook', 'threads', 'twitter', 'whatsapp'];
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -38,8 +45,9 @@ class Pasien extends Model
         'identity_document',
         'identity_number',
         'referral_type',
-        'referral_pasien_id',
         'referral_detail',
+        'referralable_type',
+        'referralable_id',
         'nama',
         'tanggal_lahir',
         'gender',
@@ -104,6 +112,63 @@ class Pasien extends Model
         return self::MARKETPLACE_REFERRAL_DETAILS;
     }
 
+    public static function socialMediaReferralOptions(): array
+    {
+        return self::SOCIAL_MEDIA_REFERRAL_DETAILS;
+    }
+
+    public static function buildReferralAttributes(
+        ?string $referralType,
+        ?string $referralPasienId = null,
+        ?string $referralDetail = null,
+        ?string $referralableType = null,
+        $referralableId = null
+    ): array {
+        $referralType = $referralType !== null && trim($referralType) !== '' ? trim($referralType) : null;
+        $referralPasienId = $referralPasienId !== null && trim($referralPasienId) !== '' ? trim($referralPasienId) : null;
+        $referralDetail = $referralDetail !== null && trim($referralDetail) !== '' ? trim($referralDetail) : null;
+        $referralableType = $referralableType !== null && trim($referralableType) !== '' ? trim($referralableType) : null;
+        $referralableId = $referralableId !== null && trim((string) $referralableId) !== '' ? trim((string) $referralableId) : null;
+
+        if ($referralType === self::REFERRAL_TYPE_PASIEN) {
+            return [
+                'referral_detail' => $referralPasienId ?? $referralDetail,
+                'referralable_type' => $referralPasienId ? (new self())->getMorphClass() : null,
+                'referralable_id' => $referralPasienId,
+            ];
+        }
+
+        if ($referralType === self::REFERRAL_TYPE_EMPLOYEE) {
+            return [
+                'referral_detail' => $referralableId ?? $referralDetail,
+                'referralable_type' => $referralableId ? (new Employee())->getMorphClass() : null,
+                'referralable_id' => $referralableId,
+            ];
+        }
+
+        if ($referralType === self::REFERRAL_TYPE_DOKTER) {
+            return [
+                'referral_detail' => $referralableId ?? $referralDetail,
+                'referralable_type' => $referralableId ? (new Dokter())->getMorphClass() : null,
+                'referralable_id' => $referralableId,
+            ];
+        }
+
+        if ($referralType === self::REFERRAL_TYPE_EVENT) {
+            return [
+                'referral_detail' => $referralDetail,
+                'referralable_type' => $referralableId ? (new MarketingEvent())->getMorphClass() : null,
+                'referralable_id' => $referralableId,
+            ];
+        }
+
+        return [
+            'referral_detail' => $referralDetail,
+            'referralable_type' => $referralableType,
+            'referralable_id' => $referralableId,
+        ];
+    }
+
     public function village()
     {
         return $this->belongsTo(Village::class, 'village_id');
@@ -114,14 +179,9 @@ class Pasien extends Model
         return $this->belongsTo(Employee::class, 'employee_id');
     }
 
-    public function referralPasien()
+    public function referralable(): MorphTo
     {
-        return $this->belongsTo(self::class, 'referral_pasien_id');
-    }
-
-    public function referredPatients()
-    {
-        return $this->hasMany(self::class, 'referral_pasien_id');
+        return $this->morphTo();
     }
 
     public function suratIstirahats()
