@@ -5,7 +5,7 @@
 @endsection  
 
 @section('styles')
-    <link rel="stylesheet" href="{{ asset('assets/css/erm/rawatjalans.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/erm/rawatjalans.css') }}?v={{ filemtime(public_path('assets/css/erm/rawatjalans.css')) }}">
 @endsection
 
 @section('content')
