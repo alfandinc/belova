@@ -72,7 +72,9 @@ class PermintaanController extends Controller
     public function data(Request $request)
     {
         $total = Permintaan::count();
-        $query = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal', 'items.fakturBeliItems'])->orderBy('created_at', 'desc');
+            $query = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal', 'items.fakturBeliItems'])
+                ->orderByRaw("CASE WHEN status IN ('waiting_approval', 'waiting', 'menunggu') THEN 0 ELSE 1 END")
+                ->orderBy('created_at', 'desc');
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         $search = $request->input('search.value');
