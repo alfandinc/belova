@@ -15,6 +15,35 @@
 @include('erm.rawatjalans.partials.modal-visitation-chat')
 @include('erm.rawatjalans.partials.modal-scheduled-messages')
 
+<div class="modal fade" id="modalKalenderAntrian" tabindex="-1" role="dialog" aria-labelledby="modalKalenderAntrianLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="modalKalenderAntrianLabel">Kalender Antrian</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 queue-calendar-toolbar">
+                    <div>
+                        <div class="font-weight-bold" id="queue-calendar-month-label">Bulan Ini</div>
+                        <small class="text-muted" id="queue-calendar-summary">Memuat data antrian...</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-refresh-queue-calendar">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div id="queue-calendar-content">
+                    <div class="text-center text-muted py-5">
+                        <span class="spinner-border spinner-border-sm mr-2"></span>Memuat kalender antrian...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 {{-- Screening Batuk modals are lazy-loaded on-demand to keep initial page HTML light --}}
 
@@ -157,8 +186,11 @@
 
                 <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-right">
                     <div class="btn-group" role="group" aria-label="Rawat jalan actions">
-                        <button type="button" class="btn btn-success" id="btn-scheduled-messages">
+                        {{-- <button type="button" class="btn btn-success" id="btn-scheduled-messages">
                             <i class="fab fa-whatsapp"></i> Whatsapp Bot
+                        </button> --}}
+                        <button type="button" class="btn btn-success" id="btn-queue-calendar">
+                            <i class="fas fa-calendar-alt"></i> Antrian
                         </button>
                         <div class="btn-group" role="group">
                             <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">

@@ -216,6 +216,103 @@
     justify-content: center;
 }
 
+.queue-calendar-toolbar {
+    gap: 12px;
+}
+
+.queue-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.queue-calendar-weekday {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5f6c8c;
+    text-align: center;
+}
+
+.queue-calendar-day {
+    min-height: 118px;
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.queue-calendar-day.is-empty {
+    background: #f5f7fb;
+    border-style: dashed;
+    box-shadow: none;
+}
+
+.queue-calendar-day.is-today {
+    border-color: #2563eb;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.16);
+}
+
+.queue-calendar-day.is-busy {
+    border-color: #bfdbfe;
+}
+
+.queue-calendar-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.queue-calendar-day-number {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #233556;
+}
+
+.queue-calendar-day-name {
+    font-size: 0.72rem;
+    color: #7c8aa5;
+}
+
+.queue-calendar-visit-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #4f8bff);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    flex: 0 0 auto;
+}
+
+.queue-calendar-day-label {
+    font-size: 0.73rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #73819c;
+}
+
+.queue-calendar-day-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #1d4ed8;
+}
+
+.queue-calendar-day-note {
+    font-size: 0.78rem;
+    color: #7c8aa5;
+}
+
 /* Smooth blinking animation for lab and tindakan icons */
 .blinking {
     animation: blinking-animation 1s linear infinite;
@@ -409,6 +506,17 @@
     .rawatjalan-toolbar-actions .btn-group {
         flex-wrap: wrap;
     }
+
+    .queue-calendar-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .queue-calendar-day {
+        min-height: 108px;
+        padding: 10px;
+        border-radius: 12px;
+    }
 }
 
 @media (max-width: 576px) {
@@ -440,5 +548,9 @@
     .rawatjalan-toolbar-stats .stat-col {
         width: 112px;
         max-width: 112px;
+    }
+
+    .queue-calendar-grid {
+        grid-template-columns: 1fr;
     }
 }

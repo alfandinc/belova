@@ -302,6 +302,77 @@
         return escapeHtml(value);
     }
 
+    function renderQueueCalendar(response) {
+        var weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+        var month = response && response.month ? response.month : {};
+        var summary = response && response.summary ? response.summary : {};
+        var days = Array.isArray(response && response.days) ? response.days : [];
+        var startsOn = parseInt(month.starts_on || 1, 10);
+        var html = '<div class="queue-calendar-grid">';
+
+        weekdays.forEach(function(label) {
+            html += '<div class="queue-calendar-weekday">' + label + '</div>';
+        });
+
+        for (var blank = 1; blank < startsOn; blank++) {
+            html += '<div class="queue-calendar-day is-empty" aria-hidden="true"></div>';
+        }
+
+        days.forEach(function(day) {
+            var count = parseInt(day.count || 0, 10);
+            var classes = ['queue-calendar-day'];
+
+            if (day.is_today) {
+                classes.push('is-today');
+            }
+
+            if (count > 0) {
+                classes.push('is-busy');
+            }
+
+            html += '<div class="' + classes.join(' ') + '">'
+                + '<div class="queue-calendar-day-head">'
+                + '<div>'
+                + '<div class="queue-calendar-day-number">' + escapeHtml(day.day) + '</div>'
+                + '<div class="queue-calendar-day-name">' + escapeHtml(day.weekday || '') + '</div>'
+                + '</div>'
+                + '<div class="queue-calendar-visit-count">' + escapeHtml(count) + '</div>'
+                + '</div>'
+                + '<div class="queue-calendar-day-label">Jumlah Visit</div>'
+                + '<div class="queue-calendar-day-value">' + escapeHtml(count) + '</div>'
+                + '<div class="queue-calendar-day-note">' + (count > 0 ? 'Ada antrian kunjungan' : 'Belum ada kunjungan') + '</div>'
+                + '</div>';
+        });
+
+        html += '</div>';
+
+        $('#queue-calendar-month-label').text(month.label || 'Kalender Antrian');
+        $('#queue-calendar-summary').text(
+            'Total visit: ' + (summary.total_visits || 0)
+            + ' | Hari terisi: ' + (summary.active_days || 0)
+            + ' | Puncak harian: ' + (summary.max_visits || 0)
+        );
+        $('#queue-calendar-content').html(html);
+    }
+
+    function loadQueueCalendar() {
+        $('#queue-calendar-month-label').text('Bulan Ini');
+        $('#queue-calendar-summary').text('Memuat data antrian...');
+        $('#queue-calendar-content').html('<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm mr-2"></span>Memuat kalender antrian...</div>');
+
+        $.get('{{ route("erm.rawatjalans.queueCalendar") }}', {
+            month: moment().format('YYYY-MM'),
+            dokter_id: $('#filter_dokter').val(),
+            klinik_id: $('#filter_klinik').val()
+        }).done(function(response) {
+            renderQueueCalendar(response || {});
+        }).fail(function(xhr) {
+            $('#queue-calendar-summary').text('Gagal memuat data antrian.');
+            $('#queue-calendar-content').html('<div class="text-center text-danger py-5">Tidak dapat memuat kalender antrian.</div>');
+            console.error('Failed to load queue calendar', xhr);
+        });
+    }
+
     function notificationStatusBadge(isRead) {
         return isRead
             ? '<span class="badge badge-success">Sudah Dibaca</span>'
@@ -782,6 +853,15 @@
     $('#btn-scheduled-messages').on('click', function() {
         $('#modalScheduledMessages').modal('show');
         loadScheduledMessages();
+    });
+
+    $('#btn-queue-calendar').on('click', function() {
+        $('#modalKalenderAntrian').modal('show');
+        loadQueueCalendar();
+    });
+
+    $('#btn-refresh-queue-calendar').on('click', function() {
+        loadQueueCalendar();
     });
 
     $('#btn-refresh-scheduled-messages').on('click', function() {

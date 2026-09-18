@@ -958,6 +958,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/modals/common', [RawatJalanController::class, 'commonModals'])->name('erm.rawatjalans.modals.common');
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
     Route::get('/rawatjalans/modals/screening-vaksin', [RawatJalanController::class, 'screeningVaksinModals'])->name('erm.rawatjalans.modals.screeningVaksin');
+    Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
     Route::get('/rawatjalans/scheduled-messages', [RawatJalanController::class, 'scheduledMessages'])->name('erm.rawatjalans.scheduledMessages');
     Route::get('/rawatjalans/{visitation}/messages', [RawatJalanController::class, 'visitationMessages'])->name('erm.rawatjalans.visitationMessages');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');

@@ -521,6 +521,89 @@ class RawatJalanController extends Controller
             ->toJson();
     }
 
+    public function queueCalendar(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $user = Auth::user();
+        $monthInput = trim((string) $request->input('month', now()->format('Y-m')));
+
+        try {
+            $month = Carbon::createFromFormat('Y-m', $monthInput)->startOfMonth();
+        } catch (\Throwable $e) {
+            $month = now()->startOfMonth();
+        }
+
+        $monthEnd = $month->copy()->endOfMonth();
+        $dokterFilter = null;
+
+        if ($request->filled('dokter_id')) {
+            $dokterFilter = $request->input('dokter_id');
+        } elseif ($user && $user->hasRole('Dokter')) {
+            $dokter = Dokter::where('user_id', $user->id)->first();
+            $dokterFilter = $dokter ? $dokter->id : null;
+        }
+
+        $query = DB::table('erm_visitations')
+            ->selectRaw('DATE(tanggal_visitation) as visit_date, COUNT(*) as total')
+            ->whereIn('jenis_kunjungan', $user && $user->hasRole('Dokter') ? [1] : [1, 2, 4, 5])
+            ->where('status_kunjungan', '!=', 7)
+            ->whereDate('tanggal_visitation', '>=', $month->toDateString())
+            ->whereDate('tanggal_visitation', '<=', $monthEnd->toDateString());
+
+        if ($dokterFilter) {
+            $query->where('dokter_id', $dokterFilter);
+        }
+
+        if ($request->filled('klinik_id')) {
+            $query->where('klinik_id', $request->input('klinik_id'));
+        }
+
+        $dailyCounts = $query
+            ->groupBy(DB::raw('DATE(tanggal_visitation)'))
+            ->orderBy('visit_date')
+            ->pluck('total', 'visit_date');
+
+        $days = [];
+        $cursor = $month->copy();
+        $today = now()->toDateString();
+
+        while ($cursor->lte($monthEnd)) {
+            $dateKey = $cursor->toDateString();
+            $days[] = [
+                'date' => $dateKey,
+                'day' => $cursor->day,
+                'weekday' => $cursor->translatedFormat('D'),
+                'count' => (int) ($dailyCounts[$dateKey] ?? 0),
+                'is_today' => $dateKey === $today,
+            ];
+
+            $cursor->addDay();
+        }
+
+        $counts = array_column($days, 'count');
+
+        return response()->json([
+            'month' => [
+                'value' => $month->format('Y-m'),
+                'label' => $month->translatedFormat('F Y'),
+                'start_date' => $month->toDateString(),
+                'end_date' => $monthEnd->toDateString(),
+                'starts_on' => (int) $month->dayOfWeekIso,
+            ],
+            'summary' => [
+                'total_visits' => array_sum($counts),
+                'active_days' => count(array_filter($counts, function ($count) {
+                    return $count > 0;
+                })),
+                'max_visits' => empty($counts) ? 0 : max($counts),
+            ],
+            'days' => $days,
+        ]);
+    }
+
     public function visitationMessages(string $visitation)
     {
         $visitationModel = Visitation::with(['pasien:id,nama'])->findOrFail($visitation);
