@@ -6,12 +6,12 @@
     }
 
     #modalDaftarKunjunganRawatJalan.is-calendar-expanded .modal-dialog {
-        max-width: 1180px;
+        max-width: 1360px;
     }
 
     .rj-visit-modal-layout {
         display: flex;
-        gap: 20px;
+        gap: 24px;
         align-items: stretch;
     }
 
@@ -23,13 +23,13 @@
     .rj-visit-modal-calendar {
         display: none;
         flex: 1 1 0;
-        min-width: 0;
+        min-width: 760px;
         border-left: 1px solid #e9eef5;
-        padding-left: 20px;
+        padding-left: 24px;
     }
 
     #modalDaftarKunjunganRawatJalan.is-calendar-expanded .rj-visit-modal-form {
-        flex-basis: 460px;
+        flex: 0 0 430px;
     }
 
     #modalDaftarKunjunganRawatJalan.is-calendar-expanded .rj-visit-modal-calendar {
@@ -69,7 +69,8 @@
         border: 1px solid #e4ebf4;
         border-radius: 14px;
         background: linear-gradient(180deg, #fbfdff 0%, #f4f8fd 100%);
-        padding: 14px;
+        padding: 16px;
+        width: 100%;
     }
 
     .rj-visit-modal-calendar-grid {
@@ -213,6 +214,7 @@
         .rj-visit-modal-calendar {
             border-left: 0;
             border-top: 1px solid #e9eef5;
+            min-width: 0;
             padding-left: 0;
             padding-top: 18px;
         }
