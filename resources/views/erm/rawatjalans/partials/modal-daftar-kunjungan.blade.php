@@ -275,10 +275,21 @@ $(document).ready(function(){
     }
 
     function submitRawatJalanForm() {
+        const formData = $('#form-daftar-kunjungan-rawatjalan').serializeArray();
+
+        if (rjFixedPasienContext && rjFixedPasienContext.id && !formData.some(function(field) {
+            return field.name === 'pasien_id';
+        })) {
+            formData.push({
+                name: 'pasien_id',
+                value: rjFixedPasienContext.id
+            });
+        }
+
         $.ajax({
             url: resolveSubmitUrl(),
             type: 'POST',
-            data: $('#form-daftar-kunjungan-rawatjalan').serialize()
+            data: $.param(formData)
         }).done(function(res){
             $('#modalDaftarKunjunganRawatJalan').modal('hide');
             $('#form-daftar-kunjungan-rawatjalan')[0].reset();
