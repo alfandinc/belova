@@ -357,6 +357,15 @@ body {
 #pasiens-table_wrapper .dtfc-fixed-end td:last-child .dropdown-menu {
     z-index: 1060 !important;
 }
+
+body > .pasien-action-dropdown-floating {
+    position: fixed !important;
+    z-index: 2000 !important;
+    margin: 0 !important;
+    min-width: 220px;
+    max-width: 260px;
+    width: auto !important;
+}
 </style>
 @include('erm.partials.modal-daftarkunjungan')
 @include('erm.partials.modal-daftarkunjunganproduk')
@@ -913,12 +922,97 @@ $(document).ready(function () {
     table.on('draw', function(){ refreshIcButtons(); });
     refreshIcButtons();
 
-    $('#pasiens-table').on('show.bs.dropdown', '.btn-group', function () {
-        $(this).closest('td').addClass('action-dropdown-open');
+    function syncActionDropdownDirection($group) {
+        let $menu = $group.children('.dropdown-menu');
+        let toggle = $group.children('[data-toggle="dropdown"]')[0];
+
+        if (!toggle || !$menu.length) {
+            return null;
+        }
+
+        let rect = toggle.getBoundingClientRect();
+        let viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        let viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        let menuWidth = $menu.outerWidth() || 220;
+        let menuHeight = $menu.outerHeight() || ($menu.children().length * 42);
+        let spaceBelow = viewportHeight - rect.bottom;
+        let openUpward = spaceBelow < menuHeight && rect.top > spaceBelow;
+        let top = openUpward ? Math.max(8, rect.top - menuHeight) : rect.bottom;
+        let width = Math.max(rect.width, Math.min(menuWidth, 260));
+        let left = rect.right - width;
+
+        if (left + width > viewportWidth - 8) {
+            left = viewportWidth - width - 8;
+        }
+
+        if (left < 8) {
+            left = 8;
+        }
+
+        return {
+            top: top,
+            left: left,
+            width: width,
+            openUpward: openUpward
+        };
+    }
+
+    function detachActionDropdownMenu($group) {
+        let $menu = $group.children('.dropdown-menu');
+        let layout = syncActionDropdownDirection($group);
+
+        if (!$menu.length || !layout) {
+            return;
+        }
+
+        if (!$menu.data('original-parent')) {
+            $menu.data('original-parent', $group);
+        }
+
+        $('body').append($menu);
+        $menu.addClass('pasien-action-dropdown-floating');
+        $menu.css({
+            top: layout.top + 'px',
+            left: layout.left + 'px',
+            width: layout.width + 'px'
+        });
+    }
+
+    function restoreActionDropdownMenu($group) {
+        let $menu = $('.pasien-action-dropdown-floating').filter(function () {
+            return $(this).data('original-parent') && $(this).data('original-parent')[0] === $group[0];
+        }).first();
+
+        if (!$menu.length) {
+            $menu = $group.data('floatingMenu');
+        }
+
+        if (!$menu || !$menu.length) {
+            return;
+        }
+
+        $menu.removeClass('pasien-action-dropdown-floating').removeAttr('style');
+        $group.append($menu);
+        $group.removeData('floatingMenu');
+    }
+
+    $(document).on('show.bs.dropdown', '#pasiens-table_wrapper td:last-child .btn-group', function () {
+        let $group = $(this);
+        $group.closest('td').addClass('action-dropdown-open');
     });
 
-    $('#pasiens-table').on('hidden.bs.dropdown', '.btn-group', function () {
-        $(this).closest('td').removeClass('action-dropdown-open');
+    $(document).on('shown.bs.dropdown', '#pasiens-table_wrapper td:last-child .btn-group', function () {
+        let $group = $(this);
+        detachActionDropdownMenu($group);
+        $group.data('floatingMenu', $('.pasien-action-dropdown-floating').filter(function () {
+            return $(this).data('original-parent') && $(this).data('original-parent')[0] === $group[0];
+        }).first());
+    });
+
+    $(document).on('hidden.bs.dropdown', '#pasiens-table_wrapper td:last-child .btn-group', function () {
+        let $group = $(this);
+        restoreActionDropdownMenu($group);
+        $group.closest('td').removeClass('action-dropdown-open');
     });
 
     // Reset button functionality

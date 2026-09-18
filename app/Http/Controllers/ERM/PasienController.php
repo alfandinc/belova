@@ -346,7 +346,7 @@ class PasienController extends Controller
                             <button type="button" class="btn btn-sm btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <i class="fas fa-calendar-plus mr-1"></i> Daftarkan
                             </button>
-                            <div class="dropdown-menu dropdown-menu-right w-100">
+                            <div class="dropdown-menu dropdown-menu-right">
                                 <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="konsultasi" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-stethoscope mr-2"></i>Konsultasi</a>
                                 <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="lab" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-flask mr-2"></i>Laboratorium</a>
                                 <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="produk" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-shopping-bag mr-2"></i>Produk dan Obat</a>
