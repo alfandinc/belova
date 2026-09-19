@@ -1153,10 +1153,16 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         : '<small class="rawatjalan-patient-address text-muted">-</small>';
 
                     var editButtonHtml = pasienId
-                        ? '<a href="#" class="open-manage-modal btn btn-xs btn-outline-primary" data-id="' + escapeHtml(pasienId) + '" title="Edit informasi pasien" style="position:absolute; top:0; right:0; padding:1px 6px; font-size:10px; line-height:1.4;"><i class="fas fa-pen"></i></a>'
+                        ? '<a href="#" class="open-manage-modal btn btn-xs btn-outline-primary ml-2" data-id="' + escapeHtml(pasienId) + '" title="Edit informasi pasien" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>'
                         : '';
 
-                    return '<div class="d-flex flex-column position-relative pr-4">' + editButtonHtml + birthHtml + addressHtml + '</div>';
+                    return '<div class="d-flex flex-column">'
+                        + '<div class="d-flex align-items-start justify-content-between">'
+                        + birthHtml
+                        + editButtonHtml
+                        + '</div>'
+                        + addressHtml
+                        + '</div>';
                 }
             },
             { 
@@ -1271,9 +1277,28 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         );
                     }
 
-                    var tanggalHtml = '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
+                    var tanggalPrimaryHtml = '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
                     if (badgeHtml.length > 0) {
-                        tanggalHtml += '<div class="mt-2">' + badgeHtml.join('') + '</div>';
+                        tanggalPrimaryHtml += '<div class="mt-2">' + badgeHtml.join('') + '</div>';
+                    }
+
+                    var tanggalHtml = tanggalPrimaryHtml;
+                    if (userRole === 'Pendaftaran' || userRole === 'Perawat') {
+                        var editPayload = {
+                            visitation_id: String(row.id || ''),
+                            no_antrian: row.no_antrian || '',
+                            waktu_kunjungan: row.waktu_kunjungan || '',
+                            tanggal_visitation: row.tanggal_visitation || '',
+                            klinik_id: row.klinik_id || '',
+                            dokter_id: row.dokter_id || '',
+                            metode_bayar_id: row.metode_bayar_id || ''
+                        };
+                        var editPayloadAttr = $('<div>').text(JSON.stringify(editPayload)).html();
+                        var editTanggalButtonHtml = '<a href="#" class="btn btn-xs btn-outline-primary ml-2" data-edit-payload="' + editPayloadAttr + '" onclick="editAntrian(JSON.parse(this.dataset.editPayload)); return false;" title="Edit kunjungan" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>';
+                        tanggalHtml = '<div class="d-flex align-items-start justify-content-between">'
+                            + '<div>' + tanggalPrimaryHtml + '</div>'
+                            + editTanggalButtonHtml
+                            + '</div>';
                     }
 
                     if (row.pasien_id) {
@@ -1285,6 +1310,28 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     return tanggalHtml;
                 }
             },
+            @if (empty($isDokter))
+            {
+                data: 'dokter_nama',
+                name: 'dokter_nama',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    var nama = data || '-';
+                    var spes = row.spesialisasi || '';
+                    var badgeClass = 'badge-light text-dark';
+                    try {
+                        if (spes && window.spesialisasiColorMap && window.spesialisasiColorMap[spes]) badgeClass = window.spesialisasiColorMap[spes];
+                    } catch(e) {}
+                    var spesHtml = '';
+                    if (spes) {
+                        var spesEsc = (''+spes).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        spesHtml = '<div class="mt-1"><small class="badge ' + badgeClass + '">' + spesEsc + '</small></div>';
+                    }
+                    return '<div><strong>' + nama + '</strong>' + spesHtml + '</div>';
+                }
+            },
+            @endif
             {
                 data: 'metode_bayar',
                 name: 'metode_bayar',
@@ -1346,28 +1393,6 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         + '</div>';
                 }
             },
-            @if (empty($isDokter))
-            { 
-                data: 'dokter_nama', 
-                name: 'dokter_nama', 
-                searchable: false, 
-                orderable: false,
-                render: function(data, type, row, meta) {
-                    var nama = data || '-';
-                    var spes = row.spesialisasi || '';
-                    var badgeClass = 'badge-light text-dark';
-                    try {
-                        if (spes && window.spesialisasiColorMap && window.spesialisasiColorMap[spes]) badgeClass = window.spesialisasiColorMap[spes];
-                    } catch(e) {}
-                    var spesHtml = '';
-                    if (spes) {
-                        var spesEsc = (''+spes).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                        spesHtml = '<div class="mt-1"><small class="badge ' + badgeClass + '">' + spesEsc + '</small></div>';
-                    }
-                    return '<div><strong>' + nama + '</strong>' + spesHtml + '</div>';
-                }
-            },
-            @endif
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
@@ -1386,9 +1411,9 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { targets: 2, width: "270px" },  // Nama Pasien
             { targets: 3, width: "240px" },  // Informasi Pasien
             { targets: 4, width: "260px" },  // Tanggal
-            { targets: 5, width: "150px" },  // Metode Bayar
-            { targets: 6, width: "220px" },  // Referral
-            { targets: 7, width: "220px" },  // Dokter
+            { targets: 5, width: "220px" },  // Dokter
+            { targets: 6, width: "150px" },  // Metode Bayar
+            { targets: 7, width: "220px" },  // Referral
             { targets: 8, width: "320px" },  // Dokumen
             @endif
         ],

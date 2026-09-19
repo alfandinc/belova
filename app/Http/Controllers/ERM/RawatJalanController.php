@@ -1112,24 +1112,13 @@ class RawatJalanController extends Controller
 
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
                         $incomingWaCount = intval($v->incoming_wa_message_count ?? 0);
-                        if (!empty($v->has_wa_scheduled_message) || $incomingWaCount > 0) {
+                        if ($user->hasRole('Pendaftaran') && (!empty($v->has_wa_scheduled_message) || $incomingWaCount > 0)) {
                             $badgeHtml = $incomingWaCount > 0
                                 ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $incomingWaCount . '</span>'
                                 : '';
                             $whatsAppButton = '<button class="btn btn-sm btn-success open-visitation-chat position-relative" style="font-weight:bold; overflow: visible;" data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? '-') . '" title="Riwayat WhatsApp"><i class="fab fa-whatsapp"></i>' . $badgeHtml . '</button>';
                         }
-                        $waktuKunjungan = $v->waktu_kunjungan ?? '';
-                        $editPayload = htmlspecialchars(json_encode([
-                            'visitation_id' => (string) $v->id,
-                            'no_antrian' => $v->no_antrian,
-                            'waktu_kunjungan' => $waktuKunjungan,
-                            'tanggal_visitation' => $v->tanggal_visitation,
-                            'klinik_id' => $v->klinik_id,
-                            'dokter_id' => $v->dokter_id,
-                            'metode_bayar_id' => $v->metode_bayar_id,
-                        ]), ENT_QUOTES, 'UTF-8');
-                        $actionButtons[] = '<button class="btn btn-sm btn-secondary" style="font-weight:bold;" data-edit-payload="' . $editPayload . '" onclick="editAntrian(JSON.parse(this.dataset.editPayload))" title="Edit Kunjungan"><i class=\'fas fa-edit\'></i></button>';
-                        }
+                    }
 
                         $buttonHtml = '';
                         if (!empty($actionButtons) || $whatsAppButton !== '') {

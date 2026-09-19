@@ -54,12 +54,12 @@
                         </span>
                     </li> --}}
 
-                    @hasrole('Dokter|Admin')
+                    {{-- @hasrole('Dokter|Admin')
                     <li class="menu-label mt-0">Dashboard</li>
                     <li>
                         <a href="/erm"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Analytics</span></a>
                     </li>
-                    @endhasrole
+                    @endhasrole --}}
 
                     @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin|Beautician|Lab')
                     <li class="menu-label">Pendaftaran</li>
@@ -76,12 +76,12 @@
                     <li>
                         <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rajal</span></a>
                     </li>
-                    <li>
+                    {{-- <li>
                         <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rajal</span></a>
-                    </li>
+                    </li> --}}
                     @endhasanyrole
 
-                    <li class="menu-label">Lainnya</li>
+                    {{-- <li class="menu-label">Lainnya</li> --}}
                 </ul>
             </div>
         </div>

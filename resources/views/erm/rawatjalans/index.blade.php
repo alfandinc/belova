@@ -266,11 +266,11 @@
                         <th>Nama Pasien</th>
                         <th>Informasi Pasien</th>
                         <th>Tanggal Kunjungan</th>
-                        <th>Metode Bayar</th>
-                        <th>Referral</th>
                         @if (empty($isDokter))
                             <th>Dokter</th>
                         @endif
+                        <th>Metode Bayar</th>
+                        <th>Referral</th>
                         <!-- Selesai Asesmen column removed; will show under Dokumen -->
                         <th>Dokumen</th>
                     </tr>
