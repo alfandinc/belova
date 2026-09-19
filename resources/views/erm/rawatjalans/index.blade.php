@@ -5,6 +5,7 @@
 @endsection  
 
 @section('styles')
+    <link rel="stylesheet" href="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/css/fixedColumns.bootstrap4.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/erm/rawatjalans.css') }}?v={{ filemtime(public_path('assets/css/erm/rawatjalans.css')) }}">
 @endsection
 
@@ -263,8 +264,10 @@
                         </th>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
+                        <th>Informasi Pasien</th>
                         <th>Tanggal Kunjungan</th>
                         <th>Metode Bayar</th>
+                        <th>Referral</th>
                         @if (empty($isDokter))
                             <th>Dokter</th>
                         @endif
@@ -279,6 +282,7 @@
 @endsection
 
 @section('scripts')
+<script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
 <script src="{{ route('erm.rawatjalans.assets.js') }}?v={{ filemtime(resource_path('views/erm/rawatjalans/assets/index_js.blade.php')) }}"></script>
 @endsection
 

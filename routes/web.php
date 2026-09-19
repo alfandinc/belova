@@ -964,10 +964,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
+    Route::post('/rawatjalans/update-referral', [RawatJalanController::class, 'updateReferral'])->name('erm.rawatjalans.updateReferral');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     Route::get('/rujuk/{id}/surat', [App\Http\Controllers\ERM\RawatJalanController::class, 'printRujukSurat'])->name('erm.rujuk.surat');
     Route::get('/rawatjalans/lab-permintaan', [App\Http\Controllers\ERM\RawatJalanController::class, 'listLabPermintaan'])->name('erm.rawatjalans.labpermintaan');
     Route::get('/rawatjalans/lab-permintaan/visitation/{visitationId}', [App\Http\Controllers\ERM\RawatJalanController::class, 'labPermintaanByVisitation'])->name('erm.rawatjalans.labpermintaan.visitation');
+    Route::get('/rawatjalans/patients/{pasienId}/visit-history', [App\Http\Controllers\ERM\RawatJalanController::class, 'patientVisitHistory'])->name('erm.rawatjalans.patientVisitHistory');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');
     Route::get('/cek-antrian', [RawatJalanController::class, 'cekAntrian'])->name('erm.rawatjalans.cekAntrian');
     // AJAX: Get list of visitations by status for Rawat Jalan stats modal

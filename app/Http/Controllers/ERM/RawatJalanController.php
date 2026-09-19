@@ -9,12 +9,16 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
+use App\Models\ERM\Pasien;
 use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\ScreeningVaksin;
 use App\Models\ERM\Rujuk;
 use App\Models\ERM\LabPermintaan;
 use App\Models\ERM\Merchandise;
 use App\Models\ERM\MerchandiseKartuStok;
+use App\Models\ERM\SuratMondok;
+use App\Models\HRD\Employee;
+use App\Models\Marketing\MarketingEvent;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +36,21 @@ class RawatJalanController extends Controller
 {
     private const REALTIME_NOTIFICATION_MAX_AGE_MINUTES = 15;
 
+    private function normalizeOptionalFilterValue($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+
+        if ($normalized === '' || strtolower($normalized) === '__all__' || strtolower($normalized) === 'all') {
+            return null;
+        }
+
+        return $normalized;
+    }
+
     /**
      * Lazy-loaded modal HTML for common Rawat Jalan modals.
      * Kept server-rendered so the UI markup stays identical to the original Blade.
@@ -46,7 +65,21 @@ class RawatJalanController extends Controller
             return MetodeBayar::select('id', 'nama')->orderBy('nama')->get();
         });
 
-        return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar'));
+        $employees = Cache::remember('erm_referral_employees', 300, function () {
+            return Employee::select('id', 'nama', 'no_induk')->orderBy('nama')->get();
+        });
+
+        $dokters = Cache::remember('erm_referral_dokters', 300, function () {
+            return Dokter::with(['user:id,name', 'spesialisasi:id,nama'])->get()->sortBy(function ($dokter) {
+                return strtolower((string) ($dokter->user->name ?? ''));
+            })->values();
+        });
+
+        $events = Cache::remember('erm_referral_events', 300, function () {
+            return MarketingEvent::select('id', 'nama_event', 'kode_event')->orderBy('nama_event')->get();
+        });
+
+        return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar', 'employees', 'dokters', 'events'));
     }
 
     /**
@@ -537,14 +570,16 @@ class RawatJalanController extends Controller
         }
 
         $monthEnd = $month->copy()->endOfMonth();
-        $dokterFilter = null;
+        $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
 
-        if ($request->filled('dokter_id')) {
-            $dokterFilter = $request->input('dokter_id');
+        if ($dokterFilter !== null) {
+            $dokterFilter = $dokterFilter;
         } elseif ($user && $user->hasRole('Dokter')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             $dokterFilter = $dokter ? $dokter->id : null;
         }
+
+        $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
         $isDokterUser = (bool) ($user && method_exists($user, 'hasRole') && $user->hasRole('Dokter'));
 
@@ -576,9 +611,9 @@ class RawatJalanController extends Controller
             $completedQuery->where('dokter_id', $dokterFilter);
         }
 
-        if ($request->filled('klinik_id')) {
-            $query->where('klinik_id', $request->input('klinik_id'));
-            $completedQuery->where('klinik_id', $request->input('klinik_id'));
+        if ($klinikFilter) {
+            $query->where('klinik_id', $klinikFilter);
+            $completedQuery->where('klinik_id', $klinikFilter);
         }
 
         $dailyCounts = $query
@@ -777,6 +812,25 @@ class RawatJalanController extends Controller
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
                     ->selectRaw('EXISTS(SELECT 1 FROM wa_scheduled_messages wsm WHERE wsm.visitation_id = erm_visitations.id) as has_wa_scheduled_message')
                     ->selectRaw("(SELECT COUNT(1) FROM wa_messages wm WHERE wm.visitation_id = erm_visitations.id AND LOWER(COALESCE(wm.direction, '')) = 'in') as incoming_wa_message_count")
+                    ->selectRaw("CASE WHEN EXISTS (
+                        SELECT 1
+                        FROM erm_visitations ev_prev
+                        WHERE ev_prev.pasien_id = erm_visitations.pasien_id
+                                                    AND ev_prev.klinik_id = erm_visitations.klinik_id
+                          AND ev_prev.status_kunjungan != 7
+                          AND (
+                            ev_prev.tanggal_visitation < erm_visitations.tanggal_visitation
+                            OR (
+                                ev_prev.tanggal_visitation = erm_visitations.tanggal_visitation
+                                AND COALESCE(ev_prev.waktu_kunjungan, '23:59:59') < COALESCE(erm_visitations.waktu_kunjungan, '23:59:59')
+                            )
+                            OR (
+                                ev_prev.tanggal_visitation = erm_visitations.tanggal_visitation
+                                AND COALESCE(ev_prev.waktu_kunjungan, '23:59:59') = COALESCE(erm_visitations.waktu_kunjungan, '23:59:59')
+                                AND ev_prev.id < erm_visitations.id
+                            )
+                          )
+                    ) THEN 0 ELSE 1 END as is_first_visit")
                     ->selectSub(
                         DB::table('erm_asesmen_penunjang as ap')
                             ->select('ap.created_at')
@@ -844,13 +898,16 @@ class RawatJalanController extends Controller
                     })
                     ->where('erm_visitations.status_kunjungan', '!=', 7);
 
-            if ($request->filled('klinik_id')) {
-                $visitations->where('erm_visitations.klinik_id', $request->klinik_id);
+            $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+            $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
+
+            if ($klinikFilter) {
+                $visitations->where('erm_visitations.klinik_id', $klinikFilter);
             }
             // Default behavior: if the logged-in user has role Dokter and no explicit dokter filter
             // is provided, show visitations for that logged-in dokter. This applies even if the user
             // also has the Admin role. If a dokter is selected via the filter (dokter_id), that selection wins.
-            if ($user && $user->hasRole('Dokter') && !$request->filled('dokter_id')) {
+            if ($user && $user->hasRole('Dokter') && !$request->has('dokter_id')) {
                 $dokter = Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
                     $visitations->where('erm_visitations.dokter_id', $dokter->id);
@@ -860,9 +917,23 @@ class RawatJalanController extends Controller
                 $visitations->whereDate('erm_visitations.tanggal_visitation', '>=', $request->start_date)
                     ->whereDate('erm_visitations.tanggal_visitation', '<=', $request->end_date);
             }
-            if ($request->filled('dokter_id')) {
-                $visitations->where('erm_visitations.dokter_id', $request->dokter_id);
+            if ($dokterFilter) {
+                $visitations->where('erm_visitations.dokter_id', $dokterFilter);
             }
+            $visitations->addSelect([
+                'latest_surat_mondok_id' => SuratMondok::query()
+                    ->select('id')
+                    ->whereColumn('pasien_id', 'erm_visitations.pasien_id')
+                    ->where(function ($suratMondokQuery) {
+                        $suratMondokQuery->whereColumn('visitation_id', 'erm_visitations.id')
+                            ->orWhere(function ($legacyQuery) {
+                                $legacyQuery->whereNull('visitation_id')
+                                    ->whereRaw('DATE(created_at) = DATE(erm_visitations.tanggal_visitation)');
+                            });
+                    })
+                    ->latest('id')
+                    ->limit(1),
+            ]);
             // Use withCount (subqueries) for row-level indicators without extra eager-load queries
             $visitations->withCount([
                 'labPermintaan as lab_permintaan_count',
@@ -935,6 +1006,58 @@ class RawatJalanController extends Controller
                 ->addColumn('tanggal', function ($v) {
                     return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
                 })
+                ->addColumn('referral_display', function ($v) {
+                    $referralType = (string) ($v->referral_type ?? Pasien::REFERRAL_TYPE_WALK_IN);
+
+                    $typeLabel = match ($referralType) {
+                        Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
+                        Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
+                        Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
+                        Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
+                        Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
+                        Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
+                        Pasien::REFERRAL_TYPE_EVENT => 'Event',
+                        Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
+                        Pasien::REFERRAL_TYPE_PARTNERSHIP => 'Partnership',
+                        Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
+                        default => 'Walk-in',
+                    };
+
+                    $iconClass = match ($referralType) {
+                        Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
+                        Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
+                        Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
+                        Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
+                        Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
+                        Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
+                        Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
+                        Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
+                        Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
+                        Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
+                        default => 'fas fa-walking',
+                    };
+
+                    $detail = null;
+
+                    if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !empty($v->referral_patient_name) && !empty($v->referralable_id)) {
+                        $detail = $v->referral_patient_name . ' (RM: ' . $v->referralable_id . ')';
+                    } elseif ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && !empty($v->referral_employee_name)) {
+                        $detail = $v->referral_employee_name;
+                    } elseif ($referralType === Pasien::REFERRAL_TYPE_DOKTER && !empty($v->referral_dokter_name)) {
+                        $detail = $v->referral_dokter_name;
+                    } elseif ($referralType === Pasien::REFERRAL_TYPE_EVENT && (!empty($v->referral_event_name) || !empty($v->referral_detail))) {
+                        $detail = $v->referral_event_name ?: $v->referral_detail;
+                    } elseif (!empty($v->referral_detail)) {
+                        $detail = ucwords(str_replace('_', ' ', (string) $v->referral_detail));
+                    }
+
+                    $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
+
+                    return '<span class="d-inline-flex align-items-center">'
+                        . '<i class="' . e($iconClass) . ' mr-2"></i>'
+                        . '<span>' . e($label) . '</span>'
+                        . '</span>';
+                })
                 ->addColumn('metode_bayar', function($v) { return $v->metode_bayar_nama ?? '-'; })
                 ->addColumn('spesialisasi', function ($v) {
                     return $v->spesialisasi_nama ?? '-';
@@ -975,6 +1098,18 @@ class RawatJalanController extends Controller
                         }
                         $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                     }
+
+                    if (intval($v->lab_permintaan_count ?? 0) > 0) {
+                        $allLabCompleted = intval($v->lab_permintaan_completed_count ?? 0) === intval($v->lab_permintaan_count ?? 0);
+                        $labButtonClass = $allLabCompleted ? 'btn-success' : 'btn-warning blinking';
+                        $labTitle = $allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
+                        $actionButtons[] = '<button class="btn btn-sm ' . $labButtonClass . ' lab-icon" style="font-weight:bold;" title="' . e($labTitle) . '" data-visitation-id="' . e($v->id) . '"><i class="fas fa-flask mr-1"></i>Lab</button>';
+                    }
+
+                    if (intval($v->surat_mondok_count ?? 0) > 0 && !empty($v->latest_surat_mondok_id)) {
+                        $actionButtons[] = '<a href="' . route('surat.mondok', $v->latest_surat_mondok_id) . '" target="_blank" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Buka Surat Mondok"><i class="fas fa-bed mr-1"></i>Surat Mondok</a>';
+                    }
+
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
                         $incomingWaCount = intval($v->incoming_wa_message_count ?? 0);
                         if (!empty($v->has_wa_scheduled_message) || $incomingWaCount > 0) {
@@ -1023,7 +1158,7 @@ class RawatJalanController extends Controller
                 ->removeColumn('has_screening_vaksin')
                 ->removeColumn('asesmen_penunjang_created_at')
                 ->removeColumn('cppt_created_at')
-                ->rawColumns(['antrian', 'nama_pasien', 'dokumen'])
+                ->rawColumns(['antrian', 'nama_pasien', 'referral_display', 'dokumen'])
                 ->make(true);
             } catch (\Exception $e) {
                 Log::error('RawatJalanController@index AJAX error: ' . $e->getMessage(), ['exception' => $e]);
@@ -1153,14 +1288,15 @@ class RawatJalanController extends Controller
             }
 
             // If explicit dokter_id provided, use that and clear default dokter
-            if ($request->dokter_id) {
+            $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+
+            if ($dokterFilter) {
                 $dokter = null;
-                $dokterFilter = $request->dokter_id;
             } else {
                 $dokterFilter = ($dokter ? $dokter->id : null);
             }
 
-            $klinikFilter = $request->klinik_id ?? null;
+            $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
             // Create cache key based on filters
             $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
@@ -1336,8 +1472,10 @@ class RawatJalanController extends Controller
             ->orderBy('created_at', 'desc');
 
         // If request included dokter_id, filter by involvement (pengirim/tujuan/visitation)
-        if ($request->dokter_id) {
-            $dokId = $request->dokter_id;
+        $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+
+        if ($dokterFilter) {
+            $dokId = $dokterFilter;
             $query->where(function($qr) use ($dokId) {
                 $qr->where('dokter_pengirim_id', $dokId)
                    ->orWhere('dokter_tujuan_id', $dokId)
@@ -1349,7 +1487,7 @@ class RawatJalanController extends Controller
 
         // If no explicit dokter filter and logged-in user is a Dokter, restrict to their involvement
     $user = Auth::user();
-    if (!$request->dokter_id && $user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
+    if (!$request->has('dokter_id') && $user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             if ($dokter) {
                 $query->where(function($qr) use ($dokter) {
@@ -1375,8 +1513,8 @@ class RawatJalanController extends Controller
             });
         }
 
-        if ($request->dokter_id) {
-            $query->where('dokter_tujuan_id', $request->dokter_id);
+        if ($dokterFilter) {
+            $query->where('dokter_tujuan_id', $dokterFilter);
         }
 
         $rujuks = $query->get();
@@ -1425,8 +1563,8 @@ class RawatJalanController extends Controller
         try {
             $start = $request->start_date ?: now()->format('Y-m-d');
             $end = $request->end_date ?: $start;
-            $dokterFilter = $request->dokter_id;
-            $klinikFilter = $request->klinik_id;
+            $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+            $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
             $query = LabPermintaan::with([
                 'visitation:id,pasien_id,dokter_id,klinik_id,tanggal_visitation,no_antrian',
@@ -1516,6 +1654,57 @@ class RawatJalanController extends Controller
             return response()->json(['data' => $grouped]);
         } catch(\Exception $e) {
             Log::error('listLabPermintaan error', ['msg'=>$e->getMessage()]);
+            return response()->json(['data' => [], 'error' => 'Internal Server Error'], 500);
+        }
+    }
+
+    public function patientVisitHistory($pasienId)
+    {
+        try {
+            $visitations = Visitation::query()
+                ->from('erm_visitations')
+                ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
+                ->leftJoin('users as du', 'd.user_id', '=', 'du.id')
+                ->leftJoin('erm_klinik as k', 'erm_visitations.klinik_id', '=', 'k.id')
+                ->leftJoin('erm_metode_bayar as mb', 'erm_visitations.metode_bayar_id', '=', 'mb.id')
+                ->where('erm_visitations.pasien_id', $pasienId)
+                ->where('erm_visitations.status_kunjungan', '!=', 7)
+                ->orderByDesc('erm_visitations.tanggal_visitation')
+                ->orderByDesc('erm_visitations.waktu_kunjungan')
+                ->orderByDesc('erm_visitations.id')
+                ->limit(50)
+                ->get([
+                    'erm_visitations.id',
+                    'erm_visitations.tanggal_visitation',
+                    'erm_visitations.waktu_kunjungan',
+                    'erm_visitations.no_antrian',
+                    'du.name as dokter_nama',
+                    'k.nama as klinik_nama',
+                    'mb.nama as metode_bayar_nama',
+                ])
+                ->map(function ($visitation) {
+                    $formattedDate = '-';
+                    if ($visitation->tanggal_visitation) {
+                        $formattedDate = Carbon::parse($visitation->tanggal_visitation)->translatedFormat('l, j F Y');
+                        if (!empty($visitation->waktu_kunjungan)) {
+                            $formattedDate .= ' - ' . substr((string) $visitation->waktu_kunjungan, 0, 5);
+                        }
+                    }
+
+                    return [
+                        'id' => $visitation->id,
+                        'tanggal' => $formattedDate,
+                        'dokter_nama' => $visitation->dokter_nama ?: '-',
+                        'klinik_nama' => $visitation->klinik_nama ?: '-',
+                        'no_antrian' => $visitation->no_antrian ?: '-',
+                        'metode_bayar' => $visitation->metode_bayar_nama ?: '-',
+                    ];
+                })
+                ->values();
+
+            return response()->json(['data' => $visitations]);
+        } catch (\Exception $e) {
+            Log::error('patientVisitHistory error', ['pasien_id' => $pasienId, 'msg' => $e->getMessage()]);
             return response()->json(['data' => [], 'error' => 'Internal Server Error'], 500);
         }
     }
@@ -1723,6 +1912,82 @@ class RawatJalanController extends Controller
             return response()->json(['success' => true, 'metode' => $metodeName]);
         } catch (\Exception $e) {
             Log::error('updateMetodeBayar error: ' . $e->getMessage(), ['request' => $request->all()]);
+            return response()->json(['success' => false, 'message' => 'Internal Server Error'], 500);
+        }
+    }
+
+    public function updateReferral(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'referral_type' => 'required|string|in:' . implode(',', [
+                Pasien::REFERRAL_TYPE_WALK_IN,
+                Pasien::REFERRAL_TYPE_PASIEN,
+                Pasien::REFERRAL_TYPE_SOCIAL_MEDIA,
+                Pasien::REFERRAL_TYPE_WEBSITE,
+                Pasien::REFERRAL_TYPE_EMPLOYEE,
+                Pasien::REFERRAL_TYPE_DOKTER,
+                Pasien::REFERRAL_TYPE_EVENT,
+                Pasien::REFERRAL_TYPE_MARKETPLACE,
+                Pasien::REFERRAL_TYPE_PARTNERSHIP,
+                Pasien::REFERRAL_TYPE_GOOGLE_MAPS,
+            ]),
+            'referral_detail' => 'nullable|string|max:255',
+            'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
+            'referral_employee_id' => 'nullable|exists:employees,id',
+            'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
+            'referral_event_id' => 'nullable|exists:marketing_events,id',
+        ]);
+
+        try {
+            $visitation = Visitation::findOrFail($request->visitation_id);
+            $pasien = Pasien::findOrFail($visitation->pasien_id);
+
+            $referralType = (string) $request->referral_type;
+            $referralDetail = $request->filled('referral_detail') ? trim((string) $request->referral_detail) : null;
+            $referralPasienId = $request->filled('referral_target_pasien_id') ? trim((string) $request->referral_target_pasien_id) : null;
+            $referralEmployeeId = $request->filled('referral_employee_id') ? trim((string) $request->referral_employee_id) : null;
+            $referralDokterId = $request->filled('referral_dokter_id') ? trim((string) $request->referral_dokter_id) : null;
+            $referralEventId = $request->filled('referral_event_id') ? trim((string) $request->referral_event_id) : null;
+
+            if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !$referralPasienId) {
+                return response()->json(['success' => false, 'message' => 'Pasien referral wajib dipilih.'], 422);
+            }
+
+            if ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && !$referralEmployeeId) {
+                return response()->json(['success' => false, 'message' => 'Karyawan referral wajib dipilih.'], 422);
+            }
+
+            if ($referralType === Pasien::REFERRAL_TYPE_DOKTER && !$referralDokterId) {
+                return response()->json(['success' => false, 'message' => 'Dokter referral wajib dipilih.'], 422);
+            }
+
+            if ($referralType === Pasien::REFERRAL_TYPE_EVENT && !$referralEventId) {
+                return response()->json(['success' => false, 'message' => 'Event referral wajib dipilih.'], 422);
+            }
+
+            if ($referralType === Pasien::REFERRAL_TYPE_WALK_IN) {
+                $referralDetail = null;
+            }
+
+            $referralableId = match ($referralType) {
+                Pasien::REFERRAL_TYPE_EMPLOYEE => $referralEmployeeId,
+                Pasien::REFERRAL_TYPE_DOKTER => $referralDokterId,
+                Pasien::REFERRAL_TYPE_EVENT => $referralEventId,
+                default => null,
+            };
+
+            $referralAttributes = Pasien::buildReferralAttributes($referralType, $referralPasienId, $referralDetail, null, $referralableId);
+
+            $pasien->referral_type = $referralType;
+            $pasien->referral_detail = $referralAttributes['referral_detail'] ?? null;
+            $pasien->referralable_type = $referralAttributes['referralable_type'] ?? null;
+            $pasien->referralable_id = $referralAttributes['referralable_id'] ?? null;
+            $pasien->save();
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            Log::error('updateReferral error: ' . $e->getMessage(), ['request' => $request->all()]);
             return response()->json(['success' => false, 'message' => 'Internal Server Error'], 500);
         }
     }
@@ -2160,8 +2425,8 @@ class RawatJalanController extends Controller
         $status = $request->input('status');
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
-        $dokterId = $request->input('dokter_id');
-        $klinikId = $request->input('klinik_id');
+        $dokterId = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+        $klinikId = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
         $query = Visitation::query()
             ->with(['pasien', 'dokter'])
@@ -2193,7 +2458,7 @@ class RawatJalanController extends Controller
         } else {
             // If logged in user is a Dokter and no dokter filter provided, restrict to that dokter
             $user = Auth::user();
-            if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
+            if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin') && !$request->has('dokter_id')) {
                 $dokter = Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
                     $query->where('dokter_id', $dokter->id);

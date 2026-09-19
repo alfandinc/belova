@@ -446,6 +446,97 @@ Terima kasih.
     </div>
 </div>
 
+<div class="modal fade" id="modalReferral" tabindex="-1" role="dialog" aria-labelledby="modalReferralTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalReferralTitle">Ubah Referral</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="form-referral">
+                <div class="modal-body">
+                    <input type="hidden" id="referral-visitation-id" name="visitation_id" />
+                    <div class="form-group mb-3">
+                        <label for="referral-type-select">Sumber Referral</label>
+                        <select id="referral-type-select" name="referral_type" class="form-control select2-referral-modal" required>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WALK_IN }}">Walk-in</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PASIEN }}">Pasien</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_DOKTER }}">Dokter</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_EMPLOYEE }}">Karyawan</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_SOCIAL_MEDIA }}">Social Media</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_MARKETPLACE }}">Marketplace</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_EVENT }}">Event</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WEBSITE }}">Website</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PARTNERSHIP }}">Partnership</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_GOOGLE_MAPS }}">Google Maps</option>
+                        </select>
+                    </div>
+
+                    <div class="d-none" id="referral_pasien_wrapper_modal">
+                        <div class="form-group mb-3">
+                            <label for="referral_target_pasien_id_modal">Pasien Referral</label>
+                            <select class="form-control" id="referral_target_pasien_id_modal" name="referral_target_pasien_id"></select>
+                            <small class="form-text text-muted">Cari berdasarkan nama pasien, nomor RM, atau nomor identitas.</small>
+                        </div>
+                    </div>
+
+                    <div class="d-none" id="referral_employee_wrapper_modal">
+                        <div class="form-group mb-3">
+                            <label for="referral_employee_id_modal">Karyawan Referral</label>
+                            <select class="form-control select2-referral-modal" id="referral_employee_id_modal" name="referral_employee_id">
+                                <option value="">Pilih Karyawan Referral</option>
+                                @foreach($employees as $employee)
+                                    <option value="{{ $employee->id }}">{{ $employee->nama }}@if($employee->no_induk) ({{ $employee->no_induk }})@endif</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-none" id="referral_dokter_wrapper_modal">
+                        <div class="form-group mb-3">
+                            <label for="referral_dokter_id_modal">Dokter Referral</label>
+                            <select class="form-control select2-referral-modal" id="referral_dokter_id_modal" name="referral_dokter_id">
+                                <option value="">Pilih Dokter Referral</option>
+                                @foreach($dokters as $dokter)
+                                    <option value="{{ $dokter->id }}">{{ $dokter->user->name ?? ('Dokter ID ' . $dokter->id) }}@if($dokter->spesialisasi) ({{ $dokter->spesialisasi->nama }})@endif</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-none" id="referral_event_wrapper_modal">
+                        <div class="form-group mb-3">
+                            <label for="referral_event_id_modal">Event Referral</label>
+                            <select class="form-control select2-referral-modal" id="referral_event_id_modal" name="referral_event_id">
+                                <option value="">Pilih Event Referral</option>
+                                @foreach($events as $event)
+                                    <option value="{{ $event->id }}">{{ $event->nama_event }}@if($event->kode_event) ({{ $event->kode_event }})@endif</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-none" id="referral_detail_wrapper_modal">
+                        <div class="form-group mb-0">
+                            <label for="referral-detail-input">Detail Referral</label>
+                            <input type="text" id="referral-detail-input" name="referral_detail" class="form-control" maxlength="255" placeholder="Isi detail referral bila diperlukan.">
+                            <select class="form-control select2-referral-modal d-none mt-2" id="referral_detail_select_modal" data-placeholder="Pilih detail referral">
+                                <option value="">Pilih Detail Referral</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="save-referral-btn">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="modalEditAntrian" tabindex="-1" role="dialog" aria-labelledby="modalEditAntrianTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">

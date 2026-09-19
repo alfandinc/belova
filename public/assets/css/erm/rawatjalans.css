@@ -1,5 +1,23 @@
 /* Extracted from resources/views/erm/rawatjalans/index.blade.php */
 
+:root.theme-light {
+    --rawatjalan-fixed-bg: #ffffff;
+    --rawatjalan-fixed-bg-alt: #f7f8fc;
+    --rawatjalan-fixed-header-bg: #eef3fb;
+    --rawatjalan-fixed-text: #212529;
+    --rawatjalan-fixed-border: rgba(0, 0, 0, 0.08);
+    --rawatjalan-header-text: #3d4c63;
+}
+
+:root.theme-dark {
+    --rawatjalan-fixed-bg: #2a3042;
+    --rawatjalan-fixed-bg-alt: #3a4058;
+    --rawatjalan-fixed-header-bg: #2f6df6;
+    --rawatjalan-fixed-text: #dfe7ff;
+    --rawatjalan-fixed-border: rgba(255, 255, 255, 0.08);
+    --rawatjalan-header-text: #ffffff;
+}
+
 /* Status Pasien Icons in DataTable */
 .dataTables_wrapper .status-pasien-icon,
 .dataTables_wrapper .status-akses-icon {
@@ -13,6 +31,158 @@
 .dataTables_wrapper td {
     vertical-align: middle;
     white-space: normal;
+}
+
+.page-wrapper,
+.page-content,
+.container-fluid,
+.card,
+.card-body {
+    min-width: 0;
+    overflow-x: visible;
+}
+
+#rawatjalan-table {
+    width: 100% !important;
+}
+
+#rawatjalan-table th,
+#rawatjalan-table td {
+    white-space: nowrap;
+}
+
+#rawatjalan-table_wrapper {
+    width: 100%;
+    overflow-x: visible;
+}
+
+#rawatjalan-table_wrapper .dataTables_scrollBody {
+    overflow-x: auto !important;
+}
+
+#rawatjalan-table_wrapper .dataTables_scroll,
+#rawatjalan-table_wrapper .dataTables_scrollHead,
+#rawatjalan-table_wrapper .dataTables_scrollBody {
+    width: 100% !important;
+}
+
+#rawatjalan-table_wrapper .dtfc-fixed-left,
+#rawatjalan-table_wrapper .dtfc-fixed-right,
+#rawatjalan-table_wrapper .dtfc-fixed-start,
+#rawatjalan-table_wrapper .dtfc-fixed-end {
+    color: var(--rawatjalan-fixed-text) !important;
+    box-shadow: none !important;
+}
+
+#rawatjalan-table_wrapper table.dataTable thead .dtfc-fixed-left,
+#rawatjalan-table_wrapper table.dataTable thead .dtfc-fixed-right,
+#rawatjalan-table_wrapper table.dataTable thead .dtfc-fixed-start,
+#rawatjalan-table_wrapper table.dataTable thead .dtfc-fixed-end,
+#rawatjalan-table_wrapper table.dataTable tfoot .dtfc-fixed-left,
+#rawatjalan-table_wrapper table.dataTable tfoot .dtfc-fixed-right,
+#rawatjalan-table_wrapper table.dataTable tfoot .dtfc-fixed-start,
+#rawatjalan-table_wrapper table.dataTable tfoot .dtfc-fixed-end {
+    background-color: var(--rawatjalan-fixed-header-bg) !important;
+    color: var(--rawatjalan-header-text) !important;
+    border-color: var(--rawatjalan-fixed-border) !important;
+}
+
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-left,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-right,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-start,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(odd) > .dtfc-fixed-end {
+    background-color: var(--rawatjalan-fixed-bg) !important;
+    color: var(--rawatjalan-fixed-text) !important;
+    border-color: var(--rawatjalan-fixed-border) !important;
+}
+
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-left,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-right,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-start,
+#rawatjalan-table_wrapper table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-end {
+    background-color: var(--rawatjalan-fixed-bg-alt) !important;
+    color: var(--rawatjalan-fixed-text) !important;
+    border-color: var(--rawatjalan-fixed-border) !important;
+}
+
+#rawatjalan-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-left,
+#rawatjalan-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-right,
+#rawatjalan-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-start,
+#rawatjalan-table_wrapper table.dataTable tbody tr:hover > .dtfc-fixed-end {
+    filter: brightness(1.03);
+}
+
+.rawatjalan-patient-name-text {
+    display: inline-block;
+    margin-right: 6px;
+    font-weight: 700;
+}
+
+.rawatjalan-patient-birth-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+}
+
+.rawatjalan-patient-birth-text {
+    display: inline-block;
+}
+
+.rawatjalan-patient-child-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #ff69b4;
+    color: #fff;
+    font-size: 11px;
+}
+
+.rawatjalan-patient-birthday-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #dc2626;
+    color: #fff;
+    font-size: 11px;
+}
+
+.rawatjalan-patient-address {
+    margin-top: 0.2rem;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #8a94b8;
+    white-space: normal;
+}
+
+:root.theme-light .rawatjalan-patient-address {
+    color: #5f6b8a;
+}
+
+:root.theme-dark .rawatjalan-patient-address {
+    color: #aeb8d8;
+}
+
+.pasien-notes-preview {
+    font-size: 11px;
+    line-height: 1.35;
+    color: #8a94b8;
+    margin-top: 0.2rem;
+    white-space: normal;
+}
+
+:root.theme-light .pasien-notes-preview {
+    color: #5f6b8a;
+}
+
+:root.theme-dark .pasien-notes-preview {
+    color: #aeb8d8;
 }
 
 /* Uniform inline badge spacing */

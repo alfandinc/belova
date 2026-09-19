@@ -955,21 +955,35 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
     window.metodeColorMap = metodeColorMap;
     var spesialisasiColorMap = {!! json_encode($spesialisasiMap) !!};
     window.spesialisasiColorMap = spesialisasiColorMap;
+
+    function getRawatJalanDokterFilterValue() {
+        return $('#filter_dokter').val() || '__all__';
+    }
+
+    function getRawatJalanKlinikFilterValue() {
+        return $('#filter_klinik').val() || '__all__';
+    }
+
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
-        responsive: true,
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedColumns: {
+            right: 1
+        },
         pageLength: 50, // Set default rows per page to 50
         ajax: {
             url: '{{ route("erm.rawatjalans.index") }}',
             data: function(d) {
                 d.start_date = $('#filter_start_date').val();
                 d.end_date = $('#filter_end_date').val();
-                d.dokter_id = $('#filter_dokter').val();
-                d.klinik_id = $('#filter_klinik').val();
+                d.dokter_id = getRawatJalanDokterFilterValue();
+                d.klinik_id = getRawatJalanKlinikFilterValue();
             }
         },
-        order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
+        order: [[4, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
             { 
                 data: 'antrian', 
@@ -1003,191 +1017,148 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             function getTxt(v){ return $('<div>').text(v||'').text().trim(); }
                             var sp = getTxt(row.status_pasien);
                             var sa = getTxt(row.status_akses);
-                            var sr = getTxt(row.status_review);
 
-                            function badgePasien(val){
+                            function statusPasienIcon(val){
                                 var v = (val||'').toLowerCase();
-                                if (v.includes('vip')) return '<span class="badge badge-warning"><i class="fas fa-crown mr-1"></i>VIP</span>';
-                                if (v.includes('familia')) return '<span class="badge badge-primary"><i class="fas fa-users mr-1"></i>Familia</span>';
-                                if (v.includes('black')) return '<span class="badge badge-black"><i class="fas fa-id-card mr-1"></i>Black</span>';
-                                if (v.includes('red')) return '<span class="badge badge-danger"><i class="fas fa-flag mr-1"></i>Red</span>';
-                                return ''; // hide badge for regular/other statuses
-                            }
-                            function badgeAkses(val){
-                                var v = (val||'').toLowerCase();
-                                // Only show the badge when the status explicitly indicates 'akses cepat'
-                                if (v.includes('akses cepat') || v.includes('akses_cepat') || v.includes('akses-cep')) {
-                                    return '<span class="badge badge-primary"><i class="fas fa-wheelchair mr-1"></i>Akses Cepat</span>';
-                                }
-                                return ''; // do not show any badge for normal/other statuses
-                            }
-                            function badgeReview(val){
-                                var v = (val||'').toLowerCase();
-                                // Do not show badge when already reviewed
-                                if (v.includes('sudah')) return '';
-                                // Show 'Belum Review' with a map marker icon for not-yet-reviewed
-                                return '<span class="badge badge-light text-dark"><i class="fas fa-map-marker-alt mr-1"></i>Belum Review</span>';
-                            }
-                            function badgeEmployee(employeeId){
-                                if (!employeeId) return '';
-                                return '<span class="badge badge-success"><i class="fas fa-id-badge mr-1"></i>Employee</span>';
-                            }
-                            function badgeReferral(type, detail, eventName, patientName, employeeName, doctorName){
-                                var referralType = (type || '').toString().toLowerCase().trim();
-                                var referralDetail = (detail || '').toString().trim();
-                                var resolvedEventName = (eventName || '').toString().trim();
-                                var resolvedPatientName = (patientName || '').toString().trim();
-                                var resolvedEmployeeName = (employeeName || '').toString().trim();
-                                var resolvedDoctorName = (doctorName || '').toString().trim();
-
-                                if (referralType === 'pasien') {
-                                    var pasienLabel = resolvedPatientName || referralDetail || 'Pasien Referral';
-                                    return '<span class="badge badge-secondary"><i class="fas fa-user-friends mr-1"></i>' + $('<div>').text(pasienLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'employee') {
-                                    var employeeLabel = resolvedEmployeeName || referralDetail || 'Karyawan Referral';
-                                    return '<span class="badge badge-success"><i class="fas fa-id-badge mr-1"></i>' + $('<div>').text(employeeLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'dokter') {
-                                    var doctorLabel = resolvedDoctorName || referralDetail || 'Dokter Referral';
-                                    return '<span class="badge badge-primary"><i class="fas fa-user-md mr-1"></i>' + $('<div>').text(doctorLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'marketplace') {
-                                    var marketplaceLabelMap = {
-                                        shopee: 'Shopee',
-                                        tiktokshop: 'Tiktokshop',
-                                        tokopedia: 'Tokopedia',
-                                        lazada: 'Lazada'
-                                    };
-                                    var marketplaceStyleMap = {
-                                        shopee: 'background-color:#f97316;color:#fff;',
-                                        tiktokshop: 'background-color:#111827;color:#fff;',
-                                        tokopedia: 'background-color:#16a34a;color:#fff;',
-                                        lazada: 'background-color:#2563eb;color:#fff;'
-                                    };
-                                    var marketplaceKey = referralDetail.toLowerCase();
-                                    var marketplaceLabel = marketplaceLabelMap[marketplaceKey] || referralDetail || 'Marketplace';
-                                    var marketplaceStyle = marketplaceStyleMap[marketplaceKey] || 'background-color:#d97706;color:#fff;';
-                                    return '<span class="badge" style="' + marketplaceStyle + '"><i class="fas fa-store mr-1"></i>' + $('<div>').text(marketplaceLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'event') {
-                                    var eventLabel = resolvedEventName || referralDetail || 'Event';
-                                    return '<span class="badge badge-info"><i class="fas fa-calendar-alt mr-1"></i>' + $('<div>').text(eventLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'social_media') {
-                                    var socialMediaLabelMap = {
-                                        instagram: 'Instagram',
-                                        tiktok: 'Tiktok',
-                                        facebook: 'Facebook',
-                                        threads: 'Threads',
-                                        twitter: 'Twitter',
-                                        whatsapp: 'Whatsapp'
-                                    };
-                                    var socialMediaKey = referralDetail.toLowerCase();
-                                    var socialMediaLabel = socialMediaLabelMap[socialMediaKey] || referralDetail || 'Social Media';
-                                    return '<span class="badge badge-dark"><i class="fas fa-hashtag mr-1"></i>' + $('<div>').text(socialMediaLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'website') {
-                                    return '<span class="badge badge-dark"><i class="fas fa-globe mr-1"></i>Website</span>';
-                                }
-
-                                if (referralType === 'partnership') {
-                                    var partnershipLabel = referralDetail || 'Partnership';
-                                    return '<span class="badge badge-warning"><i class="fas fa-handshake mr-1"></i>' + $('<div>').text(partnershipLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'google_maps') {
-                                    var mapsLabel = referralDetail || 'Google Maps';
-                                    return '<span class="badge badge-danger"><i class="fas fa-map-marked-alt mr-1"></i>' + $('<div>').text(mapsLabel).html() + '</span>';
-                                }
-
-                                if (referralType === 'walk_in') {
-                                    return '<span class="badge badge-light text-dark"><i class="fas fa-walking mr-1"></i>Walk-in</span>';
-                                }
-
+                                if (v.includes('vip')) return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #FFD700; border-radius: 50%;" title="VIP Member"><i class="fas fa-crown text-white" style="font-size: 11px;"></i></span>';
+                                if (v.includes('familia')) return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #32CD32; border-radius: 50%;" title="Familia Member"><i class="fas fa-users text-white" style="font-size: 11px;"></i></span>';
+                                if (v.includes('black')) return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #2F2F2F; border-radius: 50%;" title="Black Card Member"><i class="fas fa-credit-card text-white" style="font-size: 11px;"></i></span>';
+                                if (v.includes('red')) return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #FF0000; border-radius: 50%;" title="Red Flag"><i class="fas fa-exclamation-triangle text-white" style="font-size: 11px;"></i></span>';
                                 return '';
                             }
-
-                            var badgesArr = [];
-                            badgesArr.push(badgePasien(sp));
-                            badgesArr.push(badgeAkses(sa));
-                            badgesArr.push(badgeReview(sr));
-                            badgesArr.push(badgeEmployee(row.employee_id));
-                            badgesArr.push(badgeReferral(
-                                row.referral_type,
-                                row.referral_detail,
-                                row.referral_event_name,
-                                row.referral_patient_name,
-                                row.referral_employee_name,
-                                row.referral_dokter_name
-                            ));
-
-                            // Age badge (compute if tanggal_lahir present)
-                            try {
-                                if (row.tanggal_lahir) {
-                                    var birth = new Date(row.tanggal_lahir);
-                                    if (!isNaN(birth)) {
-                                        var today = new Date();
-                                        var age = today.getFullYear() - birth.getFullYear();
-                                        var m = today.getMonth() - birth.getMonth();
-                                        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-                                        if (!isNaN(age) && age < 17) {
-                                            badgesArr.push('<span class="badge badge-pink"><i class="fas fa-baby-carriage mr-1"></i>' + age + ' th</span>');
-                                        }
-                                    }
+                            function statusAksesIcon(val){
+                                var v = (val||'').toLowerCase();
+                                if (v.includes('akses cepat') || v.includes('akses_cepat') || v.includes('akses-cep')) {
+                                    return '<span class="status-akses-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #007BFF; border-radius: 50%;" title="Akses Cepat"><i class="fas fa-wheelchair text-white" style="font-size: 11px;"></i></span>';
                                 }
-                            } catch(e) {}
+                                return '';
+                            }
+                            function employeeStatusIcon(employeeId){
+                                if (!employeeId) return '';
+                                return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #10b981; border-radius: 50%;" title="Employee"><i class="fas fa-id-badge text-white" style="font-size: 11px;"></i></span>';
+                            }
+                            var statusBadgesInline = [statusPasienIcon(sp), statusAksesIcon(sa), employeeStatusIcon(row.employee_id)].join('');
 
-                            // Merchandise badge / link (if pasien has merch)
-                            try {
-                                var merchCount = parseInt(row.merchandise_count || 0);
-                                if (merchCount > 0) {
-                                    var pasienId = row.pasien_id || '';
-                                    var merchHtml = '<a href="#" class="pasien-merch" data-pasien-id="' + pasienId + '" title="Lihat merchandise yang diterima">'
-                                        + '<span class="badge badge-primary"><i class="fas fa-gift mr-1"></i>Merch</span></a>';
-                                    badgesArr.push(merchHtml);
-                                }
-                            } catch(e) {}
-
-                            var badgesInner = badgesArr.join('');
-
-                            var pasienId = row.pasien_id || '';
                             var patientName = $('<div>').text(data || '').html();
                             var catatanPasien = $.trim(row.catatan_pasien || '');
-                            var missingFields = [];
-                            if (!$.trim(row.identity_number || '')) missingFields.push('Dokumen Identitas');
-                            if (!$.trim(data || '')) missingFields.push('Nama');
-                            if (!$.trim(row.tanggal_lahir || '')) missingFields.push('Tanggal Lahir');
-                            if (!$.trim(row.gender || '')) missingFields.push('Gender');
-                            if (!$.trim(row.alamat || '')) missingFields.push('Alamat');
-                            if (!$.trim(row.telepon_pasien || '')) missingFields.push('No. HP');
+                            var newVisitBadgeHtml = parseInt(row.is_first_visit || 0, 10) === 1
+                                ? ' <span class="badge badge-primary blinking" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
+                                : '';
+                            var patientLabelHtml = '<span class="rawatjalan-patient-name-text">' + patientName + '</span>' + newVisitBadgeHtml;
+                            var notesHtml = catatanPasien
+                                ? '<small class="pasien-notes-preview">' + $('<div>').text(catatanPasien).html() + '</small>'
+                                : '';
+                            var linkHtml = '<div class="d-inline-flex align-items-center font-weight-bold">' + patientLabelHtml + statusBadgesInline + '</div>';
 
-                            var warningIconHtml = '';
-                            if (missingFields.length > 0) {
-                                var warningTitle = 'Data pasien belum lengkap: ' + missingFields.join(', ');
-                                warningIconHtml = ' <span class="text-danger blinking" title="' + $('<div>').text(warningTitle).html() + '"><i class="fas fa-exclamation-triangle"></i></span>';
-                            }
-
-                            var patientLabelHtml = '<span>' + patientName + '</span>' + warningIconHtml;
-                            if (catatanPasien) {
-                                patientLabelHtml += ' <span style="font-weight:400;color:inherit;">(' + $('<div>').text(catatanPasien).html() + ')</span>';
-                            }
                             let nameHtml = '<div class="d-flex flex-column">'
-                                           + '<div class="align-self-start"><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;"><strong>' + patientLabelHtml + '</strong></a></div>'
-                                           + '<div class="mt-2 badge-group">'
-                                               + (badgesInner ? badgesInner : '')
-                                           + '</div>'
+                                           + linkHtml
+                                           + notesHtml
                                            + '</div>';
 
                             return nameHtml;
                         }
                 },
+            {
+                data: null,
+                name: 'tanggal_lahir',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    function escapeHtml(unsafe) {
+                        if (!unsafe && unsafe !== 0) return '';
+                        return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+                    }
+
+                    function formatBirthDate(value) {
+                        if (!value) {
+                            return '-';
+                        }
+
+                        try {
+                            if (typeof moment !== 'undefined') {
+                                var m = moment(value, ['YYYY-MM-DD', moment.ISO_8601], true);
+                                if (!m.isValid()) {
+                                    m = moment(value);
+                                }
+                                if (m && m.isValid()) {
+                                    return m.format('D MMMM YYYY');
+                                }
+                            }
+                        } catch (e) {}
+
+                        var monthsId = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                        var parsedDate = null;
+
+                        try {
+                            parsedDate = new Date(value);
+                            if (isNaN(parsedDate.getTime())) {
+                                parsedDate = null;
+                            }
+                        } catch (e) {
+                            parsedDate = null;
+                        }
+
+                        if (!parsedDate) {
+                            return escapeHtml(value);
+                        }
+
+                        return parsedDate.getDate() + ' ' + monthsId[parsedDate.getMonth()] + ' ' + parsedDate.getFullYear();
+                    }
+
+                    var pasienId = row.pasien_id || '';
+                    var missingFields = [];
+                    if (!$.trim(row.identity_number || '')) missingFields.push('Dokumen Identitas');
+                    if (!$.trim(row.nama_pasien || '')) missingFields.push('Nama');
+                    if (!$.trim(row.tanggal_lahir || '')) missingFields.push('Tanggal Lahir');
+                    if (!$.trim(row.gender || '')) missingFields.push('Gender');
+                    if (!$.trim(row.alamat || '')) missingFields.push('Alamat');
+                    if (!$.trim(row.telepon_pasien || '')) missingFields.push('No. HP');
+
+                    var warningIconHtml = '';
+                    if (missingFields.length > 0) {
+                        var warningTitle = 'Data pasien belum lengkap: ' + missingFields.join(', ');
+                        warningIconHtml = '<span class="text-danger blinking" title="' + escapeHtml(warningTitle) + '"><i class="fas fa-exclamation-triangle"></i></span>';
+                    }
+
+                    var birthText = formatBirthDate(row.tanggal_lahir || '');
+                    var birthIconHtml = '';
+                    var birthdayIconHtml = '';
+
+                    try {
+                        if (row.tanggal_lahir) {
+                            var birth = new Date(row.tanggal_lahir);
+                            if (!isNaN(birth)) {
+                                var today = new Date();
+                                var age = today.getFullYear() - birth.getFullYear();
+                                var monthDiff = today.getMonth() - birth.getMonth();
+                                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+                                if (!isNaN(age) && age < 17) {
+                                    birthIconHtml = '<span class="rawatjalan-patient-child-icon" title="Pasien anak"><i class="fas fa-baby-carriage"></i></span>';
+                                }
+                                if (birth.getMonth() === today.getMonth() && birth.getDate() === today.getDate()) {
+                                    birthdayIconHtml = '<span class="rawatjalan-patient-birthday-icon" title="Ulang tahun hari ini"><i class="fas fa-birthday-cake"></i></span>';
+                                }
+                            }
+                        }
+                    } catch(e) {}
+
+                    var birthHtml = '<div class="rawatjalan-patient-birth-row"><span class="rawatjalan-patient-birth-text">' + birthText + '</span>' + birthIconHtml + birthdayIconHtml + warningIconHtml + '</div>';
+                    var alamatText = (row.alamat || '').toString().trim();
+                    var truncatedAlamat = alamatText;
+                    if (truncatedAlamat.length > 25) {
+                        truncatedAlamat = truncatedAlamat.substring(0, 25).trim() + '...';
+                    }
+                    var addressHtml = alamatText
+                        ? '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamatText) + '">' + escapeHtml(truncatedAlamat) + '</small>'
+                        : '<small class="rawatjalan-patient-address text-muted">-</small>';
+
+                    var editButtonHtml = pasienId
+                        ? '<a href="#" class="open-manage-modal btn btn-xs btn-outline-primary" data-id="' + escapeHtml(pasienId) + '" title="Edit informasi pasien" style="position:absolute; top:0; right:0; padding:1px 6px; font-size:10px; line-height:1.4;"><i class="fas fa-pen"></i></a>'
+                        : '';
+
+                    return '<div class="d-flex flex-column position-relative pr-4">' + editButtonHtml + birthHtml + addressHtml + '</div>';
+                }
+            },
             { 
                 data: 'tanggal', 
                 name: 'tanggal_visitation', 
@@ -1292,25 +1263,6 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
 
                     var badgeHtml = [];
 
-                    if (parseInt(row.lab_permintaan_count || 0, 10) > 0) {
-                        var allLabCompleted = parseInt(row.lab_permintaan_completed_count || 0, 10) === parseInt(row.lab_permintaan_count || 0, 10);
-                        var labBadgeClass = allLabCompleted ? 'badge-success' : 'badge-warning blinking';
-                        var labTitle = allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
-                        badgeHtml.push(
-                            '<span class="badge ' + labBadgeClass + ' mr-1 mb-1 lab-icon" data-visitation-id="' + row.id + '" style="cursor:pointer;">' +
-                            '<i class="fas fa-flask mr-1"></i>Lab' +
-                            '</span>'
-                        );
-                    }
-
-                    if (parseInt(row.riwayat_tindakan_count || 0, 10) > 0) {
-                        badgeHtml.push(
-                            '<span class="badge badge-warning mr-1 mb-1" title="Ada tindakan">' +
-                            '<i class="fas fa-stethoscope mr-1"></i>Tindakan' +
-                            '</span>'
-                        );
-                    }
-
                     if (parseInt(row.surat_istirahat_count || 0, 10) > 0) {
                         badgeHtml.push(
                             '<span class="badge badge-info mr-1 mb-1" title="Ada surat istirahat">' +
@@ -1319,17 +1271,15 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         );
                     }
 
-                    if (parseInt(row.surat_mondok_count || 0, 10) > 0) {
-                        badgeHtml.push(
-                            '<span class="badge badge-primary mr-1 mb-1" title="Ada surat mondok">' +
-                            '<i class="fas fa-bed mr-1"></i>Mondok' +
-                            '</span>'
-                        );
-                    }
-
                     var tanggalHtml = '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
                     if (badgeHtml.length > 0) {
                         tanggalHtml += '<div class="mt-2">' + badgeHtml.join('') + '</div>';
+                    }
+
+                    if (row.pasien_id) {
+                        var pasienIdAttr = $('<div>').text(row.pasien_id).html();
+                        var pasienNamaAttr = $('<div>').text(row.nama_pasien || 'Pasien').html();
+                        tanggalHtml += '<div class="mt-1"><a href="#" class="small rawatjalan-visit-history-link" data-pasien-id="' + pasienIdAttr + '" data-pasien-nama="' + pasienNamaAttr + '">Lihat riwayat</a></div>';
                     }
 
                     return tanggalHtml;
@@ -1349,12 +1299,51 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         return '-';
                     }
 
-                    // Plain text (still clickable to edit)
+                    var metodeLower = String(metode).toLowerCase();
+                    var iconClass = metodeLower.indexOf('umum') !== -1 ? 'fas fa-money-bill-wave' : 'fas fa-credit-card';
+
                     var metodeText = $('<div>').text(metode).html();
                     var metodeAttr = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                    return '<a href="#" class="metode-bayar-btn" data-metode="' + metodeAttr + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '" style="text-decoration:none;">'
-                        + metodeText +
-                    '</a>';
+                    return '<div class="d-flex flex-column">'
+                        + '<span class="d-inline-flex align-items-center">'
+                        + '<i class="' + iconClass + ' mr-2"></i>'
+                        + '<span>' + metodeText + '</span>'
+                        + '</span>'
+                        + '<a href="#" class="small metode-bayar-btn mt-1" data-metode="' + metodeAttr + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '" style="text-decoration:none;">Edit metode bayar</a>'
+                    + '</div>';
+                }
+            },
+            {
+                data: 'referral_display',
+                name: 'referral_type',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    var referralDisplay = data || 'Walk-in';
+                    var referralType = row.referral_type || 'walk_in';
+                    var referralDetail = row.referral_detail || '';
+                    var visitationId = row.id || '';
+                    var referralableId = row.referralable_id || '';
+                    var referralPatientName = row.referral_patient_name || '';
+                    var referralEmployeeName = row.referral_employee_name || '';
+                    var referralDokterName = row.referral_dokter_name || '';
+                    var referralEventName = row.referral_event_name || '';
+
+                    var referralSelectedText = '';
+                    if (referralType === 'pasien' && referralPatientName && referralableId) {
+                        referralSelectedText = referralPatientName + ' (RM: ' + referralableId + ')';
+                    } else if (referralType === 'employee' && referralEmployeeName) {
+                        referralSelectedText = referralEmployeeName;
+                    } else if (referralType === 'dokter' && referralDokterName) {
+                        referralSelectedText = referralDokterName;
+                    } else if (referralType === 'event' && referralEventName) {
+                        referralSelectedText = referralEventName;
+                    }
+
+                    return '<div class="d-flex flex-column">'
+                        + '<div>' + referralDisplay + '</div>'
+                        + '<a href="#" class="small edit-referral-link mt-1" data-visitation-id="' + $('<div>').text(visitationId).html() + '" data-referral-type="' + $('<div>').text(referralType).html() + '" data-referral-detail="' + $('<div>').text(referralDetail).html() + '" data-referralable-id="' + $('<div>').text(referralableId).html() + '" data-referral-selected-text="' + $('<div>').text(referralSelectedText).html() + '">Edit referral</a>'
+                        + '</div>';
                 }
             },
             @if (empty($isDokter))
@@ -1383,20 +1372,24 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
         ],
         columnDefs: [
             @if (!empty($isDokter))
-            { targets: 0, width: "5%" },  // No
-            { targets: 1, width: "8%" },  // No RM
-            { targets: 2, width: "28%" }, // Nama Pasien
-            { targets: 3, width: "26%" }, // Tanggal Kunjungan
-            { targets: 4, width: "8%" },  // Metode Bayar
-            { targets: 5, width: "25%" }, // Dokumen
+            { targets: 0, width: "60px" },   // No
+            { targets: 1, width: "110px" },  // No RM
+            { targets: 2, width: "280px" },  // Nama Pasien
+            { targets: 3, width: "240px" },  // Informasi Pasien
+            { targets: 4, width: "280px" },  // Tanggal Kunjungan
+            { targets: 5, width: "150px" },  // Metode Bayar
+            { targets: 6, width: "220px" },  // Referral
+            { targets: 7, width: "320px" },  // Dokumen
             @else
-            { targets: 0, width: "6%" },  // Antrian
-            { targets: 1, width: "8%" },  // No RM
-            { targets: 2, width: "25%" }, // Nama Pasien
-            { targets: 3, width: "18%" }, // Tanggal
-            { targets: 4, width: "7%" },  // Metode Bayar
-            { targets: 5, width: "18%" }, // Dokter
-            { targets: 6, width: "18%" }, // Dokumen
+            { targets: 0, width: "80px" },   // Antrian
+            { targets: 1, width: "110px" },  // No RM
+            { targets: 2, width: "270px" },  // Nama Pasien
+            { targets: 3, width: "240px" },  // Informasi Pasien
+            { targets: 4, width: "260px" },  // Tanggal
+            { targets: 5, width: "150px" },  // Metode Bayar
+            { targets: 6, width: "220px" },  // Referral
+            { targets: 7, width: "220px" },  // Dokter
+            { targets: 8, width: "320px" },  // Dokumen
             @endif
         ],
         createdRow: function(row, data, dataIndex) {
@@ -1408,6 +1401,45 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
     // No color change for status_kunjungan == 1 and userRole === 'Dokter'
 }
     });
+
+    function syncRawatJalanTableLayout() {
+        if (!table) {
+            return;
+        }
+
+        try {
+            table.columns.adjust();
+
+            if (typeof table.fixedColumns === 'function') {
+                var fixedColumnsApi = table.fixedColumns();
+                if (fixedColumnsApi && typeof fixedColumnsApi.relayout === 'function') {
+                    fixedColumnsApi.relayout();
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to sync Rawat Jalan table layout', error);
+        }
+    }
+
+    function queueRawatJalanTableLayoutSync() {
+        syncRawatJalanTableLayout();
+        setTimeout(syncRawatJalanTableLayout, 150);
+        setTimeout(syncRawatJalanTableLayout, 320);
+    }
+
+    table.on('draw.dt', function() {
+        syncRawatJalanTableLayout();
+    });
+
+    $(window).on('resize.rawatjalanTableLayout', function() {
+        queueRawatJalanTableLayoutSync();
+    });
+
+    $(document).on('click.rawatjalanTableLayout', '.button-menu-mobile', function() {
+        queueRawatJalanTableLayoutSync();
+    });
+
+    queueRawatJalanTableLayoutSync();
 
     // Prevent DataTables from showing blocking alert on AJAX errors; we'll handle errors gracefully
     $.fn.dataTable.ext.errMode = 'none';
@@ -1481,8 +1513,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
         var status = $(this).data('status');
         let startDate = $('#filter_start_date').val();
         let endDate = $('#filter_end_date').val();
-        let filterDokter = $('#filter_dokter').val();
-        let filterKlinik = $('#filter_klinik').val();
+        let filterDokter = getRawatJalanDokterFilterValue();
+        let filterKlinik = getRawatJalanKlinikFilterValue();
 
         ensureRawatJalanCommonModalsLoaded().done(function(){
             // If user clicked the 'rujuk' stat, fetch rujuk list and show rujuk modal only
@@ -1789,8 +1821,8 @@ function updateStats() {
     // Get current filter values
     let startDate = $('#filter_start_date').val();
     let endDate = $('#filter_end_date').val();
-    let filterDokter = $('#filter_dokter').val();
-    let filterKlinik = $('#filter_klinik').val();
+    let filterDokter = getRawatJalanDokterFilterValue();
+    let filterKlinik = getRawatJalanKlinikFilterValue();
 
     // Make AJAX request to get updated stats and return the jqXHR for callers
     return $.get('{{ route("erm.rawatjalans.stats") }}', {
@@ -1974,6 +2006,7 @@ function openKonfirmasiModal(namaPasien, telepon, dokterNama, tanggalKunjungan, 
 
 // Lazy-load: Rawat Jalan common modals (Manage Pasien, Konfirmasi, Lab/Rujuk/Visitation, Merchandise, Metode Bayar)
 var __rawatjalanCommonModalsUrl = "{{ route('erm.rawatjalans.modals.common') }}";
+var __rawatjalanPatientVisitHistoryUrlTemplate = "{{ route('erm.rawatjalans.patientVisitHistory', ['pasienId' => '__PID__']) }}";
 var __rawatjalanCommonModalsLoading = null;
 function ensureRawatJalanCommonModalsLoaded() {
     if (
@@ -1988,6 +2021,7 @@ function ensureRawatJalanCommonModalsLoaded() {
         $('#modalPasienMerch').length &&
         $('#modalMerchandiseStockOut').length &&
         $('#modalMetodeBayar').length &&
+        $('#modalReferral').length &&
         $('#modalEditAntrian').length
     ) {
         return $.Deferred().resolve().promise();
@@ -1999,7 +2033,7 @@ function ensureRawatJalanCommonModalsLoaded() {
 
     __rawatjalanCommonModalsLoading = $.get(__rawatjalanCommonModalsUrl)
         .done(function (html) {
-            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalNotificationHistory, #modalPasienMerch, #modalMerchandiseStockOut, #modalMetodeBayar, #modalEditAntrian').remove();
+            $('#modalManagePasien, #modalEditStatusAkses, #modalEditStatusReview, #modalKonfirmasi, #modalLabPermintaanList, #modalRujukList, #modalVisitationList, #modalNotificationHistory, #modalPasienMerch, #modalMerchandiseStockOut, #modalMetodeBayar, #modalReferral, #modalEditAntrian').remove();
             $('body').append(html);
         })
         .always(function () {
@@ -2008,6 +2042,51 @@ function ensureRawatJalanCommonModalsLoaded() {
 
     return __rawatjalanCommonModalsLoading;
 }
+
+$(document).on('click', '.rawatjalan-visit-history-link', function(e) {
+    e.preventDefault();
+
+    var pasienId = $(this).data('pasien-id');
+    var pasienNama = $(this).data('pasien-nama') || 'Pasien';
+
+    if (!pasienId) {
+        return;
+    }
+
+    ensureRawatJalanCommonModalsLoaded().done(function () {
+        $('#modalVisitationListTitle').text('Riwayat Kunjungan - ' + pasienNama);
+        $('#modalVisitationList').modal('show');
+        $('#visitation-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat riwayat kunjungan...</div>');
+
+        $.ajax({
+            url: __rawatjalanPatientVisitHistoryUrlTemplate.replace('__PID__', pasienId),
+            method: 'GET',
+            success: function(res) {
+                if (res.data && res.data.length > 0) {
+                    var html = '<table class="table table-bordered table-sm"><thead><tr><th>Tanggal Kunjungan</th><th>Dokter</th><th>Klinik</th><th>No Antrian</th><th>Metode Bayar</th></tr></thead><tbody>';
+
+                    res.data.forEach(function(item) {
+                        html += '<tr>'
+                            + '<td>' + (item.tanggal || '-') + '</td>'
+                            + '<td>' + (item.dokter_nama || '-') + '</td>'
+                            + '<td>' + (item.klinik_nama || '-') + '</td>'
+                            + '<td>' + (item.no_antrian || '-') + '</td>'
+                            + '<td>' + (item.metode_bayar || '-') + '</td>'
+                            + '</tr>';
+                    });
+
+                    html += '</tbody></table>';
+                    $('#visitation-list-content').html(html);
+                } else {
+                    $('#visitation-list-content').html('<div class="text-center">Belum ada riwayat kunjungan.</div>');
+                }
+            },
+            error: function() {
+                $('#visitation-list-content').html('<div class="text-danger text-center">Gagal memuat riwayat kunjungan.</div>');
+            }
+        });
+    });
+});
 
 // Lazy-load: Screening Batuk modals
 var __screeningBatukModalsUrl = "{{ route('erm.rawatjalans.modals.screeningBatuk') }}";
@@ -3054,41 +3133,185 @@ $(document).on('submit', '#form-metode-bayar', function(e){
         metode_bayar_id: metodeId
     }, function(res){
             if (res.success) {
-                // update badge text and class in table
-                var selector = '.metode-bayar-btn[data-visitation-id="' + visitationId + '"]';
-                var el = $(selector);
-                var newText = res.metode || $('#metode-bayar-select option:selected').text();
-                // Determine class: prefer metodeColorMap by id, otherwise apply name-based mapping same as renderer
-                var newClass = 'badge-info';
-                try {
-                    if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) {
-                        newClass = window.metodeColorMap[metodeId];
-                    } else {
-                        var nt = (newText || '').toLowerCase();
-                        if (nt.indexOf('umum') !== -1) newClass = 'badge-success';
-                        else if (nt.indexOf('inhealth') !== -1) newClass = 'badge-info';
-                        else if (nt.indexOf('bri life') !== -1 || nt.indexOf('brilife') !== -1) newClass = 'badge-primary';
-                        else if (nt.indexOf('bni life') !== -1 || nt.indexOf('bnilife') !== -1) newClass = 'badge-warning';
-                        else if (nt.indexOf('admedika') !== -1) newClass = 'badge-danger';
-                    }
-                } catch(e) {}
-                if (el.length) {
-                    var small = el.find('small.badge');
-                    small.text(newText);
-                    // remove previous badge- classes and add new
-                    small.removeClass(function(index, className) {
-                        return (className.match(/(^|\s)badge-\S+/g) || []).join(' ');
-                    }).addClass('badge ' + newClass + ' ml-1');
-                    el.data('metode', newText);
-                    el.data('metode-id', metodeId);
-                }
                 $('#modalMetodeBayar').modal('hide');
+                table.ajax.reload(null, false);
                 Swal.fire('Berhasil', 'Metode bayar diperbarui.', 'success');
             } else {
             Swal.fire('Gagal', res.message || 'Gagal memperbarui metode bayar.', 'error');
         }
     }).fail(function(xhr){
         Swal.fire('Error', 'Terjadi kesalahan saat menyimpan.', 'error');
+        console.error(xhr.responseText);
+    });
+});
+
+function toggleReferralDetailField() {
+    var referralType = $('#referral-type-select').val() || 'walk_in';
+    var detailInput = $('#referral-detail-input');
+    var detailSelect = $('#referral_detail_select_modal');
+    var detailSelectContainer = detailSelect.next('.select2-container');
+    var referralDetailOptionMap = {
+        social_media: [
+            { value: 'instagram', label: 'Instagram' },
+            { value: 'tiktok', label: 'TikTok' },
+            { value: 'facebook', label: 'Facebook' },
+            { value: 'threads', label: 'Threads' },
+            { value: 'twitter', label: 'Twitter / X' },
+            { value: 'whatsapp', label: 'WhatsApp' }
+        ],
+        marketplace: [
+            { value: 'shopee', label: 'Shopee' },
+            { value: 'tiktokshop', label: 'TikTok Shop' },
+            { value: 'tokopedia', label: 'Tokopedia' },
+            { value: 'lazada', label: 'Lazada' }
+        ]
+    };
+    var shouldShowDetail = ['social_media', 'marketplace', 'partnership', 'google_maps'].includes(referralType);
+    var selectedOptions = referralDetailOptionMap[referralType] || null;
+    var currentValue = (detailInput.val() || '').trim().toLowerCase();
+
+    $('#referral_pasien_wrapper_modal').toggleClass('d-none', referralType !== 'pasien');
+    $('#referral_employee_wrapper_modal').toggleClass('d-none', referralType !== 'employee');
+    $('#referral_dokter_wrapper_modal').toggleClass('d-none', referralType !== 'dokter');
+    $('#referral_event_wrapper_modal').toggleClass('d-none', referralType !== 'event');
+    $('#referral_detail_wrapper_modal').toggleClass('d-none', !shouldShowDetail);
+
+    $('#referral_target_pasien_id_modal').prop('required', referralType === 'pasien').prop('disabled', referralType !== 'pasien');
+    $('#referral_employee_id_modal').prop('required', referralType === 'employee').prop('disabled', referralType !== 'employee');
+    $('#referral_dokter_id_modal').prop('required', referralType === 'dokter').prop('disabled', referralType !== 'dokter');
+    $('#referral_event_id_modal').prop('required', referralType === 'event').prop('disabled', referralType !== 'event');
+    detailInput.prop('required', shouldShowDetail).prop('disabled', !shouldShowDetail);
+    detailSelect.prop('required', shouldShowDetail).prop('disabled', !shouldShowDetail);
+
+    if (!selectedOptions) {
+        detailSelect.addClass('d-none').prop('disabled', true).empty().append('<option value="">Pilih Detail Referral</option>').trigger('change.select2');
+        detailSelectContainer.addClass('d-none');
+        detailInput.removeClass('d-none');
+    } else {
+        var optionsHtml = '<option value="">Pilih Detail Referral</option>';
+        selectedOptions.forEach(function(option) {
+            optionsHtml += '<option value="' + option.value + '">' + option.label + '</option>';
+        });
+        detailSelect.html(optionsHtml).prop('disabled', false).removeClass('d-none');
+        detailSelectContainer.removeClass('d-none');
+        detailInput.addClass('d-none');
+        if (currentValue) {
+            detailSelect.val(currentValue);
+        }
+        detailSelect.trigger('change.select2');
+    }
+
+    if (referralType !== 'pasien') {
+        $('#referral_target_pasien_id_modal').val(null).trigger('change');
+    }
+    if (referralType !== 'employee') {
+        $('#referral_employee_id_modal').val('').trigger('change');
+    }
+    if (referralType !== 'dokter') {
+        $('#referral_dokter_id_modal').val('').trigger('change');
+    }
+    if (referralType !== 'event') {
+        $('#referral_event_id_modal').val('').trigger('change');
+    }
+    if (!shouldShowDetail) {
+        $('#referral-detail-input').val('');
+        $('#referral_detail_select_modal').val('').trigger('change');
+    }
+}
+
+function initializeReferralModalFields() {
+    if (!$('#referral-type-select').hasClass('select2-hidden-accessible')) {
+        $('.select2-referral-modal').select2({ width: '100%', dropdownParent: $('#modalReferral') });
+    }
+
+    if (!$('#referral_target_pasien_id_modal').hasClass('select2-hidden-accessible')) {
+        $('#referral_target_pasien_id_modal').select2({
+            width: '100%',
+            placeholder: 'Cari pasien referral',
+            allowClear: true,
+            dropdownParent: $('#modalReferral'),
+            ajax: {
+                url: '{{ route('erm.pasiens.select2') }}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { q: params.term || '' };
+                },
+                processResults: function (data) {
+                    return data;
+                }
+            }
+        });
+    }
+
+    if (!$('#referral_detail_select_modal').hasClass('select2-hidden-accessible')) {
+        $('#referral_detail_select_modal').select2({ width: '100%', dropdownParent: $('#modalReferral') });
+    }
+}
+
+$(document).on('change', '#referral-type-select', toggleReferralDetailField);
+
+$(document).on('change', '#referral_detail_select_modal', function () {
+    $('#referral-detail-input').val($(this).val() || '');
+});
+
+$(document).on('click', '.edit-referral-link', function(e){
+    e.preventDefault();
+    var visitationId = $(this).data('visitation-id') || '';
+    var referralType = $(this).data('referral-type') || 'walk_in';
+    var referralDetail = $(this).data('referral-detail') || '';
+    var referralableId = $(this).data('referralable-id') || '';
+    var referralSelectedText = $(this).data('referral-selected-text') || '';
+    ensureRawatJalanCommonModalsLoaded().done(function(){
+        initializeReferralModalFields();
+        $('#referral-visitation-id').val(visitationId);
+        $('#referral-type-select').val(referralType);
+        $('#referral-detail-input').val(referralDetail);
+        $('#referral_employee_id_modal').val(referralType === 'employee' ? referralableId : '').trigger('change');
+        $('#referral_dokter_id_modal').val(referralType === 'dokter' ? referralableId : '').trigger('change');
+        $('#referral_event_id_modal').val(referralType === 'event' ? referralableId : '').trigger('change');
+
+        var referralPasienInput = $('#referral_target_pasien_id_modal');
+        referralPasienInput.empty().trigger('change');
+        if (referralType === 'pasien' && referralableId && referralSelectedText) {
+            var option = new Option(referralSelectedText, referralableId, true, true);
+            referralPasienInput.append(option).trigger('change');
+        }
+
+        toggleReferralDetailField();
+        $('#modalReferral').modal('show');
+    });
+});
+
+$(document).on('submit', '#form-referral', function(e){
+    e.preventDefault();
+    var visitationId = $('#referral-visitation-id').val();
+    var referralType = $('#referral-type-select').val();
+    var referralDetail = ($('#referral-detail-input').val() || '').trim();
+    if (!visitationId || !referralType) {
+        Swal.fire('Error', 'Data referral belum lengkap.', 'warning');
+        return;
+    }
+
+    $.post('{{ route("erm.rawatjalans.updateReferral") }}', {
+        _token: '{{ csrf_token() }}',
+        visitation_id: visitationId,
+        referral_type: referralType,
+        referral_detail: referralDetail,
+        referral_target_pasien_id: $('#referral_target_pasien_id_modal').val() || '',
+        referral_employee_id: $('#referral_employee_id_modal').val() || '',
+        referral_dokter_id: $('#referral_dokter_id_modal').val() || '',
+        referral_event_id: $('#referral_event_id_modal').val() || ''
+    }, function(res){
+        if (res.success) {
+            $('#modalReferral').modal('hide');
+            table.ajax.reload(null, false);
+            Swal.fire('Berhasil', 'Referral diperbarui.', 'success');
+        } else {
+            Swal.fire('Gagal', res.message || 'Gagal memperbarui referral.', 'error');
+        }
+    }).fail(function(xhr){
+        Swal.fire('Error', 'Terjadi kesalahan saat menyimpan referral.', 'error');
         console.error(xhr.responseText);
     });
 });
