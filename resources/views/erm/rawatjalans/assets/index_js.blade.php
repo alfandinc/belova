@@ -1293,8 +1293,15 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             dokter_id: row.dokter_id || '',
                             metode_bayar_id: row.metode_bayar_id || ''
                         };
-                        var editPayloadAttr = $('<div>').text(JSON.stringify(editPayload)).html();
-                        var editTanggalButtonHtml = '<a href="#" class="btn btn-xs btn-outline-primary ml-2" data-edit-payload="' + editPayloadAttr + '" onclick="editAntrian(JSON.parse(this.dataset.editPayload)); return false;" title="Edit kunjungan" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>';
+                            var editTanggalButtonHtml = '<a href="#" class="btn btn-xs btn-outline-primary ml-2 btn-edit-antrian"'
+                                + ' data-visitation-id="' + $('<div>').text(editPayload.visitation_id).html() + '"'
+                                + ' data-no-antrian="' + $('<div>').text(editPayload.no_antrian).html() + '"'
+                                + ' data-waktu-kunjungan="' + $('<div>').text(editPayload.waktu_kunjungan).html() + '"'
+                                + ' data-tanggal-visitation="' + $('<div>').text(editPayload.tanggal_visitation).html() + '"'
+                                + ' data-klinik-id="' + $('<div>').text(editPayload.klinik_id).html() + '"'
+                                + ' data-dokter-id="' + $('<div>').text(editPayload.dokter_id).html() + '"'
+                                + ' data-metode-bayar-id="' + $('<div>').text(editPayload.metode_bayar_id).html() + '"'
+                                + ' title="Edit kunjungan" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>';
                         tanggalHtml = '<div class="d-flex align-items-start justify-content-between">'
                             + '<div>' + tanggalPrimaryHtml + '</div>'
                             + editTanggalButtonHtml
@@ -2067,6 +2074,20 @@ function ensureRawatJalanCommonModalsLoaded() {
 
     return __rawatjalanCommonModalsLoading;
 }
+
+$(document).on('click', '.btn-edit-antrian', function(e) {
+    e.preventDefault();
+
+    editAntrian({
+        visitation_id: $(this).attr('data-visitation-id') || '',
+        no_antrian: $(this).attr('data-no-antrian') || '',
+        waktu_kunjungan: $(this).attr('data-waktu-kunjungan') || '',
+        tanggal_visitation: $(this).attr('data-tanggal-visitation') || '',
+        klinik_id: $(this).attr('data-klinik-id') || '',
+        dokter_id: $(this).attr('data-dokter-id') || '',
+        metode_bayar_id: $(this).attr('data-metode-bayar-id') || ''
+    });
+});
 
 $(document).on('click', '.rawatjalan-visit-history-link', function(e) {
     e.preventDefault();

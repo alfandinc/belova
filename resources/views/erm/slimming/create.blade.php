@@ -6,498 +6,365 @@
 @endsection
 
 @php
-    $rulerConfigs = [
-        'muscle_fat_weight' => [
-            'min' => 10,
-            'max' => 50,
-            'under_max' => 24.3,
-            'normal_max' => 30.3,
-            'ticks' => [10, 15, 24.3, 25, 30.3, 35, 40, 45, 50],
-            'label_offsets' => [],
-        ],
-        'muscle_fat_muscle' => [
-            'min' => 10,
-            'max' => 50,
-            'under_max' => 24.3,
-            'normal_max' => 30.3,
-            'segment_widths' => [25, 25, 50],
-            'ticks' => [10, 15, 24.3, 25, 30.3, 35, 40, 45, 50],
-            'label_offsets' => [],
-        ],
-        'muscle_fat_body_fat_mass' => [
-            'min' => 10,
-            'max' => 52,
-            'under_max' => 21,
-            'normal_max' => 32.9,
-            'segment_widths' => [25, 25, 50],
-            'ticks' => [10, 15, 21, 25, 32.9, 37, 42, 47, 52],
-            'label_offsets' => [],
-        ],
-        'obesity_bmi' => [
-            'min' => 10,
-            'max' => 45,
-            'under_max' => 18.5,
-            'normal_max' => 25,
-            'segment_widths' => [25, 25, 50],
-            'ticks' => [10, 15, 18.5, 21, 25, 30, 35, 40, 45],
-            'label_offsets' => [],
-        ],
-    ];
-
-    $circumferenceFields = [
-        ['name' => 'lingkar_perut', 'label' => 'Lingkar Perut', 'icon' => 'fas fa-ruler-horizontal'],
-        ['name' => 'lingkar_lengan_kanan', 'label' => 'Lingkar Lengan Kanan', 'icon' => 'fas fa-hand-paper'],
-        ['name' => 'lingkar_lengan_kiri', 'label' => 'Lingkar Lengan Kiri', 'icon' => 'fas fa-hand-paper'],
-    ];
-
-    $subcutaneousFields = [
-        ['name' => 'subcutaneous_whole_body', 'label' => 'Subcutan Whole Body'],
-        ['name' => 'subcutaneous_trunk', 'label' => 'Subcutan Trunk'],
-        ['name' => 'subcutaneous_arms', 'label' => 'Subcutan Arms'],
-        ['name' => 'subcutaneous_legs', 'label' => 'Subcutan Legs'],
-    ];
-
-    $skeletalFields = [
-        ['name' => 'skeletal_whole_body', 'label' => 'Skeletal Whole Body'],
-        ['name' => 'skeletal_trunk', 'label' => 'Skeletal Trunk'],
-        ['name' => 'skeletal_arms', 'label' => 'Skeletal Arms'],
-        ['name' => 'skeletal_legs', 'label' => 'Skeletal Legs'],
-    ];
-
-    $oldObesityEval = (string) old('obesity_eval');
-    preg_match('/BMI:([^;]+)/i', $oldObesityEval, $oldBmiEvalMatch);
-    preg_match('/PBF:([^;]+)/i', $oldObesityEval, $oldPbfEvalMatch);
-    $oldBmiEvalStatus = strtolower(trim($oldBmiEvalMatch[1] ?? ''));
-    $oldPbfEvalStatus = strtolower(trim($oldPbfEvalMatch[1] ?? ''));
     $pasienBirthDate = optional($visitation->pasien)->tanggal_lahir;
-    $pasienGender = strtolower(trim((string) optional($visitation->pasien)->gender));
     $pasienAge = $pasienBirthDate ? \Carbon\Carbon::parse($pasienBirthDate)->age : null;
-    $hasSlimmingRiwayat = $riwayatTindakanOptions->isNotEmpty();
+    $pasienGender = strtolower(trim((string) optional($visitation->pasien)->gender));
 @endphp
 
 @section('content')
 <style>
-    .slimming-sheet {
-        border: 1px solid #d8dbe2;
-        border-radius: 14px;
-        padding: 1.25rem;
+    .slimming-shell {
+        display: grid;
+        gap: 1rem;
+    }
+    .slimming-card {
+        border: 1px solid #e5e7eb;
+        border-radius: .5rem;
         background: #fff;
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
     }
-    .slimming-sheet-title {
-        display: flex;
-        align-items: center;
-        gap: .55rem;
-        font-size: 1.05rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-        margin-bottom: .75rem;
-        color: #1f2937;
-    }
-    .slimming-sheet-title i {
-        color: #2563eb;
-        font-size: .95rem;
-    }
-    .slimming-grid-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 0;
-    }
-    .slimming-grid-table th,
-    .slimming-grid-table td {
-        border: 1px solid #2f3542;
-        padding: .45rem .55rem;
-        vertical-align: middle;
-        font-size: .92rem;
-    }
-    .slimming-grid-table th {
+    .slimming-card-header {
         background: #f8fafc;
-        text-align: center;
-        font-weight: 700;
-    }
-    .slimming-grid-table td.label-cell {
-        width: 180px;
-        font-weight: 600;
-        background: #fcfcfd;
-        white-space: nowrap;
-    }
-    .slimming-grid-table td.input-cell {
-        min-width: 180px;
-        background: #fff;
-    }
-    .slimming-grid-table td.range-cell {
-        width: 140px;
-        background: #fff;
-    }
-    .slimming-ruler-wrapper {
-        position: relative;
-        min-width: 560px;
-        padding: .05rem .1rem 1.5rem;
-    }
-    .slimming-ruler-sections {
-        display: flex;
-        align-items: stretch;
-        font-size: .8rem;
-        font-weight: 700;
         color: #1f2937;
-        margin-bottom: .28rem;
-        text-align: center;
-        line-height: 1;
+        padding: .85rem 1rem;
+        font-size: .92rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        border-bottom: 1px solid #e5e7eb;
     }
-    .slimming-ruler-sections span {
+    .slimming-card-header--with-action {
         display: flex;
         align-items: center;
-        justify-content: center;
-        flex: 0 0 auto;
-        border: 1px solid #2f3542;
-        border-bottom: 0;
-        min-height: 30px;
-        background: #fff;
-        transition: background-color .2s ease, color .2s ease;
+        justify-content: space-between;
+        gap: .75rem;
     }
-    .slimming-ruler-sections span + span {
-        border-left: 0;
-    }
-    .slimming-ruler-sections span.is-active {
-        color: #111827;
-    }
-    .slimming-ruler-sections span[data-category="under"].is-active {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    .slimming-ruler-sections span[data-category="normal"].is-active {
-        background: #dcfce7;
-        color: #166534;
-    }
-    .slimming-ruler-sections span[data-category="over"].is-active {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-    .slimming-ruler-track {
-        position: relative;
-        height: 38px;
-        border-top: 2px solid #2f3542;
-        margin: 0;
-    }
-    .slimming-ruler-track::before,
-    .slimming-ruler-track::after {
-        content: '';
-        position: absolute;
-        top: -2px;
-        width: 2px;
-        height: 9px;
-        background: #2f3542;
-    }
-    .slimming-ruler-track::before {
-        left: 0;
-    }
-    .slimming-ruler-track::after {
-        right: 0;
-    }
-    .slimming-ruler-tick {
-        position: absolute;
-        top: -2px;
-        transform: translateX(-50%);
-        width: 0;
-        pointer-events: none;
-    }
-    .slimming-ruler-tick::before {
-        content: '';
-        display: block;
-        width: 2px;
-        height: 8px;
-        background: #2f3542;
-        margin: 0 auto;
-    }
-    .slimming-ruler-tick span {
-        position: absolute;
-        top: 12px;
-        left: 50%;
-        transform: translateX(calc(-50% + var(--tick-label-shift, 0px)));
-        font-size: .6rem;
-        color: #111827;
-        white-space: nowrap;
-        line-height: 1;
-    }
-    .slimming-ruler-indicator {
-        position: absolute;
-        top: -18px;
-        transform: translateX(-50%);
-        transition: left .2s ease;
-        pointer-events: none;
-        z-index: 3;
-    }
-    .slimming-ruler-indicator::before {
-        content: '';
-        display: block;
-        width: 0;
-        height: 0;
-        border-left: 10px solid transparent;
-        border-right: 10px solid transparent;
-        border-top: 14px solid #e03131;
-        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
-    }
-    .slimming-ruler-indicator::after {
-        content: '';
-        position: absolute;
-        left: 50%;
-        top: 12px;
-        transform: translateX(-50%);
-        width: 2px;
-        height: 14px;
-        background: #e03131;
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
-    }
-    .slimming-ruler-plain {
-        min-width: 460px;
-    }
-    @media (max-width: 991.98px) {
-        .slimming-ruler-wrapper,
-        .slimming-ruler-plain {
-            min-width: 320px;
-        }
-        .slimming-grid-table td.input-cell {
-            min-width: 150px;
-        }
-    }
-    .slimming-sheet .form-control {
-        min-height: 38px;
-    }
-    .slimming-inline-input {
+    .slimming-toolbar {
         display: flex;
         align-items: center;
         gap: .5rem;
+        padding: 1rem;
     }
-    .slimming-inline-input .form-control {
-        border: 0;
-        border-bottom: 1px solid #6b7280;
-        border-radius: 0;
-        box-shadow: none;
-        padding-left: 0;
-        padding-right: 0;
-        background: transparent;
-    }
-    .slimming-inline-input .unit-label {
-        white-space: nowrap;
-        font-weight: 600;
-        color: #374151;
-    }
-    .slimming-check-row {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-    .slimming-check-row:last-child {
-        margin-bottom: 0;
-    }
-    .slimming-check-row .row-label {
-        min-width: 56px;
+    .slimming-toolbar-title {
+        margin: 0;
+        font-size: 1.15rem;
         font-weight: 700;
         color: #111827;
     }
-    .slimming-check-options {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
+    .slimming-toolbar-note {
+        margin: .25rem 0 0;
+        font-size: .9rem;
+        color: #6b7280;
     }
-    .slimming-check-options label {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        margin-bottom: 0;
-        font-weight: 500;
-    }
-    .slimming-eval-panel {
-        padding: 0;
-    }
-    .slimming-eval-grid {
+    .slimming-analysis-stack {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
     }
-    .slimming-eval-card {
-        padding: 0;
-    }
-    .slimming-eval-card-inner {
+    .slimming-segmental-grid {
         display: grid;
-        grid-template-columns: minmax(170px, 210px) minmax(320px, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
-        align-items: start;
     }
-    .slimming-eval-card label {
-        display: block;
-        margin-bottom: .45rem;
-        font-size: .8rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-        text-transform: uppercase;
-        color: #334155;
+    .slimming-analysis-table {
+        width: 100%;
+        border-collapse: collapse;
     }
-    .slimming-eval-card .form-control {
-        min-height: 44px;
-        border-radius: 10px;
-        font-size: 1.05rem;
-        font-weight: 700;
+    .slimming-analysis-table th,
+    .slimming-analysis-table td {
+        border: 1px solid #e5e7eb;
+        padding: .65rem .75rem;
+        font-size: .92rem;
+    }
+    .slimming-analysis-table th {
         background: #f8fafc;
-    }
-    .slimming-eval-status-title {
-        margin-bottom: .7rem;
-        font-size: .9rem;
+        color: #111827;
         font-weight: 700;
-        color: #0f172a;
+        text-align: center;
     }
-    .slimming-eval-options {
-        display: flex;
-        flex-wrap: nowrap;
-        gap: .6rem;
+    .slimming-analysis-table td:first-child {
+        width: 34%;
+        font-weight: 600;
     }
-    .slimming-eval-options label {
-        position: relative;
+    .slimming-analysis-table td:nth-child(2),
+    .slimming-analysis-table td:nth-child(3),
+    .slimming-analysis-table td:nth-child(4) {
+        text-align: center;
+    }
+    .slimming-analysis-table td.slimming-status-cell {
+        font-weight: 700;
+        transition: background-color .2s ease, color .2s ease;
+    }
+    .slimming-analysis-table td.status-ideal,
+    .slimming-analysis-table td.status-normal,
+    .slimming-analysis-table td.status-baik,
+    .slimming-analysis-table td.status-sangat-baik,
+    .slimming-analysis-table td.status-atlet {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .slimming-analysis-table td.status-borderline,
+    .slimming-analysis-table td.status-overweight,
+    .slimming-analysis-table td.status-tinggi {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .slimming-analysis-table td.status-obes-1,
+    .slimming-analysis-table td.status-obes-2,
+    .slimming-analysis-table td.status-obesitas,
+    .slimming-analysis-table td.status-sangat-tinggi,
+    .slimming-analysis-table td.status-buruk {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .slimming-analysis-table td.status-rendah,
+    .slimming-analysis-table td.status-underweight,
+    .slimming-analysis-table td.status-kurang {
+        background: #e0f2fe;
+        color: #075985;
+    }
+    .slimming-metric-value {
         display: inline-flex;
         align-items: center;
-        gap: .35rem;
-        margin-bottom: 0;
-        padding: .45rem .8rem;
-        border: 1px solid #cbd5e1;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: .45rem;
+    }
+    .slimming-trend {
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        padding: .15rem .45rem;
         border-radius: 999px;
-        background: #fff;
-        font-weight: 600;
-        color: #334155;
-        cursor: pointer;
-        transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
     }
-    .slimming-eval-options label:has(input:checked) {
-        border-color: #2563eb;
-        background: #eff6ff;
-        color: #1d4ed8;
+    .slimming-trend--up {
+        background: #fee2e2;
+        color: #b91c1c;
     }
-    .slimming-eval-options input[type="radio"] {
-        margin: 0;
+    .slimming-trend--down {
+        background: #dcfce7;
+        color: #15803d;
     }
-    @media (max-width: 991.98px) {
-        .slimming-eval-grid {
-            grid-template-columns: 1fr;
-        }
-        .slimming-eval-card-inner {
-            grid-template-columns: 1fr;
-        }
+    .slimming-trend--same,
+    .slimming-trend--none {
+        background: #e5e7eb;
+        color: #4b5563;
     }
-    .slimming-stack-card {
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        height: 100%;
-        padding: 1rem;
-        background: #fff;
+    .slimming-visit-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
     }
-    .slimming-stack-card--auto {
-        height: auto;
+    .slimming-current-visit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: .28rem .7rem;
+        background: rgba(37, 99, 235, 0.12);
+        color: #2563eb;
+        font-size: .7rem;
+        font-weight: 700;
+        line-height: 1;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        animation: slimming-blink 1.4s ease-in-out infinite;
     }
-    .slimming-figure-panel {
+    .slimming-action-cell {
+        white-space: nowrap;
+    }
+    .slimming-segmental-card {
         position: relative;
-        aspect-ratio: 1618 / 1004;
-        min-height: 640px;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        background-color: #fff;
-        background-image: url('{{ asset('img/asesmen/slimming.png') }}');
-        background-repeat: no-repeat;
-        background-position: center top;
-        background-size: 74% auto;
+        min-height: 29rem;
+        padding: 1rem;
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    }
+    .slimming-segmental-canvas {
+        position: relative;
+        min-height: 27rem;
+        border-radius: .75rem;
         overflow: hidden;
-    }
-    .slimming-figure-panel--single {
-        aspect-ratio: 387 / 503;
-        min-height: 280px;
+        background-color: rgba(255, 255, 255, .82);
+        background-image: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)), url('{{ asset('asesmen/img_slimming.png') }}');
+        background-repeat: no-repeat;
+        background-position: center;
         background-size: contain;
-        background-position: center top;
+        border: 1px solid #e5e7eb;
     }
-    .slimming-figure-field {
+    .slimming-segmental-side {
         position: absolute;
-        width: 108px;
+        top: 50%;
+        font-size: 2rem;
+        font-weight: 800;
+        color: rgba(148, 163, 184, .65);
+        letter-spacing: .08em;
+        transform: translateY(-50%) rotate(-90deg);
+        transform-origin: center;
+        user-select: none;
+    }
+    .slimming-segmental-side--left {
+        left: -1rem;
+    }
+    .slimming-segmental-side--right {
+        right: -1.5rem;
+        transform: translateY(-50%) rotate(90deg);
+    }
+    .slimming-segmental-marker {
+        position: absolute;
+        display: grid;
+        gap: .2rem;
+        max-width: 9rem;
+        text-align: center;
+    }
+    .slimming-segmental-marker strong {
+        font-size: .97rem;
+        color: #111827;
+        font-weight: 700;
+    }
+    .slimming-segmental-marker span {
+        font-size: .86rem;
+        color: #1f2937;
+    }
+    .slimming-segmental-marker--arm {
+        top: 4.6rem;
+        left: 1rem;
+    }
+    .slimming-segmental-marker--trunk {
+        top: 10rem;
+        left: 50%;
         transform: translateX(-50%);
     }
-    .slimming-figure-field label {
-        display: block;
-        margin-bottom: .35rem;
-        font-size: .875rem;
-        font-weight: 600;
-        text-align: left;
-        color: #111827;
-        text-shadow: none;
-    }
-    .slimming-figure-field .form-control {
-        height: 38px;
-        border-radius: .25rem;
-        text-align: left;
-        background: #fff;
-        border-color: #ced4da;
-        box-shadow: none;
-    }
-    .slimming-figure-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-    .slimming-figure-section-title {
-        font-size: .95rem;
-        font-weight: 700;
-        color: #111827;
-        margin-bottom: .75rem;
-    }
-    .slimming-figure-split {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: .75rem;
-    }
-    .slimming-figure-field--whole {
-        top: 16%;
-        left: 55%;
-    }
-    .slimming-figure-field--trunk {
-        top: 42%;
+    .slimming-segmental-marker--waist {
+        top: 14.2rem;
         left: 50%;
+        transform: translateX(-50%);
     }
-    .slimming-figure-field--arms {
-        top: 50%;
-        left: 22%;
+    .slimming-segmental-marker--leg {
+        bottom: 5.4rem;
+        left: 50%;
+        transform: translateX(-50%);
     }
-    .slimming-figure-field--legs {
-        top: 80%;
-        left: 70%;
+    .slimming-segmental-circumference {
+        position: absolute;
+        display: grid;
+        gap: .15rem;
+        min-width: 7rem;
+        padding: .45rem .55rem;
+        border-radius: .7rem;
+        background: rgba(255, 255, 255, .84);
+        border: 1px solid rgba(226, 232, 240, .95);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+        text-align: center;
+    }
+    .slimming-segmental-circumference small {
+        color: #64748b;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .slimming-segmental-circumference span {
+        color: #0f172a;
+        font-size: .88rem;
+        font-weight: 700;
+    }
+    .slimming-segmental-circumference--arm-left {
+        top: 3.4rem;
+        left: 1rem;
+    }
+    .slimming-segmental-circumference--arm-right {
+        top: 3.4rem;
+        right: 1rem;
+    }
+    .slimming-segmental-circumference--leg-left {
+        bottom: 2.2rem;
+        left: 1rem;
+    }
+    .slimming-segmental-circumference--leg-right {
+        bottom: 2.2rem;
+        right: 1rem;
+    }
+    .slimming-segmental-pill {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        padding: .18rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 700;
+        line-height: 1.1;
+    }
+    .slimming-segmental-pill--normal,
+    .slimming-segmental-pill--baik,
+    .slimming-segmental-pill--sangat-baik {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .slimming-segmental-pill--rendah {
+        background: #e0f2fe;
+        color: #075985;
+    }
+    .slimming-segmental-pill--over,
+    .slimming-segmental-pill--tinggi,
+    .slimming-segmental-pill--borderline {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .slimming-segmental-pill--danger,
+    .slimming-segmental-pill--obesitas,
+    .slimming-segmental-pill--sangat-tinggi {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    @keyframes slimming-blink {
+        0%,
+        100% {
+            box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.28);
+            opacity: 1;
+        }
+        50% {
+            box-shadow: 0 0 0 .4rem rgba(37, 99, 235, 0);
+            opacity: .72;
+        }
+    }
+    .slimming-data-card {
+        padding: 1rem;
+    }
+    .slimming-modal .modal-body {
+        padding: 1rem 1.25rem;
+    }
+    .slimming-modal .form-group label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: .35rem;
+    }
+    .slimming-modal-section + .slimming-modal-section {
+        margin-top: 1.25rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid #e5e7eb;
     }
     @media (max-width: 991.98px) {
-        .slimming-grid-table td.label-cell {
-            width: auto;
-        }
-        .slimming-figure-panel {
-            min-height: auto;
-            padding: 1rem;
-            background-size: contain;
-            background-position: center top;
-        }
-        .slimming-figure-grid {
+        .slimming-analysis-stack {
             grid-template-columns: 1fr;
         }
-        .slimming-figure-split {
+        .slimming-segmental-grid {
             grid-template-columns: 1fr;
         }
-        .slimming-figure-field {
-            position: static;
-            width: 100%;
-            transform: none;
-            margin-bottom: 1rem;
+        .slimming-toolbar {
+            flex-direction: column;
+            align-items: flex-start;
         }
-        .slimming-figure-field:last-child {
-            margin-bottom: 0;
+        .slimming-segmental-side {
+            display: none;
         }
     }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid slimming-shell">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Slimming</h3>
     </div>
@@ -525,7 +392,7 @@
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger">
+        <div class="alert alert-danger mb-0">
             <ul class="mb-0 pl-3">
                 @foreach($errors->all() as $error)
                     <li>{{ $error }}</li>
@@ -534,366 +401,361 @@
         </div>
     @endif
 
-    <div class="row">
-        <div class="col-12 mb-3">
-            <div class="card h-100">
-                <div class="card-header">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h5 class="mb-0 text-uppercase font-weight-bold">Input Slimming</h5>
-                        <button type="button" class="btn btn-outline-primary btn-sm" data-toggle="modal" data-target="#riwayatSlimmingModal">
-                            Riwayat Slimming
-                        </button>
+    {{-- <div class="slimming-card">
+        <div class="slimming-toolbar">
+            <div>
+                <h4 class="slimming-toolbar-title">Slimming Analysis</h4>
+                <p class="slimming-toolbar-note">Ringkasan data slimming pasien dan histori input.</p>
+            </div>
+        </div>
+    </div> --}}
+
+    <div class="slimming-card">
+        <div class="slimming-card-header slimming-card-header--with-action">
+            <span>Riwayat Slimming</span>
+            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#slimmingInputModal">
+                Input Data
+            </button>
+        </div>
+        <div class="slimming-data-card">
+            <div class="table-responsive">
+                <table id="slimmingTable" class="table table-bordered table-striped w-100 mb-0">
+                    <thead>
+                        <tr>
+                            <th>Kunjungan</th>
+                            <th>Usia</th>
+                            <th>TB</th>
+                            <th>BB</th>
+                            <th>Base Weight</th>
+                            <th>Base BMI</th>
+                            <th>Base Fat</th>
+                            <th>Visceral Fat</th>
+                            <th>Lingkar Perut</th>
+                            <th>Input At</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="slimming-analysis-stack">
+        <div class="slimming-card">
+            <div class="slimming-card-header">Body Composition Analysis</div>
+            <table class="slimming-analysis-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Hasil</th>
+                        <th>Normal</th>
+                        <th>Interpretasi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Berat Badan</td>
+                        <td id="summary_base_weight">-</td>
+                        <td id="summary_base_weight_normal">-</td>
+                        <td id="summary_base_weight_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                    <tr>
+                        <td>BMI</td>
+                        <td id="summary_base_bmi">-</td>
+                        <td id="summary_base_bmi_normal">18,5 - 22,9</td>
+                        <td id="summary_base_bmi_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                    <tr>
+                        <td>Body Age</td>
+                        <td id="summary_base_body_age">-</td>
+                        <td id="summary_base_body_age_normal">&le; 29 Tahun</td>
+                        <td id="summary_base_body_age_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="slimming-card">
+            <div class="slimming-card-header">Body Index Analysis</div>
+            <table class="slimming-analysis-table">
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Hasil</th>
+                        <th>Normal</th>
+                        <th>Interpretasi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Whole Body Fat</td>
+                        <td id="summary_base_fat">-</td>
+                        <td id="summary_base_fat_normal">-</td>
+                        <td id="summary_base_fat_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                    <tr>
+                        <td>Subcutaneous Body Fat</td>
+                        <td id="summary_subcutaneous_whole_body">-</td>
+                        <td id="summary_subcutaneous_whole_body_normal">-</td>
+                        <td id="summary_subcutaneous_whole_body_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                    <tr>
+                        <td>Visceral Fat</td>
+                        <td id="summary_base_visceral_fat">-</td>
+                        <td id="summary_base_visceral_fat_normal">1 - 9</td>
+                        <td id="summary_base_visceral_fat_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                    <tr>
+                        <td>Skeletal Whole Body</td>
+                        <td id="summary_skeletal_whole_body">-</td>
+                        <td id="summary_skeletal_whole_body_normal">-</td>
+                        <td id="summary_skeletal_whole_body_interpretation" class="slimming-status-cell">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="slimming-segmental-grid">
+        <div class="slimming-card">
+            <div class="slimming-card-header">Segmental Fat Analysis</div>
+            <div class="slimming-segmental-card">
+                <div class="slimming-segmental-canvas">
+                    <span class="slimming-segmental-side slimming-segmental-side--left">LEFT</span>
+                    <span class="slimming-segmental-side slimming-segmental-side--right">RIGHT</span>
+
+                    <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-left">
+                        <small>Lengan Kiri</small>
+                        <span id="segmental_arm_left_size">-</span>
+                    </div>
+                    <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-right">
+                        <small>Lengan Kanan</small>
+                        <span id="segmental_arm_right_size">-</span>
+                    </div>
+                    <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-left">
+                        <small>Paha Kiri</small>
+                        <span id="segmental_leg_left_size">-</span>
+                    </div>
+                    <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-right">
+                        <small>Paha Kanan</small>
+                        <span id="segmental_leg_right_size">-</span>
+                    </div>
+
+                    <div class="slimming-segmental-marker slimming-segmental-marker--arm">
+                        <strong id="segmental_fat_arm_value">Arm: -</strong>
+                        <span id="segmental_fat_arm_status">-</span>
+                    </div>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
+                        <strong id="segmental_fat_trunk_value">Trunk: -</strong>
+                        <span id="segmental_fat_trunk_status">-</span>
+                    </div>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--waist">
+                        <strong id="segmental_waist_value">Lingkar Perut: -</strong>
+                    </div>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--leg">
+                        <strong id="segmental_fat_leg_value">Legs: -</strong>
+                        <span id="segmental_fat_leg_status">-</span>
                     </div>
                 </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('erm.slimming.store') }}">
-                        @csrf
-                        <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
-                        <input type="hidden" name="obesity_eval" id="obesity_eval" value="{{ old('obesity_eval') }}">
+            </div>
+        </div>
 
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <div class="form-group mb-0">
-                                    <label for="riwayat_tindakan_id">Riwayat Tindakan ID</label>
-                                    <select name="riwayat_tindakan_id" id="riwayat_tindakan_id" class="form-control" required>
-                                        <option value="">Pilih riwayat tindakan slimming</option>
-                                        @foreach($riwayatTindakanOptions as $riwayatTindakan)
-                                            <option value="{{ $riwayatTindakan->id }}" {{ old('riwayat_tindakan_id') == $riwayatTindakan->id ? 'selected' : '' }}>
-                                                {{ $riwayatTindakan->id }} - {{ optional($riwayatTindakan->tindakan)->nama ?? 'Tanpa tindakan' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    @if(!$hasSlimmingRiwayat)
-                                        <small class="text-danger d-block mt-2">Tambahkan tindakan yang ditandai sebagai slimming di menu Tindakan terlebih dahulu. Setelah riwayat tindakan dibuat, asesmen slimming baru bisa diisi.</small>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
+        <div class="slimming-card">
+            <div class="slimming-card-header">Segmental Skeletal Analysis</div>
+            <div class="slimming-segmental-card">
+                <div class="slimming-segmental-canvas">
+                    <span class="slimming-segmental-side slimming-segmental-side--left">LEFT</span>
+                    <span class="slimming-segmental-side slimming-segmental-side--right">RIGHT</span>
 
-                        <fieldset {{ $hasSlimmingRiwayat ? '' : 'disabled' }}>
-                        <div class="slimming-sheet mb-4">
-                            <div class="row mb-4">
-                                <div class="col-lg-6">
-                                    <div class="slimming-stack-card h-100">
-                                        <div class="slimming-sheet-title"><i class="fas fa-weight"></i><span>Body Measurement</span></div>
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="form-group mb-md-0">
-                                                    <label for="tb"><i class="fas fa-ruler-vertical text-muted mr-2"></i>Height</label>
-                                                    <div class="slimming-inline-input">
-                                                        <input type="number" step="0.01" class="form-control" id="tb" name="tb" value="{{ old('tb') }}">
-                                                        <span class="unit-label">cm</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6 mt-3 mt-md-0">
-                                                <div class="form-group mb-0">
-                                                    <label for="bb"><i class="fas fa-balance-scale text-muted mr-2"></i>Weight</label>
-                                                    <div class="slimming-inline-input">
-                                                        <input type="number" step="0.01" class="form-control" id="bb" name="bb" value="{{ old('bb') }}">
-                                                        <span class="unit-label">kg</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-lg-6 mt-4 mt-lg-0">
-                                    <div class="slimming-stack-card h-100">
-                                        <div class="slimming-sheet-title"><i class="fas fa-bullseye"></i><span>Weight Control</span></div>
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <div class="form-group mb-md-0">
-                                                    <label for="target_weight"><i class="fas fa-crosshairs text-muted mr-2"></i>Target Weight</label>
-                                                    <div class="slimming-inline-input">
-                                                        <input type="number" step="0.01" class="form-control" id="target_weight" name="target_weight" value="{{ old('target_weight') }}">
-                                                        <span class="unit-label">kg</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-6 mt-3 mt-md-0">
-                                                <div class="form-group mb-0">
-                                                    <label for="weight_control"><i class="fas fa-sliders-h text-muted mr-2"></i>Weight Control</label>
-                                                    <div class="slimming-inline-input">
-                                                        <input type="number" step="0.01" class="form-control" id="weight_control" name="weight_control" value="{{ old('weight_control') }}">
-                                                        <span class="unit-label">kg</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-12">
-                                    <div class="slimming-sheet-title">Muscle-Fat Analysis</div>
-                                    <div class="table-responsive mb-4">
-                                        <table class="slimming-grid-table">
-                                            <tbody>
-                                                <tr>
-                                                    <td class="label-cell">Muscle (%)</td>
-                                                    <td class="input-cell">
-                                                        <input type="number" step="0.01" class="form-control" id="muscle_fat_muscle" name="muscle_fat_muscle" value="{{ old('muscle_fat_muscle') }}">
-                                                    </td>
-                                                    <td class="range-cell" colspan="3">
-                                                        <div class="slimming-ruler-wrapper" data-ruler-for="muscle_fat_muscle" data-min="{{ $rulerConfigs['muscle_fat_muscle']['min'] }}" data-max="{{ $rulerConfigs['muscle_fat_muscle']['max'] }}" data-under-max="{{ $rulerConfigs['muscle_fat_muscle']['under_max'] }}" data-normal-max="{{ $rulerConfigs['muscle_fat_muscle']['normal_max'] }}" data-segment-widths="{{ implode(',', $rulerConfigs['muscle_fat_muscle']['segment_widths']) }}" data-ticks="{{ implode(',', $rulerConfigs['muscle_fat_muscle']['ticks']) }}">
-                                                            <div class="slimming-ruler-sections">
-                                                                <span data-category="under" style="width: {{ $rulerConfigs['muscle_fat_muscle']['segment_widths'][0] }}%;">Under</span>
-                                                                <span data-category="normal" style="width: {{ $rulerConfigs['muscle_fat_muscle']['segment_widths'][1] }}%;">Normal</span>
-                                                                <span data-category="over" style="width: {{ $rulerConfigs['muscle_fat_muscle']['segment_widths'][2] }}%;">Over</span>
-                                                            </div>
-                                                            <div class="slimming-ruler-track">
-                                                                @php
-                                                                    $tickCount = max(count($rulerConfigs['muscle_fat_muscle']['ticks']) - 1, 1);
-                                                                @endphp
-                                                                @foreach($rulerConfigs['muscle_fat_muscle']['ticks'] as $tickIndex => $tick)
-                                                                    @php
-                                                                        $left = ($tickIndex / $tickCount) * 100;
-                                                                        $labelShift = $rulerConfigs['muscle_fat_muscle']['label_offsets'][(string) $tick] ?? 0;
-                                                                    @endphp
-                                                                    <div class="slimming-ruler-tick" style="left: {{ $left }}%; --tick-label-shift: {{ $labelShift }}px;">
-                                                                        <span>{{ $tick }}</span>
-                                                                    </div>
-                                                                @endforeach
-                                                                <div class="slimming-ruler-indicator" data-indicator-for="muscle_fat_muscle" style="left: 0%;"></div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="label-cell">Body Fat Mass (%)</td>
-                                                    <td class="input-cell">
-                                                        <input type="number" step="0.01" class="form-control" id="muscle_fat_body_fat_mass" name="muscle_fat_body_fat_mass" value="{{ old('muscle_fat_body_fat_mass') }}">
-                                                    </td>
-                                                    <td class="range-cell" colspan="3">
-                                                        <div class="slimming-ruler-wrapper" data-ruler-for="muscle_fat_body_fat_mass" data-min="{{ $rulerConfigs['muscle_fat_body_fat_mass']['min'] }}" data-max="{{ $rulerConfigs['muscle_fat_body_fat_mass']['max'] }}" data-under-max="{{ $rulerConfigs['muscle_fat_body_fat_mass']['under_max'] }}" data-normal-max="{{ $rulerConfigs['muscle_fat_body_fat_mass']['normal_max'] }}" data-segment-widths="{{ implode(',', $rulerConfigs['muscle_fat_body_fat_mass']['segment_widths']) }}" data-ticks="{{ implode(',', $rulerConfigs['muscle_fat_body_fat_mass']['ticks']) }}">
-                                                            <div class="slimming-ruler-sections">
-                                                                <span data-category="under" style="width: {{ $rulerConfigs['muscle_fat_body_fat_mass']['segment_widths'][0] }}%;">Under</span>
-                                                                <span data-category="normal" style="width: {{ $rulerConfigs['muscle_fat_body_fat_mass']['segment_widths'][1] }}%;">Normal</span>
-                                                                <span data-category="over" style="width: {{ $rulerConfigs['muscle_fat_body_fat_mass']['segment_widths'][2] }}%;">Over</span>
-                                                            </div>
-                                                            <div class="slimming-ruler-track">
-                                                                @php
-                                                                    $tickCount = max(count($rulerConfigs['muscle_fat_body_fat_mass']['ticks']) - 1, 1);
-                                                                @endphp
-                                                                @foreach($rulerConfigs['muscle_fat_body_fat_mass']['ticks'] as $tickIndex => $tick)
-                                                                    @php
-                                                                        $left = ($tickIndex / $tickCount) * 100;
-                                                                        $labelShift = $rulerConfigs['muscle_fat_body_fat_mass']['label_offsets'][(string) $tick] ?? 0;
-                                                                    @endphp
-                                                                    <div class="slimming-ruler-tick" style="left: {{ $left }}%; --tick-label-shift: {{ $labelShift }}px;">
-                                                                        <span>{{ $tick }}</span>
-                                                                    </div>
-                                                                @endforeach
-                                                                <div class="slimming-ruler-indicator" data-indicator-for="muscle_fat_body_fat_mass" style="left: 0%;"></div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div class="slimming-sheet-title">Obesity Analysis</div>
-                                    <div class="table-responsive">
-                                        <table class="slimming-grid-table">
-                                            <tbody>
-                                                <tr>
-                                                    <td class="label-cell">BMI (kg/m²)</td>
-                                                    <td class="input-cell">
-                                                        <input type="number" step="0.01" class="form-control" id="obesity_bmi" name="obesity_bmi" value="{{ old('obesity_bmi') }}" readonly>
-                                                    </td>
-                                                    <td class="range-cell" colspan="3">
-                                                        <div class="slimming-ruler-wrapper" data-ruler-for="obesity_bmi" data-min="{{ $rulerConfigs['obesity_bmi']['min'] }}" data-max="{{ $rulerConfigs['obesity_bmi']['max'] }}" data-under-max="{{ $rulerConfigs['obesity_bmi']['under_max'] }}" data-normal-max="{{ $rulerConfigs['obesity_bmi']['normal_max'] }}" data-segment-widths="{{ implode(',', $rulerConfigs['obesity_bmi']['segment_widths']) }}" data-ticks="{{ implode(',', $rulerConfigs['obesity_bmi']['ticks']) }}">
-                                                            <div class="slimming-ruler-sections">
-                                                                <span data-category="under" style="width: {{ $rulerConfigs['obesity_bmi']['segment_widths'][0] }}%;">Under</span>
-                                                                <span data-category="normal" style="width: {{ $rulerConfigs['obesity_bmi']['segment_widths'][1] }}%;">Normal</span>
-                                                                <span data-category="over" style="width: {{ $rulerConfigs['obesity_bmi']['segment_widths'][2] }}%;">Over</span>
-                                                            </div>
-                                                            <div class="slimming-ruler-track">
-                                                                @php
-                                                                    $tickCount = max(count($rulerConfigs['obesity_bmi']['ticks']) - 1, 1);
-                                                                @endphp
-                                                                @foreach($rulerConfigs['obesity_bmi']['ticks'] as $tickIndex => $tick)
-                                                                    @php
-                                                                        $left = ($tickIndex / $tickCount) * 100;
-                                                                        $labelShift = $rulerConfigs['obesity_bmi']['label_offsets'][(string) $tick] ?? 0;
-                                                                    @endphp
-                                                                    <div class="slimming-ruler-tick" style="left: {{ $left }}%; --tick-label-shift: {{ $labelShift }}px;">
-                                                                        <span>{{ $tick }}</span>
-                                                                    </div>
-                                                                @endforeach
-                                                                <div class="slimming-ruler-indicator" data-indicator-for="obesity_bmi" style="left: 0%;"></div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <td class="label-cell">Analysis (%)</td>
-                                                    <td class="input-cell">
-                                                        <input type="text" class="form-control" id="obesity_analysis" name="obesity_analysis" value="{{ old('obesity_analysis') }}">
-                                                    </td>
-                                                    <td class="range-cell" colspan="3">
-                                                        <div class="slimming-ruler-plain"></div>
-                                                    </td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                <div class="col-12 mt-4">
-                                    <div class="slimming-stack-card">
-                                        <div class="slimming-sheet-title">Obesity Evaluation</div>
-                                        <div class="slimming-eval-panel">
-                                            <div class="slimming-eval-grid">
-                                                <div class="slimming-eval-card">
-                                                    <div class="slimming-eval-card-inner">
-                                                        <div>
-                                                            <label for="obesity_eval_bmi">BMI Score</label>
-                                                            <input type="number" step="0.01" class="form-control" id="obesity_eval_bmi" name="obesity_eval_bmi" value="{{ old('obesity_eval_bmi') }}" readonly>
-                                                        </div>
-                                                        <div>
-                                                            <div class="slimming-eval-status-title">BMI Classification</div>
-                                                            <div class="slimming-eval-options">
-                                                                <label><input type="radio" name="obesity_eval_bmi_status" value="normal" {{ $oldBmiEvalStatus === 'normal' ? 'checked' : '' }}> Normal</label>
-                                                                <label><input type="radio" name="obesity_eval_bmi_status" value="under" {{ $oldBmiEvalStatus === 'under' ? 'checked' : '' }}> Under</label>
-                                                                <label><input type="radio" name="obesity_eval_bmi_status" value="over" {{ $oldBmiEvalStatus === 'over' ? 'checked' : '' }}> Over</label>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="slimming-eval-card">
-                                                    <div class="slimming-eval-card-inner">
-                                                        <div>
-                                                            <label for="pbf">PBF</label>
-                                                            <input type="number" step="0.01" class="form-control" id="pbf" name="pbf" value="{{ old('pbf') }}" readonly>
-                                                        </div>
-                                                        <div>
-                                                            <div class="slimming-eval-status-title">PBF Classification</div>
-                                                            <div class="slimming-eval-options">
-                                                                <label><input type="radio" name="obesity_eval_pbf_status" value="normal" {{ $oldPbfEvalStatus === 'normal' ? 'checked' : '' }}> Normal</label>
-                                                                <label><input type="radio" name="obesity_eval_pbf_status" value="under" {{ $oldPbfEvalStatus === 'under' ? 'checked' : '' }}> Under</label>
-                                                                <label><input type="radio" name="obesity_eval_pbf_status" value="over" {{ $oldPbfEvalStatus === 'over' ? 'checked' : '' }}> Over</label>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-xl-9 col-lg-8 mb-3">
-                                <div class="slimming-stack-card">
-                                    <div class="slimming-sheet-title">Subcutaneous Fat & Skeletal Muscle</div>
-                                    <div class="slimming-figure-grid">
-                                        <div>
-                                            <div class="slimming-figure-section-title">Subcutaneous Fat</div>
-                                        </div>
-                                        <div>
-                                            <div class="slimming-figure-section-title">Skeletal Muscle</div>
-                                        </div>
-                                    </div>
-
-                                    <div class="slimming-figure-split">
-                                        <div class="slimming-figure-panel slimming-figure-panel--single">
-                                            <div class="slimming-figure-field slimming-figure-field--whole">
-                                                <label for="subcutaneous_whole_body">Subcutan Whole Body</label>
-                                                <input type="number" step="0.01" class="form-control" id="subcutaneous_whole_body" name="subcutaneous_whole_body" value="{{ old('subcutaneous_whole_body') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--trunk">
-                                                <label for="subcutaneous_trunk">Subcutan Trunk</label>
-                                                <input type="number" step="0.01" class="form-control" id="subcutaneous_trunk" name="subcutaneous_trunk" value="{{ old('subcutaneous_trunk') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--arms">
-                                                <label for="subcutaneous_arms">Subcutan Arms</label>
-                                                <input type="number" step="0.01" class="form-control" id="subcutaneous_arms" name="subcutaneous_arms" value="{{ old('subcutaneous_arms') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--legs">
-                                                <label for="subcutaneous_legs">Subcutan Legs</label>
-                                                <input type="number" step="0.01" class="form-control" id="subcutaneous_legs" name="subcutaneous_legs" value="{{ old('subcutaneous_legs') }}">
-                                            </div>
-                                        </div>
-                                        <div class="slimming-figure-panel slimming-figure-panel--single">
-                                            <div class="slimming-figure-field slimming-figure-field--whole">
-                                                <label for="skeletal_whole_body">Skeletal Whole Body</label>
-                                                <input type="number" step="0.01" class="form-control" id="skeletal_whole_body" name="skeletal_whole_body" value="{{ old('skeletal_whole_body') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--trunk">
-                                                <label for="skeletal_trunk">Skeletal Trunk</label>
-                                                <input type="number" step="0.01" class="form-control" id="skeletal_trunk" name="skeletal_trunk" value="{{ old('skeletal_trunk') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--arms">
-                                                <label for="skeletal_arms">Skeletal Arms</label>
-                                                <input type="number" step="0.01" class="form-control" id="skeletal_arms" name="skeletal_arms" value="{{ old('skeletal_arms') }}">
-                                            </div>
-                                            <div class="slimming-figure-field slimming-figure-field--legs">
-                                                <label for="skeletal_legs">Skeletal Legs</label>
-                                                <input type="number" step="0.01" class="form-control" id="skeletal_legs" name="skeletal_legs" value="{{ old('skeletal_legs') }}">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="col-xl-3 col-lg-4 mb-3">
-                                <div class="slimming-stack-card slimming-stack-card--auto mb-3">
-                                    <div class="slimming-sheet-title"><i class="fas fa-flask"></i><span>Research Parameters</span></div>
-                                    <div class="form-group">
-                                        <label for="research_basal_metabolic_rate"><i class="fas fa-bolt text-muted mr-2"></i>Research Basal Metabolic Rate</label>
-                                        <input type="number" step="0.01" class="form-control" id="research_basal_metabolic_rate" name="research_basal_metabolic_rate" value="{{ old('research_basal_metabolic_rate') }}">
-                                    </div>
-                                    <div class="form-group mb-0">
-                                        <label for="visceral_fat_level"><i class="fas fa-heartbeat text-muted mr-2"></i>Research Visceral Fat Level</label>
-                                        <input type="number" step="0.01" class="form-control" id="visceral_fat_level" name="visceral_fat_level" value="{{ old('visceral_fat_level') }}">
-                                    </div>
-                                </div>
-
-                                <div class="slimming-stack-card slimming-stack-card--auto">
-                                    <div class="slimming-sheet-title"><i class="fas fa-ruler-combined"></i><span>Body Circumference</span></div>
-                                    @foreach($circumferenceFields as $field)
-                                        <div class="form-group {{ $loop->last ? 'mb-0' : '' }}">
-                                            <label for="{{ $field['name'] }}"><i class="{{ $field['icon'] }} text-muted mr-2"></i>{{ $field['label'] }}</label>
-                                            <input type="number" step="0.01" class="form-control" id="{{ $field['name'] }}" name="{{ $field['name'] }}" value="{{ old($field['name']) }}">
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="text-right">
-                            <button type="submit" class="btn btn-primary" {{ $hasSlimmingRiwayat ? '' : 'disabled' }}>Simpan Slimming</button>
-                        </div>
-                        </fieldset>
-                    </form>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--arm">
+                        <strong id="segmental_skeletal_arm_value">Arm: -</strong>
+                        <span id="segmental_skeletal_arm_status">-</span>
+                    </div>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
+                        <strong id="segmental_skeletal_trunk_value">Trunk: -</strong>
+                        <span id="segmental_skeletal_trunk_status">-</span>
+                    </div>
+                    <div class="slimming-segmental-marker slimming-segmental-marker--leg">
+                        <strong id="segmental_skeletal_leg_value">Legs: -</strong>
+                        <span id="segmental_skeletal_leg_status">-</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="riwayatSlimmingModal" tabindex="-1" aria-labelledby="riwayatSlimmingModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+<div class="modal fade slimming-modal" id="slimmingInputModal" tabindex="-1" role="dialog" aria-labelledby="slimmingInputModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="riwayatSlimmingModalLabel">Riwayat Slimming Pasien</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body p-2">
-                <div class="table-responsive">
-                    <table id="slimmingTable" class="table table-bordered table-sm w-100">
-                        <thead></thead>
-                        <tbody></tbody>
-                    </table>
+            <form method="POST" action="{{ route('erm.slimming.store') }}">
+                @csrf
+                <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="slimmingInputModalLabel">Input Data Slimming</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
                 </div>
-            </div>
+                <div class="modal-body">
+                    <div class="slimming-modal-section">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="usia">Usia</label>
+                                    <input type="number" min="0" class="form-control" id="usia" name="usia" value="{{ old('usia', $pasienAge) }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="tb">TB</label>
+                                    <input type="number" step="0.01" class="form-control" id="tb" name="tb" value="{{ old('tb') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="bb">BB</label>
+                                    <input type="number" step="0.01" class="form-control" id="bb" name="bb" value="{{ old('bb') }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slimming-modal-section">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="base_weight">Base Weight</label>
+                                    <input type="number" step="0.01" class="form-control" id="base_weight" name="base_weight" value="{{ old('base_weight') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="base_fat">Base Fat</label>
+                                    <input type="number" step="0.01" class="form-control" id="base_fat" name="base_fat" value="{{ old('base_fat') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="base_visceral_fat">Base Visceral Fat</label>
+                                    <input type="number" step="0.01" class="form-control" id="base_visceral_fat" name="base_visceral_fat" value="{{ old('base_visceral_fat') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group mb-md-0">
+                                    <label for="base_kcal">Base Kcal</label>
+                                    <input type="number" step="0.01" class="form-control" id="base_kcal" name="base_kcal" value="{{ old('base_kcal') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group mb-md-0">
+                                    <label for="base_bmi">Base BMI</label>
+                                    <input type="number" step="0.01" class="form-control" id="base_bmi" name="base_bmi" value="{{ old('base_bmi') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group mb-0">
+                                    <label for="base_body_age">Base Body Age</label>
+                                    <input type="number" min="0" class="form-control" id="base_body_age" name="base_body_age" value="{{ old('base_body_age') }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slimming-modal-section">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="lingkar_perut">Lingkar Perut</label>
+                                    <input type="number" step="0.01" class="form-control" id="lingkar_perut" name="lingkar_perut" value="{{ old('lingkar_perut') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="lingkar_lengan_kanan">Lingkar Lengan Kanan</label>
+                                    <input type="number" step="0.01" class="form-control" id="lingkar_lengan_kanan" name="lingkar_lengan_kanan" value="{{ old('lingkar_lengan_kanan') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="lingkar_lengan_kiri">Lingkar Lengan Kiri</label>
+                                    <input type="number" step="0.01" class="form-control" id="lingkar_lengan_kiri" name="lingkar_lengan_kiri" value="{{ old('lingkar_lengan_kiri') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="lingkar_paha_kanan">Lingkar Paha Kanan</label>
+                                    <input type="number" step="0.01" class="form-control" id="lingkar_paha_kanan" name="lingkar_paha_kanan" value="{{ old('lingkar_paha_kanan') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-0">
+                                    <label for="lingkar_paha_kiri">Lingkar Paha Kiri</label>
+                                    <input type="number" step="0.01" class="form-control" id="lingkar_paha_kiri" name="lingkar_paha_kiri" value="{{ old('lingkar_paha_kiri') }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slimming-modal-section">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="subcutaneous_whole_body">Subcutaneous Whole Body</label>
+                                    <input type="number" step="0.01" class="form-control" id="subcutaneous_whole_body" name="subcutaneous_whole_body" value="{{ old('subcutaneous_whole_body') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="subcutaneous_trunk">Subcutaneous Trunk</label>
+                                    <input type="number" step="0.01" class="form-control" id="subcutaneous_trunk" name="subcutaneous_trunk" value="{{ old('subcutaneous_trunk') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="subcutaneous_arms">Subcutaneous Arms</label>
+                                    <input type="number" step="0.01" class="form-control" id="subcutaneous_arms" name="subcutaneous_arms" value="{{ old('subcutaneous_arms') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="subcutaneous_legs">Subcutaneous Legs</label>
+                                    <input type="number" step="0.01" class="form-control" id="subcutaneous_legs" name="subcutaneous_legs" value="{{ old('subcutaneous_legs') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-md-0">
+                                    <label for="skeletal_whole_body">Skeletal Whole Body</label>
+                                    <input type="number" step="0.01" class="form-control" id="skeletal_whole_body" name="skeletal_whole_body" value="{{ old('skeletal_whole_body') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-md-0">
+                                    <label for="skeletal_trunk">Skeletal Trunk</label>
+                                    <input type="number" step="0.01" class="form-control" id="skeletal_trunk" name="skeletal_trunk" value="{{ old('skeletal_trunk') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-md-0">
+                                    <label for="skeletal_arms">Skeletal Arms</label>
+                                    <input type="number" step="0.01" class="form-control" id="skeletal_arms" name="skeletal_arms" value="{{ old('skeletal_arms') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group mb-0">
+                                    <label for="skeletal_legs">Skeletal Legs</label>
+                                    <input type="number" step="0.01" class="form-control" id="skeletal_legs" name="skeletal_legs" value="{{ old('skeletal_legs') }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Data</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -902,261 +764,542 @@
 @section('scripts')
 <script>
     $(function () {
-        let slimmingHistoryLoaded = false;
-        const pasienAge = {{ $pasienAge ?? 'null' }};
+        const slimmingDataUrl = '{{ route('erm.slimming.data', $visitation->id) }}';
+        const currentVisitationId = @json((string) $visitation->id);
         const pasienGender = @json($pasienGender);
-        const slimmingHistoryUrl = '{{ route('erm.slimming.data', $visitation->id) }}';
+        const summaryUnits = {
+            base_weight: ' kg',
+            base_bmi: '',
+            base_body_age: '',
+            base_fat: '',
+            base_visceral_fat: '',
+            skeletal_whole_body: ''
+        };
+        let recordsCache = [];
+        let activeSlimmingIndex = null;
 
-        function updateRuler(inputId) {
-            const inputEl = document.getElementById(inputId);
-            const rulerEl = document.querySelector('[data-ruler-for="' + inputId + '"]');
-            const indicatorEl = document.querySelector('[data-indicator-for="' + inputId + '"]');
-
-            if (!inputEl || !rulerEl || !indicatorEl) {
-                return;
+        function formatDecimal(value) {
+            if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+                return '-';
             }
 
-            const min = parseFloat(rulerEl.dataset.min || '0');
-            const max = parseFloat(rulerEl.dataset.max || '100');
-            const rawValue = parseFloat(inputEl.value);
-            const sectionEls = rulerEl.querySelectorAll('.slimming-ruler-sections [data-category]');
-            const underMax = parseFloat(rulerEl.dataset.underMax || '0');
-            const normalMax = parseFloat(rulerEl.dataset.normalMax || '0');
-            const segmentWidths = (rulerEl.dataset.segmentWidths || '25,25,50').split(',').map(function (value) {
-                return parseFloat(value);
-            });
-            const ticks = (rulerEl.dataset.ticks || '').split(',').map(function (value) {
-                return parseFloat(value);
-            }).filter(function (value) {
-                return !Number.isNaN(value);
-            });
-
-            if (Number.isNaN(rawValue)) {
-                indicatorEl.style.left = '0%';
-                sectionEls.forEach(function (sectionEl) {
-                    sectionEl.classList.remove('is-active');
-                });
-                return;
-            }
-
-            const clampedValue = Math.min(Math.max(rawValue, min), max);
-            let percentage = 0;
-
-            if (ticks.length >= 2) {
-                const lastIndex = ticks.length - 1;
-
-                if (clampedValue <= ticks[0]) {
-                    percentage = 0;
-                } else if (clampedValue >= ticks[lastIndex]) {
-                    percentage = 100;
-                } else {
-                        const startTick = ticks[index];
-                        const endTick = ticks[index + 1];
-
-                        { data: 'visitation_date', name: 'visitation_date', defaultContent: '-' },
-                    }
-                    const normalRange = Math.max(normalMax - underMax, 0.0001);
-                    percentage = segmentWidths[0] + (((clampedValue - underMax) / normalRange) * segmentWidths[1]);
-            });
+            return Number(value).toFixed(2).replace('.', ',');
         }
 
-        ['muscle_fat_weight', 'muscle_fat_muscle', 'muscle_fat_body_fat_mass', 'obesity_bmi'].forEach(function (inputId) {
-            const inputEl = document.getElementById(inputId);
-            if (!inputEl) {
-                return;
-            }
-
-            inputEl.addEventListener('input', function () {
-                updateRuler(inputId);
-            });
-
-            updateRuler(inputId);
-        });
-
-        function syncObesityEval() {
-            const bmiStatus = $('input[name="obesity_eval_bmi_status"]:checked').val() || '';
-            const pbfStatus = $('input[name="obesity_eval_pbf_status"]:checked').val() || '';
-            const parts = [];
-
-            if (bmiStatus) {
-                parts.push('BMI:' + bmiStatus);
-            }
-
-            if (pbfStatus) {
-                parts.push('PBF:' + pbfStatus);
-            }
-
-            $('#obesity_eval').val(parts.join(';'));
+        function formatRange(min, max, unit) {
+            return formatDecimal(min) + ' - ' + formatDecimal(max) + unit;
         }
 
-        function classifyEvalStatus(value, underMax, normalMax) {
-            if (Number.isNaN(value)) {
+        function formatSummaryValue(value, unit) {
+            if (value === null || value === undefined || value === '') {
+                return '-';
+            }
+
+            return formatDecimal(value) + unit;
+        }
+
+        function setInterpretationCell(selector, label) {
+            const cell = $(selector);
+            const statusClass = 'status-' + String(label || '-')
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+
+            cell.removeClass(function (index, className) {
+                return (className.match(/(^|\s)status-[^\s]+/g) || []).join(' ');
+            });
+
+            cell.text(label || '-');
+
+            if (label && label !== '-') {
+                cell.addClass(statusClass);
+            }
+        }
+
+        function buildTrendMarkup(currentValue, previousValue) {
+            if (currentValue === null || previousValue === null || Number.isNaN(currentValue) || Number.isNaN(previousValue)) {
                 return '';
             }
 
-            if (value < underMax) {
-                return 'under';
+            const difference = currentValue - previousValue;
+            if (difference === 0) {
+                return '<span class="slimming-trend slimming-trend--same">= 0,00</span>';
             }
 
-            if (value <= normalMax) {
-                return 'normal';
-            }
-
-            return 'over';
+            const direction = difference > 0 ? 'up' : 'down';
+            const arrow = difference > 0 ? '▲' : '▼';
+            return '<span class="slimming-trend slimming-trend--' + direction + '">' + arrow + ' ' + formatDecimal(Math.abs(difference)) + '</span>';
         }
 
-        function genderFactor(gender) {
-            if (!gender) {
+        function isCurrentVisit(record) {
+            return record && String(record.visitation_id) === currentVisitationId;
+        }
+
+        function resolveActiveIndex(records) {
+            if (!Array.isArray(records) || records.length === 0) {
                 return null;
             }
 
-            const normalizedGender = String(gender).trim().toLowerCase();
-
-            if (['l', 'male', 'man', 'pria', 'laki-laki', 'lakilaki'].includes(normalizedGender)) {
-                return 1;
+            if (activeSlimmingIndex !== null && records[activeSlimmingIndex]) {
+                return activeSlimmingIndex;
             }
 
-            if (['p', 'f', 'female', 'woman', 'wanita', 'perempuan'].includes(normalizedGender)) {
-                return 0;
-            }
+            const currentVisitIndex = records.findIndex(function (record) {
+                return isCurrentVisit(record);
+            });
 
-            return null;
+            return currentVisitIndex >= 0 ? currentVisitIndex : 0;
         }
 
-        function calculateBmi(heightCm, weightKg) {
-            if (Number.isNaN(heightCm) || Number.isNaN(weightKg) || heightCm <= 0 || weightKg <= 0) {
-                return null;
+        function renderVisitCell(record) {
+            const formattedVisitDate = formatVisitDate(record.visitation_date);
+            const currentVisitBadge = isCurrentVisit(record)
+                ? '<span class="slimming-current-visit" title="Current visit">Current Visit</span>'
+                : '';
+
+            return '<span class="slimming-visit-cell">' +
+                '<span>' + formattedVisitDate + '</span>' +
+                currentVisitBadge +
+            '</span>';
+        }
+
+        function formatVisitDate(value) {
+            if (!value || value === '-') {
+                return '-';
+            }
+
+            const parsedDate = new Date(value);
+            if (Number.isNaN(parsedDate.getTime())) {
+                return value;
+            }
+
+            return new Intl.DateTimeFormat('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }).format(parsedDate);
+        }
+
+        function setMetricCell(selector, value, unit, previousValue) {
+            const cell = $(selector);
+            const hasValue = value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
+
+            if (!hasValue) {
+                cell.html('-');
+                return;
+            }
+
+            const currentNumber = Number(value);
+            const previousNumber = previousValue !== null && previousValue !== undefined && previousValue !== '' && !Number.isNaN(Number(previousValue))
+                ? Number(previousValue)
+                : null;
+
+            cell.html(
+                '<span class="slimming-metric-value">' +
+                    '<span>' + formatDecimal(currentNumber) + unit + '</span>' +
+                    buildTrendMarkup(currentNumber, previousNumber) +
+                '</span>'
+            );
+        }
+
+        function formatSegmentalValue(value, unit, fallbackLabel) {
+            if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+                return fallbackLabel || '-';
+            }
+
+            return formatDecimal(value) + unit;
+        }
+
+        function buildSegmentalStatus(label) {
+            if (!label || label === '-') {
+                return '-';
+            }
+
+            const statusClass = 'slimming-segmental-pill--' + String(label)
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+
+            return '<span class="slimming-segmental-pill ' + statusClass + '">' + label + '</span>';
+        }
+
+        function setSegmentalMetric(valueSelector, statusSelector, label, value, unit, interpretation) {
+            $(valueSelector).text(label + ': ' + formatSegmentalValue(value, unit, '-'));
+            if (statusSelector) {
+                $(statusSelector).html(buildSegmentalStatus(interpretation));
+            }
+        }
+
+        function setSegmentalSingle(selector, label, value, unit) {
+            $(selector).text(label + ': ' + formatSegmentalValue(value, unit, '-'));
+        }
+
+        function genderProfile() {
+            if (['l', 'male', 'man', 'pria', 'laki-laki', 'lakilaki'].includes(String(pasienGender).toLowerCase())) {
+                return {
+                    bodyFatNormal: '10-20%',
+                    subcutaneousNormal: '10-22%',
+                    skeletalNormal: '33-39%',
+                    bodyFatInterpretation: function (value) {
+                        if (value === null) {
+                            return '-';
+                        }
+                        if (value < 8) {
+                            return 'Rendah';
+                        }
+                        if (value <= 12) {
+                            return 'Atlet';
+                        }
+                        if (value <= 20) {
+                            return 'Normal';
+                        }
+                        if (value <= 25) {
+                            return 'Tinggi';
+                        }
+                        return 'Obesitas';
+                    },
+                    subcutaneousInterpretation: function (value) {
+                        if (value === null) {
+                            return '-';
+                        }
+                        if (value < 10) {
+                            return 'Rendah';
+                        }
+                        if (value <= 22) {
+                            return 'Normal';
+                        }
+                        if (value <= 27) {
+                            return 'Tinggi';
+                        }
+                        return 'Obesitas';
+                    },
+                    skeletalInterpretation: function (value) {
+                        if (value === null) {
+                            return '-';
+                        }
+                        if (value < 33) {
+                            return 'Rendah';
+                        }
+                        if (value <= 39) {
+                            return 'Normal';
+                        }
+                        return 'Sangat baik';
+                    },
+                    segmentalFatThresholds: {
+                        arm: { normalMin: 12, overMin: 21 },
+                        trunk: { normalMin: 12, overMin: 23 },
+                        leg: { normalMin: 15, overMin: 26 }
+                    },
+                    segmentalSkeletalThresholds: {
+                        arm: { normalMin: 34, veryGoodMin: 43 },
+                        trunk: { normalMin: 30, veryGoodMin: 39 },
+                        leg: { normalMin: 38, veryGoodMin: 47 }
+                    }
+                };
+            }
+
+            return {
+                bodyFatNormal: '21-33%',
+                subcutaneousNormal: '20-32%',
+                skeletalNormal: '24-30%',
+                bodyFatInterpretation: function (value) {
+                    if (value === null) {
+                        return '-';
+                    }
+                    if (value < 18) {
+                        return 'Rendah';
+                    }
+                    if (value <= 20) {
+                        return 'Atlet';
+                    }
+                    if (value <= 33) {
+                        return 'Normal';
+                    }
+                    if (value <= 39) {
+                        return 'Tinggi';
+                    }
+                    return 'Obesitas';
+                },
+                subcutaneousInterpretation: function (value) {
+                    if (value === null) {
+                        return '-';
+                    }
+                    if (value < 20) {
+                        return 'Rendah';
+                    }
+                    if (value <= 32) {
+                        return 'Normal';
+                    }
+                    if (value <= 38) {
+                        return 'Tinggi';
+                    }
+                    return 'Obesitas';
+                },
+                skeletalInterpretation: function (value) {
+                    if (value === null) {
+                        return '-';
+                    }
+                    if (value < 24) {
+                        return 'Rendah';
+                    }
+                    if (value <= 30) {
+                        return 'Normal';
+                    }
+                    return 'Baik';
+                    },
+                    segmentalFatThresholds: {
+                        arm: { normalMin: 22, overMin: 33 },
+                        trunk: { normalMin: 20, overMin: 31 },
+                        leg: { normalMin: 25, overMin: 36 }
+                    },
+                    segmentalSkeletalThresholds: {
+                        arm: { normalMin: 26, veryGoodMin: 35 },
+                        trunk: { normalMin: 22, veryGoodMin: 31 },
+                        leg: { normalMin: 30, veryGoodMin: 39 }
+                }
+            };
+        }
+
+
+        function segmentalFatInterpretation(value, thresholds) {
+            if (value === null || !thresholds) {
+                return '-';
+            }
+            if (value < thresholds.normalMin) {
+                return 'Rendah';
+            }
+            if (value < thresholds.overMin) {
+                return 'Normal';
+            }
+            return 'Over';
+        }
+
+        function segmentalSkeletalInterpretation(value, thresholds) {
+            if (value === null || !thresholds) {
+                return '-';
+            }
+            if (value < thresholds.normalMin) {
+                return 'Rendah';
+            }
+            if (value < thresholds.veryGoodMin) {
+                return 'Normal';
+            }
+            return 'Sangat Baik';
+        }
+
+        function updateSegmentalAnalysis(record, profile) {
+            record = record || {};
+
+            const subcutaneousArm = record.subcutaneous_arms !== undefined && record.subcutaneous_arms !== null ? parseFloat(record.subcutaneous_arms) : null;
+            const subcutaneousTrunk = record.subcutaneous_trunk !== undefined && record.subcutaneous_trunk !== null ? parseFloat(record.subcutaneous_trunk) : null;
+            const subcutaneousLeg = record.subcutaneous_legs !== undefined && record.subcutaneous_legs !== null ? parseFloat(record.subcutaneous_legs) : null;
+            const skeletalArm = record.skeletal_arms !== undefined && record.skeletal_arms !== null ? parseFloat(record.skeletal_arms) : null;
+            const skeletalTrunk = record.skeletal_trunk !== undefined && record.skeletal_trunk !== null ? parseFloat(record.skeletal_trunk) : null;
+            const skeletalLeg = record.skeletal_legs !== undefined && record.skeletal_legs !== null ? parseFloat(record.skeletal_legs) : null;
+
+            setSegmentalMetric('#segmental_fat_arm_value', '#segmental_fat_arm_status', 'Arm', subcutaneousArm, '%', segmentalFatInterpretation(subcutaneousArm, profile.segmentalFatThresholds.arm));
+            setSegmentalMetric('#segmental_fat_trunk_value', '#segmental_fat_trunk_status', 'Trunk', subcutaneousTrunk, '%', segmentalFatInterpretation(subcutaneousTrunk, profile.segmentalFatThresholds.trunk));
+            setSegmentalMetric('#segmental_fat_leg_value', '#segmental_fat_leg_status', 'Legs', subcutaneousLeg, '%', segmentalFatInterpretation(subcutaneousLeg, profile.segmentalFatThresholds.leg));
+            setSegmentalSingle('#segmental_waist_value', 'Lingkar Perut', record.lingkar_perut, ' cm');
+            $('#segmental_arm_left_size').text(formatSegmentalValue(record.lingkar_lengan_kiri, ' cm', '-'));
+            $('#segmental_arm_right_size').text(formatSegmentalValue(record.lingkar_lengan_kanan, ' cm', '-'));
+            $('#segmental_leg_left_size').text(formatSegmentalValue(record.lingkar_paha_kiri, ' cm', '-'));
+            $('#segmental_leg_right_size').text(formatSegmentalValue(record.lingkar_paha_kanan, ' cm', '-'));
+
+            setSegmentalMetric('#segmental_skeletal_arm_value', '#segmental_skeletal_arm_status', 'Arm', skeletalArm, '%', segmentalSkeletalInterpretation(skeletalArm, profile.segmentalSkeletalThresholds.arm));
+            setSegmentalMetric('#segmental_skeletal_trunk_value', '#segmental_skeletal_trunk_status', 'Trunk', skeletalTrunk, '%', segmentalSkeletalInterpretation(skeletalTrunk, profile.segmentalSkeletalThresholds.trunk));
+            setSegmentalMetric('#segmental_skeletal_leg_value', '#segmental_skeletal_leg_status', 'Legs', skeletalLeg, '%', segmentalSkeletalInterpretation(skeletalLeg, profile.segmentalSkeletalThresholds.leg));
+        }
+        function bmiInterpretation(value) {
+            if (value === null) {
+                return '-';
+            }
+            if (value >= 30) {
+                return 'Obes 2';
+            }
+            if (value >= 25) {
+                return 'Obes 1';
+            }
+            if (value >= 23) {
+                return 'Overweight';
+            }
+            if (value >= 18.5) {
+                return 'Normal';
+            }
+            return 'Underweight';
+        }
+
+        function bodyAgeInterpretation(value) {
+            if (value === null) {
+                return '-';
+            }
+            return value <= 29 ? 'Normal' : 'Buruk';
+        }
+
+        function visceralFatInterpretation(value) {
+            if (value === null) {
+                return '-';
+            }
+            if (value <= 9) {
+                return 'Ideal';
+            }
+            if (value <= 12) {
+                return 'Borderline';
+            }
+            if (value <= 15) {
+                return 'Tinggi';
+            }
+            return 'Sangat Tinggi';
+        }
+
+        function weightRange(heightCm) {
+            if (heightCm === null || Number.isNaN(heightCm) || heightCm <= 0) {
+                return '-';
+            }
+
+            const heightMeter = heightCm / 100;
+            const min = 18.5 * heightMeter * heightMeter;
+            const max = 22.9 * heightMeter * heightMeter;
+
+            return formatRange(min, max, ' kg');
+        }
+
+        function weightInterpretation(weight, heightCm) {
+            if (weight === null || heightCm === null || Number.isNaN(heightCm) || heightCm <= 0) {
+                return '-';
+            }
+
+            const heightMeter = heightCm / 100;
+            const min = 18.5 * heightMeter * heightMeter;
+            const max = 22.9 * heightMeter * heightMeter;
+
+            if (weight < min) {
+                return 'Kurang';
+            }
+            if (weight <= max) {
+                return 'Normal';
+            }
+            return 'Overweight';
+        }
+
+        function updateSummary(records, selectedIndex) {
+            records = Array.isArray(records) ? records : [];
+            const profile = genderProfile();
+            const activeIndex = selectedIndex !== null && records[selectedIndex] ? selectedIndex : resolveActiveIndex(records);
+            const selectedRecord = activeIndex !== null ? records[activeIndex] : null;
+            const previousRecord = activeIndex !== null && records[activeIndex + 1] ? records[activeIndex + 1] : null;
+            const heightCm = selectedRecord && selectedRecord.tb !== undefined && selectedRecord.tb !== null ? parseFloat(selectedRecord.tb) : null;
+            const baseWeight = selectedRecord && selectedRecord.base_weight !== undefined && selectedRecord.base_weight !== null ? parseFloat(selectedRecord.base_weight) : null;
+            const baseBmi = selectedRecord && selectedRecord.base_bmi !== undefined && selectedRecord.base_bmi !== null ? parseFloat(selectedRecord.base_bmi) : null;
+            const baseBodyAge = selectedRecord && selectedRecord.base_body_age !== undefined && selectedRecord.base_body_age !== null ? parseFloat(selectedRecord.base_body_age) : null;
+            const baseFat = selectedRecord && selectedRecord.base_fat !== undefined && selectedRecord.base_fat !== null ? parseFloat(selectedRecord.base_fat) : null;
+            const baseVisceralFat = selectedRecord && selectedRecord.base_visceral_fat !== undefined && selectedRecord.base_visceral_fat !== null ? parseFloat(selectedRecord.base_visceral_fat) : null;
+            const subcutaneousWholeBody = selectedRecord && selectedRecord.subcutaneous_whole_body !== undefined && selectedRecord.subcutaneous_whole_body !== null ? parseFloat(selectedRecord.subcutaneous_whole_body) : null;
+            const skeletalWholeBody = selectedRecord && selectedRecord.skeletal_whole_body !== undefined && selectedRecord.skeletal_whole_body !== null ? parseFloat(selectedRecord.skeletal_whole_body) : null;
+
+            activeSlimmingIndex = activeIndex;
+
+            setMetricCell('#summary_base_weight', selectedRecord ? selectedRecord.base_weight : null, summaryUnits.base_weight, previousRecord ? previousRecord.base_weight : null);
+            setMetricCell('#summary_base_bmi', selectedRecord ? selectedRecord.base_bmi : null, summaryUnits.base_bmi, previousRecord ? previousRecord.base_bmi : null);
+            setMetricCell('#summary_base_body_age', selectedRecord ? selectedRecord.base_body_age : null, summaryUnits.base_body_age, previousRecord ? previousRecord.base_body_age : null);
+            setMetricCell('#summary_base_fat', selectedRecord ? selectedRecord.base_fat : null, '%', previousRecord ? previousRecord.base_fat : null);
+            setMetricCell('#summary_base_visceral_fat', selectedRecord ? selectedRecord.base_visceral_fat : null, '', previousRecord ? previousRecord.base_visceral_fat : null);
+            setMetricCell('#summary_subcutaneous_whole_body', selectedRecord ? selectedRecord.subcutaneous_whole_body : null, '%', previousRecord ? previousRecord.subcutaneous_whole_body : null);
+            setMetricCell('#summary_skeletal_whole_body', selectedRecord ? selectedRecord.skeletal_whole_body : null, '%', previousRecord ? previousRecord.skeletal_whole_body : null);
+            $('#summary_base_weight_normal').text(weightRange(heightCm));
+            setInterpretationCell('#summary_base_weight_interpretation', weightInterpretation(baseWeight, heightCm));
+            setInterpretationCell('#summary_base_bmi_interpretation', bmiInterpretation(baseBmi));
+            setInterpretationCell('#summary_base_body_age_interpretation', bodyAgeInterpretation(baseBodyAge));
+            $('#summary_base_fat_normal').text(profile.bodyFatNormal);
+            setInterpretationCell('#summary_base_fat_interpretation', profile.bodyFatInterpretation(baseFat));
+            $('#summary_subcutaneous_whole_body_normal').text(profile.subcutaneousNormal);
+            setInterpretationCell('#summary_subcutaneous_whole_body_interpretation', profile.subcutaneousInterpretation(subcutaneousWholeBody));
+            setInterpretationCell('#summary_base_visceral_fat_interpretation', visceralFatInterpretation(baseVisceralFat));
+            $('#summary_skeletal_whole_body_normal').text(profile.skeletalNormal);
+            setInterpretationCell('#summary_skeletal_whole_body_interpretation', profile.skeletalInterpretation(skeletalWholeBody));
+            updateSegmentalAnalysis(selectedRecord, profile);
+        }
+
+        const slimmingTable = $('#slimmingTable').DataTable({
+            processing: true,
+            ajax: {
+                url: slimmingDataUrl,
+                dataSrc: function (json) {
+                    recordsCache = json.records || [];
+                    updateSummary(recordsCache, activeSlimmingIndex);
+                    return recordsCache;
+                }
+            },
+            columns: [
+                {
+                    data: null,
+                    defaultContent: '-',
+                    render: function (data, type, row) {
+                        if (type !== 'display') {
+                            return formatVisitDate(row.visitation_date);
+                        }
+
+                        return renderVisitCell(row);
+                    }
+                },
+                { data: 'usia', defaultContent: '-' },
+                { data: 'tb', defaultContent: '-' },
+                { data: 'bb', defaultContent: '-' },
+                { data: 'base_weight', defaultContent: '-' },
+                { data: 'base_bmi', defaultContent: '-' },
+                { data: 'base_fat', defaultContent: '-' },
+                { data: 'base_visceral_fat', defaultContent: '-' },
+                { data: 'lingkar_perut', defaultContent: '-' },
+                { data: 'created_at', defaultContent: '-' },
+                {
+                    data: null,
+                    orderable: false,
+                    searchable: false,
+                    className: 'slimming-action-cell',
+                    render: function (data, type, row, meta) {
+                        if (type !== 'display') {
+                            return 'Lihat';
+                        }
+
+                        const buttonClass = meta.row === activeSlimmingIndex ? 'btn-primary' : 'btn-outline-primary';
+                        return '<button type="button" class="btn btn-sm ' + buttonClass + ' js-view-slimming" data-index="' + meta.row + '">Lihat</button>';
+                    }
+                }
+            ],
+            order: [[9, 'desc']]
+        });
+
+        $('#slimmingTable').on('click', '.js-view-slimming', function () {
+            const selectedIndex = Number($(this).data('index'));
+
+            if (Number.isNaN(selectedIndex) || !recordsCache[selectedIndex]) {
+                return;
+            }
+
+            updateSummary(recordsCache, selectedIndex);
+            slimmingTable.rows().invalidate().draw(false);
+        });
+
+        @if($errors->any())
+            $('#slimmingInputModal').modal('show');
+        @endif
+
+        $('#tb, #bb, #base_weight').on('input', function () {
+            const heightCm = parseFloat($('#tb').val());
+            const baseWeightInput = parseFloat($('#base_weight').val());
+            const bodyWeightInput = parseFloat($('#bb').val());
+            const usedWeight = !Number.isNaN(baseWeightInput) ? baseWeightInput : bodyWeightInput;
+
+            if (Number.isNaN(heightCm) || Number.isNaN(usedWeight) || heightCm <= 0 || usedWeight <= 0) {
+                return;
             }
 
             const heightMeters = heightCm / 100;
-
             if (heightMeters <= 0) {
-                return null;
-            }
-
-            return Number((weightKg / (heightMeters * heightMeters)).toFixed(2));
-        }
-
-        function calculatePbf(bmiValue, age, gender) {
-            const factor = genderFactor(gender);
-
-            if (Number.isNaN(bmiValue) || bmiValue === null || age === null || factor === null) {
-                return null;
-            }
-
-            return Number(((1.20 * bmiValue) + (0.23 * age) - (10.8 * factor) - 5.4).toFixed(2));
-        }
-
-        function pbfThresholds(gender) {
-            const factor = genderFactor(gender);
-
-            if (factor === 1) {
-                return { under: 10, normal: 20 };
-            }
-
-            if (factor === 0) {
-                return { under: 18, normal: 28 };
-            }
-
-            return { under: 18, normal: 28 };
-        }
-
-        function setEvalRadio(groupName, status) {
-            const radioEls = $('input[name="' + groupName + '"]');
-
-            if (!status) {
-                radioEls.prop('checked', false);
                 return;
             }
 
-            radioEls.prop('checked', false);
-            $('input[name="' + groupName + '"][value="' + status + '"]').prop('checked', true);
-        }
-
-        function syncObesityEvalAutoFill() {
-            const heightCm = parseFloat($('#tb').val());
-            const weightKg = parseFloat($('#bb').val());
-            const bmiValue = calculateBmi(heightCm, weightKg);
-            const pbfValue = calculatePbf(bmiValue, pasienAge, pasienGender);
-            const currentPbfThresholds = pbfThresholds(pasienGender);
-
-            if (bmiValue !== null) {
-                $('#obesity_bmi').val(bmiValue);
-            } else {
-                $('#obesity_bmi').val('');
-            }
-
-            if (pbfValue !== null) {
-                $('#pbf').val(pbfValue);
-            } else {
-                $('#pbf').val('');
-            }
-
-            if (bmiValue !== null) {
-                $('#obesity_eval_bmi').val(bmiValue);
-            } else {
-                $('#obesity_eval_bmi').val('');
-            }
-
-            setEvalRadio('obesity_eval_bmi_status', classifyEvalStatus(bmiValue, 18.5, 25));
-            setEvalRadio('obesity_eval_pbf_status', classifyEvalStatus(pbfValue, currentPbfThresholds.under, currentPbfThresholds.normal));
-            updateRuler('obesity_bmi');
-            syncObesityEval();
-        }
-
-        $('input[name="obesity_eval_bmi_status"], input[name="obesity_eval_pbf_status"]').on('change', syncObesityEval);
-        $('#tb, #bb').on('input', syncObesityEvalAutoFill);
-        syncObesityEvalAutoFill();
-        syncObesityEval();
-
-        function formatHistoryValue(value) {
-            return value === null || value === undefined || value === '' ? '-' : value;
-        }
-
-        function renderSlimmingHistoryComparison(records) {
-            const safeRecords = Array.isArray(records) ? records : [];
-            const metrics = [
-                { key: 'weight', label: 'Weight' },
-                { key: 'muscle_mass', label: 'Muscle Mass' },
-                { key: 'body_fat', label: 'Body Fat' }
-            ];
-            const headerHtml = '<tr><th>Metric</th>' + safeRecords.map(function (record) {
-                return '<th>' + formatHistoryValue(record.visitation_date) + '</th>';
-            }).join('') + '</tr>';
-
-            const bodyHtml = metrics.map(function (metric) {
-                return '<tr><th>' + metric.label + '</th>' + safeRecords.map(function (record) {
-                    return '<td>' + formatHistoryValue(record[metric.key]) + '</td>';
-                }).join('') + '</tr>';
-            }).join('');
-
-            if (!safeRecords.length) {
-                $('#slimmingTable thead').html('<tr><th>Metric</th></tr>');
-                $('#slimmingTable tbody').html('<tr><td>No slimming history found.</td></tr>');
-                return;
-            }
-
-            $('#slimmingTable thead').html(headerHtml);
-            $('#slimmingTable tbody').html(bodyHtml);
-        }
-
-        $('#riwayatSlimmingModal').on('shown.bs.modal', function () {
-            if (slimmingHistoryLoaded) {
-                return;
-            }
-
-            $('#slimmingTable thead').html('<tr><th>Loading...</th></tr>');
-            $('#slimmingTable tbody').empty();
-
-            $.getJSON(slimmingHistoryUrl)
-                .done(function (response) {
-                    renderSlimmingHistoryComparison(response.records || []);
-                    slimmingHistoryLoaded = true;
-                })
-                .fail(function () {
-                    $('#slimmingTable thead').html('<tr><th>Metric</th></tr>');
-                    $('#slimmingTable tbody').html('<tr><td>Failed to load slimming history.</td></tr>');
-                });
+            $('#base_bmi').val((usedWeight / (heightMeters * heightMeters)).toFixed(2));
         });
     });
 </script>

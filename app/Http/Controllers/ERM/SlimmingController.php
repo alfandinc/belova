@@ -9,7 +9,6 @@ use App\Models\ERM\Slimming;
 use App\Models\ERM\Visitation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Yajra\DataTables\Facades\DataTables;
 
 class SlimmingController extends Controller
 {
@@ -41,64 +40,44 @@ class SlimmingController extends Controller
     {
         $data = $request->validate([
             'visitation_id' => ['required', 'string', 'exists:erm_visitations,id'],
-            'riwayat_tindakan_id' => ['required', 'integer', 'exists:erm_riwayat_tindakan,id'],
+            'usia' => ['nullable', 'integer', 'min:0'],
             'tb' => ['nullable', 'numeric'],
             'bb' => ['nullable', 'numeric'],
-            'target_weight' => ['nullable', 'numeric'],
-            'weight_control' => ['nullable', 'numeric'],
+            'base_weight' => ['nullable', 'numeric'],
+            'base_fat' => ['nullable', 'numeric'],
+            'base_visceral_fat' => ['nullable', 'numeric'],
+            'base_kcal' => ['nullable', 'numeric'],
+            'base_bmi' => ['nullable', 'numeric'],
+            'base_body_age' => ['nullable', 'integer', 'min:0'],
             'lingkar_perut' => ['nullable', 'numeric'],
             'lingkar_lengan_kanan' => ['nullable', 'numeric'],
             'lingkar_lengan_kiri' => ['nullable', 'numeric'],
-            'muscle_fat_weight' => ['nullable', 'numeric'],
-            'muscle_fat_muscle' => ['nullable', 'numeric'],
-            'muscle_fat_body_fat_mass' => ['nullable', 'numeric'],
-            'obesity_bmi' => ['nullable', 'numeric'],
-            'obesity_analysis' => ['nullable', 'string', 'max:255'],
-            'obesity_eval_bmi' => ['nullable', 'numeric'],
-            'obesity_eval' => ['nullable', 'string', 'max:255'],
-            'pbf' => ['nullable', 'numeric'],
-            'subcutaneous_fat' => ['nullable', 'string', 'max:255'],
+            'lingkar_paha_kanan' => ['nullable', 'numeric'],
+            'lingkar_paha_kiri' => ['nullable', 'numeric'],
             'subcutaneous_whole_body' => ['nullable', 'numeric'],
             'subcutaneous_trunk' => ['nullable', 'numeric'],
             'subcutaneous_arms' => ['nullable', 'numeric'],
             'subcutaneous_legs' => ['nullable', 'numeric'],
-            'skeletal_muscle' => ['nullable', 'string', 'max:255'],
             'skeletal_whole_body' => ['nullable', 'numeric'],
             'skeletal_trunk' => ['nullable', 'numeric'],
             'skeletal_arms' => ['nullable', 'numeric'],
             'skeletal_legs' => ['nullable', 'numeric'],
-            'research_basal_metabolic_rate' => ['nullable', 'numeric'],
-            'visceral_fat_level' => ['nullable', 'numeric'],
         ]);
 
         $visitation = Visitation::findOrFail($data['visitation_id']);
-
-        $ownsRiwayat = $visitation->riwayatTindakan()
-            ->whereKey($data['riwayat_tindakan_id'])
-            ->whereHas('tindakan', function ($query) {
-                $query->where('is_slimming', true);
-            })
-            ->exists();
-
-        if (!$ownsRiwayat) {
-            return back()
-                ->withErrors(['riwayat_tindakan_id' => 'Riwayat tindakan slimming tidak cocok dengan visitation ini.'])
-                ->withInput();
-        }
-
         $pasien = $visitation->pasien;
-        $bmi = $this->calculateBmi($data['tb'] ?? null, $data['bb'] ?? null);
-        $pbf = $this->calculatePbf($bmi, $pasien?->tanggal_lahir, $pasien?->gender);
-        $bmiStatus = $this->classifyBmiStatus($bmi);
-        $pbfStatus = $this->classifyPbfStatus($pbf, $pasien?->gender);
+        $usia = $data['usia'] ?? $this->calculateAge($pasien?->tanggal_lahir);
+        $baseWeight = $data['base_weight'] ?? $data['bb'] ?? null;
+        $baseBmi = $data['base_bmi'] ?? $this->calculateBmi($data['tb'] ?? null, $baseWeight);
+        $baseBodyAge = $data['base_body_age'] ?? $usia;
 
         Slimming::create(array_merge($data, [
             'pasien_id' => $visitation->pasien_id,
             'dokter_id' => $visitation->dokter_id,
-            'obesity_bmi' => $bmi,
-            'obesity_eval_bmi' => $bmi,
-            'pbf' => $pbf,
-            'obesity_eval' => $this->buildObesityEval($bmiStatus, $pbfStatus),
+            'usia' => $usia,
+            'base_weight' => $baseWeight,
+            'base_bmi' => $baseBmi,
+            'base_body_age' => $baseBodyAge,
         ]));
 
         return redirect()
@@ -112,22 +91,52 @@ class SlimmingController extends Controller
 
         $records = Slimming::with(['visitation'])
             ->where('pasien_id', $visitation->pasien_id)
+            ->orderByDesc('created_at')
             ->get()
-            ->sortBy(function (Slimming $slimming) {
-                return ($slimming->visitation->tanggal_visitation ?? '') . ' ' . ($slimming->created_at ?? '');
-            })
             ->values()
             ->map(function (Slimming $slimming) {
                 return [
+                    'visitation_id' => $slimming->visitation_id,
                     'visitation_date' => $slimming->visitation->tanggal_visitation ?? '-',
-                    'weight' => $slimming->bb,
-                    'muscle_mass' => $slimming->muscle_fat_muscle,
-                    'body_fat' => $slimming->muscle_fat_body_fat_mass,
+                    'usia' => $slimming->usia,
+                    'tb' => $slimming->tb,
+                    'bb' => $slimming->bb,
+                    'base_weight' => $slimming->base_weight,
+                    'base_bmi' => $slimming->base_bmi,
+                    'base_fat' => $slimming->base_fat,
+                    'base_visceral_fat' => $slimming->base_visceral_fat,
+                    'base_body_age' => $slimming->base_body_age,
+                    'lingkar_perut' => $slimming->lingkar_perut,
+                    'lingkar_lengan_kanan' => $slimming->lingkar_lengan_kanan,
+                    'lingkar_lengan_kiri' => $slimming->lingkar_lengan_kiri,
+                    'lingkar_paha_kanan' => $slimming->lingkar_paha_kanan,
+                    'lingkar_paha_kiri' => $slimming->lingkar_paha_kiri,
+                    'subcutaneous_whole_body' => $slimming->subcutaneous_whole_body,
+                    'subcutaneous_trunk' => $slimming->subcutaneous_trunk,
+                    'subcutaneous_arms' => $slimming->subcutaneous_arms,
+                    'subcutaneous_legs' => $slimming->subcutaneous_legs,
+                    'skeletal_whole_body' => $slimming->skeletal_whole_body,
+                    'skeletal_trunk' => $slimming->skeletal_trunk,
+                    'skeletal_arms' => $slimming->skeletal_arms,
+                    'skeletal_legs' => $slimming->skeletal_legs,
+                    'created_at' => optional($slimming->created_at)->format('d/m/Y H:i'),
                 ];
             });
 
+        $latestRecord = $records->first();
+
         return response()->json([
             'records' => $records,
+            'summary' => [
+                'tb' => $latestRecord['tb'] ?? null,
+                'base_weight' => $latestRecord['base_weight'] ?? null,
+                'base_bmi' => $latestRecord['base_bmi'] ?? null,
+                'base_body_age' => $latestRecord['base_body_age'] ?? null,
+                'base_fat' => $latestRecord['base_fat'] ?? null,
+                'base_visceral_fat' => $latestRecord['base_visceral_fat'] ?? null,
+                'subcutaneous_whole_body' => $latestRecord['subcutaneous_whole_body'] ?? null,
+                'skeletal_whole_body' => $latestRecord['skeletal_whole_body'] ?? null,
+            ],
         ]);
     }
 
@@ -146,18 +155,6 @@ class SlimmingController extends Controller
         return round($weightKg / ($heightMeters * $heightMeters), 2);
     }
 
-    private function calculatePbf(?float $bmi, $birthDate, ?string $gender): ?float
-    {
-        $age = $this->calculateAge($birthDate);
-        $genderFactor = $this->genderFactor($gender);
-
-        if ($bmi === null || $age === null || $genderFactor === null) {
-            return null;
-        }
-
-        return round((1.20 * $bmi) + (0.23 * $age) - (10.8 * $genderFactor) - 5.4, 2);
-    }
-
     private function calculateAge($birthDate): ?int
     {
         if (empty($birthDate)) {
@@ -169,99 +166,5 @@ class SlimmingController extends Controller
         } catch (\Throwable $exception) {
             return null;
         }
-    }
-
-    private function genderFactor(?string $gender): ?int
-    {
-        if (!$gender) {
-            return null;
-        }
-
-        $normalized = strtolower(trim($gender));
-
-        if (in_array($normalized, ['l', 'male', 'man', 'pria', 'laki-laki', 'lakilaki'], true)) {
-            return 1;
-        }
-
-        if (in_array($normalized, ['p', 'f', 'female', 'woman', 'wanita', 'perempuan'], true)) {
-            return 0;
-        }
-
-        return null;
-    }
-
-    private function classifyBmiStatus(?float $bmi): ?string
-    {
-        if ($bmi === null) {
-            return null;
-        }
-
-        if ($bmi < 18.5) {
-            return 'under';
-        }
-
-        if ($bmi <= 25) {
-            return 'normal';
-        }
-
-        return 'over';
-    }
-
-    private function classifyPbfStatus(?float $pbf, ?string $gender): ?string
-    {
-        if ($pbf === null) {
-            return null;
-        }
-
-        $genderFactor = $this->genderFactor($gender);
-
-        if ($genderFactor === 1) {
-            if ($pbf < 10) {
-                return 'under';
-            }
-
-            if ($pbf <= 20) {
-                return 'normal';
-            }
-
-            return 'over';
-        }
-
-        if ($genderFactor === 0) {
-            if ($pbf < 18) {
-                return 'under';
-            }
-
-            if ($pbf <= 28) {
-                return 'normal';
-            }
-
-            return 'over';
-        }
-
-        if ($pbf < 18) {
-            return 'under';
-        }
-
-        if ($pbf <= 28) {
-            return 'normal';
-        }
-
-        return 'over';
-    }
-
-    private function buildObesityEval(?string $bmiStatus, ?string $pbfStatus): ?string
-    {
-        $parts = [];
-
-        if ($bmiStatus) {
-            $parts[] = 'BMI:' . $bmiStatus;
-        }
-
-        if ($pbfStatus) {
-            $parts[] = 'PBF:' . $pbfStatus;
-        }
-
-        return empty($parts) ? null : implode(';', $parts);
     }
 }

@@ -12,50 +12,45 @@ class Slimming extends Model
         'visitation_id',
         'pasien_id',
         'dokter_id',
-        'riwayat_tindakan_id',
+        'usia',
         'tb',
         'bb',
-        'target_weight',
-        'weight_control',
+        'base_weight',
+        'base_fat',
+        'base_visceral_fat',
+        'base_kcal',
+        'base_bmi',
+        'base_body_age',
         'lingkar_perut',
         'lingkar_lengan_kanan',
         'lingkar_lengan_kiri',
-        'muscle_fat_weight',
-        'muscle_fat_muscle',
-        'muscle_fat_body_fat_mass',
-        'obesity_bmi',
-        'obesity_analysis',
-        'obesity_eval_bmi',
-        'obesity_eval',
-        'pbf',
-        'subcutaneous_fat',
+        'lingkar_paha_kanan',
+        'lingkar_paha_kiri',
         'subcutaneous_whole_body',
         'subcutaneous_trunk',
         'subcutaneous_arms',
         'subcutaneous_legs',
-        'skeletal_muscle',
         'skeletal_whole_body',
         'skeletal_trunk',
         'skeletal_arms',
         'skeletal_legs',
-        'research_basal_metabolic_rate',
-        'visceral_fat_level',
     ];
 
     protected $casts = [
+        'usia' => 'integer',
         'tb' => 'float',
         'bb' => 'float',
-        'target_weight' => 'float',
-        'weight_control' => 'float',
+        'base_weight' => 'float',
+        'base_fat' => 'float',
+        'base_visceral_fat' => 'float',
+        'base_kcal' => 'float',
+        'base_bmi' => 'float',
+        'base_body_age' => 'integer',
         'lingkar_perut' => 'float',
         'lingkar_lengan_kanan' => 'float',
         'lingkar_lengan_kiri' => 'float',
-        'muscle_fat_weight' => 'float',
-        'muscle_fat_muscle' => 'float',
-        'muscle_fat_body_fat_mass' => 'float',
-        'obesity_bmi' => 'float',
-        'obesity_eval_bmi' => 'float',
-        'pbf' => 'float',
+        'lingkar_paha_kanan' => 'float',
+        'lingkar_paha_kiri' => 'float',
         'subcutaneous_whole_body' => 'float',
         'subcutaneous_trunk' => 'float',
         'subcutaneous_arms' => 'float',
@@ -64,8 +59,6 @@ class Slimming extends Model
         'skeletal_trunk' => 'float',
         'skeletal_arms' => 'float',
         'skeletal_legs' => 'float',
-        'research_basal_metabolic_rate' => 'float',
-        'visceral_fat_level' => 'float',
     ];
 
     public function visitation()
@@ -81,10 +74,5 @@ class Slimming extends Model
     public function dokter()
     {
         return $this->belongsTo(Dokter::class, 'dokter_id');
-    }
-
-    public function riwayatTindakan()
-    {
-        return $this->belongsTo(RiwayatTindakan::class, 'riwayat_tindakan_id');
     }
 }
