@@ -1034,7 +1034,7 @@ class PasienController extends Controller
             Pasien::REFERRAL_TYPE_MARKETPLACE => ['label' => 'Marketplace', 'icon' => 'fas fa-store', 'theme' => 'orange'],
             Pasien::REFERRAL_TYPE_EVENT => ['label' => 'Event', 'icon' => 'fas fa-calendar-alt', 'theme' => 'purple'],
             Pasien::REFERRAL_TYPE_WEBSITE => ['label' => 'Website', 'icon' => 'fas fa-globe', 'theme' => 'cyan'],
-            Pasien::REFERRAL_TYPE_PARTNERSHIP => ['label' => 'Partnership', 'icon' => 'fas fa-handshake', 'theme' => 'slate'],
+                Pasien::REFERRAL_TYPE_PARTNERSHIP => ['label' => 'B2B Partnership', 'icon' => 'fas fa-handshake', 'theme' => 'slate'],
             Pasien::REFERRAL_TYPE_GOOGLE_MAPS => ['label' => 'Google Maps', 'icon' => 'fas fa-map-marker-alt', 'theme' => 'danger'],
         ];
 
@@ -1079,7 +1079,7 @@ class PasienController extends Controller
             Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
             Pasien::REFERRAL_TYPE_EVENT => 'Event',
             Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'Partnership',
+                Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
             Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
             default => 'Walk-in',
         };

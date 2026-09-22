@@ -609,7 +609,7 @@ body > .pasien-action-dropdown-floating {
                         <option value="marketplace">Marketplace</option>
                         <option value="event">Event</option>
                         <option value="website">Website</option>
-                        <option value="partnership">Partnership</option>
+                            <option value="partnership">B2B Partnership</option>
                         <option value="google_maps">Google Maps</option>
                     </select>
                 </div>

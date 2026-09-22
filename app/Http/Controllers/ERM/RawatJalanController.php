@@ -1018,7 +1018,7 @@ class RawatJalanController extends Controller
                         Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
                         Pasien::REFERRAL_TYPE_EVENT => 'Event',
                         Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-                        Pasien::REFERRAL_TYPE_PARTNERSHIP => 'Partnership',
+                            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
                         Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
                         default => 'Walk-in',
                     };
