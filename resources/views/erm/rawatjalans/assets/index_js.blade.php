@@ -1434,6 +1434,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
 }
     });
 
+    window.__rawatjalanTable = table;
+
     function syncRawatJalanTableLayout() {
         if (!table) {
             return;
@@ -2040,6 +2042,30 @@ function openKonfirmasiModal(namaPasien, telepon, dokterNama, tanggalKunjungan, 
 var __rawatjalanCommonModalsUrl = "{{ route('erm.rawatjalans.modals.common') }}";
 var __rawatjalanPatientVisitHistoryUrlTemplate = "{{ route('erm.rawatjalans.patientVisitHistory', ['pasienId' => '__PID__']) }}";
 var __rawatjalanCommonModalsLoading = null;
+
+function getRawatJalanTableInstance() {
+    if (window.__rawatjalanTable) {
+        return window.__rawatjalanTable;
+    }
+
+    if ($.fn.dataTable.isDataTable('#rawatjalan-table')) {
+        window.__rawatjalanTable = $('#rawatjalan-table').DataTable();
+        return window.__rawatjalanTable;
+    }
+
+    return null;
+}
+
+function reloadRawatJalanTable(preservePaging) {
+    var dataTable = getRawatJalanTableInstance();
+
+    if (!dataTable) {
+        return;
+    }
+
+    dataTable.ajax.reload(null, preservePaging === undefined ? false : preservePaging);
+}
+
 function ensureRawatJalanCommonModalsLoaded() {
     if (
         $('#modalManagePasien').length &&
@@ -2511,9 +2537,7 @@ $(document).on('click', '#btn-simpan-screening', function() {
             }).then(() => {
                 if (editMode) {
                     // Refresh datatable for edit mode
-                    if (typeof table !== 'undefined') {
-                        table.ajax.reload(null, false);
-                    }
+                    reloadRawatJalanTable(false);
                 } else {
                     // Redirect to asesmen perawat create page for new entries
                     window.location.href = '{{ url("erm/asesmenperawat") }}/' + visitationId + '/create';
@@ -2598,9 +2622,7 @@ $(document).on('click', '#btn-simpan-screening-vaksin', function() {
                 allowOutsideClick: false,
                 allowEscapeKey: false
             }).then(function() {
-                if (typeof table !== 'undefined') {
-                    table.ajax.reload(null, false);
-                }
+                reloadRawatJalanTable(false);
             });
         },
         error: function(xhr) {
@@ -3180,7 +3202,7 @@ $(document).on('submit', '#form-metode-bayar', function(e){
     }, function(res){
             if (res.success) {
                 $('#modalMetodeBayar').modal('hide');
-                table.ajax.reload(null, false);
+                reloadRawatJalanTable(false);
                 Swal.fire('Berhasil', 'Metode bayar diperbarui.', 'success');
             } else {
             Swal.fire('Gagal', res.message || 'Gagal memperbarui metode bayar.', 'error');
@@ -3351,7 +3373,7 @@ $(document).on('submit', '#form-referral', function(e){
     }, function(res){
         if (res.success) {
             $('#modalReferral').modal('hide');
-            table.ajax.reload(null, false);
+            reloadRawatJalanTable(false);
             Swal.fire('Berhasil', 'Referral diperbarui.', 'success');
         } else {
             Swal.fire('Gagal', res.message || 'Gagal memperbarui referral.', 'error');
