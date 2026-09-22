@@ -442,7 +442,7 @@
                                     <option value="marketplace" {{ old('referral_type', $pasien->referral_type ?? '') === 'marketplace' ? 'selected' : '' }}>Marketplace</option>
                                     <option value="event" {{ old('referral_type', $pasien->referral_type ?? '') === 'event' ? 'selected' : '' }}>Event</option>
                                     <option value="website" {{ old('referral_type', $pasien->referral_type ?? '') === 'website' ? 'selected' : '' }}>Website</option>
-                                    <option value="partnership" {{ old('referral_type', $pasien->referral_type ?? '') === 'partnership' ? 'selected' : '' }}>Partnership</option>
+                                    <option value="partnership" {{ old('referral_type', $pasien->referral_type ?? '') === 'partnership' ? 'selected' : '' }}>B2B Partnership</option>
                                     <option value="google_maps" {{ old('referral_type', $pasien->referral_type ?? '') === 'google_maps' ? 'selected' : '' }}>Google Maps</option>
                                 </select>
                             </div>
