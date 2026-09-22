@@ -3376,14 +3376,36 @@ $(document).on('submit', '#form-referral', function(e){
             reloadRawatJalanTable(false);
             Swal.fire('Berhasil', 'Referral diperbarui.', 'success');
         } else {
-            Swal.fire('Gagal', res.message || 'Gagal memperbarui referral.', 'error');
+            var backendMessage = [res.message || 'Gagal memperbarui referral.', res.stage ? ('Tahap: ' + res.stage) : '', res.error_detail ? ('Detail: ' + res.error_detail) : '']
+                .filter(Boolean)
+                .join('\n');
+            Swal.fire('Gagal', backendMessage, 'error');
         }
     }).fail(function(xhr){
-        var message = xhr.responseJSON?.message || 'Terjadi kesalahan saat menyimpan referral.';
+        var response = xhr.responseJSON || {};
+        var messageParts = [response.message || 'Terjadi kesalahan saat menyimpan referral.'];
 
-        if (xhr.status === 422 && xhr.responseJSON?.errors) {
-            message = Object.values(xhr.responseJSON.errors).flat().join('\n');
+        if (response.stage) {
+            messageParts.push('Tahap: ' + response.stage);
         }
+
+        if (xhr.status === 422 && response.errors) {
+            messageParts.push(Object.entries(response.errors).map(function(entry) {
+                var field = entry[0];
+                var errors = Array.isArray(entry[1]) ? entry[1].join(', ') : entry[1];
+                return field + ': ' + errors;
+            }).join('\n'));
+        }
+
+        if (response.error_detail) {
+            messageParts.push('Detail: ' + response.error_detail);
+        }
+
+        if (response.exception_class) {
+            messageParts.push('Exception: ' + response.exception_class);
+        }
+
+        var message = messageParts.filter(Boolean).join('\n');
 
         Swal.fire('Error', message, 'error');
         console.error(xhr.responseText);

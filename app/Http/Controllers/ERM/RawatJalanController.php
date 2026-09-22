@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Validator;
 use App\Models\ERM\PasienMerchandise;
 use App\Models\WaMessage;
 use App\Models\WaScheduledMessage;
@@ -1907,28 +1908,37 @@ class RawatJalanController extends Controller
 
     public function updateReferral(Request $request)
     {
-        $request->validate([
-            'visitation_id' => 'required|exists:erm_visitations,id',
-            'referral_type' => 'required|string|in:' . implode(',', [
-                Pasien::REFERRAL_TYPE_WALK_IN,
-                Pasien::REFERRAL_TYPE_PASIEN,
-                Pasien::REFERRAL_TYPE_SOCIAL_MEDIA,
-                Pasien::REFERRAL_TYPE_WEBSITE,
-                Pasien::REFERRAL_TYPE_EMPLOYEE,
-                Pasien::REFERRAL_TYPE_DOKTER,
-                Pasien::REFERRAL_TYPE_EVENT,
-                Pasien::REFERRAL_TYPE_MARKETPLACE,
-                Pasien::REFERRAL_TYPE_PARTNERSHIP,
-                Pasien::REFERRAL_TYPE_GOOGLE_MAPS,
-            ]),
-            'referral_detail' => 'nullable|string|max:255',
-            'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
-            'referral_employee_id' => 'nullable|exists:hrd_employee,id',
-            'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
-            'referral_event_id' => 'nullable|exists:marketing_event,id',
-        ]);
-
         try {
+            $validator = Validator::make($request->all(), [
+                'visitation_id' => 'required|exists:erm_visitations,id',
+                'referral_type' => 'required|string|in:' . implode(',', [
+                    Pasien::REFERRAL_TYPE_WALK_IN,
+                    Pasien::REFERRAL_TYPE_PASIEN,
+                    Pasien::REFERRAL_TYPE_SOCIAL_MEDIA,
+                    Pasien::REFERRAL_TYPE_WEBSITE,
+                    Pasien::REFERRAL_TYPE_EMPLOYEE,
+                    Pasien::REFERRAL_TYPE_DOKTER,
+                    Pasien::REFERRAL_TYPE_EVENT,
+                    Pasien::REFERRAL_TYPE_MARKETPLACE,
+                    Pasien::REFERRAL_TYPE_PARTNERSHIP,
+                    Pasien::REFERRAL_TYPE_GOOGLE_MAPS,
+                ]),
+                'referral_detail' => 'nullable|string|max:255',
+                'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
+                'referral_employee_id' => 'nullable|exists:hrd_employee,id',
+                'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
+                'referral_event_id' => 'nullable|exists:marketing_event,id',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validasi update referral gagal.',
+                    'stage' => 'validation',
+                    'errors' => $validator->errors(),
+                ], 422);
+            }
+
             $visitation = Visitation::findOrFail($request->visitation_id);
             $pasien = Pasien::findOrFail($visitation->pasien_id);
 
@@ -1991,9 +2001,19 @@ class RawatJalanController extends Controller
             $pasien->save();
 
             return response()->json(['success' => true]);
-        } catch (\Exception $e) {
-            Log::error('updateReferral error: ' . $e->getMessage(), ['request' => $request->all()]);
-            return response()->json(['success' => false, 'message' => 'Internal Server Error'], 500);
+        } catch (\Throwable $e) {
+            Log::error('updateReferral error: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan perubahan referral.',
+                'stage' => 'update-referral',
+                'error_detail' => $e->getMessage(),
+                'exception_class' => get_class($e),
+            ], 500);
         }
     }
 
