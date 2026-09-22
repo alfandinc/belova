@@ -61,6 +61,56 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
     }
+    .slimming-overview-row {
+        display: grid;
+        grid-template-columns: minmax(0, .95fr) minmax(0, 1.45fr) 180px;
+        gap: 1rem;
+        align-items: start;
+    }
+    .slimming-section-layout {
+        display: block;
+    }
+    .slimming-section-main {
+        min-width: 0;
+    }
+    .slimming-section-sidebar {
+        display: grid;
+        gap: .75rem;
+        position: sticky;
+        top: 1rem;
+    }
+    .slimming-section-switch {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        width: 100%;
+        padding: .85rem .95rem;
+        border: 1px solid #dbe3ef;
+        border-radius: .75rem;
+        background: #fff;
+        color: #334155;
+        font-size: .9rem;
+        font-weight: 700;
+        text-align: left;
+        transition: background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
+    }
+    .slimming-section-switch:hover {
+        border-color: #93c5fd;
+        color: #1d4ed8;
+    }
+    .slimming-section-switch.is-active {
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+        border-color: #60a5fa;
+        color: #1d4ed8;
+        box-shadow: 0 10px 24px rgba(59, 130, 246, 0.14);
+    }
+    .slimming-section-panel {
+        display: none;
+    }
+    .slimming-section-panel.is-active {
+        display: grid;
+        gap: 1rem;
+    }
     .slimming-segmental-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -177,6 +227,97 @@
     .slimming-action-cell {
         white-space: nowrap;
     }
+    .slimming-data-summary {
+        padding: 1rem;
+        display: grid;
+        gap: .8rem;
+    }
+    .slimming-data-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+    }
+    .slimming-data-summary-item {
+        padding: .8rem .9rem;
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+    .slimming-data-summary-item--wide {
+        grid-column: 1 / -1;
+    }
+    .slimming-data-summary-label {
+        display: block;
+        margin-bottom: .35rem;
+        font-size: .72rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+    .slimming-data-summary-value {
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.35;
+    }
+    .slimming-placeholder-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+    .slimming-placeholder-card {
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        padding: 1rem;
+        display: grid;
+        gap: .75rem;
+    }
+    .slimming-placeholder-card--wide {
+        grid-column: 1 / -1;
+    }
+    .slimming-placeholder-title {
+        margin: 0;
+        font-size: .95rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .slimming-placeholder-note {
+        margin: 0;
+        color: #64748b;
+        font-size: .88rem;
+        line-height: 1.55;
+    }
+    .slimming-list {
+        display: grid;
+        gap: .75rem;
+    }
+    .slimming-list-item {
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+        padding: .9rem 1rem;
+        background: #fff;
+    }
+    .slimming-list-item-title {
+        margin: 0;
+        font-size: .92rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .slimming-list-item-meta {
+        margin-top: .3rem;
+        color: #64748b;
+        font-size: .84rem;
+    }
+    .slimming-empty-state {
+        padding: 1.1rem 1rem;
+        border: 1px dashed #cbd5e1;
+        border-radius: .75rem;
+        background: #f8fafc;
+        color: #64748b;
+        font-size: .9rem;
+    }
     .slimming-segmental-card {
         position: relative;
         min-height: 29rem;
@@ -185,66 +326,64 @@
     }
     .slimming-segmental-canvas {
         position: relative;
-        min-height: 27rem;
+        width: 100%;
+        max-width: 760px;
+        min-height: 30rem;
+        margin: 0 auto;
         border-radius: .75rem;
         overflow: hidden;
         background-color: rgba(255, 255, 255, .82);
-        background-image: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)), url('{{ asset('asesmen/img_slimming.png') }}');
         background-repeat: no-repeat;
         background-position: center;
-        background-size: contain;
+        background-size: auto 96%;
         border: 1px solid #e5e7eb;
     }
-    .slimming-segmental-side {
-        position: absolute;
-        top: 50%;
-        font-size: 2rem;
-        font-weight: 800;
-        color: rgba(148, 163, 184, .65);
-        letter-spacing: .08em;
-        transform: translateY(-50%) rotate(-90deg);
-        transform-origin: center;
-        user-select: none;
+    .slimming-segmental-canvas--fat {
+        background-image: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)), url('{{ asset('img/asesmen/slimming_segmentalfat.png') }}');
     }
-    .slimming-segmental-side--left {
-        left: -1rem;
-    }
-    .slimming-segmental-side--right {
-        right: -1.5rem;
-        transform: translateY(-50%) rotate(90deg);
+    .slimming-segmental-canvas--skeletal {
+        background-image: linear-gradient(rgba(255, 255, 255, .18), rgba(255, 255, 255, .18)), url('{{ asset('img/asesmen/slimming_segmentalskeletal.png') }}');
     }
     .slimming-segmental-marker {
         position: absolute;
         display: grid;
         gap: .2rem;
-        max-width: 9rem;
+        min-width: 9rem;
+        max-width: 10rem;
+        padding: .4rem .55rem;
+        border-radius: .7rem;
+        background: rgba(255, 255, 255, .78);
+        border: 1px solid rgba(226, 232, 240, .95);
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(4px);
         text-align: center;
     }
     .slimming-segmental-marker strong {
-        font-size: .97rem;
+        font-size: .88rem;
         color: #111827;
         font-weight: 700;
     }
     .slimming-segmental-marker span {
-        font-size: .86rem;
+        font-size: .82rem;
         color: #1f2937;
     }
     .slimming-segmental-marker--arm {
-        top: 4.6rem;
-        left: 1rem;
+        top: 4.2rem;
+        left: 30%;
+        transform: translateX(-50%);
     }
     .slimming-segmental-marker--trunk {
-        top: 10rem;
+        top: 10.8rem;
         left: 50%;
         transform: translateX(-50%);
     }
     .slimming-segmental-marker--waist {
-        top: 14.2rem;
+        top: 16rem;
         left: 50%;
         transform: translateX(-50%);
     }
     .slimming-segmental-marker--leg {
-        bottom: 5.4rem;
+        bottom: 5rem;
         left: 50%;
         transform: translateX(-50%);
     }
@@ -273,20 +412,20 @@
         font-weight: 700;
     }
     .slimming-segmental-circumference--arm-left {
-        top: 3.4rem;
-        left: 1rem;
+        top: 3.7rem;
+        left: 1.1rem;
     }
     .slimming-segmental-circumference--arm-right {
-        top: 3.4rem;
-        right: 1rem;
+        top: 3.7rem;
+        right: 1.1rem;
     }
     .slimming-segmental-circumference--leg-left {
-        bottom: 2.2rem;
-        left: 1rem;
+        bottom: 2.4rem;
+        left: 1.1rem;
     }
     .slimming-segmental-circumference--leg-right {
-        bottom: 2.2rem;
-        right: 1rem;
+        bottom: 2.4rem;
+        right: 1.1rem;
     }
     .slimming-segmental-pill {
         display: inline-flex;
@@ -348,18 +487,88 @@
         border-top: 1px solid #e5e7eb;
     }
     @media (max-width: 991.98px) {
+        .slimming-overview-row {
+            grid-template-columns: 1fr;
+        }
         .slimming-analysis-stack {
             grid-template-columns: 1fr;
         }
         .slimming-segmental-grid {
             grid-template-columns: 1fr;
         }
+        .slimming-placeholder-grid {
+            grid-template-columns: 1fr;
+        }
         .slimming-toolbar {
             flex-direction: column;
             align-items: flex-start;
         }
-        .slimming-segmental-side {
-            display: none;
+        .slimming-section-sidebar {
+            position: static;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .slimming-segmental-canvas {
+            min-height: 26rem;
+            background-size: contain;
+        }
+        .slimming-segmental-marker {
+            min-width: 7.5rem;
+            max-width: 8rem;
+            padding: .35rem .45rem;
+        }
+        .slimming-segmental-marker--arm {
+            top: 4.5rem;
+            left: 31%;
+        }
+        .slimming-segmental-marker--trunk {
+            top: 10.2rem;
+        }
+        .slimming-segmental-marker--waist {
+            top: 14.9rem;
+        }
+        .slimming-segmental-marker--leg {
+            bottom: 4.6rem;
+        }
+    }
+    @media (max-width: 767.98px) {
+        .slimming-segmental-card {
+            padding: .75rem;
+        }
+        .slimming-data-summary-grid {
+            grid-template-columns: 1fr;
+        }
+        .slimming-section-sidebar {
+            grid-template-columns: 1fr 1fr;
+        }
+        .slimming-segmental-canvas {
+            min-height: 22rem;
+        }
+        .slimming-segmental-circumference {
+            min-width: 6.25rem;
+            padding: .35rem .4rem;
+        }
+        .slimming-segmental-circumference small {
+            font-size: .66rem;
+        }
+        .slimming-segmental-circumference span,
+        .slimming-segmental-marker strong {
+            font-size: .8rem;
+        }
+        .slimming-segmental-marker span {
+            font-size: .74rem;
+        }
+        .slimming-segmental-marker--arm {
+            top: 3.8rem;
+            left: 32%;
+        }
+        .slimming-segmental-marker--trunk {
+            top: 8.8rem;
+        }
+        .slimming-segmental-marker--waist {
+            top: 12.7rem;
+        }
+        .slimming-segmental-marker--leg {
+            bottom: 3.8rem;
         }
     }
 </style>
@@ -410,175 +619,277 @@
         </div>
     </div> --}}
 
-    <div class="slimming-card">
-        <div class="slimming-card-header slimming-card-header--with-action">
-            <span>Riwayat Slimming</span>
-            <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#slimmingInputModal">
-                Input Data
-            </button>
-        </div>
-        <div class="slimming-data-card">
-            <div class="table-responsive">
-                <table id="slimmingTable" class="table table-bordered table-striped w-100 mb-0">
-                    <thead>
-                        <tr>
-                            <th>Kunjungan</th>
-                            <th>Usia</th>
-                            <th>TB</th>
-                            <th>BB</th>
-                            <th>Base Weight</th>
-                            <th>Base BMI</th>
-                            <th>Base Fat</th>
-                            <th>Visceral Fat</th>
-                            <th>Lingkar Perut</th>
-                            <th>Input At</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="slimming-analysis-stack">
+    <div class="slimming-overview-row">
         <div class="slimming-card">
-            <div class="slimming-card-header">Body Composition Analysis</div>
-            <table class="slimming-analysis-table">
-                <thead>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Hasil</th>
-                        <th>Normal</th>
-                        <th>Interpretasi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Berat Badan</td>
-                        <td id="summary_base_weight">-</td>
-                        <td id="summary_base_weight_normal">-</td>
-                        <td id="summary_base_weight_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                    <tr>
-                        <td>BMI</td>
-                        <td id="summary_base_bmi">-</td>
-                        <td id="summary_base_bmi_normal">18,5 - 22,9</td>
-                        <td id="summary_base_bmi_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                    <tr>
-                        <td>Body Age</td>
-                        <td id="summary_base_body_age">-</td>
-                        <td id="summary_base_body_age_normal">&le; 29 Tahun</td>
-                        <td id="summary_base_body_age_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="slimming-card">
-            <div class="slimming-card-header">Body Index Analysis</div>
-            <table class="slimming-analysis-table">
-                <thead>
-                    <tr>
-                        <th>Parameter</th>
-                        <th>Hasil</th>
-                        <th>Normal</th>
-                        <th>Interpretasi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Whole Body Fat</td>
-                        <td id="summary_base_fat">-</td>
-                        <td id="summary_base_fat_normal">-</td>
-                        <td id="summary_base_fat_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                    <tr>
-                        <td>Subcutaneous Body Fat</td>
-                        <td id="summary_subcutaneous_whole_body">-</td>
-                        <td id="summary_subcutaneous_whole_body_normal">-</td>
-                        <td id="summary_subcutaneous_whole_body_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                    <tr>
-                        <td>Visceral Fat</td>
-                        <td id="summary_base_visceral_fat">-</td>
-                        <td id="summary_base_visceral_fat_normal">1 - 9</td>
-                        <td id="summary_base_visceral_fat_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                    <tr>
-                        <td>Skeletal Whole Body</td>
-                        <td id="summary_skeletal_whole_body">-</td>
-                        <td id="summary_skeletal_whole_body_normal">-</td>
-                        <td id="summary_skeletal_whole_body_interpretation" class="slimming-status-cell">-</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="slimming-segmental-grid">
-        <div class="slimming-card">
-            <div class="slimming-card-header">Segmental Fat Analysis</div>
-            <div class="slimming-segmental-card">
-                <div class="slimming-segmental-canvas">
-                    <span class="slimming-segmental-side slimming-segmental-side--left">LEFT</span>
-                    <span class="slimming-segmental-side slimming-segmental-side--right">RIGHT</span>
-
-                    <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-left">
-                        <small>Lengan Kiri</small>
-                        <span id="segmental_arm_left_size">-</span>
+            <div class="slimming-card-header">Data</div>
+            <div class="slimming-data-summary">
+                <div class="slimming-data-summary-grid">
+                    <div class="slimming-data-summary-item slimming-data-summary-item--wide">
+                        <span class="slimming-data-summary-label">First Visit</span>
+                        <div id="summary_first_visit" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-right">
-                        <small>Lengan Kanan</small>
-                        <span id="segmental_arm_right_size">-</span>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">Berat Badan</span>
+                        <div id="summary_data_weight" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-left">
-                        <small>Paha Kiri</small>
-                        <span id="segmental_leg_left_size">-</span>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">Tinggi Badan</span>
+                        <div id="summary_data_height" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-right">
-                        <small>Paha Kanan</small>
-                        <span id="segmental_leg_right_size">-</span>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">BMI</span>
+                        <div id="summary_data_bmi" class="slimming-data-summary-value">-</div>
                     </div>
-
-                    <div class="slimming-segmental-marker slimming-segmental-marker--arm">
-                        <strong id="segmental_fat_arm_value">Arm: -</strong>
-                        <span id="segmental_fat_arm_status">-</span>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">Berat Badan Ideal</span>
+                        <div id="summary_ideal_weight" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
-                        <strong id="segmental_fat_trunk_value">Trunk: -</strong>
-                        <span id="segmental_fat_trunk_status">-</span>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">Kebutuhan Kalori</span>
+                        <div id="summary_base_kcal" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-marker slimming-segmental-marker--waist">
-                        <strong id="segmental_waist_value">Lingkar Perut: -</strong>
+                    <div class="slimming-data-summary-item">
+                        <span class="slimming-data-summary-label">Saran Diet</span>
+                        <div id="summary_diet_kcal" class="slimming-data-summary-value">-</div>
                     </div>
-                    <div class="slimming-segmental-marker slimming-segmental-marker--leg">
-                        <strong id="segmental_fat_leg_value">Legs: -</strong>
-                        <span id="segmental_fat_leg_status">-</span>
+                    <div class="slimming-data-summary-item slimming-data-summary-item--wide">
+                        <span class="slimming-data-summary-label">Target Ideal Tercapai</span>
+                        <div id="summary_target_ideal_date" class="slimming-data-summary-value">-</div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="slimming-card">
-            <div class="slimming-card-header">Segmental Skeletal Analysis</div>
-            <div class="slimming-segmental-card">
-                <div class="slimming-segmental-canvas">
-                    <span class="slimming-segmental-side slimming-segmental-side--left">LEFT</span>
-                    <span class="slimming-segmental-side slimming-segmental-side--right">RIGHT</span>
+            <div class="slimming-card-header slimming-card-header--with-action">
+                <span>Riwayat Slimming</span>
+                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#slimmingInputModal">
+                    Input Data
+                </button>
+            </div>
+            <div class="slimming-data-card">
+                <div class="table-responsive">
+                    <table id="slimmingTable" class="table table-bordered table-striped w-100 mb-0">
+                        <thead>
+                            <tr>
+                                <th>Kunjungan</th>
+                                <th>Nama Dokter</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-                    <div class="slimming-segmental-marker slimming-segmental-marker--arm">
-                        <strong id="segmental_skeletal_arm_value">Arm: -</strong>
-                        <span id="segmental_skeletal_arm_status">-</span>
+        <div class="slimming-section-sidebar">
+            <button type="button" class="slimming-section-switch is-active" data-section-switch="analysis">Body Index</button>
+            <button type="button" class="slimming-section-switch" data-section-switch="meal-plan">Meal Plan</button>
+            <button type="button" class="slimming-section-switch" data-section-switch="tindakan">Tindakan</button>
+            <button type="button" class="slimming-section-switch" data-section-switch="supplement">Suplemen</button>
+        </div>
+    </div>
+
+    <div class="slimming-section-layout">
+        <div class="slimming-section-main">
+            <div class="slimming-section-panel is-active" data-section-panel="analysis">
+                <div class="slimming-analysis-stack">
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Body Composition Analysis</div>
+                        <table class="slimming-analysis-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Hasil</th>
+                                    <th>Normal</th>
+                                    <th>Interpretasi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Berat Badan</td>
+                                    <td id="summary_base_weight">-</td>
+                                    <td id="summary_base_weight_normal">-</td>
+                                    <td id="summary_base_weight_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                                <tr>
+                                    <td>BMI</td>
+                                    <td id="summary_base_bmi">-</td>
+                                    <td id="summary_base_bmi_normal">18,5 - 22,9</td>
+                                    <td id="summary_base_bmi_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Body Age</td>
+                                    <td id="summary_base_body_age">-</td>
+                                    <td id="summary_base_body_age_normal">&le; 29 Tahun</td>
+                                    <td id="summary_base_body_age_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
-                        <strong id="segmental_skeletal_trunk_value">Trunk: -</strong>
-                        <span id="segmental_skeletal_trunk_status">-</span>
+
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Body Index Analysis</div>
+                        <table class="slimming-analysis-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Hasil</th>
+                                    <th>Normal</th>
+                                    <th>Interpretasi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Whole Body Fat</td>
+                                    <td id="summary_base_fat">-</td>
+                                    <td id="summary_base_fat_normal">-</td>
+                                    <td id="summary_base_fat_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Subcutaneous Body Fat</td>
+                                    <td id="summary_subcutaneous_whole_body">-</td>
+                                    <td id="summary_subcutaneous_whole_body_normal">-</td>
+                                    <td id="summary_subcutaneous_whole_body_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Visceral Fat</td>
+                                    <td id="summary_base_visceral_fat">-</td>
+                                    <td id="summary_base_visceral_fat_normal">1 - 9</td>
+                                    <td id="summary_base_visceral_fat_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Skeletal Whole Body</td>
+                                    <td id="summary_skeletal_whole_body">-</td>
+                                    <td id="summary_skeletal_whole_body_normal">-</td>
+                                    <td id="summary_skeletal_whole_body_interpretation" class="slimming-status-cell">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="slimming-segmental-marker slimming-segmental-marker--leg">
-                        <strong id="segmental_skeletal_leg_value">Legs: -</strong>
-                        <span id="segmental_skeletal_leg_status">-</span>
+                </div>
+
+                <div class="slimming-segmental-grid">
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Segmental Fat Analysis</div>
+                        <div class="slimming-segmental-card">
+                            <div class="slimming-segmental-canvas slimming-segmental-canvas--fat">
+                                <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-left">
+                                    <small>Lengan Kiri</small>
+                                    <span id="segmental_arm_left_size">-</span>
+                                </div>
+                                <div class="slimming-segmental-circumference slimming-segmental-circumference--arm-right">
+                                    <small>Lengan Kanan</small>
+                                    <span id="segmental_arm_right_size">-</span>
+                                </div>
+                                <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-left">
+                                    <small>Paha Kiri</small>
+                                    <span id="segmental_leg_left_size">-</span>
+                                </div>
+                                <div class="slimming-segmental-circumference slimming-segmental-circumference--leg-right">
+                                    <small>Paha Kanan</small>
+                                    <span id="segmental_leg_right_size">-</span>
+                                </div>
+
+                                <div class="slimming-segmental-marker slimming-segmental-marker--arm">
+                                    <strong id="segmental_fat_arm_value">Arm: -</strong>
+                                    <span id="segmental_fat_arm_status">-</span>
+                                </div>
+                                <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
+                                    <strong id="segmental_fat_trunk_value">Trunk: -</strong>
+                                    <span id="segmental_fat_trunk_status">-</span>
+                                </div>
+                                <div class="slimming-segmental-marker slimming-segmental-marker--waist">
+                                    <strong id="segmental_waist_value">Lingkar Perut: -</strong>
+                                </div>
+                                <div class="slimming-segmental-marker slimming-segmental-marker--leg">
+                                    <strong id="segmental_fat_leg_value">Legs: -</strong>
+                                    <span id="segmental_fat_leg_status">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Segmental Skeletal Analysis</div>
+                        <div class="slimming-segmental-card">
+                            <div class="slimming-segmental-canvas slimming-segmental-canvas--skeletal">
+                                <div class="slimming-segmental-marker slimming-segmental-marker--arm">
+                                    <strong id="segmental_skeletal_arm_value">Arm: -</strong>
+                                    <span id="segmental_skeletal_arm_status">-</span>
+                                </div>
+                                <div class="slimming-segmental-marker slimming-segmental-marker--trunk">
+                                    <strong id="segmental_skeletal_trunk_value">Trunk: -</strong>
+                                    <span id="segmental_skeletal_trunk_status">-</span>
+                                </div>
+                                <div class="slimming-segmental-marker slimming-segmental-marker--leg">
+                                    <strong id="segmental_skeletal_leg_value">Legs: -</strong>
+                                    <span id="segmental_skeletal_leg_status">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="slimming-section-panel" data-section-panel="meal-plan">
+                <div class="slimming-placeholder-grid">
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Meal Plan</div>
+                        <div class="slimming-placeholder-card">
+                            <h5 class="slimming-placeholder-title">Rekomendasi Kalori Harian</h5>
+                            <p class="slimming-placeholder-note">Gunakan kebutuhan kalori dan saran diet dari kartu data untuk menyusun pola makan harian pasien.</p>
+                            <div class="slimming-data-summary-grid">
+                                <div class="slimming-data-summary-item">
+                                    <span class="slimming-data-summary-label">Kebutuhan Kalori</span>
+                                    <div id="meal_plan_base_kcal" class="slimming-data-summary-value">-</div>
+                                </div>
+                                <div class="slimming-data-summary-item">
+                                    <span class="slimming-data-summary-label">Target Diet</span>
+                                    <div id="meal_plan_diet_kcal" class="slimming-data-summary-value">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slimming-card">
+                        <div class="slimming-card-header">Panduan</div>
+                        <div class="slimming-placeholder-card">
+                            <h5 class="slimming-placeholder-title">Arah Penyusunan Meal Plan</h5>
+                            <p id="meal_plan_note" class="slimming-placeholder-note">Pilih data kunjungan untuk melihat rekomendasi kalori sebagai acuan meal plan.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="slimming-section-panel" data-section-panel="tindakan">
+                <div class="slimming-card">
+                    <div class="slimming-card-header">Tindakan Slimming</div>
+                    <div class="slimming-data-card">
+                        <div id="slimming_tindakan_list" class="slimming-list">
+                            @forelse($riwayatTindakanOptions as $riwayatTindakan)
+                                <div class="slimming-list-item">
+                                    <h5 class="slimming-list-item-title">{{ optional($riwayatTindakan->tindakan)->nama_tindakan ?? 'Tindakan Slimming' }}</h5>
+                                    <div class="slimming-list-item-meta">
+                                        {{ optional($riwayatTindakan->tanggal_tindakan)->format('d/m/Y') ?? '-' }}
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="slimming-empty-state">Belum ada riwayat tindakan slimming untuk pasien ini.</div>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="slimming-section-panel" data-section-panel="supplement">
+                <div class="slimming-card">
+                    <div class="slimming-card-header">Suplemen</div>
+                    <div class="slimming-data-card">
+                        <div class="slimming-placeholder-card slimming-placeholder-card--wide">
+                            <h5 class="slimming-placeholder-title">Catatan Suplemen</h5>
+                            <p id="supplement_note" class="slimming-placeholder-note">Section suplemen siap dipakai untuk rekomendasi pendamping program slimming. Saat ini belum ada data suplemen yang terhubung ke halaman ini.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -880,6 +1191,19 @@
             }).format(parsedDate);
         }
 
+        function parseVisitDate(value) {
+            if (!value || value === '-') {
+                return null;
+            }
+
+            const parsedDate = new Date(value);
+            return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+        }
+
+        function formatSummaryBlockValue(selector, value) {
+            $(selector).text(value || '-');
+        }
+
         function setMetricCell(selector, value, unit, previousValue) {
             const cell = $(selector);
             const hasValue = value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
@@ -932,6 +1256,59 @@
 
         function setSegmentalSingle(selector, label, value, unit) {
             $(selector).text(label + ': ' + formatSegmentalValue(value, unit, '-'));
+        }
+
+        function idealWeight(heightCm) {
+            if (heightCm === null || Number.isNaN(heightCm) || heightCm <= 0) {
+                return null;
+            }
+
+            const heightMeter = heightCm / 100;
+            return 22 * heightMeter * heightMeter;
+        }
+
+        function addMonths(date, months) {
+            if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+                return null;
+            }
+
+            const result = new Date(date.getTime());
+            result.setMonth(result.getMonth() + months);
+            return result;
+        }
+
+        function updateDataOverview(records, selectedRecord) {
+            records = Array.isArray(records) ? records : [];
+            const firstRecord = records.length > 0 ? records[records.length - 1] : null;
+            const heightCm = selectedRecord && selectedRecord.tb !== undefined && selectedRecord.tb !== null ? parseFloat(selectedRecord.tb) : null;
+            const weightKg = selectedRecord && selectedRecord.base_weight !== undefined && selectedRecord.base_weight !== null
+                ? parseFloat(selectedRecord.base_weight)
+                : (selectedRecord && selectedRecord.bb !== undefined && selectedRecord.bb !== null ? parseFloat(selectedRecord.bb) : null);
+            const bmiValue = selectedRecord && selectedRecord.base_bmi !== undefined && selectedRecord.base_bmi !== null ? parseFloat(selectedRecord.base_bmi) : null;
+            const baseKcal = selectedRecord && selectedRecord.base_kcal !== undefined && selectedRecord.base_kcal !== null ? parseFloat(selectedRecord.base_kcal) : null;
+            const firstVisitDate = firstRecord ? parseVisitDate(firstRecord.visitation_date) : null;
+            const targetIdealDate = firstVisitDate ? addMonths(firstVisitDate, 5) : null;
+
+            formatSummaryBlockValue('#summary_first_visit', firstRecord ? formatVisitDate(firstRecord.visitation_date) : '-');
+            formatSummaryBlockValue('#summary_data_weight', formatSegmentalValue(weightKg, ' kg', '-'));
+            formatSummaryBlockValue('#summary_data_height', formatSegmentalValue(heightCm, ' cm', '-'));
+            formatSummaryBlockValue('#summary_data_bmi', formatSegmentalValue(bmiValue, '', '-'));
+            formatSummaryBlockValue('#summary_ideal_weight', formatSegmentalValue(idealWeight(heightCm), ' kg', '-'));
+            formatSummaryBlockValue('#summary_base_kcal', formatSegmentalValue(baseKcal, ' kkal', '-'));
+            formatSummaryBlockValue('#summary_diet_kcal', baseKcal !== null ? formatSegmentalValue(baseKcal - 500, ' kkal', '-') : '-');
+            formatSummaryBlockValue('#summary_target_ideal_date', targetIdealDate ? formatVisitDate(targetIdealDate) : '-');
+            formatSummaryBlockValue('#meal_plan_base_kcal', formatSegmentalValue(baseKcal, ' kkal', '-'));
+            formatSummaryBlockValue('#meal_plan_diet_kcal', baseKcal !== null ? formatSegmentalValue(baseKcal - 500, ' kkal', '-') : '-');
+            formatSummaryBlockValue('#meal_plan_note', baseKcal !== null
+                ? 'Target kebutuhan kalori pasien adalah ' + formatSegmentalValue(baseKcal, ' kkal', '-') + ' dengan saran diet ' + formatSegmentalValue(baseKcal - 500, ' kkal', '-') + ' per hari.'
+                : 'Pilih data kunjungan untuk melihat rekomendasi kalori sebagai acuan meal plan.');
+        }
+
+        function setActiveSection(sectionName) {
+            $('[data-section-panel]').removeClass('is-active');
+            $('[data-section-switch]').removeClass('is-active');
+            $('[data-section-panel="' + sectionName + '"]').addClass('is-active');
+            $('[data-section-switch="' + sectionName + '"]').addClass('is-active');
         }
 
         function genderProfile() {
@@ -1217,6 +1594,7 @@
             setInterpretationCell('#summary_base_visceral_fat_interpretation', visceralFatInterpretation(baseVisceralFat));
             $('#summary_skeletal_whole_body_normal').text(profile.skeletalNormal);
             setInterpretationCell('#summary_skeletal_whole_body_interpretation', profile.skeletalInterpretation(skeletalWholeBody));
+            updateDataOverview(records, selectedRecord);
             updateSegmentalAnalysis(selectedRecord, profile);
         }
 
@@ -1242,15 +1620,7 @@
                         return renderVisitCell(row);
                     }
                 },
-                { data: 'usia', defaultContent: '-' },
-                { data: 'tb', defaultContent: '-' },
-                { data: 'bb', defaultContent: '-' },
-                { data: 'base_weight', defaultContent: '-' },
-                { data: 'base_bmi', defaultContent: '-' },
-                { data: 'base_fat', defaultContent: '-' },
-                { data: 'base_visceral_fat', defaultContent: '-' },
-                { data: 'lingkar_perut', defaultContent: '-' },
-                { data: 'created_at', defaultContent: '-' },
+                { data: 'dokter_name', defaultContent: '-' },
                 {
                     data: null,
                     orderable: false,
@@ -1266,7 +1636,7 @@
                     }
                 }
             ],
-            order: [[9, 'desc']]
+            order: [[0, 'desc']]
         });
 
         $('#slimmingTable').on('click', '.js-view-slimming', function () {
@@ -1278,6 +1648,15 @@
 
             updateSummary(recordsCache, selectedIndex);
             slimmingTable.rows().invalidate().draw(false);
+        });
+
+        $('[data-section-switch]').on('click', function () {
+            const sectionName = $(this).data('sectionSwitch');
+            if (!sectionName) {
+                return;
+            }
+
+            setActiveSection(sectionName);
         });
 
         @if($errors->any())

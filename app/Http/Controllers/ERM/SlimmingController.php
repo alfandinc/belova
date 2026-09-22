@@ -89,7 +89,7 @@ class SlimmingController extends Controller
     {
         $visitation = Visitation::findOrFail($visitationId);
 
-        $records = Slimming::with(['visitation'])
+        $records = Slimming::with(['visitation', 'dokter.user'])
             ->where('pasien_id', $visitation->pasien_id)
             ->orderByDesc('created_at')
             ->get()
@@ -98,10 +98,13 @@ class SlimmingController extends Controller
                 return [
                     'visitation_id' => $slimming->visitation_id,
                     'visitation_date' => $slimming->visitation->tanggal_visitation ?? '-',
-                    'usia' => $slimming->usia,
+                    'dokter_name' => $slimming->dokter && $slimming->dokter->user
+                        ? ($slimming->dokter->user->name ?? $slimming->dokter_id)
+                        : ($slimming->dokter_id ?? '-'),
                     'tb' => $slimming->tb,
                     'bb' => $slimming->bb,
                     'base_weight' => $slimming->base_weight,
+                    'base_kcal' => $slimming->base_kcal,
                     'base_bmi' => $slimming->base_bmi,
                     'base_fat' => $slimming->base_fat,
                     'base_visceral_fat' => $slimming->base_visceral_fat,
