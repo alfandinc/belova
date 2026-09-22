@@ -3357,7 +3357,13 @@ $(document).on('submit', '#form-referral', function(e){
             Swal.fire('Gagal', res.message || 'Gagal memperbarui referral.', 'error');
         }
     }).fail(function(xhr){
-        Swal.fire('Error', 'Terjadi kesalahan saat menyimpan referral.', 'error');
+        var message = xhr.responseJSON?.message || 'Terjadi kesalahan saat menyimpan referral.';
+
+        if (xhr.status === 422 && xhr.responseJSON?.errors) {
+            message = Object.values(xhr.responseJSON.errors).flat().join('\n');
+        }
+
+        Swal.fire('Error', message, 'error');
         console.error(xhr.responseText);
     });
 });

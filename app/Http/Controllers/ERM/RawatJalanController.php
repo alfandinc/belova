@@ -1923,9 +1923,9 @@ class RawatJalanController extends Controller
             ]),
             'referral_detail' => 'nullable|string|max:255',
             'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
-            'referral_employee_id' => 'nullable|exists:employees,id',
+            'referral_employee_id' => 'nullable|exists:hrd_employee,id',
             'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
-            'referral_event_id' => 'nullable|exists:marketing_events,id',
+            'referral_event_id' => 'nullable|exists:marketing_event,id',
         ]);
 
         try {
@@ -1955,8 +1955,24 @@ class RawatJalanController extends Controller
                 return response()->json(['success' => false, 'message' => 'Event referral wajib dipilih.'], 422);
             }
 
+            if ($referralType === Pasien::REFERRAL_TYPE_MARKETPLACE && !in_array(strtolower(trim((string) $referralDetail)), Pasien::marketplaceReferralOptions(), true)) {
+                return response()->json(['success' => false, 'message' => 'Silakan pilih sumber marketplace yang valid.'], 422);
+            }
+
+            if ($referralType === Pasien::REFERRAL_TYPE_SOCIAL_MEDIA && !in_array(strtolower(trim((string) $referralDetail)), Pasien::socialMediaReferralOptions(), true)) {
+                return response()->json(['success' => false, 'message' => 'Silakan pilih sumber social media yang valid.'], 422);
+            }
+
+            if (in_array($referralType, [Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true) && empty(trim((string) $referralDetail))) {
+                return response()->json(['success' => false, 'message' => 'Detail referral wajib diisi.'], 422);
+            }
+
             if ($referralType === Pasien::REFERRAL_TYPE_WALK_IN) {
                 $referralDetail = null;
+            }
+
+            if (in_array($referralType, [Pasien::REFERRAL_TYPE_MARKETPLACE, Pasien::REFERRAL_TYPE_SOCIAL_MEDIA, Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true) && $referralDetail !== null) {
+                $referralDetail = strtolower($referralDetail);
             }
 
             $referralableId = match ($referralType) {

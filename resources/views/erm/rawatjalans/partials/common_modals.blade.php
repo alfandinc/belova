@@ -469,7 +469,7 @@ Terima kasih.
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_MARKETPLACE }}">Marketplace</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_EVENT }}">Event</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WEBSITE }}">Website</option>
-                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PARTNERSHIP }}">Partnership</option>
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PARTNERSHIP }}">B2B Partnership</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_GOOGLE_MAPS }}">Google Maps</option>
                         </select>
                     </div>
