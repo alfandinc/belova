@@ -298,6 +298,7 @@
                                 <option value="CV Belova Indonesia">CV Belova Indonesia</option>
                                 <option value="Belova Corp">Belova Corp</option>
                                 <option value="CV Grha Asri">CV Grha Asri</option>
+                                <option value="Belova Dental">Belova Dental</option>
                             </select>
                         </div>
                         <div class="col-md-3">
