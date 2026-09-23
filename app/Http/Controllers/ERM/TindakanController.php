@@ -665,6 +665,11 @@ class TindakanController extends Controller
 
         $this->syncKategoriIcd10ToAsesmenPenunjang($visitation->id, $tindakan);
 
+        if ($request->filled('return_url') && !$request->expectsJson()) {
+            return redirect($request->input('return_url'))
+                ->with('success', 'Tindakan slimming berhasil ditambahkan.');
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
@@ -1368,64 +1373,102 @@ class TindakanController extends Controller
 
     public function destroyRiwayatTindakan($id)
     {
-        $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
-        // Resolve visitation id as a string. The `finance_billing.visitation_id` column is a string,
-        // so avoid casting to integer which can trigger numeric comparisons in MySQL and errors
-        // for alphanumeric values. Prefer the loaded relation id when available.
-        $visitationIdRaw = $riwayat->visitation_id;
-        $visitationIdString = null;
-        if ($riwayat->relationLoaded('visitation') && $riwayat->visitation && isset($riwayat->visitation->id)) {
-            $visitationIdString = (string) $riwayat->visitation->id;
-        } elseif (!is_null($visitationIdRaw)) {
-            $visitationIdString = (string) $visitationIdRaw;
+        try {
+            $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
+
+            DB::beginTransaction();
+
+            $relatedRiwayat = $this->resolveRiwayatGroupForDeletion($riwayat);
+            $removedRiwayatIds = $relatedRiwayat->pluck('id')->map(function ($riwayatId) {
+                return (int) $riwayatId;
+            })->values()->all();
+            $removedMultiVisitUsageId = $riwayat->multi_visit_usage_id ? (int) $riwayat->multi_visit_usage_id : null;
+
+            foreach ($relatedRiwayat as $groupedRiwayat) {
+                $this->deleteSingleRiwayatTindakanGraph($groupedRiwayat);
+            }
+
+            if ($removedMultiVisitUsageId) {
+                MultiVisitUsage::where('id', $removedMultiVisitUsageId)->delete();
+            }
+
+            DB::commit();
+
+            $message = $removedMultiVisitUsageId
+                ? 'Riwayat tindakan slimming dan seluruh sesi paketnya berhasil dibatalkan.'
+                : 'Riwayat tindakan slimming berhasil dibatalkan.';
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'removed_riwayat_ids' => $removedRiwayatIds,
+                'removed_multi_visit_usage_id' => $removedMultiVisitUsageId,
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error deleting riwayat tindakan in destroyRiwayatTindakan: ' . $e->getMessage(), ['riwayat_id' => $id]);
+            return response()->json(['success' => false, 'message' => 'Failed to remove riwayat tindakan.'], 500);
         }
+    }
+
+    private function resolveRiwayatGroupForDeletion(RiwayatTindakan $riwayat)
+    {
+        if (!$riwayat->multi_visit_usage_id) {
+            return collect([$riwayat]);
+        }
+
+        return RiwayatTindakan::where('multi_visit_usage_id', $riwayat->multi_visit_usage_id)
+            ->orderByDesc('tanggal_tindakan')
+            ->get();
+    }
+
+    private function deleteSingleRiwayatTindakanGraph(RiwayatTindakan $riwayat): void
+    {
+        $visitationIdRaw = $riwayat->visitation_id;
+        $visitationIdString = !is_null($visitationIdRaw) ? (string) $visitationIdRaw : null;
 
         if (empty($visitationIdString)) {
-            Log::warning('destroyRiwayatTindakan: empty visitation_id for riwayat', ['riwayat_id' => $id, 'visitation_id_raw' => $visitationIdRaw]);
-            return response()->json(['success' => false, 'message' => 'Invalid visitation id for this record.'], 400);
+            Log::warning('destroyRiwayatTindakan: empty visitation_id for riwayat', ['riwayat_id' => $riwayat->id, 'visitation_id_raw' => $visitationIdRaw]);
+            throw new \RuntimeException('Invalid visitation id for this record.');
         }
 
-        try {
-            // Delete all related billing records for this tindakan, riwayat tindakan, and bundled obats
-            // 1. Billing for tindakan
-            // Use a raw quoted comparison to force string equality and avoid MySQL numeric coercion
-            $quotedVisitation = str_replace("'", "\\'", $visitationIdString);
-            $quotedBillableTindakan = str_replace("'", "\\'", (string) $riwayat->tindakan_id);
-            \App\Models\Finance\Billing::whereRaw("billable_id = '{$quotedBillableTindakan}'")
-                ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
-                ->whereRaw("visitation_id = '{$quotedVisitation}'")
-                ->delete();
+        $quotedVisitation = str_replace("'", "\\'", $visitationIdString);
+        $quotedBillableTindakan = str_replace("'", "\\'", (string) $riwayat->tindakan_id);
+        $quotedBillableRiwayat = str_replace("'", "\\'", (string) $riwayat->id);
 
-            // 2. Billing for riwayat tindakan
-            $quotedBillableRiwayat = str_replace("'", "\\'", (string) $riwayat->id);
-            \App\Models\Finance\Billing::whereRaw("billable_id = '{$quotedBillableRiwayat}'")
-                ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
-                ->whereRaw("visitation_id = '{$quotedVisitation}'")
-                ->delete();
+        Billing::whereRaw("billable_id = '{$quotedBillableTindakan}'")
+            ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->whereRaw("visitation_id = '{$quotedVisitation}'")
+            ->delete();
 
-            // 3. Billing for bundled obats
-            \App\Models\Finance\Billing::whereRaw("visitation_id = '{$quotedVisitation}'")
-                ->where('billable_type', 'App\\Models\\ERM\\Obat')
-                ->where('keterangan', 'like', '%Obat Bundled%')
-                ->delete();
-        } catch (\Exception $e) {
-            Log::error('Error deleting billing records in destroyRiwayatTindakan: ' . $e->getMessage(), ['riwayat_id' => $id, 'visitation_id_raw' => $visitationIdRaw, 'visitation_id_used' => $visitationIdString]);
-            return response()->json(['success' => false, 'message' => 'Failed to remove billing records.'], 500);
+        Billing::whereRaw("billable_id = '{$quotedBillableRiwayat}'")
+            ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+            ->whereRaw("visitation_id = '{$quotedVisitation}'")
+            ->delete();
+
+        Billing::whereRaw("visitation_id = '{$quotedVisitation}'")
+            ->where('billable_type', 'App\\Models\\ERM\\Obat')
+            ->where('keterangan', 'like', '%Obat Bundled%')
+            ->delete();
+
+        DB::table('erm_riwayat_tindakan_obat')
+            ->where('riwayat_tindakan_id', $riwayat->id)
+            ->delete();
+
+        \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->delete();
+        \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->delete();
+
+        $spkTindakanIds = \App\Models\ERM\SpkTindakan::where('riwayat_tindakan_id', $riwayat->id)->pluck('id');
+        if ($spkTindakanIds->isNotEmpty()) {
+            \App\Models\ERM\SpkTindakanItem::whereIn('spk_tindakan_id', $spkTindakanIds)->delete();
         }
-        // Delete associated InformConsent if exists
-        $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->first();
-        if ($informConsent) {
-            $informConsent->delete();
-        }
-        // Delete associated Spk if exists
-        $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->first();
-        if ($spk) {
-            $spk->delete();
+        \App\Models\ERM\SpkTindakan::where('riwayat_tindakan_id', $riwayat->id)->delete();
+
+        if (method_exists($riwayat, 'slimmingRecords')) {
+            $riwayat->slimmingRecords()->delete();
         }
 
         $riwayat->delete();
-
-        return response()->json(['success' => true, 'message' => 'Riwayat tindakan, billing, inform consent, dan SPK berhasil dibatalkan.']);
     }
 
     public function getSopList($tindakanId)

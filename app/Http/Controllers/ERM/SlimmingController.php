@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Models\ERM\Slimming;
+use App\Models\ERM\Tindakan;
 use App\Models\ERM\Visitation;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -30,9 +31,37 @@ class SlimmingController extends Controller
             ->orderByDesc('tanggal_tindakan')
             ->get();
 
+        $spesialisasiId = optional($visitation->dokter)->spesialisasi_id;
+        if (!$spesialisasiId) {
+            $spesialisasiId = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->value('id');
+        }
+
+        $umumId = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->value('id');
+        $availableSlimmingTindakanQuery = Tindakan::query()
+            ->where('is_active', true)
+            ->where('is_slimming', true);
+
+        if ($umumId) {
+            $availableSlimmingTindakanQuery->where(function ($query) use ($spesialisasiId, $umumId) {
+                $query->where('spesialis_id', $spesialisasiId)
+                    ->orWhere('spesialis_id', $umumId);
+            })->orderByRaw(
+                "CASE WHEN spesialis_id = ? THEN 0 WHEN spesialis_id = ? THEN 1 ELSE 2 END",
+                [$spesialisasiId, $umumId]
+            );
+        } elseif ($spesialisasiId) {
+            $availableSlimmingTindakanQuery->where('spesialis_id', $spesialisasiId)
+                ->orderByRaw("CASE WHEN spesialis_id = ? THEN 0 ELSE 1 END", [$spesialisasiId]);
+        }
+
+        $availableSlimmingTindakan = $availableSlimmingTindakanQuery
+            ->orderBy('nama')
+            ->get();
+
         return view('erm.slimming.create', array_merge([
             'visitation' => $visitation,
             'riwayatTindakanOptions' => $riwayatTindakanOptions,
+            'availableSlimmingTindakan' => $availableSlimmingTindakan,
         ], $pasienData, $createKunjunganData));
     }
 

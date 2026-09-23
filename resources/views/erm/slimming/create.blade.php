@@ -289,6 +289,86 @@
         font-size: .88rem;
         line-height: 1.55;
     }
+    .slimming-mealplan-shell {
+        display: grid;
+        gap: 1rem;
+    }
+    .slimming-mealplan-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .75rem;
+    }
+    .slimming-mealplan-summary-item {
+        border: 1px solid #dbe3ef;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        padding: .9rem 1rem;
+    }
+    .slimming-mealplan-summary-label {
+        display: block;
+        font-size: .74rem;
+        font-weight: 700;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        margin-bottom: .3rem;
+    }
+    .slimming-mealplan-summary-value {
+        font-size: 1.18rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .slimming-mealplan-summary-value--accent {
+        color: #b91c1c;
+    }
+    .slimming-mealplan-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .slimming-mealplan-table td {
+        border-bottom: 1px solid #dbe3ef;
+        padding: .55rem .65rem;
+        vertical-align: top;
+        font-size: .92rem;
+        color: #1f2937;
+    }
+    .slimming-mealplan-table tr:last-child td {
+        border-bottom: 0;
+    }
+    .slimming-mealplan-table .slimming-mealplan-section-row td {
+        padding: .9rem .65rem .55rem;
+        font-size: .97rem;
+        font-weight: 700;
+        color: #111827;
+        border-bottom: 1px solid #94a3b8;
+    }
+    .slimming-mealplan-table .slimming-mealplan-label {
+        width: 210px;
+        background: #d9cbe6;
+        color: #312e81;
+        font-weight: 600;
+    }
+    .slimming-mealplan-table .slimming-mealplan-separator {
+        width: 24px;
+        text-align: center;
+        color: #475569;
+        font-weight: 700;
+    }
+    .slimming-mealplan-table .slimming-mealplan-content {
+        color: #111827;
+        line-height: 1.55;
+    }
+    .slimming-mealplan-option-atau {
+        font-weight: 700;
+        color: #111827;
+        margin: 0 .4rem;
+    }
+    .slimming-mealplan-footnote {
+        margin: 0;
+        color: #64748b;
+        font-size: .85rem;
+        line-height: 1.55;
+    }
     .slimming-list {
         display: grid;
         gap: .75rem;
@@ -309,6 +389,113 @@
         margin-top: .3rem;
         color: #64748b;
         font-size: .84rem;
+    }
+    .slimming-tindakan-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr);
+        gap: 1rem;
+    }
+    .slimming-tindakan-card {
+        border: 1px solid #dbe3ef;
+        border-radius: 1rem;
+        background: #fff;
+        overflow: hidden;
+    }
+    .slimming-tindakan-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .9rem 1rem;
+        border-bottom: 1px solid #dbe3ef;
+        background: #f8fafc;
+    }
+    .slimming-tindakan-card-title {
+        margin: 0;
+        font-size: .95rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    .slimming-tindakan-toolbar {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        flex-wrap: wrap;
+    }
+    .slimming-tindakan-toolbar label {
+        margin: 0;
+        font-size: .8rem;
+        font-weight: 600;
+        color: #475569;
+    }
+    .slimming-tindakan-date {
+        min-width: 180px;
+    }
+    .slimming-tindakan-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .slimming-tindakan-table th,
+    .slimming-tindakan-table td {
+        padding: .8rem 1rem;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
+    }
+    .slimming-tindakan-table th {
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: .78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+    }
+    .slimming-tindakan-table tr:last-child td {
+        border-bottom: 0;
+    }
+    .slimming-tindakan-name {
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: .2rem;
+    }
+    .slimming-tindakan-price {
+        color: #475569;
+        font-size: .83rem;
+        line-height: 1.5;
+    }
+    .slimming-tindakan-actions {
+        display: flex;
+        gap: .5rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+    .slimming-tindakan-actions form {
+        margin: 0;
+    }
+    .slimming-tindakan-history {
+        display: grid;
+        gap: .75rem;
+        padding: 1rem;
+    }
+    .slimming-tindakan-history-item {
+        border: 1px solid #dbe3ef;
+        border-radius: .85rem;
+        padding: .85rem .95rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    }
+    .slimming-tindakan-history-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: .75rem;
+        align-items: center;
+        color: #64748b;
+        font-size: .82rem;
+        margin-top: .35rem;
+        flex-wrap: wrap;
+    }
+    .slimming-tindakan-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
     }
     .slimming-empty-state {
         padding: 1.1rem 1rem;
@@ -499,9 +686,22 @@
         .slimming-placeholder-grid {
             grid-template-columns: 1fr;
         }
+        .slimming-mealplan-summary {
+            grid-template-columns: 1fr;
+        }
+        .slimming-tindakan-layout {
+            grid-template-columns: 1fr;
+        }
         .slimming-toolbar {
             flex-direction: column;
             align-items: flex-start;
+        }
+        .slimming-tindakan-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .slimming-tindakan-actions {
+            justify-content: flex-start;
         }
         .slimming-section-sidebar {
             position: static;
@@ -595,6 +795,8 @@
     </div>
 
     @include('erm.partials.card-identitaspasien')
+
+    <div id="slimmingAjaxFlash"></div>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -834,29 +1036,121 @@
             </div>
 
             <div class="slimming-section-panel" data-section-panel="meal-plan">
-                <div class="slimming-placeholder-grid">
-                    <div class="slimming-card">
-                        <div class="slimming-card-header">Meal Plan</div>
-                        <div class="slimming-placeholder-card">
-                            <h5 class="slimming-placeholder-title">Rekomendasi Kalori Harian</h5>
-                            <p class="slimming-placeholder-note">Gunakan kebutuhan kalori dan saran diet dari kartu data untuk menyusun pola makan harian pasien.</p>
-                            <div class="slimming-data-summary-grid">
-                                <div class="slimming-data-summary-item">
-                                    <span class="slimming-data-summary-label">Kebutuhan Kalori</span>
-                                    <div id="meal_plan_base_kcal" class="slimming-data-summary-value">-</div>
+                <div class="slimming-card">
+                    <div class="slimming-card-header">Meal Plan</div>
+                    <div class="slimming-data-card">
+                        <div class="slimming-mealplan-shell">
+                            <div class="slimming-mealplan-summary">
+                                <div class="slimming-mealplan-summary-item">
+                                    <span class="slimming-mealplan-summary-label">Kalori Acuan</span>
+                                    <div id="meal_plan_reference_kcal" class="slimming-mealplan-summary-value">-</div>
                                 </div>
-                                <div class="slimming-data-summary-item">
-                                    <span class="slimming-data-summary-label">Target Diet</span>
-                                    <div id="meal_plan_diet_kcal" class="slimming-data-summary-value">-</div>
+                                <div class="slimming-mealplan-summary-item">
+                                    <span class="slimming-mealplan-summary-label">Kalori Diet Pasien</span>
+                                    <div id="meal_plan_base_kcal" class="slimming-mealplan-summary-value slimming-mealplan-summary-value--accent">-</div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <div class="slimming-card">
-                        <div class="slimming-card-header">Panduan</div>
-                        <div class="slimming-placeholder-card">
-                            <h5 class="slimming-placeholder-title">Arah Penyusunan Meal Plan</h5>
-                            <p id="meal_plan_note" class="slimming-placeholder-note">Pilih data kunjungan untuk melihat rekomendasi kalori sebagai acuan meal plan.</p>
+
+                            <table class="slimming-mealplan-table">
+                                <tbody>
+                                    <tr class="slimming-mealplan-section-row">
+                                        <td colspan="3">Makan pagi (07.00-09.00)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Protein hewani</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_breakfast_protein" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Sayur</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_breakfast_vegetable" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Lemak</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_breakfast_fat" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Buah</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_breakfast_fruit" class="slimming-mealplan-content">-</td>
+                                    </tr>
+
+                                    <tr class="slimming-mealplan-section-row">
+                                        <td colspan="3">Selingan pagi (10.00-11.00)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Buah</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_snack_morning" class="slimming-mealplan-content">-</td>
+                                    </tr>
+
+                                    <tr class="slimming-mealplan-section-row">
+                                        <td colspan="3">Makan siang (12.00-14.00)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Karbohidrat</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_lunch_carb" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Protein hewani</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_lunch_animal_protein" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Protein nabati</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_lunch_plant_protein" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Sayur</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_lunch_vegetable" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Lemak</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_lunch_fat" class="slimming-mealplan-content">-</td>
+                                    </tr>
+
+                                    <tr class="slimming-mealplan-section-row">
+                                        <td colspan="3">Selingan sore (15.00-16.00)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Buah</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_snack_afternoon" class="slimming-mealplan-content">-</td>
+                                    </tr>
+
+                                    <tr class="slimming-mealplan-section-row">
+                                        <td colspan="3">Makan malam (18.00-20.00)</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Karbohidrat</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_dinner_carb" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Protein hewani</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_dinner_animal_protein" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Sayur</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_dinner_vegetable" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="slimming-mealplan-label">Lemak</td>
+                                        <td class="slimming-mealplan-separator">:</td>
+                                        <td id="meal_plan_dinner_fat" class="slimming-mealplan-content">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <p id="meal_plan_note" class="slimming-mealplan-footnote">Pilih data kunjungan untuk melihat rekomendasi meal plan.</p>
                         </div>
                     </div>
                 </div>
@@ -866,17 +1160,104 @@
                 <div class="slimming-card">
                     <div class="slimming-card-header">Tindakan Slimming</div>
                     <div class="slimming-data-card">
-                        <div id="slimming_tindakan_list" class="slimming-list">
-                            @forelse($riwayatTindakanOptions as $riwayatTindakan)
-                                <div class="slimming-list-item">
-                                    <h5 class="slimming-list-item-title">{{ optional($riwayatTindakan->tindakan)->nama_tindakan ?? 'Tindakan Slimming' }}</h5>
-                                    <div class="slimming-list-item-meta">
-                                        {{ optional($riwayatTindakan->tanggal_tindakan)->format('d/m/Y') ?? '-' }}
+                        <div class="slimming-tindakan-layout">
+                            <div class="slimming-tindakan-card">
+                                <div class="slimming-tindakan-card-header">
+                                    <h5 class="slimming-tindakan-card-title">Daftar Tindakan Slimming</h5>
+                                    <div class="slimming-tindakan-toolbar">
+                                        <label for="slimmingTindakanDate">Tanggal tindakan</label>
+                                        <input type="date" id="slimmingTindakanDate" class="form-control slimming-tindakan-date" value="{{ optional($visitation->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}">
+                                        <a href="{{ route('erm.tindakan.create', $visitation->id) }}" class="btn btn-outline-primary btn-sm slimming-tindakan-cta">
+                                            <i class="fas fa-external-link-alt"></i>
+                                            <span>Halaman Tindakan</span>
+                                        </a>
                                     </div>
                                 </div>
-                            @empty
-                                <div class="slimming-empty-state">Belum ada riwayat tindakan slimming untuk pasien ini.</div>
-                            @endforelse
+                                <div class="table-responsive">
+                                    <table class="slimming-tindakan-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Tindakan</th>
+                                                <th>Harga</th>
+                                                <th class="text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($availableSlimmingTindakan as $tindakanSlimming)
+                                                @php
+                                                    $multiVisitTotal = max((int) ($tindakanSlimming->multi_visit_total ?: 3), 2);
+                                                @endphp
+                                                <tr>
+                                                    <td>
+                                                        <div class="slimming-tindakan-name">{{ $tindakanSlimming->nama }}</div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="slimming-tindakan-price">Normal: Rp {{ number_format((float) ($tindakanSlimming->harga ?? 0), 0, ',', '.') }}</div>
+                                                        @if(!empty($tindakanSlimming->harga_paket_visit))
+                                                            <div class="slimming-tindakan-price">{{ $multiVisitTotal }}x Visit: Rp {{ number_format((float) $tindakanSlimming->harga_paket_visit, 0, ',', '.') }}</div>
+                                                        @endif
+                                                    </td>
+                                                    <td>
+                                                        <div class="slimming-tindakan-actions">
+                                                            <form method="POST" action="{{ route('erm.tindakan.inform-consent.save') }}" class="js-slimming-tindakan-form">
+                                                                @csrf
+                                                                <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                                                                <input type="hidden" name="tindakan_id" value="{{ $tindakanSlimming->id }}">
+                                                                <input type="hidden" name="tanggal" value="{{ optional($visitation->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}" class="js-slimming-tindakan-date-target">
+                                                                <input type="hidden" name="harga_type" value="normal">
+                                                                <input type="hidden" name="reuse_existing_inform_consent" value="1">
+                                                                <input type="hidden" name="return_url" value="{{ route('erm.slimming.create', [$visitation->id, 'section' => 'tindakan']) }}">
+                                                                <button type="submit" class="btn btn-success btn-sm">Tambah Tindakan</button>
+                                                            </form>
+                                                            @if(!empty($tindakanSlimming->harga_paket_visit))
+                                                                <form method="POST" action="{{ route('erm.tindakan.inform-consent.save') }}" class="js-slimming-tindakan-form">
+                                                                    @csrf
+                                                                    <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                                                                    <input type="hidden" name="tindakan_id" value="{{ $tindakanSlimming->id }}">
+                                                                    <input type="hidden" name="tanggal" value="{{ optional($visitation->tanggal_visitation)->format('Y-m-d') ?? now()->format('Y-m-d') }}" class="js-slimming-tindakan-date-target">
+                                                                    <input type="hidden" name="harga_type" value="3x">
+                                                                    <input type="hidden" name="reuse_existing_inform_consent" value="1">
+                                                                    <input type="hidden" name="return_url" value="{{ route('erm.slimming.create', [$visitation->id, 'section' => 'tindakan']) }}">
+                                                                    <button type="submit" class="btn btn-primary btn-sm">Tambah {{ $multiVisitTotal }}x</button>
+                                                                </form>
+                                                            @endif
+                                                            <a href="{{ route('erm.tindakan.inform-consent', ['id' => $tindakanSlimming->id, 'visitation_id' => $visitation->id]) }}" target="_blank" class="btn btn-outline-secondary btn-sm">Inform Consent</a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="3">
+                                                        <div class="slimming-empty-state mb-0">Belum ada master tindakan slimming aktif untuk spesialisasi kunjungan ini.</div>
+                                                    </td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="slimming-tindakan-card">
+                                <div class="slimming-tindakan-card-header">
+                                    <h5 class="slimming-tindakan-card-title">Riwayat Tindakan Slimming</h5>
+                                </div>
+                                <div id="slimming_tindakan_list" class="slimming-tindakan-history">
+                                    @forelse($riwayatTindakanOptions as $riwayatTindakan)
+                                        <div class="slimming-tindakan-history-item" data-riwayat-id="{{ $riwayatTindakan->id }}" data-multi-visit-usage-id="{{ $riwayatTindakan->multi_visit_usage_id ?? '' }}">
+                                            <h5 class="slimming-list-item-title">{{ optional($riwayatTindakan->tindakan)->nama ?? optional($riwayatTindakan->tindakan)->nama_tindakan ?? 'Tindakan Slimming' }}</h5>
+                                            <div class="slimming-tindakan-history-meta">
+                                                <span>{{ optional($riwayatTindakan->tanggal_tindakan)->format('d/m/Y') ?? '-' }}</span>
+                                                <div class="slimming-tindakan-actions">
+                                                    <a href="{{ route('erm.tindakan.inform-consent', ['id' => $riwayatTindakan->tindakan_id, 'visitation_id' => $visitation->id]) }}" target="_blank" class="btn btn-outline-secondary btn-sm">Inform Consent</a>
+                                                    <button type="button" class="btn btn-outline-danger btn-sm js-cancel-slimming-riwayat" data-riwayat-id="{{ $riwayatTindakan->id }}" data-multi-visit-usage-id="{{ $riwayatTindakan->multi_visit_usage_id ?? '' }}">Batal</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <div class="slimming-empty-state">Belum ada riwayat tindakan slimming untuk pasien ini.</div>
+                                    @endforelse
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1078,6 +1459,8 @@
         const slimmingDataUrl = '{{ route('erm.slimming.data', $visitation->id) }}';
         const currentVisitationId = @json((string) $visitation->id);
         const pasienGender = @json($pasienGender);
+        const initialSection = @json(request('section', 'analysis'));
+        const mealPlanReferenceCalories = 1061;
         const summaryUnits = {
             base_weight: ' kg',
             base_bmi: '',
@@ -1204,6 +1587,111 @@
             $(selector).text(value || '-');
         }
 
+        function escapeHtml(value) {
+            return $('<div>').text(value || '').html();
+        }
+
+        function showSlimmingAjaxFlash(type, message) {
+            const alertClass = type === 'error' ? 'alert-danger' : 'alert-success';
+
+            $('#slimmingAjaxFlash').html(
+                '<div class="alert ' + alertClass + '">' + escapeHtml(message || '-') + '</div>'
+            );
+        }
+
+        function showSlimmingSuccessSwal(message) {
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: message || 'Tindakan slimming berhasil ditambahkan.',
+                    timer: 1800,
+                    showConfirmButton: false
+                });
+                return;
+            }
+
+            showSlimmingAjaxFlash('success', message || 'Tindakan slimming berhasil ditambahkan.');
+        }
+
+        function showSlimmingErrorSwal(message) {
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal',
+                    text: message || 'Gagal memproses data.'
+                });
+                return;
+            }
+
+            showSlimmingAjaxFlash('error', message || 'Gagal memproses data.');
+        }
+
+        function renderSlimmingTindakanHistoryItem(riwayatId, multiVisitUsageId, name, dateLabel, informConsentUrl) {
+            const safeName = escapeHtml(name || 'Tindakan Slimming');
+            const safeDateLabel = escapeHtml(dateLabel || '-');
+            const safeInformConsentUrl = escapeHtml(informConsentUrl || '#');
+            const safeRiwayatId = escapeHtml(riwayatId || '');
+            const safeMultiVisitUsageId = multiVisitUsageId === null || multiVisitUsageId === undefined ? '' : escapeHtml(multiVisitUsageId);
+
+            return '' +
+                '<div class="slimming-tindakan-history-item" data-riwayat-id="' + safeRiwayatId + '" data-multi-visit-usage-id="' + safeMultiVisitUsageId + '">' +
+                    '<h5 class="slimming-list-item-title">' + safeName + '</h5>' +
+                    '<div class="slimming-tindakan-history-meta">' +
+                        '<span>' + safeDateLabel + '</span>' +
+                        '<div class="slimming-tindakan-actions">' +
+                            '<a href="' + safeInformConsentUrl + '" target="_blank" class="btn btn-outline-secondary btn-sm">Inform Consent</a>' +
+                            '<button type="button" class="btn btn-outline-danger btn-sm js-cancel-slimming-riwayat" data-riwayat-id="' + safeRiwayatId + '" data-multi-visit-usage-id="' + safeMultiVisitUsageId + '">Batal</button>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+        }
+
+        function ensureSlimmingTindakanEmptyState() {
+            const $historyList = $('#slimming_tindakan_list');
+
+            if ($historyList.find('.slimming-tindakan-history-item').length === 0 && $historyList.find('.slimming-empty-state').length === 0) {
+                $historyList.html('<div class="slimming-empty-state">Belum ada riwayat tindakan slimming untuk pasien ini.</div>');
+            }
+        }
+
+        function roundToNearest(value, step) {
+            if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) {
+                return value;
+            }
+
+            return Math.round(value / step) * step;
+        }
+
+        function roundToSingleDecimal(value) {
+            if (!Number.isFinite(value)) {
+                return null;
+            }
+
+            return Math.round(value * 10) / 10;
+        }
+
+        function formatMealPlanNumber(value) {
+            if (value === null || value === undefined || value === '' || Number.isNaN(Number(value))) {
+                return '-';
+            }
+
+            const number = Number(value);
+            if (Number.isInteger(number)) {
+                return String(number);
+            }
+
+            return number.toFixed(1).replace('.', ',');
+        }
+
+        function mealPlanOr(items) {
+            return items.filter(Boolean).join(' <span class="slimming-mealplan-option-atau">ATAU</span> ');
+        }
+
+        function setMealPlanField(selector, value) {
+            $(selector).html(value || '-');
+        }
+
         function setMetricCell(selector, value, unit, previousValue) {
             const cell = $(selector);
             const hasValue = value !== null && value !== undefined && value !== '' && !Number.isNaN(Number(value));
@@ -1297,11 +1785,99 @@
             formatSummaryBlockValue('#summary_base_kcal', formatSegmentalValue(baseKcal, ' kkal', '-'));
             formatSummaryBlockValue('#summary_diet_kcal', baseKcal !== null ? formatSegmentalValue(baseKcal - 500, ' kkal', '-') : '-');
             formatSummaryBlockValue('#summary_target_ideal_date', targetIdealDate ? formatVisitDate(targetIdealDate) : '-');
-            formatSummaryBlockValue('#meal_plan_base_kcal', formatSegmentalValue(baseKcal, ' kkal', '-'));
-            formatSummaryBlockValue('#meal_plan_diet_kcal', baseKcal !== null ? formatSegmentalValue(baseKcal - 500, ' kkal', '-') : '-');
-            formatSummaryBlockValue('#meal_plan_note', baseKcal !== null
-                ? 'Target kebutuhan kalori pasien adalah ' + formatSegmentalValue(baseKcal, ' kkal', '-') + ' dengan saran diet ' + formatSegmentalValue(baseKcal - 500, ' kkal', '-') + ' per hari.'
-                : 'Pilih data kunjungan untuk melihat rekomendasi kalori sebagai acuan meal plan.');
+        }
+
+        function updateMealPlan(selectedRecord) {
+            const baseKcal = selectedRecord && selectedRecord.base_kcal !== undefined && selectedRecord.base_kcal !== null
+                ? parseFloat(selectedRecord.base_kcal)
+                : null;
+            const dietKcal = baseKcal !== null && !Number.isNaN(baseKcal) ? Math.max(baseKcal - 500, 0) : null;
+
+            formatSummaryBlockValue('#meal_plan_reference_kcal', formatSegmentalValue(mealPlanReferenceCalories, ' kkal', '-'));
+            formatSummaryBlockValue('#meal_plan_base_kcal', formatSegmentalValue(dietKcal, ' kkal', '-'));
+
+            if (dietKcal === null || Number.isNaN(dietKcal) || dietKcal <= 0) {
+                [
+                    '#meal_plan_breakfast_protein',
+                    '#meal_plan_breakfast_vegetable',
+                    '#meal_plan_breakfast_fat',
+                    '#meal_plan_breakfast_fruit',
+                    '#meal_plan_snack_morning',
+                    '#meal_plan_lunch_carb',
+                    '#meal_plan_lunch_animal_protein',
+                    '#meal_plan_lunch_plant_protein',
+                    '#meal_plan_lunch_vegetable',
+                    '#meal_plan_lunch_fat',
+                    '#meal_plan_snack_afternoon',
+                    '#meal_plan_dinner_carb',
+                    '#meal_plan_dinner_animal_protein',
+                    '#meal_plan_dinner_vegetable',
+                    '#meal_plan_dinner_fat'
+                ].forEach(function (selector) {
+                    setMealPlanField(selector, '-');
+                });
+
+                $('#meal_plan_note').text('Kebutuhan kalori diet belum tersedia pada kunjungan ini, sehingga meal plan belum dapat dihitung.');
+                return;
+            }
+
+            const scale = dietKcal / mealPlanReferenceCalories;
+            const eggWhites = Math.max(1, Math.round(3 * scale));
+            const lunchRiceTablespoons = Math.max(1, Math.round(4 * scale));
+            const lunchShiratakiTablespoons = Math.max(1, Math.round(6 * scale));
+            const lunchPotatoGrams = Math.max(1, Math.round(105 * scale));
+            const animalProteinGrams = Math.max(10, roundToNearest(100 * scale, 10));
+            const leanBeefGrams = Math.max(10, Math.round(85 * scale));
+            const tofuGrams = Math.max(10, Math.round(55 * scale));
+            const tempeGrams = Math.max(10, Math.round(50 * scale));
+
+            setMealPlanField('#meal_plan_breakfast_protein', formatMealPlanNumber(eggWhites) + ' putih telur');
+            setMealPlanField('#meal_plan_breakfast_vegetable', '1 mangkok (100 gram)');
+            setMealPlanField('#meal_plan_breakfast_fat', '1 sdm olive oil');
+            setMealPlanField('#meal_plan_breakfast_fruit', '1 porsi');
+            setMealPlanField('#meal_plan_snack_morning', '1 porsi');
+
+            setMealPlanField('#meal_plan_lunch_carb', mealPlanOr([
+                'Nasi putih ' + formatMealPlanNumber(lunchRiceTablespoons) + ' sdm',
+                'Nasi merah ' + formatMealPlanNumber(lunchRiceTablespoons) + ' sdm',
+                'Kentang dengan kulit 1 biji sedang (' + formatMealPlanNumber(lunchPotatoGrams) + ' gram)',
+                'Nasi shirataki ' + formatMealPlanNumber(lunchShiratakiTablespoons) + ' sdm'
+            ]));
+
+            setMealPlanField('#meal_plan_lunch_animal_protein', mealPlanOr([
+                'Ayam tanpa kulit ' + formatMealPlanNumber(animalProteinGrams) + ' gram',
+                'Ikan ' + formatMealPlanNumber(animalProteinGrams) + ' gram',
+                'Daging sapi rendah lemak ' + formatMealPlanNumber(leanBeefGrams) + ' gram'
+            ]));
+
+            setMealPlanField('#meal_plan_lunch_plant_protein', mealPlanOr([
+                '1 biji besar tahu (' + formatMealPlanNumber(tofuGrams) + ' gram)',
+                '2 potong sedang tempe (' + formatMealPlanNumber(tempeGrams) + ' gram)'
+            ]));
+
+            setMealPlanField('#meal_plan_lunch_vegetable', '1 mangkok (100 gram)');
+            setMealPlanField('#meal_plan_lunch_fat', '1 sdm olive oil');
+            setMealPlanField('#meal_plan_snack_afternoon', '1 porsi');
+
+            setMealPlanField('#meal_plan_dinner_carb', mealPlanOr([
+                'Nasi putih ' + formatMealPlanNumber(lunchRiceTablespoons) + ' sdm',
+                'Nasi merah ' + formatMealPlanNumber(lunchRiceTablespoons) + ' sdm',
+                'Nasi shirataki ' + formatMealPlanNumber(lunchShiratakiTablespoons) + ' sdm'
+            ]));
+
+            setMealPlanField('#meal_plan_dinner_animal_protein', mealPlanOr([
+                'Ayam tanpa kulit ' + formatMealPlanNumber(animalProteinGrams) + ' gram',
+                'Ikan ' + formatMealPlanNumber(animalProteinGrams) + ' gram',
+                'Daging sapi rendah lemak ' + formatMealPlanNumber(leanBeefGrams) + ' gram'
+            ]));
+            setMealPlanField('#meal_plan_dinner_vegetable', '1 mangkok (100 gram)');
+            setMealPlanField('#meal_plan_dinner_fat', '1 sdm olive oil');
+
+            $('#meal_plan_note').text(
+                'Rumus yang dipakai: kalori diet pasien = kebutuhan kalori - 500, lalu faktor skala = kalori diet pasien / kalori acuan ('
+                + formatMealPlanNumber(dietKcal) + ' / ' + formatMealPlanNumber(mealPlanReferenceCalories)
+                + '). Satuan rumah tangga dibulatkan ke angka praktis, sedangkan gram protein dan karbohidrat diskalakan proporsional.'
+            );
         }
 
         function setActiveSection(sectionName) {
@@ -1595,6 +2171,7 @@
             $('#summary_skeletal_whole_body_normal').text(profile.skeletalNormal);
             setInterpretationCell('#summary_skeletal_whole_body_interpretation', profile.skeletalInterpretation(skeletalWholeBody));
             updateDataOverview(records, selectedRecord);
+            updateMealPlan(selectedRecord);
             updateSegmentalAnalysis(selectedRecord, profile);
         }
 
@@ -1658,6 +2235,136 @@
 
             setActiveSection(sectionName);
         });
+
+        $('#slimmingTindakanDate').on('change', function () {
+            $('.js-slimming-tindakan-date-target').val($(this).val());
+        }).trigger('change');
+
+        $(document).on('submit', '.js-slimming-tindakan-form', function (event) {
+            event.preventDefault();
+
+            const $form = $(this);
+            const $button = $form.find('button[type="submit"]');
+            const originalLabel = $button.text();
+            const tindakanName = $.trim($form.closest('tr').find('.slimming-tindakan-name').text()) || 'Tindakan Slimming';
+            const tanggalValue = $form.find('.js-slimming-tindakan-date-target').val();
+            const informConsentUrl = $form.closest('tr').find('a.btn-outline-secondary').attr('href') || '#';
+
+            $button.prop('disabled', true).text('Menyimpan...');
+
+            $.ajax({
+                url: $form.attr('action'),
+                method: 'POST',
+                data: $form.serialize(),
+                dataType: 'json',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).done(function (response) {
+                const formattedDate = formatVisitDate(tanggalValue);
+                const $historyList = $('#slimming_tindakan_list');
+                const riwayatId = response && response.riwayatTindakan && response.riwayatTindakan.id ? response.riwayatTindakan.id : '';
+                const multiVisitUsageId = response && response.riwayatTindakan ? response.riwayatTindakan.multi_visit_usage_id : '';
+
+                $historyList.find('.slimming-empty-state').remove();
+                $historyList.prepend(renderSlimmingTindakanHistoryItem(riwayatId, multiVisitUsageId, tindakanName, formattedDate, informConsentUrl));
+
+                showSlimmingSuccessSwal(response && response.message ? response.message : 'Tindakan slimming berhasil ditambahkan.');
+                setActiveSection('tindakan');
+            }).fail(function (xhr) {
+                let errorMessage = 'Gagal menambahkan tindakan slimming.';
+
+                if (xhr.responseJSON) {
+                    if (xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+
+                    if (xhr.responseJSON.errors) {
+                        const firstError = Object.values(xhr.responseJSON.errors)[0];
+                        if (Array.isArray(firstError) && firstError[0]) {
+                            errorMessage = firstError[0];
+                        }
+                    }
+                }
+
+                showSlimmingAjaxFlash('error', errorMessage);
+                setActiveSection('tindakan');
+            }).always(function () {
+                $button.prop('disabled', false).text(originalLabel);
+            });
+        });
+
+        $(document).on('click', '.js-cancel-slimming-riwayat', function () {
+            const $button = $(this);
+            const riwayatId = $button.data('riwayatId');
+            const multiVisitUsageId = $button.data('multiVisitUsageId');
+            const $item = $button.closest('.slimming-tindakan-history-item');
+            const tindakanName = $.trim($item.find('.slimming-list-item-title').text()) || 'tindakan ini';
+            const confirmText = multiVisitUsageId
+                ? 'Tindakan ini terhubung ke paket multi visit. Jika dibatalkan, seluruh riwayat dalam paket yang sama juga akan dihapus.'
+                : 'Riwayat tindakan ini akan dibatalkan.';
+
+            const performCancel = function () {
+                const originalLabel = $button.text();
+                $button.prop('disabled', true).text('Membatalkan...');
+
+                $.ajax({
+                    url: '{{ route('erm.tindakan.riwayat.destroy', '__ID__') }}'.replace('__ID__', riwayatId),
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        _method: 'DELETE'
+                    },
+                    dataType: 'json',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                }).done(function (response) {
+                    const removedIds = Array.isArray(response && response.removed_riwayat_ids) ? response.removed_riwayat_ids : [riwayatId];
+
+                    removedIds.forEach(function (removedId) {
+                        $('#slimming_tindakan_list').find('[data-riwayat-id="' + removedId + '"]').remove();
+                    });
+
+                    ensureSlimmingTindakanEmptyState();
+                    showSlimmingSuccessSwal(response && response.message ? response.message : 'Riwayat tindakan berhasil dibatalkan.');
+                    setActiveSection('tindakan');
+                }).fail(function (xhr) {
+                    let errorMessage = 'Gagal membatalkan riwayat tindakan.';
+
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+
+                    showSlimmingErrorSwal(errorMessage);
+                    $button.prop('disabled', false).text(originalLabel);
+                });
+            };
+
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                window.Swal.fire({
+                    icon: 'warning',
+                    title: 'Batalkan tindakan?',
+                    text: confirmText,
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, batalkan',
+                    cancelButtonText: 'Tidak'
+                }).then(function (result) {
+                    if (result.isConfirmed) {
+                        performCancel();
+                    }
+                });
+                return;
+            }
+
+            if (window.confirm('Batalkan ' + tindakanName + '? ' + confirmText)) {
+                performCancel();
+            }
+        });
+
+        setActiveSection(initialSection);
 
         @if($errors->any())
             $('#slimmingInputModal').modal('show');
