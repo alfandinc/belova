@@ -140,9 +140,9 @@
                         aria-haspopup="false" aria-expanded="false">
                         <span class="nav-user-name hidden-sm shared-topbar-profile-name">{{ $topbarUser->name ?? '-' }}</span>
                         @if($topbarPhotoPath)
-                            <img src="{{ asset('storage/' . $topbarPhotoPath) }}" alt="profile-user" class="shared-topbar-avatar" />
+                            <img src="{{ route('chat.avatar', ['user' => $topbarUser->id, 'size' => 48]) }}" alt="profile-user" class="shared-topbar-avatar" width="36" height="36" loading="eager" fetchpriority="high" decoding="async" />
                         @else
-                            <img src="{{ asset('img/avatar.png') }}" alt="profile-user" class="shared-topbar-avatar" />
+                            <img src="{{ asset('img/avatar.png') }}" alt="profile-user" class="shared-topbar-avatar" width="36" height="36" loading="eager" fetchpriority="high" decoding="async" />
                         @endif
                     </a>
                     <div class="dropdown-menu dropdown-menu-right">

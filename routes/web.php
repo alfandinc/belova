@@ -183,6 +183,7 @@ Route::fallback(function () {
 Route::middleware(['auth'])->group(function () {
     Route::post('/user-emotions/heartbeat', [AuthController::class, 'heartbeatEmotion'])->name('user-emotions.heartbeat');
     Route::post('/user-emotions/update', [AuthController::class, 'updateEmotion'])->name('user-emotions.update');
+    Route::get('/chat/avatar/{user}', [ChatController::class, 'avatar'])->name('chat.avatar');
     Route::get('/chat/users', [ChatController::class, 'users'])->name('chat.users');
     Route::get('/chat/conversations/{user}', [ChatController::class, 'conversation'])->name('chat.conversation');
     Route::post('/chat/conversations/{user}', [ChatController::class, 'store'])->name('chat.store');

@@ -8,9 +8,55 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Laravel\Facades\Image;
 
 class ChatController extends Controller
 {
+    public function avatar(User $user, Request $request)
+    {
+        $user->loadMissing([
+            'employee:id,user_id,photo',
+            'dokter:id,user_id,photo',
+        ]);
+
+        $photoPath = ltrim((string) ($user->employee->photo ?? $user->dokter->photo ?? ''), '/');
+        abort_if($photoPath === '', 404);
+
+        $disk = Storage::disk('public');
+        abort_unless($disk->exists($photoPath), 404);
+
+        $size = max(24, min((int) $request->input('size', 64), 160));
+        $lastModified = (string) $disk->lastModified($photoPath);
+        $cacheDirectory = 'cache/chat-avatars';
+        $cachedFile = sprintf('%s/user_%d_%d_%s.jpg', $cacheDirectory, $user->id, $size, $lastModified);
+        $etag = '"' . sha1($cachedFile) . '"';
+
+        if ($request->headers->get('if-none-match') === $etag) {
+            return response('', 304, [
+                'ETag' => $etag,
+                'Cache-Control' => 'public, max-age=604800, immutable',
+            ]);
+        }
+
+        if (!$disk->exists($cachedFile)) {
+            if (!$disk->exists($cacheDirectory)) {
+                $disk->makeDirectory($cacheDirectory);
+            }
+
+            $image = Image::read($disk->get($photoPath))
+                ->cover($size, $size);
+
+            $disk->put($cachedFile, $image->toJpeg(72));
+        }
+
+        return response($disk->get($cachedFile), 200, [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'public, max-age=604800, immutable',
+            'ETag' => $etag,
+        ]);
+    }
+
     public function users(Request $request): JsonResponse
     {
         $authId = (int) Auth::id();
@@ -21,9 +67,8 @@ class ChatController extends Controller
             ->select(['id', 'name', 'email'])
             ->with([
                 'roles:id,name',
-                'employee:id,user_id,photo',
+                'employee:id,user_id',
                 'employee.position:id,name',
-                'dokter:id,user_id,photo',
             ])
             ->whereKeyNot($authId)
             ->when($search !== '', function ($query) use ($search) {
@@ -43,7 +88,6 @@ class ChatController extends Controller
 
         $data = $users->map(function (User $user) use ($unreadBySender, $latestByUser) {
             $latestMessage = $latestByUser->get($user->id);
-            $avatar = $this->resolveAvatar($user);
             $positionLabel = $user->employee?->position?->name;
 
             return [
@@ -55,8 +99,7 @@ class ChatController extends Controller
                 'last_message' => $latestMessage?->body,
                 'last_message_at' => $latestMessage?->created_at?->toIso8601String(),
                 'last_message_sender_id' => $latestMessage?->sender_id,
-                'avatar_url' => $avatar['url'],
-                'avatar_initials' => $avatar['initials'],
+                'avatar_initials' => $this->resolveAvatarInitials($user),
             ];
         })->sort(function (array $left, array $right) {
             $leftUnread = (int) ($left['unread_count'] ?? 0);
@@ -89,12 +132,10 @@ class ChatController extends Controller
         $authId = (int) Auth::id();
         $user->loadMissing([
             'roles:id,name',
-            'employee:id,user_id,photo',
+            'employee:id,user_id',
             'employee.position:id,name',
-            'dokter:id,user_id,photo',
         ]);
         $this->ensureValidParticipant($user, $authId);
-        $avatar = $this->resolveAvatar($user);
 
         UserChatMessage::query()
             ->where('sender_id', $user->id)
@@ -138,8 +179,7 @@ class ChatController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'position_label' => $user->employee?->position?->name,
-                'avatar_url' => $avatar['url'],
-                'avatar_initials' => $avatar['initials'],
+                'avatar_initials' => $this->resolveAvatarInitials($user),
             ],
             'messages' => $messages,
         ]);
@@ -229,17 +269,12 @@ class ChatController extends Controller
             });
     }
 
-    protected function resolveAvatar(User $user): array
+    protected function resolveAvatarInitials(User $user): string
     {
-        $photoPath = $user->employee->photo ?? $user->dokter->photo ?? null;
-
-        return [
-            'url' => $photoPath ? asset('storage/' . ltrim($photoPath, '/')) : null,
-            'initials' => collect(preg_split('/\s+/', trim($user->name)))
-                ->filter()
-                ->take(2)
-                ->map(fn (string $part) => strtoupper(substr($part, 0, 1)))
-                ->implode('') ?: 'U',
-        ];
+        return collect(preg_split('/\s+/', trim($user->name)))
+            ->filter()
+            ->take(2)
+            ->map(fn (string $part) => strtoupper(substr($part, 0, 1)))
+            ->implode('') ?: 'U';
     }
 }

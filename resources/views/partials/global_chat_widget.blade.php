@@ -666,6 +666,7 @@
             open: false,
             activeUserId: null,
             users: [],
+            usersLoaded: false,
             search: '',
             searchTimer: null,
             conversationTimer: null,
@@ -843,10 +844,6 @@
 
         function renderAvatar(user, className) {
             const initials = escapeHtml(user.avatar_initials || initialFor(user.name));
-            if (user.avatar_url) {
-                return '<span class="' + className + '"><img src="' + escapeHtml(user.avatar_url) + '" alt="' + escapeHtml(user.name || 'User') + '"></span>';
-            }
-
             return '<span class="' + className + '">' + initials + '</span>';
         }
 
@@ -1002,8 +999,13 @@
         }
 
         function fetchUsers() {
+            if (!state.open) {
+                return;
+            }
+
             $.get(endpoints.users, { q: state.search })
                 .done(function (response) {
+                    state.usersLoaded = true;
                     renderUsers(response);
                 });
         }
@@ -1140,13 +1142,15 @@
 
         renderCustomizer();
 
-        state.usersTimer = window.setInterval(fetchUsers, 10000);
+        state.usersTimer = window.setInterval(function () {
+            if (state.open) {
+                fetchUsers();
+            }
+        }, 10000);
         state.conversationTimer = window.setInterval(function () {
             if (state.open && state.activeUserId) {
                 fetchConversation(false);
             }
         }, 4000);
-
-        fetchUsers();
     });
 </script>
