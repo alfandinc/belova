@@ -256,7 +256,6 @@
         var divisionOptionsHtml = @json($divisionOptions);
         var parentPositionOptionsHtml = @json($parentPositionOptions);
         var positionLevelOrder = ['Direktur', 'Head Manager', 'Manager', 'Penanggung Jawab', 'Koordinator', 'Staff'];
-        var crossDivisionParentLevels = ['Direktur', 'Head Manager'];
 
         function normalizePositionFieldKey(key) {
             if (key.indexOf('organization_units') === 0) {
@@ -316,6 +315,30 @@
             return html;
         }
 
+        function getCurrentPositionLevel() {
+            return $('#positionForm').find('#position_level').val() || null;
+        }
+
+        function getLevelIndex(level) {
+            var index = positionLevelOrder.indexOf(level);
+            return index === -1 ? null : index;
+        }
+
+        function canBeParentForLevel(parentLevel, currentLevel) {
+            if (!currentLevel) {
+                return true;
+            }
+
+            var currentLevelIndex = getLevelIndex(currentLevel);
+            var parentLevelIndex = getLevelIndex(parentLevel);
+
+            if (currentLevelIndex === null || parentLevelIndex === null) {
+                return true;
+            }
+
+            return parentLevelIndex < currentLevelIndex;
+        }
+
         function buildParentSelectOptions(optionGroups, placeholder) {
             var html = '<option value="">' + placeholder + '</option>';
 
@@ -355,15 +378,20 @@
         function getFilteredParentOptions(divisionId, currentPositionId, selectedParentId) {
             var sameDivisionOptions = [];
             var crossDivisionOptions = [];
+            var currentLevel = getCurrentPositionLevel();
 
             parentPositionOptionsHtml.forEach(function(option) {
                 var divisionIds = (option.division_ids || []).map(String);
                 var matchesDivision = !divisionId || divisionIds.indexOf(String(divisionId)) !== -1;
                 var isSamePosition = currentPositionId && String(option.id) === String(currentPositionId);
                 var isSelectedParent = selectedParentId && String(option.id) === String(selectedParentId);
-                var allowCrossDivision = crossDivisionParentLevels.indexOf(option.level) !== -1;
+                var levelAllowed = canBeParentForLevel(option.level, currentLevel);
 
                 if (isSamePosition) {
+                    return;
+                }
+
+                if (!levelAllowed && !isSelectedParent) {
                     return;
                 }
 
@@ -372,7 +400,7 @@
                     return;
                 }
 
-                if (allowCrossDivision || isSelectedParent) {
+                if (levelAllowed || isSelectedParent) {
                     crossDivisionOptions.push(option);
                 }
             });
@@ -487,6 +515,12 @@
         $(document).on('change', '.organization-division', function() {
             var $row = $(this).closest('tr');
             refreshParentOptionsForRow($row);
+        });
+
+        $('#positionForm').find('#position_level').on('change', function() {
+            $('#positionOrganizationUnits').children('tr').each(function() {
+                refreshParentOptionsForRow($(this));
+            });
         });
 
         // Initialize DataTable for Divisi
