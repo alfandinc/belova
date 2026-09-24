@@ -59,7 +59,7 @@ class KpiAssessmentAssignmentService
 
     private function generateAssignments(KpiAssessmentPeriod $period): void
     {
-        $employees = Employee::with(['positions.division', 'user.roles'])
+        $employees = Employee::with(['positions.division', 'positions.divisions', 'user.roles'])
             ->where(function ($query) {
                 $query->whereNull('status')
                     ->orWhereRaw('LOWER(status) <> ?', ['tidak aktif']);
@@ -69,10 +69,15 @@ class KpiAssessmentAssignmentService
         $ceo = $this->firstByRole($employees, self::ROLE_CEO);
         $hrd = $this->firstByRole($employees, self::ROLE_HRD);
         $headManager = $this->firstHeadManager($employees);
-        $divisionManagers = $employees
-            ->filter(fn (Employee $employee) => $this->isManager($employee))
-            ->groupBy('division_id')
-            ->map(fn (Collection $group) => $group->first());
+        $divisionManagers = collect();
+
+        foreach ($employees->filter(fn (Employee $employee) => $this->isManager($employee)) as $manager) {
+            foreach ($manager->division_ids as $divisionId) {
+                if (!$divisionManagers->has($divisionId)) {
+                    $divisionManagers->put($divisionId, $manager);
+                }
+            }
+        }
 
         foreach ($employees as $employee) {
             if ($this->isHeadManager($employee)) {
@@ -109,10 +114,10 @@ class KpiAssessmentAssignmentService
                 continue;
             }
 
-            if ($employee->division_id && $divisionManagers->has($employee->division_id)) {
-                $manager = $divisionManagers->get($employee->division_id);
+            foreach ($employee->division_ids as $divisionId) {
+                $manager = $divisionManagers->get($divisionId);
                 if ($manager && $manager->id !== $employee->id) {
-                    $this->createAssignment($period, $employee, $manager, 'manager');
+                    $this->createAssignment($period, $employee, $manager, 'manager', $divisionId);
                 }
             }
 
@@ -122,7 +127,7 @@ class KpiAssessmentAssignmentService
         }
     }
 
-    private function createAssignment(KpiAssessmentPeriod $period, Employee $evaluatee, Employee $evaluator, string $evaluatorType): void
+    private function createAssignment(KpiAssessmentPeriod $period, Employee $evaluatee, Employee $evaluator, string $evaluatorType, ?int $divisionId = null): void
     {
         KpiAssessment::firstOrCreate(
             [
@@ -132,7 +137,7 @@ class KpiAssessmentAssignmentService
                 'evaluator_type' => $evaluatorType,
             ],
             [
-                'division_id' => $evaluatee->division_id,
+                'division_id' => $divisionId ?? $evaluatee->division_id,
                 'position_id' => $evaluatee->position_id,
                 'status' => 'pending',
             ]

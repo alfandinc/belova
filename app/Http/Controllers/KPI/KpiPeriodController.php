@@ -15,6 +15,60 @@ use App\Models\HRD\Employee as HRDEmployee;
 
 class KpiPeriodController extends Controller
 {
+    private function activeEmployees()
+    {
+        return HRDEmployee::query()
+            ->with(['positions.divisions', 'positions.parentPositions.divisions'])
+            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->get();
+    }
+
+    private function activeEmployeePositions(HRDEmployee $employee)
+    {
+        return $employee->positions()
+            ->where('hrd_position.is_active', true)
+            ->whereHas('divisions', function ($query) {
+                $query->where('hrd_division.is_active', true);
+            })
+            ->get();
+    }
+
+    private function activeIndicatorMappingsForPosition(HRDPosition $position)
+    {
+        return \App\Models\KPI\KpiPositionIndicator::where('position_id', $position->id)
+            ->with(['indicator.category'])
+            ->get()
+            ->filter(function ($mapping) {
+                return $mapping->indicator
+                    && $mapping->indicator->is_active
+                    && $mapping->indicator->category
+                    && $mapping->indicator->category->is_active;
+            });
+    }
+
+    private function activeDirectParentPositions(HRDPosition $position)
+    {
+        return $position->directParentPositions()
+            ->filter(function (HRDPosition $parentPosition) {
+                return (bool) $parentPosition->is_active
+                    && $parentPosition->divisions()->where('hrd_division.is_active', true)->exists();
+            })
+            ->values();
+    }
+
+    private function activeEvaluatorsForPosition(int $positionId)
+    {
+        return HRDEmployee::whereHas('positions', function ($query) use ($positionId) {
+                $query->where('hrd_employee_position.position_id', $positionId)
+                    ->where('hrd_position.is_active', true)
+                    ->whereHas('divisions', function ($divisionQuery) {
+                        $divisionQuery->where('hrd_division.is_active', true);
+                    });
+            })
+            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->get();
+    }
+
     public function index()
     {
         return view('kpi.periods.index');
@@ -185,25 +239,16 @@ class KpiPeriodController extends Controller
             {
                 DB::beginTransaction();
                 try {
-                    $employees = HRDEmployee::whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
+                    $employees = $this->activeEmployees();
 
                     foreach ($employees as $employee) {
-                        $primaryPosition = $employee->primaryPosition();
-                        $evaluateePositions = $employee->positions()->get();
+                        $evaluateePositions = $this->activeEmployeePositions($employee);
                         if ($evaluateePositions->isEmpty()) {
                             continue;
                         }
 
                         foreach ($evaluateePositions as $evaluateePosition) {
-                            $mappings = \App\Models\KPI\KpiPositionIndicator::where('position_id', $evaluateePosition->id)
-                                ->with(['indicator.category'])
-                                ->get()
-                                ->filter(function ($mapping) {
-                                    return $mapping->indicator
-                                        && $mapping->indicator->is_active
-                                        && $mapping->indicator->category
-                                        && $mapping->indicator->category->is_active;
-                                });
+                            $mappings = $this->activeIndicatorMappingsForPosition($evaluateePosition);
 
                             if ($mappings->isEmpty()) {
                                 continue;
@@ -214,44 +259,29 @@ class KpiPeriodController extends Controller
                                 $category = $indicator->category;
                                 $assessmentType = $category->evaluator_type;
 
-                                $evaluatorPositionTargets = null;
+                                    $evaluatorPositionTargets = collect();
                                 if ($assessmentType === 'direct_parent') {
-                                    $evaluatorPositionTargets = $evaluateePosition->parent_id ?: null;
+                    $evaluatorPositionTargets = $this->activeDirectParentPositions($evaluateePosition);
                                 } elseif ($assessmentType === 'specific_position') {
-                                    $evaluatorPositionTargets = $category->evaluator_position_id;
+                                        $specificPosition = HRDPosition::find($category->evaluator_position_id);
+                    $evaluatorPositionTargets = ($specificPosition && $specificPosition->is_active) ? collect([$specificPosition]) : collect();
                                 } elseif ($assessmentType === 'bottom_up') {
-                                    $children = HRDPosition::where('parent_id', $evaluateePosition->id)->get();
-                                    $childWithEmp = [];
-                                    foreach ($children as $childPos) {
-                                        $hasEmp = HRDEmployee::whereHas('positions', function ($q) use ($childPos) {
-                                            $q->where('hrd_employee_position.position_id', $childPos->id);
-                                        })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->exists();
-                                        if ($hasEmp) {
-                                            $childWithEmp[] = $childPos;
-                                        }
-                                    }
-                                    $evaluatorPositionTargets = empty($childWithEmp) ? null : $childWithEmp;
+                                        $evaluatorPositionTargets = $this->bottomUpEvaluatorPositions($evaluateePosition);
                                 }
 
-                                if (!$evaluatorPositionTargets) {
+                                    if ($evaluatorPositionTargets->isEmpty()) {
                                     continue;
                                 }
 
-                                $evaluatorPositions = is_array($evaluatorPositionTargets)
-                                    ? $evaluatorPositionTargets
-                                    : [$evaluatorPositionTargets];
-
-                                foreach ($evaluatorPositions as $evPos) {
-                                    $evaluatorPositionId = $evPos->id ?? $evPos;
-                                    $evaluatorsQuery = HRDEmployee::whereHas('positions', function ($q) use ($evaluatorPositionId) {
-                                        $q->where('hrd_employee_position.position_id', $evaluatorPositionId);
-                                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
+                                    foreach ($evaluatorPositionTargets as $evPos) {
+                                        $evaluatorPositionId = $evPos->id;
+                                    $evaluatorsQuery = $this->activeEvaluatorsForPosition($evaluatorPositionId);
 
                                     if ($assessmentType === 'specific_position') {
                                         $selectedEvaluator = $evaluatorsQuery->first();
                                         $evaluators = $selectedEvaluator ? collect([$selectedEvaluator]) : collect();
                                     } else {
-                                        $evaluators = $evaluatorsQuery->get()
+                                        $evaluators = $evaluatorsQuery
                                         ->filter(function ($evaluator) use ($evaluateePosition, $evaluatorPositionId) {
                                             return $this->shouldIncludeBottomUpEvaluator(
                                                 $evaluator,
@@ -328,25 +358,16 @@ class KpiPeriodController extends Controller
     public function previewStart(Request $request, KpiPeriod $period)
     {
         $proposals = [];
-        $employees = HRDEmployee::whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get();
+        $employees = $this->activeEmployees();
 
         foreach ($employees as $employee) {
-            $primaryPosition = $employee->primaryPosition();
-            $evaluateePositions = $employee->positions()->get();
+            $evaluateePositions = $this->activeEmployeePositions($employee);
             if ($evaluateePositions->isEmpty()) {
                 continue;
             }
 
             foreach ($evaluateePositions as $evaluateePosition) {
-                $mappings = \App\Models\KPI\KpiPositionIndicator::where('position_id', $evaluateePosition->id)
-                    ->with(['indicator.category'])
-                    ->get()
-                    ->filter(function ($mapping) {
-                        return $mapping->indicator
-                            && $mapping->indicator->is_active
-                            && $mapping->indicator->category
-                            && $mapping->indicator->category->is_active;
-                    });
+                $mappings = $this->activeIndicatorMappingsForPosition($evaluateePosition);
 
                 if ($mappings->isEmpty()) {
                     continue;
@@ -358,21 +379,8 @@ class KpiPeriodController extends Controller
                     $assessmentType = $category->evaluator_type;
 
                     if ($assessmentType === 'bottom_up') {
-                        $children = HRDPosition::where('parent_id', $evaluateePosition->id)->get();
-                        $childWithEmp = [];
-                        foreach ($children as $childPos) {
-                            $hasEmp = HRDEmployee::whereHas('positions', function ($q) use ($childPos) {
-                                $q->where('hrd_employee_position.position_id', $childPos->id);
-                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->exists();
-                            if ($hasEmp) {
-                                $childWithEmp[] = $childPos;
-                            }
-                        }
-
-                        foreach ($childWithEmp as $evPos) {
-                            $evaluators = HRDEmployee::whereHas('positions', function ($q) use ($evPos) {
-                                $q->where('hrd_employee_position.position_id', $evPos->id);
-                            })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->get()
+                        foreach ($this->bottomUpEvaluatorPositions($evaluateePosition) as $evPos) {
+                            $evaluators = $this->activeEvaluatorsForPosition($evPos->id)
                                 ->filter(function ($evaluator) use ($evaluateePosition, $evPos) {
                                     return $this->shouldIncludeBottomUpEvaluator(
                                         $evaluator,
@@ -404,37 +412,39 @@ class KpiPeriodController extends Controller
                         continue;
                     }
 
-                    $evaluatorPositionId = null;
                     if ($assessmentType === 'direct_parent') {
-                        $evaluatorPositionId = $evaluateePosition->parent_id ?: null;
+                        $evaluatorPositions = $this->activeDirectParentPositions($evaluateePosition);
                     } elseif ($assessmentType === 'specific_position') {
-                        $evaluatorPositionId = $category->evaluator_position_id;
+                        $specificPosition = HRDPosition::find($category->evaluator_position_id);
+                        $evaluatorPositions = ($specificPosition && $specificPosition->is_active) ? collect([$specificPosition]) : collect();
+                    } else {
+                        $evaluatorPositions = collect();
                     }
 
-                    if (!$evaluatorPositionId) {
+                    if ($evaluatorPositions->isEmpty()) {
                         continue;
                     }
 
-                    $evaluator = HRDEmployee::whereHas('positions', function ($q) use ($evaluatorPositionId) {
-                        $q->where('hrd_employee_position.position_id', $evaluatorPositionId);
-                    })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->first();
+                    foreach ($evaluatorPositions as $evaluatorPosition) {
+                        $evaluator = $this->activeEvaluatorsForPosition($evaluatorPosition->id)->first();
 
-                    $proposals[] = [
-                        'evaluatee_id' => $employee->id,
-                        'evaluatee_name' => $employee->nama ?? ($employee->name ?? ''),
-                        'evaluatee_position_id' => $evaluateePosition->id,
-                        'evaluatee_position_name' => $evaluateePosition->name ?? '',
-                        'evaluator_position_id' => $evaluatorPositionId,
-                        'evaluator_position_name' => HRDPosition::find($evaluatorPositionId)?->name ?? '',
-                        'evaluator_employee_id' => $evaluator?->id,
-                        'evaluator_employee_name' => $evaluator?->nama ?? ($evaluator?->name ?? null),
-                        'indicator_id' => $indicator->id,
-                        'indicator_name' => $indicator->indicator_name,
-                        'category_name' => $category->category_name,
-                        'category_weight' => $category->weight_percentage ?? 0,
-                        'indicator_weight' => $map->weight_percentage ?? 0,
-                        'assessment_type' => $assessmentType,
-                    ];
+                        $proposals[] = [
+                            'evaluatee_id' => $employee->id,
+                            'evaluatee_name' => $employee->nama ?? ($employee->name ?? ''),
+                            'evaluatee_position_id' => $evaluateePosition->id,
+                            'evaluatee_position_name' => $evaluateePosition->name ?? '',
+                            'evaluator_position_id' => $evaluatorPosition->id,
+                            'evaluator_position_name' => $evaluatorPosition->name ?? '',
+                            'evaluator_employee_id' => $evaluator?->id,
+                            'evaluator_employee_name' => $evaluator?->nama ?? ($evaluator?->name ?? null),
+                            'indicator_id' => $indicator->id,
+                            'indicator_name' => $indicator->indicator_name,
+                            'category_name' => $category->category_name,
+                            'category_weight' => $category->weight_percentage ?? 0,
+                            'indicator_weight' => $map->weight_percentage ?? 0,
+                            'assessment_type' => $assessmentType,
+                        ];
+                    }
                 }
             }
         }
@@ -497,7 +507,10 @@ class KpiPeriodController extends Controller
     private function shouldIncludeBottomUpEvaluator(HRDEmployee $evaluator, int $parentPositionId, int $candidatePositionId): bool
     {
         $positionsUnderParent = $evaluator->positions()
-            ->where('parent_id', $parentPositionId)
+            ->where('hrd_position.is_active', true)
+            ->whereHas('parentPositions', function ($parentQuery) use ($parentPositionId) {
+                $parentQuery->where('hrd_position.id', $parentPositionId);
+            })
             ->get();
 
         if ($positionsUnderParent->count() <= 1) {
@@ -507,5 +520,24 @@ class KpiPeriodController extends Controller
         $primaryPosition = $evaluator->primaryPosition();
 
         return $primaryPosition && (int) $primaryPosition->id === $candidatePositionId;
+    }
+
+    private function bottomUpEvaluatorPositions(HRDPosition $evaluateePosition)
+    {
+        return $evaluateePosition->directChildPositions()
+            ->filter(function (HRDPosition $childPos) {
+                if (!$childPos->is_active || !$childPos->divisions()->where('hrd_division.is_active', true)->exists()) {
+                    return false;
+                }
+
+                return HRDEmployee::whereHas('positions', function ($q) use ($childPos) {
+                    $q->where('hrd_employee_position.position_id', $childPos->id)
+                        ->where('hrd_position.is_active', true)
+                        ->whereHas('divisions', function ($divisionQuery) {
+                            $divisionQuery->where('hrd_division.is_active', true);
+                        });
+                })->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->exists();
+            })
+            ->values();
     }
 }

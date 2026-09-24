@@ -24,7 +24,12 @@ class PengajuanGantiShiftController extends Controller
         }
 
         return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-                $query->whereIn('parent_id', $parentPositionIds);
+            $query->where(function ($positionQuery) use ($parentPositionIds) {
+                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
+                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
+                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
+                });
+            });
             })
             ->where('id', '!=', $employee->id)
             ->pluck('id')

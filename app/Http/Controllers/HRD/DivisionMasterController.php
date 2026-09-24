@@ -14,8 +14,24 @@ class DivisionMasterController extends Controller
     public function index()
     {
         $divisions = Division::all();
-        $positions = Position::all();
-        return view('hrd.master.division.index', compact('divisions', 'positions'));
+        $positions = Position::with('divisions')->orderBy('name')->get();
+        $levelOptions = Position::LEVEL_OPTIONS;
+        $divisionOptions = $divisions->map(function (Division $division) {
+            return [
+                'id' => $division->id,
+                'name' => $division->name,
+            ];
+        })->values()->all();
+        $parentPositionOptions = $positions->map(function (Position $position) {
+            return [
+                'id' => $position->id,
+                'name' => $position->name,
+                'level' => $position->level,
+                'division_ids' => $position->division_ids,
+            ];
+        })->values()->all();
+
+        return view('hrd.master.division.index', compact('divisions', 'positions', 'levelOptions', 'divisionOptions', 'parentPositionOptions'));
     }
 
     public function getData()
@@ -23,6 +39,11 @@ class DivisionMasterController extends Controller
         $divisions = Division::query();
 
         return DataTables::of($divisions)
+            ->addColumn('status_badge', function ($division) {
+                return $division->is_active
+                    ? '<span class="badge badge-success">Aktif</span>'
+                    : '<span class="badge badge-secondary">Nonaktif</span>';
+            })
             ->addColumn('employee_count', function ($division) {
                 // Count employees by checking positions that belong to this division
                 return \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($division) {
@@ -39,7 +60,7 @@ class DivisionMasterController extends Controller
                     </button>
                 ';
             })
-            ->rawColumns(['action'])
+                ->rawColumns(['status_badge', 'action'])
             ->make(true);
     }
 
@@ -47,12 +68,14 @@ class DivisionMasterController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:hrd_division,name',
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'is_active' => 'required|boolean'
         ]);
 
         $division = Division::create([
             'name' => $request->name,
-            'description' => $request->description
+            'description' => $request->description,
+            'is_active' => (bool) $request->is_active,
         ]);
 
         return response()->json([
@@ -79,12 +102,14 @@ class DivisionMasterController extends Controller
                 'max:255', 
                 Rule::unique('hrd_division')->ignore($division->id)
             ],
-            'description' => 'nullable|string'
+            'description' => 'nullable|string',
+            'is_active' => 'required|boolean'
         ]);
 
         $division->update([
             'name' => $request->name,
-            'description' => $request->description
+            'description' => $request->description,
+            'is_active' => (bool) $request->is_active,
         ]);
 
         return response()->json([

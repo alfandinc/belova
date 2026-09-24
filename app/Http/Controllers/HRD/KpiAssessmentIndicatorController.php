@@ -34,13 +34,12 @@ class KpiAssessmentIndicatorController extends Controller
             ->orderBy('name')
             ->get();
 
-        $positions = Position::with(['division', 'employees.user.roles'])
+        $positions = Position::with(['division', 'divisions', 'employees.user.roles'])
             ->orderBy('name')
             ->get();
 
         $divisionOptions = $positions
-            ->filter(fn (Position $position) => (bool) $position->division)
-            ->map(fn (Position $position) => $position->division)
+            ->flatMap(fn (Position $position) => $position->divisions)
             ->unique('id')
             ->sortBy('name')
             ->values();
@@ -72,7 +71,7 @@ class KpiAssessmentIndicatorController extends Controller
             })
             ->when($request->filled('division_filter'), function (Collection $collection) use ($request) {
                 return $collection->filter(function (array $preview) use ($request) {
-                    return (string) ($preview['position']->division_id ?? '') === $request->string('division_filter')->toString();
+                    return in_array((int) $request->input('division_filter'), $preview['position']->division_ids, true);
                 })->values();
             })
             ->when($request->filled('formula_total_filter'), function (Collection $collection) use ($request) {
@@ -89,7 +88,7 @@ class KpiAssessmentIndicatorController extends Controller
 
         return DataTables::of($previews)
             ->addColumn('position_name', fn (array $preview) => $preview['position']->name)
-            ->addColumn('division_name', fn (array $preview) => $preview['position']->division->name ?? 'Tanpa divisi')
+            ->addColumn('division_name', fn (array $preview) => $preview['position']->division_names ?: 'Tanpa divisi')
             ->addColumn('target_role_value', fn (array $preview) => $preview['target_role'])
             ->addColumn('target_role_badge', function (array $preview) {
                 $badgeClass = match ($preview['target_role']) {
@@ -115,12 +114,12 @@ class KpiAssessmentIndicatorController extends Controller
     {
         $this->authorizeView();
 
-        $position->load(['division', 'employees.user.roles']);
+        $position->load(['division', 'divisions', 'employees.user.roles']);
         $preview = $this->buildPositionPreview($position, $this->activeIndicators());
 
         return response()->json([
             'position_name' => $position->name,
-            'division_name' => $position->division->name ?? 'Tanpa divisi',
+            'division_name' => $position->division_names ?: 'Tanpa divisi',
             'target_role' => str_replace('_', ' ', $preview['target_role']),
             'formula' => $preview['formula'] ?: 'Belum ada formula aktif untuk jabatan ini.',
             'total_weight' => number_format($preview['total_weight'], 2) . '%',

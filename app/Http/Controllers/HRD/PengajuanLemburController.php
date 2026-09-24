@@ -21,7 +21,12 @@ class PengajuanLemburController extends Controller
         }
 
         return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-                $query->whereIn('parent_id', $parentPositionIds);
+            $query->where(function ($positionQuery) use ($parentPositionIds) {
+                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
+                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
+                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
+                });
+            });
             })
             ->where('id', '!=', $employee->id)
             ->pluck('id')
@@ -30,7 +35,7 @@ class PengajuanLemburController extends Controller
 
     public function index(Request $request)
     {
-        $user = \App\Models\User::find(Auth::id());
+        $user = Auth::user();
         $viewType = $request->input('view', 'personal');
 
         // Date filter defaults: start of this month to end of next month
@@ -52,7 +57,7 @@ class PengajuanLemburController extends Controller
         }
 
         if ($request->ajax()) {
-            $user = \App\Models\User::find(Auth::id());
+            $user = Auth::user();
             // HRD/Admin: all data
             if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
                 $data = PengajuanLembur::with('employee')

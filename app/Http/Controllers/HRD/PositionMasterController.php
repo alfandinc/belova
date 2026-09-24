@@ -11,28 +11,120 @@ use Illuminate\Validation\Rule;
 
 class PositionMasterController extends Controller
 {
+    protected function normalizeDivisionHierarchyPayload(Request $request, ?int $positionId = null): array
+    {
+        $organizationUnits = collect($request->input('organization_units', []))
+            ->map(function ($unit) use ($positionId) {
+                $divisionId = $unit['division_id'] ?? null;
+                $parentPositionId = $unit['parent_position_id'] ?? null;
+
+                return [
+                    'division_id' => filled($divisionId) ? (int) $divisionId : null,
+                    'parent_position_id' => filled($parentPositionId) ? (int) $parentPositionId : null,
+                ];
+            })
+            ->filter(fn (array $unit) => filled($unit['division_id']))
+            ->reject(fn (array $unit) => $positionId !== null && ($unit['parent_position_id'] ?? null) === $positionId)
+            ->unique(fn (array $unit) => $unit['division_id'] . ':' . ($unit['parent_position_id'] ?? 'null'))
+            ->values();
+
+        if ($organizationUnits->isEmpty()) {
+            $divisionIds = collect($request->input('division_ids', []));
+            if ($divisionIds->isEmpty() && $request->filled('division_id')) {
+                $divisionIds = collect([$request->input('division_id')]);
+            }
+
+            $parentPositionIds = collect($request->input('parent_position_ids', []));
+            if ($parentPositionIds->isEmpty() && $request->filled('parent_id')) {
+                $parentPositionIds = collect([$request->input('parent_id')]);
+            }
+
+            $divisionIds = $divisionIds
+                ->filter(fn ($id) => filled($id))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            $parentPositionIds = $parentPositionIds
+                ->filter(fn ($id) => filled($id))
+                ->map(fn ($id) => (int) $id)
+                ->reject(fn ($id) => $positionId !== null && $id === $positionId)
+                ->unique()
+                ->values();
+
+            foreach ($divisionIds as $divisionId) {
+                if ($parentPositionIds->isEmpty()) {
+                    $organizationUnits->push([
+                        'division_id' => $divisionId,
+                        'parent_position_id' => null,
+                    ]);
+                    continue;
+                }
+
+                foreach ($parentPositionIds as $parentPositionId) {
+                    $organizationUnits->push([
+                        'division_id' => $divisionId,
+                        'parent_position_id' => $parentPositionId,
+                    ]);
+                }
+            }
+        }
+
+        $divisionIds = $organizationUnits->pluck('division_id')->filter()->unique()->values()->all();
+        $parentPositionIds = $organizationUnits->pluck('parent_position_id')->filter()->unique()->values()->all();
+
+        return [$divisionIds, $parentPositionIds, $organizationUnits->all()];
+    }
+
     public function index()
     {
         $divisions = Division::all();
-        return view('hrd.master.position.index', compact('divisions'));
+        $positions = Position::with('divisions')->orderBy('name')->get();
+        $levelOptions = Position::LEVEL_OPTIONS;
+        $divisionOptions = $divisions->map(function (Division $division) {
+            return [
+                'id' => $division->id,
+                'name' => $division->name,
+            ];
+        })->values()->all();
+        $parentPositionOptions = $positions->map(function (Position $position) {
+            return [
+                'id' => $position->id,
+                'name' => $position->name,
+                'level' => $position->level,
+                'division_ids' => $position->division_ids,
+            ];
+        })->values()->all();
+
+        return view('hrd.master.position.index', compact('divisions', 'positions', 'levelOptions', 'divisionOptions', 'parentPositionOptions'));
     }
 
     public function getData(Request $request)
     {
-        $positions = Position::with(['employees', 'division', 'parent']);
+        $positions = Position::with(['employees', 'divisions', 'parentPositions']);
 
         // Optional filter by division_id (sent from DataTables ajax)
         $divisionId = $request->input('division_id');
         if ($divisionId) {
-            $positions->where('division_id', $divisionId);
+            $positions->whereHas('divisions', function ($divisionQuery) use ($divisionId) {
+                $divisionQuery->where('hrd_division.id', $divisionId);
+            });
         }
 
         return DataTables::of($positions)
+            ->addColumn('level_badge', function ($position) {
+                return '<span class="badge badge-info">' . e($position->level ?? 'Staff') . '</span>';
+            })
+            ->addColumn('status_badge', function ($position) {
+                return $position->is_active
+                    ? '<span class="badge badge-success">Aktif</span>'
+                    : '<span class="badge badge-secondary">Nonaktif</span>';
+            })
             ->addColumn('division_name', function ($position) {
-                return $position->division->name ?? '-';
+                return $position->division_names;
             })
             ->addColumn('parent_name', function ($position) {
-                return $position->parent->name ?? '-';
+                return $position->parent_names;
             })
             ->addColumn('employee_count', function ($position) {
                 return $position->employees->count();
@@ -47,7 +139,7 @@ class PositionMasterController extends Controller
                     </button>
                 ';
             })
-            ->rawColumns(['action'])
+                ->rawColumns(['level_badge', 'status_badge', 'action'])
             ->make(true);
     }
 
@@ -55,17 +147,37 @@ class PositionMasterController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'level' => ['required', Rule::in(Position::LEVEL_OPTIONS)],
             'description' => 'nullable|string',
-            'division_id' => 'required|exists:hrd_division,id',
-            'parent_id' => 'nullable|exists:hrd_position,id'
+            'is_active' => 'required|boolean',
+            'organization_units' => 'nullable|array|min:1',
+            'organization_units.*.division_id' => 'nullable|exists:hrd_division,id',
+            'organization_units.*.parent_position_id' => 'nullable|exists:hrd_position,id',
+            'division_id' => 'nullable|exists:hrd_division,id',
+            'division_ids' => 'nullable|array|min:1',
+            'division_ids.*' => 'nullable|exists:hrd_division,id',
+            'parent_id' => 'nullable|exists:hrd_position,id',
+            'parent_position_ids' => 'nullable|array',
+            'parent_position_ids.*' => 'nullable|exists:hrd_position,id'
         ]);
+
+        [$divisionIds, $parentPositionIds, $organizationUnits] = $this->normalizeDivisionHierarchyPayload($request);
+
+        if (empty($divisionIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Minimal satu divisi harus dipilih'
+            ], 422);
+        }
 
         $position = Position::create([
             'name' => $request->name,
+            'level' => $request->level,
             'description' => $request->description,
-            'division_id' => $request->division_id,
-            'parent_id' => $request->parent_id
+            'is_active' => (bool) $request->is_active,
         ]);
+
+        $position->syncDivisionHierarchy($divisionIds, $parentPositionIds, $organizationUnits);
 
         return response()->json([
             'success' => true,
@@ -76,7 +188,20 @@ class PositionMasterController extends Controller
 
     public function show($id)
     {
-        $position = Position::findOrFail($id);
+        $position = Position::with(['divisions', 'parentPositions', 'divisionMappings'])->findOrFail($id);
+
+        $position->setAttribute('division_ids', $position->divisions->pluck('id')->unique()->values()->all());
+        $position->setAttribute('parent_position_ids', $position->parentPositions->pluck('id')->unique()->values()->all());
+        $position->setAttribute('organization_units', $position->divisionMappings
+            ->map(function ($mapping) {
+                return [
+                    'division_id' => $mapping->division_id,
+                    'parent_position_id' => $mapping->parent_position_id,
+                ];
+            })
+            ->values()
+            ->all());
+
         return response()->json($position);
     }
 
@@ -86,17 +211,37 @@ class PositionMasterController extends Controller
 
         $request->validate([
             'name' => 'required|string|max:255',
+            'level' => ['required', Rule::in(Position::LEVEL_OPTIONS)],
             'description' => 'nullable|string',
-            'division_id' => 'required|exists:hrd_division,id',
-            'parent_id' => ['nullable','exists:hrd_position,id', Rule::notIn([$id])]
+            'is_active' => 'required|boolean',
+            'organization_units' => 'nullable|array|min:1',
+            'organization_units.*.division_id' => 'nullable|exists:hrd_division,id',
+            'organization_units.*.parent_position_id' => ['nullable','exists:hrd_position,id', Rule::notIn([$id])],
+            'division_id' => 'nullable|exists:hrd_division,id',
+            'division_ids' => 'nullable|array|min:1',
+            'division_ids.*' => 'nullable|exists:hrd_division,id',
+            'parent_id' => ['nullable','exists:hrd_position,id', Rule::notIn([$id])],
+            'parent_position_ids' => 'nullable|array',
+            'parent_position_ids.*' => ['nullable','exists:hrd_position,id', Rule::notIn([$id])]
         ]);
+
+        [$divisionIds, $parentPositionIds, $organizationUnits] = $this->normalizeDivisionHierarchyPayload($request, (int) $id);
+
+        if (empty($divisionIds)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Minimal satu divisi harus dipilih'
+            ], 422);
+        }
 
         $position->update([
             'name' => $request->name,
+            'level' => $request->level,
             'description' => $request->description,
-            'division_id' => $request->division_id,
-            'parent_id' => $request->parent_id
+            'is_active' => (bool) $request->is_active,
         ]);
+
+        $position->syncDivisionHierarchy($divisionIds, $parentPositionIds, $organizationUnits);
 
         return response()->json([
             'success' => true,

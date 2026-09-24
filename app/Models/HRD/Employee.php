@@ -3,6 +3,7 @@
 namespace App\Models\HRD;
 
 use App\Models\ERM\Pasien;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -96,7 +97,7 @@ class Employee extends Model
     public function getPositionAttribute()
     {
         $rel = $this->getRelationValue('position');
-        if ($rel instanceof \Illuminate\Contracts\Support\Arrayable || $rel instanceof \Illuminate\Database\Eloquent\Collection) {
+        if ($rel instanceof \Illuminate\Database\Eloquent\Collection) {
             return $rel->first();
         }
         return $rel;
@@ -110,6 +111,58 @@ class Employee extends Model
     {
         $pos = $this->position; // uses accessor above
         return $pos ? $pos->division : null;
+    }
+
+    public function getPositionIdAttribute()
+    {
+        if (array_key_exists('position_id', $this->attributes)) {
+            return $this->attributes['position_id'];
+        }
+
+        return $this->position?->id;
+    }
+
+    public function getDivisionIdAttribute()
+    {
+        if (array_key_exists('division_id', $this->attributes)) {
+            return $this->attributes['division_id'];
+        }
+
+        return $this->division?->id;
+    }
+
+    public function getDivisionIdsAttribute(): array
+    {
+        $positions = $this->relationLoaded('positions')
+            ? $this->getRelation('positions')
+            : $this->positions()->with('divisions')->get();
+
+        if (!$positions instanceof Collection) {
+            return array_filter([$this->division_id]);
+        }
+
+        $divisionIds = $positions
+            ->flatMap(function (Position $position) {
+                $positionDivisionIds = $position->relationLoaded('divisions')
+                    ? $position->divisions->pluck('id')
+                    : $position->divisions()->pluck('hrd_division.id');
+
+                if ($positionDivisionIds->isEmpty() && $position->division_id) {
+                    return [$position->division_id];
+                }
+
+                return $positionDivisionIds->all();
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($divisionIds)) {
+            return $divisionIds;
+        }
+
+        return array_filter([$this->division_id]);
     }
 
     /**

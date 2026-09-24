@@ -11,7 +11,18 @@ class Division extends Model
 
     protected $table = 'hrd_division';
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = ['name', 'description', 'is_active'];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
+    public function positions()
+    {
+        return $this->belongsToMany(Position::class, 'hrd_position_division', 'division_id', 'position_id')
+            ->withPivot('parent_position_id')
+            ->withTimestamps();
+    }
 
     public function employees()
     {

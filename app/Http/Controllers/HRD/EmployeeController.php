@@ -139,14 +139,14 @@ class EmployeeController extends Controller
     }
 
     // Pass divisions to view for filter dropdown
-    $divisions = Division::all();
+    $divisions = Division::where('is_active', true)->orderBy('name')->get();
     return view('hrd.employee.index', compact('divisions'));
 }
 
     public function create()
     {
-            $positions = Position::all();
-            $divisions = Division::all();
+            $positions = Position::where('is_active', true)->orderBy('name')->get();
+            $divisions = Division::where('is_active', true)->orderBy('name')->get();
             $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
             $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
 
@@ -273,8 +273,8 @@ class EmployeeController extends Controller
         public function edit($id)
         {
             $employee = Employee::with('positions')->findOrFail($id);
-            $positions = Position::all();
-            $divisions = Division::all();
+            $positions = Position::where('is_active', true)->orderBy('name')->get();
+            $divisions = Division::where('is_active', true)->orderBy('name')->get();
             $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
             $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
             $primaryPositionId = $employee->positions->firstWhere('pivot.is_primary', 1)->id ?? null;
