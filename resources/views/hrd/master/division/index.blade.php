@@ -256,6 +256,7 @@
         var divisionOptionsHtml = @json($divisionOptions);
         var parentPositionOptionsHtml = @json($parentPositionOptions);
         var positionLevelOrder = ['Direktur', 'Head Manager', 'Manager', 'Penanggung Jawab', 'Koordinator', 'Staff'];
+        var crossDivisionParentLevels = ['Direktur', 'Head Manager'];
 
         function normalizePositionFieldKey(key) {
             if (key.indexOf('organization_units') === 0) {
@@ -315,14 +316,69 @@
             return html;
         }
 
+        function buildParentSelectOptions(optionGroups, placeholder) {
+            var html = '<option value="">' + placeholder + '</option>';
+
+            optionGroups.forEach(function(group) {
+                if (!group.options.length) {
+                    return;
+                }
+
+                html += '<optgroup label="' + group.label + '">';
+
+                positionLevelOrder.forEach(function(level) {
+                    var levelOptions = group.options.filter(function(option) {
+                        return option.level === level;
+                    });
+
+                    levelOptions.forEach(function(option) {
+                        var divisionSuffix = option.division_names ? ' - ' + option.division_names : '';
+                        html += '<option value="' + option.id + '">' + option.name + divisionSuffix + '</option>';
+                    });
+                });
+
+                var uncategorized = group.options.filter(function(option) {
+                    return positionLevelOrder.indexOf(option.level) === -1;
+                });
+
+                uncategorized.forEach(function(option) {
+                    var divisionSuffix = option.division_names ? ' - ' + option.division_names : '';
+                    html += '<option value="' + option.id + '">' + option.name + divisionSuffix + '</option>';
+                });
+
+                html += '</optgroup>';
+            });
+
+            return html;
+        }
+
         function getFilteredParentOptions(divisionId, currentPositionId, selectedParentId) {
-            return parentPositionOptionsHtml.filter(function(option) {
-                var matchesDivision = !divisionId || (option.division_ids || []).map(String).indexOf(String(divisionId)) !== -1;
+            var sameDivisionOptions = [];
+            var crossDivisionOptions = [];
+
+            parentPositionOptionsHtml.forEach(function(option) {
+                var divisionIds = (option.division_ids || []).map(String);
+                var matchesDivision = !divisionId || divisionIds.indexOf(String(divisionId)) !== -1;
                 var isSamePosition = currentPositionId && String(option.id) === String(currentPositionId);
                 var isSelectedParent = selectedParentId && String(option.id) === String(selectedParentId);
+                var allowCrossDivision = crossDivisionParentLevels.indexOf(option.level) !== -1;
 
-                return (matchesDivision || isSelectedParent) && !isSamePosition;
-            }).sort(function(left, right) {
+                if (isSamePosition) {
+                    return;
+                }
+
+                if (matchesDivision) {
+                    sameDivisionOptions.push(option);
+                    return;
+                }
+
+                if (allowCrossDivision || isSelectedParent) {
+                    crossDivisionOptions.push(option);
+                }
+            });
+
+            var sortOptions = function(options) {
+                return options.sort(function(left, right) {
                 var leftLevelIndex = positionLevelOrder.indexOf(left.level);
                 var rightLevelIndex = positionLevelOrder.indexOf(right.level);
 
@@ -335,15 +391,24 @@
 
                 return left.name.localeCompare(right.name);
             });
+            };
+
+            return [
+                { label: 'Divisi Yang Sama', options: sortOptions(sameDivisionOptions) },
+                { label: 'Atasan Lintas Divisi', options: sortOptions(crossDivisionOptions) }
+            ];
         }
 
         function refreshParentOptionsForRow($row, selectedParentId) {
             var divisionId = $row.find('.organization-division').val();
             var currentPositionId = $('#position_id').val();
             var $parentSelect = $row.find('.organization-parent');
-            var options = getFilteredParentOptions(divisionId, currentPositionId, selectedParentId || $parentSelect.val());
+            var optionGroups = getFilteredParentOptions(divisionId, currentPositionId, selectedParentId || $parentSelect.val());
+            var options = optionGroups.reduce(function(result, group) {
+                return result.concat(group.options);
+            }, []);
 
-            $parentSelect.html(buildSelectOptions(options, divisionId ? 'Tanpa atasan langsung' : 'Pilih divisi terlebih dahulu'));
+            $parentSelect.html(buildParentSelectOptions(optionGroups, divisionId ? 'Tanpa atasan langsung' : 'Pilih divisi terlebih dahulu'));
 
             if (selectedParentId && options.some(function(option) { return String(option.id) === String(selectedParentId); })) {
                 $parentSelect.val(String(selectedParentId));

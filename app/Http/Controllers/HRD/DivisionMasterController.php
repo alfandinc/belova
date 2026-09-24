@@ -28,6 +28,7 @@ class DivisionMasterController extends Controller
                 'name' => $position->name,
                 'level' => $position->level,
                 'division_ids' => $position->division_ids,
+                'division_names' => $position->division_names,
             ];
         })->values()->all();
 
