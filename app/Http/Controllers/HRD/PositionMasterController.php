@@ -6,11 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Models\HRD\Position;
 use App\Models\HRD\Division;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Validation\Rule;
 
 class PositionMasterController extends Controller
 {
+    protected function applyLegacyHierarchyAttributes(Position $position, array $divisionIds, array $parentPositionIds): void
+    {
+        if (Schema::hasColumn('hrd_position', 'division_id')) {
+            $position->setAttribute('division_id', $divisionIds[0] ?? null);
+        }
+
+        if (Schema::hasColumn('hrd_position', 'parent_id')) {
+            $position->setAttribute('parent_id', $parentPositionIds[0] ?? null);
+        }
+    }
+
     protected function normalizeDivisionHierarchyPayload(Request $request, ?int $positionId = null): array
     {
         $organizationUnits = collect($request->input('organization_units', []))
@@ -171,12 +183,15 @@ class PositionMasterController extends Controller
             ], 422);
         }
 
-        $position = Position::create([
+        $position = new Position([
             'name' => $request->name,
             'level' => $request->level,
             'description' => $request->description,
             'is_active' => (bool) $request->is_active,
         ]);
+
+        $this->applyLegacyHierarchyAttributes($position, $divisionIds, $parentPositionIds);
+        $position->save();
 
         $position->syncDivisionHierarchy($divisionIds, $parentPositionIds, $organizationUnits);
 
@@ -235,12 +250,15 @@ class PositionMasterController extends Controller
             ], 422);
         }
 
-        $position->update([
+        $position->fill([
             'name' => $request->name,
             'level' => $request->level,
             'description' => $request->description,
             'is_active' => (bool) $request->is_active,
         ]);
+
+        $this->applyLegacyHierarchyAttributes($position, $divisionIds, $parentPositionIds);
+        $position->save();
 
         $position->syncDivisionHierarchy($divisionIds, $parentPositionIds, $organizationUnits);
 
