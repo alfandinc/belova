@@ -110,7 +110,16 @@ class Employee extends Model
     public function getDivisionAttribute()
     {
         $pos = $this->position; // uses accessor above
-        return $pos ? $pos->division : null;
+
+        if (!$pos) {
+            return null;
+        }
+
+        if ($pos->relationLoaded('divisions')) {
+            return $pos->divisions->first();
+        }
+
+        return $pos->divisions()->first();
     }
 
     public function getPositionIdAttribute()

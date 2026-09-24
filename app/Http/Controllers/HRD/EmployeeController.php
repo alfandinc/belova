@@ -36,7 +36,7 @@ class EmployeeController extends Controller
 {
     if ($request->ajax()) {
         // (debug logging removed)
-        $employees = Employee::with(['user','positions.division'])
+        $employees = Employee::with(['user', 'positions.divisions'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
         // Filter by status using dropdown:
@@ -57,7 +57,9 @@ class EmployeeController extends Controller
         if ($request->filled('division_id')) {
             $divisionId = $request->input('division_id');
             $employees->whereHas('positions', function($q) use ($divisionId) {
-                $q->where('division_id', $divisionId);
+                $q->whereHas('divisions', function ($divisionQuery) use ($divisionId) {
+                    $divisionQuery->where('hrd_division.id', $divisionId);
+                });
             });
         }
         // Filter by perusahaan if provided
@@ -71,7 +73,17 @@ class EmployeeController extends Controller
                 return empty($names) ? '-' : implode(', ', $names);
             })
             ->addColumn('division', function ($employee) {
-                $divs = $employee->positions->pluck('division.name')->unique()->filter()->toArray();
+                $divs = $employee->positions
+                    ->flatMap(function ($position) {
+                        return $position->relationLoaded('divisions')
+                            ? $position->divisions->pluck('name')
+                            : $position->divisions()->pluck('name');
+                    })
+                    ->unique()
+                    ->filter()
+                    ->values()
+                    ->all();
+
                 return empty($divs) ? '-' : implode(', ', $divs);
             })
             ->addColumn('action', function ($employee) {
@@ -404,7 +416,7 @@ class EmployeeController extends Controller
     public function getDetails($id)
     {
         try {
-            $employee = Employee::with(['positions.division', 'village', 'user'])->findOrFail($id);
+            $employee = Employee::with(['positions.divisions', 'village', 'user'])->findOrFail($id);
             
             // Convert document paths to public URLs if they exist
             foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {

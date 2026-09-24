@@ -666,7 +666,7 @@ $(function() {
             var rowDataArr = table.rows().data().toArray();
             for (var i = 0; i < rowDataArr.length; i++) {
                 if (rowDataArr[i].id == employeeId) {
-                    if (rowDataArr[i].division && rowDataArr[i].division.name) empDivName = rowDataArr[i].division.name;
+                    if (rowDataArr[i].division && typeof rowDataArr[i].division === 'string') empDivName = rowDataArr[i].division;
                     break;
                 }
             }
@@ -717,7 +717,7 @@ $(function() {
                 }
                 if (empDivName && empDivName !== '') {
                     if (p.division_name && String(p.division_name) == String(empDivName)) return true;
-                    if (p.division && p.division.name && String(p.division.name) == String(empDivName)) return true;
+                    if (p.division_names && String(p.division_names).indexOf(String(empDivName)) !== -1) return true;
                 }
                 return false;
             });
@@ -730,7 +730,7 @@ $(function() {
 
             var html = '';
             filtered.forEach(function(p) {
-                var divName = (p.division_name) ? p.division_name : (p.division && p.division.name ? p.division.name : '');
+                var divName = p.division_name || p.division_names || '';
                 html += '<a href="#" class="dropdown-item change-position" data-employee-id="' + employeeId + '" data-position-id="' + p.id + '">';
                 html += '<div class="d-flex flex-column"><span>' + (p.name || '-') + '</span>';
                 if (divName) html += '<small class="text-muted">' + divName + '</small>';
@@ -832,8 +832,14 @@ $(function() {
                     var positionNames = (employee.positions || []).map(function(position) {
                         return position.name;
                     }).filter(Boolean);
-                    var divisionNames = (employee.positions || []).map(function(position) {
-                        return position.division && position.division.name ? position.division.name : null;
+                    var divisionNames = (employee.positions || []).flatMap(function(position) {
+                        if (!Array.isArray(position.divisions)) {
+                            return [];
+                        }
+
+                        return position.divisions.map(function(division) {
+                            return division && division.name ? division.name : null;
+                        });
                     }).filter(Boolean).filter(function(value, index, self) {
                         return self.indexOf(value) === index;
                     });
