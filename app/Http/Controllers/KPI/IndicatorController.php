@@ -688,7 +688,9 @@ class IndicatorController extends Controller
             $posIds = array_diff($posIds, $topIds);
             foreach ($mappings as $m) {
                 $positionId = isset($m['position_id']) ? (int) $m['position_id'] : null;
-                $weight = isset($m['weight_percentage']) ? $m['weight_percentage'] : null;
+                $weight = isset($m['weight_percentage']) && $m['weight_percentage'] !== null && $m['weight_percentage'] !== ''
+                    ? (float) $m['weight_percentage']
+                    : 0;
                 if ($positionId && in_array($positionId, $posIds)) {
                     KpiPositionIndicator::updateOrCreate(
                         ['position_id' => $positionId, 'indicator_id' => $indicator->id],
