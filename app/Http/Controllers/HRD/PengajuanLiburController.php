@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
 use App\Models\HRD\PengajuanCuti;
 use App\Models\HRD\SaldoCuti;
 use App\Models\HRD\Employee;
@@ -17,26 +18,7 @@ use App\Helpers\HrdConfig;
 
 class PengajuanLiburController extends Controller
 {
-    private function getSubordinateEmployeeIds(Employee $employee): array
-    {
-        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-
-        if ($parentPositionIds->isEmpty()) {
-            return [];
-        }
-
-        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-            $query->where(function ($positionQuery) use ($parentPositionIds) {
-                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
-                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
-                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
-                });
-            });
-            })
-            ->where('id', '!=', $employee->id)
-            ->pluck('id')
-            ->toArray();
-    }
+    use ResolvesDirectManagerApprovals;
 
     /**
      * Helper: get dates within range that already have >= 2 leave requests
@@ -246,7 +228,9 @@ class PengajuanLiburController extends Controller
                         })
                         ->addColumn('action', function($row) {
                             $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
-                            $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            if ($row->status_manager === 'menunggu') {
+                                $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            }
                             return $btn;
                         })
                         ->addColumn('status_pengajuan', function($row) {
@@ -330,6 +314,7 @@ class PengajuanLiburController extends Controller
         else if (($viewType == 'approval' || empty($viewType)) && $user->hasRole('Hrd')) {
             // Show all requests with status_manager = 'disetujui', regardless of status_hrd
             $data = PengajuanLibur::where('status_manager', 'disetujui')
+                ->where('status_hrd', 'menunggu')
                 ->where(function($q) use ($filterStart, $filterEnd) {
                     $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                       ->whereDate('tanggal_selesai', '>=', $filterStart);
@@ -366,7 +351,9 @@ class PengajuanLiburController extends Controller
                 })
                 ->addColumn('action', function($row) {
                     $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
-                    $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-hrd" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                    if ($row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
+                        $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-hrd" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                    }
                     return $btn;
                 })
                 ->addColumn('status_pengajuan', function($row) {
@@ -599,6 +586,20 @@ class PengajuanLiburController extends Controller
 
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
 
+        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',
+            ], 403);
+        }
+
+        if ($pengajuanLibur->status_manager !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval tingkat 1.',
+            ], 422);
+        }
+
         $pengajuanLibur->update([
             'status_manager' => $request->status,
             'notes_manager' => $request->komentar_manager,
@@ -624,6 +625,20 @@ class PengajuanLiburController extends Controller
         ]);
 
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
+
+        if ($pengajuanLibur->status_manager !== 'disetujui') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.',
+            ], 422);
+        }
+
+        if ($pengajuanLibur->status_hrd !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval final HRD.',
+            ], 422);
+        }
 
         $pengajuanLibur->update([
             'status_hrd' => $request->status,

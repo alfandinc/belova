@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
 use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanTidakMasuk;
 use App\Models\HRD\PengajuanLibur;
@@ -16,26 +17,7 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanTidakMasukController extends Controller
 {
-    private function getSubordinateEmployeeIds(Employee $employee): array
-    {
-        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-
-        if ($parentPositionIds->isEmpty()) {
-            return [];
-        }
-
-        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-            $query->where(function ($positionQuery) use ($parentPositionIds) {
-                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
-                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
-                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
-                });
-            });
-            })
-            ->where('id', '!=', $employee->id)
-            ->pluck('id')
-            ->toArray();
-    }
+    use ResolvesDirectManagerApprovals;
 
     public function index(Request $request)
     {
@@ -224,7 +206,9 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('action', function($row) {
                         $btns = '<div class="btn-group btn-group-sm" role="group">';
                         $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
-                        $btns .= '<button class="btn btn-warning btn-approve-manager" title="Approval Manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        if ($row->status_manager === 'menunggu') {
+                            $btns .= '<button class="btn btn-warning btn-approve-manager" title="Approval Manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        }
                         $btns .= '</div>';
                         return $btns;
                     })
@@ -234,6 +218,8 @@ class PengajuanTidakMasukController extends Controller
             // HRD: semua data untuk approval (view=approval)
             else if ($viewType == 'approval' && $user->hasRole('Hrd')) {
                 $data = PengajuanTidakMasuk::with('employee')
+                    ->where('status_manager', 'disetujui')
+                    ->where('status_hrd', 'menunggu')
                     ->where(function($q) use ($filterStart, $filterEnd) {
                         $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                           ->whereDate('tanggal_selesai', '>=', $filterStart);
@@ -283,7 +269,9 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('action', function($row) {
                         $btns = '<div class="btn-group btn-group-sm" role="group">';
                         $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
-                        $btns .= '<button class="btn btn-success btn-approve-hrd" title="Approval HRD" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        if ($row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
+                            $btns .= '<button class="btn btn-success btn-approve-hrd" title="Approval HRD" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        }
                         $btns .= '</div>';
                         return $btns;
                     })
@@ -414,6 +402,21 @@ class PengajuanTidakMasukController extends Controller
             'status' => 'required|in:disetujui,ditolak',
         ]);
         $pengajuan = PengajuanTidakMasuk::findOrFail($id);
+
+        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',
+            ], 403);
+        }
+
+        if ($pengajuan->status_manager !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval tingkat 1.',
+            ], 422);
+        }
+
         $pengajuan->update([
             'status_manager' => $request->status,
             'notes_manager' => $request->komentar_manager,
@@ -433,6 +436,20 @@ class PengajuanTidakMasukController extends Controller
             'potong_dari_cuti' => 'sometimes|boolean',
         ]);
         $pengajuan = PengajuanTidakMasuk::findOrFail($id);
+
+        if ($pengajuan->status_manager !== 'disetujui') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.',
+            ], 422);
+        }
+
+        if ($pengajuan->status_hrd !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval final HRD.',
+            ], 422);
+        }
 
         DB::transaction(function () use ($request, $pengajuan) {
             $pengajuan->update([

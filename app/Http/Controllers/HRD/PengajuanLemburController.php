@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
 use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Http\Request;
@@ -12,26 +13,7 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanLemburController extends Controller
 {
-    private function getSubordinateEmployeeIds(Employee $employee): array
-    {
-        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-
-        if ($parentPositionIds->isEmpty()) {
-            return [];
-        }
-
-        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-            $query->where(function ($positionQuery) use ($parentPositionIds) {
-                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
-                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
-                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
-                });
-            });
-            })
-            ->where('id', '!=', $employee->id)
-            ->pluck('id')
-            ->toArray();
-    }
+    use ResolvesDirectManagerApprovals;
 
     public function index(Request $request)
     {
@@ -128,7 +110,7 @@ class PengajuanLemburController extends Controller
                         if ($user->hasRole('Manager')) {
                             $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
-                        if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
+                        if (($user->hasRole('Hrd') || $user->hasRole('Admin')) && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
                             $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
@@ -207,13 +189,13 @@ class PengajuanLemburController extends Controller
                             return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
                         }
                     })
-                    ->addColumn('action', function($row) use ($user) {
+                    ->addColumn('action', function($row) use ($user, $employeeIds, $employee) {
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
-                        if ($user->hasRole('Manager')) {
+                        if (in_array($row->employee_id, $employeeIds, true) && $row->employee_id !== optional($employee)->id && $row->status_manager === 'menunggu') {
                             $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
-                        if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
+                        if (($user->hasRole('Hrd') || $user->hasRole('Admin')) && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
                             $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
@@ -286,10 +268,10 @@ class PengajuanLemburController extends Controller
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
-                        if ($user->hasRole('Manager')) {
+                        if ($user->hasRole('Manager') && $row->status_manager === 'menunggu') {
                             $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
-                        if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
+                        if (($user->hasRole('Hrd') || $user->hasRole('Admin')) && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
                             $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
@@ -347,6 +329,21 @@ class PengajuanLemburController extends Controller
             'status' => 'required|in:disetujui,ditolak',
         ]);
         $pengajuan = PengajuanLembur::findOrFail($id);
+
+        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',
+            ], 403);
+        }
+
+        if ($pengajuan->status_manager !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval tingkat 1.',
+            ], 422);
+        }
+
         $pengajuan->update([
             'status_manager' => $request->status,
             'notes_manager' => $request->komentar_manager,
@@ -365,6 +362,21 @@ class PengajuanLemburController extends Controller
             'status' => 'required|in:disetujui,ditolak',
         ]);
         $pengajuan = PengajuanLembur::findOrFail($id);
+
+        if ($pengajuan->status_manager !== 'disetujui') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.',
+            ], 422);
+        }
+
+        if ($pengajuan->status_hrd !== 'menunggu') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses pada approval final HRD.',
+            ], 422);
+        }
+
         $pengajuan->update([
             'status_hrd' => $request->status,
             'notes_hrd' => $request->komentar_hrd,
