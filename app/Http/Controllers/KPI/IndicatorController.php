@@ -731,10 +731,11 @@ class IndicatorController extends Controller
 
         $indicator->update($validated);
 
-        // update or add multiple position mappings
+        // Only sync position mappings when the request explicitly carries them.
+        $hasMappingsPayload = $request->has('position_mappings');
         $mappings = $request->input('position_mappings');
         $providedIds = [];
-        if ($mappings && is_array($mappings)) {
+        if ($hasMappingsPayload && $mappings && is_array($mappings)) {
             $providedIds = collect($mappings)->pluck('position_id')->filter()->map(function($v){ return (int)$v; })->unique()->values()->all();
             // exclude top-level positions (no parent)
             $topIds = \App\Models\HRD\Position::whereIn('id', $providedIds)->whereNull('parent_id')->pluck('id')->toArray();
@@ -753,13 +754,14 @@ class IndicatorController extends Controller
         }
 
         // remove any existing mappings for this indicator that are not in providedIds
-        if (!empty($providedIds)) {
-            KpiPositionIndicator::where('indicator_id', $indicator->id)
-                ->whereNotIn('position_id', $providedIds)
-                ->delete();
-        } else {
-            // if no mappings provided, remove all mappings for this indicator
-            KpiPositionIndicator::where('indicator_id', $indicator->id)->delete();
+        if ($hasMappingsPayload) {
+            if (!empty($providedIds)) {
+                KpiPositionIndicator::where('indicator_id', $indicator->id)
+                    ->whereNotIn('position_id', $providedIds)
+                    ->delete();
+            } else {
+                KpiPositionIndicator::where('indicator_id', $indicator->id)->delete();
+            }
         }
 
         return response()->json([

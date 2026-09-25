@@ -446,18 +446,24 @@ $(document).ready(function () {
                 var value = indicator.weight_percentage !== null && indicator.weight_percentage !== undefined
                     ? Number(indicator.weight_percentage).toFixed(2)
                     : '';
-                var inactiveNote = indicator.is_active ? '' : '<div class="small text-muted">Inactive indicator</div>';
-                var editButton = '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-inline-indicator mr-1" data-id="' + indicator.indicator_id + '">Edit</button>';
                 var actionButton = indicator.is_mapped
                     ? '<button type="button" class="btn btn-sm btn-outline-warning btn-unmap-indicator">Lepas</button>'
                     : '<button type="button" class="btn btn-sm btn-outline-secondary btn-unmap-indicator" disabled>Lepas</button>';
+                var notesValue = escapeHtml(indicator.notes || '');
+                var indicatorStatus = indicator.is_active
+                    ? ''
+                    : '<div class="small text-muted mt-1">Inactive indicator</div>';
 
                 rows += '<tr>'
                     + '<td>' + (index + 1) + '</td>'
                     + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + '></td>'
-                    + '<td>' + escapeHtml(indicator.indicator_name || '-') + inactiveNote + '</td>'
+                    + '<td>'
+                        + '<input type="text" class="form-control form-control-sm inline-indicator-name mb-2" data-indicator-id="' + indicator.indicator_id + '" value="' + escapeHtml(indicator.indicator_name || '') + '">'
+                        + '<textarea class="form-control form-control-sm inline-indicator-notes" data-indicator-id="' + indicator.indicator_id + '" rows="2" placeholder="Catatan indikator (opsional)">' + notesValue + '</textarea>'
+                        + indicatorStatus
+                    + '</td>'
                     + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" value="' + value + '" ' + disabled + '></td>'
-                    + '<td class="text-center align-middle">' + editButton + actionButton + '</td>'
+                    + '<td class="text-center align-middle">' + actionButton + '</td>'
                     + '</tr>';
             });
         }
@@ -601,18 +607,6 @@ $(document).ready(function () {
         $row.find('.map-indicator-checkbox').prop('checked', false).trigger('change');
     });
 
-    $(document).on('click', '#positionCategoryModalBody .btn-edit-inline-indicator', function () {
-        var id = $(this).data('id');
-        if (!id) {
-            return;
-        }
-
-        $('#indicatorModal').data('return-to-position-modal', true);
-        $('#indicatorModal').data('return-position-id', $('#positionCategoryModal').data('pos-id') || null);
-        $('#positionCategoryModal').modal('hide');
-        $('.btn-edit-indicator[data-id="' + id + '"]').trigger('click');
-    });
-
     $(document).on('click', '.btn-add-inline-indicator', function () {
         var $section = $(this).closest('.position-category-section');
         var categoryId = $(this).data('category-id');
@@ -672,6 +666,7 @@ $(document).ready(function () {
             var $section = $(this);
             var categoryId = $section.data('category-id');
             var mappings = [];
+            var indicators = [];
 
             $section.find('tbody tr').not('.category-total-row').each(function () {
                 var $row = $(this);
@@ -679,6 +674,15 @@ $(document).ready(function () {
                 var indicatorId = $input.data('indicator-id');
                 var isMapped = $row.find('.map-indicator-checkbox').is(':checked');
                 var value = parseFloat($input.val());
+                var indicatorName = ($row.find('.inline-indicator-name').val() || '').trim();
+                var indicatorNotes = ($row.find('.inline-indicator-notes').val() || '').trim();
+
+                indicators.push({
+                    indicator_id: indicatorId,
+                    indicator_name: indicatorName,
+                    notes: indicatorNotes,
+                    category_id: categoryId
+                });
 
                 mappings.push({
                     indicator_id: indicatorId,
@@ -689,29 +693,56 @@ $(document).ready(function () {
 
             categories.push({
                 category_id: categoryId,
+                indicators: indicators,
                 mappings: mappings
             });
         });
 
         $btn.prop('disabled', true).text('Saving...');
-        $.ajax({
-            url: '/indicator/positions/' + posId + '/mappings/bulk',
-            method: 'POST',
-            data: { categories: categories },
-            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            success: function (res) {
-                $('#positionCategoryModal').modal('hide');
-                positionsTable.ajax.reload(null, false);
-                indicatorTable.ajax.reload(null, false);
-                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Mapping indikator posisi berhasil disimpan.' });
-            },
-            error: function (xhr) {
-                showAjaxError(xhr, 'Gagal menyimpan mapping indikator posisi.');
-            },
-            complete: function () {
-                $btn.prop('disabled', false).text('Save');
-            }
+        var indicatorRequests = [];
+
+        $.each(categories, function (_, categoryPayload) {
+            $.each(categoryPayload.indicators || [], function (_, indicatorPayload) {
+                indicatorRequests.push($.ajax({
+                    url: '/indicator/indicators/' + indicatorPayload.indicator_id,
+                    method: 'POST',
+                    data: {
+                        _method: 'PUT',
+                        category_id: indicatorPayload.category_id,
+                        indicator_name: indicatorPayload.indicator_name,
+                        notes: indicatorPayload.notes,
+                        is_active: 1
+                    },
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+                }));
+            });
         });
+
+        $.when.apply($, indicatorRequests)
+            .done(function () {
+                $.ajax({
+                    url: '/indicator/positions/' + posId + '/mappings/bulk',
+                    method: 'POST',
+                    data: { categories: categories },
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function (res) {
+                        $('#positionCategoryModal').modal('hide');
+                        positionsTable.ajax.reload(null, false);
+                        indicatorTable.ajax.reload(null, false);
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Mapping indikator posisi berhasil disimpan.' });
+                    },
+                    error: function (xhr) {
+                        showAjaxError(xhr, 'Gagal menyimpan mapping indikator posisi.');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', false).text('Save');
+                    }
+                });
+            })
+            .fail(function (xhr) {
+                $btn.prop('disabled', false).text('Save');
+                showAjaxError(xhr, 'Gagal menyimpan perubahan indikator.');
+            });
     });
 
     function clearFormErrors(formSelector) {
@@ -898,14 +929,6 @@ $(document).ready(function () {
             success: function (response) {
                 $('#indicatorModal').modal('hide');
                 refreshAllTables();
-                var returnToPositionModal = !!$('#indicatorModal').data('return-to-position-modal');
-                var returnPositionId = $('#indicatorModal').data('return-position-id');
-
-                if (returnToPositionModal && returnPositionId) {
-                    loadPositionEditorModal(returnPositionId);
-                }
-
-                $('#indicatorModal').removeData('return-to-position-modal').removeData('return-position-id');
                 Swal.fire({ icon: 'success', title: 'Berhasil', text: response.message });
             },
             error: function (xhr) {
@@ -915,11 +938,6 @@ $(document).ready(function () {
                 }
 
                 showAjaxError(xhr, 'Gagal menyimpan indicator.');
-            },
-            complete: function () {
-                if (!$('#indicatorModal').hasClass('show')) {
-                    $('#indicatorModal').removeData('return-to-position-modal').removeData('return-position-id');
-                }
             }
         });
     });
