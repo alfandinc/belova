@@ -20,6 +20,11 @@ class PengajuanLiburController extends Controller
 {
     use ResolvesDirectManagerApprovals;
 
+    private function isDirectApproverRole($user): bool
+    {
+        return (bool) $user?->hasAnyRole(['Manager', 'Head Manager']);
+    }
+
     /**
      * Helper: get dates within range that already have >= 2 leave requests
      * (counts any request not explicitly rejected by Manager or HRD)
@@ -118,7 +123,7 @@ class PengajuanLiburController extends Controller
     if ($request->ajax() && $request->has('debug_role')) {
         return response()->json([
             'roles' => $user->getRoleNames(),
-            'is_manager' => $user->hasRole('Manager'),
+            'is_manager' => $this->isDirectApproverRole($user),
             'is_employee' => $user->hasRole('Employee'),
             'is_hrd' => $user->hasRole('Hrd')
         ]);
@@ -183,7 +188,7 @@ class PengajuanLiburController extends Controller
                 ->make(true);
         } 
         // For manager team view - show team requests
-        else if ($viewType == 'team' && $user->hasRole('Manager')) {
+        else if ($viewType == 'team' && $this->isDirectApproverRole($user)) {
             $employee = $user->employee;
                 if ($employee) {
                     $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
@@ -255,7 +260,7 @@ class PengajuanLiburController extends Controller
             return DataTables::of([])->make(true);
         }
         // For manager personal view - show their own requests
-        else if ($viewType == 'personal' && $user->hasRole('Manager')) {
+        else if ($viewType == 'personal' && $this->isDirectApproverRole($user)) {
             $data = PengajuanLibur::where('employee_id', $user->employee->id)
                 ->where(function($q) use ($filterStart, $filterEnd) {
                     $q->whereDate('tanggal_mulai', '<=', $filterEnd)
@@ -387,7 +392,7 @@ class PengajuanLiburController extends Controller
             $jatahLibur = $employee->ensureJatahLibur();
         }
     } 
-    elseif ($user->hasRole('Manager')) {
+    elseif ($this->isDirectApproverRole($user)) {
         if ($viewType == 'team') {
             $employee = $user->employee;
             if ($employee) {
@@ -412,7 +417,7 @@ class PengajuanLiburController extends Controller
     }
     
     // Determine which view to render based on user role and view type
-    if ($user->hasRole('Manager') && $viewType == 'team') {
+    if ($this->isDirectApproverRole($user) && $viewType == 'team') {
         return view('hrd.libur.index', [
             'viewType' => 'team',
             'pengajuanLibur' => $pengajuanLibur,
@@ -532,7 +537,7 @@ class PengajuanLiburController extends Controller
         $tglApproveManager = null;
         $tglApproveHrd = null;
 
-        if ($user->hasRole('Manager')) {
+        if ($this->isDirectApproverRole($user)) {
             $statusManager = 'disetujui';
             $tglApproveManager = now();
         }
@@ -586,7 +591,7 @@ class PengajuanLiburController extends Controller
 
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
 
-        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
+        if (!$this->isDirectApproverRole(Auth::user()) || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',

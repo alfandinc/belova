@@ -22,7 +22,7 @@
     </div>
             <div class="row">
                 <div class="col-md-12">
-                    @if(auth()->user()->hasAnyRole(['Employee','Manager']))
+                    @if(auth()->user()->hasAnyRole(['Employee','Manager','Head Manager']))
                     <table id="tableTidakMasukPersonal" class="table table-bordered table-striped">
                         <thead>
                             <tr>
@@ -36,7 +36,7 @@
                         </thead>
                     </table>
                     @endif
-                    @if(auth()->user()->hasRole('Manager'))
+                    @if(auth()->user()->hasAnyRole(['Manager','Head Manager']))
                     <h5 class="mt-4">Persetujuan Tim (Manager)</h5>
                     <table id="tableTidakMasukTeam" class="table table-bordered table-striped">
                         <thead>
@@ -265,7 +265,7 @@ $(document).ready(function() {
     });
 
     // DataTable untuk Personal (Employee/Manager)
-    @if(auth()->user()->hasAnyRole(['Employee','Manager']))
+    @if(auth()->user()->hasAnyRole(['Employee','Manager','Head Manager']))
     var tablePersonal = $('#tableTidakMasukPersonal').DataTable({
         processing: true,
         serverSide: true,
@@ -287,7 +287,7 @@ $(document).ready(function() {
     });
     @endif
     // DataTable untuk Manager (team)
-    @if(auth()->user()->hasRole('Manager'))
+    @if(auth()->user()->hasAnyRole(['Manager','Head Manager']))
     var tableTeam = $('#tableTidakMasukTeam').DataTable({
         processing: true,
         serverSide: true,

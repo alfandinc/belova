@@ -19,6 +19,11 @@ class PengajuanTidakMasukController extends Controller
 {
     use ResolvesDirectManagerApprovals;
 
+    private function isDirectApproverRole($user): bool
+    {
+        return (bool) $user?->hasAnyRole(['Manager', 'Head Manager']);
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -100,7 +105,7 @@ class PengajuanTidakMasukController extends Controller
                     ->make(true);
             }
             // Manager: data sendiri (view=personal)
-            else if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Manager')) {
+            else if (($viewType == 'personal' || empty($viewType)) && $this->isDirectApproverRole($user)) {
                 $data = PengajuanTidakMasuk::where('employee_id', $user->employee->id)
                     ->where(function($q) use ($filterStart, $filterEnd) {
                         $q->whereDate('tanggal_mulai', '<=', $filterEnd)
@@ -153,7 +158,7 @@ class PengajuanTidakMasukController extends Controller
                     ->make(true);
             }
             // Manager: data subordinate berdasarkan parent posisi (view=team)
-            else if ($viewType == 'team' && $user->hasRole('Manager')) {
+            else if ($viewType == 'team' && $this->isDirectApproverRole($user)) {
                 $employeeIds = $user->employee ? $this->getSubordinateEmployeeIds($user->employee) : [];
                 $data = PengajuanTidakMasuk::whereIn('employee_id', $employeeIds)
                     ->where(function($q) use ($filterStart, $filterEnd) {
@@ -381,7 +386,7 @@ class PengajuanTidakMasukController extends Controller
         ];
 
         // If a Manager submits their own request, auto-approve at manager level
-        if ($user->hasRole('Manager')) {
+        if ($this->isDirectApproverRole($user)) {
             $payload['status_manager'] = 'disetujui';
             $payload['notes_manager'] = 'Auto-approved (Manager membuat pengajuan)';
             $payload['tanggal_persetujuan_manager'] = now();
@@ -403,7 +408,7 @@ class PengajuanTidakMasukController extends Controller
         ]);
         $pengajuan = PengajuanTidakMasuk::findOrFail($id);
 
-        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+        if (!$this->isDirectApproverRole(Auth::user()) || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',

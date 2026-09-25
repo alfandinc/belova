@@ -15,6 +15,11 @@ class PengajuanLemburController extends Controller
 {
     use ResolvesDirectManagerApprovals;
 
+    private function isDirectApproverRole($user): bool
+    {
+        return (bool) $user?->hasAnyRole(['Manager', 'Head Manager']);
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -119,7 +124,7 @@ class PengajuanLemburController extends Controller
                     ->make(true);
             }
             // Manager: own + subordinate positions
-            else if ($user->hasRole('Manager')) {
+            else if ($this->isDirectApproverRole($user)) {
                 $employee = $user->employee;
                 $employeeIds = $employee ? $this->getSubordinateEmployeeIds($employee) : [];
                 if ($employee) {
@@ -330,7 +335,7 @@ class PengajuanLemburController extends Controller
         ]);
         $pengajuan = PengajuanLembur::findOrFail($id);
 
-        if (!Auth::user()->hasRole('Manager') || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+        if (!$this->isDirectApproverRole(Auth::user()) || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',
