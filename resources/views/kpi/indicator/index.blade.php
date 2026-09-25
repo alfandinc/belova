@@ -447,6 +447,7 @@ $(document).ready(function () {
                     ? Number(indicator.weight_percentage).toFixed(2)
                     : '';
                 var inactiveNote = indicator.is_active ? '' : '<div class="small text-muted">Inactive indicator</div>';
+                var editButton = '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-inline-indicator mr-1" data-id="' + indicator.indicator_id + '">Edit</button>';
                 var actionButton = indicator.is_mapped
                     ? '<button type="button" class="btn btn-sm btn-outline-warning btn-unmap-indicator">Lepas</button>'
                     : '<button type="button" class="btn btn-sm btn-outline-secondary btn-unmap-indicator" disabled>Lepas</button>';
@@ -456,7 +457,7 @@ $(document).ready(function () {
                     + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + '></td>'
                     + '<td>' + escapeHtml(indicator.indicator_name || '-') + inactiveNote + '</td>'
                     + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" value="' + value + '" ' + disabled + '></td>'
-                    + '<td class="text-center align-middle">' + actionButton + '</td>'
+                    + '<td class="text-center align-middle">' + editButton + actionButton + '</td>'
                     + '</tr>';
             });
         }
@@ -598,6 +599,18 @@ $(document).ready(function () {
     $(document).on('click', '#positionCategoryModalBody .btn-unmap-indicator', function () {
         var $row = $(this).closest('tr');
         $row.find('.map-indicator-checkbox').prop('checked', false).trigger('change');
+    });
+
+    $(document).on('click', '#positionCategoryModalBody .btn-edit-inline-indicator', function () {
+        var id = $(this).data('id');
+        if (!id) {
+            return;
+        }
+
+        $('#indicatorModal').data('return-to-position-modal', true);
+        $('#indicatorModal').data('return-position-id', $('#positionCategoryModal').data('pos-id') || null);
+        $('#positionCategoryModal').modal('hide');
+        $('.btn-edit-indicator[data-id="' + id + '"]').trigger('click');
     });
 
     $(document).on('click', '.btn-add-inline-indicator', function () {
@@ -885,6 +898,14 @@ $(document).ready(function () {
             success: function (response) {
                 $('#indicatorModal').modal('hide');
                 refreshAllTables();
+                var returnToPositionModal = !!$('#indicatorModal').data('return-to-position-modal');
+                var returnPositionId = $('#indicatorModal').data('return-position-id');
+
+                if (returnToPositionModal && returnPositionId) {
+                    loadPositionEditorModal(returnPositionId);
+                }
+
+                $('#indicatorModal').removeData('return-to-position-modal').removeData('return-position-id');
                 Swal.fire({ icon: 'success', title: 'Berhasil', text: response.message });
             },
             error: function (xhr) {
@@ -894,6 +915,11 @@ $(document).ready(function () {
                 }
 
                 showAjaxError(xhr, 'Gagal menyimpan indicator.');
+            },
+            complete: function () {
+                if (!$('#indicatorModal').hasClass('show')) {
+                    $('#indicatorModal').removeData('return-to-position-modal').removeData('return-position-id');
+                }
             }
         });
     });
