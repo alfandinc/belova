@@ -17,10 +17,59 @@ use Illuminate\Support\Collection;
 
 class IndicatorController extends Controller
 {
+    private function buildPositionEditorPayload(Position $position): array
+    {
+        $categories = KpiIndicatorCategory::query()
+            ->where('is_active', 1)
+            ->orderBy('category_name')
+            ->get();
+
+        $existingMappings = KpiPositionIndicator::query()
+            ->where('position_id', $position->id)
+            ->get()
+            ->keyBy('indicator_id');
+
+        $categoryPayloads = $categories->map(function (KpiIndicatorCategory $category) use ($existingMappings) {
+            $indicators = KpiIndicator::query()
+                ->where('category_id', $category->id)
+                ->orderBy('indicator_name')
+                ->get(['id', 'category_id', 'indicator_name', 'is_active']);
+
+            $indicatorPayloads = $indicators->map(function (KpiIndicator $indicator) use ($existingMappings) {
+                $mapping = $existingMappings->get($indicator->id);
+
+                return [
+                    'indicator_id' => $indicator->id,
+                    'indicator_name' => $indicator->indicator_name,
+                    'is_active' => (bool) $indicator->is_active,
+                    'is_mapped' => (bool) $mapping,
+                    'weight_percentage' => $mapping ? (float) $mapping->weight_percentage : null,
+                ];
+            })->values();
+
+            return [
+                'category_id' => $category->id,
+                'category_name' => $category->category_name,
+                'category_weight_percentage' => (float) $category->weight_percentage,
+                'evaluator_type' => $category->evaluator_type,
+                'indicators' => $indicatorPayloads,
+            ];
+        })->values();
+
+        return [
+            'position' => [
+                'id' => $position->id,
+                'name' => $position->name,
+                'division_names' => $position->division_names,
+            ],
+            'categories' => $categoryPayloads,
+        ];
+    }
+
     public function index()
     {
         return view('kpi.indicator.index', [
-            'positions' => Position::orderBy('name')->get(['id', 'name','division_id','parent_id']),
+            'positions' => Position::with('divisions')->orderBy('name')->get(['id', 'name']),
             'divisions' => \App\Models\HRD\Division::orderBy('name')->get(['id','name']),
             'categories' => KpiIndicatorCategory::orderBy('category_name')->get(['id', 'category_name']),
         ]);
@@ -99,7 +148,7 @@ class IndicatorController extends Controller
     public function meta(): JsonResponse
     {
         return response()->json([
-            'positions' => Position::orderBy('name')->get(['id', 'name']),
+            'positions' => Position::with('divisions')->orderBy('name')->get(['id', 'name']),
             'categories' => KpiIndicatorCategory::orderBy('category_name')->get(['id', 'category_name']),
         ]);
     }
@@ -120,21 +169,55 @@ class IndicatorController extends Controller
     /**
      * Return indicators mapped for a given position with weights and total.
      */
-    public function positionMappings(Position $position): JsonResponse
+    public function positionMappings(Request $request, Position $position): JsonResponse
     {
-        $mappings = KpiPositionIndicator::where('position_id', $position->id)
-            ->with(['indicator:id,indicator_name,category_id', 'indicator.category:id,category_name'])
-            ->get()
-            ->map(function ($m) {
+        $categoryId = $request->input('category_id');
+
+        if ($categoryId) {
+            $indicators = KpiIndicator::query()
+                ->where('category_id', $categoryId)
+                ->orderBy('indicator_name')
+                ->get(['id', 'category_id', 'indicator_name', 'is_active']);
+
+            $existingMappings = KpiPositionIndicator::query()
+                ->where('position_id', $position->id)
+                ->whereIn('indicator_id', $indicators->pluck('id'))
+                ->get()
+                ->keyBy('indicator_id');
+
+            $categoryName = optional(KpiIndicatorCategory::find($categoryId))->category_name;
+
+            $mappings = $indicators->map(function (KpiIndicator $indicator) use ($existingMappings, $categoryName) {
+                $mapping = $existingMappings->get($indicator->id);
+
                 return [
-                    'id' => $m->id,
-                    'indicator_id' => $m->indicator_id,
-                    'indicator_name' => optional($m->indicator)->indicator_name,
-                    'category_id' => optional($m->indicator)->category_id,
-                    'category_name' => optional($m->indicator->category)->category_name,
-                    'weight_percentage' => (float) $m->weight_percentage,
+                    'id' => $mapping?->id,
+                    'indicator_id' => $indicator->id,
+                    'indicator_name' => $indicator->indicator_name,
+                    'category_id' => $indicator->category_id,
+                    'category_name' => $categoryName,
+                    'weight_percentage' => $mapping ? (float) $mapping->weight_percentage : null,
+                    'is_mapped' => (bool) $mapping,
+                    'is_active' => (bool) $indicator->is_active,
                 ];
-            });
+            })->values();
+        } else {
+            $mappings = KpiPositionIndicator::where('position_id', $position->id)
+                ->with(['indicator:id,indicator_name,category_id,is_active', 'indicator.category:id,category_name'])
+                ->get()
+                ->map(function ($m) {
+                    return [
+                        'id' => $m->id,
+                        'indicator_id' => $m->indicator_id,
+                        'indicator_name' => optional($m->indicator)->indicator_name,
+                        'category_id' => optional($m->indicator)->category_id,
+                        'category_name' => optional($m->indicator->category)->category_name,
+                        'weight_percentage' => (float) $m->weight_percentage,
+                        'is_mapped' => true,
+                        'is_active' => (bool) optional($m->indicator)->is_active,
+                    ];
+                })->values();
+        }
 
         $total = $mappings->sum('weight_percentage');
 
@@ -142,6 +225,16 @@ class IndicatorController extends Controller
             'success' => true,
             'data' => $mappings,
             'total' => $total,
+        ]);
+    }
+
+    public function positionEditor(Position $position): JsonResponse
+    {
+        $position->load('divisions');
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->buildPositionEditorPayload($position),
         ]);
     }
 
@@ -154,21 +247,44 @@ class IndicatorController extends Controller
         $validated = $request->validate([
             'mappings' => ['required', 'array'],
             'mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
+            'mappings.*.is_mapped' => ['nullable', 'boolean'],
             'mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
         ]);
 
         $mappings = collect($validated['mappings']);
-        $sum = $mappings->sum(function ($m) { return isset($m['weight_percentage']) ? (float)$m['weight_percentage'] : 0.0; });
+        $categoryIndicatorIds = KpiIndicator::query()
+            ->where('category_id', $validated['category_id'])
+            ->pluck('id');
 
-        if (abs($sum - 100.0) > 0.001) {
+        $submittedIndicatorIds = $mappings->pluck('indicator_id')->map(fn ($id) => (int) $id);
+        $invalidIndicatorIds = $submittedIndicatorIds->diff($categoryIndicatorIds);
+
+        if ($invalidIndicatorIds->isNotEmpty()) {
+            return response()->json(['success' => false, 'message' => 'Ada indikator yang tidak sesuai dengan kategori yang dipilih.'], 422);
+        }
+
+        $selectedMappings = $mappings->filter(function ($mapping) {
+            return filter_var($mapping['is_mapped'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        })->values();
+
+        $sum = $selectedMappings->sum(function ($mapping) {
+            return isset($mapping['weight_percentage']) ? (float) $mapping['weight_percentage'] : 0.0;
+        });
+
+        if ($selectedMappings->isNotEmpty() && abs($sum - 100.0) > 0.001) {
             return response()->json(['success' => false, 'message' => 'Total weight must equal 100% (current: ' . number_format($sum,2) . '%)'], 422);
         }
 
-        // Update each mapping for this position
-        foreach ($mappings as $m) {
-            $indicatorId = (int) $m['indicator_id'];
-            $weight = isset($m['weight_percentage']) ? $m['weight_percentage'] : null;
+        KpiPositionIndicator::query()
+            ->where('position_id', $position->id)
+            ->whereIn('indicator_id', $categoryIndicatorIds)
+            ->delete();
+
+        foreach ($selectedMappings as $mapping) {
+            $indicatorId = (int) $mapping['indicator_id'];
+            $weight = isset($mapping['weight_percentage']) ? $mapping['weight_percentage'] : null;
+
             KpiPositionIndicator::updateOrCreate(
                 ['position_id' => $position->id, 'indicator_id' => $indicatorId],
                 ['weight_percentage' => $weight]
@@ -178,18 +294,89 @@ class IndicatorController extends Controller
         return response()->json(['success' => true, 'message' => 'Mappings updated successfully.']);
     }
 
+    public function positionMappingsBulkUpdate(Request $request, Position $position): JsonResponse
+    {
+        $validated = $request->validate([
+            'categories' => ['required', 'array'],
+            'categories.*.category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
+            'categories.*.mappings' => ['required', 'array'],
+            'categories.*.mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
+            'categories.*.mappings.*.is_mapped' => ['nullable', 'boolean'],
+            'categories.*.mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        foreach ($validated['categories'] as $categoryPayload) {
+            $categoryId = (int) $categoryPayload['category_id'];
+            $mappings = collect($categoryPayload['mappings']);
+            $categoryIndicatorIds = KpiIndicator::query()
+                ->where('category_id', $categoryId)
+                ->pluck('id');
+
+            $submittedIndicatorIds = $mappings->pluck('indicator_id')->map(fn ($id) => (int) $id);
+            if ($submittedIndicatorIds->diff($categoryIndicatorIds)->isNotEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ada indikator yang tidak sesuai dengan kategori yang dipilih.',
+                ], 422);
+            }
+
+            $selectedMappings = $mappings->filter(function ($mapping) {
+                return filter_var($mapping['is_mapped'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            })->values();
+
+            $sum = $selectedMappings->sum(function ($mapping) {
+                return isset($mapping['weight_percentage']) ? (float) $mapping['weight_percentage'] : 0.0;
+            });
+
+            if ($selectedMappings->isNotEmpty() && abs($sum - 100.0) > 0.001) {
+                $category = KpiIndicatorCategory::find($categoryId);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Total weight kategori ' . ($category?->category_name ?? ('#' . $categoryId)) . ' harus 100% (current: ' . number_format($sum, 2) . '%).',
+                ], 422);
+            }
+
+            KpiPositionIndicator::query()
+                ->where('position_id', $position->id)
+                ->whereIn('indicator_id', $categoryIndicatorIds)
+                ->delete();
+
+            foreach ($selectedMappings as $mapping) {
+                KpiPositionIndicator::updateOrCreate(
+                    [
+                        'position_id' => $position->id,
+                        'indicator_id' => (int) $mapping['indicator_id'],
+                    ],
+                    [
+                        'weight_percentage' => $mapping['weight_percentage'] ?? null,
+                    ]
+                );
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Position indicator mappings updated successfully.',
+        ]);
+    }
+
     /**
      * Data for positions table showing mapped indicators per position.
      */
     public function positionData(Request $request)
     {
-        // include division_id so we can resolve division name later
-        $positionsQuery = Position::orderBy('name');
+        $positionsQuery = Position::with('divisions')
+            ->where('is_active', true)
+            ->orderBy('name');
         if ($request->filled('division_id')) {
-            $positionsQuery->where('division_id', $request->input('division_id'));
+            $divisionId = $request->input('division_id');
+            $positionsQuery->whereHas('divisions', function ($query) use ($divisionId) {
+                $query->where('hrd_division.id', $divisionId);
+            });
         }
 
-        $positions = $positionsQuery->get(['id', 'name', 'division_id']);
+        $positions = $positionsQuery->get(['id', 'name']);
 
         $categories = KpiIndicatorCategory::where('is_active', 1)->orderBy('category_name')->get(['id', 'category_name']);
 
@@ -228,20 +415,16 @@ class IndicatorController extends Controller
             return [
                 'id' => $p->id,
                 'name' => $p->name,
-                'division_name' => optional($p->division)->name,
+                'division_name' => $p->division_names ?: '-',
                 'employee_count' => $activeEmployees,
                 'indicators_count' => $mappings->count(),
                 'category_percentages' => implode('', $parts),
+                'action' => '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-position-mapping" data-id="' . $p->id . '" data-name="' . e($p->name) . '"><i class="fas fa-edit mr-1"></i>Edit</button>',
                 'has_issue' => $hasIssue ? 1 : 0,
             ];
         });
 
-        // filter out positions with no active employees
-        $rows = $rows->filter(function ($r) {
-            return isset($r['employee_count']) && $r['employee_count'] > 0;
-        })->values();
-
-        return DataTables::of($rows)->addIndexColumn()->rawColumns(['category_percentages'])->make(true);
+        return DataTables::of($rows)->addIndexColumn()->rawColumns(['category_percentages', 'action'])->make(true);
     }
 
     public function importPreview(Request $request): JsonResponse

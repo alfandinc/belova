@@ -17,27 +17,21 @@
         </div>
     </div>
 
-    <!-- Modal: show indicators for position+category -->
+    <!-- Modal: edit indicators for a position -->
     <div class="modal fade" id="positionCategoryModal" tabindex="-1" role="dialog" aria-labelledby="positionCategoryModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="positionCategoryModalLabel">Indicators</h5>
+                    <h5 class="modal-title" id="positionCategoryModalLabel">Edit Position Indicators</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 </div>
                 <div class="modal-body">
-                    <div id="positionCategoryModalBody">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered" id="positionCategoryModalTable">
-                                <thead><tr><th>No</th><th>Indicator</th><th style="width:120px">Weight %</th></tr></thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <div id="positionCategoryModalSummary" class="alert alert-info d-none mb-3"></div>
+                    <div id="positionCategoryModalBody"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="positionCategorySaveBtn" disabled>Save</button>
+                    <button type="button" class="btn btn-primary" id="positionCategorySaveBtn">Save</button>
                 </div>
             </div>
         </div>
@@ -151,6 +145,7 @@
                                     <th>Employee</th>
                                     <th>Indicators Count</th>
                                     <th>Indicators</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                         </table>
@@ -284,7 +279,7 @@
                 <input type="hidden" id="indicator_id">
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-7">
+                        <div class="col-12">
                             <div class="form-group">
                                 <label for="indicator_category_id">Category</label>
                                 <select class="form-control" id="indicator_category_id" name="category_id" required>
@@ -305,42 +300,14 @@
                                 <textarea class="form-control" id="indicator_notes" name="notes" rows="3"></textarea>
                                 <div class="invalid-feedback" data-field="notes"></div>
                             </div>
-                            <div class="form-group">
-                                <label for="indicator_position_ids">Position(s) (optional)</label>
-                                <select class="form-control select2" id="indicator_position_ids" name="position_ids[]" multiple>
-                                    @foreach($positions as $position)
-                                        <option value="{{ $position->id }}" data-parent="{{ $position->parent_id }}">{{ $position->name }}</option>
-                                    @endforeach
-                                </select>
-                                <div class="invalid-feedback" data-field="position_ids"></div>
-                                <div class="form-check form-check-inline align-middle ml-2">
-                                    <input class="form-check-input" type="checkbox" id="indicator_map_all_right">
-                                    <label class="form-check-label small" for="indicator_map_all_right">Map to all positions</label>
-                                </div>
-                            </div>
-
-                            <input type="hidden" id="position_mappings" name="position_mappings">
                             <div class="form-group mb-0">
                                 <div class="custom-control custom-switch">
                                     <input type="checkbox" class="custom-control-input" id="indicator_is_active" name="is_active" checked>
                                     <label class="custom-control-label" for="indicator_is_active">Active</label>
                                 </div>
                             </div>
-                        </div>
-
-                        <div class="col-md-5 border-left">
-                            <h6 class="mb-2">Position Mappings</h6>
-                            <div class="text-muted small mb-2">Set weights for each selected position. These mappings will be created/updated when saving the indicator.</div>
-                            <div class="form-inline mb-2">
-                                <input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm mr-2" id="indicator_apply_all_weight_right" placeholder="Weight for all">
-                                <button type="button" class="btn btn-sm btn-secondary" id="indicator_apply_all_btn_right">Apply to all</button>
-                                
-                            </div>
-                            <div class="table-responsive" style="max-height:320px; overflow:auto">
-                                <table class="table table-sm table-bordered" id="indicatorPositionMappingsRight">
-                                    <thead><tr><th>Position</th><th style="width:150px">Weight %</th></tr></thead>
-                                    <tbody></tbody>
-                                </table>
+                            <div class="alert alert-info mb-0">
+                                Mapping indikator ke posisi sekarang dilakukan dari tabel <strong>Positions</strong> di bawah. Pilih posisi, lalu klik badge kategori untuk mengatur indikator dan bobotnya per posisi.
                             </div>
                         </div>
                     </div>
@@ -449,7 +416,8 @@ $(document).ready(function () {
             { data: 'division_name', name: 'division_name', orderable: false, searchable: false },
             { data: 'employee_count', name: 'employee_count', orderable: false, searchable: false },
             { data: 'indicators_count', name: 'indicators_count', orderable: false, searchable: false },
-            { data: 'category_percentages', name: 'category_percentages', orderable: false, searchable: false, render: function(data, type, row){ return data || ''; } }
+            { data: 'category_percentages', name: 'category_percentages', orderable: false, searchable: false, render: function(data, type, row){ return data || ''; } },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
         ]
         ,
         createdRow: function(row, data) {
@@ -461,93 +429,216 @@ $(document).ready(function () {
         }
     });
 
-    // click handler for category badges in positions table
-    $(document).on('click', '.category-badge', function () {
-        var $badge = $(this);
-        var posId = $badge.data('pos-id') || $badge.attr('data-pos-id');
-        var catId = $badge.data('cat-id') || $badge.attr('data-cat-id');
-        var catName = $badge.data('cat-name') || $badge.attr('data-cat-name') || '';
-        if (!posId || !catId) return;
+    function renderPositionCategorySection(category) {
+        var rows = '';
+        var mappedIndicators = $.grep(category.indicators || [], function (indicator) {
+            return !!indicator.is_mapped;
+        });
 
-        var $tbody = $('#positionCategoryModalTable tbody').empty();
+        if (!mappedIndicators.length) {
+            rows = '<tr><td colspan="5" class="text-muted text-center">Belum ada indikator yang dimapping untuk kategori ini.</td></tr>';
+        } else {
+            $.each(mappedIndicators, function (index, indicator) {
+                var checked = indicator.is_mapped ? 'checked' : '';
+                var disabled = indicator.is_mapped ? '' : 'disabled';
+                var value = indicator.weight_percentage !== null && indicator.weight_percentage !== undefined
+                    ? Number(indicator.weight_percentage).toFixed(2)
+                    : '';
+                var inactiveNote = indicator.is_active ? '' : '<div class="small text-muted">Inactive indicator</div>';
+                var actionButton = indicator.is_mapped
+                    ? '<button type="button" class="btn btn-sm btn-outline-warning btn-unmap-indicator">Lepas</button>'
+                    : '<button type="button" class="btn btn-sm btn-outline-secondary btn-unmap-indicator" disabled>Lepas</button>';
 
-        // attempt to get position name from DataTable row
-        var $tr = $badge.closest('tr');
-        var rowData = null;
-        try { rowData = positionsTable.row($tr).data(); } catch(e) { rowData = null; }
-        var posName = (rowData && rowData.name) ? rowData.name : $tr.find('td').eq(1).text() || ('#' + posId);
-        $('#positionCategoryModalLabel').text('Indicators for Position: ' + posName + ' — Category: ' + catName);
-
-        $.get('/indicator/positions/' + posId + '/mappings', function (res) {
-            var list = (res && res.data) ? res.data.filter(function (it) { return String(it.category_id) === String(catId); }) : [];
-            // store active pos/cat on modal
-            $('#positionCategoryModal').data('pos-id', posId).data('cat-id', catId);
-            if (!list.length) {
-                $tbody.append('<tr><td colspan="3">No indicators mapped for this category and position.</td></tr>');
-                $('#positionCategorySaveBtn').prop('disabled', true);
-            } else {
-                $.each(list, function (i, it) {
-                    var value = (it.weight_percentage !== null && it.weight_percentage !== undefined) ? Number(it.weight_percentage).toFixed(2) : '';
-                    var tr = '<tr>' +
-                        '<td>' + (i+1) + '</td>' +
-                        '<td>' + escapeHtml(it.indicator_name || '-') + '</td>' +
-                        '<td class="text-right"><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + it.indicator_id + '" value="' + value + '"></td>' +
-                        '</tr>';
-                    $tbody.append(tr);
-                });
-
-                // append totals row (will be updated by recalc)
-                var totalRow = '<tr id="positionCategoryTotalsRow" class="font-weight-bold">'
-                    + '<td></td>'
-                    + '<td id="positionCategoryTotalCount">Total: 0</td>'
-                    + '<td class="text-right" id="positionCategoryTotalWeighted">Total Weighted: 0.00%</td>'
+                rows += '<tr>'
+                    + '<td>' + (index + 1) + '</td>'
+                    + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + '></td>'
+                    + '<td>' + escapeHtml(indicator.indicator_name || '-') + inactiveNote + '</td>'
+                    + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" value="' + value + '" ' + disabled + '></td>'
+                    + '<td class="text-center align-middle">' + actionButton + '</td>'
                     + '</tr>';
-                $tbody.append(totalRow);
-                // initial recalc
-                recalcPositionModalTotals();
-            }
-            $('#positionCategoryModal').modal('show');
-        }).fail(function () {
-            $tbody.append('<tr><td colspan="3">Failed to load data.</td></tr>');
-            $('#positionCategoryModal').modal('show');
-            $('#positionCategorySaveBtn').prop('disabled', true);
-        });
-    });
-
-    // recalc totals in modal and set styles / save button
-    function recalcPositionModalTotals() {
-        var $rows = $('#positionCategoryModalTable tbody tr').not('#positionCategoryTotalsRow');
-        var total = 0;
-        var count = 0;
-        $rows.each(function () {
-            var $inp = $(this).find('.weight-input');
-            if ($inp.length) {
-                var v = parseFloat($inp.val());
-                if (!isNaN(v)) {
-                    total += v;
-                }
-                count++;
-            }
-        });
-        var $totRow = $('#positionCategoryTotalsRow');
-        if ($totRow.length) {
-            $totRow.find('#positionCategoryTotalCount').text('Total: ' + count);
-            $totRow.find('#positionCategoryTotalWeighted').text('Total Weighted: ' + Number(total).toFixed(2) + '%');
-            // coloring: green when total == 100, red otherwise
-            $totRow.removeClass('table-light table-danger table-success');
-            if (Math.abs(total - 100.0) <= 0.001) {
-                $totRow.addClass('table-success');
-                $('#positionCategorySaveBtn').prop('disabled', false);
-            } else {
-                $totRow.addClass('table-danger');
-                $('#positionCategorySaveBtn').prop('disabled', true);
-            }
+            });
         }
+
+        rows += '<tr class="font-weight-bold category-total-row">'
+            + '<td></td>'
+            + '<td></td>'
+            + '<td class="mapped-count-cell">Mapped: 0</td>'
+            + '<td class="text-right total-weight-cell">Total Weighted: 0.00%</td>'
+            + '<td></td>'
+            + '</tr>';
+
+        return '<div class="card mb-3 position-category-section" data-category-id="' + category.category_id + '">'
+            + '<div class="card-header d-flex justify-content-between align-items-center">'
+            + '<div><strong>' + escapeHtml(category.category_name) + '</strong><div class="small text-muted">Category Weight: ' + Number(category.category_weight_percentage || 0).toFixed(2) + '%</div></div>'
+            + '<span class="badge badge-light text-uppercase">' + escapeHtml((category.evaluator_type || '').replace(/_/g, ' ')) + '</span>'
+            + '</div>'
+            + '<div class="card-body">'
+            + '<div class="form-row align-items-end mb-3">'
+            + '<div class="col-md-8 mb-2 mb-md-0"><label class="small text-muted">Tambah indikator baru</label><input type="text" class="form-control form-control-sm new-indicator-name" placeholder="Nama indikator baru untuk kategori ini"></div>'
+            + '<div class="col-md-4"><button type="button" class="btn btn-sm btn-outline-primary btn-add-inline-indicator" data-category-id="' + category.category_id + '">Tambah Indikator</button></div>'
+            + '</div>'
+            + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th style="width:60px">No</th><th style="width:70px">Map</th><th>Indicator</th><th style="width:170px">Weight %</th><th style="width:110px">Aksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+            + '</div>'
+            + '</div>';
     }
 
-    // listen to input changes
-    $(document).on('input', '#positionCategoryModalTable .weight-input', function () {
-        recalcPositionModalTotals();
+    function recalcPositionCategorySection($section) {
+        var total = 0;
+        var count = 0;
+
+        $section.find('tbody tr').not('.category-total-row').each(function () {
+            var $row = $(this);
+            var isMapped = $row.find('.map-indicator-checkbox').is(':checked');
+            var $input = $row.find('.weight-input');
+            if (!isMapped) {
+                return;
+            }
+
+            var value = parseFloat($input.val());
+            if (!isNaN(value)) {
+                total += value;
+            }
+            count++;
+        });
+
+        var $totalRow = $section.find('.category-total-row');
+        $totalRow.find('.mapped-count-cell').text('Mapped: ' + count);
+        $totalRow.find('.total-weight-cell').text('Total Weighted: ' + Number(total).toFixed(2) + '%');
+        $totalRow.removeClass('table-success table-danger');
+        $totalRow.addClass(count === 0 || Math.abs(total - 100.0) <= 0.001 ? 'table-success' : 'table-danger');
+    }
+
+    function recalcAllPositionCategorySections() {
+        var hasInvalid = false;
+
+        $('#positionCategoryModalBody .position-category-section').each(function () {
+            recalcPositionCategorySection($(this));
+            if ($(this).find('.category-total-row').hasClass('table-danger')) {
+                hasInvalid = true;
+            }
+        });
+
+        $('#positionCategorySaveBtn').prop('disabled', hasInvalid);
+    }
+
+    function renderPositionEditorModal(payload) {
+        var position = payload.position || {};
+        var categories = payload.categories || [];
+        var html = '';
+
+        $('#positionCategoryModal').data('pos-id', position.id || null);
+        $('#positionCategoryModal').data('pos-name', position.name || '');
+        $('#positionCategoryModalLabel').text('Edit Indicators: ' + (position.name || '-'));
+        $('#positionCategoryModalSummary')
+            .toggleClass('d-none', false)
+            .html('<strong>Posisi:</strong> ' + escapeHtml(position.name || '-') + '<br><strong>Divisi:</strong> ' + escapeHtml(position.division_names || '-'));
+
+        if (!categories.length) {
+            html = '<div class="alert alert-warning mb-0">Belum ada kategori aktif yang bisa dipetakan.</div>';
+        } else {
+            $.each(categories, function (_, category) {
+                html += renderPositionCategorySection(category);
+            });
+        }
+
+        $('#positionCategoryModalBody').html(html);
+        recalcAllPositionCategorySections();
+        $('#positionCategoryModal').modal('show');
+    }
+
+    function loadPositionEditorModal(positionId) {
+        $.get('/indicator/positions/' + positionId + '/editor', function (response) {
+            renderPositionEditorModal((response && response.data) ? response.data : {});
+        }).fail(function () {
+            Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal memuat editor indikator posisi.' });
+        });
+    }
+
+    $(document).on('click', '.btn-edit-position-mapping', function () {
+        var positionId = $(this).data('id');
+        if (!positionId) {
+            return;
+        }
+
+        loadPositionEditorModal(positionId);
+    });
+
+    $(document).on('click', '.category-badge', function () {
+        var positionId = $(this).data('pos-id') || $(this).attr('data-pos-id');
+        if (!positionId) {
+            return;
+        }
+
+        loadPositionEditorModal(positionId);
+    });
+
+    $(document).on('input', '#positionCategoryModalBody .weight-input', function () {
+        recalcPositionCategorySection($(this).closest('.position-category-section'));
+        recalcAllPositionCategorySections();
+    });
+
+    $(document).on('change', '#positionCategoryModalBody .map-indicator-checkbox', function () {
+        var $row = $(this).closest('tr');
+        var $input = $row.find('.weight-input');
+        var $button = $row.find('.btn-unmap-indicator');
+        var checked = $(this).is(':checked');
+        $input.prop('disabled', !checked);
+        $button.prop('disabled', !checked)
+            .toggleClass('btn-outline-warning', checked)
+            .toggleClass('btn-outline-secondary', !checked);
+        if (!checked) {
+            $input.val('');
+        }
+        recalcPositionCategorySection($(this).closest('.position-category-section'));
+        recalcAllPositionCategorySections();
+    });
+
+    $(document).on('click', '#positionCategoryModalBody .btn-unmap-indicator', function () {
+        var $row = $(this).closest('tr');
+        $row.find('.map-indicator-checkbox').prop('checked', false).trigger('change');
+    });
+
+    $(document).on('click', '.btn-add-inline-indicator', function () {
+        var $section = $(this).closest('.position-category-section');
+        var categoryId = $(this).data('category-id');
+        var positionId = $('#positionCategoryModal').data('pos-id');
+        var indicatorName = ($section.find('.new-indicator-name').val() || '').trim();
+        var $button = $(this);
+
+        if (!categoryId || !positionId) {
+            return;
+        }
+
+        if (!indicatorName) {
+            Swal.fire({ icon: 'warning', title: 'Validation', text: 'Nama indikator baru wajib diisi.' });
+            return;
+        }
+
+        $button.prop('disabled', true).text('Menambahkan...');
+        $.ajax({
+            url: "{{ route('indicator.indicators.store') }}",
+            type: 'POST',
+            data: {
+                category_id: categoryId,
+                indicator_name: indicatorName,
+                notes: '',
+                is_active: 1,
+                position_mappings: [{
+                    position_id: positionId,
+                    weight_percentage: null
+                }]
+            },
+            success: function () {
+                loadPositionEditorModal(positionId);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Indikator baru ditambahkan dan langsung dimapping. Isi bobotnya lalu simpan.' });
+            },
+            error: function (xhr) {
+                showAjaxError(xhr, 'Gagal menambahkan indikator baru.');
+            },
+            complete: function () {
+                $button.prop('disabled', false).text('Tambah Indikator');
+            }
+        });
     });
 
     // when filters change, reload DataTables
@@ -559,30 +650,48 @@ $(document).ready(function () {
         var $btn = $(this);
         var $modal = $('#positionCategoryModal');
         var posId = $modal.data('pos-id');
-        var catId = $modal.data('cat-id');
-        if (!posId || !catId) return;
-        var mappings = [];
-        $('#positionCategoryModalTable .weight-input').each(function () {
-            var indId = $(this).data('indicator-id');
-            var v = parseFloat($(this).val());
-            mappings.push({ indicator_id: indId, weight_percentage: isNaN(v) ? 0 : v });
+        if (!posId) return;
+        var categories = [];
+
+        $('#positionCategoryModalBody .position-category-section').each(function () {
+            var $section = $(this);
+            var categoryId = $section.data('category-id');
+            var mappings = [];
+
+            $section.find('tbody tr').not('.category-total-row').each(function () {
+                var $row = $(this);
+                var $input = $row.find('.weight-input');
+                var indicatorId = $input.data('indicator-id');
+                var isMapped = $row.find('.map-indicator-checkbox').is(':checked');
+                var value = parseFloat($input.val());
+
+                mappings.push({
+                    indicator_id: indicatorId,
+                    is_mapped: isMapped ? 1 : 0,
+                    weight_percentage: isMapped && !isNaN(value) ? value : null
+                });
+            });
+
+            categories.push({
+                category_id: categoryId,
+                mappings: mappings
+            });
         });
 
         $btn.prop('disabled', true).text('Saving...');
         $.ajax({
-            url: '/indicator/positions/' + posId + '/mappings',
+            url: '/indicator/positions/' + posId + '/mappings/bulk',
             method: 'POST',
-            data: { mappings: mappings, category_id: catId },
+            data: { categories: categories },
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
             success: function (res) {
                 $('#positionCategoryModal').modal('hide');
                 positionsTable.ajax.reload(null, false);
-                // optionally refresh other UI
+                indicatorTable.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Mapping indikator posisi berhasil disimpan.' });
             },
             error: function (xhr) {
-                var msg = 'Failed to save mappings';
-                try { msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : msg; } catch (e) {}
-                alert(msg);
+                showAjaxError(xhr, 'Gagal menyimpan mapping indikator posisi.');
             },
             complete: function () {
                 $btn.prop('disabled', false).text('Save');
@@ -646,15 +755,6 @@ $(document).ready(function () {
         $('#indicator_is_active').prop('checked', true);
         $('#indicatorModalLabel').text('Tambah Indicator');
         clearFormErrors('#indicatorForm');
-        // reset select2 for position mapping
-        $('#indicator_position_ids').val(null).trigger('change');
-        $('#indicator_apply_all_weight_right').val('');
-        // clear mapping table (right)
-        $('#indicatorPositionMappingsRight tbody').empty();
-        $('#position_mappings').val('');
-        // clear preview
-        $('#positionPreviewTable tbody').empty();
-        $('#positionPreviewSum').text('0');
     }
 
     function showAjaxError(xhr, fallbackMessage) {
@@ -681,13 +781,6 @@ $(document).ready(function () {
             if (selectedCategoryId) {
                 categorySelect.val(String(selectedCategoryId));
             }
-            // refresh positions as well (keep select2 intact)
-            var positionSelect = $('#indicator_position_ids');
-            positionSelect.empty();
-            $.each(response.positions || [], function (_, pos) {
-                positionSelect.append('<option value="' + pos.id + '">' + pos.name + '</option>');
-            });
-            positionSelect.trigger('change');
             var evalPosSelect = $('#category_evaluator_position_id');
             evalPosSelect.empty().append('<option value="">Pilih posisi</option>');
             $.each(response.positions || [], function (_, pos) {
@@ -718,7 +811,6 @@ $(document).ready(function () {
     // initialize select2 for position selects if Select2 available
     if ($.isFunction($.fn.select2)) {
         // attach dropdown to modals to avoid clipping/overflow issues
-        $('#indicator_position_ids').select2({ width: '100%', dropdownParent: $('#indicatorModal') });
         $('#category_evaluator_position_id').select2({ width: '100%', dropdownParent: $('#categoryModal') });
     }
 
@@ -782,13 +874,6 @@ $(document).ready(function () {
         var url = isEdit
             ? "{{ url('/indicator/indicators') }}/" + indicatorId
             : "{{ route('indicator.indicators.store') }}";
-        // collect position mappings into hidden input before serializing
-        var mappings = collectIndicatorPositionMappings();
-        if (mappings.length) {
-            $('#position_mappings').val(JSON.stringify(mappings));
-        } else {
-            $('#position_mappings').val('');
-        }
         var payload = $(this).serialize() + (isEdit ? '&_method=PUT' : '');
 
         $.ajax({
@@ -841,122 +926,9 @@ $(document).ready(function () {
             $('#indicator_notes').val(data.notes || '');
             $('#indicator_is_active').prop('checked', !!data.is_active);
             $('#indicatorModalLabel').text('Edit Indicator');
-            // populate optional position mappings if available (multiple)
-            if (data.position_indicators && data.position_indicators.length > 0) {
-                var ids = [];
-                var mapRows = [];
-                $.each(data.position_indicators, function(_, m){
-                    ids.push(String(m.position_id));
-                    var name = (m.position && m.position.name) ? m.position.name : ('Position ' + m.position_id);
-                    mapRows.push({position_id: m.position_id, position_name: name, weight_percentage: m.weight_percentage});
-                });
-                $('#indicator_position_ids').val(ids).trigger('change');
-                renderIndicatorPositionMappings(mapRows);
-            }
-
             $('#indicatorModal').modal('show');
         });
     });
-
-    // load preview for a given position id
-    function loadPositionPreview(positionId) {
-        var tbody = $('#positionPreviewTable tbody');
-        tbody.empty();
-        $('#positionPreviewSum').text('0');
-
-        if (!positionId) {
-            return;
-        }
-
-        $.get('/indicator/positions/' + positionId + '/mappings', function (res) {
-            if (!res || !res.data) return;
-            var total = 0;
-            $.each(res.data, function (_, item) {
-                var row = '<tr>' +
-                    '<td>' + (item.indicator_name || '-') + '<div class="small text-muted">' + (item.category_name || '') + '</div></td>' +
-                    '<td class="text-right align-middle">' + (item.weight_percentage !== null ? item.weight_percentage : '-') + '</td>' +
-                    '</tr>';
-                tbody.append(row);
-                total += parseFloat(item.weight_percentage || 0);
-            });
-            $('#positionPreviewSum').text(Number(total).toFixed(2));
-            // highlight total if not 100
-            if (Math.abs(total - 100) > 0.001) {
-                $('#positionPreviewSum').css('color', total > 100 ? '#c82333' : '#856404');
-            } else {
-                $('#positionPreviewSum').css('color', '#28a745');
-            }
-        }).fail(function () {
-            // noop
-        });
-    }
-
-    // when position select changes, refresh preview
-    $('#indicator_position_ids').on('change', function () {
-        var vals = $(this).val() || [];
-        // render mapping rows for selected positions
-        renderIndicatorPositionMappings();
-        // if single selection, show preview for that position
-        if (vals.length === 1) {
-            loadPositionPreview(vals[0]);
-        } else {
-            // clear preview when multiple or none
-            $('#positionPreviewTable tbody').empty();
-            $('#positionPreviewSum').text('0');
-        }
-    });
-
-    // when user checks map all checkbox (right-side), select all positions
-    $('#indicator_map_all_right').on('change', function(){
-        if ($(this).is(':checked')) {
-            // select all positions except top-level positions (parent_id null/empty)
-            var opts = $('#indicator_position_ids option').filter(function(){
-                var p = $(this).attr('data-parent');
-                return p !== undefined && p !== null && String(p).trim() !== '';
-            }).map(function(){ return $(this).val(); }).get();
-            $('#indicator_position_ids').val(opts).trigger('change');
-        } else {
-            $('#indicator_position_ids').val(null).trigger('change');
-        }
-    });
-
-    // Apply weight to all mapping rows (right-side)
-    $('#indicator_apply_all_btn_right').on('click', function(){
-        var v = $('#indicator_apply_all_weight_right').val();
-        $('#indicatorPositionMappingsRight tbody').find('input.position-weight').val(v);
-    });
-
-    function renderIndicatorPositionMappings(mapRows) {
-        // if mapRows provided, use it; otherwise build from selected options
-        var rows = mapRows || [];
-        if (!mapRows) {
-            var sel = $('#indicator_position_ids').val() || [];
-            $.each(sel, function(_, id){
-                var opt = $('#indicator_position_ids option[value="' + id + '"]');
-                var name = opt.text() || ('Position ' + id);
-                rows.push({position_id: id, position_name: name, weight_percentage: ''});
-            });
-        }
-
-        var $tb = $('#indicatorPositionMappingsRight tbody').empty();
-        $.each(rows, function(_, r){
-            var tr = '<tr data-pos="'+ r.position_id +'">'
-                + '<td>' + escapeHtml(r.position_name) + '</td>'
-                + '<td><input type="number" step="0.01" min="0" max="100" class="form-control form-control-sm position-weight" value="' + (r.weight_percentage !== null ? r.weight_percentage : '') + '"></td>'
-                + '</tr>';
-            $tb.append(tr);
-        });
-    }
-
-    function collectIndicatorPositionMappings() {
-        var out = [];
-        $('#indicatorPositionMappingsRight tbody tr').each(function(){
-            var pid = $(this).data('pos');
-            var w = $(this).find('input.position-weight').val();
-            out.push({ position_id: pid, weight_percentage: w });
-        });
-        return out;
-    }
 
     // Import buttons
     $('#btnImportCategory').on('click', function() {

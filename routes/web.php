@@ -2125,8 +2125,10 @@ Route::prefix('indicator')->name('indicator.')->middleware(['auth', 'role:Employ
     Route::get('/indicators/{indicator}', [IndicatorController::class, 'showIndicator'])->name('indicators.show');
     Route::put('/indicators/{indicator}', [IndicatorController::class, 'updateIndicator'])->name('indicators.update');
     Route::delete('/indicators/{indicator}', [IndicatorController::class, 'destroyIndicator'])->name('indicators.destroy');
+    Route::get('/positions/{position}/editor', [IndicatorController::class, 'positionEditor'])->name('positions.editor');
     Route::get('/positions/{position}/mappings', [IndicatorController::class, 'positionMappings'])->name('positions.mappings');
     Route::post('/positions/{position}/mappings', [IndicatorController::class, 'positionMappingsUpdate'])->name('positions.mappings.update');
+    Route::post('/positions/{position}/mappings/bulk', [IndicatorController::class, 'positionMappingsBulkUpdate'])->name('positions.mappings.bulk-update');
     Route::get('/positions/data', [IndicatorController::class, 'positionData'])->name('positions.data');
     Route::post('/import/preview', [IndicatorController::class, 'importPreview'])->name('import.preview');
     Route::post('/import/commit', [IndicatorController::class, 'importCommit'])->name('import.commit');
