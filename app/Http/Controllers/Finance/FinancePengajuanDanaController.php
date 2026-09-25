@@ -172,7 +172,7 @@ class FinancePengajuanDanaController extends Controller
 
     public function data(Request $request)
     {
-        $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user', 'rekening'])
+        $query = FinancePengajuanDana::with(['employee.user', 'employee.positions.divisions', 'division', 'approvals.approver.user', 'rekening'])
             ->withCount('approvals');
         $this->scopePengajuanVisibility($query);
         // apply optional date range filter (tanggal_pengajuan)
@@ -266,7 +266,7 @@ class FinancePengajuanDanaController extends Controller
                     if ($row->employee->user) $name = $row->employee->user->name;
                     else $name = $row->employee->nama ?? '';
                 }
-                $division = $row->division ? $row->division->name : '';
+                $division = $row->employee && $row->employee->division ? $row->employee->division->name : '';
                 $html = '<div class="employee-display">' . '<div>' . e($name) . '</div>';
                 if ($division) {
                     $html .= '<div><small class="text-muted">' . e($division) . '</small></div>';
@@ -570,7 +570,7 @@ class FinancePengajuanDanaController extends Controller
      */
     public function paidData(Request $request)
     {
-        $query = FinancePengajuanDana::with(['items', 'employee.user', 'division', 'rekening'])
+        $query = FinancePengajuanDana::with(['items', 'employee.user', 'employee.positions.divisions', 'division', 'rekening'])
             ->where('payment_status', 'paid');
         $this->scopePengajuanVisibility($query);
 
