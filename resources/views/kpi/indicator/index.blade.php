@@ -377,6 +377,8 @@ $(document).ready(function () {
         var indicatorTable = $('#indicatorTable').DataTable({
         processing: true,
         serverSide: true,
+            pageLength: 5,
+            lengthMenu: [[5], [5]],
         ajax: {
             url: "{{ route('indicator.indicators.data') }}",
             data: function (d) { d.category_id = $('#indicatorCategoryFilter').val(); }
