@@ -170,6 +170,7 @@
         var divisionOptionsHtml = @json($divisionOptions);
         var parentPositionOptionsHtml = @json($parentPositionOptions);
         var positionLevelOrder = ['Direktur', 'Head Manager', 'Manager', 'Penanggung Jawab', 'Koordinator', 'Staff'];
+        var formOptionsUrl = "{{ route('hrd.master.position.form-options') }}";
 
         function normalizePositionFieldKey(key) {
             if (key.indexOf('organization_units') === 0) {
@@ -189,6 +190,17 @@
             }
 
             return key;
+        }
+
+        function loadFormOptions() {
+            return $.ajax({
+                url: formOptionsUrl,
+                method: 'GET'
+            }).then(function(response) {
+                divisionOptionsHtml = response.divisionOptions || [];
+                parentPositionOptionsHtml = response.parentPositionOptions || [];
+                return response;
+            });
         }
 
         function buildSelectOptions(options, placeholder) {
@@ -410,6 +422,38 @@
             reindexOrganizationUnitRows();
         }
 
+        function openPositionModal(mode, payload) {
+            loadFormOptions().done(function() {
+                var formEl = $('#positionForm')[0];
+
+                if (mode === 'create') {
+                    $('#positionModalLabel').text('Tambah Jabatan');
+                    if (formEl) {
+                        formEl.reset();
+                    }
+                    $('#position_id').val('');
+                    $('#position_level').val('Staff');
+                    $('#position_is_active').val('1');
+                    $('#description').val('');
+                    resetOrganizationUnitRows();
+                } else {
+                    $('#positionModalLabel').text('Edit Jabatan');
+                    $('#position_id').val(payload.id);
+                    $('#name').val(payload.name);
+                    $('#position_level').val(payload.level || 'Staff');
+                    $('#description').val(payload.description);
+                    $('#position_is_active').val(payload.is_active ? '1' : '0');
+                    resetOrganizationUnitRows(payload.organization_units || []);
+                }
+
+                $('#positionForm .invalid-feedback').text('');
+                $('#positionForm .is-invalid').removeClass('is-invalid');
+                $('#positionModal').modal('show');
+            }).fail(function() {
+                Swal.fire('Error', 'Gagal memuat opsi divisi dan atasan terbaru.', 'error');
+            });
+        }
+
         $('#btnAddOrganizationUnit').on('click', function() {
             $('#positionOrganizationUnits').append(createOrganizationUnitRow());
             reindexOrganizationUnitRows();
@@ -466,18 +510,7 @@
 
         // Open modal for adding new position
         $('#btnAddPosition').on('click', function() {
-            $('#positionModalLabel').text('Tambah Jabatan');
-            var formEl = $('#positionForm')[0];
-            if (formEl) {
-                formEl.reset();
-            }
-            $('#position_id').val('');
-            resetOrganizationUnitRows();
-            $('#position_level').val('Staff');
-            $('#position_is_active').val('1');
-            $('.invalid-feedback').text('');
-            $('#positionForm .is-invalid').removeClass('is-invalid');
-            $('#positionModal').modal('show');
+            openPositionModal('create');
         });
 
         // Handle form submission
@@ -512,6 +545,7 @@
                     });
                     $('#positionModal').modal('hide');
                     table.ajax.reload();
+                    loadFormOptions();
                 },
                 error: function(xhr) {
                     $('#savePosition').attr('disabled', false).html('Simpan');
@@ -547,14 +581,7 @@
                 url: "{{ route('hrd.master.position.show', ':id') }}".replace(':id', id),
                 method: 'GET',
                 success: function(response) {
-                    $('#positionModalLabel').text('Edit Jabatan');
-                    $('#position_id').val(response.id);
-                    $('#name').val(response.name);
-                    $('#position_level').val(response.level || 'Staff');
-                    resetOrganizationUnitRows(response.organization_units || []);
-                    $('#description').val(response.description);
-                    $('#position_is_active').val(response.is_active ? '1' : '0');
-                    $('#positionModal').modal('show');
+                    openPositionModal('edit', response);
                 }
             });
         });

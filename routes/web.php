@@ -1679,6 +1679,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::prefix('master/position')->name('hrd.master.position.')->group(function () {
             Route::get('/', [App\Http\Controllers\HRD\PositionMasterController::class, 'index'])->name('index');
             Route::get('/data', [App\Http\Controllers\HRD\PositionMasterController::class, 'getData'])->name('data');
+            Route::get('/form-options', [App\Http\Controllers\HRD\PositionMasterController::class, 'formOptions'])->name('form-options');
             Route::post('/', [App\Http\Controllers\HRD\PositionMasterController::class, 'store'])->name('store');
             Route::get('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'show'])->name('show');
             Route::put('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'update'])->name('update');

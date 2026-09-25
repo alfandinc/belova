@@ -12,6 +12,30 @@ use Illuminate\Validation\Rule;
 
 class PositionMasterController extends Controller
 {
+    protected function buildFormOptionsPayload(): array
+    {
+        $divisions = Division::orderBy('name')->get();
+        $positions = Position::with('divisions')->orderBy('name')->get();
+
+        return [
+            'divisionOptions' => $divisions->map(function (Division $division) {
+                return [
+                    'id' => $division->id,
+                    'name' => $division->name,
+                ];
+            })->values()->all(),
+            'parentPositionOptions' => $positions->map(function (Position $position) {
+                return [
+                    'id' => $position->id,
+                    'name' => $position->name,
+                    'level' => $position->level,
+                    'division_ids' => $position->division_ids,
+                    'division_names' => $position->division_names,
+                ];
+            })->values()->all(),
+        ];
+    }
+
     protected function applyLegacyHierarchyAttributes(Position $position, array $divisionIds, array $parentPositionIds): void
     {
         if (Schema::hasColumn('hrd_position', 'division_id')) {
@@ -91,25 +115,17 @@ class PositionMasterController extends Controller
     public function index()
     {
         $divisions = Division::all();
-        $positions = Position::with('divisions')->orderBy('name')->get();
         $levelOptions = Position::LEVEL_OPTIONS;
-        $divisionOptions = $divisions->map(function (Division $division) {
-            return [
-                'id' => $division->id,
-                'name' => $division->name,
-            ];
-        })->values()->all();
-        $parentPositionOptions = $positions->map(function (Position $position) {
-            return [
-                'id' => $position->id,
-                'name' => $position->name,
-                'level' => $position->level,
-                'division_ids' => $position->division_ids,
-                'division_names' => $position->division_names,
-            ];
-        })->values()->all();
+        $formOptions = $this->buildFormOptionsPayload();
+        $divisionOptions = $formOptions['divisionOptions'];
+        $parentPositionOptions = $formOptions['parentPositionOptions'];
 
-        return view('hrd.master.position.index', compact('divisions', 'positions', 'levelOptions', 'divisionOptions', 'parentPositionOptions'));
+        return view('hrd.master.position.index', compact('divisions', 'levelOptions', 'divisionOptions', 'parentPositionOptions'));
+    }
+
+    public function formOptions()
+    {
+        return response()->json($this->buildFormOptionsPayload());
     }
 
     public function getData(Request $request)
