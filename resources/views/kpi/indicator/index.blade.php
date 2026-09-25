@@ -431,8 +431,42 @@ $(document).ready(function () {
         }
     });
 
+    var recentlySavedIndicatorIds = [];
+    var recentlySavedPositionId = null;
+
+    function buildInlineSaveStatus(indicatorId, positionId) {
+        if (Number(positionId) === Number(recentlySavedPositionId) && $.inArray(Number(indicatorId), recentlySavedIndicatorIds) !== -1) {
+            return '<div class="small text-success mt-2 inline-save-status"><i class="fas fa-check-circle"></i> Tersimpan</div>';
+        }
+
+        return '<div class="small text-muted mt-2 inline-save-status"><i class="far fa-circle"></i> Belum diubah</div>';
+    }
+
+    function setInlineRowStatus($row, state) {
+        var $status = $row.find('.inline-save-status');
+        if (!$status.length) {
+            return;
+        }
+
+        if (state === 'dirty') {
+            $status.removeClass('text-success text-muted').addClass('text-warning')
+                .html('<i class="fas fa-pencil-alt"></i> Belum disimpan');
+            return;
+        }
+
+        if (state === 'saved') {
+            $status.removeClass('text-warning text-muted').addClass('text-success')
+                .html('<i class="fas fa-check-circle"></i> Tersimpan');
+            return;
+        }
+
+        $status.removeClass('text-success text-warning').addClass('text-muted')
+            .html('<i class="far fa-circle"></i> Belum diubah');
+    }
+
     function renderPositionCategorySection(category) {
         var rows = '';
+        var positionId = $('#positionCategoryModal').data('pos-id') || null;
         var mappedIndicators = $.grep(category.indicators || [], function (indicator) {
             return !!indicator.is_mapped;
         });
@@ -458,12 +492,12 @@ $(document).ready(function () {
                     + '<td>' + (index + 1) + '</td>'
                     + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + '></td>'
                     + '<td>'
-                        + '<input type="text" class="form-control form-control-sm inline-indicator-name mb-2" data-indicator-id="' + indicator.indicator_id + '" value="' + escapeHtml(indicator.indicator_name || '') + '">'
-                        + '<textarea class="form-control form-control-sm inline-indicator-notes" data-indicator-id="' + indicator.indicator_id + '" rows="2" placeholder="Catatan indikator (opsional)">' + notesValue + '</textarea>'
+                        + '<input type="text" class="form-control form-control-sm inline-indicator-name mb-2" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + escapeHtml(indicator.indicator_name || '') + '" value="' + escapeHtml(indicator.indicator_name || '') + '">'
+                        + '<textarea class="form-control form-control-sm inline-indicator-notes" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + notesValue + '" rows="2" placeholder="Catatan indikator (opsional)">' + notesValue + '</textarea>'
                         + indicatorStatus
                     + '</td>'
-                    + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" value="' + value + '" ' + disabled + '></td>'
-                    + '<td class="text-center align-middle">' + actionButton + '</td>'
+                    + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + value + '" value="' + value + '" ' + disabled + '></td>'
+                    + '<td class="text-center align-middle">' + actionButton + buildInlineSaveStatus(indicator.indicator_id, positionId) + '</td>'
                     + '</tr>';
             });
         }
@@ -582,8 +616,13 @@ $(document).ready(function () {
     });
 
     $(document).on('input', '#positionCategoryModalBody .weight-input', function () {
+        setInlineRowStatus($(this).closest('tr'), 'dirty');
         recalcPositionCategorySection($(this).closest('.position-category-section'));
         recalcAllPositionCategorySections();
+    });
+
+    $(document).on('input', '#positionCategoryModalBody .inline-indicator-name, #positionCategoryModalBody .inline-indicator-notes', function () {
+        setInlineRowStatus($(this).closest('tr'), 'dirty');
     });
 
     $(document).on('change', '#positionCategoryModalBody .map-indicator-checkbox', function () {
@@ -598,6 +637,7 @@ $(document).ready(function () {
         if (!checked) {
             $input.val('');
         }
+        setInlineRowStatus($row, 'dirty');
         recalcPositionCategorySection($(this).closest('.position-category-section'));
         recalcAllPositionCategorySections();
     });
@@ -661,6 +701,7 @@ $(document).ready(function () {
         var posId = $modal.data('pos-id');
         if (!posId) return;
         var categories = [];
+        var changedIndicatorIds = [];
 
         $('#positionCategoryModalBody .position-category-section').each(function () {
             var $section = $(this);
@@ -676,6 +717,16 @@ $(document).ready(function () {
                 var value = parseFloat($input.val());
                 var indicatorName = ($row.find('.inline-indicator-name').val() || '').trim();
                 var indicatorNotes = ($row.find('.inline-indicator-notes').val() || '').trim();
+                var originalName = ($row.find('.inline-indicator-name').data('original-value') || '').toString().trim();
+                var originalNotes = ($row.find('.inline-indicator-notes').data('original-value') || '').toString().trim();
+                var originalWeight = ($input.data('original-value') || '').toString().trim();
+                var currentWeight = isMapped && !isNaN(value) ? String(value) : '';
+                var originallyMapped = $row.find('.map-indicator-checkbox').attr('checked') ? '1' : '0';
+                var currentMapped = isMapped ? '1' : '0';
+
+                if (indicatorName !== originalName || indicatorNotes !== originalNotes || currentWeight !== originalWeight || currentMapped !== originallyMapped) {
+                    changedIndicatorIds.push(Number(indicatorId));
+                }
 
                 indicators.push({
                     indicator_id: indicatorId,
@@ -726,9 +777,11 @@ $(document).ready(function () {
                     data: { categories: categories },
                     headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                     success: function (res) {
-                        $('#positionCategoryModal').modal('hide');
+                        recentlySavedIndicatorIds = changedIndicatorIds;
+                        recentlySavedPositionId = posId;
                         positionsTable.ajax.reload(null, false);
                         indicatorTable.ajax.reload(null, false);
+                        loadPositionEditorModal(posId);
                         Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Mapping indikator posisi berhasil disimpan.' });
                     },
                     error: function (xhr) {
