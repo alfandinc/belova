@@ -248,7 +248,7 @@ class IndicatorController extends Controller
     public function positionMappingsUpdate(Request $request, Position $position): JsonResponse
     {
         $validated = $request->validate([
-            'mappings' => ['required', 'array'],
+            'mappings' => ['present', 'array'],
             'mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
             'mappings.*.is_mapped' => ['nullable', 'boolean'],
             'mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -302,7 +302,7 @@ class IndicatorController extends Controller
         $validated = $request->validate([
             'categories' => ['required', 'array'],
             'categories.*.category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
-            'categories.*.mappings' => ['required', 'array'],
+            'categories.*.mappings' => ['present', 'array'],
             'categories.*.mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
             'categories.*.mappings.*.is_mapped' => ['nullable', 'boolean'],
             'categories.*.mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
