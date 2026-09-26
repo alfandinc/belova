@@ -248,14 +248,14 @@ class IndicatorController extends Controller
     public function positionMappingsUpdate(Request $request, Position $position): JsonResponse
     {
         $validated = $request->validate([
-            'mappings' => ['present', 'array'],
+            'mappings' => ['nullable', 'array'],
             'mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
             'mappings.*.is_mapped' => ['nullable', 'boolean'],
             'mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
         ]);
 
-        $mappings = collect($validated['mappings']);
+        $mappings = collect($validated['mappings'] ?? []);
         $categoryIndicatorIds = KpiIndicator::query()
             ->where('category_id', $validated['category_id'])
             ->pluck('id');
@@ -302,7 +302,7 @@ class IndicatorController extends Controller
         $validated = $request->validate([
             'categories' => ['required', 'array'],
             'categories.*.category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
-            'categories.*.mappings' => ['present', 'array'],
+            'categories.*.mappings' => ['nullable', 'array'],
             'categories.*.mappings.*.indicator_id' => ['required', 'integer', 'exists:kpi_indicators,id'],
             'categories.*.mappings.*.is_mapped' => ['nullable', 'boolean'],
             'categories.*.mappings.*.weight_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -310,7 +310,7 @@ class IndicatorController extends Controller
 
         foreach ($validated['categories'] as $categoryPayload) {
             $categoryId = (int) $categoryPayload['category_id'];
-            $mappings = collect($categoryPayload['mappings']);
+            $mappings = collect($categoryPayload['mappings'] ?? []);
             $categoryIndicatorIds = KpiIndicator::query()
                 ->where('category_id', $categoryId)
                 ->pluck('id');
