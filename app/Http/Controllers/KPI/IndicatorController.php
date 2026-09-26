@@ -33,7 +33,7 @@ class IndicatorController extends Controller
             $indicators = KpiIndicator::query()
                 ->where('category_id', $category->id)
                 ->orderBy('indicator_name')
-                ->get(['id', 'category_id', 'indicator_name', 'is_active']);
+                ->get(['id', 'category_id', 'indicator_name', 'notes', 'is_active']);
 
             $indicatorPayloads = $indicators->map(function (KpiIndicator $indicator) use ($existingMappings) {
                 $mapping = $existingMappings->get($indicator->id);
@@ -41,6 +41,7 @@ class IndicatorController extends Controller
                 return [
                     'indicator_id' => $indicator->id,
                     'indicator_name' => $indicator->indicator_name,
+                    'notes' => $indicator->notes,
                     'is_active' => (bool) $indicator->is_active,
                     'is_mapped' => (bool) $mapping,
                     'weight_percentage' => $mapping ? (float) $mapping->weight_percentage : null,
@@ -177,7 +178,7 @@ class IndicatorController extends Controller
             $indicators = KpiIndicator::query()
                 ->where('category_id', $categoryId)
                 ->orderBy('indicator_name')
-                ->get(['id', 'category_id', 'indicator_name', 'is_active']);
+                ->get(['id', 'category_id', 'indicator_name', 'notes', 'is_active']);
 
             $existingMappings = KpiPositionIndicator::query()
                 ->where('position_id', $position->id)
@@ -194,6 +195,7 @@ class IndicatorController extends Controller
                     'id' => $mapping?->id,
                     'indicator_id' => $indicator->id,
                     'indicator_name' => $indicator->indicator_name,
+                    'notes' => $indicator->notes,
                     'category_id' => $indicator->category_id,
                     'category_name' => $categoryName,
                     'weight_percentage' => $mapping ? (float) $mapping->weight_percentage : null,
@@ -203,13 +205,14 @@ class IndicatorController extends Controller
             })->values();
         } else {
             $mappings = KpiPositionIndicator::where('position_id', $position->id)
-                ->with(['indicator:id,indicator_name,category_id,is_active', 'indicator.category:id,category_name'])
+                ->with(['indicator:id,indicator_name,category_id,notes,is_active', 'indicator.category:id,category_name'])
                 ->get()
                 ->map(function ($m) {
                     return [
                         'id' => $m->id,
                         'indicator_id' => $m->indicator_id,
                         'indicator_name' => optional($m->indicator)->indicator_name,
+                        'notes' => optional($m->indicator)->notes,
                         'category_id' => optional($m->indicator)->category_id,
                         'category_name' => optional($m->indicator->category)->category_name,
                         'weight_percentage' => (float) $m->weight_percentage,
