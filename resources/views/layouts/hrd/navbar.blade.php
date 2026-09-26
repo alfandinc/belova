@@ -103,6 +103,9 @@
             <li>
                     @php
                         use App\Models\HRD\PengajuanLibur;
+                        $currentEmployee = Auth::check() ? Auth::user()->employee : null;
+                        $hasDirectSubordinates = $currentEmployee ? $currentEmployee->hasDirectSubordinates() : false;
+                        $subordinateIds = $hasDirectSubordinates ? $currentEmployee->directSubordinateEmployeeIds() : [];
                         $pendingLiburHRD = 0;
                         $pendingLiburManager = 0;
                         if(Auth::check()) {
@@ -110,17 +113,7 @@
                                 $pendingLiburHRD = PengajuanLibur::where('status_manager', 'disetujui')
                                     ->where('status_hrd', 'menunggu')->count();
                             }
-                            if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                                $employee = Auth::user()->employee;
-                                $subordinateIds = [];
-                                if ($employee) {
-                                    $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-                                    if ($parentPositionIds->isNotEmpty()) {
-                                        $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
-                                            $q->whereIn('parent_id', $parentPositionIds);
-                                        })->where('id', '!=', $employee->id)->pluck('id')->toArray();
-                                    }
-                                }
+                            if($hasDirectSubordinates) {
                                 $pendingLiburManager = PengajuanLibur::whereIn('employee_id', $subordinateIds)
                                     ->where('status_manager', 'menunggu')
                                     ->count();
@@ -131,7 +124,7 @@
                         @if($pendingLiburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                             <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
                         @endif
-                        @if($pendingLiburManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
+                        @if($pendingLiburManager > 0 && $hasDirectSubordinates)
                             <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
                         @endif
                     </a>
@@ -151,17 +144,7 @@
                               });
                         })->count();
                     }
-                    if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                        $employee = Auth::user()->employee;
-                        $subordinateIds = [];
-                        if ($employee) {
-                            $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-                            if ($parentPositionIds->isNotEmpty()) {
-                                $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
-                                    $q->whereIn('parent_id', $parentPositionIds);
-                                })->where('id', '!=', $employee->id)->pluck('id')->toArray();
-                            }
-                        }
+                    if($hasDirectSubordinates) {
                         $pendingTidakMasukManager = PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)
                             ->whereNull('status_manager')
                             ->count();
@@ -175,7 +158,7 @@
                     @if($pendingTidakMasukHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingTidakMasukHRD }}</span>
                     @endif
-                    @if($pendingTidakMasukManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
+                    @if($pendingTidakMasukManager > 0 && $hasDirectSubordinates)
                         <span class="badge badge-info ml-1">{{ $pendingTidakMasukManager }}</span>
                     @endif
                 </a>
@@ -197,17 +180,7 @@
                               });
                         })->count();
                     }
-                    if(Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                        $employee = Auth::user()->employee;
-                        $subordinateIds = [];
-                        if ($employee) {
-                            $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-                            if ($parentPositionIds->isNotEmpty()) {
-                                $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
-                                    $q->whereIn('parent_id', $parentPositionIds);
-                                })->where('id', '!=', $employee->id)->pluck('id')->toArray();
-                            }
-                        }
+                    if($hasDirectSubordinates) {
                         $pendingLemburManager = \App\Models\HRD\PengajuanLembur::whereIn('employee_id', $subordinateIds)
                             ->whereNull('status_manager')
                             ->count();
@@ -221,7 +194,7 @@
                     @if($pendingLemburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
                     @endif
-                    @if($pendingLemburManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
+                    @if($pendingLemburManager > 0 && $hasDirectSubordinates)
                         <span class="badge badge-info ml-1">{{ $pendingLemburManager }}</span>
                     @endif
                 </a>
@@ -244,18 +217,8 @@
                                     })->count();
                             }
 
-                            if (Auth::user()->hasAnyRole('Manager','Head Manager','Admin')) {
-                                // Pending for Manager: status_manager explicitly 'menunggu' or null
-                                $employee = Auth::user()->employee;
-                                $subordinateIds = [];
-                                if ($employee) {
-                                    $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-                                    if ($parentPositionIds->isNotEmpty()) {
-                                        $subordinateIds = \App\Models\HRD\Employee::whereHas('positions', function ($q) use ($parentPositionIds) {
-                                            $q->whereIn('parent_id', $parentPositionIds);
-                                        })->where('id', '!=', $employee->id)->pluck('id')->toArray();
-                                    }
-                                }
+                            if ($hasDirectSubordinates) {
+                                // Pending for direct approver: status_manager explicitly 'menunggu' or null
                                 $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::whereIn('employee_id', $subordinateIds)
                                     ->where(function($q){
                                         $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');
@@ -276,7 +239,7 @@
                     @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
                     @endif
-                    @if($pendingGantiShiftManager > 0 && Auth::user()->hasAnyRole('Manager','Head Manager','Admin'))
+                    @if($pendingGantiShiftManager > 0 && $hasDirectSubordinates)
                         <span class="badge badge-info ml-1">{{ $pendingGantiShiftManager }}</span>
                     @endif
                 </a>
@@ -297,7 +260,7 @@
             </li> --}}
             
             <!-- For Managers: Team Management -->
-            @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Head Manager'))
+            @if(Auth::check() && $hasDirectSubordinates)
             <li>
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Divisi Saya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">

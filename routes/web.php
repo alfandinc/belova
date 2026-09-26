@@ -1624,7 +1624,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::post('absensi-rekap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'store']);
         Route::post('absensi-rekap/submit-lateness-recap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'submitLatenessRecap']);
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
-        Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
         Route::post('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'store'])->name('hrd.lembur.store');
         Route::get('lembur/{id}', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'show'])->name('hrd.lembur.show');
         Route::get('lembur/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'getApprovalStatus']);
@@ -1638,7 +1637,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::delete('catatan-dosa/{id}', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'destroy'])->name('hrd.catatan-dosa.destroy');
         // Pengajuan Tidak Masuk (Sakit/Izin)
         Route::get('tidakmasuk', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'index'])->name('hrd.tidakmasuk.index');
-        Route::get('tidakmasuk/create', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'create'])->name('hrd.tidakmasuk.create');
         Route::post('tidakmasuk', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'store'])->name('hrd.tidakmasuk.store');
         Route::get('tidakmasuk/{id}', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'show'])->name('hrd.tidakmasuk.show');
         Route::get('tidakmasuk/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'getApprovalStatus']);
@@ -1649,7 +1647,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::get('gantishift/available-shifts', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getAvailableShifts'])->name('hrd.gantishift.available-shifts');
         Route::get('gantishift/same-shift-employees', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getEmployeesSameShift'])->name('hrd.gantishift.same-shift-employees');
         Route::get('gantishift', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'index'])->name('hrd.gantishift.index');
-        Route::get('gantishift/create', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'create'])->name('hrd.gantishift.create');
         Route::post('gantishift', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'store'])->name('hrd.gantishift.store');
         Route::get('gantishift/{id}', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'show'])->name('hrd.gantishift.show');
         Route::get('gantishift/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getApprovalStatus']);
@@ -1788,7 +1785,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
 
         Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {
                 Route::get('/', [PengajuanLiburController::class, 'index'])->name('index');
-                Route::get('/buat', [PengajuanLiburController::class, 'create'])->name('create');
                 Route::post('/', [PengajuanLiburController::class, 'store'])->name('store');
                 Route::get('/{id}', [PengajuanLiburController::class, 'show'])->name('show');
                 Route::get('/{id}/approval-status', [PengajuanLiburController::class, 'getApprovalStatus'])->name('approval.status');

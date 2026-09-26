@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
 use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanGantiShift;
 use App\Models\HRD\Shift;
@@ -15,26 +16,7 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanGantiShiftController extends Controller
 {
-    private function getSubordinateEmployeeIds(Employee $employee): array
-    {
-        $parentPositionIds = $employee->positions()->pluck('hrd_position.id');
-
-        if ($parentPositionIds->isEmpty()) {
-            return [];
-        }
-
-        return Employee::whereHas('positions', function ($query) use ($parentPositionIds) {
-            $query->where(function ($positionQuery) use ($parentPositionIds) {
-                $positionQuery->whereIn('hrd_position.parent_id', $parentPositionIds)
-                ->orWhereHas('parentPositions', function ($parentQuery) use ($parentPositionIds) {
-                    $parentQuery->whereIn('hrd_position.id', $parentPositionIds);
-                });
-            });
-            })
-            ->where('id', '!=', $employee->id)
-            ->pluck('id')
-            ->toArray();
-    }
+    use ResolvesDirectManagerApprovals;
 
     public function index(Request $request)
     {
@@ -43,7 +25,7 @@ class PengajuanGantiShiftController extends Controller
 
         if ($request->ajax()) {
             // Employee: hanya data sendiri
-            if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
+            if (($viewType == 'personal' || empty($viewType)) && $user->employee) {
                 // Get requests created by this employee OR requests where this employee is the target
                 $data = PengajuanGantiShift::where(function($query) use ($user) {
                         $query->where('employee_id', $user->employee->id)
@@ -103,7 +85,7 @@ class PengajuanGantiShiftController extends Controller
                     ->make(true);
             }
             // Manager and Head Manager: data subordinate berdasarkan parent posisi (view=team)
-            else if ($viewType == 'team' && $user->hasAnyRole('Manager', 'Head Manager')) {
+            else if ($viewType == 'team' && $this->canAccessDirectApprovalTeam($user)) {
                 $employeeIds = $user->employee ? $this->getSubordinateEmployeeIds($user->employee) : [];
                 $data = PengajuanGantiShift::whereIn('employee_id', $employeeIds)
                     ->with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
@@ -222,7 +204,9 @@ class PengajuanGantiShiftController extends Controller
 
         // Non-AJAX: render view
         return view('hrd.gantishift.index', [
-            'viewType' => $viewType
+            'viewType' => $viewType,
+            'canApproveTeam' => $this->canAccessDirectApprovalTeam($user),
+            'hasEmployeeProfile' => (bool) $user->employee,
         ]);
     }
 
@@ -237,11 +221,6 @@ class PengajuanGantiShiftController extends Controller
         } else {
             return '<span class="badge badge-secondary">-</span>';
         }
-    }
-
-    public function create()
-    {
-        return view('hrd.gantishift.create');
     }
 
     public function store(Request $request)

@@ -191,19 +191,53 @@ class Employee extends Model
     {
         return $this->positions()->wherePivot('is_primary', 1)->first();
     }
-    public function manager()
+
+    public function directSubordinatePositionIds(): array
     {
-        return $this->belongsTo(Employee::class, 'parent_id');
-        // OR if you determine managers by a flag
-        // return $this->hasOne(Employee::class)->where('is_manager', true);
+        $positions = $this->relationLoaded('positions')
+            ? $this->getRelation('positions')
+            : $this->positions()->with('childPositions')->get();
+
+        if (!$positions instanceof Collection) {
+            return [];
+        }
+
+        return $positions
+            ->flatMap(function (Position $position) {
+                $childPositionIds = $position->relationLoaded('childPositions')
+                    ? $position->childPositions->pluck('id')
+                    : $position->childPositions()->pluck('hrd_position.id');
+
+                return $childPositionIds->all();
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
-    /**
-     * Direct reports for this manager (employees where parent_id == this employee id)
-     */
-    public function directReports()
+    public function directSubordinateEmployeeIds(): array
     {
-        return $this->hasMany(self::class, 'parent_id');
+        $childPositionIds = $this->directSubordinatePositionIds();
+
+        if (empty($childPositionIds)) {
+            return [];
+        }
+
+        return self::query()
+            ->where('id', '!=', $this->id)
+            ->whereHas('positions', function ($query) use ($childPositionIds) {
+                $query->whereIn('hrd_position.id', $childPositionIds);
+            })
+            ->pluck('id')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function hasDirectSubordinates(): bool
+    {
+        return !empty($this->directSubordinateEmployeeIds());
     }
 
     public function village()

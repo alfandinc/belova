@@ -15,11 +15,6 @@ class PengajuanLemburController extends Controller
 {
     use ResolvesDirectManagerApprovals;
 
-    private function isDirectApproverRole($user): bool
-    {
-        return (bool) $user?->hasAnyRole(['Manager', 'Head Manager']);
-    }
-
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -112,7 +107,7 @@ class PengajuanLemburController extends Controller
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
-                        if ($user->hasRole('Manager')) {
+                        if ($this->canAccessDirectApprovalTeam($user) && $row->status_manager === 'menunggu' && $this->canApproveAsDirectManager($user->employee, $row->employee)) {
                             $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if (($user->hasRole('Hrd') || $user->hasRole('Admin')) && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
@@ -124,7 +119,7 @@ class PengajuanLemburController extends Controller
                     ->make(true);
             }
             // Manager: own + subordinate positions
-            else if ($this->isDirectApproverRole($user)) {
+            else if ($this->canAccessDirectApprovalTeam($user)) {
                 $employee = $user->employee;
                 $employeeIds = $employee ? $this->getSubordinateEmployeeIds($employee) : [];
                 if ($employee) {
@@ -209,7 +204,7 @@ class PengajuanLemburController extends Controller
                     ->make(true);
             }
             // Employee: only own
-            else if ($user->hasRole('Employee')) {
+            else if ($user->employee) {
                 $data = PengajuanLembur::where('employee_id', $user->employee->id)
                     ->whereDate('tanggal', '>=', $filterStart)
                     ->whereDate('tanggal', '<=', $filterEnd)
@@ -273,7 +268,7 @@ class PengajuanLemburController extends Controller
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
-                        if ($user->hasRole('Manager') && $row->status_manager === 'menunggu') {
+                        if ($this->canAccessDirectApprovalTeam($user) && $row->status_manager === 'menunggu' && $this->canApproveAsDirectManager($user->employee, $row->employee)) {
                             $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if (($user->hasRole('Hrd') || $user->hasRole('Admin')) && $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
@@ -293,14 +288,11 @@ class PengajuanLemburController extends Controller
         // Non-AJAX: render view
         return view('hrd.lembur.index', [
             'viewType' => $viewType,
+            'canApproveTeam' => $this->canAccessDirectApprovalTeam($user),
+            'hasEmployeeProfile' => (bool) $user->employee,
             'defaultDateStart' => $filterStart->toDateString(),
             'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
-    }
-
-    public function create()
-    {
-        return view('hrd.lembur.create');
     }
 
     public function store(Request $request)
@@ -335,7 +327,7 @@ class PengajuanLemburController extends Controller
         ]);
         $pengajuan = PengajuanLembur::findOrFail($id);
 
-        if (!$this->isDirectApproverRole(Auth::user()) || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
+        if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuan->employee)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',

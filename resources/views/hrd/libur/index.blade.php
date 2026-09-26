@@ -23,7 +23,7 @@
 
             <div class="row">
                 <div class="col-md-12">
-                    @if(auth()->user()->hasAnyRole(['Employee','Manager','Head Manager','Hrd']))
+                    @if(($hasEmployeeProfile ?? false) || auth()->user()->hasRole('Hrd'))
                         <div class="d-flex flex-wrap align-items-center mb-2">
                             <div class="mr-3">
                                 <div class="alert alert-info py-2 mb-2">
@@ -38,7 +38,7 @@
                         </div>
                     @endif
 
-                    @if(auth()->user()->hasAnyRole(['Employee','Manager','Head Manager']))
+                    @if($hasEmployeeProfile ?? false)
                         <table id="tableLiburKaryawan" class="table table-bordered table-striped">
                             <thead>
                                 <tr>
@@ -53,7 +53,7 @@
                         </table>
                     @endif
 
-                    @if(auth()->user()->hasAnyRole(['Manager','Head Manager']))
+                    @if($canApproveTeam ?? false)
                         <h5 class="mt-4">Persetujuan Tim (Manager)</h5>
                         <table id="tableLiburManager" class="table table-bordered table-striped">
                             <thead>

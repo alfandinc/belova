@@ -15,7 +15,7 @@
             </div>
             
             <div class="row">
-                @if(auth()->user()->hasRole('Employee'))
+                @if($hasEmployeeProfile ?? false)
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
@@ -45,7 +45,7 @@
                 </div>
                 @endif
 
-                @if(auth()->user()->hasAnyRole('Manager', 'Head Manager'))
+                @if($canApproveTeam ?? false)
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
@@ -319,7 +319,7 @@ $.ajaxSetup({
 
 $(document).ready(function() {
     // DataTable untuk Employee
-    @if(auth()->user()->hasRole('Employee'))
+    @if($hasEmployeeProfile ?? false)
     var tablePersonal = $('#tableGantiShiftPersonal').DataTable({
         processing: true,
         serverSide: true,
@@ -339,7 +339,7 @@ $(document).ready(function() {
     @endif
 
     // DataTable untuk Manager (team)
-    @if(auth()->user()->hasAnyRole('Manager', 'Head Manager'))
+    @if($canApproveTeam ?? false)
     var tableTeam = $('#tableGantiShiftTeam').DataTable({
         processing: true,
         serverSide: true,

@@ -20,11 +20,6 @@ class PengajuanLiburController extends Controller
 {
     use ResolvesDirectManagerApprovals;
 
-    private function isDirectApproverRole($user): bool
-    {
-        return (bool) $user?->hasAnyRole(['Manager', 'Head Manager']);
-    }
-
     /**
      * Helper: get dates within range that already have >= 2 leave requests
      * (counts any request not explicitly rejected by Manager or HRD)
@@ -123,15 +118,15 @@ class PengajuanLiburController extends Controller
     if ($request->ajax() && $request->has('debug_role')) {
         return response()->json([
             'roles' => $user->getRoleNames(),
-            'is_manager' => $this->isDirectApproverRole($user),
-            'is_employee' => $user->hasRole('Employee'),
+            'is_manager' => $this->canAccessDirectApprovalTeam($user),
+            'is_employee' => (bool) $user->employee,
             'is_hrd' => $user->hasRole('Hrd')
         ]);
     }
     
     if ($request->ajax()) {
         // For employee view - show their own requests
-        if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
+        if (($viewType == 'personal' || empty($viewType)) && $user->employee) {
             $data = PengajuanLibur::where('employee_id', $user->employee->id)
                 ->where(function($q) use ($filterStart, $filterEnd) {
                     // Overlap filter: start <= filterEnd AND end >= filterStart
@@ -188,7 +183,7 @@ class PengajuanLiburController extends Controller
                 ->make(true);
         } 
         // For manager team view - show team requests
-        else if ($viewType == 'team' && $this->isDirectApproverRole($user)) {
+        else if ($viewType == 'team' && $this->canAccessDirectApprovalTeam($user)) {
             $employee = $user->employee;
                 if ($employee) {
                     $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
@@ -259,67 +254,10 @@ class PengajuanLiburController extends Controller
             
             return DataTables::of([])->make(true);
         }
-        // For manager personal view - show their own requests
-        else if ($viewType == 'personal' && $this->isDirectApproverRole($user)) {
-            $data = PengajuanLibur::where('employee_id', $user->employee->id)
-                ->where(function($q) use ($filterStart, $filterEnd) {
-                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
-                      ->whereDate('tanggal_selesai', '>=', $filterStart);
-                })
-                ->latest()
-                ->get();
-            
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('jenis_libur', function($row) {
-                    return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                })
-                ->addColumn('tanggal_range', function($row) {
-                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
-                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                    $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
-                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
-                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
-                })
-                ->addColumn('alasan', function($row) {
-                    return e($row->alasan);
-                })
-                ->addColumn('catatan', function($row) {
-                    $out = '';
-                    if (!empty($row->notes_manager)) {
-                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
-                    }
-                    if (!empty($row->notes_hrd)) {
-                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
-                    }
-                    return $out;
-                })
-                ->addColumn('status_pengajuan', function($row) {
-                    if ($row->status_hrd == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui HRD</span>';
-                    } elseif ($row->status_hrd == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak HRD</span>';
-                    } elseif ($row->status_manager == 'disetujui') {
-                        return '<span class="badge badge-warning">Disetujui Manager</span>';
-                    } elseif ($row->status_manager == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak Manager</span>';
-                    } else {
-                        return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
-                    }
-                })
-                ->addColumn('action', function($row) {
-                    $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button>';
-                    return $btn;
-                })
-                ->rawColumns(['tanggal_range','status_pengajuan','catatan', 'action'])
-                ->make(true);
-        }
         // For HRD approval view
         else if (($viewType == 'approval' || empty($viewType)) && $user->hasRole('Hrd')) {
             // Show all requests with status_manager = 'disetujui', regardless of status_hrd
             $data = PengajuanLibur::where('status_manager', 'disetujui')
-                ->where('status_hrd', 'menunggu')
                 ->where(function($q) use ($filterStart, $filterEnd) {
                     $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                       ->whereDate('tanggal_selesai', '>=', $filterStart);
@@ -381,19 +319,20 @@ class PengajuanLiburController extends Controller
         
         return response()->json(['error' => 'Unauthorized'], 403);
     }
-    
+
     // For non-AJAX requests, gather necessary data based on role and view type
     $pengajuanLibur = null;
     $jatahLibur = null;
     
-    if ($user->hasRole('Employee')) {
+    $canApproveTeam = $this->canAccessDirectApprovalTeam($user);
+
+    if ($user->employee) {
         $employee = $user->employee;
         if ($employee) {
             $jatahLibur = $employee->ensureJatahLibur();
         }
     } 
-    elseif ($this->isDirectApproverRole($user)) {
-        if ($viewType == 'team') {
+    if ($canApproveTeam && $viewType == 'team') {
             $employee = $user->employee;
             if ($employee) {
                 $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
@@ -402,14 +341,9 @@ class PengajuanLiburController extends Controller
                     ->with('employee')
                     ->count();
             }
-        } else {
-            $employee = $user->employee;
-            if ($employee) {
-                $jatahLibur = $employee->ensureJatahLibur();
-            }
-        }
-    } 
-    elseif ($user->hasRole('Hrd')) {
+    }
+
+    if ($user->hasRole('Hrd')) {
         $pengajuanLibur = PengajuanLibur::where('status_manager', 'disetujui')
             ->where('status_hrd', 'menunggu')
             ->with('employee')
@@ -417,11 +351,13 @@ class PengajuanLiburController extends Controller
     }
     
     // Determine which view to render based on user role and view type
-    if ($this->isDirectApproverRole($user) && $viewType == 'team') {
+    if ($canApproveTeam && $viewType == 'team') {
         return view('hrd.libur.index', [
             'viewType' => 'team',
             'pengajuanLibur' => $pengajuanLibur,
             'jatahLibur' => $jatahLibur,
+            'canApproveTeam' => $canApproveTeam,
+            'hasEmployeeProfile' => (bool) $user->employee,
             'defaultDateStart' => $filterStart->toDateString(),
             'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
@@ -431,6 +367,8 @@ class PengajuanLiburController extends Controller
             'viewType' => 'approval',
             'pengajuanLibur' => $pengajuanLibur,
             'jatahLibur' => $jatahLibur,
+            'canApproveTeam' => $canApproveTeam,
+            'hasEmployeeProfile' => (bool) $user->employee,
             'defaultDateStart' => $filterStart->toDateString(),
             'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
@@ -440,19 +378,13 @@ class PengajuanLiburController extends Controller
             'viewType' => 'personal',
             'pengajuanLibur' => $pengajuanLibur,
             'jatahLibur' => $jatahLibur,
+            'canApproveTeam' => $canApproveTeam,
+            'hasEmployeeProfile' => (bool) $user->employee,
             'defaultDateStart' => $filterStart->toDateString(),
             'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     }
 }
-
-    public function create()
-    {
-        $employee = Auth::user()->employee;
-        $jatahLibur = $employee->ensureJatahLibur();
-
-        return view('hrd.libur.create', compact('jatahLibur'));
-    }
 
     public function store(Request $request)
     {
@@ -537,7 +469,7 @@ class PengajuanLiburController extends Controller
         $tglApproveManager = null;
         $tglApproveHrd = null;
 
-        if ($this->isDirectApproverRole($user)) {
+        if ($user->hasAnyRole(['Manager', 'Head Manager'])) {
             $statusManager = 'disetujui';
             $tglApproveManager = now();
         }
@@ -591,7 +523,7 @@ class PengajuanLiburController extends Controller
 
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
 
-        if (!$this->isDirectApproverRole(Auth::user()) || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
+        if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',

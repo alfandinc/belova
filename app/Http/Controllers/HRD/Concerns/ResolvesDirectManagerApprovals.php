@@ -6,6 +6,16 @@ use App\Models\HRD\Employee;
 
 trait ResolvesDirectManagerApprovals
 {
+    protected function hasDirectSubordinates(?Employee $employee): bool
+    {
+        return $employee ? !empty($this->getSubordinateEmployeeIds($employee)) : false;
+    }
+
+    protected function canAccessDirectApprovalTeam($user): bool
+    {
+        return $user && $this->hasDirectSubordinates($user->employee ?? null);
+    }
+
     protected function getDirectParentPositionIds(Employee $employee): array
     {
         return $employee->positions()
@@ -22,16 +32,24 @@ trait ResolvesDirectManagerApprovals
 
     protected function getSubordinateEmployeeIds(Employee $employee): array
     {
-        $managerPositionIds = $employee->positions()->pluck('hrd_position.id');
+        $childPositionIds = $employee->positions()
+            ->with('childPositions:id')
+            ->get()
+            ->flatMap(function ($position) {
+                return $position->directChildPositions()->pluck('id');
+            })
+            ->filter()
+            ->unique()
+            ->values();
 
-        if ($managerPositionIds->isEmpty()) {
+        if ($childPositionIds->isEmpty()) {
             return [];
         }
 
         return Employee::query()
             ->where('id', '!=', $employee->id)
-            ->whereHas('positions.parentPositions', function ($query) use ($managerPositionIds) {
-                $query->whereIn('hrd_position.id', $managerPositionIds);
+            ->whereHas('positions', function ($query) use ($childPositionIds) {
+                $query->whereIn('hrd_position.id', $childPositionIds->all());
             })
             ->pluck('id')
             ->unique()

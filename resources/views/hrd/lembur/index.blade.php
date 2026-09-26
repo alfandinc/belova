@@ -27,7 +27,7 @@
                         <thead>
                             <tr>
                                 <th>No</th>
-                                @if(\App\Models\User::find(Auth::id())->hasAnyRole(['Manager','Head Manager']) || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
+                                @if(($canApproveTeam ?? false) || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
                                 <th>Nama Pegawai</th>
                                 @endif
                                 <th>Tanggal</th>
@@ -219,7 +219,7 @@ $(document).ready(function() {
         },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            @if(\App\Models\User::find(Auth::id())->hasAnyRole(['Manager','Head Manager']) || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
+            @if(($canApproveTeam ?? false) || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
             {data: 'employee_nama', name: 'employee_nama'},
             @endif
             {data: 'tanggal', name: 'tanggal', orderable: false, searchable: false},
