@@ -464,6 +464,109 @@ $(document).ready(function () {
             .html('<i class="far fa-circle"></i> Belum diubah');
     }
 
+    function syncInlineRowStatus($row) {
+        var $input = $row.find('.weight-input');
+        var indicatorId = $input.data('indicator-id');
+        if (!indicatorId) {
+            return;
+        }
+
+        var isMapped = $row.find('.map-indicator-checkbox').is(':checked');
+        var value = parseFloat($input.val());
+        var indicatorName = ($row.find('.inline-indicator-name').val() || '').trim();
+        var indicatorNotes = ($row.find('.inline-indicator-notes').val() || '').trim();
+        var originalName = ($row.find('.inline-indicator-name').data('original-value') || '').toString().trim();
+        var originalNotes = ($row.find('.inline-indicator-notes').data('original-value') || '').toString().trim();
+        var originalWeight = ($input.data('original-value') || '').toString().trim();
+        var currentWeight = isMapped && !isNaN(value) ? String(value) : '';
+        var originallyMapped = $row.find('.map-indicator-checkbox').attr('checked') ? '1' : '0';
+        var currentMapped = isMapped ? '1' : '0';
+
+        if (indicatorName !== originalName || indicatorNotes !== originalNotes || currentWeight !== originalWeight || currentMapped !== originallyMapped) {
+            setInlineRowStatus($row, 'dirty');
+            return;
+        }
+
+        setInlineRowStatus($row, 'default');
+    }
+
+    function capturePositionEditorDraft() {
+        var draft = { categories: {} };
+
+        $('#positionCategoryModalBody .position-category-section').each(function () {
+            var $section = $(this);
+            var categoryId = String($section.data('category-id') || '');
+            if (!categoryId) {
+                return;
+            }
+
+            var sectionDraft = {
+                newIndicatorName: $section.find('.new-indicator-name').val() || '',
+                indicators: {}
+            };
+
+            $section.find('tbody tr').not('.category-total-row').each(function () {
+                var $row = $(this);
+                var indicatorId = $row.find('.weight-input').data('indicator-id');
+                if (!indicatorId) {
+                    return;
+                }
+
+                sectionDraft.indicators[String(indicatorId)] = {
+                    indicator_name: $row.find('.inline-indicator-name').val() || '',
+                    notes: $row.find('.inline-indicator-notes').val() || '',
+                    is_mapped: $row.find('.map-indicator-checkbox').is(':checked'),
+                    weight_percentage: $row.find('.weight-input').val() || ''
+                };
+            });
+
+            draft.categories[categoryId] = sectionDraft;
+        });
+
+        return draft;
+    }
+
+    function applyPositionEditorDraft(draft) {
+        if (!draft || !draft.categories) {
+            return;
+        }
+
+        $('#positionCategoryModalBody .position-category-section').each(function () {
+            var $section = $(this);
+            var categoryId = String($section.data('category-id') || '');
+            var sectionDraft = draft.categories[categoryId];
+            if (!sectionDraft) {
+                return;
+            }
+
+            $section.find('.new-indicator-name').val(sectionDraft.newIndicatorName || '');
+
+            $section.find('tbody tr').not('.category-total-row').each(function () {
+                var $row = $(this);
+                var indicatorId = String($row.find('.weight-input').data('indicator-id') || '');
+                var indicatorDraft = sectionDraft.indicators[indicatorId];
+                if (!indicatorDraft) {
+                    return;
+                }
+
+                $row.find('.inline-indicator-name').val(indicatorDraft.indicator_name || '');
+                $row.find('.inline-indicator-notes').val(indicatorDraft.notes || '');
+                $row.find('.map-indicator-checkbox').prop('checked', !!indicatorDraft.is_mapped);
+                $row.find('.weight-input')
+                    .val(indicatorDraft.weight_percentage || '')
+                    .prop('disabled', !indicatorDraft.is_mapped);
+                $row.find('.btn-unmap-indicator')
+                    .prop('disabled', !indicatorDraft.is_mapped)
+                    .toggleClass('btn-outline-warning', !!indicatorDraft.is_mapped)
+                    .toggleClass('btn-outline-secondary', !indicatorDraft.is_mapped);
+
+                syncInlineRowStatus($row);
+            });
+        });
+
+        recalcAllPositionCategorySections();
+    }
+
     function renderPositionCategorySection(category) {
         var rows = '';
         var positionId = $('#positionCategoryModal').data('pos-id') || null;
@@ -564,7 +667,7 @@ $(document).ready(function () {
         $('#positionCategorySaveBtn').prop('disabled', hasInvalid);
     }
 
-    function renderPositionEditorModal(payload) {
+    function renderPositionEditorModal(payload, draft) {
         var position = payload.position || {};
         var categories = payload.categories || [];
         var html = '';
@@ -585,13 +688,14 @@ $(document).ready(function () {
         }
 
         $('#positionCategoryModalBody').html(html);
+        applyPositionEditorDraft(draft);
         recalcAllPositionCategorySections();
         $('#positionCategoryModal').modal('show');
     }
 
-    function loadPositionEditorModal(positionId) {
+    function loadPositionEditorModal(positionId, draft) {
         $.get('/indicator/positions/' + positionId + '/editor', function (response) {
-            renderPositionEditorModal((response && response.data) ? response.data : {});
+            renderPositionEditorModal((response && response.data) ? response.data : {}, draft);
         }).fail(function () {
             Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal memuat editor indikator posisi.' });
         });
@@ -653,6 +757,7 @@ $(document).ready(function () {
         var positionId = $('#positionCategoryModal').data('pos-id');
         var indicatorName = ($section.find('.new-indicator-name').val() || '').trim();
         var $button = $(this);
+        var draftState = capturePositionEditorDraft();
 
         if (!categoryId || !positionId) {
             return;
@@ -661,6 +766,10 @@ $(document).ready(function () {
         if (!indicatorName) {
             Swal.fire({ icon: 'warning', title: 'Validation', text: 'Nama indikator baru wajib diisi.' });
             return;
+        }
+
+        if (draftState.categories && draftState.categories[String(categoryId)]) {
+            draftState.categories[String(categoryId)].newIndicatorName = '';
         }
 
         $button.prop('disabled', true).text('Menambahkan...');
@@ -678,7 +787,7 @@ $(document).ready(function () {
                 }]
             },
             success: function () {
-                loadPositionEditorModal(positionId);
+                loadPositionEditorModal(positionId, draftState);
                 Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Indikator baru ditambahkan dan langsung dimapping. Isi bobotnya lalu simpan.' });
             },
             error: function (xhr) {
@@ -713,6 +822,9 @@ $(document).ready(function () {
                 var $row = $(this);
                 var $input = $row.find('.weight-input');
                 var indicatorId = $input.data('indicator-id');
+                if (!indicatorId) {
+                    return;
+                }
                 var isMapped = $row.find('.map-indicator-checkbox').is(':checked');
                 var value = parseFloat($input.val());
                 var indicatorName = ($row.find('.inline-indicator-name').val() || '').trim();
