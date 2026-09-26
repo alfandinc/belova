@@ -433,6 +433,7 @@ $(document).ready(function () {
 
     var recentlySavedIndicatorIds = [];
     var recentlySavedPositionId = null;
+    var positionEditorCategoriesById = {};
 
     function buildInlineSaveStatus(indicatorId, positionId) {
         if (Number(positionId) === Number(recentlySavedPositionId) && $.inArray(Number(indicatorId), recentlySavedIndicatorIds) !== -1) {
@@ -462,6 +463,146 @@ $(document).ready(function () {
 
         $status.removeClass('text-success text-warning').addClass('text-muted')
             .html('<i class="far fa-circle"></i> Belum diubah');
+    }
+
+    function buildIndicatorRowHtml(indicator, rowNumber, positionId, options) {
+        options = options || {};
+
+        var isMapped = options.hasOwnProperty('is_mapped') ? !!options.is_mapped : !!indicator.is_mapped;
+        var checked = isMapped ? 'checked' : '';
+        var disabled = isMapped ? '' : 'disabled';
+        var value = options.hasOwnProperty('weight_percentage')
+            ? options.weight_percentage
+            : (indicator.weight_percentage !== null && indicator.weight_percentage !== undefined ? Number(indicator.weight_percentage).toFixed(2) : '');
+        var actionButton = isMapped
+            ? '<button type="button" class="btn btn-sm btn-outline-warning btn-unmap-indicator">Lepas</button>'
+            : '<button type="button" class="btn btn-sm btn-outline-secondary btn-unmap-indicator" disabled>Lepas</button>';
+        var notesValue = escapeHtml(options.hasOwnProperty('notes') ? options.notes : (indicator.notes || ''));
+        var nameValue = escapeHtml(options.hasOwnProperty('indicator_name') ? options.indicator_name : (indicator.indicator_name || ''));
+        var originalMappedAttr = options.originally_mapped ? 'checked' : '';
+        var originalWeight = options.hasOwnProperty('original_weight') ? options.original_weight : (value || '');
+        var indicatorStatus = indicator.is_active ? '' : '<div class="small text-muted mt-1">Inactive indicator</div>';
+
+        return '<tr>'
+            + '<td>' + rowNumber + '</td>'
+            + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + ' ' + originalMappedAttr + '></td>'
+            + '<td>'
+                + '<input type="text" class="form-control form-control-sm inline-indicator-name mb-2" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + escapeHtml(indicator.indicator_name || '') + '" value="' + nameValue + '">'
+                + '<textarea class="form-control form-control-sm inline-indicator-notes" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + escapeHtml(indicator.notes || '') + '" rows="2" placeholder="Catatan indikator (opsional)">' + notesValue + '</textarea>'
+                + indicatorStatus
+            + '</td>'
+            + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + escapeHtml(String(originalWeight)) + '" value="' + escapeHtml(String(value || '')) + '" ' + disabled + '></td>'
+            + '<td class="text-center align-middle">' + actionButton + buildInlineSaveStatus(indicator.indicator_id, positionId) + '</td>'
+            + '</tr>';
+    }
+
+    function renumberPositionSectionRows($section) {
+        $section.find('tbody tr').not('.category-total-row, .empty-category-row').each(function (index) {
+            $(this).find('td:first').text(index + 1);
+        });
+    }
+
+    function getAvailableIndicatorsForSection($section, keyword) {
+        var categoryId = String($section.data('category-id') || '');
+        var category = positionEditorCategoriesById[categoryId];
+        var lowerKeyword = (keyword || '').trim().toLowerCase();
+        var renderedIds = {};
+
+        $section.find('tbody tr').not('.category-total-row, .empty-category-row').each(function () {
+            var id = $(this).find('.weight-input').data('indicator-id');
+            if (id) {
+                renderedIds[String(id)] = true;
+            }
+        });
+
+        if (!category || !category.indicators) {
+            return [];
+        }
+
+        return $.grep(category.indicators, function (indicator) {
+            var indicatorId = String(indicator.indicator_id || '');
+            if (!indicatorId || renderedIds[indicatorId]) {
+                return false;
+            }
+
+            if (!lowerKeyword) {
+                return true;
+            }
+
+            var haystack = ((indicator.indicator_name || '') + ' ' + (indicator.notes || '')).toLowerCase();
+            return haystack.indexOf(lowerKeyword) !== -1;
+        });
+    }
+
+    function renderExistingIndicatorSearchResults($section, keyword) {
+        var $results = $section.find('.existing-indicator-results');
+        var term = (keyword || '').trim();
+
+        if (!term) {
+            $results.addClass('d-none').empty();
+            return;
+        }
+
+        var matches = getAvailableIndicatorsForSection($section, term).slice(0, 10);
+
+        if (!matches.length) {
+            $results.removeClass('d-none').html('<div class="list-group-item small text-muted">Tidak ada indikator existing yang cocok.</div>');
+            return;
+        }
+
+        var html = '';
+        $.each(matches, function (_, indicator) {
+            html += '<button type="button" class="list-group-item list-group-item-action btn-pick-existing-indicator" data-indicator-id="' + indicator.indicator_id + '">'
+                + '<div class="font-weight-bold">' + escapeHtml(indicator.indicator_name || '') + '</div>'
+                + (indicator.notes ? '<div class="small text-muted mt-1">' + escapeHtml(indicator.notes) + '</div>' : '')
+                + '</button>';
+        });
+
+        $results.removeClass('d-none').html(html);
+    }
+
+    function addExistingIndicatorToSection($section, indicatorId) {
+        var categoryId = String($section.data('category-id') || '');
+        var category = positionEditorCategoriesById[categoryId];
+        var positionId = $('#positionCategoryModal').data('pos-id') || null;
+
+        if (!category || !category.indicators) {
+            return;
+        }
+
+        var indicator = null;
+        $.each(category.indicators, function (_, item) {
+            if (String(item.indicator_id) === String(indicatorId)) {
+                indicator = item;
+                return false;
+            }
+        });
+
+        if (!indicator) {
+            return;
+        }
+
+        $section.find('.empty-category-row').remove();
+
+        var rowCount = $section.find('tbody tr').not('.category-total-row, .empty-category-row').length + 1;
+        var rowHtml = buildIndicatorRowHtml(indicator, rowCount, positionId, {
+            is_mapped: true,
+            originally_mapped: false,
+            original_weight: '',
+            weight_percentage: '',
+            indicator_name: indicator.indicator_name || '',
+            notes: indicator.notes || ''
+        });
+
+        var $row = $(rowHtml);
+        $section.find('.category-total-row').before($row);
+        syncInlineRowStatus($row);
+        renumberPositionSectionRows($section);
+        recalcPositionCategorySection($section);
+        recalcAllPositionCategorySections();
+
+        $section.find('.existing-indicator-search').val('');
+        $section.find('.existing-indicator-results').addClass('d-none').empty();
     }
 
     function syncInlineRowStatus($row) {
@@ -578,30 +719,10 @@ $(document).ready(function () {
             rows = '<tr><td colspan="5" class="text-muted text-center">Belum ada indikator yang dimapping untuk kategori ini.</td></tr>';
         } else {
             $.each(mappedIndicators, function (index, indicator) {
-                var checked = indicator.is_mapped ? 'checked' : '';
-                var disabled = indicator.is_mapped ? '' : 'disabled';
-                var value = indicator.weight_percentage !== null && indicator.weight_percentage !== undefined
-                    ? Number(indicator.weight_percentage).toFixed(2)
-                    : '';
-                var actionButton = indicator.is_mapped
-                    ? '<button type="button" class="btn btn-sm btn-outline-warning btn-unmap-indicator">Lepas</button>'
-                    : '<button type="button" class="btn btn-sm btn-outline-secondary btn-unmap-indicator" disabled>Lepas</button>';
-                var notesValue = escapeHtml(indicator.notes || '');
-                var indicatorStatus = indicator.is_active
-                    ? ''
-                    : '<div class="small text-muted mt-1">Inactive indicator</div>';
-
-                rows += '<tr>'
-                    + '<td>' + (index + 1) + '</td>'
-                    + '<td class="text-center align-middle"><input type="checkbox" class="map-indicator-checkbox" ' + checked + '></td>'
-                    + '<td>'
-                        + '<input type="text" class="form-control form-control-sm inline-indicator-name mb-2" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + escapeHtml(indicator.indicator_name || '') + '" value="' + escapeHtml(indicator.indicator_name || '') + '">'
-                        + '<textarea class="form-control form-control-sm inline-indicator-notes" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + notesValue + '" rows="2" placeholder="Catatan indikator (opsional)">' + notesValue + '</textarea>'
-                        + indicatorStatus
-                    + '</td>'
-                    + '<td><input type="number" min="0" max="100" step="0.01" class="form-control form-control-sm weight-input" data-indicator-id="' + indicator.indicator_id + '" data-original-value="' + value + '" value="' + value + '" ' + disabled + '></td>'
-                    + '<td class="text-center align-middle">' + actionButton + buildInlineSaveStatus(indicator.indicator_id, positionId) + '</td>'
-                    + '</tr>';
+                rows += buildIndicatorRowHtml(indicator, index + 1, positionId, {
+                    is_mapped: true,
+                    originally_mapped: true
+                });
             });
         }
 
@@ -622,6 +743,13 @@ $(document).ready(function () {
             + '<div class="form-row align-items-end mb-3">'
             + '<div class="col-md-8 mb-2 mb-md-0"><label class="small text-muted">Tambah indikator baru</label><input type="text" class="form-control form-control-sm new-indicator-name" placeholder="Nama indikator baru untuk kategori ini"></div>'
             + '<div class="col-md-4"><button type="button" class="btn btn-sm btn-outline-primary btn-add-inline-indicator" data-category-id="' + category.category_id + '">Tambah Indikator</button></div>'
+            + '</div>'
+            + '<div class="form-row mb-3">'
+            + '<div class="col-md-12 position-relative">'
+            + '<label class="small text-muted">Cari indikator existing</label>'
+            + '<input type="text" class="form-control form-control-sm existing-indicator-search" placeholder="Cari indikator yang sudah ada di kategori ini">'
+            + '<div class="list-group existing-indicator-results d-none position-absolute w-100" style="z-index: 5; max-height: 220px; overflow-y: auto;"></div>'
+            + '</div>'
             + '</div>'
             + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th style="width:60px">No</th><th style="width:70px">Map</th><th>Indicator</th><th style="width:170px">Weight %</th><th style="width:110px">Aksi</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
             + '</div>'
@@ -671,6 +799,11 @@ $(document).ready(function () {
         var position = payload.position || {};
         var categories = payload.categories || [];
         var html = '';
+
+        positionEditorCategoriesById = {};
+        $.each(categories, function (_, category) {
+            positionEditorCategoriesById[String(category.category_id)] = category;
+        });
 
         $('#positionCategoryModal').data('pos-id', position.id || null);
         $('#positionCategoryModal').data('pos-name', position.name || '');
@@ -727,6 +860,24 @@ $(document).ready(function () {
 
     $(document).on('input', '#positionCategoryModalBody .inline-indicator-name, #positionCategoryModalBody .inline-indicator-notes', function () {
         setInlineRowStatus($(this).closest('tr'), 'dirty');
+    });
+
+    $(document).on('input', '#positionCategoryModalBody .existing-indicator-search', function () {
+        renderExistingIndicatorSearchResults($(this).closest('.position-category-section'), $(this).val());
+    });
+
+    $(document).on('focus', '#positionCategoryModalBody .existing-indicator-search', function () {
+        renderExistingIndicatorSearchResults($(this).closest('.position-category-section'), $(this).val());
+    });
+
+    $(document).on('click', '#positionCategoryModalBody .btn-pick-existing-indicator', function () {
+        addExistingIndicatorToSection($(this).closest('.position-category-section'), $(this).data('indicator-id'));
+    });
+
+    $(document).on('click', function (event) {
+        if (!$(event.target).closest('.position-category-section .position-relative').length) {
+            $('#positionCategoryModalBody .existing-indicator-results').addClass('d-none');
+        }
     });
 
     $(document).on('change', '#positionCategoryModalBody .map-indicator-checkbox', function () {
