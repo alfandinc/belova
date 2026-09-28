@@ -5450,15 +5450,208 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     public function getVisitationsData(Request $request)
     {
+        $user = Auth::user();
+        $isAdmin = ($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'));
+
+        $visitations = $this->buildVisitationsQuery($request);
+
+        return DataTables::of($visitations)
+            ->filter(function ($query) use ($request) {
+                $this->applyVisitationsSearch($query, $request->get('search')['value'] ?? null);
+            })
+            ->addColumn('no_rm', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->id : '-';
+            })
+            ->addColumn('nama_pasien', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
+            })
+            ->addColumn('status_pasien', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->status_pasien ?? 'Regular') : 'Regular';
+            })
+            ->addColumn('status_akses', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->status_akses ?? '') : '';
+            })
+            ->addColumn('employee_id', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->employee_id : null;
+            })
+            ->addColumn('catatan_pasien', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->notes ?? '') : '';
+            })
+            ->addColumn('is_first_visit', function ($visitation) {
+                return (int) ($visitation->is_first_visit ?? 0);
+            })
+            ->addColumn('dokter', function ($visitation) {
+                // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
+                if ($visitation->dokter && $visitation->dokter->user) {
+                    $name = $visitation->dokter->user->name;
+                    if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
+                        return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
+                    }
+                    return $name;
+                }
+                return '-';
+            })
+            ->addColumn('jenis_kunjungan', function ($visitation) {
+                // Map numeric values to labels
+                if (isset($visitation->jenis_kunjungan)) {
+                    switch ($visitation->jenis_kunjungan) {
+                        case 1:
+                        case '1':
+                            return 'Konsultasi Dokter';
+                        case 2:
+                        case '2':
+                            return 'Beli Produk';
+                        case 3:
+                        case '3':
+                            return 'Laboratorium';
+                        case 4:
+                        case '4':
+                            return 'Event';
+                        case 5:
+                        case '5':
+                            return 'Marketplace';
+                        default:
+                            return $visitation->jenis_kunjungan;
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('tanggal_visit', function ($visitation) {
+                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('l, j F Y');
+            })
+            ->addColumn('nama_klinik', function ($visitation) {
+                return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+            })
+            ->addColumn('klinik_logo_url', function ($visitation) {
+                return ($visitation->klinik && $visitation->klinik->logo) ? asset('storage/' . $visitation->klinik->logo) : null;
+            })
+            ->addColumn('metode_bayar_nama', function ($visitation) {
+                return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
+            })
+            ->addColumn('referral_display', function ($visitation) {
+                return $this->buildReferralDisplay($visitation->pasien);
+            })
+            ->addColumn('invoice_number', function ($visitation) {
+                // Return associated invoice number if exists, otherwise dash
+                if ($visitation->invoice && isset($visitation->invoice->invoice_number)) {
+                    return $visitation->invoice->invoice_number;
+                }
+                return '-';
+            })
+            ->addColumn('payment_method', function ($visitation) {
+                if ($visitation->invoice && isset($visitation->invoice->payment_method)) {
+                    return $visitation->invoice->payment_method;
+                }
+                return null;
+            })
+            ->addColumn('status', function ($visitation) {
+                $label = $this->billingStatusLabel($visitation);
+                $background = [
+                    'Terhapus' => '#6c757d',
+                    'Lunas' => '#28a745',
+                    'Belum Lunas' => '#ffc107',
+                    'Piutang' => '#17a2b8',
+                ][$label] ?? '#dc3545';
+
+                return '<span style="color: #fff; background: ' . $background . '; padding: 2px 8px; border-radius: 8px; font-size: 13px;">' . $label . '</span>';
+            })
+            ->addColumn('action', function ($visitation) use ($isAdmin) {
+                $billingUrl = route('finance.billing.create', $visitation->id);
+                $event = $this->resolveEventForVisitation($visitation);
+                if ($event) {
+                    $billingUrl = route('finance.billing.event-create', [
+                        'event' => $event->id,
+                        'visitation_id' => $visitation->id,
+                    ]);
+                }
+
+                $action = '<a href="'.$billingUrl.'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+
+                // Add "Cetak Nota" buttons if invoice exists
+                if ($visitation->invoice) {
+                    $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
+                    $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
+                }
+
+                // Admin-only visitation actions: trash/restore/force delete
+                if ($isAdmin) {
+                    $totalBillings = (int) $visitation->billing_total_count;
+                    $trashedBillings = (int) $visitation->billing_trashed_count;
+
+                    if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                        // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
+                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-info btn-restore-visitation ml-1">Restore</button>';
+                        // add data-no-icon to prevent client-side icon mapping
+                        $action .= ' <button data-id="'.$visitation->id.'" data-no-icon="1" class="btn btn-sm btn-danger btn-force-visitation ml-1">Permanent Delete</button>';
+                    } elseif ($totalBillings > 0) {
+                        // has non-deleted billing -> show trash as icon-only button
+                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-danger btn-trash-visitation ml-1" title="Hapus"><i class="ti-trash" aria-hidden="true"></i></button>';
+                    }
+                }
+
+                return $action;
+            })
+            // The page only reads the computed columns above; don't ship the full related models
+            // (the pasien record alone includes identity number, phone and address).
+            ->removeColumn('pasien', 'metode_bayar', 'klinik')
+            ->rawColumns(['action', 'status', 'referral_display'])
+            ->make(true);
+    }
+
+    /**
+     * Excel export of the billing list with the same tab / filters / search as the table.
+     */
+    public function exportVisitations(Request $request)
+    {
+        $visitations = $this->buildVisitationsQuery($request);
+        $this->applyVisitationsSearch($visitations, $request->input('search'));
+
+        $rows = $visitations
+            ->orderBy('tanggal_visitation')
+            ->orderBy('erm_visitations.id')
+            ->get()
+            ->map(function ($visitation) {
+                $invoice = $visitation->invoice;
+                $total = $invoice ? floatval($invoice->total_amount ?? 0) : null;
+                [$referralType, $referralDetail] = $this->referralParts($visitation->pasien);
+
+                return [
+                    $invoice->invoice_number ?? '-',
+                    \Carbon\Carbon::parse($visitation->tanggal_visitation)->format('Y-m-d'),
+                    $visitation->pasien->nama ?? '-',
+                    $visitation->pasien->id ?? '-',
+                    optional(optional($visitation->dokter)->user)->name ?? '-',
+                    $visitation->klinik->nama ?? '-',
+                    $referralType,
+                    $referralDetail ?? '-',
+                    $total,
+                    $invoice ? $this->billingRemainingAmount($visitation) : null,
+                    $this->billingStatusLabel($visitation),
+                ];
+            });
+
+        $groupLabel = ['umum' => 'umum', 'asuransi' => 'asuransi'][$request->input('metode_group')] ?? 'semua';
+        $fileName = 'billing_' . $groupLabel . '_'
+            . $request->input('start_date', now()->format('Y-m-d')) . '_'
+            . $request->input('end_date', now()->format('Y-m-d')) . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\Finance\BillingListExport($rows->all()),
+            $fileName
+        );
+    }
+
+    /**
+     * Base query for the billing index (date / dokter / klinik / tab / status filters).
+     */
+    private function buildVisitationsQuery(Request $request)
+    {
         $startDate = $request->input('start_date', now()->format('Y-m-d'));
         $endDate = $request->input('end_date', now()->format('Y-m-d'));
         $dokterId = $request->input('dokter_id');
         $klinikId = $request->input('klinik_id');
         $metodeGroup = $request->input('metode_group');
 
-        $user = Auth::user();
-        $isAdmin = ($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'));
-        
         $visitations = \App\Models\ERM\Visitation::with([
                 'pasien',
                 'pasien.referralable' => function ($morphTo) {
@@ -5637,214 +5830,154 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
         }
         
-        return DataTables::of($visitations)
-            ->filter(function ($query) use ($request) {
-                if ($search = $request->get('search')['value']) {
-                    // Grouped so the OR conditions stay inside the date / status / tab filters
-                    $query->where(function ($sq) use ($search) {
-                        $sq->whereHas('pasien', function($q) use ($search) {
-                            $q->where('nama', 'like', "%$search%")
-                              ->orWhere('id', 'like', "%$search%") ;
-                        })
-                        ->orWhereHas('invoice', function($q) use ($search) {
-                            $q->where('invoice_number', 'like', "%$search%") ;
-                        })
-                        ->orWhereHas('dokter.user', function($q) use ($search) {
-                            $q->where('name', 'like', "%$search%") ;
-                        })
-                        ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
-                            $q->where('nama', 'like', "%$search%") ;
-                        })
-                        ->orWhereHas('klinik', function($q) use ($search) {
-                            $q->where('nama', 'like', "%$search%") ;
-                        })
-                        ->orWhere('tanggal_visitation', 'like', "%$search%") ;
-                    });
-                }
-            })
-            ->addColumn('no_rm', function ($visitation) {
-                return $visitation->pasien ? $visitation->pasien->id : '-';
-            })
-            ->addColumn('nama_pasien', function ($visitation) {
-                return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
-            })
-            ->addColumn('status_pasien', function ($visitation) {
-                return $visitation->pasien ? ($visitation->pasien->status_pasien ?? 'Regular') : 'Regular';
-            })
-            ->addColumn('status_akses', function ($visitation) {
-                return $visitation->pasien ? ($visitation->pasien->status_akses ?? '') : '';
-            })
-            ->addColumn('employee_id', function ($visitation) {
-                return $visitation->pasien ? $visitation->pasien->employee_id : null;
-            })
-            ->addColumn('catatan_pasien', function ($visitation) {
-                return $visitation->pasien ? ($visitation->pasien->notes ?? '') : '';
-            })
-            ->addColumn('is_first_visit', function ($visitation) {
-                return (int) ($visitation->is_first_visit ?? 0);
-            })
-            ->addColumn('dokter', function ($visitation) {
-                // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
-                if ($visitation->dokter && $visitation->dokter->user) {
-                    $name = $visitation->dokter->user->name;
-                    if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
-                        return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
-                    }
-                    return $name;
-                }
-                return '-';
-            })
-            ->addColumn('jenis_kunjungan', function ($visitation) {
-                // Map numeric values to labels
-                if (isset($visitation->jenis_kunjungan)) {
-                    switch ($visitation->jenis_kunjungan) {
-                        case 1:
-                        case '1':
-                            return 'Konsultasi Dokter';
-                        case 2:
-                        case '2':
-                            return 'Beli Produk';
-                        case 3:
-                        case '3':
-                            return 'Laboratorium';
-                        case 4:
-                        case '4':
-                            return 'Event';
-                        case 5:
-                        case '5':
-                            return 'Marketplace';
-                        default:
-                            return $visitation->jenis_kunjungan;
-                    }
-                }
-                return '-';
-            })
-            ->addColumn('tanggal_visit', function ($visitation) {
-                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('l, j F Y');
-            })
-            ->addColumn('nama_klinik', function ($visitation) {
-                return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
-            })
-            ->addColumn('klinik_logo_url', function ($visitation) {
-                return ($visitation->klinik && $visitation->klinik->logo) ? asset('storage/' . $visitation->klinik->logo) : null;
-            })
-            ->addColumn('metode_bayar_nama', function ($visitation) {
-                return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
-            })
-            ->addColumn('referral_display', function ($visitation) {
-                return $this->buildReferralDisplay($visitation->pasien);
-            })
-            ->addColumn('invoice_number', function ($visitation) {
-                // Return associated invoice number if exists, otherwise dash
-                if ($visitation->invoice && isset($visitation->invoice->invoice_number)) {
-                    return $visitation->invoice->invoice_number;
-                }
-                return '-';
-            })
-            ->addColumn('payment_method', function ($visitation) {
-                if ($visitation->invoice && isset($visitation->invoice->payment_method)) {
-                    return $visitation->invoice->payment_method;
-                }
-                return null;
-            })
-                ->addColumn('status', function ($visitation) {
-                        $invoice = $visitation->invoice;
+        return $visitations;
+    }
 
-                        // Check if all billings for this visitation are trashed (if there are any)
-                        $totalBillings = (int) $visitation->billing_total_count;
-                        $trashedBillings = (int) $visitation->billing_trashed_count;
-                        if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
-                            return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
-                        }
+    /**
+     * Search box of the billing index (grouped so the OR conditions stay inside the other filters).
+     */
+    private function applyVisitationsSearch($query, $search): void
+    {
+        if (!is_string($search) || trim($search) === '') {
+            return;
+        }
 
-                        // No invoice created -> Belum Transaksi
-                        if (!$invoice) {
-                            return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Transaksi</span>';
-                        }
-
-                        $amountPaid = floatval($invoice->amount_paid ?? 0);
-                        $totalAmount = floatval($invoice->total_amount ?? 0);
-                        $paymentMethod = strtolower((string)($invoice->payment_method ?? ''));
-
-                        // Fully paid (normal or after piutang settlement), or a zero total (e.g. free voucher) that was processed
-                        if (($totalAmount > 0 && $amountPaid >= $totalAmount) || ($totalAmount <= 0 && $invoice->status === 'paid')) {
-                            return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
-                        }
-
-                        // Piutang-like flow: insurance follows piutang settlement status.
-                        if ($paymentMethod === 'piutang' || str_starts_with($paymentMethod, 'asuransi_')) {
-                            $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
-                            $status = $piutang && isset($piutang->payment_status) ? strtolower((string)$piutang->payment_status) : null;
-
-                            if ($status === 'paid') {
-                                return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
-                            }
-                            if ($status === 'partial') {
-                                return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                            }
-
-                            if ($paymentMethod === 'piutang') {
-                                return '<span style="color: #fff; background: #17a2b8; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Piutang</span>';
-                            }
-
-                            return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                        }
-
-                        // Partially paid (non-piutang)
-                        if ($amountPaid > 0 && $amountPaid < $totalAmount) {
-                            return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                        }
-
-                        // Invoice exists but no payment yet
-                        return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Transaksi</span>';
-                })
-            ->addColumn('action', function ($visitation) use ($isAdmin) {
-                $billingUrl = route('finance.billing.create', $visitation->id);
-                $event = $this->resolveEventForVisitation($visitation);
-                if ($event) {
-                    $billingUrl = route('finance.billing.event-create', [
-                        'event' => $event->id,
-                        'visitation_id' => $visitation->id,
-                    ]);
-                }
-
-                $action = '<a href="'.$billingUrl.'" class="btn btn-sm btn-primary">Lihat Billing</a>';
-
-                // Add "Cetak Nota" buttons if invoice exists
-                if ($visitation->invoice) {
-                    $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
-                    $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
-                }
-
-                // Admin-only visitation actions: trash/restore/force delete
-                if ($isAdmin) {
-                    $totalBillings = (int) $visitation->billing_total_count;
-                    $trashedBillings = (int) $visitation->billing_trashed_count;
-
-                    if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
-                        // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
-                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-info btn-restore-visitation ml-1">Restore</button>';
-                        // add data-no-icon to prevent client-side icon mapping
-                        $action .= ' <button data-id="'.$visitation->id.'" data-no-icon="1" class="btn btn-sm btn-danger btn-force-visitation ml-1">Permanent Delete</button>';
-                    } elseif ($totalBillings > 0) {
-                        // has non-deleted billing -> show trash as icon-only button
-                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-danger btn-trash-visitation ml-1" title="Hapus"><i class="ti-trash" aria-hidden="true"></i></button>';
-                    }
-                }
-
-                return $action;
+        $query->where(function ($sq) use ($search) {
+            $sq->whereHas('pasien', function($q) use ($search) {
+                $q->where('nama', 'like', "%$search%")
+                  ->orWhere('id', 'like', "%$search%") ;
             })
-            // The page only reads the computed columns above; don't ship the full related models
-            // (the pasien record alone includes identity number, phone and address).
-            ->removeColumn('pasien', 'metode_bayar', 'klinik')
-            ->rawColumns(['action', 'status', 'referral_display'])
-            ->make(true);
+            ->orWhereHas('invoice', function($q) use ($search) {
+                $q->where('invoice_number', 'like', "%$search%") ;
+            })
+            ->orWhereHas('dokter.user', function($q) use ($search) {
+                $q->where('name', 'like', "%$search%") ;
+            })
+            ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
+                $q->where('nama', 'like', "%$search%") ;
+            })
+            ->orWhereHas('klinik', function($q) use ($search) {
+                $q->where('nama', 'like', "%$search%") ;
+            })
+            ->orWhere('tanggal_visitation', 'like', "%$search%") ;
+        });
+    }
+
+    /**
+     * Billing status of a visitation row: Terhapus, Belum Transaksi, Lunas, Belum Lunas or Piutang.
+     */
+    private function billingStatusLabel($visitation): string
+    {
+        $invoice = $visitation->invoice;
+
+        // Check if all billings for this visitation are trashed (if there are any)
+        $totalBillings = (int) $visitation->billing_total_count;
+        $trashedBillings = (int) $visitation->billing_trashed_count;
+        if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+            return 'Terhapus';
+        }
+
+        // No invoice created -> Belum Transaksi
+        if (!$invoice) {
+            return 'Belum Transaksi';
+        }
+
+        $amountPaid = floatval($invoice->amount_paid ?? 0);
+        $totalAmount = floatval($invoice->total_amount ?? 0);
+        $paymentMethod = strtolower((string)($invoice->payment_method ?? ''));
+
+        // Fully paid (normal or after piutang settlement), or a zero total (e.g. free voucher) that was processed
+        if (($totalAmount > 0 && $amountPaid >= $totalAmount) || ($totalAmount <= 0 && $invoice->status === 'paid')) {
+            return 'Lunas';
+        }
+
+        // Piutang-like flow: insurance follows piutang settlement status.
+        if ($paymentMethod === 'piutang' || str_starts_with($paymentMethod, 'asuransi_')) {
+            $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
+            $status = $piutang && isset($piutang->payment_status) ? strtolower((string)$piutang->payment_status) : null;
+
+            if ($status === 'paid') {
+                return 'Lunas';
+            }
+            if ($status === 'partial') {
+                return 'Belum Lunas';
+            }
+
+            return $paymentMethod === 'piutang' ? 'Piutang' : 'Belum Lunas';
+        }
+
+        // Partially paid (non-piutang)
+        if ($amountPaid > 0 && $amountPaid < $totalAmount) {
+            return 'Belum Lunas';
+        }
+
+        // Invoice exists but no payment yet
+        return 'Belum Transaksi';
+    }
+
+    /**
+     * Remaining unpaid amount of a visitation's invoice (same rule as the Kekurangan column on the billing index).
+     */
+    private function billingRemainingAmount($visitation): float
+    {
+        $invoice = $visitation->invoice;
+        if (!$invoice || floatval($invoice->total_amount ?? 0) <= 0) {
+            return 0.0;
+        }
+
+        $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
+        if ($piutang) {
+            $remaining = floatval($piutang->amount ?? 0) - floatval($piutang->paid_amount ?? 0);
+        } elseif (floatval($invoice->shortage_amount ?? 0) > 0) {
+            $remaining = floatval($invoice->shortage_amount);
+        } else {
+            $remaining = floatval($invoice->total_amount ?? 0) - floatval($invoice->amount_paid ?? 0);
+        }
+
+        return max(0.0, $remaining);
     }
 
     /**
      * Referral label with icon, same format as the Rawat Jalan index.
      */
     private function buildReferralDisplay(?Pasien $pasien): string
+    {
+        $referralType = (string) (($pasien->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
+
+        $iconClass = match ($referralType) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
+            Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
+            Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
+            Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
+            default => 'fas fa-walking',
+        };
+
+        return '<span class="d-inline-flex align-items-center">'
+            . '<i class="' . e($iconClass) . ' mr-2"></i>'
+            . '<span>' . e($this->referralLabel($pasien)) . '</span>'
+            . '</span>';
+    }
+
+    /**
+     * Referral label as plain text, e.g. "Walk-in" or "Pasien: Budi (RM: 000123)".
+     */
+    private function referralLabel(?Pasien $pasien): string
+    {
+        [$typeLabel, $detail] = $this->referralParts($pasien);
+
+        return $detail ? $typeLabel . ': ' . $detail : $typeLabel;
+    }
+
+    /**
+     * Referral as [type label, detail or null], e.g. ['Pasien', 'Budi (RM: 000123)'].
+     */
+    private function referralParts(?Pasien $pasien): array
     {
         $referralType = (string) (($pasien->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
 
@@ -5860,20 +5993,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
             Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
             default => 'Walk-in',
-        };
-
-        $iconClass = match ($referralType) {
-            Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
-            Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
-            Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
-            Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
-            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
-            Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
-            Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
-            Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
-            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
-            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
-            default => 'fas fa-walking',
         };
 
         $source = $pasien ? $pasien->referralable : null;
@@ -5894,12 +6013,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $detail = ucwords(str_replace('_', ' ', (string) $referralDetail));
         }
 
-        $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
-
-        return '<span class="d-inline-flex align-items-center">'
-            . '<i class="' . e($iconClass) . ' mr-2"></i>'
-            . '<span>' . e($label) . '</span>'
-            . '</span>';
+        return [$typeLabel, $detail];
     }
 
     /**

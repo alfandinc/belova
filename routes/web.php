@@ -1457,6 +1457,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::post('/billing/visitation/{visitation_id}/restore', [BillingController::class, 'restoreByVisitation'])->name('finance.billing.restoreByVisitation');
     Route::delete('/billing/visitation/{visitation_id}/force', [BillingController::class, 'forceDeleteByVisitation'])->name('finance.billing.forceDeleteByVisitation');
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
+        Route::get('/billing/export', [BillingController::class, 'exportVisitations'])->name('finance.billing.export');
         Route::get('/billing/tab-counts', [BillingController::class, 'getBillingTabCounts'])->name('finance.billing.tab-counts');
     // Billing -> Send notification to Farmasi
     Route::post('/send-notif-farmasi', [BillingController::class, 'sendNotifToFarmasi'])->middleware('auth');

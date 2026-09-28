@@ -156,6 +156,9 @@
                                     <option value="">Semua Status</option>
                                 </select>
                             </div>
+                            <button type="button" id="btn-export-billing" class="btn btn-sm btn-success" title="Download daftar billing (tab, filter & pencarian saat ini)">
+                                <i class="fas fa-file-excel mr-1"></i> Export Excel
+                            </button>
                         </div>
                     </div>
 
@@ -318,7 +321,28 @@
                 window.billingTable = billingTableUmum;
             }
         }
-        
+
+        // Excel export of the active tab with the current filters and search
+        $('#btn-export-billing').on('click', function() {
+            var isAsuransi = ($('#billingTabs .nav-link.active').attr('id') || '') === 'billing-tab-asuransi';
+            var search = '';
+            try {
+                var activeTable = isAsuransi ? billingTableAsuransi : billingTableUmum;
+                if (activeTable) search = activeTable.search() || '';
+            } catch (e) {}
+
+            var params = $.param({
+                start_date: startDate,
+                end_date: endDate,
+                dokter_id: dokterId,
+                klinik_id: klinikId,
+                status_filter: statusFilter,
+                metode_group: isAsuransi ? 'asuransi' : 'umum',
+                search: search
+            });
+            window.location.href = "{{ route('finance.billing.export') }}?" + params;
+        });
+
         // Initialize date range picker
         $('#daterange').daterangepicker({
             startDate: moment(),
