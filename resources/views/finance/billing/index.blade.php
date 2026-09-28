@@ -170,9 +170,9 @@
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
                                             <th>Metode Bayar</th>
-                                            <th>Pembayaran</th>
                                             <th>Referral</th>
                                             <th>Total</th>
+                                            <th>Kekurangan</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -190,9 +190,9 @@
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
                                             <th>Metode Bayar</th>
-                                            <th>Pembayaran</th>
                                             <th>Referral</th>
                                             <th>Total</th>
+                                            <th>Kekurangan</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -381,12 +381,51 @@
            fetchTabCounts();
        });
         
+        function formatRupiah(n) {
+            return 'Rp ' + Number(n).toLocaleString('id-ID', {minimumFractionDigits:0, maximumFractionDigits:0});
+        }
+
+        // Invoice total and remaining unpaid amount for a billing row (rem is null when it cannot be computed)
+        function billingRowAmounts(row) {
+            var totalVal = 0;
+            if (row && row.invoice && (row.invoice.total_amount !== undefined && row.invoice.total_amount !== null)) totalVal = row.invoice.total_amount;
+            else if (row && (row.total_amount !== undefined && row.total_amount !== null)) totalVal = row.total_amount;
+            else if (row && (row.total || row.amount)) totalVal = row.total || row.amount || 0;
+
+            var rem = null;
+            try {
+                // if this invoice has a piutang relation use it, otherwise shortage / total - paid
+                var piutangRel = null;
+                if (row.invoice && row.invoice.piutangs && Array.isArray(row.invoice.piutangs) && row.invoice.piutangs.length) piutangRel = row.invoice.piutangs[0];
+                else if (row.piutang) piutangRel = row.piutang;
+
+                if (piutangRel) {
+                    var pAmt = Number(piutangRel.amount || piutangRel.total_amount || piutangRel.total || 0) || 0;
+                    var pPaid = Number(piutangRel.paid_amount || piutangRel.paid || piutangRel.amount_paid || 0) || 0;
+                    rem = pAmt - pPaid;
+                } else {
+                    var cand = Number(row.shortage_amount || row.shortage || row.kekurangan || 0) || 0;
+                    if (cand > 0) {
+                        rem = cand;
+                    } else {
+                        var totFallback = Number((row.invoice && (row.invoice.total_amount || row.invoice.total)) || row.total_amount || row.total || row.amount || 0) || 0;
+                        var paidFallback = Number((row.invoice && (row.invoice.amount_paid || row.invoice.amountPaid)) || row.amount_paid || row.amountPaid || row.paid_amount || row.paid || 0) || 0;
+                        rem = totFallback - paidFallback;
+                    }
+                }
+                if (!isFinite(rem)) rem = null;
+            } catch (e) {
+                rem = null;
+            }
+            return { total: Number(totalVal) || 0, rem: rem };
+        }
+
         // Initialize DataTables with date and filter
         function createBillingTable($selector, metodeGroup, deferInitialLoad) {
             return $selector.DataTable({
             processing: true,
             serverSide: true,
-            // Horizontal scroll with Nomor Invoice pinned left, Total + Aksi pinned right
+            // Horizontal scroll with Nomor Invoice pinned left, Total + Kekurangan + Aksi pinned right
             scrollX: true,
             scrollCollapse: true,
             // the Asuransi tab starts hidden: skip its first request, it loads when the tab is opened
@@ -394,7 +433,7 @@
             autoWidth: false,
             fixedColumns: {
                 left: 1,
-                right: 2
+                right: 3
             },
             drawCallback: function() {
                 // Position print menus as fixed so the scroll container doesn't clip them
@@ -419,7 +458,9 @@
                 // make the dokter column wrap and allow flexible width (index 2)
                 { targets: 2, className: 'wrap-column', responsivePriority: 2 },
                 // keep action column compact and no-wrap (now at index 8)
-                { targets: 8, className: 'no-wrap-cell', width: '140px', responsivePriority: 1 }
+                { targets: 8, className: 'no-wrap-cell', width: '140px', responsivePriority: 1 },
+                // Metode Bayar (index 4) is only shown on the Asuransi tab; every Umum row is "Umum"
+                { targets: 4, visible: metodeGroup !== 'umum' }
             ],
 
             columns: [
@@ -595,64 +636,31 @@
                         return '<span class="d-inline-flex align-items-center"><i class="' + iconClass + ' mr-2"></i><span>' + metode + '</span></span>'; // metode is already escaped server-side
                     }
                 },
-                { data: 'tanggal_payment', name: 'tanggal_payment', orderable: false, searchable: false, render: function(data, type, row) {
-                        // tanggal_payment / kasir_nama are already HTML-escaped by the server
-                        if (type !== 'display') return data || '';
-                        if (!data) return '-';
-                        var html = '<div class="font-weight-bold">' + data + '</div>';
-                        if (row.kasir_nama) html += '<div class="mt-1"><small class="text-muted"><i class="fas fa-user mr-1"></i>' + row.kasir_nama + '</small></div>';
-                        return html;
-                    }
-                },
                 { data: 'referral_display', name: 'referral_display', orderable: false, searchable: false, render: function(data, type, row) {
                         return data || 'Walk-in';
                     }
                 },
                 { data: null, name: 'total_amount', orderable: false, searchable: false, className: 'no-wrap-cell', render: function(data, type, row, meta) {
-                        var totalVal = 0;
-                        if (row && row.invoice && (row.invoice.total_amount !== undefined && row.invoice.total_amount !== null)) totalVal = row.invoice.total_amount;
-                        else if (row && (row.total_amount !== undefined && row.total_amount !== null)) totalVal = row.total_amount;
-                        else if (row && (row.total || row.amount)) totalVal = row.total || row.amount || 0;
-                        if (type !== 'display') return Number(totalVal) || 0;
-                        if (!totalVal || Number(totalVal) <= 0) {
+                        var amounts = billingRowAmounts(row);
+                        var totalVal = amounts.total;
+                        if (type !== 'display') return totalVal;
+                        if (totalVal <= 0) {
                             if (!row.invoice) return '-';
                             // zero total (e.g. free voucher): green once the invoice is settled (status "Lunas")
                             var zeroLunas = $.trim($('<div>').html(row.status || '').text()).toLowerCase() === 'lunas';
                             return '<div class="font-weight-bold' + (zeroLunas ? ' text-success' : '') + '">Rp 0</div>';
                         }
-
-                        var fmt = function(n) { return 'Rp ' + Number(n).toLocaleString('id-ID', {minimumFractionDigits:0, maximumFractionDigits:0}); };
-                        var html = '';
-
-                        // if this invoice has a piutang relation or is partially paid, show remaining
-                        try {
-                            var rem = null;
-                            var piutangRel = null;
-                            if (row.invoice && row.invoice.piutangs && Array.isArray(row.invoice.piutangs) && row.invoice.piutangs.length) piutangRel = row.invoice.piutangs[0];
-                            else if (row.piutang) piutangRel = row.piutang;
-
-                            if (piutangRel) {
-                                var pAmt = Number(piutangRel.amount || piutangRel.total_amount || piutangRel.total || 0) || 0;
-                                var pPaid = Number(piutangRel.paid_amount || piutangRel.paid || piutangRel.amount_paid || 0) || 0;
-                                rem = pAmt - pPaid;
-                            } else {
-                                var cand = Number(row.shortage_amount || row.shortage || row.kekurangan || 0) || 0;
-                                if (cand > 0) {
-                                    rem = cand;
-                                } else {
-                                    var totFallback = Number((row.invoice && (row.invoice.total_amount || row.invoice.total)) || row.total_amount || row.total || row.amount || 0) || 0;
-                                    var paidFallback = Number((row.invoice && (row.invoice.amount_paid || row.invoice.amountPaid)) || row.amount_paid || row.amountPaid || row.paid_amount || row.paid || 0) || 0;
-                                    rem = totFallback - paidFallback;
-                                }
-                            }
-                            var isLunas = isFinite(rem) && rem <= 0;
-                            // total in green when fully paid (nothing remaining)
-                            html = '<div class="font-weight-bold' + (isLunas ? ' text-success' : '') + '">' + fmt(totalVal) + '</div>';
-                            if (isFinite(rem) && rem > 0) {
-                                html += '<div class="mt-1"><small class="text-danger">Kurang ' + fmt(rem) + '</small></div>';
-                            }
-                        } catch(e) { /* ignore */ }
-                        return html || '<div class="font-weight-bold">' + fmt(totalVal) + '</div>';
+                        // total in green when fully paid (nothing remaining); the remaining amount has its own column
+                        var isLunas = amounts.rem !== null && amounts.rem <= 0;
+                        return '<div class="font-weight-bold' + (isLunas ? ' text-success' : '') + '">' + formatRupiah(totalVal) + '</div>';
+                    }
+                },
+                { data: null, name: 'kekurangan', orderable: false, searchable: false, className: 'no-wrap-cell', render: function(data, type, row, meta) {
+                        var amounts = billingRowAmounts(row);
+                        var rem = (amounts.total > 0 && amounts.rem !== null && amounts.rem > 0) ? amounts.rem : 0;
+                        if (type !== 'display') return rem;
+                        if (rem <= 0) return '-';
+                        return '<div class="font-weight-bold text-danger">' + formatRupiah(rem) + '</div>';
                     }
                 },
                 { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1,

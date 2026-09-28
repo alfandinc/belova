@@ -2763,6 +2763,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'gudangs' => $gudangData['gudangs'],
             'gudangMappings' => $gudangData['mappings'],
             'gudangData' => $gudangData,
+            'paymentInfo' => $this->invoicePaymentInfo($invoice),
             'invoiceNeedsUpdate' => $invoiceNeedsUpdate,
             'returnedItems' => $returnedItems,
         ];
@@ -4526,7 +4527,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $invoiceTotalAmountRaw = floatval($invoice->total_amount ?? 0);
             $invoiceAmountPaidInt = intval(ceil($invoiceAmountPaidRaw));
             $invoiceTotalAmountInt = intval(ceil($invoiceTotalAmountRaw));
-            $isPaid = $invoiceAmountPaidInt >= $invoiceTotalAmountInt;
+            // A zero-total invoice (e.g. 100% discount) is only paid once the payment has been processed;
+            // right after "Buat Invoice" it still needs the Pembayaran step.
+            $isPaid = $invoiceTotalAmountInt > 0
+                ? $invoiceAmountPaidInt >= $invoiceTotalAmountInt
+                : !empty($invoice->payment_method);
 
             $responseMessage = $mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat';
 
@@ -4581,6 +4586,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'piutang_payment_status' => $piutangPaymentStatus,
                 'piutang' => $piutangPayload,
                 'is_paid' => $isPaid,
+                'payment_info' => $this->invoicePaymentInfo($invoice->load('user')),
                 'stock_reduced' => $stockReduced,
                 'stock_message' => $stockReduced ? 'Stok berhasil dikurangi sesuai pembayaran.' : $computedStockMessage,
                 'stock_ops_attempted' => $stockOpsAttempted,
@@ -5463,7 +5469,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'dokter.spesialisasi',
                 'metodeBayar',
                 'invoice' => function ($query) {
-                    $query->with(['piutangs', 'user:id,name'])
+                    $query->with(['piutangs'])
                         ->withCount('returPembelianItems as returned_items_count');
                 },
             ])
@@ -5721,13 +5727,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             })
             ->addColumn('klinik_logo_url', function ($visitation) {
                 return ($visitation->klinik && $visitation->klinik->logo) ? asset('storage/' . $visitation->klinik->logo) : null;
-            })
-            ->addColumn('tanggal_payment', function ($visitation) {
-                $paymentDate = $visitation->invoice ? $visitation->invoice->payment_date : null;
-                return $paymentDate ? $paymentDate->copy()->locale('id')->translatedFormat('l, j F Y H:i') : null;
-            })
-            ->addColumn('kasir_nama', function ($visitation) {
-                return ($visitation->invoice && $visitation->invoice->user) ? $visitation->invoice->user->name : null;
             })
             ->addColumn('metode_bayar_nama', function ($visitation) {
                 return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
@@ -6034,6 +6033,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     /**
      * Get gudang mappings and available gudangs for billing
      */
+    /**
+     * Payment date / cashier / method shown under "Total Pembayaran" on the billing page (null when not paid yet).
+     */
+    private function invoicePaymentInfo($invoice): ?array
+    {
+        if (!$invoice || !$invoice->payment_date) {
+            return null;
+        }
+
+        return [
+            'tanggal' => $invoice->payment_date->copy()->locale('id')->translatedFormat('l, j F Y H:i'),
+            'kasir' => $invoice->user ? $invoice->user->name : null,
+            'payment_method' => $invoice->payment_method,
+        ];
+    }
+
     public function getGudangData()
     {
         return response()->json($this->buildGudangData());

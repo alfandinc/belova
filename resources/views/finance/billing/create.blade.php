@@ -146,7 +146,10 @@
                     let bg = '#dc3545';
 
                     const pm = (paymentMethod || '').toString().trim().toLowerCase();
-                    const paid = Math.ceil(Number(amountPaid || 0)) >= Math.ceil(Number(totalAmount || 0)) && Number(totalAmount || 0) > 0;
+                    const paid = Number(totalAmount || 0) > 0
+                        ? Math.ceil(Number(amountPaid || 0)) >= Math.ceil(Number(totalAmount || 0))
+                        // zero total (e.g. 100% discount): paid once the payment was processed
+                        : pm !== '';
                     const partial = Number(amountPaid || 0) > 0 && Number(totalAmount || 0) > 0 && Number(amountPaid || 0) < Number(totalAmount || 0);
 
                     if (pm === 'piutang' || pm.startsWith('asuransi_')) {
@@ -819,6 +822,22 @@
                                 </button>
                             </div>
                         </div>
+                        {{-- payment info (filled by renderPaymentInfo(); hidden until the invoice is paid) --}}
+                        <div id="paymentInfoBox" class="mt-3 pt-3 border-top small" style="display:none;">
+                            <div class="font-weight-bold mb-2"><i class="fas fa-receipt mr-1"></i>Informasi Pembayaran</div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Tanggal Bayar</span>
+                                <span id="paymentInfoTanggal" class="font-weight-bold text-right ml-2"></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Metode</span>
+                                <span id="paymentInfoMetode" class="text-right ml-2"></span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Kasir</span>
+                                <span id="paymentInfoKasir" class="text-right ml-2"></span>
+                            </div>
+                        </div>
                         {{--<button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
                             <i class="fas fa-save mr-1"></i> Simpan Billing
                         </button>--}}
@@ -953,7 +972,10 @@
         try {
             const paidRaw = parseFloat((window.oldInvoice && window.oldInvoice.amount_paid) ? window.oldInvoice.amount_paid : 0);
             const totalRaw = parseFloat((window.oldInvoice && window.oldInvoice.total_amount) ? window.oldInvoice.total_amount : 0);
-            currentInvoiceIsPaid = (Number(totalRaw) > 0) && (Math.ceil(paidRaw) >= Math.ceil(totalRaw));
+            currentInvoiceIsPaid = (Number(totalRaw) > 0)
+                ? (Math.ceil(paidRaw) >= Math.ceil(totalRaw))
+                // zero total (e.g. 100% discount): paid once the payment was processed
+                : !!(window.oldInvoice && window.oldInvoice.payment_method);
         } catch (e) {
             currentInvoiceIsPaid = false;
         }
@@ -1392,6 +1414,14 @@
                 return;
             }
 
+            // Nothing to pay (e.g. 100% discount): nothing can go to piutang, so Tunai with Dibayar 0
+            if (getCurrentGrandTotalInt() <= 0) {
+                if (!currentMethod || currentMethod === 'piutang') {
+                    $('#modal_payment_method').val('cash');
+                }
+                return;
+            }
+
             // Old rule (still applies for cash/piutang flow):
             // - paid == 0 => piutang
             // - paid > 0 => cash (only if method is empty/piutang)
@@ -1478,6 +1508,22 @@
             $('#eventPromoDetailModal').modal('show');
         }
 
+        // Payment info under "Total Pembayaran": { tanggal, kasir, payment_method } or null (not paid yet)
+        function renderPaymentInfo(info) {
+            const $box = $('#paymentInfoBox');
+            if (!info || !info.tanggal) {
+                $box.hide();
+                return;
+            }
+            const pm = String(info.payment_method || '');
+            const metodeLabel = pm ? ($.trim($('#payment_method option[value="' + pm.replace(/"/g, '') + '"]').text()) || pm) : '-';
+            $('#paymentInfoTanggal').text(info.tanggal);
+            $('#paymentInfoMetode').text(metodeLabel);
+            $('#paymentInfoKasir').text(info.kasir || '-');
+            $box.show();
+        }
+
+        renderPaymentInfo(@json($paymentInfo ?? null));
         setInvoiceFlowUi();
         applyBillingLockUi();
         // Default: dibayar starts 0 => method piutang (unless locked by insurer)
@@ -3370,7 +3416,8 @@ $('#saveAllChangesBtn').on('click', function() {
                 const grandTotalInt = (window.billingTotals && window.billingTotals.grandTotalInt) ? Number(window.billingTotals.grandTotalInt) : 0;
                 const amountPaidInt = (window.billingTotals && window.billingTotals.amountPaidInt) ? Number(window.billingTotals.amountPaidInt) : 0;
                 const shortageInt = Math.max(0, grandTotalInt - amountPaidInt);
-                const isLunas = grandTotalInt > 0 && amountPaidInt >= grandTotalInt;
+                // zero total (e.g. 100% discount) is settled as soon as it is processed
+                const isLunas = grandTotalInt <= 0 || amountPaidInt >= grandTotalInt;
 
                 let html = '<div style="text-align:left">';
                 html += '<div class="mb-2">Setelah proses ini:</div>';
@@ -3570,9 +3617,21 @@ $('#saveAllChangesBtn').on('click', function() {
                                             currentInvoiceId,
                                             (typeof invoiceResponse.amount_paid !== 'undefined') ? invoiceResponse.amount_paid : ((invoiceResponse.invoice && invoiceResponse.invoice.amount_paid) || 0),
                                             (typeof invoiceResponse.total_amount !== 'undefined') ? invoiceResponse.total_amount : ((invoiceResponse.invoice && invoiceResponse.invoice.total_amount) || 0),
-                                            invoiceResponse.payment_method || (invoiceResponse.invoice && invoiceResponse.invoice.payment_method) || ($('#payment_method').val() || null),
+                                            // the server's payment_method is the truth (null right after "Buat Invoice");
+                                            // the hidden #payment_method select always has a value, so only fall back to it when the key is missing
+                                            (typeof invoiceResponse.payment_method !== 'undefined')
+                                                ? invoiceResponse.payment_method
+                                                : ((invoiceResponse.invoice && invoiceResponse.invoice.payment_method) || ($('#payment_method').val() || null)),
                                             invoiceResponse.piutang_payment_status || (invoiceResponse.piutang && invoiceResponse.piutang.payment_status) || (window.oldInvoice && window.oldInvoice.piutang_payment_status) || null
                                         );
+                                    } catch (e) {
+                                        // ignore
+                                    }
+
+                                    try {
+                                        if (typeof invoiceResponse.payment_info !== 'undefined') {
+                                            renderPaymentInfo(invoiceResponse.payment_info);
+                                        }
                                     } catch (e) {
                                         // ignore
                                     }
@@ -3921,8 +3980,11 @@ $('#saveAllChangesBtn').on('click', function() {
         $('#confirmPaymentBtn').on('click', function() {
             const method = ($('#modal_payment_method').val() || 'cash').toString();
             const paid = parseHarga($('#modal_amount_paid').val() || 0);
+            calculateTotals();
+            // nothing to pay (e.g. 100% discount): processing with Dibayar 0 settles the invoice
+            const nothingToPay = Number((window.billingTotals && window.billingTotals.grandTotalInt) || 0) <= 0;
 
-            if (!isPiutangLikeMethod(method) && paid <= 0) {
+            if (!isPiutangLikeMethod(method) && paid <= 0 && !nothingToPay) {
                 Swal.fire({
                     title: 'Info',
                     text: 'Masukkan jumlah dibayar terlebih dahulu.',
