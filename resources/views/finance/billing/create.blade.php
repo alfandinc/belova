@@ -26,6 +26,12 @@
             <div class="mt-2 text-muted">Memuat data...</div>
         </div>
     </div>
+    @if(request()->boolean('embed'))
+    <script>
+        // this page's own loading overlay is now visible: let the billing index modal hide its spinner
+        try { window.parent.postMessage({ type: 'billing-embed:ready' }, window.location.origin); } catch (err) {}
+    </script>
+    @endif
     <!-- Prefill billing fields with old invoice data if available -->
     @php
         $latestPiutang = $invoice?->piutangs?->sortByDesc('id')->first();
@@ -77,8 +83,21 @@
             loaded: false
         };
         
+        // Gudang data rendered with the page (saves a request before the billing rows can load)
+        window.__preloadedGudangData = @json($gudangData ?? null);
+
         // Load gudang data on page load
         function loadGudangData() {
+            var pre = window.__preloadedGudangData;
+            if (pre) {
+                window.gudangData.gudangs = pre.gudangs || [];
+                window.gudangData.mappings = pre.mappings || {};
+                window.gudangData.eventMappings = pre.event_mappings || {};
+                window.gudangData.spesialisasiMappings = pre.spesialisasi_mappings || {};
+                window.gudangData.eventSpesialisasiMappings = pre.event_spesialisasi_mappings || {};
+                window.gudangData.loaded = true;
+                return $.Deferred().resolve(pre).promise();
+            }
             return $.ajax({
                 url: '{{ route('finance.billing.gudang-data') }}',
                 type: 'GET',
@@ -235,7 +254,13 @@
         </div>
         @endif
 
+    @php
+        // Inside the billing index modal (?embed=1) the patient info card is not shown (the modal title
+        // already names the patient). The event "new / existing patient" form is always shown.
+        $showPatientCard = !request()->boolean('embed') || ($isEventBilling && !$hasVisitation);
+    @endphp
     <div class="row mb-2">
+        @if($showPatientCard)
         <div class="col-md-8">
             <div class="card shadow-sm mt-2 data-pasien">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -392,8 +417,10 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card shadow-sm mt-2">
+        @endif
+        {{-- without the patient card, promos and "Tambah Biaya Lain-lain" share one row (compact layout) --}}
+        <div class="{{ $showPatientCard ? 'col-md-4' : 'col-md-5 col-lg-4 mb-2' }}">
+            <div class="card shadow-sm mt-2 {{ $showPatientCard ? '' : 'h-100 mb-0' }}">
                 <div class="card-header d-flex align-items-center">
                     <h5 class="card-title mb-0"><i class="fas fa-tags mr-2"></i>{{ $isEventBilling ? 'Promo Event' : 'Active Promos' }}</h5>
                 </div>
@@ -475,11 +502,13 @@
                 </div>
             </div>
         </div>
+    @if($showPatientCard)
     </div>
 
     <div class="row mb-2">
-        <div class="col">
-            <div class="card shadow-sm">
+    @endif
+        <div class="{{ $showPatientCard ? 'col' : 'col-md-7 col-lg-8 mb-2' }}">
+            <div class="card shadow-sm {{ $showPatientCard ? '' : 'mt-2 h-100 mb-0' }}">
                 <div class="card-body py-2">
                     @if($isEventBilling)
                         <small class="form-text text-muted mb-2">Untuk event billing, penambahan item menggunakan pencarian promo event di sebelah kiri biaya lain-lain.</small>
@@ -495,17 +524,24 @@
                             <select id="select-lab" class="form-control select2"></select>
                         </div>
                         --}}
+                        @php
+                            // narrower card in the compact (modal) layout: give the search fields more room
+                            $searchColClass = $showPatientCard ? 'col-md-3' : ($isEventBilling ? 'col-md-5' : 'col-md-7');
+                            $closeColClass = $showPatientCard
+                                ? ($isEventBilling ? 'col-md-6' : 'col-md-9')
+                                : ($isEventBilling ? 'col-md-2' : 'col-md-5');
+                        @endphp
                         @if($isEventBilling)
-                        <div class="col-md-3 mb-2">
+                        <div class="{{ $searchColClass }} mb-2">
                             <label for="select-event-item">Cari Item Promo Event</label>
                             <select id="select-event-item" class="form-control select2"></select>
                         </div>
                         @endif
-                        <div class="col-md-3 mb-2">
+                        <div class="{{ $searchColClass }} mb-2">
                             <label for="select-konsultasi">Tambah Biaya Lain-Lain</label>
                             <select id="select-konsultasi" class="form-control select2"></select>
                         </div>
-                        <div class="{{ $isEventBilling ? 'col-md-6' : 'col-md-9' }} mb-2 text-right d-flex align-items-end justify-content-end">
+                        <div class="{{ $closeColClass }} mb-2 text-right d-flex align-items-end justify-content-end">
                             <button id="closeBillingTabBtn" type="button" class="btn btn-danger font-weight-bold px-3" title="Tutup tab">
                                 <i class="fas fa-times mr-2"></i> Tutup
                             </button>
@@ -727,7 +763,9 @@
                         </div>
                     </div>
 
-                    <div class="form-group mt-3 mb-0">
+                    {{-- hidden from the UI; the value is still used when saving the invoice (defaults to Patient,
+                         an existing invoice keeps its type) --}}
+                    <div class="form-group mt-3 mb-0 d-none">
                         <label for="transaction_type">Tipe Transaksi</label>
                         <select class="form-control" id="transaction_type">
                             <option value="Patient" selected>Patient</option>
@@ -832,14 +870,46 @@
 @section('scripts')
     @include('finance.billing.partials.stock-info-modal-loader')
     <script>
+        // Embed mode: this page is shown inside the billing index modal (iframe, ?embed=1)
+        window.billingEmbed = {{ request()->boolean('embed') ? 'true' : 'false' }};
+
+        // Keep ?embed=1 on same-origin navigations so the page stays in embed layout inside the modal
+        window.billingEmbedUrl = function(url) {
+            if (!window.billingEmbed || !url) return url;
+            try {
+                var u = new URL(url, window.location.href);
+                if (u.origin !== window.location.origin) return url;
+                u.searchParams.set('embed', '1');
+                return u.toString();
+            } catch (e) {
+                return url;
+            }
+        };
+
+        if (window.billingEmbed) {
+            // same-origin links opened in the same frame (e.g. event "reset" button) keep embed mode
+            $(document).on('click', 'a[href]', function() {
+                var target = (this.getAttribute('target') || '').toLowerCase();
+                if (target && target !== '_self') return;
+                var href = this.getAttribute('href');
+                if (!href || href.charAt(0) === '#' || /^javascript:/i.test(href)) return;
+                this.setAttribute('href', window.billingEmbedUrl(href));
+            });
+        }
+
         $(document).ready(function() {
         const isEventBilling = !!(window.billingPage && window.billingPage.isEventBilling);
         const hasBillingVisitation = !!(window.billingPage && window.billingPage.visitationId);
         const billingDataUrl = (window.billingPage && window.billingPage.billingDataUrl) ? window.billingPage.billingDataUrl : null;
 
-        // Close button: try to close the browser tab; fallback to billing index
+        // Close button: inside the billing index modal, ask the parent to close it;
+        // otherwise try to close the browser tab and fall back to billing index
         $('#closeBillingTabBtn').on('click', function(e) {
             e.preventDefault();
+            if (window.billingEmbed) {
+                try { window.parent.postMessage({ type: 'billing-embed:close' }, window.location.origin); } catch (err) {}
+                return;
+            }
             try {
                 window.close();
             } catch (err) {
@@ -1600,6 +1670,9 @@
         const table = $('#billingTable').DataTable({
             processing: true,
             serverSide: hasBillingVisitation,
+            // Rows need gudang data to render, so the first load is started once gudang data
+            // has arrived (see below) instead of loading now and reloading again afterwards.
+            deferLoading: hasBillingVisitation ? 0 : null,
             responsive: false, // Turn off responsive to avoid column collapsing
             scrollX: false,    // Disable horizontal scrolling
             autoWidth: false,  // Don't automatically calculate column widths
@@ -2376,24 +2449,17 @@
                 });
         });
         
-        // Refresh table when gudang data is loaded
-        function refreshTableAfterGudangLoad() {
-            if (window.gudangData.loaded) {
-                reloadBillingTable(null, false); // Don't reset paging
+        // First (and only) initial table load: start it as soon as the gudang request finishes
+        // (success or error), so billing rows are fetched and rendered once instead of twice.
+        if (hasBillingVisitation) {
+            const startInitialTableLoad = function() {
+                reloadBillingTable(null, false);
+            };
+            if (gudangLoadXhr && typeof gudangLoadXhr.always === 'function') {
+                gudangLoadXhr.always(startInitialTableLoad);
+            } else {
+                startInitialTableLoad();
             }
-        }
-        
-        // Check if gudang data is loaded, if not wait for it
-        if (window.gudangData.loaded) {
-            refreshTableAfterGudangLoad();
-        } else {
-            // Poll until loaded
-            const checkInterval = setInterval(function() {
-                if (window.gudangData.loaded) {
-                    clearInterval(checkInterval);
-                    refreshTableAfterGudangLoad();
-                }
-            }, 100);
         }
         
         // Fix: Directly attach event handlers using document delegation
@@ -4238,7 +4304,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 },
                 success: function(response) {
                     if (response && response.redirect_url) {
-                        window.location.href = response.redirect_url;
+                        window.location.href = window.billingEmbedUrl(response.redirect_url);
                         return;
                     }
 
@@ -4276,7 +4342,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 },
                 success: function(response) {
                     if (response && response.redirect_url) {
-                        window.location.href = response.redirect_url;
+                        window.location.href = window.billingEmbedUrl(response.redirect_url);
                         return;
                     }
 

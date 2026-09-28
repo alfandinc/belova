@@ -51,7 +51,7 @@ $(function() {
         columns: [
             {data: 'nik', name: 'nik'},
             {data: 'nama', name: 'nama'},
-            {data: 'position.name', name: 'position.name'},
+            {data: 'position_name', name: 'position_name', orderable: false, searchable: false},
             {data: 'status_label', name: 'status', searchable: false},
             {data: 'tanggal_masuk', name: 'tanggal_masuk'},
             {data: 'no_hp', name: 'no_hp'},

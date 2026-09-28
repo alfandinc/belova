@@ -228,7 +228,7 @@ class PengajuanGantiShiftController extends Controller
         $rules = [
             // allow any date (remove after_or_equal:today per request)
             'tanggal_shift' => 'required|date',
-            'shift_baru_id' => 'required|exists:hrd_shifts,id',
+            'shift_baru_id' => 'required|exists:hrd_shifts,id,active,1',
             'alasan' => 'required|string',
         ];
 
@@ -494,8 +494,8 @@ class PengajuanGantiShiftController extends Controller
             
             $employeeId = $user->employee->id;
             
-            // Get all shifts
-            $shifts = Shift::all();
+            // Get active shifts only
+            $shifts = Shift::where('active', true)->get();
             
             // Get current shift for this date if exists
             $currentSchedule = EmployeeSchedule::where('employee_id', $employeeId)

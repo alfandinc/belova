@@ -19,7 +19,7 @@
                     
                     <div class="mt-4">
                         <h5>Jumlah Anggota Tim</h5>
-                        <h2 class="text-primary">{{ $division->employees->count() }}</h2>
+                        <h2 class="text-primary">{{ $employees->count() }}</h2>
                     </div>
                     
                     <div class="mt-3">
@@ -42,7 +42,7 @@
                             <div class="card bg-success text-white">
                                 <div class="card-body text-center">
                                     <h5>Karyawan Tetap</h5>
-                                    <h3>{{ $division->employees->where('status', 'tetap')->count() }}</h3>
+                                    <h3>{{ $employees->where('status', 'tetap')->count() }}</h3>
                                 </div>
                             </div>
                         </div>
@@ -50,7 +50,7 @@
                             <div class="card bg-warning text-white">
                                 <div class="card-body text-center">
                                     <h5>Karyawan Kontrak</h5>
-                                    <h3>{{ $division->employees->where('status', 'kontrak')->count() }}</h3>
+                                    <h3>{{ $employees->where('status', 'kontrak')->count() }}</h3>
                                 </div>
                             </div>
                         </div>
@@ -58,7 +58,7 @@
                             <div class="card bg-danger text-white">
                                 <div class="card-body text-center">
                                     <h5>Tidak Aktif</h5>
-                                    <h3>{{ $division->employees->where('status', 'tidak aktif')->count() }}</h3>
+                                    <h3>{{ $employees->where('status', 'tidak aktif')->count() }}</h3>
                                 </div>
                             </div>
                         </div>
@@ -72,7 +72,7 @@
                         <div class="card-body">
                             <ul class="list-group">
                                 @php
-                                    $expiringSoon = $division->employees
+                                    $expiringSoon = $employees
                                         ->where('status', 'kontrak')
                                         ->filter(function($employee) {
                                             return $employee->kontrak_berakhir && 

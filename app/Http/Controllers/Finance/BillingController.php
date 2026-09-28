@@ -1034,12 +1034,34 @@ class BillingController extends Controller
         if (!$user || (! $user->hasRole('Farmasi') && ! $user->hasRole('Kasir'))) {
             return response()->json(['new' => false]);
         }
-        $notif = $user->unreadNotifications()->latest()->first();
-        if ($notif) {
-            $notif->markAsRead();
-            return response()->json(['new' => true, 'message' => $notif->data['message'] ?? '', 'sender' => $notif->data['sender'] ?? '']);
+        // Deliver every unread notification in one batch and mark them read together.
+        // Previously only the latest one was returned per poll, so a backlog (e.g. after the
+        // user was away for a while) produced a new popup every poll until it was drained.
+        // Notifications from previous days are marked read silently (still listed under Notifikasi Lama)
+        // so they don't pop up when the kasir opens the system on a later day.
+        $user->unreadNotifications()->where('created_at', '<', now()->startOfDay())->update(['read_at' => now()]);
+
+        $unread = $user->unreadNotifications()->latest()->get();
+        if ($unread->isEmpty()) {
+            return response()->json(['new' => false]);
         }
-        return response()->json(['new' => false]);
+
+        $user->unreadNotifications()->whereIn('id', $unread->pluck('id'))->update(['read_at' => now()]);
+
+        $latest = $unread->first();
+        return response()->json([
+            'new' => true,
+            'count' => $unread->count(),
+            'message' => $latest->data['message'] ?? '',
+            'sender' => $latest->data['sender'] ?? '',
+            'items' => $unread->take(5)->map(function ($n) {
+                return [
+                    'message' => $n->data['message'] ?? '',
+                    'sender' => $n->data['sender'] ?? '',
+                    'created_at' => optional($n->created_at)->toIso8601String(),
+                ];
+            })->values(),
+        ]);
     }
 
     /**
@@ -2733,14 +2755,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $invoiceNeedsUpdate = false;
         }
 
+        // Embedded in the page so the browser does not need a separate gudang-data request before loading rows
+        $gudangData = $this->buildGudangData();
+
         return [
             'invoice' => $invoice,
-            'gudangs' => Gudang::orderBy('nama')->get(),
-            'gudangMappings' => [
-                'resep' => GudangMapping::getDefaultGudangId('resep'),
-                'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
-                'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
-            ],
+            'gudangs' => $gudangData['gudangs'],
+            'gudangMappings' => $gudangData['mappings'],
+            'gudangData' => $gudangData,
             'invoiceNeedsUpdate' => $invoiceNeedsUpdate,
             'returnedItems' => $returnedItems,
         ];
@@ -3455,8 +3477,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $amountPaidIntForStatus = intval(ceil($amountPaidNumeric));
             $grandTotalIntForStatus = intval(ceil($grandTotalNumeric));
             $invoiceStatus = 'issued';
+            // Nothing to pay (e.g. everything covered by free vouchers): processing it settles the invoice.
+            $isZeroTotalPayment = ($mode === 'payment' && $grandTotalIntForStatus <= 0);
             if ($mode === 'payment') {
-                if ($grandTotalIntForStatus > 0 && $amountPaidIntForStatus >= $grandTotalIntForStatus) {
+                if ($isZeroTotalPayment) {
+                    $invoiceStatus = 'paid';
+                } elseif ($grandTotalIntForStatus > 0 && $amountPaidIntForStatus >= $grandTotalIntForStatus) {
                     $invoiceStatus = 'paid';
                 } elseif ($amountPaidIntForStatus > 0 && $amountPaidIntForStatus < $grandTotalIntForStatus) {
                     $invoiceStatus = 'partial';
@@ -3480,7 +3506,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $paymentMethod = trim($paymentMethod);
                 }
 
-                if (empty($paymentMethod)) {
+                if ($isZeroTotalPayment) {
+                    // Nothing owed, so it can't be piutang
+                    if (empty($paymentMethod) || $paymentMethod === 'piutang') {
+                        $paymentMethod = 'cash';
+                    }
+                } elseif (empty($paymentMethod)) {
                     $paymentMethod = ($amountPaidNumeric > 0) ? 'cash' : 'piutang';
                 } else {
                     // If client says cash but paid==0, treat it as piutang.
@@ -3508,7 +3539,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             if ($mode === 'payment') {
                 $amountPaidIntForDate = intval(ceil($amountPaidNumeric));
                 $totalAmountIntForDate = intval(ceil($grandTotalNumeric));
-                if ($amountPaidIntForDate > 0 && $amountPaidIntForDate >= $totalAmountIntForDate) {
+                if ($isZeroTotalPayment || ($amountPaidIntForDate > 0 && $amountPaidIntForDate >= $totalAmountIntForDate)) {
                     if (!$paymentDate) {
                         $paymentDate = now();
                     }
@@ -5424,15 +5455,41 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         
         $visitations = \App\Models\ERM\Visitation::with([
                 'pasien',
+                'pasien.referralable' => function ($morphTo) {
+                    $morphTo->morphWith([\App\Models\ERM\Dokter::class => ['user']]);
+                },
                 'klinik',
                 'dokter.user',
                 'dokter.spesialisasi',
                 'metodeBayar',
                 'invoice' => function ($query) {
-                    $query->with('piutangs')
+                    $query->with(['piutangs', 'user:id,name'])
                         ->withCount('returPembelianItems as returned_items_count');
                 },
             ])
+            ->select('erm_visitations.*')
+            ->selectRaw("CASE WHEN EXISTS (
+                SELECT 1
+                FROM erm_visitations ev_prev
+                WHERE ev_prev.pasien_id = erm_visitations.pasien_id
+                  AND ev_prev.klinik_id = erm_visitations.klinik_id
+                  AND ev_prev.status_kunjungan != 7
+                  AND (
+                    ev_prev.tanggal_visitation < erm_visitations.tanggal_visitation
+                    OR (
+                        ev_prev.tanggal_visitation = erm_visitations.tanggal_visitation
+                        AND COALESCE(ev_prev.waktu_kunjungan, '23:59:59') < COALESCE(erm_visitations.waktu_kunjungan, '23:59:59')
+                    )
+                    OR (
+                        ev_prev.tanggal_visitation = erm_visitations.tanggal_visitation
+                        AND COALESCE(ev_prev.waktu_kunjungan, '23:59:59') = COALESCE(erm_visitations.waktu_kunjungan, '23:59:59')
+                        AND ev_prev.id < erm_visitations.id
+                    )
+                  )
+            ) THEN 0 ELSE 1 END as is_first_visit")
+            // billing row counts (used by status/action columns) in the main query instead of 2-4 queries per row
+            ->selectRaw('(SELECT COUNT(*) FROM finance_billing fb WHERE fb.visitation_id = erm_visitations.id) as billing_total_count')
+            ->selectRaw('(SELECT COUNT(*) FROM finance_billing fb WHERE fb.visitation_id = erm_visitations.id AND fb.deleted_at IS NOT NULL) as billing_trashed_count')
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
             ->where('status_kunjungan', 2);
 
@@ -5531,7 +5588,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // "Lunas": fully paid invoice (including piutang/insurance invoices settled via piutang record)
             $visitations->whereHas('invoice', function($q) {
                 $q->where(function($paid) {
-                    $paid->whereColumn('amount_paid', '>=', 'total_amount')
+                    $paid->where(function($full) {
+                            $full->where('total_amount', '>', 0)
+                                ->whereColumn('amount_paid', '>=', 'total_amount');
+                        })
+                        // zero total (e.g. free voucher) counts as Lunas only once it was processed
+                        ->orWhere(function($zero) {
+                            $zero->where('total_amount', '<=', 0)
+                                ->where('status', 'paid');
+                        })
                         ->orWhere(function($piu) {
                             $piu->where('payment_method', 'piutang')
                                 ->whereHas('piutangs', function($pq) {
@@ -5569,20 +5634,26 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         return DataTables::of($visitations)
             ->filter(function ($query) use ($request) {
                 if ($search = $request->get('search')['value']) {
-                    $query->whereHas('pasien', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%")
-                          ->orWhere('id', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('dokter.user', function($q) use ($search) {
-                        $q->where('name', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('klinik', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%") ;
-                    })
-                    ->orWhere('tanggal_visitation', 'like', "%$search%") ;
+                    // Grouped so the OR conditions stay inside the date / status / tab filters
+                    $query->where(function ($sq) use ($search) {
+                        $sq->whereHas('pasien', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%")
+                              ->orWhere('id', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('invoice', function($q) use ($search) {
+                            $q->where('invoice_number', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('dokter.user', function($q) use ($search) {
+                            $q->where('name', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('klinik', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%") ;
+                        })
+                        ->orWhere('tanggal_visitation', 'like', "%$search%") ;
+                    });
                 }
             })
             ->addColumn('no_rm', function ($visitation) {
@@ -5593,6 +5664,18 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             })
             ->addColumn('status_pasien', function ($visitation) {
                 return $visitation->pasien ? ($visitation->pasien->status_pasien ?? 'Regular') : 'Regular';
+            })
+            ->addColumn('status_akses', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->status_akses ?? '') : '';
+            })
+            ->addColumn('employee_id', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->employee_id : null;
+            })
+            ->addColumn('catatan_pasien', function ($visitation) {
+                return $visitation->pasien ? ($visitation->pasien->notes ?? '') : '';
+            })
+            ->addColumn('is_first_visit', function ($visitation) {
+                return (int) ($visitation->is_first_visit ?? 0);
             })
             ->addColumn('dokter', function ($visitation) {
                 // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
@@ -5631,10 +5714,26 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return '-';
             })
             ->addColumn('tanggal_visit', function ($visitation) {
-                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
+                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('l, j F Y');
             })
             ->addColumn('nama_klinik', function ($visitation) {
                 return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+            })
+            ->addColumn('klinik_logo_url', function ($visitation) {
+                return ($visitation->klinik && $visitation->klinik->logo) ? asset('storage/' . $visitation->klinik->logo) : null;
+            })
+            ->addColumn('tanggal_payment', function ($visitation) {
+                $paymentDate = $visitation->invoice ? $visitation->invoice->payment_date : null;
+                return $paymentDate ? $paymentDate->copy()->locale('id')->translatedFormat('l, j F Y H:i') : null;
+            })
+            ->addColumn('kasir_nama', function ($visitation) {
+                return ($visitation->invoice && $visitation->invoice->user) ? $visitation->invoice->user->name : null;
+            })
+            ->addColumn('metode_bayar_nama', function ($visitation) {
+                return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
+            })
+            ->addColumn('referral_display', function ($visitation) {
+                return $this->buildReferralDisplay($visitation->pasien);
             })
             ->addColumn('invoice_number', function ($visitation) {
                 // Return associated invoice number if exists, otherwise dash
@@ -5653,8 +5752,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $invoice = $visitation->invoice;
 
                         // Check if all billings for this visitation are trashed (if there are any)
-                        $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
-                        $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                        $totalBillings = (int) $visitation->billing_total_count;
+                        $trashedBillings = (int) $visitation->billing_trashed_count;
                         if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
                             return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
                         }
@@ -5668,8 +5767,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $totalAmount = floatval($invoice->total_amount ?? 0);
                         $paymentMethod = strtolower((string)($invoice->payment_method ?? ''));
 
-                        // Fully paid (normal or after piutang settlement)
-                        if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
+                        // Fully paid (normal or after piutang settlement), or a zero total (e.g. free voucher) that was processed
+                        if (($totalAmount > 0 && $amountPaid >= $totalAmount) || ($totalAmount <= 0 && $invoice->status === 'paid')) {
                             return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
                         }
 
@@ -5720,8 +5819,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 // Admin-only visitation actions: trash/restore/force delete
                 if ($isAdmin) {
-                    $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
-                    $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                    $totalBillings = (int) $visitation->billing_total_count;
+                    $trashedBillings = (int) $visitation->billing_trashed_count;
 
                     if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
                         // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
@@ -5736,8 +5835,72 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 return $action;
             })
-            ->rawColumns(['action', 'status'])
+            // The page only reads the computed columns above; don't ship the full related models
+            // (the pasien record alone includes identity number, phone and address).
+            ->removeColumn('pasien', 'metode_bayar', 'klinik')
+            ->rawColumns(['action', 'status', 'referral_display'])
             ->make(true);
+    }
+
+    /**
+     * Referral label with icon, same format as the Rawat Jalan index.
+     */
+    private function buildReferralDisplay(?Pasien $pasien): string
+    {
+        $referralType = (string) (($pasien->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
+
+        $typeLabel = match ($referralType) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
+            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
+            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
+            Pasien::REFERRAL_TYPE_EVENT => 'Event',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
+            default => 'Walk-in',
+        };
+
+        $iconClass = match ($referralType) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
+            Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
+            Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
+            Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
+            default => 'fas fa-walking',
+        };
+
+        $source = $pasien ? $pasien->referralable : null;
+        $referralDetail = $pasien->referral_detail ?? null;
+        $detail = null;
+
+        if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && $source instanceof Pasien) {
+            $detail = $source->nama . ' (RM: ' . $source->id . ')';
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && $source instanceof \App\Models\HRD\Employee) {
+            $detail = $source->nama;
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_DOKTER && $source instanceof \App\Models\ERM\Dokter) {
+            $detail = optional($source->user)->name ?: 'Dokter ID ' . $source->id;
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_EVENT) {
+            $detail = $source instanceof MarketingEvent
+                ? $source->nama_event
+                : (!empty($referralDetail) ? (MarketingEvent::where('kode_event', $referralDetail)->value('nama_event') ?: $referralDetail) : null);
+        } elseif (!empty($referralDetail)) {
+            $detail = ucwords(str_replace('_', ' ', (string) $referralDetail));
+        }
+
+        $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
+
+        return '<span class="d-inline-flex align-items-center">'
+            . '<i class="' . e($iconClass) . ' mr-2"></i>'
+            . '<span>' . e($label) . '</span>'
+            . '</span>';
     }
 
     /**
@@ -5873,6 +6036,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function getGudangData()
     {
+        return response()->json($this->buildGudangData());
+    }
+
+    private function buildGudangData(): array
+    {
         $gudangs = Gudang::orderBy('nama')->get();
         $gudangMappings = [
             'resep' => GudangMapping::getDefaultGudangId('resep'),
@@ -5912,7 +6080,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return (int) $gudangId;
             });
 
-        return response()->json([
+        return [
             'gudangs' => $gudangs,
             'mappings' => $gudangMappings,
             'event_mappings' => $eventMappings,
@@ -5922,7 +6090,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'event_spesialisasi_mappings' => [
                 'kode_tindakan' => $eventSpesialisasiMappings,
             ],
-        ]);
+        ];
     }
 
     /**

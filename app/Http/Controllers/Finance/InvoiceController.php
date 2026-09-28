@@ -173,7 +173,9 @@ class InvoiceController extends Controller
             $paidInt = intval(ceil($paid));
             $totalInt = intval(ceil($total));
 
-            if ($totalInt > 0 && $paidInt >= $totalInt) {
+            if ($totalInt <= 0 && $invoice->status === 'paid') {
+                // zero total (e.g. free voucher) already settled: keep it paid
+            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
                 $invoice->status = 'paid';
                 if (!$invoice->payment_date) {
                     $invoice->payment_date = now();
@@ -207,7 +209,9 @@ class InvoiceController extends Controller
             $total = floatval($invoice->total_amount ?? 0);
             $paidInt = intval(ceil($paid));
             $totalInt = intval(ceil($total));
-            if ($totalInt > 0 && $paidInt >= $totalInt) {
+            if ($totalInt <= 0 && $invoice->status === 'paid') {
+                // zero total (e.g. free voucher) already settled: keep it paid
+            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
                 $invoice->status = 'paid';
                 if (!$invoice->payment_date) {
                     $invoice->payment_date = now();
@@ -256,7 +260,9 @@ class InvoiceController extends Controller
             $total = floatval($invoice->total_amount ?? 0);
             $paidInt = intval(ceil($paid));
             $totalInt = intval(ceil($total));
-            if ($totalInt > 0 && $paidInt >= $totalInt) {
+            if ($totalInt <= 0 && $invoice->status === 'paid') {
+                // zero total (e.g. free voucher) already settled: keep it paid
+            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
                 $invoice->status = 'paid';
                 if (!$invoice->payment_date) {
                     $invoice->payment_date = now();
@@ -268,13 +274,11 @@ class InvoiceController extends Controller
             }
             $invoice->save();
         }
-        // Convert logo to base64 for reliable PDF rendering
-        $logoPath = public_path('img/favicon-premiere.png');
-        $logoBase64 = '';
-        if (file_exists($logoPath)) {
-            $logoData = file_get_contents($logoPath);
-            $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
-        }
+        // Klinik logo as a small, pre-flattened data URI (the originals are several thousand px wide
+        // with alpha, which dompdf decodes pixel by pixel and made this nota take ~6s to render)
+        $klinikId = $invoice->visitation->klinik_id ?? 2;
+        $logoPath = public_path((int) $klinikId === 1 ? 'img/logo-premiere.png' : 'img/logo-belovaskin.png');
+        $logoBase64 = $this->notaLogoDataUri($logoPath);
 
         $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
             ->setPaper([0, 0, 120, 1000]) // 57mm width (161.57 points) with dynamic height
@@ -296,7 +300,51 @@ class InvoiceController extends Controller
 
         return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
     }
-    
+
+    /**
+     * Return the logo as a data URI, downscaled to receipt size and flattened onto white.
+     * The resized copy is cached on disk and regenerated when the source file changes.
+     */
+    private function notaLogoDataUri(string $sourcePath, int $maxWidth = 400): string
+    {
+        if (!is_file($sourcePath)) {
+            return '';
+        }
+
+        $cacheDir = storage_path('app/nota-logo-cache');
+        $cachePath = $cacheDir . '/' . md5($sourcePath . '|' . filemtime($sourcePath) . '|' . $maxWidth) . '.png';
+
+        if (!is_file($cachePath)) {
+            $src = function_exists('imagecreatefromstring') ? @imagecreatefromstring(file_get_contents($sourcePath)) : false;
+            if (!$src) {
+                // GD unavailable or unreadable image: fall back to the original file
+                return 'data:' . mime_content_type($sourcePath) . ';base64,' . base64_encode(file_get_contents($sourcePath));
+            }
+
+            $width = imagesx($src);
+            $height = imagesy($src);
+            $newWidth = min($maxWidth, $width);
+            $newHeight = max(1, (int) round($height * $newWidth / $width));
+
+            $dst = imagecreatetruecolor($newWidth, $newHeight);
+            imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+            if (!is_dir($cacheDir)) {
+                @mkdir($cacheDir, 0755, true);
+            }
+            imagepng($dst, $cachePath, 9);
+            imagedestroy($src);
+            imagedestroy($dst);
+
+            if (!is_file($cachePath)) {
+                return 'data:' . mime_content_type($sourcePath) . ';base64,' . base64_encode(file_get_contents($sourcePath));
+            }
+        }
+
+        return 'data:image/png;base64,' . base64_encode(file_get_contents($cachePath));
+    }
+
     /**
      * Generate PDF nota version 2
      */
@@ -314,7 +362,9 @@ class InvoiceController extends Controller
             $total = floatval($invoice->total_amount ?? 0);
             $paidInt = intval(ceil($paid));
             $totalInt = intval(ceil($total));
-            if ($totalInt > 0 && $paidInt >= $totalInt) {
+            if ($totalInt <= 0 && $invoice->status === 'paid') {
+                // zero total (e.g. free voucher) already settled: keep it paid
+            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
                 $invoice->status = 'paid';
                 if (!$invoice->payment_date) {
                     $invoice->payment_date = now();

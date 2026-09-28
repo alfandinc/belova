@@ -2179,6 +2179,13 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         Route::put('/icd10/{id}', [\App\Http\Controllers\Admin\Icd10Controller::class, 'update'])->name('admin.icd10.update');
         Route::delete('/icd10/{id}', [\App\Http\Controllers\Admin\Icd10Controller::class, 'destroy'])->name('admin.icd10.destroy');
 
+        // Klinik settings
+        Route::get('/klinik-settings', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'index'])->name('admin.klinik_settings.index');
+        Route::post('/klinik-settings', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'store'])->name('admin.klinik_settings.store');
+        Route::get('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'show'])->name('admin.klinik_settings.show');
+        Route::put('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'update'])->name('admin.klinik_settings.update');
+        Route::delete('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'destroy'])->name('admin.klinik_settings.destroy');
+
         //Role Management
         Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
         Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');

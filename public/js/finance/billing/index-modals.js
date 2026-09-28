@@ -697,7 +697,7 @@
         });
 
         // PDF preview
-        $(document).on('click', '.invoice-cell .dropdown-item', function (e) {
+        $(document).on('click', '.billing-print-item', function (e) {
             var $el = $(this);
             var txt = ($el.text() || '').trim();
             if (!/cetak/i.test(txt)) return;

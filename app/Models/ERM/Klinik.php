@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Klinik extends Model
 {
     protected $table = 'erm_klinik';
-    protected $fillable = ['nama', 'report_cutoff_time'];
+    protected $fillable = ['nama', 'logo', 'color', 'report_cutoff_time'];
 
     public function visitation()
     {

@@ -38,7 +38,7 @@ class DivisionController extends Controller
         $division = Division::findOrFail($divisionId);
 
         // Load employees for this division via positions pivot
-        $employees = Employee::active()
+        $employees = Employee::query()
             ->whereHas('positions', function ($q) use ($divisionId) {
                 $q->where('division_id', $divisionId);
             })
@@ -69,16 +69,20 @@ class DivisionController extends Controller
                     $q->where('division_id', $divisionId);
                 })
                 ->where('id', '!=', $employee->id)
-                ->with(['positions.division', 'user']);
+                ->with(['positions', 'user']);
 
             return DataTables::of($employees)
+                ->addColumn('position_name', function ($employee) {
+                    $position = $employee->positions->firstWhere('pivot.is_primary', 1) ?? $employee->positions->first();
+                    return $position ? $position->name : '-';
+                })
                 ->addColumn('status_label', function ($employee) {
                     $statusColors = [
                         'tetap' => 'success',
                         'kontrak' => 'warning',
                         'tidak aktif' => 'danger'
                     ];
-                    return '<span class="badge badge-' . $statusColors[$employee->status] . '">' . ucfirst($employee->status) . '</span>';
+                    return '<span class="badge badge-' . ($statusColors[strtolower((string) $employee->status)] ?? 'secondary') . '">' . ucfirst($employee->status) . '</span>';
                 })
                 ->addColumn('action', function ($employee) {
                     $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';

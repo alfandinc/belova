@@ -36,6 +36,9 @@
 
             <li class="menu-label">Others</li>
             <li>
+                <a href="{{ route('admin.klinik_settings.index') }}"><i data-feather="home" class="align-self-center menu-icon"></i><span>Klinik Setting</span></a>
+            </li>
+            <li>
                 <a href="{{ route('admin.icd10.index') }}"><i data-feather="book-open" class="align-self-center menu-icon"></i><span>Manage ICD 10</span></a>
             </li>
             <li>

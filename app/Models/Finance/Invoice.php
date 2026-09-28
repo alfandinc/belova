@@ -56,6 +56,14 @@ class Invoice extends Model
         return $this->belongsTo(Visitation::class);
     }
 
+    /**
+     * User (kasir) who last saved / processed the invoice payment.
+     */
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
+    }
+
     public function piutangs()
     {
         return $this->hasMany(Piutang::class, 'invoice_id');
