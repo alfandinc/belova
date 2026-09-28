@@ -802,7 +802,10 @@ class FinancePengajuanDanaController extends Controller
     {
         $visibility = $this->getPengajuanVisibilityContext();
         if (!$visibility['has_global_access'] && !$visibility['employee_id']) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            // Non-approvers can only submit for their own employee record (employee_id is forced below)
+            return response()->json([
+                'message' => 'Akun Anda belum terhubung dengan data karyawan (HRD). Hubungi HRD/Admin untuk menghubungkan akun ini ke data karyawan sebelum membuat pengajuan dana.',
+            ], 403);
         }
 
         // Server-side required validation matching modal requirements

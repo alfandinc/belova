@@ -1176,7 +1176,8 @@ $(document).ready(function() {
                         $('#' + key + '-error').text(errors[key][0]);
                     });
                 } else {
-                    Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Terjadi kesalahan pada server';
+                    Swal.fire(xhr.status === 403 ? 'Tidak Diizinkan' : 'Error', msg, 'error');
                 }
             },
             complete: function() {
