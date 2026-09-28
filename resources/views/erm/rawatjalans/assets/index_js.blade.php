@@ -2948,6 +2948,8 @@ function openManageModal(pasienId){
         $('#manage_status_pasien').val(resp.status_pasien || 'Regular');
         $('#manage_status_akses').val(resp.status_akses || 'normal');
         $('#manage_status_review').val(resp.status_review || 'belum');
+        // remember what was loaded so saving only sends the fields that were changed
+        $('#modalManagePasien').data('original', collectManagePasienFields());
         $('#managePasienNama').text(resp.nama || '-');
         $('#managePasienId').text(resp.id || pasienId);
         $('#modalManagePasien').modal('show');
@@ -2957,11 +2959,8 @@ function openManageModal(pasienId){
 $(document).on('click', '.open-manage-modal', function(e){ e.preventDefault(); openManageModal($(this).data('id')); });
 $(document).on('click', '.btn-merch-checklist', function(){ openManageModal($(this).data('id')); });
 
-$(document).on('click', '#saveManagePasien', function(){
-    let pasienId = $('#modalManagePasien').data('pasien-id');
-    let payload = {
-        _token: $('meta[name="csrf-token"]').attr('content'),
-        pasien_id: pasienId,
+function collectManagePasienFields(){
+    return {
         identity_document: $('#manage_identity_document').val(),
         identity_number: $('#manage_identity_number').val(),
         nama: $('#manage_nama').val(),
@@ -2973,6 +2972,30 @@ $(document).on('click', '#saveManagePasien', function(){
         status_akses: $('#manage_status_akses').val(),
         status_review: $('#manage_status_review').val()
     };
+}
+
+$(document).on('click', '#saveManagePasien', function(){
+    let pasienId = $('#modalManagePasien').data('pasien-id');
+    let original = $('#modalManagePasien').data('original') || {};
+    let current = collectManagePasienFields();
+
+    // Partial update: only the fields that were changed are sent and validated
+    let payload = {
+        _token: $('meta[name="csrf-token"]').attr('content'),
+        partial: 1
+    };
+    let changed = 0;
+    $.each(current, function(field, value){
+        if (String(value ?? '') !== String(original[field] ?? '')) {
+            payload[field] = value;
+            changed++;
+        }
+    });
+
+    if (!changed) {
+        $('#modalManagePasien').modal('hide');
+        return;
+    }
 
     $.ajax({
         url: '/erm/pasiens/' + pasienId,

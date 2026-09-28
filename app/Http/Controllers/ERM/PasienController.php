@@ -699,6 +699,10 @@ class PasienController extends Controller
 
     public function update(Request $request, $id)
     {
+        if ($request->boolean('partial')) {
+            return $this->updatePartial($request, $id);
+        }
+
         $request->merge([
             'identity_document' => $request->input('identity_document', 'ktp'),
             'identity_number' => $request->input('identity_number', $request->input('nik')),
@@ -791,6 +795,81 @@ class PasienController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Update only the fields that were sent (e.g. the Kelola Pasien modal changing just the status),
+     * so fields the form doesn't have (address, employee link) are neither required nor overwritten.
+     */
+    private function updatePartial(Request $request, $id)
+    {
+        $pasien = Pasien::findOrFail($id);
+
+        $editable = [
+            'identity_document', 'identity_number', 'nama', 'tanggal_lahir', 'gender', 'alamat', 'no_hp',
+            'status_pasien', 'status_akses', 'status_review',
+        ];
+        $input = $request->only($editable);
+        if (array_key_exists('no_hp', $input)) {
+            $input['no_hp'] = $this->normalizePhoneNumber($input['no_hp']);
+        }
+
+        $validator = Validator::make($input, [
+            'identity_document' => 'sometimes|required|in:ktp,sim,paspor,kia',
+            'identity_number' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('erm_pasiens', 'identity_number')->ignore($id, 'id'),
+            ],
+            'nama' => 'sometimes|required|string|max:255',
+            'tanggal_lahir' => 'sometimes|required|date',
+            'gender' => 'sometimes|required|in:Laki-laki,Perempuan',
+            'alamat' => 'sometimes|required|string',
+            'no_hp' => 'sometimes|required|string|max:15',
+            'status_pasien' => 'sometimes|required|in:Regular,VIP,Familia,Black Card,Red Flag',
+            'status_akses' => 'sometimes|required|in:normal,akses cepat',
+            'status_review' => 'sometimes|required|in:sudah,belum',
+        ]);
+
+        $validator->after(function ($validator) use ($input, $pasien) {
+            // KTP must be 16 digits whenever the document type or number changes
+            if (array_key_exists('identity_document', $input) || array_key_exists('identity_number', $input)) {
+                $document = $input['identity_document'] ?? $pasien->identity_document;
+                $number = (string) ($input['identity_number'] ?? $pasien->identity_number);
+                if ($document === 'ktp' && !preg_match('/^\d{16}$/', $number)) {
+                    $validator->errors()->add('identity_number', 'Nomor identitas untuk KTP harus 16 digit angka.');
+                }
+            }
+
+            if (array_key_exists('no_hp', $input) && !$this->startsWith62($input['no_hp'])) {
+                $validator->errors()->add('no_hp', 'No Telepon 1 harus diawali dengan 62.');
+            }
+        });
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        if (empty($input)) {
+            return response()->json(['success' => true, 'message' => 'Tidak ada perubahan.']);
+        }
+
+        $pasien->update($input + ['user_id' => Auth::id()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data pasien berhasil diperbarui.',
+            'data' => [
+                'id' => $pasien->id,
+                'nama' => $pasien->nama,
+            ],
+        ]);
     }
 
     public function cekAntrian(Request $request)
