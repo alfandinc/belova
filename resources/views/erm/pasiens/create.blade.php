@@ -781,7 +781,7 @@
 
     function checkDuplicateNameBirthdate(options = {}) {
         const currentSignature = getDuplicateSignature();
-        const pasienId = $('input[name="pasien_id"]').val() || '';
+        const pasienId = $('#pasien-form input[name="pasien_id"]').val() || ''; // scoped: the daftar-kunjungan modal has its own pasien_id input
 
         if (!currentSignature) {
             return $.Deferred().resolve({ exists: false, count: 0, patients: [] }).promise();
@@ -968,7 +968,7 @@
         const identityInput = $('#identity_number');
         const documentType = $('#identity_document').val() || 'ktp';
         const identityNumber = (identityInput.val() || '').trim();
-        const pasienId = $('input[name="pasien_id"]').val() || '';
+        const pasienId = $('#pasien-form input[name="pasien_id"]').val() || ''; // scoped: the daftar-kunjungan modal has its own pasien_id input
         const signature = documentType + '|' + identityNumber + '|' + pasienId;
 
         if (!identityNumber) {
