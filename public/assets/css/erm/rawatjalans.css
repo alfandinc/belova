@@ -53,7 +53,7 @@
 
 /* Keep these columns from being squeezed; the table scrolls horizontally instead */
 #rawatjalan-table_wrapper .rawatjalan-col-informasi {
-    min-width: 320px;
+    min-width: 260px;
 }
 
 #rawatjalan-table_wrapper .rawatjalan-col-referral {

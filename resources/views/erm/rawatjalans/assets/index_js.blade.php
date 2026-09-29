@@ -1174,8 +1174,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     if (areaComplete) {
                         var alamatText = areaParts.join(', ');
                         var truncatedAlamat = alamatText;
-                        if (truncatedAlamat.length > 90) {
-                            truncatedAlamat = truncatedAlamat.substring(0, 90).trim() + '...';
+                        if (truncatedAlamat.length > 70) {
+                            truncatedAlamat = truncatedAlamat.substring(0, 70).trim() + '...';
                         }
                         addressHtml = '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamatText) + '">' + escapeHtml(truncatedAlamat) + '</small>';
                     } else {
@@ -1437,7 +1437,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { targets: 0, width: "60px" },   // No
             { targets: 1, width: "110px" },  // No RM
             { targets: 2, width: "280px" },  // Nama Pasien
-            { targets: 3, width: "320px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
+            { targets: 3, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "280px" },  // Tanggal Kunjungan
             { targets: 5, width: "150px" },  // Metode Bayar
             { targets: 6, width: "220px", className: "rawatjalan-col-referral" },  // Referral
@@ -1446,7 +1446,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { targets: 0, width: "80px" },   // Antrian
             { targets: 1, width: "110px" },  // No RM
             { targets: 2, width: "270px" },  // Nama Pasien
-            { targets: 3, width: "320px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
+            { targets: 3, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "260px" },  // Tanggal
             { targets: 5, width: "220px" },  // Dokter
             { targets: 6, width: "150px" },  // Metode Bayar
