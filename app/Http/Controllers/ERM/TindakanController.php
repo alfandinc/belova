@@ -304,6 +304,9 @@ class TindakanController extends Controller
             'tanggal_tindakan' => $data['tanggal'],
             'tindakan_id' => $data['tindakan_id'],
             'paket_tindakan_id' => $data['paket_id'] ?? null,
+            // Snapshot slimming RF/inject quota from master tindakan
+            'total_rf' => $tindakan->is_slimming ? $tindakan->total_rf : null,
+            'total_inject' => $tindakan->is_slimming ? $tindakan->total_inject : null,
         ]);
 
         $informConsent = null;

@@ -645,7 +645,7 @@ class PrSlipGajiController extends Controller
         $tunjanganMasaKerjaMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Tunjangan Masa Kerja')->first();
         $tunjanganMasaKerjaNominal = $tunjanganMasaKerjaMaster ? floatval($tunjanganMasaKerjaMaster->nominal) : 0;
 
-        $slips = PrSlipGaji::with(['employee.positions.division'])
+        $slips = PrSlipGaji::with(['employee.positions.divisions'])
             ->where('bulan', $bulan)
             ->get();
 
@@ -1487,7 +1487,7 @@ class PrSlipGajiController extends Controller
         $scoreMap = $this->buildKpiAssessmentFinalScoreMap($period);
 
         return PrSlipGaji::query()
-            ->with(['employee.positions.division'])
+            ->with(['employee.positions.divisions'])
             ->where('bulan', $slipBulan)
             ->get()
             ->sortBy(fn (PrSlipGaji $slip) => strtolower((string) optional($slip->employee)->nama))
@@ -1500,7 +1500,7 @@ class PrSlipGajiController extends Controller
                     'slip_id' => $slip->id,
                     'employee_id' => $slip->employee_id,
                     'employee_name' => $employee->nama ?? '-',
-                    'division_name' => optional(optional($employee?->positions)->first()?->division)->name ?? '-',
+                    'division_name' => optional($employee?->division)->name ?? '-',
                     'status_gaji' => $this->normalizeSlipStatus($slip->status_gaji),
                     'current_kpi_poin' => round((float) ($slip->kpi_poin ?? 0), 2),
                     'assessment_kpi_poin' => $assessmentScore,
@@ -1657,7 +1657,7 @@ class PrSlipGajiController extends Controller
 
     public function detail(Request $request, $id)
     {
-        $slip = PrSlipGaji::with(['employee.positions.division'])->findOrFail($id);
+        $slip = PrSlipGaji::with(['employee.positions.divisions'])->findOrFail($id);
         // if only=potongan requested, return potongan partial
         if ($request->get('only') === 'potongan') {
             return view('hrd.payroll.slip_gaji._modal_potongan', compact('slip'))->render();
@@ -1769,7 +1769,7 @@ class PrSlipGajiController extends Controller
 
     public function print($id)
     {
-    $slip = \App\Models\HRD\PrSlipGaji::with('employee.positions.division')->findOrFail($id);
+    $slip = \App\Models\HRD\PrSlipGaji::with('employee.positions.divisions')->findOrFail($id);
     $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
     $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
     // Set margin_top to 5mm for minimal gap at the top

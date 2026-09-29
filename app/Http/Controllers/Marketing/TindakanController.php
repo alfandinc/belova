@@ -207,7 +207,11 @@ class TindakanController extends Controller
             'is_slimming' => 'nullable|boolean',
             'is_vaksin' => 'nullable|boolean',
             'multi_visit_total' => 'nullable|integer|min:2|max:20',
+            'total_rf' => 'nullable|integer|min:0',
+            'total_inject' => 'nullable|integer|min:0',
         ]);
+
+        $isSlimming = $request->boolean('is_slimming');
 
         try {
             DB::beginTransaction();
@@ -222,9 +226,12 @@ class TindakanController extends Controller
                     'spesialis_id' => $request->spesialis_id,
                         'is_active' => $request->input('is_active', 1),
                         'harga_paket_visit' => $request->input('harga_paket_visit', null),
-                        'is_slimming' => $request->boolean('is_slimming'),
+                        'is_slimming' => $isSlimming,
                         'is_vaksin' => $request->boolean('is_vaksin'),
                         'multi_visit_total' => $request->filled('multi_visit_total') ? $request->integer('multi_visit_total') : null,
+                        // Only slimming tindakan carry RF/inject quota
+                        'total_rf' => $isSlimming && $request->filled('total_rf') ? $request->integer('total_rf') : null,
+                        'total_inject' => $isSlimming && $request->filled('total_inject') ? $request->integer('total_inject') : null,
                 ]
             );
 

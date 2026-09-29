@@ -257,6 +257,18 @@
                             <small class="form-text text-muted">Isi `3` untuk paket 3x atau `4` untuk paket 4x.</small>
                         </div>
                     </div>
+                    <div class="form-row" id="slimmingQuotaRow" style="display: none;">
+                        <div class="form-group col-md-4">
+                            <label for="total_rf">Total RF</label>
+                            <input type="number" class="form-control" id="total_rf" name="total_rf" step="1" min="0">
+                            <div class="invalid-feedback" id="total_rf-error"></div>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="total_inject">Total Inject</label>
+                            <input type="number" class="form-control" id="total_inject" name="total_inject" step="1" min="0">
+                            <div class="invalid-feedback" id="total_inject-error"></div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Kode Tindakan</label>
                         <div class="table-responsive">
@@ -1030,6 +1042,9 @@
                            $('#diskon_active').prop('checked', false);
                        }
                        $('#is_slimming').prop('checked', !!(data.is_slimming && (data.is_slimming == 1 || data.is_slimming === true)));
+                       $('#total_rf').val(data.total_rf ?? '');
+                       $('#total_inject').val(data.total_inject ?? '');
+                       toggleSlimmingQuotaRow();
                        $('#is_vaksin').prop('checked', !!(data.is_vaksin && (data.is_vaksin == 1 || data.is_vaksin === true)));
                        if (data.is_active && (data.is_active == 1 || data.is_active === true)) {
                            $('#is_active').prop('checked', true);
@@ -1224,7 +1239,14 @@
                 $('#kode_tindakan_ids').val('').trigger('change');
             $('#is_slimming').prop('checked', false);
             $('#is_vaksin').prop('checked', false);
+            toggleSlimmingQuotaRow();
         }
+
+        // Total RF / Inject only apply to slimming tindakan
+        function toggleSlimmingQuotaRow() {
+            $('#slimmingQuotaRow').toggle($('#is_slimming').is(':checked'));
+        }
+        $('#is_slimming').on('change', toggleSlimmingQuotaRow);
         
         // Show error alert
         function showError(message) {

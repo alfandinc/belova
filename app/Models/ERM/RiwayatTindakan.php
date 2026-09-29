@@ -13,11 +13,19 @@ class RiwayatTindakan extends Model
         'tanggal_tindakan',
         'tindakan_id',
         'paket_tindakan_id',
-        'multi_visit_usage_id'
+        'multi_visit_usage_id',
+        'total_rf',
+        'rf_used',
+        'total_inject',
+        'inject_used',
     ];
 
     protected $casts = [
-        'tanggal_tindakan' => 'date'
+        'tanggal_tindakan' => 'date',
+        'total_rf' => 'integer',
+        'rf_used' => 'integer',
+        'total_inject' => 'integer',
+        'inject_used' => 'integer',
     ];
 
         /**
