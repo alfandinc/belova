@@ -805,6 +805,11 @@ class RawatJalanController extends Controller
                         'mb.nama as metode_bayar_nama',
                         'u.name as dokter_user_name',
                         's.nama as spesialisasi_nama',
+
+                        'av.name as village_name',
+                        'ad.name as district_name',
+                        'ar.name as regency_name',
+                        'ap2.name as province_name',
                     ])
                     // include merchandise count per pasien using subquery
                     ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
@@ -890,6 +895,10 @@ class RawatJalanController extends Controller
                     ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
                     ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
                     ->leftJoin('erm_spesialisasis as s', 'd.spesialisasi_id', '=', 's.id')
+                    ->leftJoin('area_villages as av', 'erm_pasiens.village_id', '=', 'av.id')
+                    ->leftJoin('area_districts as ad', 'av.district_id', '=', 'ad.id')
+                    ->leftJoin('area_regencies as ar', 'ad.regency_id', '=', 'ar.id')
+                    ->leftJoin('area_provinces as ap2', 'ar.province_id', '=', 'ap2.id')
                     ->when($user && $user->hasRole('Dokter'), function($q) {
                         // Dokter view: only show Konsultasi (jenis_kunjungan = 1)
                         $q->where('erm_visitations.jenis_kunjungan', 1);
@@ -1024,20 +1033,6 @@ class RawatJalanController extends Controller
                         default => 'Walk-in',
                     };
 
-                    $iconClass = match ($referralType) {
-                        Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
-                        Pasien::REFERRAL_TYPE_PASIEN => 'fas fa-user-friends',
-                        Pasien::REFERRAL_TYPE_DOKTER => 'fas fa-user-md',
-                        Pasien::REFERRAL_TYPE_EMPLOYEE => 'fas fa-id-badge',
-                        Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'fas fa-hashtag',
-                        Pasien::REFERRAL_TYPE_MARKETPLACE => 'fas fa-store',
-                        Pasien::REFERRAL_TYPE_EVENT => 'fas fa-calendar-alt',
-                        Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
-                        Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
-                        Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
-                        default => 'fas fa-walking',
-                    };
-
                     $detail = null;
 
                     if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !empty($v->referral_patient_name) && !empty($v->referralable_id)) {
@@ -1055,8 +1050,7 @@ class RawatJalanController extends Controller
                     $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
 
                     return '<span class="d-inline-flex align-items-center">'
-                        . '<i class="' . e($iconClass) . ' mr-2"></i>'
-                        . '<span>' . e($label) . '</span>'
+                        . '<span class="font-weight-bold">' . e($label) . '</span>'
                         . '</span>';
                 })
                 ->addColumn('metode_bayar', function($v) { return $v->metode_bayar_nama ?? '-'; })

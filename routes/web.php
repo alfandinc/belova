@@ -2219,9 +2219,11 @@ Route::post('/wa-messages', [\App\Http\Controllers\Admin\WaMessageController::cl
 // WhatsApp webhook routes removed
 
 // Get Master Data
+Route::get('/get-provinces', [AddressController::class, 'getProvinces']);
 Route::get('/get-regencies/{province_id}', [AddressController::class, 'getRegencies']);
 Route::get('/get-districts/{regency_id}', [AddressController::class, 'getDistricts']);
 Route::get('/get-villages/{district_id}', [AddressController::class, 'getVillages']);
+Route::get('/search-villages', [AddressController::class, 'searchVillages']);
 Route::get('/address-form', [AddressController::class, 'index']);
 Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.search');
 // IC Pendaftaran (signature -> generate PDF)

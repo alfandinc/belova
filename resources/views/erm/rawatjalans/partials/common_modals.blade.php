@@ -69,16 +69,48 @@
                         </div>
                         <div class="col-lg-6">
                             <div class="manage-pasien-panel manage-pasien-panel--accent">
-                                <div class="manage-pasien-panel__title">Kontak dan Status</div>
+                                <div class="manage-pasien-panel__title">Alamat dan Kontak</div>
                                 <div class="form-group">
                                 <label for="manage_alamat">Alamat</label>
-                                <textarea class="form-control" id="manage_alamat" name="alamat" rows="4" required></textarea>
+                                <textarea class="form-control" id="manage_alamat" name="alamat" rows="3" required></textarea>
                             </div>
-                            <div class="form-group">
+                            <div class="form-row">
+                                <div class="form-group col-md-6">
+                                    <label for="manage_province">Provinsi</label>
+                                    <select class="form-control" id="manage_province">
+                                        <option value="">Pilih Provinsi</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label for="manage_regency">Kabupaten/Kota</label>
+                                    <select class="form-control" id="manage_regency" disabled>
+                                        <option value="">Pilih Kabupaten</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label for="manage_district">Kecamatan</label>
+                                    <select class="form-control" id="manage_district" disabled>
+                                        <option value="">Pilih Kecamatan</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label for="manage_village">Desa/Kelurahan</label>
+                                    <select class="form-control" id="manage_village" name="village" disabled>
+                                        <option value="">Pilih Desa</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group mb-0">
                                 <label for="manage_no_hp">No. HP</label>
                                 <input type="text" class="form-control" id="manage_no_hp" name="no_hp" required>
                             </div>
-                            <div class="form-group">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="manage-pasien-panel mt-4">
+                        <div class="manage-pasien-panel__title">Status</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-md-0">
                                 <label for="manage_status_pasien">Status Pasien</label>
                                 <select class="form-control" id="manage_status_pasien" name="status_pasien" required>
                                     <option value="Regular">Regular</option>
@@ -88,20 +120,19 @@
                                     <option value="Red Flag">Red Flag</option>
                                 </select>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group col-md-4 mb-md-0">
                                 <label for="manage_status_akses">Status Akses</label>
                                 <select class="form-control" id="manage_status_akses" name="status_akses" required>
                                     <option value="normal">Normal</option>
                                     <option value="akses cepat">Akses Cepat</option>
                                 </select>
                             </div>
-                            <div class="form-group mb-0">
+                            <div class="form-group col-md-4 mb-0">
                                 <label for="manage_status_review">Status Review</label>
                                 <select class="form-control" id="manage_status_review" name="status_review" required>
                                     <option value="sudah">Sudah</option>
                                     <option value="belum">Belum</option>
                                 </select>
-                            </div>
                             </div>
                         </div>
                     </div>

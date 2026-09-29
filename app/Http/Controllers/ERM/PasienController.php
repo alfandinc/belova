@@ -806,7 +806,7 @@ class PasienController extends Controller
         $pasien = Pasien::findOrFail($id);
 
         $editable = [
-            'identity_document', 'identity_number', 'nama', 'tanggal_lahir', 'gender', 'alamat', 'no_hp',
+            'identity_document', 'identity_number', 'nama', 'tanggal_lahir', 'gender', 'alamat', 'village', 'no_hp',
             'status_pasien', 'status_akses', 'status_review',
         ];
         $input = $request->only($editable);
@@ -827,6 +827,7 @@ class PasienController extends Controller
             'tanggal_lahir' => 'sometimes|required|date',
             'gender' => 'sometimes|required|in:Laki-laki,Perempuan',
             'alamat' => 'sometimes|required|string',
+            'village' => 'sometimes|required|exists:area_villages,id',
             'no_hp' => 'sometimes|required|string|max:15',
             'status_pasien' => 'sometimes|required|in:Regular,VIP,Familia,Black Card,Red Flag',
             'status_akses' => 'sometimes|required|in:normal,akses cepat',
@@ -858,6 +859,11 @@ class PasienController extends Controller
 
         if (empty($input)) {
             return response()->json(['success' => true, 'message' => 'Tidak ada perubahan.']);
+        }
+
+        if (array_key_exists('village', $input)) {
+            $input['village_id'] = $input['village'];
+            unset($input['village']);
         }
 
         $pasien->update($input + ['user_id' => Auth::id()]);

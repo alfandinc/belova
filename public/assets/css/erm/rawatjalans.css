@@ -25,7 +25,7 @@
     align-items: center;
     justify-content: center;
     vertical-align: middle;
-    margin-right: 8px;
+    margin-right: 3px;
 }
 
 .dataTables_wrapper td {
@@ -49,6 +49,21 @@
 #rawatjalan-table th,
 #rawatjalan-table td {
     white-space: nowrap;
+}
+
+/* Keep these columns from being squeezed; the table scrolls horizontally instead */
+#rawatjalan-table_wrapper .rawatjalan-col-informasi {
+    min-width: 320px;
+}
+
+#rawatjalan-table_wrapper .rawatjalan-col-referral {
+    min-width: 200px;
+}
+
+#rawatjalan-table_wrapper td.rawatjalan-col-informasi .rawatjalan-patient-address {
+    display: block;
+    margin-top: 6px;
+    line-height: 1.5;
 }
 
 #rawatjalan-table_wrapper {

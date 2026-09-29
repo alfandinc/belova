@@ -144,18 +144,34 @@
             return;
         }
 
-        $.post('/erm/send-notif-dokter', {
-            _token: '{{ csrf_token() }}',
-            visitation_id: visitationId
-        }, function(res) {
-            if (res.success) {
-                var dokterName = res.dokter_name || 'dokter tujuan';
-                Swal.fire('Terkirim!', 'Notifikasi pasien masuk untuk ' + pasienNama + ' berhasil dikirim ke dokter ' + dokterName + '.', 'success');
-            } else {
-                Swal.fire('Gagal', res.message || 'Notifikasi gagal dikirim.', 'error');
+        // Confirm first so an accidental click doesn't notify the doctor
+        Swal.fire({
+            title: 'Kirim notifikasi pasien masuk?',
+            text: 'Dokter akan diberi tahu bahwa ' + pasienNama + ' memasuki ruangan.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, kirim',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+            focusCancel: true
+        }).then(function(result) {
+            if (!(result.isConfirmed || result.value)) {
+                return;
             }
-        }).fail(function(xhr) {
-            Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+
+            $.post('/erm/send-notif-dokter', {
+                _token: '{{ csrf_token() }}',
+                visitation_id: visitationId
+            }, function(res) {
+                if (res.success) {
+                    var dokterName = res.dokter_name || 'dokter tujuan';
+                    Swal.fire('Terkirim!', 'Notifikasi pasien masuk untuk ' + pasienNama + ' berhasil dikirim ke dokter ' + dokterName + '.', 'success');
+                } else {
+                    Swal.fire('Gagal', res.message || 'Notifikasi gagal dikirim.', 'error');
+                }
+            }).fail(function(xhr) {
+                Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+            });
         });
     });
 
@@ -1005,7 +1021,10 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                 orderable: false,
                 render: function(data, type, row, meta) {
                     if (!data) return '-';
-                    return $('<div>').text(data).html();
+                    var newVisitBadgeHtml = parseInt(row.is_first_visit || 0, 10) === 1
+                        ? ' <span class="badge badge-primary blinking ml-1" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
+                        : '';
+                    return '<span class="d-inline-flex align-items-center">' + $('<div>').text(data).html() + newVisitBadgeHtml + '</span>';
                 }
             },
                 {
@@ -1037,14 +1056,16 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                 if (!employeeId) return '';
                                 return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #10b981; border-radius: 50%;" title="Employee"><i class="fas fa-id-badge text-white" style="font-size: 11px;"></i></span>';
                             }
-                            var statusBadgesInline = [statusPasienIcon(sp), statusAksesIcon(sa), employeeStatusIcon(row.employee_id)].join('');
+                            function statusReviewIcon(val){
+                                // Only flag patients who have not reviewed yet
+                                if ((val||'').toLowerCase() === 'sudah') return '';
+                                return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width: 20px; height: 20px; background-color: #FF0000; border-radius: 50%;" title="Belum Review"><i class="fas fa-map-marker-alt text-white" style="font-size: 11px;"></i></span>';
+                            }
+                            var statusBadgesInline = [statusPasienIcon(sp), statusAksesIcon(sa), employeeStatusIcon(row.employee_id), statusReviewIcon(row.status_review)].join('');
 
                             var patientName = $('<div>').text(data || '').html();
                             var catatanPasien = $.trim(row.catatan_pasien || '');
-                            var newVisitBadgeHtml = parseInt(row.is_first_visit || 0, 10) === 1
-                                ? ' <span class="badge badge-primary blinking" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
-                                : '';
-                            var patientLabelHtml = '<span class="rawatjalan-patient-name-text">' + patientName + '</span>' + newVisitBadgeHtml;
+                            var patientLabelHtml = '<span class="rawatjalan-patient-name-text">' + patientName + '</span>';
                             var notesHtml = catatanPasien
                                 ? '<small class="pasien-notes-preview">' + $('<div>').text(catatanPasien).html() + '</small>'
                                 : '';
@@ -1106,12 +1127,18 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     }
 
                     var pasienId = row.pasien_id || '';
+                    // Administrative area (desa, kecamatan, kabupaten, provinsi) must be complete
+                    var areaParts = [row.village_name, row.district_name, row.regency_name, row.province_name]
+                        .map(function(part){ return (part || '').toString().trim(); });
+                    var areaComplete = areaParts.every(function(part){ return part.length > 0; });
+
                     var missingFields = [];
                     if (!$.trim(row.identity_number || '')) missingFields.push('Dokumen Identitas');
                     if (!$.trim(row.nama_pasien || '')) missingFields.push('Nama');
                     if (!$.trim(row.tanggal_lahir || '')) missingFields.push('Tanggal Lahir');
                     if (!$.trim(row.gender || '')) missingFields.push('Gender');
                     if (!$.trim(row.alamat || '')) missingFields.push('Alamat');
+                    if (!areaComplete) missingFields.push('Desa/Kecamatan/Kabupaten/Provinsi');
                     if (!$.trim(row.telepon_pasien || '')) missingFields.push('No. HP');
 
                     var warningIconHtml = '';
@@ -1143,14 +1170,17 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     } catch(e) {}
 
                     var birthHtml = '<div class="rawatjalan-patient-birth-row"><span class="rawatjalan-patient-birth-text">' + birthText + '</span>' + birthIconHtml + birthdayIconHtml + warningIconHtml + '</div>';
-                    var alamatText = (row.alamat || '').toString().trim();
-                    var truncatedAlamat = alamatText;
-                    if (truncatedAlamat.length > 25) {
-                        truncatedAlamat = truncatedAlamat.substring(0, 25).trim() + '...';
+                    var addressHtml;
+                    if (areaComplete) {
+                        var alamatText = areaParts.join(', ');
+                        var truncatedAlamat = alamatText;
+                        if (truncatedAlamat.length > 90) {
+                            truncatedAlamat = truncatedAlamat.substring(0, 90).trim() + '...';
+                        }
+                        addressHtml = '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamatText) + '">' + escapeHtml(truncatedAlamat) + '</small>';
+                    } else {
+                        addressHtml = '<small class="rawatjalan-patient-address text-danger font-weight-bold">Alamat belum ditambahkan</small>';
                     }
-                    var addressHtml = alamatText
-                        ? '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamatText) + '">' + escapeHtml(truncatedAlamat) + '</small>'
-                        : '<small class="rawatjalan-patient-address text-muted">-</small>';
 
                     var editButtonHtml = pasienId
                         ? '<a href="#" class="open-manage-modal btn btn-xs btn-outline-primary ml-2" data-id="' + escapeHtml(pasienId) + '" title="Edit informasi pasien" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>'
@@ -1330,10 +1360,14 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     try {
                         if (spes && window.spesialisasiColorMap && window.spesialisasiColorMap[spes]) badgeClass = window.spesialisasiColorMap[spes];
                     } catch(e) {}
+                    // Reuse the per-specialization badge color as a text color (light badge -> muted text)
+                    var textClass = badgeClass.indexOf('badge-light') !== -1
+                        ? 'text-secondary'
+                        : badgeClass.replace(/badge-/g, 'text-');
                     var spesHtml = '';
                     if (spes) {
                         var spesEsc = (''+spes).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                        spesHtml = '<div class="mt-1"><small class="badge ' + badgeClass + '">' + spesEsc + '</small></div>';
+                        spesHtml = '<div class="mt-1"><small class="font-weight-bold ' + textClass + '">' + spesEsc + '</small></div>';
                     }
                     return '<div><strong>' + nama + '</strong>' + spesHtml + '</div>';
                 }
@@ -1353,15 +1387,11 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         return '-';
                     }
 
-                    var metodeLower = String(metode).toLowerCase();
-                    var iconClass = metodeLower.indexOf('umum') !== -1 ? 'fas fa-money-bill-wave' : 'fas fa-credit-card';
-
                     var metodeText = $('<div>').text(metode).html();
                     var metodeAttr = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                     return '<div class="d-flex flex-column">'
                         + '<span class="d-inline-flex align-items-center">'
-                        + '<i class="' + iconClass + ' mr-2"></i>'
-                        + '<span>' + metodeText + '</span>'
+                        + '<span class="font-weight-bold">' + metodeText + '</span>'
                         + '</span>'
                         + '<a href="#" class="small metode-bayar-btn mt-1" data-metode="' + metodeAttr + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '" style="text-decoration:none;">Edit metode bayar</a>'
                     + '</div>';
@@ -1407,20 +1437,20 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { targets: 0, width: "60px" },   // No
             { targets: 1, width: "110px" },  // No RM
             { targets: 2, width: "280px" },  // Nama Pasien
-            { targets: 3, width: "240px" },  // Informasi Pasien
+            { targets: 3, width: "320px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "280px" },  // Tanggal Kunjungan
             { targets: 5, width: "150px" },  // Metode Bayar
-            { targets: 6, width: "220px" },  // Referral
+            { targets: 6, width: "220px", className: "rawatjalan-col-referral" },  // Referral
             { targets: 7, width: "320px" },  // Dokumen
             @else
             { targets: 0, width: "80px" },   // Antrian
             { targets: 1, width: "110px" },  // No RM
             { targets: 2, width: "270px" },  // Nama Pasien
-            { targets: 3, width: "240px" },  // Informasi Pasien
+            { targets: 3, width: "320px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "260px" },  // Tanggal
             { targets: 5, width: "220px" },  // Dokter
             { targets: 6, width: "150px" },  // Metode Bayar
-            { targets: 7, width: "220px" },  // Referral
+            { targets: 7, width: "220px", className: "rawatjalan-col-referral" },  // Referral
             { targets: 8, width: "320px" },  // Dokumen
             @endif
         ],
@@ -2937,7 +2967,12 @@ function openManageModal(pasienId){
     }
     if (!pasienId) return;
     $('#modalManagePasien').data('pasien-id', pasienId);
-    $.get("{{ route('erm.pasien.show', '') }}/" + pasienId, function(resp){
+    initManageAreaSelect2();
+    $.when(
+        $.get("{{ route('erm.pasien.show', '') }}/" + pasienId),
+        loadManageAreaOptions('#manage_province', '/get-provinces', 'Pilih Provinsi')
+    ).done(function(showResult){
+        let resp = showResult[0];
         $('#manage_identity_document').val(resp.identity_document || 'ktp');
         $('#manage_identity_number').val(resp.identity_number || '');
         $('#manage_nama').val(resp.nama || '');
@@ -2949,12 +2984,133 @@ function openManageModal(pasienId){
         $('#manage_status_akses').val(resp.status_akses || 'normal');
         $('#manage_status_review').val(resp.status_review || 'belum');
         // remember what was loaded so saving only sends the fields that were changed
-        $('#modalManagePasien').data('original', collectManagePasienFields());
+        let original = collectManagePasienFields();
+        original.village = resp.village_id ? String(resp.village_id) : '';
+        $('#modalManagePasien').data('original', original);
+        setManagePasienArea(resp.village);
         $('#managePasienNama').text(resp.nama || '-');
         $('#managePasienId').text(resp.id || pasienId);
         $('#modalManagePasien').modal('show');
     });
 }
+
+// Turn the four area selects into searchable Select2 inputs (once per modal instance)
+function initManageAreaSelect2(){
+    let $modal = $('#modalManagePasien');
+    if (typeof $.fn.select2 !== 'function' || $('#manage_village').hasClass('select2-hidden-accessible')) return;
+
+    [
+        ['#manage_province', 'Pilih Provinsi'],
+        ['#manage_regency', 'Pilih Kabupaten'],
+        ['#manage_district', 'Pilih Kecamatan']
+    ].forEach(function(cfg){
+        $(cfg[0]).select2({ width: '100%', placeholder: cfg[1], allowClear: true, dropdownParent: $modal });
+    });
+
+    // Village searches server-side: across all of Indonesia, or within the chosen kecamatan
+    $('#manage_village').select2({
+        width: '100%',
+        placeholder: 'Cari desa/kelurahan...',
+        allowClear: true,
+        dropdownParent: $modal,
+        minimumInputLength: 0,
+        language: {
+            inputTooShort: function(){ return 'Ketik minimal 3 huruf'; },
+            noResults: function(){
+                return $('#manage_district').val() ? 'Desa tidak ditemukan' : 'Ketik minimal 3 huruf nama desa';
+            },
+            searching: function(){ return 'Mencari...'; }
+        },
+        ajax: {
+            url: '/search-villages',
+            dataType: 'json',
+            delay: 300,
+            data: function(params){
+                return { q: params.term || '', district_id: $('#manage_district').val() || '' };
+            },
+            processResults: function(data){ return { results: (data && data.results) || [] }; }
+        },
+        templateSelection: function(item){
+            return item.village ? item.village.name : item.text;
+        }
+    });
+}
+
+// Fill an area <select> from one of the /get-* endpoints; resolves once the options are rendered
+function loadManageAreaOptions(selector, url, placeholder, selectedId){
+    let $select = $(selector);
+    $select.html('<option value="">Loading...</option>').prop('disabled', true).trigger('change.select2');
+    return $.get(url).done(function(items){
+        let options = '<option value="">' + placeholder + '</option>';
+        (items || []).forEach(function(item){
+            options += '<option value="' + item.id + '">' + $('<div>').text(item.name).html() + '</option>';
+        });
+        $select.html(options).prop('disabled', false);
+        if (selectedId) $select.val(String(selectedId));
+        $select.trigger('change.select2');
+    }).fail(function(){
+        $select.html('<option value="">' + placeholder + '</option>').prop('disabled', false).trigger('change.select2');
+    });
+}
+
+function resetManageAreaSelects(selectors){
+    let placeholders = {
+        '#manage_regency': 'Pilih Kabupaten',
+        '#manage_district': 'Pilih Kecamatan',
+        '#manage_village': 'Pilih Desa'
+    };
+    selectors.forEach(function(selector){
+        // the village stays enabled so it can always be searched directly
+        $(selector).html('<option value="">' + placeholders[selector] + '</option>')
+            .prop('disabled', selector !== '#manage_village')
+            .trigger('change.select2');
+    });
+}
+
+// Select the province -> regency -> district chain that a village belongs to
+function setManageAreaParents(village){
+    let district = village && village.district;
+    let regency = district && district.regency;
+    let province = regency && regency.province;
+    if (!province) return $.Deferred().resolve().promise();
+
+    $('#manage_province').val(String(province.id)).trigger('change.select2');
+    return loadManageAreaOptions('#manage_regency', '/get-regencies/' + province.id, 'Pilih Kabupaten', regency.id).then(function(){
+        return loadManageAreaOptions('#manage_district', '/get-districts/' + regency.id, 'Pilih Kecamatan', district.id);
+    });
+}
+
+// Pre-select the patient's stored province -> regency -> district -> village chain
+function setManagePasienArea(village){
+    resetManageAreaSelects(['#manage_regency', '#manage_district', '#manage_village']);
+    if (!village || !village.district) {
+        $('#manage_province').val('').trigger('change.select2');
+        return;
+    }
+
+    let villageOption = new Option(village.name, village.id, true, true);
+    $('#manage_village').append(villageOption).trigger('change.select2');
+    setManageAreaParents(village);
+}
+
+$(document).on('change', '#manage_province', function(){
+    resetManageAreaSelects(['#manage_regency', '#manage_district', '#manage_village']);
+    if ($(this).val()) loadManageAreaOptions('#manage_regency', '/get-regencies/' + $(this).val(), 'Pilih Kabupaten');
+});
+$(document).on('change', '#manage_regency', function(){
+    resetManageAreaSelects(['#manage_district', '#manage_village']);
+    if ($(this).val()) loadManageAreaOptions('#manage_district', '/get-districts/' + $(this).val(), 'Pilih Kecamatan');
+});
+$(document).on('change', '#manage_district', function(){
+    resetManageAreaSelects(['#manage_village']);
+});
+// Picking a village directly fills in its kecamatan, kabupaten and provinsi
+$(document).on('select2:select', '#manage_village', function(e){
+    let village = e.params && e.params.data && e.params.data.village;
+    if (!village || !village.district) return;
+    if (String($('#manage_district').val() || '') === String(village.district.id)) return;
+    setManageAreaParents(village);
+});
 
 $(document).on('click', '.open-manage-modal', function(e){ e.preventDefault(); openManageModal($(this).data('id')); });
 $(document).on('click', '.btn-merch-checklist', function(){ openManageModal($(this).data('id')); });
@@ -2967,6 +3123,7 @@ function collectManagePasienFields(){
         tanggal_lahir: $('#manage_tanggal_lahir').val(),
         gender: $('#manage_gender').val(),
         alamat: $('#manage_alamat').val(),
+        village: $('#manage_village').val() || '',
         no_hp: $('#manage_no_hp').val(),
         status_pasien: $('#manage_status_pasien').val(),
         status_akses: $('#manage_status_akses').val(),
@@ -2978,6 +3135,16 @@ $(document).on('click', '#saveManagePasien', function(){
     let pasienId = $('#modalManagePasien').data('pasien-id');
     let original = $('#modalManagePasien').data('original') || {};
     let current = collectManagePasienFields();
+
+    // An area chain that was started must be completed down to the village
+    if (!current.village && $('#manage_province').val()) {
+        Swal.fire({ icon: 'warning', title: 'Alamat belum lengkap', text: 'Silakan pilih Kabupaten, Kecamatan, dan Desa.' });
+        return;
+    }
+    // Never clear a stored village just because the area selects were left empty
+    if (!current.village) {
+        current.village = original.village || '';
+    }
 
     // Partial update: only the fields that were changed are sent and validated
     let payload = {
