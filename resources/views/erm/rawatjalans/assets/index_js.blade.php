@@ -1179,7 +1179,9 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                         }
                         addressHtml = '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamatText) + '">' + escapeHtml(truncatedAlamat) + '</small>';
                     } else {
-                        addressHtml = '<small class="rawatjalan-patient-address text-danger font-weight-bold">Alamat belum ditambahkan</small>';
+                        // Typed alamat without a desa is incomplete; no alamat at all is missing
+                        var addressMissingText = $.trim(row.alamat || '') ? 'Alamat belum lengkap' : 'Alamat belum ditambahkan';
+                        addressHtml = '<small class="rawatjalan-patient-address text-danger font-weight-bold">' + addressMissingText + '</small>';
                     }
 
                     var editButtonHtml = pasienId

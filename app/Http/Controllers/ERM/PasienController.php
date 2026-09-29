@@ -462,7 +462,7 @@ class PasienController extends Controller
         'province' => 'required',
         'regency' => 'required',
         'district' => 'required',
-        'village' => 'required',
+        'village' => 'required|integer|exists:area_villages,id',
         'no_hp' => 'required|string|max:15',
         'email' => 'nullable|email',
         'instagram' => 'nullable|string|max:255',
@@ -521,6 +521,11 @@ class PasienController extends Controller
 
         if (!empty($request->employee_id) && $this->employeeAlreadyLinkedToAnotherPatient($request->employee_id, $request->pasien_id)) {
             $validator->errors()->add('employee_id', 'Employee tersebut sudah terhubung ke pasien lain. Satu employee hanya boleh menggunakan satu pasien.');
+        }
+
+        // The chosen desa must belong to the chosen kecamatan / kabupaten / provinsi
+        if ($request->filled('village') && !$this->villageMatchesArea($request->village, $request->district, $request->regency, $request->province)) {
+            $validator->errors()->add('village', 'Desa tidak sesuai dengan Kecamatan/Kabupaten/Provinsi yang dipilih.');
         }
     });
 
@@ -659,6 +664,11 @@ class PasienController extends Controller
             ]);
         }
 
+        // Make sure the desa really landed in the database before committing
+        if ((string) $pasien->fresh()->village_id !== (string) $request->village) {
+            throw new \RuntimeException('Desa pasien gagal disimpan.');
+        }
+
         DB::commit();
 
         return response()->json([
@@ -677,6 +687,18 @@ class PasienController extends Controller
     }
 }
 
+
+    private function villageMatchesArea($villageId, $districtId, $regencyId, $provinceId): bool
+    {
+        return DB::table('area_villages as v')
+            ->join('area_districts as d', 'v.district_id', '=', 'd.id')
+            ->join('area_regencies as r', 'd.regency_id', '=', 'r.id')
+            ->where('v.id', $villageId)
+            ->where('d.id', $districtId)
+            ->where('r.id', $regencyId)
+            ->where('r.province_id', $provinceId)
+            ->exists();
+    }
 
     public function show($id)
     {
