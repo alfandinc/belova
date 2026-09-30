@@ -25,9 +25,32 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         $this->dokterId = $dokterId;
     }
 
+    /**
+     * Add a `principal_nama` column to an InvoiceItem query.
+     * Resolves obat_id from the billable (ResepFarmasi -> obat_id, Obat -> id),
+     * then collects principal names from master faktur for that obat.
+     */
+    public static function selectPrincipalNama($query)
+    {
+        $obatIdSql = "CASE finance_invoice_items.billable_type
+                WHEN ? THEN (SELECT rf.obat_id FROM erm_resepfarmasi rf WHERE rf.id = finance_invoice_items.billable_id LIMIT 1)
+                WHEN ? THEN finance_invoice_items.billable_id
+            END";
+
+        return $query
+            ->select('finance_invoice_items.*')
+            ->selectRaw(
+                "(SELECT GROUP_CONCAT(DISTINCT p.nama ORDER BY p.nama SEPARATOR ', ')
+                    FROM erm_master_faktur mf
+                    JOIN erm_principals p ON p.id = mf.principal_id
+                    WHERE mf.obat_id = ($obatIdSql)) AS principal_nama",
+                [\App\Models\ERM\ResepFarmasi::class, \App\Models\ERM\Obat::class]
+            );
+    }
+
     public function query()
     {
-        return InvoiceItem::query()
+        return self::selectPrincipalNama(InvoiceItem::query())
             ->whereHas('invoice.visitation', function($q) {
                 $q->whereBetween('tanggal_visitation', [$this->startDate, $this->endDate]);
                 if ($this->klinikId) {
@@ -56,6 +79,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Nama Klinik',
             'Jenis',
             'Nama Item',
+            'Principal',
             'Qty',
             'Harga',
             'Harga Sebelum Diskon',
@@ -191,6 +215,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $klinik,
             $jenis,
             $item->name,
+            $jenis === 'Obat/Produk' ? ($item->principal_nama ?: '-') : '',
             $qty,
             $unit,
             $hargaSebelumDiskon,

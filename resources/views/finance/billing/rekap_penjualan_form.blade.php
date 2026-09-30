@@ -61,6 +61,7 @@
                             <th>Nama Klinik</th>
                             <th>Jenis</th>
                             <th>Nama Item</th>
+                            <th>Principal</th>
                             <th>Qty</th>
                             <th>Harga</th>
                             <th>Harga Sebelum Diskon</th>
@@ -165,7 +166,7 @@ $(function(){
             }
         },
         columns: [
-            { data: 'tanggal_visit' },{ data: 'no_rm' },{ data: 'nama_pasien' },{ data: 'nama_dokter' },{ data: 'nama_klinik' },{ data: 'jenis' },{ data: 'nama_item' },{ data: 'qty' },{ data: 'harga' },{ data: 'harga_sebelum_diskon' },{ data: 'diskon_nominal' },{ data: 'diskon' },{ data: 'harga_setelah_diskon' },{ data: 'status' },{ data: 'payment_method' },{ data: 'notes' }
+            { data: 'tanggal_visit' },{ data: 'no_rm' },{ data: 'nama_pasien' },{ data: 'nama_dokter' },{ data: 'nama_klinik' },{ data: 'jenis' },{ data: 'nama_item' },{ data: 'principal', orderable: false, searchable: false },{ data: 'qty' },{ data: 'harga' },{ data: 'harga_sebelum_diskon' },{ data: 'diskon_nominal' },{ data: 'diskon' },{ data: 'harga_setelah_diskon' },{ data: 'status' },{ data: 'payment_method' },{ data: 'notes' }
         ],
         pageLength: 10
     });

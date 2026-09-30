@@ -188,13 +188,22 @@ class BillingController extends Controller
         $klinikId = $request->input('klinik_id');
         $dokterId = $request->input('dokter_id');
 
-        $query = InvoiceItem::query()
+        $query = \App\Exports\Finance\RekapPenjualanExport::selectPrincipalNama(InvoiceItem::query())
             ->whereHas('invoice.visitation', function($q) use ($startDate, $endDate, $klinikId, $dokterId) {
                 $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
                 if ($klinikId) $q->where('klinik_id', $klinikId);
                 if ($dokterId) $q->where('dokter_id', $dokterId);
             })
             ->with(['invoice.visitation.pasien', 'invoice.visitation.dokter.user', 'invoice.visitation.klinik', 'invoice.piutangs', 'invoice']);
+
+        $jenisOf = function($item) {
+            $billableType = $item->billable_type ?? '';
+            $itemNameLower = strtolower($item->name ?? '');
+            if (stripos($billableType, 'Resep') !== false || stripos($billableType, 'Obat') !== false || str_contains($itemNameLower, 'obat')) return 'Obat/Produk';
+            if (stripos($billableType, 'Tindakan') !== false) return 'Tindakan';
+            if (stripos($billableType, 'Lab') !== false) return 'Laboratorium';
+            return 'Lain-lain';
+        };
 
         return DataTables::of($query)
             ->addColumn('tanggal_visit', function($item){
@@ -216,15 +225,11 @@ class BillingController extends Controller
             ->addColumn('nama_klinik', function($item){
                 return optional(optional($item->invoice)->visitation->klinik)->nama ?? null;
             })
-            ->addColumn('jenis', function($item){
-                $billableType = $item->billable_type ?? '';
-                $itemNameLower = strtolower($item->name ?? '');
-                if (stripos($billableType, 'Resep') !== false || stripos($billableType, 'Obat') !== false || str_contains($itemNameLower, 'obat')) return 'Obat/Produk';
-                if (stripos($billableType, 'Tindakan') !== false) return 'Tindakan';
-                if (stripos($billableType, 'Lab') !== false) return 'Laboratorium';
-                return 'Lain-lain';
-            })
+            ->addColumn('jenis', $jenisOf)
             ->addColumn('nama_item', function($item){ return $item->name; })
+            ->addColumn('principal', function($item) use ($jenisOf){
+                return $jenisOf($item) === 'Obat/Produk' ? ($item->principal_nama ?: '-') : '';
+            })
             ->addColumn('qty', function($item){ return $item->quantity ?? 1; })
             ->addColumn('harga', function($item){ return $item->unit_price ?? 0; })
             ->addColumn('harga_sebelum_diskon', function($item){ return ($item->quantity ?? 1) * ($item->unit_price ?? 0); })
