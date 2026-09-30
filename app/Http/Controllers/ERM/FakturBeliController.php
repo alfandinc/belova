@@ -1073,6 +1073,7 @@ class FakturBeliController extends Controller
                     'qty' => $item->qty ?? 0,
                     'satuan' => $item->obat->satuan ?? '',
                     'nama_vendor' => $faktur->pemasok->nama ?? '',
+                    'nama_principal' => $this->resolvePrincipalNameForItem($item),
                     'harga_per_satuan' => $item->harga ?? 0,
                     'diskon' => isset($item->diskon) ? $item->diskon : '',
                     'diskon_type' => isset($item->diskon_type) ? $item->diskon_type : '',
@@ -1099,6 +1100,7 @@ class FakturBeliController extends Controller
                 $r['qty'],
                 $r['satuan'],
                 $r['nama_vendor'],
+                $r['nama_principal'],
                 $r['harga_per_satuan'],
                 ($r['diskon'] === '' ? '' : ($r['diskon'] . ($r['diskon_type'] ? (' ' . $r['diskon_type']) : ''))),
                 ($r['pajak'] === '' ? '' : ($r['pajak'] . ($r['pajak_type'] ? (' ' . $r['pajak_type']) : ''))),
@@ -1108,7 +1110,7 @@ class FakturBeliController extends Controller
             ];
         }, $rows);
 
-        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Tanggal Permintaan', 'Tanggal Terima', 'Nama Obat', 'Qty', 'Satuan', 'Nama Vendor', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
+        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Tanggal Permintaan', 'Tanggal Terima', 'Nama Obat', 'Qty', 'Satuan', 'Nama Distributor', 'Nama Principal', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
 
         $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
             private $array;
