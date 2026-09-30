@@ -1495,20 +1495,32 @@ class AbsensiRekapController extends Controller
                             return $datetime;
                         };
 
-                        AttendanceRekap::updateOrCreate(
-                            [
-                                'finger_id' => $fingerId,
-                                'date' => $date,
-                            ],
-                            [
-                                'employee_id' => $employee->id,
-                                'jam_masuk' => $toExcelFormat($jamMasuk, $date),
-                                'jam_keluar' => $toExcelFormat($jamKeluar, $date),
-                                'shift_start' => $shiftStart,
-                                'shift_end' => $shiftEnd,
-                                'work_hour' => $workHour,
-                            ]
-                        );
+                        // Replace existing data for this employee on the same day
+                        // (match by employee_id or finger_id so re-uploads never create duplicates)
+                        $dateOnly = date('Y-m-d', strtotime((string) $date));
+                        $existing = AttendanceRekap::whereDate('date', $dateOnly)
+                            ->where(function ($q) use ($employee, $fingerId) {
+                                $q->where('employee_id', $employee->id)
+                                  ->orWhere('finger_id', $fingerId);
+                            })
+                            ->orderBy('id')
+                            ->get();
+
+                        $rekap = $existing->shift() ?? new AttendanceRekap();
+                        if ($existing->isNotEmpty()) {
+                            AttendanceRekap::whereIn('id', $existing->pluck('id'))->delete();
+                        }
+
+                        $rekap->fill([
+                            'employee_id' => $employee->id,
+                            'finger_id' => $fingerId,
+                            'date' => $dateOnly,
+                            'jam_masuk' => $toExcelFormat($jamMasuk, $date),
+                            'jam_keluar' => $toExcelFormat($jamKeluar, $date),
+                            'shift_start' => $shiftStart,
+                            'shift_end' => $shiftEnd,
+                            'work_hour' => $workHour,
+                        ])->save();
                     
                     Log::info("Saved attendance for {$employee->nama} on {$date}", [
                         'jam_masuk' => $jamMasuk,
