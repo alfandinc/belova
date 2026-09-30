@@ -18,9 +18,14 @@ class KpiAssessmentController extends Controller
 
         if ($scores->isNotEmpty()) {
             // Build indicators list from the saved score snapshot (ss_*) so modal matches generated assessment
-            $indicators = $scores->map(function($s){
+            $indicatorNotes = \App\Models\KPI\KpiIndicator::whereIn('id', $scores->keys())->pluck('notes', 'id');
+            $indicators = $scores->map(function($s) use ($indicatorNotes){
                 return (object)[
-                    'indicator' => (object)[ 'indicator_name' => $s->ss_indicator_name, 'id' => $s->indicators_id ],
+                    'indicator' => (object)[
+                        'indicator_name' => $s->ss_indicator_name,
+                        'id' => $s->indicators_id,
+                        'notes' => $indicatorNotes->get($s->indicators_id),
+                    ],
                     'weight_percentage' => $s->ss_indicator_weight_percentage ?? 0,
                     'category_name' => $s->ss_category_name ?? null,
                 ];
