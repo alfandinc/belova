@@ -160,6 +160,38 @@ class KpiPeriodController extends Controller
                     $pendingCount = 0;
                     $evaluations = [];
 
+                    // Specific-position evaluators assess the employee once, not once per position.
+                    // Reuse a done specific_position assessment for the same evaluator's pending
+                    // assessments on the employee's other positions (in memory only).
+                    $specificScores = [];
+                    foreach ($group as $assessment) {
+                        if ($assessment->assessment_type !== 'specific_position' || $assessment->status !== 'done') {
+                            continue;
+                        }
+                        foreach ($assessment->scores as $s) {
+                            $specificScores[$assessment->evaluator_position_id][$s->indicators_id] ??= $s;
+                        }
+                    }
+                    foreach ($group as $assessment) {
+                        if ($assessment->assessment_type !== 'specific_position' || $assessment->status === 'done') {
+                            continue;
+                        }
+                        $pool = $specificScores[$assessment->evaluator_position_id] ?? [];
+                        if (empty($pool) || $assessment->scores->isEmpty()) {
+                            continue;
+                        }
+                        // Indicators the evaluator did not score elsewhere take their average raw score
+                        $averageScore = array_sum(array_map(fn($s) => (float) $s->score, $pool)) / count($pool);
+                        foreach ($assessment->scores as $s) {
+                            $source = $pool[$s->indicators_id] ?? null;
+                            $rawScore = $source ? (float) $source->score : $averageScore;
+                            $s->score = round($rawScore, 2);
+                            $s->notes = $source?->notes;
+                            $s->final_calculated_score = round(($rawScore / 5.0) * (((float) ($s->ss_indicator_weight_percentage ?? 0)) / 100.0) * ((float) ($s->ss_category_weight_percentage ?? 0)), 2);
+                        }
+                        $assessment->status = 'done';
+                    }
+
                     foreach ($positionGroups as $positionGroup) {
                         // An indicator may be scored by several evaluators (e.g. multiple atasan or
                         // bottom-up peers). Average each indicator across the evaluators who submitted,
