@@ -33,7 +33,8 @@ class AsesmenController extends Controller
         $dataperawat = AsesmenPerawat::where('visitation_id', $visitationId)->first();
         $asesmenPenunjang = AsesmenPenunjang::where('visitation_id', $visitationId)->first();
 
-        $spesialisasi = Str::slug($visitation->dokter->spesialisasi->nama, '_');
+        $spesialisasiNama = $visitation->resolvedSpesialisasi()->nama ?? '';
+        $spesialisasi = Str::slug($spesialisasiNama, '_');
 
         $asesmen = [
             'penyakit_dalam' => AsesmenDalam::where('visitation_id', $visitationId)->first(),
@@ -59,7 +60,7 @@ class AsesmenController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->dokter->spesialisasi->nama);
+        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($spesialisasiNama);
 
         // Get previous visitation for this patient (exclude current)
         $lastVisitation = Visitation::where('pasien_id', $visitation->pasien_id)
@@ -134,7 +135,7 @@ class AsesmenController extends Controller
     {
         // Get spesialisasi from visitation (safe from manipulation)
         $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($request->visitation_id);
-        $spesialisasi = strtolower($visitation->dokter->spesialisasi->nama);
+        $spesialisasi = strtolower($visitation->resolvedSpesialisasi()->nama ?? '');
 
         // Call spesialisasi-based save function
         if ($spesialisasi === 'penyakit dalam') {

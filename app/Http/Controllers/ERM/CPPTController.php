@@ -71,7 +71,7 @@ class CPPTController extends Controller
         });
 
         // Get konsultasi list for select
-        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->dokter->spesialisasi->nama);
+        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->resolvedSpesialisasi()->nama ?? '');
 
         return view('erm.cppt.create', array_merge([
             'visitation' => $visitation,

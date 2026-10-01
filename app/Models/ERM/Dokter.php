@@ -42,7 +42,42 @@ class Dokter extends Model
     public function kliniks(): BelongsToMany
     {
         return $this->belongsToMany(Klinik::class, 'erm_dokter_kliniks', 'dokter_id', 'klinik_id')
+            ->withPivot('spesialisasi_id')
             ->withTimestamps();
+    }
+
+    /**
+     * Spesialisasi the dokter practices as in the given klinik,
+     * falling back to the dokter's default spesialisasi.
+     */
+    public function spesialisasiIdForKlinik($klinikId): ?int
+    {
+        if ($klinikId) {
+            $pivotSpesialisasiId = $this->kliniks()
+                ->where('erm_klinik.id', $klinikId)
+                ->value('erm_dokter_kliniks.spesialisasi_id');
+
+            if ($pivotSpesialisasiId) {
+                return (int) $pivotSpesialisasiId;
+            }
+        }
+
+        return $this->spesialisasi_id ? (int) $this->spesialisasi_id : null;
+    }
+
+    public function spesialisasiForKlinik($klinikId): ?Spesialisasi
+    {
+        $spesialisasiId = $this->spesialisasiIdForKlinik($klinikId);
+
+        if ($spesialisasiId === null) {
+            return null;
+        }
+
+        if ((int) $this->spesialisasi_id === $spesialisasiId && $this->relationLoaded('spesialisasi')) {
+            return $this->spesialisasi;
+        }
+
+        return Spesialisasi::find($spesialisasiId);
     }
 
     public function mapping()

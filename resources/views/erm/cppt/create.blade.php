@@ -7,7 +7,8 @@
 
 @php
     $filteredJenisKonsultasi = collect($jenisKonsultasi)->values();
-    $defaultJenisKonsultasi = (string) old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2);
+    $visitSpesialisasi = $visitation->resolvedSpesialisasi();
+    $defaultJenisKonsultasi = (string) old('jenis_konsultasi', optional($visitSpesialisasi)->id == 6 ? 1 : 2);
     if (!$filteredJenisKonsultasi->contains('id', (int) $defaultJenisKonsultasi)) {
         $defaultJenisKonsultasi = (string) optional($filteredJenisKonsultasi->first())->id;
     }

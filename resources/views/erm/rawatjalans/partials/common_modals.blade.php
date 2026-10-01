@@ -481,7 +481,7 @@ Terima kasih.
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalReferralTitle">Ubah Referral</h5>
+                <h5 class="modal-title" id="modalReferralTitle">Ubah Referral Kunjungan</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -490,7 +490,8 @@ Terima kasih.
                 <div class="modal-body">
                     <input type="hidden" id="referral-visitation-id" name="visitation_id" />
                     <div class="form-group mb-3">
-                        <label for="referral-type-select">Sumber Referral</label>
+                        <label for="referral-type-select">Referral Kunjungan</label>
+                        <small class="form-text text-muted mt-0 mb-1">Hanya berlaku untuk kunjungan ini. Jika ini kunjungan pertama pasien, sumber referral pasien ikut diperbarui.</small>
                         <select id="referral-type-select" name="referral_type" class="form-control select2-referral-modal" required>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WALK_IN }}">Walk-in</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PASIEN }}">Pasien</option>

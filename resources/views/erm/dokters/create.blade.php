@@ -159,23 +159,34 @@
                                         $selectedKlinikIds = isset($dokter)
                                             ? $dokter->kliniks->pluck('id')->map(fn ($id) => (string) $id)->all()
                                             : [];
+                                        $klinikSpesialisasiIds = isset($dokter)
+                                            ? $dokter->kliniks->pluck('pivot.spesialisasi_id', 'id')->all()
+                                            : [];
                                     @endphp
                                     <div class="border rounded p-3 bg-light">
                                         @foreach($kliniks as $klinik)
-                                            <div class="custom-control custom-checkbox mb-2">
-                                                <input
-                                                    type="checkbox"
-                                                    class="custom-control-input"
-                                                    id="klinik_tambahan_{{ $klinik->id }}"
-                                                    name="klinik_ids[]"
-                                                    value="{{ $klinik->id }}"
-                                                    {{ in_array((string) $klinik->id, $selectedKlinikIds, true) ? 'checked' : '' }}
-                                                >
-                                                <label class="custom-control-label" for="klinik_tambahan_{{ $klinik->id }}">{{ $klinik->nama }}</label>
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        class="custom-control-input"
+                                                        id="klinik_tambahan_{{ $klinik->id }}"
+                                                        name="klinik_ids[]"
+                                                        value="{{ $klinik->id }}"
+                                                        {{ in_array((string) $klinik->id, $selectedKlinikIds, true) ? 'checked' : '' }}
+                                                    >
+                                                    <label class="custom-control-label" for="klinik_tambahan_{{ $klinik->id }}">{{ $klinik->nama }}</label>
+                                                </div>
+                                                <select name="klinik_spesialisasi[{{ $klinik->id }}]" class="form-control form-control-sm ml-2" style="max-width: 200px;">
+                                                    <option value="">Spesialisasi default</option>
+                                                    @foreach($spesialisasis as $s)
+                                                        <option value="{{ $s->id }}" {{ (string) ($klinikSpesialisasiIds[$klinik->id] ?? '') === (string) $s->id ? 'selected' : '' }}>{{ $s->nama }}</option>
+                                                    @endforeach
+                                                </select>
                                             </div>
                                         @endforeach
                                     </div>
-                                    <small class="form-text text-muted">Boleh centang lebih dari satu. Klinik utama di atas akan ikut tersimpan otomatis.</small>
+                                    <small class="form-text text-muted">Boleh centang lebih dari satu. Klinik utama di atas akan ikut tersimpan otomatis. Pilih spesialisasi per klinik jika dokter praktik dengan spesialisasi berbeda di klinik tersebut (menentukan form asesmen).</small>
                                 </div>
                                 <div class="form-group mb-3">
                                     <label for="status"><i class="fas fa-toggle-on mr-1"></i>Status</label>

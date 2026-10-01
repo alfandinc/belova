@@ -116,6 +116,8 @@ class DokterController extends Controller
             'klinik_id' => 'required|exists:erm_klinik,id',
             'klinik_ids' => 'nullable|array',
             'klinik_ids.*' => 'exists:erm_klinik,id',
+            'klinik_spesialisasi' => 'nullable|array',
+            'klinik_spesialisasi.*' => 'nullable|exists:erm_spesialisasis,id',
             'due_date_sip' => 'nullable|date',
             'photo' => 'nullable|file|image|max:5120',
             'ttd' => 'nullable|file|image|max:5120',
@@ -184,7 +186,13 @@ class DokterController extends Controller
             ->values()
             ->all();
 
-        $dokter->kliniks()->sync($klinikIds);
+        // Optional per-klinik spesialisasi; empty means use the dokter's default spesialisasi.
+        $klinikSpesialisasi = $request->input('klinik_spesialisasi', []);
+        $dokter->kliniks()->sync(
+            collect($klinikIds)->mapWithKeys(fn ($klinikId) => [
+                $klinikId => ['spesialisasi_id' => ($klinikSpesialisasi[$klinikId] ?? null) ?: null],
+            ])->all()
+        );
 
         return response()->json([
             'success' => true,
