@@ -161,39 +161,31 @@ class KpiPeriodController extends Controller
                     $evaluations = [];
 
                     foreach ($positionGroups as $positionGroup) {
-                        $positionTotal = 0.0;
-                        $uniqueTotals = [];
-                        $filteredAssessments = collect();
+                        // An indicator may be scored by several evaluators (e.g. multiple atasan or
+                        // bottom-up peers). Average each indicator across the evaluators who submitted,
+                        // then sum the indicators so the position total stays on the 0-100 scale.
+                        $indicatorScores = [];
 
                         foreach ($positionGroup as $assessment) {
-                            $assessmentTotal = (float) $assessment->scores->sum('final_calculated_score');
-
-                            if ($assessment->assessment_type === 'bottom_up') {
-                                $positionTotal += $assessmentTotal;
-                                $filteredAssessments->push($assessment);
-                            } else {
-                                $bucketKey = $assessment->assessment_type . ':' . ($assessment->evaluator_position_id ?? 0);
-                                if (array_key_exists($bucketKey, $uniqueTotals)) {
-                                    continue;
+                            if ($assessment->status === 'done') {
+                                $doneCount++;
+                                foreach ($assessment->scores as $s) {
+                                    $indicatorScores[$s->indicators_id][] = (float) $s->final_calculated_score;
                                 }
-
-                                $uniqueTotals[$bucketKey] = $assessmentTotal;
-                                $filteredAssessments->push($assessment);
+                            } else {
+                                $pendingCount++;
                             }
-
-                            if ($assessment->status === 'done') $doneCount++; else $pendingCount++;
                         }
 
-                        foreach ($uniqueTotals as $bucketTotal) {
-                            $positionTotal += $bucketTotal;
+                        $positionTotal = 0.0;
+                        foreach ($indicatorScores as $values) {
+                            $positionTotal += array_sum($values) / count($values);
                         }
 
-                        if ($filteredAssessments->isNotEmpty()) {
-                            $totalScore += $positionTotal;
-                            $positionCount++;
-                        }
+                        $totalScore += $positionTotal;
+                        $positionCount++;
 
-                        foreach ($filteredAssessments as $assessment) {
+                        foreach ($positionGroup as $assessment) {
                             $scoresArr = [];
                             foreach ($assessment->scores as $s) {
                                 $scoresArr[] = [
