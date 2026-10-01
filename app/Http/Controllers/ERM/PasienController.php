@@ -623,6 +623,10 @@ class PasienController extends Controller
                 'user_id' => $userId,
                 'employee_id' => $request->employee_id,
             ]);
+
+            if ($pasien->wasChanged(['referral_type', 'referral_detail', 'referralable_type', 'referralable_id'])) {
+                $pasien->syncSourceReferralToFirstVisit();
+            }
         } else {
             // Create new patient
             // lock table dulu

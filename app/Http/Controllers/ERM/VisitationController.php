@@ -217,8 +217,8 @@ class VisitationController extends Controller
 
         try {
             if (!empty($validated['pasien_id'])) {
+                // Existing patient keeps its source referral; the marketplace goes on the visit.
                 $pasien = Pasien::findOrFail($validated['pasien_id']);
-                $this->syncMarketplaceReferralToPasien($pasien, $validated['referral_detail'] ?? null);
             } else {
                 $duplicatePasien = $this->findMarketplaceDuplicatePasien(
                     (string) $validated['nama'],
@@ -628,27 +628,19 @@ class VisitationController extends Controller
         ]);
     }
 
-    private function syncMarketplaceReferralToPasien(Pasien $pasien, ?string $referralDetail): void
-    {
-        $referralDetail = $referralDetail !== null ? strtolower(trim($referralDetail)) : null;
-
-        if (empty($referralDetail)) {
-            return;
-        }
-
-        $pasien->forceFill([
-            'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
-            'referral_detail' => $referralDetail,
-            'referralable_type' => null,
-            'referralable_id' => null,
-            'user_id' => Auth::id(),
-        ])->save();
-    }
-
     private function createMarketplaceVisitation(array $validated, string $pasienId): Visitation
     {
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
         $dokterId = !empty($validated['dokter_id']) ? $validated['dokter_id'] : null;
+        $referralDetail = !empty($validated['referral_detail']) ? strtolower(trim((string) $validated['referral_detail'])) : null;
+
+        // Without a chosen marketplace, the Visitation creating hook applies the default referral.
+        $referral = $referralDetail ? [
+            'referral_type' => Pasien::REFERRAL_TYPE_MARKETPLACE,
+            'referral_detail' => $referralDetail,
+            'referralable_type' => null,
+            'referralable_id' => null,
+        ] : [];
 
         $visitation = Visitation::create([
             'id' => $customId,
@@ -662,7 +654,7 @@ class VisitationController extends Controller
             'klinik_id' => $validated['klinik_id'],
             'status_kunjungan' => 2,
             'user_id' => Auth::id(),
-        ]);
+        ] + $referral);
 
         \App\Models\ERM\ResepDetail::create([
             'visitation_id' => $customId,

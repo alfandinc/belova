@@ -797,10 +797,10 @@ class RawatJalanController extends Controller
                         'erm_pasiens.status_akses as status_akses',
                         'erm_pasiens.status_review as status_review',
                         'erm_pasiens.employee_id as employee_id',
-                        'erm_pasiens.referral_type as referral_type',
-                        'erm_pasiens.referral_detail as referral_detail',
-                        'erm_pasiens.referralable_type as referralable_type',
-                        'erm_pasiens.referralable_id as referralable_id',
+                        'erm_visitations.referral_type as referral_type',
+                        'erm_visitations.referral_detail as referral_detail',
+                        'erm_visitations.referralable_type as referralable_type',
+                        'erm_visitations.referralable_id as referralable_id',
 
                         'mb.nama as metode_bayar_nama',
                         'u.name as dokter_user_name',
@@ -854,16 +854,16 @@ class RawatJalanController extends Controller
                     ->selectSub(
                         DB::table('erm_pasiens as rp')
                             ->select('rp.nama')
-                            ->whereColumn('rp.id', 'erm_pasiens.referralable_id')
-                            ->whereRaw("erm_pasiens.referralable_type = 'pasien'")
+                            ->whereColumn('rp.id', 'erm_visitations.referralable_id')
+                            ->whereRaw("erm_visitations.referralable_type = 'pasien'")
                             ->limit(1),
                         'referral_patient_name'
                     )
                     ->selectSub(
                         DB::table('hrd_employee as he')
                             ->select('he.nama')
-                            ->whereColumn('he.id', 'erm_pasiens.referralable_id')
-                            ->whereRaw("erm_pasiens.referralable_type = 'employee'")
+                            ->whereColumn('he.id', 'erm_visitations.referralable_id')
+                            ->whereRaw("erm_visitations.referralable_type = 'employee'")
                             ->limit(1),
                         'referral_employee_name'
                     )
@@ -871,8 +871,8 @@ class RawatJalanController extends Controller
                         DB::table('erm_dokters as rd')
                             ->leftJoin('users as ru', 'rd.user_id', '=', 'ru.id')
                             ->selectRaw("COALESCE(NULLIF(TRIM(ru.name), ''), CONCAT('Dokter ID ', rd.id))")
-                            ->whereColumn('rd.id', 'erm_pasiens.referralable_id')
-                            ->whereRaw("erm_pasiens.referralable_type = 'dokter'")
+                            ->whereColumn('rd.id', 'erm_visitations.referralable_id')
+                            ->whereRaw("erm_visitations.referralable_type = 'dokter'")
                             ->limit(1),
                         'referral_dokter_name'
                     )
@@ -880,12 +880,12 @@ class RawatJalanController extends Controller
                         DB::table('marketing_event as me')
                             ->select('me.nama_event')
                             ->where(function ($query) {
-                                $query->whereColumn('me.id', 'erm_pasiens.referralable_id')
-                                    ->whereRaw("erm_pasiens.referralable_type = 'marketing_event'");
+                                $query->whereColumn('me.id', 'erm_visitations.referralable_id')
+                                    ->whereRaw("erm_visitations.referralable_type = 'marketing_event'");
                             })
                             ->orWhere(function ($query) {
-                                $query->whereColumn('me.kode_event', 'erm_pasiens.referral_detail')
-                                    ->whereRaw("(erm_pasiens.referralable_type IS NULL OR erm_pasiens.referralable_id IS NULL)");
+                                $query->whereColumn('me.kode_event', 'erm_visitations.referral_detail')
+                                    ->whereRaw("(erm_visitations.referralable_type IS NULL OR erm_visitations.referralable_id IS NULL)");
                             })
                             ->limit(1),
                         'referral_event_name'
@@ -1988,11 +1988,22 @@ class RawatJalanController extends Controller
 
             $referralAttributes = Pasien::buildReferralAttributes($referralType, $referralPasienId, $referralDetail, null, $referralableId);
 
-            $pasien->referral_type = $referralType;
-            $pasien->referral_detail = $referralAttributes['referral_detail'] ?? null;
-            $pasien->referralable_type = $referralAttributes['referralable_type'] ?? null;
-            $pasien->referralable_id = $referralAttributes['referralable_id'] ?? null;
-            $pasien->save();
+            $referralValues = [
+                'referral_type' => $referralType,
+                'referral_detail' => $referralAttributes['referral_detail'] ?? null,
+                'referralable_type' => $referralAttributes['referralable_type'] ?? null,
+                'referralable_id' => $referralAttributes['referralable_id'] ?? null,
+            ];
+
+            DB::transaction(function () use ($visitation, $pasien, $referralValues) {
+                // Visit referral = transaction referral for this visit only.
+                $visitation->forceFill($referralValues)->save();
+
+                // The first visit defines the patient's source referral.
+                if ($visitation->isFirstVisitOfPasien()) {
+                    $pasien->forceFill($referralValues)->save();
+                }
+            });
 
             return response()->json(['success' => true]);
         } catch (\Throwable $e) {

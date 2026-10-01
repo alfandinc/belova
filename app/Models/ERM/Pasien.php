@@ -169,6 +169,29 @@ class Pasien extends Model
         ];
     }
 
+    /**
+     * The patient's first visit always carries the source referral.
+     */
+    public function syncSourceReferralToFirstVisit(): void
+    {
+        $firstVisit = $this->visitations()
+            ->orderBy('tanggal_visitation')
+            ->orderBy('waktu_kunjungan')
+            ->orderBy('created_at')
+            ->first();
+
+        if (!$firstVisit) {
+            return;
+        }
+
+        $firstVisit->forceFill([
+            'referral_type' => $this->referral_type ?: self::REFERRAL_TYPE_WALK_IN,
+            'referral_detail' => $this->referral_detail,
+            'referralable_type' => $this->referralable_type,
+            'referralable_id' => $this->referralable_id,
+        ])->save();
+    }
+
     public function village()
     {
         return $this->belongsTo(Village::class, 'village_id');

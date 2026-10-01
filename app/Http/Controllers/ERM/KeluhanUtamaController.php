@@ -28,7 +28,7 @@ class KeluhanUtamaController extends Controller
             return response()->json(['error' => 'Dokter or Visitation not found'], 404);
         }
 
-        $spesialisId = $visitation->dokter->spesialisasi_id;
+        $spesialisId = $visitation->dokter->spesialisasiIdForKlinik($visitation->klinik_id);
 
         if (!$spesialisId) {
             return response()->json(['error' => 'Spesialis ID not found'], 404);

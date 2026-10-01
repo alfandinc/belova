@@ -637,16 +637,23 @@ class BillingController extends Controller
             return null;
         }
 
-        $visitation->loadMissing('pasien.referralable');
+        // Prefer the visit's own referral; fall back to the patient's source for legacy visits.
+        if (!empty($visitation->referral_type)) {
+            $visitation->loadMissing('referralable');
+            $referralOwner = $visitation;
+        } else {
+            $visitation->loadMissing('pasien.referralable');
+            $referralOwner = $visitation->pasien;
+        }
 
-        if ((string) ($visitation->pasien->referral_type ?? '') === Pasien::REFERRAL_TYPE_EVENT) {
-            $referralTarget = $visitation->pasien->referralable;
+        if ((string) ($referralOwner->referral_type ?? '') === Pasien::REFERRAL_TYPE_EVENT) {
+            $referralTarget = $referralOwner->referralable;
 
             if ($referralTarget instanceof MarketingEvent && (string) ($referralTarget->status ?? '') === 'aktif') {
                 return $referralTarget->loadMissing('promos:id,name,start_date,end_date');
             }
 
-            $eventCode = trim((string) ($visitation->pasien->referral_detail ?? ''));
+            $eventCode = trim((string) ($referralOwner->referral_detail ?? ''));
             if ($eventCode !== '') {
                 $event = MarketingEvent::with('promos:id,name,start_date,end_date')
                     ->where('status', 'aktif')
@@ -835,31 +842,9 @@ class BillingController extends Controller
             $defaultMetodeBayarId = $this->resolveDefaultEventMetodeBayarId();
 
             if ($patientMode === 'existing') {
+                // The patient's source referral stays untouched; the event is recorded
+                // as this visit's referral (see Visitation::create below).
                 $pasien = Pasien::findOrFail($data['pasien_id']);
-
-                // Event billing for an existing patient must point back to the current
-                // event so later billing validation resolves promo items from the same event.
-                if (
-                    (string) ($pasien->referral_type ?? '') !== Pasien::REFERRAL_TYPE_EVENT ||
-                    (string) ($pasien->referralable_type ?? '') !== $event->getMorphClass() ||
-                    (string) ($pasien->referralable_id ?? '') !== (string) $event->id ||
-                    trim((string) ($pasien->referral_detail ?? '')) !== (string) $event->kode_event
-                ) {
-                    $referralAttributes = Pasien::buildReferralAttributes(
-                        Pasien::REFERRAL_TYPE_EVENT,
-                        null,
-                        (string) $event->kode_event,
-                        null,
-                        (string) $event->id
-                    );
-
-                    $pasien->forceFill([
-                        'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
-                        'referral_detail' => $referralAttributes['referral_detail'],
-                        'referralable_type' => $referralAttributes['referralable_type'],
-                        'referralable_id' => $referralAttributes['referralable_id'],
-                    ])->save();
-                }
             } else {
                 $lastPasienId = DB::table('erm_pasiens')
                     ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
@@ -894,10 +879,22 @@ class BillingController extends Controller
 
             $visitationId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
             $now = Carbon::now();
+            $eventReferral = Pasien::buildReferralAttributes(
+                Pasien::REFERRAL_TYPE_EVENT,
+                null,
+                (string) $event->kode_event,
+                null,
+                (string) $event->id
+            );
 
+            // Event billing resolves promo items from the visit's event referral.
             $visitation = Visitation::create([
                 'id' => $visitationId,
                 'pasien_id' => $pasien->id,
+                'referral_type' => Pasien::REFERRAL_TYPE_EVENT,
+                'referral_detail' => $eventReferral['referral_detail'],
+                'referralable_type' => $eventReferral['referralable_type'],
+                'referralable_id' => $eventReferral['referralable_id'],
                 'metode_bayar_id' => $defaultMetodeBayarId,
                 'dokter_id' => null,
                 'user_id' => Auth::id(),
@@ -5534,7 +5531,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
             })
             ->addColumn('referral_display', function ($visitation) {
-                return $this->buildReferralDisplay($visitation->pasien);
+                return $this->buildReferralDisplay($this->visitationReferralOwner($visitation));
             })
             ->addColumn('invoice_number', function ($visitation) {
                 // Return associated invoice number if exists, otherwise dash
@@ -5618,7 +5615,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->map(function ($visitation) {
                 $invoice = $visitation->invoice;
                 $total = $invoice ? floatval($invoice->total_amount ?? 0) : null;
-                [$referralType, $referralDetail] = $this->referralParts($visitation->pasien);
+                [$referralType, $referralDetail] = $this->referralParts($this->visitationReferralOwner($visitation));
 
                 return [
                     $invoice->invoice_number ?? '-',
@@ -5659,6 +5656,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
         $visitations = \App\Models\ERM\Visitation::with([
                 'pasien',
+                'referralable' => function ($morphTo) {
+                    $morphTo->morphWith([\App\Models\ERM\Dokter::class => ['user']]);
+                },
                 'pasien.referralable' => function ($morphTo) {
                     $morphTo->morphWith([\App\Models\ERM\Dokter::class => ['user']]);
                 },
@@ -5943,9 +5943,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     /**
+     * The visit's own (transaction) referral, or the patient's source referral for legacy visits.
+     */
+    private function visitationReferralOwner(Visitation $visitation): Visitation|Pasien|null
+    {
+        return !empty($visitation->referral_type) ? $visitation : $visitation->pasien;
+    }
+
+    /**
      * Referral label with icon, same format as the Rawat Jalan index.
      */
-    private function buildReferralDisplay(?Pasien $pasien): string
+    private function buildReferralDisplay(Visitation|Pasien|null $pasien): string
     {
         $referralType = (string) (($pasien->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
 
@@ -5972,7 +5980,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     /**
      * Referral label as plain text, e.g. "Walk-in" or "Pasien: Budi (RM: 000123)".
      */
-    private function referralLabel(?Pasien $pasien): string
+    private function referralLabel(Visitation|Pasien|null $pasien): string
     {
         [$typeLabel, $detail] = $this->referralParts($pasien);
 
@@ -5982,7 +5990,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     /**
      * Referral as [type label, detail or null], e.g. ['Pasien', 'Budi (RM: 000123)'].
      */
-    private function referralParts(?Pasien $pasien): array
+    private function referralParts(Visitation|Pasien|null $pasien): array
     {
         $referralType = (string) (($pasien->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
 

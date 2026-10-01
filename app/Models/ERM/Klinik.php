@@ -18,6 +18,7 @@ class Klinik extends Model
     public function dokters(): BelongsToMany
     {
         return $this->belongsToMany(Dokter::class, 'erm_dokter_kliniks', 'klinik_id', 'dokter_id')
+            ->withPivot('spesialisasi_id')
             ->withTimestamps();
     }
 }
