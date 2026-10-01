@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Pasien;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\Spesialisasi;
 use App\Models\ERM\MetodeBayar;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -304,8 +305,29 @@ class VisitationController extends Controller
             ->orWhereHas('kliniks', function ($query) use ($klinikId) {
                 $query->where('erm_klinik.id', $klinikId);
             })
-            ->with(['spesialisasi', 'user'])
+            ->with([
+                'spesialisasi',
+                'user',
+                'kliniks' => function ($query) use ($klinikId) {
+                    $query->where('erm_klinik.id', $klinikId);
+                },
+            ])
             ->get();
+
+        // Show the spesialisasi the dokter practises as in this klinik, not their default one.
+        $pivotSpesialisasiIds = $dokters
+            ->map(fn (Dokter $dokter) => optional(optional($dokter->kliniks->first())->pivot)->spesialisasi_id)
+            ->filter()
+            ->unique();
+        $pivotSpesialisasis = Spesialisasi::whereIn('id', $pivotSpesialisasiIds)->get()->keyBy('id');
+
+        $dokters->each(function (Dokter $dokter) use ($pivotSpesialisasis) {
+            $pivotSpesialisasiId = optional(optional($dokter->kliniks->first())->pivot)->spesialisasi_id;
+            if ($pivotSpesialisasiId && $pivotSpesialisasis->has($pivotSpesialisasiId)) {
+                $dokter->setRelation('spesialisasi', $pivotSpesialisasis->get($pivotSpesialisasiId));
+            }
+            $dokter->unsetRelation('kliniks');
+        });
 
         return response()->json($dokters);
     }
