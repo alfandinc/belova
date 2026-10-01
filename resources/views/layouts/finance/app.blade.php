@@ -202,6 +202,7 @@
     @include('partials.global_chat_widget')
     @endunless
     @yield('scripts')
+    @stack('scripts')
     {{-- @include('partials.farmasi-notif') --}}
     @if(!$financeEmbed && Auth::user() && Auth::user()->hasRole('Kasir'))
     <script>

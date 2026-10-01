@@ -1018,8 +1018,12 @@ class BillingController extends Controller
      */
     private function resolveDefaultEventMetodeBayarId(): ?int
     {
+        // Prefer the metode bayar named "Umum", otherwise the first active non-asuransi one.
         $umumMetodeBayarId = MetodeBayar::query()
-            ->whereRaw('LOWER(nama) = ?', ['umum'])
+            ->umum()
+            ->active()
+            ->orderByRaw('LOWER(TRIM(nama)) = ? DESC', ['umum'])
+            ->orderBy('id')
             ->value('id');
 
         if ($umumMetodeBayarId) {
@@ -5530,6 +5534,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('metode_bayar_nama', function ($visitation) {
                 return $visitation->metodeBayar ? $visitation->metodeBayar->nama : '-';
             })
+            ->addColumn('metode_bayar_is_asuransi', function ($visitation) {
+                return (bool) optional($visitation->metodeBayar)->is_asuransi;
+            })
             ->addColumn('referral_display', function ($visitation) {
                 return $this->buildReferralDisplay($this->visitationReferralOwner($visitation));
             })
@@ -5704,16 +5711,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $visitations->where('klinik_id', $klinikId);
         }
 
-        // Tab filter: Umum vs Asuransi (everything except Umum)
+        // Tab filter: Umum vs Asuransi (erm_metode_bayar.is_asuransi; visits without metode bayar fall under Asuransi)
         if ($metodeGroup === 'umum') {
             $visitations->whereHas('metodeBayar', function ($q) {
-                $q->whereRaw('LOWER(nama) = ?', ['umum']);
+                $q->where('is_asuransi', false);
             });
         } elseif ($metodeGroup === 'asuransi') {
             $visitations->where(function ($q) {
                 $q->whereDoesntHave('metodeBayar')
                   ->orWhereHas('metodeBayar', function ($mq) {
-                      $mq->whereRaw('LOWER(nama) != ?', ['umum']);
+                      $mq->where('is_asuransi', true);
                   });
             });
         }
@@ -6062,16 +6069,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
             });
 
-            // Tab filter: Umum vs Asuransi (everything except Umum)
+            // Tab filter: Umum vs Asuransi (erm_metode_bayar.is_asuransi; visits without metode bayar fall under Asuransi)
             if ($metodeGroup === 'umum') {
                 $q->whereHas('metodeBayar', function ($mq) {
-                    $mq->whereRaw('LOWER(nama) = ?', ['umum']);
+                    $mq->where('is_asuransi', false);
                 });
             } elseif ($metodeGroup === 'asuransi') {
                 $q->where(function ($w) {
                     $w->whereDoesntHave('metodeBayar')
                       ->orWhereHas('metodeBayar', function ($mq) {
-                          $mq->whereRaw('LOWER(nama) != ?', ['umum']);
+                          $mq->where('is_asuransi', true);
                       });
                 });
             }

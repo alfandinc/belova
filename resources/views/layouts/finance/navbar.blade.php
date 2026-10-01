@@ -89,6 +89,12 @@
                         </a>
                     </li>
                     <li>
+                        <a href="{{ route('finance.metode-bayar.index') }}">
+                            <i class="fas fa-credit-card align-self-center menu-icon"></i>
+                            <span>Master Metode Bayar</span>
+                        </a>
+                    </li>
+                    <li>
                         <a href="{{ route('finance.jurnal.index') }}">
                             <i class="fas fa-book align-self-center menu-icon"></i>
                             <span>Jurnal Umum</span>

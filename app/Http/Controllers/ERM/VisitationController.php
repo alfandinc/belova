@@ -37,7 +37,7 @@ class VisitationController extends Controller
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
             'jenis_kunjungan' => 'nullable|integer', // allow caller to specify visit type
-        ]);
+        ] + Pasien::referralInputRules(false));
 
         // Duplicate rule:
         // - jenis_kunjungan = 1 (Konsultasi) => only ONE visitation per pasien per tanggal
@@ -84,7 +84,7 @@ class VisitationController extends Controller
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'status_kunjungan' => 0,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
-        ]);
+        ] + $this->requestedReferral($request));
 
         // Generate no_resep and create resep detail
         $noResep = 'RSP' . $customId;
@@ -111,7 +111,7 @@ class VisitationController extends Controller
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
-        ]);
+        ] + Pasien::referralInputRules(false));
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
@@ -128,7 +128,7 @@ class VisitationController extends Controller
             'status_kunjungan' => 2,
             'jenis_kunjungan' => 2,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
-        ]);
+        ] + $this->requestedReferral($request));
 
         // Generate no_resep and create resep detail
         $noResep = 'RSP' . $customId;
@@ -155,7 +155,7 @@ class VisitationController extends Controller
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
-        ]);
+        ] + Pasien::referralInputRules(false));
 
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
@@ -172,7 +172,7 @@ class VisitationController extends Controller
             'status_kunjungan' => 2,
             'jenis_kunjungan' => 3,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
-        ]);
+        ] + $this->requestedReferral($request));
 
         // Generate no_resep and create resep detail
         $noResep = 'RSP' . $customId;
@@ -600,6 +600,53 @@ class VisitationController extends Controller
                 'service_url' => $serviceUrl,
             ], 502);
         }
+    }
+
+    /**
+     * GET: referral context for the daftar kunjungan modal.
+     * First visit => referral is locked to the patient's source referral.
+     */
+    public function referralContext(Request $request)
+    {
+        $request->validate(['pasien_id' => 'required|exists:erm_pasiens,id']);
+
+        $pasien = Pasien::with('referralable')->findOrFail($request->pasien_id);
+        $referralable = $pasien->referralable;
+
+        $referralableLabel = match (true) {
+            $referralable instanceof Pasien => $referralable->nama . ' (RM: ' . $referralable->id . ')',
+            $referralable instanceof Dokter => optional($referralable->user)->name ?: 'Dokter ID ' . $referralable->id,
+            $referralable instanceof \App\Models\HRD\Employee => $referralable->nama,
+            $referralable instanceof \App\Models\Marketing\MarketingEvent => $referralable->nama_event,
+            default => null,
+        };
+
+        return response()->json([
+            'is_first_visit' => !$pasien->visitations()->exists(),
+            'source' => [
+                'referral_type' => $pasien->referral_type ?: Pasien::REFERRAL_TYPE_WALK_IN,
+                'referral_detail' => $pasien->referral_detail,
+                'referralable_id' => $pasien->referralable_id,
+                'referralable_label' => $referralableLabel,
+            ],
+        ]);
+    }
+
+    /**
+     * Visit referral picked in the daftar kunjungan modal. Empty when nothing was picked or
+     * when this is the patient's first visit (the Visitation creating hook then applies the default).
+     */
+    private function requestedReferral(Request $request): array
+    {
+        if (!$request->filled('referral_type') || !$request->filled('pasien_id')) {
+            return [];
+        }
+
+        if (!Visitation::where('pasien_id', $request->pasien_id)->exists()) {
+            return [];
+        }
+
+        return Pasien::resolveReferralInput($request->all());
     }
 
     private function findMarketplaceDuplicatePasien(string $nama, string $referralDetail): ?Pasien

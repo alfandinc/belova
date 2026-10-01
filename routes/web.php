@@ -951,6 +951,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
     Route::post('/visitations/marketplace', [VisitationController::class, 'storeMarketplace'])->name('erm.visitations.marketplace.store');
+    Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     
     // WhatsApp Integration Routes removed (waweb-js uninstalled)
@@ -1427,6 +1428,12 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/akun/{akun}', [FinanceAkunController::class, 'show'])->name('finance.akun.show');
             Route::put('/akun/{akun}', [FinanceAkunController::class, 'update'])->name('finance.akun.update');
             Route::delete('/akun/{akun}', [FinanceAkunController::class, 'destroy'])->name('finance.akun.destroy');
+            Route::get('/metode-bayar', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'index'])->name('finance.metode-bayar.index');
+            Route::get('/metode-bayar/data', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'data'])->name('finance.metode-bayar.data');
+            Route::post('/metode-bayar', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'store'])->name('finance.metode-bayar.store');
+            Route::get('/metode-bayar/{metodeBayar}', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'show'])->name('finance.metode-bayar.show');
+            Route::put('/metode-bayar/{metodeBayar}', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'update'])->name('finance.metode-bayar.update');
+            Route::delete('/metode-bayar/{metodeBayar}', [\App\Http\Controllers\Finance\MetodeBayarController::class, 'destroy'])->name('finance.metode-bayar.destroy');
             Route::get('/jurnal', [FinanceJurnalController::class, 'index'])->name('finance.jurnal.index');
             Route::get('/jurnal/data', [FinanceJurnalController::class, 'data'])->name('finance.jurnal.data');
             Route::post('/jurnal', [FinanceJurnalController::class, 'store'])->name('finance.jurnal.store');
@@ -1466,9 +1473,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/billing/filters', [BillingController::class, 'filters'])->name('finance.billing.filters');
         // Lazy-loaded modal markup for billing index page
         Route::get('/billing/index-modals', function () {
-            $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
-            $metodeBayar = \App\Models\ERM\MetodeBayar::select('id', 'nama')->orderBy('nama')->get();
-            return view('finance.billing.partials.index-modals', compact('kliniks', 'metodeBayar'));
+            return view('finance.billing.partials.index-modals');
         })->name('finance.billing.index-modals');
         Route::get('/billing/gudang-data', [BillingController::class, 'getGudangData'])->name('finance.billing.gudang-data');
         // Lazy-loaded modal markup (loaded on-demand by billing create page)

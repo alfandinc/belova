@@ -32,6 +32,7 @@ use App\Notifications\DokterToPerawatNotification;
 use App\Notifications\PerawatToDokterNotification;
 use Carbon\Carbon;
 use Yajra\DataTables\Facades\DataTables;
+use App\View\Composers\DaftarKunjunganModalComposer;
 
 class RawatJalanController extends Controller
 {
@@ -62,23 +63,9 @@ class RawatJalanController extends Controller
             return response('Unauthenticated', 401);
         }
 
-        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function () {
-            return MetodeBayar::select('id', 'nama')->orderBy('nama')->get();
-        });
+        $metodeBayar = MetodeBayar::cachedList();
 
-        $employees = Cache::remember('erm_referral_employees', 300, function () {
-            return Employee::select('id', 'nama', 'no_induk')->orderBy('nama')->get();
-        });
-
-        $dokters = Cache::remember('erm_referral_dokters', 300, function () {
-            return Dokter::with(['user:id,name', 'spesialisasi:id,nama'])->get()->sortBy(function ($dokter) {
-                return strtolower((string) ($dokter->user->name ?? ''));
-            })->values();
-        });
-
-        $events = Cache::remember('erm_referral_events', 300, function () {
-            return MarketingEvent::select('id', 'nama_event', 'kode_event')->orderBy('nama_event')->get();
-        });
+        [$employees, $dokters, $events] = DaftarKunjunganModalComposer::referralOptions();
 
         return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar', 'employees', 'dokters', 'events'));
     }
@@ -124,9 +111,7 @@ class RawatJalanController extends Controller
                 ->get();
         });
 
-        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function() {
-            return MetodeBayar::select('id', 'nama')->get();
-        });
+        $metodeBayar = MetodeBayar::cachedList();
 
         $role = Auth::user()->getRoleNames()->first();
         $isDokter = Auth::user()->hasRole('Dokter');
@@ -1169,9 +1154,7 @@ class RawatJalanController extends Controller
                 ->get();
         });
 
-        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function() {
-            return MetodeBayar::select('id', 'nama')->get();
-        });
+        $metodeBayar = MetodeBayar::cachedList();
 
         $kliniks = Cache::remember('erm_kliniks', 300, function() {
             return Klinik::select('id', 'nama')->get();
@@ -1905,24 +1888,7 @@ class RawatJalanController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'visitation_id' => 'required|exists:erm_visitations,id',
-                'referral_type' => 'required|string|in:' . implode(',', [
-                    Pasien::REFERRAL_TYPE_WALK_IN,
-                    Pasien::REFERRAL_TYPE_PASIEN,
-                    Pasien::REFERRAL_TYPE_SOCIAL_MEDIA,
-                    Pasien::REFERRAL_TYPE_WEBSITE,
-                    Pasien::REFERRAL_TYPE_EMPLOYEE,
-                    Pasien::REFERRAL_TYPE_DOKTER,
-                    Pasien::REFERRAL_TYPE_EVENT,
-                    Pasien::REFERRAL_TYPE_MARKETPLACE,
-                    Pasien::REFERRAL_TYPE_PARTNERSHIP,
-                    Pasien::REFERRAL_TYPE_GOOGLE_MAPS,
-                ]),
-                'referral_detail' => 'nullable|string|max:255',
-                'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
-                'referral_employee_id' => 'nullable|exists:hrd_employee,id',
-                'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
-                'referral_event_id' => 'nullable|exists:marketing_event,id',
-            ]);
+            ] + Pasien::referralInputRules());
 
             if ($validator->fails()) {
                 return response()->json([
@@ -1936,64 +1902,11 @@ class RawatJalanController extends Controller
             $visitation = Visitation::findOrFail($request->visitation_id);
             $pasien = Pasien::findOrFail($visitation->pasien_id);
 
-            $referralType = (string) $request->referral_type;
-            $referralDetail = $request->filled('referral_detail') ? trim((string) $request->referral_detail) : null;
-            $referralPasienId = $request->filled('referral_target_pasien_id') ? trim((string) $request->referral_target_pasien_id) : null;
-            $referralEmployeeId = $request->filled('referral_employee_id') ? trim((string) $request->referral_employee_id) : null;
-            $referralDokterId = $request->filled('referral_dokter_id') ? trim((string) $request->referral_dokter_id) : null;
-            $referralEventId = $request->filled('referral_event_id') ? trim((string) $request->referral_event_id) : null;
-
-            if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !$referralPasienId) {
-                return response()->json(['success' => false, 'message' => 'Pasien referral wajib dipilih.'], 422);
+            try {
+                $referralValues = Pasien::resolveReferralInput($request->all());
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first()], 422);
             }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && !$referralEmployeeId) {
-                return response()->json(['success' => false, 'message' => 'Karyawan referral wajib dipilih.'], 422);
-            }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_DOKTER && !$referralDokterId) {
-                return response()->json(['success' => false, 'message' => 'Dokter referral wajib dipilih.'], 422);
-            }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_EVENT && !$referralEventId) {
-                return response()->json(['success' => false, 'message' => 'Event referral wajib dipilih.'], 422);
-            }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_MARKETPLACE && !in_array(strtolower(trim((string) $referralDetail)), Pasien::marketplaceReferralOptions(), true)) {
-                return response()->json(['success' => false, 'message' => 'Silakan pilih sumber marketplace yang valid.'], 422);
-            }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_SOCIAL_MEDIA && !in_array(strtolower(trim((string) $referralDetail)), Pasien::socialMediaReferralOptions(), true)) {
-                return response()->json(['success' => false, 'message' => 'Silakan pilih sumber social media yang valid.'], 422);
-            }
-
-            if (in_array($referralType, [Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true) && empty(trim((string) $referralDetail))) {
-                return response()->json(['success' => false, 'message' => 'Detail referral wajib diisi.'], 422);
-            }
-
-            if ($referralType === Pasien::REFERRAL_TYPE_WALK_IN) {
-                $referralDetail = null;
-            }
-
-            if (in_array($referralType, [Pasien::REFERRAL_TYPE_MARKETPLACE, Pasien::REFERRAL_TYPE_SOCIAL_MEDIA, Pasien::REFERRAL_TYPE_PARTNERSHIP, Pasien::REFERRAL_TYPE_GOOGLE_MAPS], true) && $referralDetail !== null) {
-                $referralDetail = strtolower($referralDetail);
-            }
-
-            $referralableId = match ($referralType) {
-                Pasien::REFERRAL_TYPE_EMPLOYEE => $referralEmployeeId,
-                Pasien::REFERRAL_TYPE_DOKTER => $referralDokterId,
-                Pasien::REFERRAL_TYPE_EVENT => $referralEventId,
-                default => null,
-            };
-
-            $referralAttributes = Pasien::buildReferralAttributes($referralType, $referralPasienId, $referralDetail, null, $referralableId);
-
-            $referralValues = [
-                'referral_type' => $referralType,
-                'referral_detail' => $referralAttributes['referral_detail'] ?? null,
-                'referralable_type' => $referralAttributes['referralable_type'] ?? null,
-                'referralable_id' => $referralAttributes['referralable_id'] ?? null,
-            ];
 
             DB::transaction(function () use ($visitation, $pasien, $referralValues) {
                 // Visit referral = transaction referral for this visit only.

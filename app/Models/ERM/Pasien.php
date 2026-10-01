@@ -117,6 +117,93 @@ class Pasien extends Model
         return self::SOCIAL_MEDIA_REFERRAL_DETAILS;
     }
 
+    public static function referralTypes(): array
+    {
+        return [
+            self::REFERRAL_TYPE_WALK_IN,
+            self::REFERRAL_TYPE_PASIEN,
+            self::REFERRAL_TYPE_SOCIAL_MEDIA,
+            self::REFERRAL_TYPE_WEBSITE,
+            self::REFERRAL_TYPE_EMPLOYEE,
+            self::REFERRAL_TYPE_DOKTER,
+            self::REFERRAL_TYPE_EVENT,
+            self::REFERRAL_TYPE_MARKETPLACE,
+            self::REFERRAL_TYPE_PARTNERSHIP,
+            self::REFERRAL_TYPE_GOOGLE_MAPS,
+        ];
+    }
+
+    /**
+     * Validation rules for the referral form fields (referral modal / daftar kunjungan modal).
+     */
+    public static function referralInputRules(bool $required = true): array
+    {
+        return [
+            'referral_type' => [$required ? 'required' : 'nullable', 'string', 'in:' . implode(',', self::referralTypes())],
+            'referral_detail' => 'nullable|string|max:255',
+            'referral_target_pasien_id' => 'nullable|exists:erm_pasiens,id',
+            'referral_employee_id' => 'nullable|exists:hrd_employee,id',
+            'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
+            'referral_event_id' => 'nullable|exists:marketing_event,id',
+        ];
+    }
+
+    /**
+     * Turn referral form fields into referral_type / referral_detail / referralable_* values.
+     *
+     * @throws \Illuminate\Validation\ValidationException when a required detail is missing.
+     */
+    public static function resolveReferralInput(array $input): array
+    {
+        $value = fn (string $key) => isset($input[$key]) && trim((string) $input[$key]) !== '' ? trim((string) $input[$key]) : null;
+
+        $referralType = (string) $value('referral_type');
+        $referralDetail = $value('referral_detail');
+        $referralPasienId = $value('referral_target_pasien_id');
+        $referralEmployeeId = $value('referral_employee_id');
+        $referralDokterId = $value('referral_dokter_id');
+        $referralEventId = $value('referral_event_id');
+
+        $error = match (true) {
+            $referralType === self::REFERRAL_TYPE_PASIEN && !$referralPasienId => 'Pasien referral wajib dipilih.',
+            $referralType === self::REFERRAL_TYPE_EMPLOYEE && !$referralEmployeeId => 'Karyawan referral wajib dipilih.',
+            $referralType === self::REFERRAL_TYPE_DOKTER && !$referralDokterId => 'Dokter referral wajib dipilih.',
+            $referralType === self::REFERRAL_TYPE_EVENT && !$referralEventId => 'Event referral wajib dipilih.',
+            $referralType === self::REFERRAL_TYPE_MARKETPLACE && !in_array(strtolower((string) $referralDetail), self::marketplaceReferralOptions(), true) => 'Silakan pilih sumber marketplace yang valid.',
+            $referralType === self::REFERRAL_TYPE_SOCIAL_MEDIA && !in_array(strtolower((string) $referralDetail), self::socialMediaReferralOptions(), true) => 'Silakan pilih sumber social media yang valid.',
+            in_array($referralType, [self::REFERRAL_TYPE_PARTNERSHIP, self::REFERRAL_TYPE_GOOGLE_MAPS], true) && !$referralDetail => 'Detail referral wajib diisi.',
+            default => null,
+        };
+
+        if ($error) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['referral_type' => $error]);
+        }
+
+        if ($referralType === self::REFERRAL_TYPE_WALK_IN) {
+            $referralDetail = null;
+        }
+
+        if (in_array($referralType, [self::REFERRAL_TYPE_MARKETPLACE, self::REFERRAL_TYPE_SOCIAL_MEDIA, self::REFERRAL_TYPE_PARTNERSHIP, self::REFERRAL_TYPE_GOOGLE_MAPS], true) && $referralDetail !== null) {
+            $referralDetail = strtolower($referralDetail);
+        }
+
+        $referralableId = match ($referralType) {
+            self::REFERRAL_TYPE_EMPLOYEE => $referralEmployeeId,
+            self::REFERRAL_TYPE_DOKTER => $referralDokterId,
+            self::REFERRAL_TYPE_EVENT => $referralEventId,
+            default => null,
+        };
+
+        $attributes = self::buildReferralAttributes($referralType, $referralPasienId, $referralDetail, null, $referralableId);
+
+        return [
+            'referral_type' => $referralType,
+            'referral_detail' => $attributes['referral_detail'] ?? null,
+            'referralable_type' => $attributes['referralable_type'] ?? null,
+            'referralable_id' => $attributes['referralable_id'] ?? null,
+        ];
+    }
+
     public static function buildReferralAttributes(
         ?string $referralType,
         ?string $referralPasienId = null,

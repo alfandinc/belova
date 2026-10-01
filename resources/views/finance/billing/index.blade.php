@@ -18,10 +18,10 @@
                             Daftarkan Kunjungan
                         </button>
                         <div class="dropdown-menu dropdown-menu-right">
-                            <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="konsultasi">Konsultasi</a>
-                            <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="produk">Produk</a>
-                            <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="lab">Lab</a>
-                            <a class="dropdown-item btn-daftarkan-kunjungan-billing" href="#" data-jenis="marketplace">Marketplace</a>
+                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
+                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
+                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
+                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="marketplace">Marketplace</a>
                         </div>
                     </div>
                     <div class="btn-group" role="group">
@@ -242,6 +242,8 @@
         </div>
     </div>
 </div>
+
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 @endsection
 
 @section('scripts')
@@ -656,7 +658,7 @@
                         var metode = data || '';
                         if (type !== 'display') return metode;
                         if (!metode || metode === '-') return '-';
-                        var iconClass = String(metode).toLowerCase().indexOf('umum') !== -1 ? 'fas fa-money-bill-wave' : 'fas fa-credit-card';
+                        var iconClass = row.metode_bayar_is_asuransi ? 'fas fa-credit-card' : 'fas fa-money-bill-wave';
                         return '<span class="d-inline-flex align-items-center"><i class="' + iconClass + ' mr-2"></i><span>' + metode + '</span></span>'; // metode is already escaped server-side
                     }
                 },
@@ -875,14 +877,9 @@
             piutangReceiveBase: '{{ url('/finance/piutang') }}',
             ermPasiensSelect2Url: '{{ route("erm.pasiens.select2") }}',
             ermPasienMerchandiseBaseUrl: '{{ url("erm/pasiens") }}',
-            ermVisitationsStoreUrl: '{{ route("erm.visitations.store") }}',
-            ermVisitationsProdukStoreUrl: '{{ route("erm.visitations.produk.store") }}',
-            ermVisitationsLabStoreUrl: '{{ route("erm.visitations.lab.store") }}',
-            ermCekAntrianUrl: '{{ route("erm.visitations.cekAntrian") }}',
             marketingMasterMerchandiseDataUrl: '{{ route("marketing.master_merchandise.data") }}',
             marketingMasterMerchandiseBaseUrl: '{{ url("marketing/master-merchandise") }}',
             ermRawatjalanMerchandiseStockOutUrl: '{{ route("erm.rawatjalans.merchandise.stock-out") }}',
-            getDoktersBaseUrl: '{{ url('/get-dokters') }}',
             csrfToken: '{{ csrf_token() }}'
         };
 
@@ -916,7 +913,7 @@
                 }
 
                 var needHtml = ($('#modalOldNotificationsFinance').length === 0 || $('#modalPdfPreview').length === 0 || $('#modalTerimaPembayaran').length === 0);
-                needHtml = needHtml || ($('#modalDaftarKunjunganBillingIndex').length === 0);
+                needHtml = needHtml || ($('#modalMerchandiseStockOut').length === 0);
                 var htmlPromise = needHtml
                     ? $.get(billingIndexModalsUrl).then(function(html) { $container.html(html); })
                     : Promise.resolve();
@@ -1091,25 +1088,10 @@
             });
         });
 
-        // Lazy-load on first Daftarkan Kunjungan click
-        $(document).on('click', '.btn-daftarkan-kunjungan-billing', function (e) {
-            var mode = ($(this).data('jenis') || 'konsultasi').toString();
-
-            if (!window.__billingIndexLazyAssetsReady) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                ensureBillingIndexLazyAssets().then(function () {
-                    if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openDaftarKunjunganModal === 'function') {
-                        window.financeBillingIndexModals.openDaftarKunjunganModal(mode);
-                    }
-                });
-                return;
-            }
-
-            if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openDaftarKunjunganModal === 'function') {
-                e.preventDefault();
-                window.financeBillingIndexModals.openDaftarKunjunganModal(mode);
-            }
+        // Daftarkan Kunjungan uses the shared modal (erm.rawatjalans.partials.modal-daftar-kunjungan)
+        $(document).on('rj:visitation-registered', function () {
+            reloadBillingTables(true);
+            fetchTabCounts();
         });
 
         $(document).on('click', '#btn-merchandise-stock-out', function (e) {

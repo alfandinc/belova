@@ -462,8 +462,12 @@ Terima kasih.
                     <label for="metode-bayar-select">Pilih Metode Bayar</label>
                     <select id="metode-bayar-select" name="metode_bayar_id" class="form-control">
                         <option value="">-- Pilih --</option>
-                        @foreach($metodeBayar as $m)
-                            <option value="{{ $m->id }}">{{ $m->nama }}</option>
+                        @foreach($metodeBayar->where('is_active', true)->groupBy(fn ($m) => $m->is_asuransi ? 'Asuransi' : 'Umum') as $group => $items)
+                            <optgroup label="{{ $group }}">
+                                @foreach($items as $m)
+                                    <option value="{{ $m->id }}">{{ $m->nama }}</option>
+                                @endforeach
+                            </optgroup>
                         @endforeach
                     </select>
                 </div>
@@ -596,8 +600,12 @@ Terima kasih.
                         <label for="edit-antrian-metode-bayar">Metode Bayar</label>
                         <select class="form-control select2-edit-antrian" id="edit-antrian-metode-bayar" name="metode_bayar_id" required>
                             <option value="">Pilih Metode Bayar</option>
-                            @foreach($metodeBayar as $metode)
-                                <option value="{{ $metode->id }}">{{ $metode->nama }}</option>
+                            @foreach($metodeBayar->where('is_active', true)->groupBy(fn ($m) => $m->is_asuransi ? 'Asuransi' : 'Umum') as $group => $items)
+                                <optgroup label="{{ $group }}">
+                                    @foreach($items as $metode)
+                                        <option value="{{ $metode->id }}">{{ $metode->nama }}</option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
                     </div>

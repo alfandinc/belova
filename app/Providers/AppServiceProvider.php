@@ -9,6 +9,8 @@ use App\Models\Marketing\MarketingEvent;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
+use App\View\Composers\DaftarKunjunganModalComposer;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Carbon\Carbon;
 
@@ -33,6 +35,8 @@ class AppServiceProvider extends ServiceProvider
             'dokter' => Dokter::class,
             'marketing_event' => MarketingEvent::class,
         ]);
+
+        View::composer('erm.rawatjalans.partials.modal-daftar-kunjungan', DaftarKunjunganModalComposer::class);
 
         config(['app.locale' => 'id']);
 	    Carbon::setLocale('id');
