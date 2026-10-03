@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => RoleMiddleware::class,
+            'event.visitation' => \App\Http\Middleware\EnsureEventVisitation::class,
         ]);
         
         // No custom CSRF exceptions required (WhatsApp webhook removed)

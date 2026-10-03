@@ -12,27 +12,41 @@ use Yajra\DataTables\Facades\DataTables;
 
 class FinanceTransactionController extends Controller
 {
-    public function index()
-    {
-        return view('finance.transactions.index');
-    }
-
     public function stats(Request $request)
     {
-        $baseQuery = $this->buildFilteredQuery($request);
+        // Totals per payment method in one query (no eager loads needed for sums); the overall totals add them up.
+        // The method filter is left out here so every method chip keeps its amount while one is selected.
+        $byMethod = $this->buildFilteredQuery($request, false)
+            ->setEagerLoads([])
+            ->toBase()
+            ->select([])
+            ->selectRaw("COALESCE(NULLIF(metode_bayar, ''), '-') as metode")
+            ->selectRaw("SUM(CASE WHEN jenis_transaksi = 'in' THEN jumlah ELSE 0 END) as total_in")
+            ->selectRaw("SUM(CASE WHEN jenis_transaksi = 'out' THEN jumlah ELSE 0 END) as total_out")
+            ->selectRaw('COUNT(*) as jumlah_transaksi')
+            ->groupBy('metode')
+            ->orderByDesc('total_in')
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'metode' => $row->metode,
+                    'total_in' => (float) $row->total_in,
+                    'total_out' => (float) $row->total_out,
+                    'count' => (int) $row->jumlah_transaksi,
+                ];
+            });
 
-        $totalIn = (clone $baseQuery)
-            ->where('jenis_transaksi', 'in')
-            ->sum('jumlah');
-
-        $totalOut = (clone $baseQuery)
-            ->where('jenis_transaksi', 'out')
-            ->sum('jumlah');
+        $metode = trim((string) $request->input('metode_bayar', ''));
+        $selected = $metode !== '' ? $byMethod->where('metode', $metode) : $byMethod;
+        $totalIn = (float) $selected->sum('total_in');
+        $totalOut = (float) $selected->sum('total_out');
 
         return response()->json([
-            'total_in' => (float) $totalIn,
-            'total_out' => (float) $totalOut,
-            'balance' => (float) $totalIn - (float) $totalOut,
+            'total_in' => $totalIn,
+            'total_out' => $totalOut,
+            'balance' => $totalIn - $totalOut,
+            'count' => (int) $selected->sum('count'),
+            'by_method' => $byMethod->values(),
         ]);
     }
 
@@ -83,42 +97,23 @@ class FinanceTransactionController extends Controller
                         });
                 });
             })
-            ->addColumn('tanggal_display', function ($row) {
-                return $row->tanggal ? $row->tanggal->format('j F Y H:i') : '-';
+            // Plain values; the Riwayat Transaksi modal (Billing page) renders them
+            ->addColumn('tanggal_tgl', function ($row) {
+                return $row->tanggal ? $row->tanggal->locale('id')->translatedFormat('j M Y') : '-';
             })
-            ->addColumn('pasien_display', function ($row) {
-                $pasien = optional(optional($row->visitation)->pasien);
-                if (!$pasien || empty($pasien->nama)) {
-                    return '-';
-                }
-
-                $label = $pasien->nama;
-                if (!empty($pasien->id)) {
-                    $label .= ' (' . $pasien->id . ')';
-                }
-
-                return e($label);
+            ->addColumn('tanggal_jam', function ($row) {
+                return $row->tanggal ? $row->tanggal->format('H:i') : '';
             })
-            ->addColumn('invoice_display', function ($row) {
-                $invoiceNumber = $row->invoice && !empty($row->invoice->invoice_number)
-                    ? $row->invoice->invoice_number
-                    : null;
-
-                return e($invoiceNumber ?: '-');
+            ->addColumn('pasien_nama', function ($row) {
+                return optional(optional($row->visitation)->pasien)->nama;
             })
-            ->addColumn('jumlah_display', function ($row) {
-                return '<div class="text-right"><strong>Rp ' . number_format((float) $row->jumlah, 0, ',', '.') . '</strong></div>';
+            ->addColumn('pasien_id', function ($row) {
+                return optional(optional($row->visitation)->pasien)->id;
             })
-            ->addColumn('jenis_transaksi_display', function ($row) {
-                $jenis = strtolower((string) ($row->jenis_transaksi ?? 'in'));
-                $cls = $jenis === 'out' ? 'badge-danger' : 'badge-success';
-                $label = $jenis === 'out' ? 'Out' : 'In';
-                return '<span class="badge ' . $cls . '">' . e($label) . '</span>';
+            ->addColumn('invoice_number', function ($row) {
+                return optional($row->invoice)->invoice_number;
             })
-            ->addColumn('metode_bayar_display', function ($row) {
-                return $row->metode_bayar ? e($row->metode_bayar) : '-';
-            })
-            ->rawColumns(['pasien_display', 'invoice_display', 'jumlah_display', 'jenis_transaksi_display'])
+            ->removeColumn('invoice', 'visitation', 'created_at', 'updated_at')
             ->make(true);
     }
 
@@ -244,10 +239,10 @@ class FinanceTransactionController extends Controller
         ]);
     }
 
-    private function buildFilteredQuery(Request $request)
+    private function buildFilteredQuery(Request $request, bool $applyMetode = true)
     {
         $query = FinanceTransaction::query()
-            ->with(['invoice', 'visitation.pasien'])
+            ->with(['invoice:id,invoice_number', 'visitation:id,pasien_id', 'visitation.pasien:id,nama'])
             ->select('finance_transactions.*');
 
         $start = $request->input('start_date');
@@ -262,7 +257,7 @@ class FinanceTransactionController extends Controller
         }
 
         $metode = trim((string) $request->input('metode_bayar', ''));
-        if ($metode !== '') {
+        if ($applyMetode && $metode !== '') {
             $query->where('metode_bayar', $metode);
         }
 

@@ -342,18 +342,12 @@ class PasienController extends Controller
 
                     return '
                 <div class="btn-group action-button-group w-100" role="group">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-sm btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-calendar-plus mr-1"></i> Daftarkan
-                            </button>
-                            <div class="dropdown-menu dropdown-menu-right">
-                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="konsultasi" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-stethoscope mr-2"></i>Konsultasi</a>
-                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="lab" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-flask mr-2"></i>Laboratorium</a>
-                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="produk" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-shopping-bag mr-2"></i>Produk dan Obat</a>
-                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="event" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-calendar-alt mr-2"></i>Event</a>
-                                <a href="#" class="dropdown-item btn-daftarkan-pasien-rawatjalan" data-jenis="marketplace" data-id="' . $user->id . '" data-nama="' . e($user->nama) . '"><i class="fas fa-store mr-2"></i>Marketplace</a>
-                            </div>
-                        </div>
+                        ' . view('erm.partials.daftar-kunjungan-dropdown', [
+                            'label' => 'Daftarkan',
+                            'size' => 'sm',
+                            'pasienId' => $user->id,
+                            'pasienNama' => $user->nama,
+                        ])->render() . '
                         <a href="javascript:void(0);" 
                             class="btn btn-sm btn-info btn-info-pasien" 
                             data-id="' . $user->id . '">

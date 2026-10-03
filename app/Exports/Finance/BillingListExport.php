@@ -44,6 +44,7 @@ class BillingListExport extends DefaultValueBinder implements FromArray, WithHea
             'Referral Detail',
             'Total',
             'Kekurangan',
+            'Retur',
             'Status',
         ];
     }
@@ -64,6 +65,7 @@ class BillingListExport extends DefaultValueBinder implements FromArray, WithHea
         return [
             'I' => '#,##0',
             'J' => '#,##0',
+            'K' => '#,##0',
         ];
     }
 

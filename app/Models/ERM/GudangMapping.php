@@ -10,7 +10,17 @@ class GudangMapping extends Model
     public const ENTITY_TYPE_BILLING_CONTEXT = 'billing_context';
     public const BILLING_CONTEXT_EVENT = 1;
 
+    /** Cache of the billing page gudang data (BillingController::buildGudangData). */
+    public const BILLING_GUDANG_CACHE_KEY = 'finance_billing_gudang_data';
+
     protected $table = 'erm_gudang_mapping';
+
+    protected static function booted(): void
+    {
+        $forget = fn () => \Illuminate\Support\Facades\Cache::forget(self::BILLING_GUDANG_CACHE_KEY);
+        static::saved($forget);
+        static::deleted($forget);
+    }
 
     protected $fillable = [
         'transaction_type',

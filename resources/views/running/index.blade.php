@@ -1,6 +1,6 @@
 @extends('layouts.erm.app')
 
-@section('title', 'Running')
+@section('title', 'Run 2 Wellness')
 
 @section('navbar')
     @include('layouts.erm.navbar-ngaji')
@@ -10,7 +10,7 @@
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
-            <h3>Running - Index</h3>
+            <h3>Run 2 Wellness</h3>
             <p class="text-muted">This is the Running section index page. More features will be added here.</p>
         </div>
     </div>

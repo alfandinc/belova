@@ -202,17 +202,7 @@
                         <button type="button" class="btn btn-success" id="btn-queue-calendar">
                             <i class="fas fa-calendar-alt"></i> Antrian
                         </button>
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fas fa-calendar-plus"></i> Daftarkan Pasien
-                            </button>
-                            <div class="dropdown-menu dropdown-menu-right">
-                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
-                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
-                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
-                                <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="marketplace">Marketplace</a>
-                            </div>
-                        </div>
+                        @include('erm.partials.daftar-kunjungan-dropdown')
                     </div>
                 </div>
             </div>

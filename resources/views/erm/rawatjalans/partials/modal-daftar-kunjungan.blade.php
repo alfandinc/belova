@@ -75,6 +75,21 @@
         box-shadow: 0 0 0 0.15rem rgba(29, 99, 237, 0.25);
     }
 
+    /* Locked patient (opened from a patient/visit context): readable, no clear button. */
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection__clear {
+        display: none;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection {
+        background-color: #f1f5f9;
+        cursor: default;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection__rendered {
+        color: #22324a;
+        font-weight: 600;
+    }
+
     #modalDaftarKunjunganRawatJalan .rj-field-hint {
         display: block;
         margin-bottom: 12px;
@@ -522,6 +537,7 @@ $(document).ready(function(){
     let rjFixedPasienContext = null;
     let rjCalendarPreviewVisible = false;
     let rjSubmitting = false;
+    let rjPendingDokterId = null;
 
     // init select2 inside modal
     $('#modalDaftarKunjunganRawatJalan select.select2:not(#rj_pasien_id)').select2({ width: '100%' });
@@ -600,11 +616,19 @@ $(document).ready(function(){
         return (rjFixedPasienContext && rjFixedPasienContext.id) || $('#rj_pasien_id').val() || '';
     }
 
+    // Repeat visit registered by a dokter: referral is that dokter (set server-side too).
+    function isRjReferralLockedToDokter() {
+        return !!rjReferralContext
+            && !rjReferralContext.is_first_visit
+            && !!rjReferralContext.registrar_dokter;
+    }
+
     function isRjReferralEditable() {
         return !isMarketplaceMode()
             && !!currentRjPasienId()
             && !!rjReferralContext
-            && !rjReferralContext.is_first_visit;
+            && !rjReferralContext.is_first_visit
+            && !isRjReferralLockedToDokter();
     }
 
     function rjReferralSourceLabel(source) {
@@ -692,6 +716,9 @@ $(document).ready(function(){
                 if (rjReferralContext.is_first_visit) {
                     $('#rj_referral_type').val(rjReferralContext.source.referral_type).trigger('change.select2');
                     $('#rj_referral_hint').text('Kunjungan pertama — otomatis mengikuti sumber pasien (' + sourceLabel + ').');
+                } else if (isRjReferralLockedToDokter()) {
+                    $('#rj_referral_type').val('dokter').trigger('change.select2');
+                    $('#rj_referral_hint').text('Didaftarkan oleh dokter — referral otomatis: Dokter (' + rjReferralContext.registrar_dokter.label + '). Sumber awal pasien: ' + sourceLabel + '.');
                 } else {
                     $('#rj_referral_hint').text('Sumber awal pasien: ' + sourceLabel + '. Pilih alasan datang kunjungan ini.');
                 }
@@ -736,7 +763,7 @@ $(document).ready(function(){
         return $('input[name="metode_bayar_group"]:checked').val() || 'umum';
     }
 
-    function setRjMetodeBayarGroup(group) {
+    function setRjMetodeBayarGroup(group, selectedId) {
         const isAsuransi = group === 'asuransi';
         const options = RJ_METODE_BAYAR.filter(function(m) { return m.is_asuransi === isAsuransi; });
         const $select = $('#rj_metode_bayar_id').empty();
@@ -753,7 +780,9 @@ $(document).ready(function(){
         options.forEach(function(m) {
             $select.append(new Option(m.nama, m.id, false, false));
         });
-        if (options.length === 1) {
+        if (selectedId && options.some(function(m) { return String(m.id) === String(selectedId); })) {
+            $select.val(String(selectedId));
+        } else if (options.length === 1) {
             $select.val(String(options[0].id));
         }
         $select.trigger('change.select2');
@@ -796,14 +825,15 @@ $(document).ready(function(){
         const newMarketplacePatient = isMarketplaceNewPatient();
         const hasFixedPasien = !!(rjFixedPasienContext && rjFixedPasienContext.id);
         const existingMarketplacePatient = marketplaceMode && !newMarketplacePatient;
-        const shouldShowPatientSelector = hasFixedPasien ? false : (!marketplaceMode || existingMarketplacePatient);
+        // A fixed patient (opened from a patient/visit context) stays visible as a locked, read-only field.
+        const shouldShowPatientSelector = hasFixedPasien ? true : (!marketplaceMode || existingMarketplacePatient);
         const shouldShowPatientModeGroup = marketplaceMode && !hasFixedPasien;
         const shouldShowMarketplacePatientSection = newMarketplacePatient && !hasFixedPasien;
 
         $('#rj_marketplace_patient_mode_group').toggle(shouldShowPatientModeGroup);
         $('#rj_marketplace_referral_group').toggle(marketplaceMode);
         $('#rj_marketplace_patient_section').toggle(shouldShowMarketplacePatientSection);
-        $('#rj_marketplace_pasien_hint').toggleClass('d-none', !marketplaceMode);
+        $('#rj_marketplace_pasien_hint').toggleClass('d-none', !marketplaceMode || hasFixedPasien);
         $('#rj_pasien_label').text(marketplaceMode ? 'Pasien Lama' : 'Pasien');
         $('#rj_pasien_id').closest('.form-group').toggle(shouldShowPatientSelector);
         $('#rj_pasien_id').prop('required', hasFixedPasien ? false : shouldShowPatientSelector);
@@ -1109,6 +1139,11 @@ $(document).ready(function(){
                 try {
                     if (typeof updateStats === 'function') updateStats();
                 } catch(e) {}
+                try {
+                    if (window.pasiensTable && typeof window.pasiensTable.ajax === 'object') window.pasiensTable.ajax.reload(null, false);
+                } catch(e) {}
+                // After the success popup closes (e.g. pasien create page reloads itself).
+                $(document).trigger('rj:visitation-success-closed', [res]);
             });
         }).fail(function(xhr){
             if (xhr && xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.duplicate) {
@@ -1183,22 +1218,50 @@ $(document).ready(function(){
         setRjMetodeBayarGroup('umum');
     }
 
-    // open modal (from dropdown)
-    $(document).on('click', '.btn-daftarkan-pasien-rawatjalan', function(e){
-        e.preventDefault();
-        const mode = $(this).data('jenis') || 'konsultasi';
-        const pasienId = $(this).data('id') || '';
-        const pasienNama = $(this).data('nama') || '';
-        applyMode(mode);
-        setFixedPasienContext(pasienId, pasienNama);
-        // default tanggal = today
-        try {
-            if (window.moment) {
-                $('#rj_tanggal_visitation').val(moment().format('YYYY-MM-DD'));
-            }
-        } catch(e) {}
+    function todayYmd() {
+        const d = new Date();
+        const pad = function(n) { return n < 10 ? '0' + n : String(n); };
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    }
+
+    /**
+     * Single entry point for every "Daftarkan Kunjungan" flow.
+     * opts: { jenis, pasienId, pasienNama, klinikId, dokterId, metodeBayarId } (all optional)
+     */
+    function openRjDaftarKunjungan(opts) {
+        opts = opts || {};
+        applyMode(opts.jenis || 'konsultasi');
+        setFixedPasienContext(opts.pasienId || '', opts.pasienNama || '');
+        $('#rj_tanggal_visitation').val(todayYmd());
+
+        // Pre-fill from a current visit (e.g. ERM sidebar "Reservasi Kunjungan").
+        if (opts.klinikId && $('#rj_klinik_id option[value="' + opts.klinikId + '"]').length) {
+            rjPendingDokterId = opts.dokterId ? String(opts.dokterId) : null;
+            $('#rj_klinik_id').val(String(opts.klinikId)).trigger('change');
+        }
+
+        const metode = RJ_METODE_BAYAR.find(function(m) { return String(m.id) === String(opts.metodeBayarId || ''); });
+        if (metode) {
+            setRjMetodeBayarGroup(metode.is_asuransi ? 'asuransi' : 'umum', metode.id);
+        }
 
         $('#modalDaftarKunjunganRawatJalan').modal('show');
+    }
+
+    window.openDaftarKunjunganModal = openRjDaftarKunjungan;
+
+    // open modal (from dropdown / any trigger with this class)
+    $(document).on('click', '.btn-daftarkan-pasien-rawatjalan', function(e){
+        e.preventDefault();
+        const $btn = $(this);
+        openRjDaftarKunjungan({
+            jenis: $btn.data('jenis') || 'konsultasi',
+            pasienId: $btn.data('id') || '',
+            pasienNama: $btn.data('nama') || '',
+            klinikId: $btn.data('klinik') || '',
+            dokterId: $btn.data('dokter') || '',
+            metodeBayarId: $btn.data('metodebayar') || ''
+        });
     });
 
     function cekAntrianRJ(){
@@ -1242,6 +1305,12 @@ $(document).ready(function(){
                 });
             }
             dokterSelect.prop('disabled', false).trigger('change.select2');
+
+            // Pre-filled dokter (openRjDaftarKunjungan): select it once the klinik's list is in.
+            if (rjPendingDokterId && dokterSelect.find('option[value="' + rjPendingDokterId + '"]').length) {
+                dokterSelect.val(rjPendingDokterId).trigger('change');
+            }
+            rjPendingDokterId = null;
         }).fail(function(){
             dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', false).trigger('change.select2');
             Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengambil data dokter' });

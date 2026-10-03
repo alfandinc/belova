@@ -15,6 +15,37 @@
     $currentVisitationId = $visitation->id ?? null;
     $eventStartUrl = $eventStartUrl ?? null;
     $eventResetUrl = $eventResetUrl ?? null;
+    // Event billing is open to every user, so it goes through the event-only endpoints under /events
+    // (they accept event visits only); regular billing keeps the role-restricted finance endpoints.
+    $billingUrls = $isEventBilling
+        ? [
+            'data' => $currentVisitationId ? route('events.billing.data', $currentVisitationId) : null,
+            'save' => route('events.billing.save'),
+            'createInvoice' => route('events.billing.create-invoice'),
+            'receivePayment' => route('events.billing.receive-payment'),
+            'printNotaBase' => url('/events/billing/invoice'),
+            'gudangData' => route('events.billing.gudang-data'),
+            'pasienSelect2' => route('events.billing.pasien-select2'),
+            'batchDetails' => route('events.billing.batch-details'),
+            'riwayatTindakanObats' => route('events.billing.riwayat-tindakan-obats'),
+            'tindakanObats' => route('events.billing.tindakan-obats'),
+            'stockInfoModal' => route('events.billing.stock-info-modal'),
+            'back' => route('events.index'),
+        ]
+        : [
+            'data' => $currentVisitationId ? route('finance.billing.create', $currentVisitationId) : null,
+            'save' => route('finance.billing.save'),
+            'createInvoice' => route('finance.billing.createInvoice'),
+            'receivePayment' => route('finance.billing.receivePayment'),
+            'printNotaBase' => url('/finance/invoice'),
+            'gudangData' => route('finance.billing.gudang-data'),
+            'pasienSelect2' => route('erm.pasiens.select2'),
+            'batchDetails' => route('erm.stok-gudang.batch-details'),
+            'riwayatTindakanObats' => route('finance.billing.riwayat-tindakan-obats'),
+            'tindakanObats' => route('finance.billing.tindakan-obats'),
+            'stockInfoModal' => route('finance.billing.stock-info-modal'),
+            'back' => route('finance.billing.index'),
+        ];
 @endphp
 
 <div class="container-fluid">
@@ -41,13 +72,15 @@
             isEventBilling: @json($isEventBilling),
             hasVisitation: @json($hasVisitation),
             visitationId: @json($currentVisitationId),
-            billingDataUrl: @json($currentVisitationId ? route('finance.billing.create', $currentVisitationId) : null),
+            billingDataUrl: @json($billingUrls['data']),
             eventId: @json($event->id ?? null),
             eventKode: @json($event->kode_event ?? null),
             eventNama: @json($event->nama_event ?? null),
             eventStartUrl: @json($eventStartUrl),
             eventResetUrl: @json($eventResetUrl),
-            eventItemSearchUrl: @json($eventItemSearchUrl ?? null)
+            eventItemSearchUrl: @json($eventItemSearchUrl ?? null),
+            // invoice_item_id => qty returned (approved retur); returned rows stay in Rincian Billing with a marker
+            returnedQtyByInvoiceItem: @json((object) ($returnedQtyByInvoiceItem ?? []))
         };
 
         window.eventPromoDetails = @json($eventPromoDetails ?? []);
@@ -99,7 +132,7 @@
                 return $.Deferred().resolve(pre).promise();
             }
             return $.ajax({
-                url: '{{ route('finance.billing.gudang-data') }}',
+                url: '{{ $billingUrls['gudangData'] }}',
                 type: 'GET',
                 data: {
                     visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
@@ -936,7 +969,7 @@
             }
             // If window.close() did not work (most browsers block it), redirect back
             setTimeout(function() {
-                window.location.href = "{{ route('finance.billing.index') }}";
+                window.location.href = "{{ $billingUrls['back'] }}";
             }, 300);
         });
 
@@ -1444,7 +1477,7 @@
                 return;
             }
 
-            var printUrl = ('{{ url('/finance/invoice') }}/' + invoiceId + '/print-nota');
+            var printUrl = ('{{ $billingUrls['printNotaBase'] }}/' + invoiceId + '/print-nota');
             Swal.fire({
                 title: 'Preview Cetak Nota',
                 html: '<div style="min-height:70vh"><iframe id="print-frame" src="' + printUrl + '" frameborder="0" style="width:100%;height:68vh"></iframe></div>',
@@ -1545,7 +1578,7 @@
                 width: '100%',
                 placeholder: 'Cari pasien lama...',
                 ajax: {
-                    url: '{{ route('erm.pasiens.select2') }}',
+                    url: '{{ $billingUrls['pasienSelect2'] }}',
                     dataType: 'json',
                     delay: 250,
                     data: function(params) {
@@ -1906,9 +1939,17 @@
                         if (type !== 'display') return data;
                         const label = escapeHtml(data || '-');
 
+                        // Returned item (approved retur): keep the row, mark it with an icon + returned qty.
+                        const returnedMap = (window.billingPage && window.billingPage.returnedQtyByInvoiceItem) || {};
+                        const returnedQty = Number(row && row.id != null ? returnedMap[row.id] : 0) || 0;
+                        const returnedHtml = returnedQty > 0
+                            ? ' <span class="text-danger ml-1" title="Item ini diretur (' + returnedQty + ')">'
+                                + '<i class="fas fa-undo-alt"></i> <small class="font-weight-bold">diretur ' + returnedQty + '</small></span>'
+                            : '';
+
                         // Locked invoices use snapshot rows (invoice items). Do not offer stock link.
                         if (billingLocked) {
-                            return '<span>' + label + '</span>';
+                            return '<span>' + label + '</span>' + returnedHtml;
                         }
 
                         const isOut = !!(row && (row.is_out_of_stock === true || row.is_out_of_stock === 1 || row.is_out_of_stock === '1'));
@@ -2676,6 +2717,14 @@
             const diskon_type = $('#diskon_type').val();
             const qty = $('#edit_qty').val();
 
+            // A percentage discount can't be above 100% (it used to be saved and printed as a discount
+            // larger than the price). The server clamps it too; tell the cashier here first.
+            const diskonNum = parseFloat(diskon) || 0;
+            if (diskonNum < 0 || (diskon_type === '%' && diskonNum > 100)) {
+                Swal.fire({ icon: 'warning', title: 'Diskon tidak valid', text: 'Diskon persen harus antara 0 dan 100%.' });
+                return;
+            }
+
             applyEditModalChangesToBillingData(id, jumlah, diskon, diskon_type, qty);
             $('#editModal').modal('hide');
 
@@ -3177,7 +3226,7 @@ $('#saveAllChangesBtn').on('click', function() {
             });
             
             $.ajax({
-                url: "{{ route('finance.billing.save') }}",
+                url: "{{ $billingUrls['save'] }}",
                 type: "POST",
                 data: JSON.stringify(requestData),
                 contentType: 'application/json; charset=utf-8',
@@ -3352,7 +3401,7 @@ $('#saveAllChangesBtn').on('click', function() {
             }
 
             $.ajax({
-                url: "{{ route('finance.billing.save') }}",
+                url: "{{ $billingUrls['save'] }}",
                 type: 'POST',
                 data: requestData,
                 success: function() {
@@ -3503,8 +3552,8 @@ $('#saveAllChangesBtn').on('click', function() {
                         });
 
                         const invoiceEndpointUrl = isCreatingInvoice
-                            ? "{{ route('finance.billing.createInvoice') }}"
-                            : "{{ route('finance.billing.receivePayment') }}";
+                            ? "{{ $billingUrls['createInvoice'] }}"
+                            : "{{ $billingUrls['receivePayment'] }}";
 
                         $.ajax({
                             url: invoiceEndpointUrl,
@@ -3751,7 +3800,7 @@ $('#saveAllChangesBtn').on('click', function() {
 
                     // First: save billing
                     $.ajax({
-                        url: "{{ route('finance.billing.save') }}",
+                        url: "{{ $billingUrls['save'] }}",
                         type: "POST",
                         data: requestData,
                         success: function(saveResponse) {

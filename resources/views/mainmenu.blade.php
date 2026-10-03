@@ -1223,14 +1223,14 @@
                     <div class="menu-sub">Cetak & Download</div>
                 </a>
                 
-                <!-- Events dashboard (Belova Mengaji is one of the events) -->
-                <a href="/events" class="menu-tile tile-belova-mengaji animate-item delay-16" id="events-tile" data-filter="events dashboard agenda">
+                <!-- Events module: marketing event list, patients per event, event billing -->
+                <a href="/events" class="menu-tile tile-belova-mengaji animate-item delay-16" id="events-tile" data-filter="events event dashboard agenda billing pasien">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-calendar-alt"></i></div>
                         <div class="menu-badge">Events</div>
                     </div>
                     <div class="menu-title">Events</div>
-                    <div class="menu-sub">Event Dashboard</div>
+                    <div class="menu-sub">Event, Pasien &amp; Billing</div>
                 </a>
                 
                 <!-- WiFi Panel -->

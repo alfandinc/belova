@@ -108,6 +108,11 @@
                 <td class="colon"> : </td>
                 <td class="value">{{ $retur->retur_number ?? $retur->id }}</td>
             </tr>
+            <tr>
+                <td class="label">Status</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ ['pending' => 'MENUNGGU APPROVAL', 'approved' => 'Disetujui', 'rejected' => 'DITOLAK'][$retur->status] ?? $retur->status }}</td>
+            </tr>
         </table>
     </div>
 

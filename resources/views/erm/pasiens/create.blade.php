@@ -112,8 +112,13 @@
 
 </style>
 
-@include('erm.partials.modal-daftarkunjungan')
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 @include('erm.partials.modal-ic-pendaftaran')
+
+{{-- Row template for the duplicate-patient list; placeholders are replaced in JS. --}}
+<template id="tpl-daftar-kunjungan-dropdown">
+    @include('erm.partials.daftar-kunjungan-dropdown', ['size' => 'sm', 'pasienId' => '__PASIEN_ID__', 'pasienNama' => '__PASIEN_NAMA__'])
+</template>
 
 <div class="container-fluid">
     <!-- Page-Title -->
@@ -719,6 +724,22 @@
         }
     }
 
+    function escapeAttr(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    // Shared "Daftarkan Kunjungan" dropdown (erm.partials.daftar-kunjungan-dropdown) for one patient.
+    function daftarKunjunganDropdownHtml(pasienId, pasienNama) {
+        return ($('#tpl-daftar-kunjungan-dropdown').html() || '')
+            .split('__PASIEN_ID__').join(escapeAttr(pasienId))
+            .split('__PASIEN_NAMA__').join(escapeAttr(pasienNama));
+    }
+
     function renderDuplicatePatients(patients) {
         const rows = (patients || []).map(function (patient) {
             const safeId = $('<div>').text(patient.id || '-').html();
@@ -733,9 +754,7 @@
                     <td>${safeTanggalLahir}</td>
                     <td>${safeAlamat}</td>
                     <td class="text-center">
-                        <button type="button" class="btn btn-success btn-sm btn-daftar-visitation duplicate-patient-visit" data-id="${safeId}" data-nama="${safeNama}">
-                            Daftarkan Kunjungan
-                        </button>
+                        ${daftarKunjunganDropdownHtml(patient.id, patient.nama)}
                     </td>
                 </tr>
             `;
@@ -847,9 +866,8 @@
                             cancelButtonText: 'Tidak'
                         }).then((result2) => {
                             if (result2.value) {
-                                $('#modal-pasien-id').val(response.pasien.id);
-                                $('#modal-nama-pasien').val(response.pasien.nama);
-                                $('#modalKunjungan').modal('show');
+                                // Open the shared Daftarkan Kunjungan modal (konsultasi) for the saved patient.
+                                window.openDaftarKunjunganModal({ jenis: 'konsultasi', pasienId: response.pasien.id, pasienNama: response.pasien.nama });
                             } else {
                                 location.reload();
                             }
@@ -1379,7 +1397,12 @@
         }
     });
 
-    $(document).on('click', '.duplicate-patient-visit', function () {
+    // Same as before with the old modal: start fresh after a visit is registered.
+    $(document).on('rj:visitation-success-closed', function () {
+        location.reload();
+    });
+
+    $(document).on('click', '#duplicate-pasien-list .btn-daftarkan-pasien-rawatjalan', function () {
         duplicateCheckState.pendingSubmit = false;
         duplicateModalAllowClose = true;
         $('#duplicatePasienModal').modal('hide');
@@ -1393,6 +1416,11 @@
 
     $('#duplicatePasienModal').on('hidden.bs.modal', function () {
         duplicateModalAllowClose = false;
+
+        // The Daftarkan Kunjungan modal may already be open on top; keep body scroll locked for it.
+        if ($('.modal.show').length) {
+            $('body').addClass('modal-open');
+        }
 
         if (duplicateCheckState.acknowledgedSignature !== getDuplicateSignature()) {
             duplicateCheckState.promptedSignature = null;

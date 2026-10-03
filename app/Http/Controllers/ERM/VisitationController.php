@@ -407,6 +407,14 @@ class VisitationController extends Controller
             }
         }
 
+        // Rujuk / konsultasi: the visit is referred by the dokter pengirim.
+        $rujukReferral = $dokterPengirimId
+            ? Pasien::resolveReferralInput([
+                'referral_type' => Pasien::REFERRAL_TYPE_DOKTER,
+                'referral_dokter_id' => $dokterPengirimId,
+            ])
+            : [];
+
         // Wrap creation in a transaction to ensure DB integrity and return clear errors
         try {
             DB::beginTransaction();
@@ -423,7 +431,7 @@ class VisitationController extends Controller
                 'status_kunjungan' => 0,
                 'jenis_kunjungan' => 1,
                 'user_id' => Auth::id(),
-            ]);
+            ] + $rujukReferral);
 
             // create resep detail
             $noResep = 'RSP' . $customId;
@@ -621,6 +629,8 @@ class VisitationController extends Controller
             default => null,
         };
 
+        $registrarDokter = $this->registrarDokter();
+
         return response()->json([
             'is_first_visit' => !$pasien->visitations()->exists(),
             'source' => [
@@ -629,16 +639,22 @@ class VisitationController extends Controller
                 'referralable_id' => $pasien->referralable_id,
                 'referralable_label' => $referralableLabel,
             ],
+            // Logged-in user is a dokter: repeat visits are referred by that dokter (locked in the modal).
+            'registrar_dokter' => $registrarDokter ? [
+                'id' => $registrarDokter->id,
+                'label' => optional($registrarDokter->user)->name ?: 'Dokter ID ' . $registrarDokter->id,
+            ] : null,
         ]);
     }
 
     /**
-     * Visit referral picked in the daftar kunjungan modal. Empty when nothing was picked or
-     * when this is the patient's first visit (the Visitation creating hook then applies the default).
+     * Visit referral for a new visit. Empty on the patient's first visit (the Visitation creating
+     * hook then copies the source referral) and when nothing was picked (hook copies the last visit).
+     * A dokter registering a repeat visit always becomes the visit's referral.
      */
     private function requestedReferral(Request $request): array
     {
-        if (!$request->filled('referral_type') || !$request->filled('pasien_id')) {
+        if (!$request->filled('pasien_id')) {
             return [];
         }
 
@@ -646,7 +662,30 @@ class VisitationController extends Controller
             return [];
         }
 
+        if ($registrarDokter = $this->registrarDokter()) {
+            return Pasien::resolveReferralInput([
+                'referral_type' => Pasien::REFERRAL_TYPE_DOKTER,
+                'referral_dokter_id' => $registrarDokter->id,
+            ]);
+        }
+
+        if (!$request->filled('referral_type')) {
+            return [];
+        }
+
         return Pasien::resolveReferralInput($request->all());
+    }
+
+    /**
+     * The dokter record of the logged-in user, if the registrar is a dokter.
+     */
+    private function registrarDokter(): ?Dokter
+    {
+        if (!Auth::check()) {
+            return null;
+        }
+
+        return Dokter::with('user:id,name')->where('user_id', Auth::id())->first();
     }
 
     private function findMarketplaceDuplicatePasien(string $nama, string $referralDetail): ?Pasien

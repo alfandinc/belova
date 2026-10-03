@@ -98,7 +98,7 @@
                 </a>
             </li>
             <li>
-                <a href="javascript:void(0);" data-toggle="modal" data-target="#modalKunjungan">
+                <a href="javascript:void(0);" class="btn-daftarkan-pasien-rawatjalan" data-jenis="konsultasi" data-id="{{ $visitation->pasien_id ?? '' }}" data-nama="{{ optional($visitation->pasien ?? null)->nama }}" data-klinik="{{ $visitation->klinik_id ?? '' }}" data-dokter="{{ $visitation->dokter_id ?? '' }}" data-metodebayar="{{ $visitation->metode_bayar_id ?? '' }}">
                     <i data-feather="calendar" class="align-self-center menu-icon"></i>
                     <span>Jadwalkan Kunjungan</span>
                 </a>
@@ -109,4 +109,4 @@
 </div>
 <!-- end left-sidenav -->
 
-@include('erm.partials.modal-daftarkunjungan')
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')

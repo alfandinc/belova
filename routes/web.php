@@ -384,10 +384,41 @@ Route::get('/belova-mengaji/history', [BelovaMengajiController::class, 'history'
 Route::get('/belova-mengaji/export/pdf', [BelovaMengajiController::class, 'exportPdf'])->middleware('auth')->name('belova.mengaji.export.pdf');
 Route::get('/belova-mengaji/export/excel', [BelovaMengajiController::class, 'exportExcel'])->middleware('auth')->name('belova.mengaji.export.excel');
 
-// Events dashboard - consolidated events area
-Route::get('/events', [\App\Http\Controllers\EventsController::class, 'index'])
-    ->middleware('auth')
-    ->name('events.dashboard');
+// Events module (main menu "Events"): event list, patients per event and event billing - open to every logged-in user
+Route::middleware('auth')->prefix('events')->name('events.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\EventsController::class, 'index'])->name('index');
+    Route::get('/data', [\App\Http\Controllers\EventsController::class, 'data'])->name('data');
+    Route::post('/', [\App\Http\Controllers\EventsController::class, 'store'])->name('store');
+    Route::get('/{event}', [\App\Http\Controllers\EventsController::class, 'show'])->whereNumber('event')->name('show');
+    Route::get('/{event}/edit-data', [\App\Http\Controllers\EventsController::class, 'editData'])->whereNumber('event')->name('edit-data');
+    Route::put('/{event}', [\App\Http\Controllers\EventsController::class, 'update'])->whereNumber('event')->name('update');
+    Route::delete('/{event}', [\App\Http\Controllers\EventsController::class, 'destroy'])->whereNumber('event')->name('destroy');
+    Route::get('/{event}/patients', [\App\Http\Controllers\EventsController::class, 'patients'])->whereNumber('event')->name('patients');
+
+    // Event billing (moved from Finance): the regular billing page in event mode
+    Route::get('/{event}/billing', [\App\Http\Controllers\Finance\BillingController::class, 'eventCreate'])->whereNumber('event')->name('billing.create');
+    Route::get('/{event}/billing/items/search', [\App\Http\Controllers\Finance\BillingController::class, 'searchEventItems'])->whereNumber('event')->name('billing.items');
+    Route::post('/{event}/billing/start', [\App\Http\Controllers\Finance\BillingController::class, 'startEventBilling'])->whereNumber('event')->name('billing.start');
+
+    Route::prefix('billing')->name('billing.')->group(function () {
+        // read-only lookups the billing page needs (stock, gudang, patient search)
+        Route::get('/gudang-data', [\App\Http\Controllers\Finance\BillingController::class, 'getGudangData'])->name('gudang-data');
+        Route::get('/stock-info-modal', [\App\Http\Controllers\Finance\BillingController::class, 'stockInfoModal'])->name('stock-info-modal');
+        Route::get('/riwayat-tindakan-obats', [\App\Http\Controllers\Finance\BillingController::class, 'riwayatTindakanObats'])->name('riwayat-tindakan-obats');
+        Route::get('/tindakan-obats', [\App\Http\Controllers\Finance\BillingController::class, 'tindakanObats'])->name('tindakan-obats');
+        Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('batch-details');
+        Route::get('/pasien-select2', [\App\Http\Controllers\ERM\PasienController::class, 'select2'])->name('pasien-select2');
+
+        // writes / invoice access: event visits only (jenis_kunjungan 4)
+        Route::middleware('event.visitation')->group(function () {
+            Route::get('/data/{visitation_id}', [\App\Http\Controllers\Finance\BillingController::class, 'create'])->name('data');
+            Route::post('/save', [\App\Http\Controllers\Finance\BillingController::class, 'saveBilling'])->name('save');
+            Route::post('/create-invoice', [\App\Http\Controllers\Finance\BillingController::class, 'createInvoice'])->name('create-invoice');
+            Route::post('/receive-payment', [\App\Http\Controllers\Finance\BillingController::class, 'receivePayment'])->name('receive-payment');
+            Route::get('/invoice/{invoice}/print-nota', [\App\Http\Controllers\EventsController::class, 'printNota'])->whereNumber('invoice')->name('print-nota');
+        });
+    });
+});
 Route::get('/events/lebaran', [\App\Http\Controllers\Events\LebaranController::class, 'index'])
     ->middleware('auth')
     ->name('events.lebaran.index');
@@ -1408,7 +1439,8 @@ Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Head Manager|Employee|
 Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd|Marketing')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
     Route::middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
-        Route::get('/transactions', [FinanceTransactionController::class, 'index'])->name('finance.transactions.index');
+        // Riwayat Transaksi is a modal on the Billing page now; keep the old URL working
+        Route::get('/transactions', fn () => redirect()->route('finance.billing.index', ['riwayat_transaksi' => 1]))->name('finance.transactions.index');
         Route::get('/transactions/data', [FinanceTransactionController::class, 'data'])->name('finance.transactions.data');
         Route::get('/transactions/stats', [FinanceTransactionController::class, 'stats'])->name('finance.transactions.stats');
         Route::get('/transactions/download', [FinanceTransactionController::class, 'downloadExcel'])->name('finance.transactions.download');
@@ -1445,9 +1477,6 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         });
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
-        Route::get('/billing/event/{event}', [BillingController::class, 'eventCreate'])->name('finance.billing.event-create');
-        Route::get('/billing/event/{event}/items/search', [BillingController::class, 'searchEventItems'])->name('finance.billing.event-items');
-        Route::post('/billing/event/{event}/start', [BillingController::class, 'startEventBilling'])->name('finance.billing.event-start');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
     Route::post('/billing/receive-payment', [BillingController::class, 'receivePayment'])->name('finance.billing.receivePayment');
@@ -1464,7 +1493,6 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::post('/billing/visitation/{visitation_id}/restore', [BillingController::class, 'restoreByVisitation'])->name('finance.billing.restoreByVisitation');
     Route::delete('/billing/visitation/{visitation_id}/force', [BillingController::class, 'forceDeleteByVisitation'])->name('finance.billing.forceDeleteByVisitation');
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
-        Route::get('/billing/export', [BillingController::class, 'exportVisitations'])->name('finance.billing.export');
         Route::get('/billing/tab-counts', [BillingController::class, 'getBillingTabCounts'])->name('finance.billing.tab-counts');
     // Billing -> Send notification to Farmasi
     Route::post('/send-notif-farmasi', [BillingController::class, 'sendNotifToFarmasi'])->middleware('auth');
@@ -1491,23 +1519,21 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
         Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->name('finance.invoice.print-nota-v2');
         Route::middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
-        // Rekap Penjualan
-        Route::get('/rekap-penjualan', [BillingController::class, 'rekapPenjualanForm'])->name('finance.rekap-penjualan.form');
+        // Rekap Penjualan / Invoice export: "Download Invoice" modal on the Billing page (old page URLs open it)
+        Route::get('/rekap-penjualan', fn () => redirect()->route('finance.billing.index', ['download_invoice' => 1]))->name('finance.rekap-penjualan.form');
         Route::get('/rekap-penjualan/download', [BillingController::class, 'downloadRekapPenjualanExcel'])->name('finance.rekap-penjualan.download');
-        // Preview for Rekap Penjualan
         Route::get('/rekap-penjualan/preview', [BillingController::class, 'previewRekapPenjualan'])->name('finance.rekap-penjualan.preview');
-        Route::get('/rekap-penjualan/preview', [BillingController::class, 'previewRekapPenjualan'])->name('finance.rekap-penjualan.preview');
-        // Invoice Excel Export
-        Route::get('/invoice-export', [InvoiceController::class, 'invoiceExportForm'])->name('finance.invoice.export.form');
+        Route::get('/invoice-export', fn () => redirect()->route('finance.billing.index', ['download_invoice' => 1]))->name('finance.invoice.export.form');
         Route::get('/invoice-export/download', [InvoiceController::class, 'downloadInvoiceExcel'])->name('finance.invoice.export.download');
-        // Preview for Invoice export
-        Route::get('/invoice-export/preview', [BillingController::class, 'previewInvoiceExport'])->name('finance.invoice.export.preview');
         Route::get('/invoice-export/preview', [BillingController::class, 'previewInvoiceExport'])->name('finance.invoice.export.preview');
         Route::get('/rekap-penjualan/statistik', [BillingController::class, 'statistikPendapatanAjax'])->name('finance.rekap-penjualan.statistik');
         
         // Retur Pembelian routes
         Route::get('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'index'])->name('finance.retur-pembelian.index');
         Route::post('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'store'])->name('finance.retur-pembelian.store');
+        Route::get('/retur-pembelian/pending-count', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'pendingCount'])->name('finance.retur-pembelian.pending-count');
+        Route::post('/retur-pembelian/{id}/approve', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'approve'])->name('finance.retur-pembelian.approve');
+        Route::post('/retur-pembelian/{id}/reject', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'reject'])->name('finance.retur-pembelian.reject');
         Route::get('/retur-pembelian/{id}', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'show'])->name('finance.retur-pembelian.show');
         Route::get('/retur-pembelian/{id}/print', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'print'])->name('finance.retur-pembelian.print');
         Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
@@ -1873,13 +1899,8 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/penawaran/dokter/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'dokterSelect2'])->name('marketing.penawaran.dokter.search');
     Route::get('/penawaran/metode-bayar/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'metodeBayarSelect2'])->name('marketing.penawaran.metode_bayar.search');
 
-    // Marketing Events
-    Route::get('/events', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'index'])->name('marketing.events.index');
-    Route::get('/events/data', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'data'])->name('marketing.events.data');
-    Route::post('/events', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'store'])->name('marketing.events.store');
-    Route::get('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'show'])->name('marketing.events.show');
-    Route::put('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'update'])->name('marketing.events.update');
-    Route::delete('/events/{id}', [\App\Http\Controllers\Marketing\MarketingEventController::class, 'destroy'])->name('marketing.events.destroy');
+    // Marketing Events moved to the Events module (main menu)
+    Route::get('/events', fn () => redirect()->route('events.index'))->name('marketing.events.index');
 
     // Content Plan: status list modal data endpoint
     Route::get('/content-plan/status-list', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'statusList'])

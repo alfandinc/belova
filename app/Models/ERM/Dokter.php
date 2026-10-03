@@ -25,6 +25,31 @@ class Dokter extends Model
         'due_date_str',
     ];
 
+    /**
+     * Spesialisasi name => badge class, shared by the Rawat Jalan and Billing tables so a
+     * spesialisasi has the same color everywhere. Same cached list/order as the Rawat Jalan filter.
+     */
+    public static function spesialisasiColorMap(): array
+    {
+        $palette = ['badge-primary', 'badge-light text-dark', 'badge-success', 'badge-danger', 'badge-warning', 'badge-info', 'badge-dark'];
+
+        $dokters = \Illuminate\Support\Facades\Cache::remember('erm_dokters_list', 300, function () {
+            return self::select('id', 'user_id', 'spesialisasi_id')
+                ->with(['user:id,name', 'spesialisasi:id,nama'])
+                ->get();
+        });
+
+        $map = [];
+        foreach ($dokters as $dokter) {
+            $name = optional($dokter->spesialisasi)->nama;
+            if ($name && !isset($map[$name])) {
+                $map[$name] = $palette[count($map) % count($palette)];
+            }
+        }
+
+        return $map;
+    }
+
     public function user()
     {
         return $this->belongsTo(\App\Models\User::class);

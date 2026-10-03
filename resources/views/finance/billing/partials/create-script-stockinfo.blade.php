@@ -21,7 +21,7 @@ function loadStockTotal(obatId, gudangId) {
         return $.Deferred().resolve({ total: cached.total, gudangName: cached.gudangName, cached: true }).promise();
     }
 
-    return $.getJSON("{{ route('erm.stok-gudang.batch-details') }}", { obat_id: obatId, gudang_id: gudangId })
+    return $.getJSON("{{ $billingUrls['batchDetails'] }}", { obat_id: obatId, gudang_id: gudangId })
         .then(function(resp) {
             const data = resp.data || [];
             let total = 0;
@@ -247,7 +247,7 @@ function loadRiwayatTindakanObatRows(riwayatTindakanId) {
         return $.Deferred().resolve([]).promise();
     }
 
-    return $.getJSON("{{ route('finance.billing.riwayat-tindakan-obats') }}", {
+    return $.getJSON("{{ $billingUrls['riwayatTindakanObats'] }}", {
         riwayat_tindakan_id: riwayatTindakanId,
         visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
     })
@@ -273,7 +273,7 @@ function loadTindakanObatRows(tindakanId) {
         return $.Deferred().resolve({ rows: [], suggestedGudangId: null }).promise();
     }
 
-    return $.getJSON("{{ route('finance.billing.tindakan-obats') }}", {
+    return $.getJSON("{{ $billingUrls['tindakanObats'] }}", {
         tindakan_id: tindakanId,
         visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
     }).then(function(resp) {

@@ -13,34 +13,16 @@
             </div>
             <div class="d-flex align-items-center">
                 <div class="btn-group btn-group-sm" role="group" aria-label="Header actions">
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            Daftarkan Kunjungan
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-right">
-                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
-                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
-                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
-                            <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="marketplace">Marketplace</a>
-                        </div>
-                    </div>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            Event Billing
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-right">
-                            @forelse(($activeEvents ?? collect()) as $event)
-                                <a class="dropdown-item btn-open-billing-modal" href="{{ route('finance.billing.event-create', $event->id) }}">
-                                    {{ $event->nama_event }}
-                                    @if(!empty($event->kode_event))
-                                        <small class="text-muted d-block">{{ $event->kode_event }} - {{ optional($event->klinik)->nama ?? '-' }}</small>
-                                    @endif
-                                </a>
-                            @empty
-                                <span class="dropdown-item text-muted">Belum ada event aktif</span>
-                            @endforelse
-                        </div>
-                    </div>
+                    @include('erm.partials.daftar-kunjungan-dropdown')
+                    @hasanyrole('Kasir|Admin|Finance')
+                    <button id="btn-riwayat-transaksi" type="button" class="btn btn-dark" title="Riwayat Transaksi">
+                        <i class="fas fa-receipt mr-1"></i> Riwayat Transaksi
+                    </button>
+                    @endhasanyrole
+                    <button id="btn-retur-pembelian" type="button" class="btn btn-danger" title="Retur Pembelian">
+                        <i class="fas fa-undo-alt mr-1"></i> Retur
+                        <span id="retur-pending-badge" class="badge badge-light ml-1" style="display:none;" title="Menunggu approval">0</span>
+                    </button>
                     <button id="btn-merchandise-stock-out" type="button" class="btn btn-warning" title="Keluar Merchandise">
                         <i class="fas fa-gift mr-1"></i> Merchandise
                     </button>
@@ -156,9 +138,11 @@
                                     <option value="">Semua Status</option>
                                 </select>
                             </div>
-                            <button type="button" id="btn-export-billing" class="btn btn-sm btn-success" title="Download daftar billing (tab, filter & pencarian saat ini)">
-                                <i class="fas fa-file-excel mr-1"></i> Export Excel
+                            @hasanyrole('Admin|Finance|Manager|Head Manager')
+                            <button type="button" id="btn-download-invoice" class="btn btn-sm btn-primary" title="Rekap penjualan / invoice: pilih filter, lihat preview, lalu download">
+                                <i class="fas fa-file-download mr-1"></i> Download Invoice
                             </button>
+                            @endhasanyrole
                         </div>
                     </div>
 
@@ -173,9 +157,9 @@
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
                                             <th>Metode Bayar</th>
-                                            <th>Referral</th>
                                             <th>Total</th>
                                             <th>Kekurangan</th>
+                                            <th>Retur</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -193,9 +177,9 @@
                                             <th>Dokter</th>
                                             <th>Tanggal Visit</th>
                                             <th>Metode Bayar</th>
-                                            <th>Referral</th>
                                             <th>Total</th>
                                             <th>Kekurangan</th>
+                                            <th>Retur</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -244,6 +228,13 @@
 </div>
 
 @include('erm.rawatjalans.partials.modal-daftar-kunjungan')
+@include('finance.billing.partials.modal-retur-pembelian')
+@hasanyrole('Kasir|Admin|Finance')
+    @include('finance.billing.partials.modal-riwayat-transaksi')
+@endhasanyrole
+@hasanyrole('Admin|Finance|Manager|Head Manager')
+    @include('finance.billing.partials.modal-download-invoice')
+@endhasanyrole
 @endsection
 
 @section('scripts')
@@ -323,27 +314,6 @@
                 window.billingTable = billingTableUmum;
             }
         }
-
-        // Excel export of the active tab with the current filters and search
-        $('#btn-export-billing').on('click', function() {
-            var isAsuransi = ($('#billingTabs .nav-link.active').attr('id') || '') === 'billing-tab-asuransi';
-            var search = '';
-            try {
-                var activeTable = isAsuransi ? billingTableAsuransi : billingTableUmum;
-                if (activeTable) search = activeTable.search() || '';
-            } catch (e) {}
-
-            var params = $.param({
-                start_date: startDate,
-                end_date: endDate,
-                dokter_id: dokterId,
-                klinik_id: klinikId,
-                status_filter: statusFilter,
-                metode_group: isAsuransi ? 'asuransi' : 'umum',
-                search: search
-            });
-            window.location.href = "{{ route('finance.billing.export') }}?" + params;
-        });
 
         // Initialize date range picker
         $('#daterange').daterangepicker({
@@ -448,6 +418,10 @@
 
         // Initialize DataTables with date and filter
         function createBillingTable($selector, metodeGroup, deferInitialLoad) {
+            // A page click only changes the offset: tell the server so it can reuse the row counts
+            var pageOnly = false;
+            $selector.on('page.dt', function() { pageOnly = true; });
+
             return $selector.DataTable({
             processing: true,
             serverSide: true,
@@ -459,7 +433,7 @@
             autoWidth: false,
             fixedColumns: {
                 left: 1,
-                right: 3
+                right: 4
             },
             drawCallback: function() {
                 // Position print menus as fixed so the scroll container doesn't clip them
@@ -478,13 +452,15 @@
                     d.klinik_id = klinikId;
                     d.status_filter = statusFilter;
                     d.metode_group = metodeGroup;
+                    if (pageOnly) d.page_only = 1;
+                    pageOnly = false;
                 }
             },
             columnDefs: [
                 // make the dokter column wrap and allow flexible width (index 2)
                 { targets: 2, className: 'wrap-column', responsivePriority: 2 },
-                // keep action column compact and no-wrap (now at index 8)
-                { targets: 8, className: 'no-wrap-cell', width: '140px', responsivePriority: 1 },
+                // keep action column no-wrap (index 8, after the Retur column)
+                { targets: 8, className: 'no-wrap-cell', responsivePriority: 1 },
                 // Metode Bayar (index 4) is only shown on the Asuransi tab; every Umum row is "Umum"
                 { targets: 4, visible: metodeGroup !== 'umum' }
             ],
@@ -495,14 +471,7 @@
                             var inv = data || row.invoice_number || '';
                             var statusHtml = row.status || '';
                             var badge = '';
-                            var returBadge = '';
-                            var returnedItemsCount = 0;
-                            try {
-                                returnedItemsCount = Number((row.invoice && row.invoice.returned_items_count) || row.returned_items_count || 0) || 0;
-                            } catch(e) { returnedItemsCount = 0; }
-                            if (returnedItemsCount > 0) {
-                                returBadge = '<span class="badge badge-danger ml-1">' + escapeHtml(String(returnedItemsCount)) + ' Item Diretur</span>';
-                            }
+                            // "N item diretur" is shown in the Retur column (under the retur amount)
                             if (row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') {
                                 // Prefer authoritative piutang relation if available to determine paid vs remaining
                                 var piutangRel = null;
@@ -561,7 +530,7 @@
                                 ? '<img src="' + row.klinik_logo_url + '" alt="' + (row.nama_klinik || '') + '" title="' + (row.nama_klinik || '') + '" class="klinik-logo mr-2">'
                                 : '';
                             html += '<div class="d-flex align-items-center">' + klinikLogo + '<span class="font-weight-bold">' + escapeHtml(inv) + '</span></div>';
-                            if (badge || returBadge) html += '<div class="mt-1">' + badge + returBadge + '</div>';
+                            if (badge) html += '<div class="mt-1">' + badge + '</div>';
                             html += '</div>';
 
                             html += '</div>'; // .invoice-cell
@@ -614,34 +583,20 @@
                 },
                 { data: 'dokter', name: 'dokter', render: function(data, type, row, meta) {
                         if (type === 'display') {
-                            var dokterName = data || row.dokter || '';
-                            var klinikName = row.nama_klinik || '';
-                            var klinikId = row.klinik_id || (row.klinik && row.klinik.id) || '';
-                            var badgeClass = 'badge-secondary';
-                            if (String(klinikId) === '1') badgeClass = 'badge-primary';
-                            else if (String(klinikId) === '2') badgeClass = 'badge-pink';
-
+                            // Same format as the Rawat Jalan table: bold name, spesialisasi as colored small text.
                             var decodeHtml = function(str) { return $('<textarea/>').html(str || '').text(); };
-                            var dokterDecoded = decodeHtml(dokterName);
-                            var klinikDecoded = decodeHtml(klinikName);
-                            var spesialis = row.spesialisasi || row.spesialis || row.dokter_spesialisasi || '';
-                            var spesialisDecoded = decodeHtml(spesialis);
+                            var nama = decodeHtml(row.dokter_nama || '') || '-';
+                            var spes = decodeHtml(row.dokter_spesialisasi || '');
+                            var badgeClass = (spes && window.spesialisasiColorMap && window.spesialisasiColorMap[spes]) || 'badge-light text-dark';
+                            // Reuse the per-specialization badge color as a text color (light badge -> muted text)
+                            var textClass = badgeClass.indexOf('badge-light') !== -1
+                                ? 'text-secondary'
+                                : badgeClass.replace(/badge-/g, 'text-');
+                            var spesHtml = spes
+                                ? '<div class="mt-1"><small class="font-weight-bold ' + textClass + '">' + escapeHtml(spes) + '</small></div>'
+                                : '';
 
-                            var dokterClean = dokterDecoded;
-                            if (!spesialisDecoded) {
-                                var m = dokterDecoded.match(/\s*\(([^)]+)\)\s*$/);
-                                if (m) {
-                                    dokterClean = dokterDecoded.replace(/\s*\([^)]+\)\s*$/, '').trim();
-                                    spesialisDecoded = m[1];
-                                }
-                            }
-
-                            var html = '<div class="dokter-cell">';
-                            html += '<div class="font-weight-bold">' + escapeHtml(dokterClean) + '</div>';
-                            if (spesialisDecoded) html += '<div class="mt-1"><span class="badge badge-secondary">' + escapeHtml(spesialisDecoded) + '</span></div>';
-                            html += '</div>';
-                            // klinik moved to tanggal_visit column
-                            return html;
+                            return '<div class="dokter-cell"><strong>' + escapeHtml(nama) + '</strong>' + spesHtml + '</div>';
                         }
                         return data;
                     }
@@ -660,10 +615,6 @@
                         if (!metode || metode === '-') return '-';
                         var iconClass = row.metode_bayar_is_asuransi ? 'fas fa-credit-card' : 'fas fa-money-bill-wave';
                         return '<span class="d-inline-flex align-items-center"><i class="' + iconClass + ' mr-2"></i><span>' + metode + '</span></span>'; // metode is already escaped server-side
-                    }
-                },
-                { data: 'referral_display', name: 'referral_display', orderable: false, searchable: false, render: function(data, type, row) {
-                        return data || 'Walk-in';
                     }
                 },
                 { data: null, name: 'total_amount', orderable: false, searchable: false, className: 'no-wrap-cell', render: function(data, type, row, meta) {
@@ -689,6 +640,16 @@
                         return '<div class="font-weight-bold text-danger">' + formatRupiah(rem) + '</div>';
                     }
                 },
+                // Approved retur amount for this invoice (refunded to the patient)
+                { data: null, name: 'retur_total', orderable: false, searchable: false, className: 'no-wrap-cell', render: function(data, type, row, meta) {
+                        var retur = Number((row.invoice && row.invoice.retur_amount) || 0) || 0;
+                        var returnedItems = Number((row.invoice && row.invoice.returned_items_count) || 0) || 0;
+                        if (type !== 'display') return retur;
+                        if (retur <= 0 && returnedItems <= 0) return '-';
+                        return '<div class="font-weight-bold text-danger">- ' + formatRupiah(retur) + '</div>'
+                            + (returnedItems > 0 ? '<small class="text-muted">' + escapeHtml(String(returnedItems)) + ' item diretur</small>' : '');
+                    }
+                },
                 { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1,
                     render: function(data, type, row, meta) {
                         if (type === 'display' && data) {
@@ -706,7 +667,7 @@
                                 // ensure consistent small button styling inside group
                                 $el.addClass('btn btn-sm');
                                 var text = $el.text().trim();
-                                if (/lihat\s*billing/i.test(text)) { $el.html('Billing'); $el.attr('title', 'Lihat Billing'); }
+                                if (/lihat\s*billing/i.test(text)) { $el.html('<i class="fas fa-file-invoice-dollar mr-1" aria-hidden="true"></i>Billing'); $el.attr('title', 'Lihat Billing'); }
                                 else if (/cetak\s*nota\s*v?2/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota v2'); }
                                 else if (/cetak\s*nota/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota'); }
                                 else if (/edit/i.test(text)) { $el.html('<i class="ti-pencil" aria-hidden="true"></i>'); $el.attr('title', 'Edit'); }
@@ -787,7 +748,7 @@
 
                                 if ($printItems.length) {
                                     var $printMenu = $('<div class="btn-group billing-print-menu" role="group">'
-                                        + '<button type="button" class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Cetak" aria-label="Cetak"><i class="ti-printer" aria-hidden="true"></i></button>'
+                                        + '<button type="button" class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Print" aria-label="Print"><i class="ti-printer mr-1" aria-hidden="true"></i>Print</button>'
                                         + '<div class="dropdown-menu dropdown-menu-right"></div>'
                                         + '</div>');
                                     $printMenu.find('.dropdown-menu').append($printItems);
@@ -871,6 +832,9 @@
         });
 
         // Expose config used by lazy-loaded modal script
+        // Spesialisasi colors shared with the Rawat Jalan table (Dokter column)
+        window.spesialisasiColorMap = {!! json_encode(\App\Models\ERM\Dokter::spesialisasiColorMap()) !!};
+
         window.financeBillingIndexConfig = {
             oldFinNotifsUrl: '{{ route("finance.notifications.old") }}',
             markFinReadBase: '{{ url("finance/notifications") }}',
@@ -957,7 +921,7 @@
         });
 
         // Plain click opens the modal; Ctrl/Cmd/Shift+click and middle-click still open a new tab
-        $(document).on('click', '.btn[title="Lihat Billing"], .btn-open-billing-modal', function(e) {
+        $(document).on('click', '.btn[title="Lihat Billing"]', function(e) {
             if (e.ctrlKey || e.metaKey || e.shiftKey || e.which === 2) return;
             var href = $(this).attr('href') || $(this).data('href') || '';
             if (!href || href === '#') return;
@@ -972,8 +936,6 @@
                     var nama = $('<div>').html(rowData.nama_pasien || '').text();
                     var inv = rowData.invoice_number && rowData.invoice_number !== '-' ? ' - ' + rowData.invoice_number : '';
                     title = 'Billing: ' + nama + inv;
-                } else if ($(this).hasClass('btn-open-billing-modal')) {
-                    title = 'Event Billing: ' + $.trim($(this).clone().children().remove().end().text());
                 }
             } catch (err) {}
 

@@ -951,20 +951,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             $metodeMap[$m->id] = $palette[$i % count($palette)];
             $i++;
         }
-        // Build a specialization -> badge class map from available dokters
-        $spesialisasiMap = [];
-        $j = 0;
-        $seen = [];
-        foreach($dokters as $d) {
-            if ($d->spesialisasi && $d->spesialisasi->nama) {
-                $name = $d->spesialisasi->nama;
-                if (!isset($seen[$name])) {
-                    $spesialisasiMap[$name] = $palette[$j % count($palette)];
-                    $seen[$name] = true;
-                    $j++;
-                }
-            }
-        }
+        // Specialization -> badge class map (shared with the Billing table)
+        $spesialisasiMap = \App\Models\ERM\Dokter::spesialisasiColorMap();
     @endphp
     var metodeColorMap = {!! json_encode($metodeMap) !!};
     // expose globally so other script blocks can access it

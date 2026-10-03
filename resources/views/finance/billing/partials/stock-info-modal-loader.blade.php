@@ -17,7 +17,7 @@
             }
 
             window.__stockInfoModalLoadPromise = window.jQuery.ajax({
-                url: "{{ route('finance.billing.stock-info-modal') }}",
+                url: "{{ $billingUrls['stockInfoModal'] }}",
                 type: 'GET',
                 dataType: 'html'
             })

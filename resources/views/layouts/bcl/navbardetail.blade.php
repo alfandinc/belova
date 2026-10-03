@@ -131,7 +131,8 @@
                 </li> --}}
                 <li>
                     <a href="javascript:void(0);"
-                    class="btn-daftar-visitation"
+                    class="btn-daftarkan-pasien-rawatjalan"
+                    data-jenis="konsultasi"
                     data-id="{{ $visitation->pasien_id }}"
                     data-nama="{{ $visitation->pasien->nama }}"
                     data-klinik="{{ $visitation->klinik_id ?? '' }}"
@@ -166,5 +167,5 @@
 </div>
 <!-- end left-sidenav -->
 
-@include('erm.partials.modal-daftarkunjungan')
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 @include('erm.partials.modal-rujuk')

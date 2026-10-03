@@ -50,38 +50,20 @@
                         </a>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Kasir|Admin|Finance')
-                    <li>
-                        <a href="{{ route('finance.transactions.index') }}">
-                            <i class="fas fa-receipt align-self-center menu-icon"></i>
-                            <span>Riwayat Transaksi</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('finance.retur-pembelian.index') }}">
-                            <i class="fas fa-undo-alt align-self-center menu-icon"></i>
-                            <span>Retur Pembelian</span>
-                        </a>
-                    </li>
-                    @endhasanyrole
+                    {{-- Riwayat Transaksi and Retur Pembelian now live in Billing (buttons in the header). --}}
                     
-                    <li class="menu-label">Laporan</li>
-                    @hasanyrole('Admin|Finance')
-                    <li>
-                        <a href="{{ route('finance.rekap-penjualan.form') }}">
-                            <i class="fas fa-chart-line align-self-center menu-icon"></i>
-                            <span>Rekap Penjualan</span>
-                        </a>
-                    </li>
-                    @endhasanyrole
+                    {{-- Rekap Penjualan / Invoice export: "Download Invoice" button on the Billing page. --}}
+                    @hasanyrole('Admin|Finance|Kasir')
+                    <li class="menu-label">Akuntansi</li>
+                    {{-- Laporan Keuangan: Admin, Finance and Kasir (same roles as its route) --}}
                     <li>
                         <a href="{{ route('finance.laporan-keuangan.index') }}">
                             <i class="fas fa-chart-bar align-self-center menu-icon"></i>
                             <span>Laporan Keuangan</span>
                         </a>
                     </li>
+                    @endhasanyrole
                     @hasanyrole('Admin|Finance')
-                    <li class="menu-label">Akuntansi</li>
                     <li>
                         <a href="{{ route('finance.akun.index') }}">
                             <i class="fas fa-sitemap align-self-center menu-icon"></i>

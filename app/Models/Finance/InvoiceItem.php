@@ -34,6 +34,16 @@ class InvoiceItem extends Model
         'final_amount' => 'decimal:2',
     ];
 
+    protected static function booted(): void
+    {
+        // Same rule as Billing: a percentage discount stays within 0-100 (final_amount is untouched).
+        static::saving(function (InvoiceItem $item) {
+            if (in_array($item->discount_type, ['%', 'percent'], true) && $item->discount !== null && $item->discount !== '') {
+                $item->discount = min(100, max(0, (float) $item->discount));
+            }
+        });
+    }
+
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);

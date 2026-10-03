@@ -23,6 +23,7 @@ class Invoice extends Model
         'amount_paid',
         'change_amount',
         'shortage_amount',
+        'retur_amount',
         'payment_method',
         'status',
         'transaction_type',
@@ -43,6 +44,7 @@ class Invoice extends Model
         'amount_paid' => 'decimal:2',
         'change_amount' => 'decimal:2',
         'shortage_amount' => 'decimal:2',
+        'retur_amount' => 'decimal:2',
         'transaction_type' => 'string',
     ];
 
@@ -69,9 +71,13 @@ class Invoice extends Model
         return $this->hasMany(Piutang::class, 'invoice_id');
     }
 
+    /**
+     * Approved returs only (pending/rejected returs have no effect on the invoice yet).
+     */
     public function returPembelians()
     {
-        return $this->hasMany(ReturPembelian::class, 'invoice_id');
+        return $this->hasMany(ReturPembelian::class, 'invoice_id')
+            ->where('finance_retur_pembelian.status', ReturPembelian::STATUS_APPROVED);
     }
 
     public function returPembelianItems()
@@ -83,7 +89,7 @@ class Invoice extends Model
             'retur_pembelian_id',
             'id',
             'id'
-        );
+        )->where('finance_retur_pembelian.status', ReturPembelian::STATUS_APPROVED);
     }
 
     // Generate a unique invoice number

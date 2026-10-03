@@ -70,16 +70,6 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Menampilkan form export invoice dan tombol download
-     */
-    public function invoiceExportForm(Request $request)
-    {
-    $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
-    $dokters = \App\Models\ERM\Dokter::with('user')->orderBy('id')->get();
-    return view('finance.invoice.export_form', compact('kliniks', 'dokters'));
-    }
-
-    /**
      * Mendownload file Excel invoice
      */
     public function downloadInvoiceExcel(Request $request)

@@ -289,10 +289,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(() => {
                   Swal.fire({ title: 'Buka kunjungan?', text: 'Apakah Anda ingin membuka form kunjungan?', icon: 'question', showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Tidak' })
                     .then((result2) => {
-                      if (result2.value) {
-                        $('#modal-pasien-id').val(resp.pasien.id);
-                        $('#modal-nama-pasien').val(resp.pasien.nama);
-                        $('#modalKunjungan').modal('show');
+                      if (result2.value && typeof window.openDaftarKunjunganModal === 'function') {
+                        // Shared Daftarkan Kunjungan modal (erm.rawatjalans.partials.modal-daftar-kunjungan)
+                        window.openDaftarKunjunganModal({ jenis: 'konsultasi', pasienId: resp.pasien.id, pasienNama: resp.pasien.nama });
                       } else {
                         location.reload();
                       }

@@ -39,11 +39,14 @@
                 <ul class="metismenu left-sidenav-menu">  
                                         <!-- SPK / Riwayat Tindakan Section -->
                     @auth
-                    <!-- Top-level Events Dashboard (no parent) - placed above Belova Mengaji section -->
+                    <!-- Marketing events (event list, patients, event billing) -->
+                    <li class="menu-label mt-0">Marketing Events</li>
                     <li>
-                        <a href="/events"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Events Dashboard</span></a>
+                        <a href="/events"><i data-feather="calendar" class="align-self-center menu-icon"></i><span>Events</span></a>
                     </li>
 
+                    <!-- Other events, separate from the marketing events -->
+                    <li class="menu-label">Event Lainnya</li>
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Belova Mengaji</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -56,14 +59,12 @@
                         </ul>
                     </li>
 
-                    <!-- New Running section (separate from Belova Mengaji) -->
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Running</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/running"><i data-feather="list" class="align-self-center menu-icon"></i><span>Index</span></a>
-                            </li>
-                        </ul>
+                        <a href="/running"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Run 2 Wellness</span></a>
+                    </li>
+
+                    <li>
+                        <a href="{{ route('events.lebaran.index') }}"><i data-feather="moon" class="align-self-center menu-icon"></i><span>Lebaran</span></a>
                     </li>
                     @endauth                  
 

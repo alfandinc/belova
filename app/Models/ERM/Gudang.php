@@ -15,6 +15,14 @@ class Gudang extends Model
         'nama', 'lokasi'
     ];
 
+    protected static function booted(): void
+    {
+        // The billing page caches the gudang list + mappings.
+        $forget = fn () => \Illuminate\Support\Facades\Cache::forget(GudangMapping::BILLING_GUDANG_CACHE_KEY);
+        static::saved($forget);
+        static::deleted($forget);
+    }
+
     /**
      * Relasi ke ObatStokGudang
      */

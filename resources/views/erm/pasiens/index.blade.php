@@ -367,9 +367,6 @@ body > .pasien-action-dropdown-floating {
     width: auto !important;
 }
 </style>
-@include('erm.partials.modal-daftarkunjungan')
-@include('erm.partials.modal-daftarkunjunganproduk')
-@include('erm.partials.modal-daftarkunjunganlab')
 @include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 @include('erm.partials.modal-info-pasien')
 @include('erm.partials.modal-ic-pendaftaran')
