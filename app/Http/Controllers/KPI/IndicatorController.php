@@ -10,6 +10,7 @@ use App\Models\KPI\KpiIndicatorCategory;
 use App\Models\KPI\KpiScore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
@@ -33,27 +34,45 @@ class IndicatorController extends Controller
             $indicators = KpiIndicator::query()
                 ->where('category_id', $category->id)
                 ->orderBy('indicator_name')
-                ->get(['id', 'category_id', 'indicator_name', 'notes', 'is_active']);
+                ->get(['id', 'category_id', 'indicator_name', 'notes', 'shared_weight_percentage', 'is_active']);
 
-            $indicatorPayloads = $indicators->map(function (KpiIndicator $indicator) use ($existingMappings) {
-                $mapping = $existingMappings->get($indicator->id);
+            if ($category->is_shared) {
+                // same indicators for every position, managed from the category itself (read-only here)
+                return [
+                    'category_id' => $category->id,
+                    'category_name' => $category->category_name,
+                    'category_weight_percentage' => (float) $category->weight_percentage,
+                    'evaluator_type' => $category->evaluator_type,
+                    'is_shared' => true,
+                    'rows' => $this->sharedIndicatorRows($indicators),
+                    'suggestions' => [],
+                ];
+            }
 
+            $rows = $indicators->filter(function (KpiIndicator $indicator) use ($existingMappings) {
+                return $existingMappings->has($indicator->id);
+            })->map(function (KpiIndicator $indicator) use ($existingMappings) {
                 return [
                     'indicator_id' => $indicator->id,
                     'indicator_name' => $indicator->indicator_name,
                     'notes' => $indicator->notes,
-                    'is_active' => (bool) $indicator->is_active,
-                    'is_mapped' => (bool) $mapping,
-                    'weight_percentage' => $mapping ? (float) $mapping->weight_percentage : null,
+                    'weight_percentage' => (float) $existingMappings->get($indicator->id)->weight_percentage,
                 ];
             })->values();
+
+            // names of other active indicators in this category, offered as suggestions
+            $suggestions = $indicators->filter(function (KpiIndicator $indicator) use ($existingMappings) {
+                return $indicator->is_active && !$existingMappings->has($indicator->id);
+            })->pluck('indicator_name')->unique()->values();
 
             return [
                 'category_id' => $category->id,
                 'category_name' => $category->category_name,
                 'category_weight_percentage' => (float) $category->weight_percentage,
                 'evaluator_type' => $category->evaluator_type,
-                'indicators' => $indicatorPayloads,
+                'is_shared' => false,
+                'rows' => $rows,
+                'suggestions' => $suggestions,
             ];
         })->values();
 
@@ -67,12 +86,25 @@ class IndicatorController extends Controller
         ];
     }
 
+    private function sharedIndicatorRows(Collection $indicators): Collection
+    {
+        return $indicators->filter(function (KpiIndicator $indicator) {
+            return $indicator->shared_weight_percentage !== null;
+        })->map(function (KpiIndicator $indicator) {
+            return [
+                'indicator_id' => $indicator->id,
+                'indicator_name' => $indicator->indicator_name,
+                'notes' => $indicator->notes,
+                'weight_percentage' => (float) $indicator->shared_weight_percentage,
+            ];
+        })->values();
+    }
+
     public function index()
     {
         return view('kpi.indicator.index', [
             'positions' => Position::with('divisions')->orderBy('name')->get(['id', 'name']),
             'divisions' => \App\Models\HRD\Division::orderBy('name')->get(['id','name']),
-            'categories' => KpiIndicatorCategory::orderBy('category_name')->get(['id', 'category_name']),
         ]);
     }
 
@@ -101,7 +133,12 @@ class IndicatorController extends Controller
                     : '<span class="badge badge-secondary">Inactive</span>';
             })
             ->addColumn('action', function (KpiIndicatorCategory $category) {
+                $sharedButton = $category->is_shared
+                    ? '<button type="button" class="btn btn-primary btn-shared-indicators" data-id="' . $category->id . '" title="Indikator untuk semua posisi"><i class="fas fa-list-ul"></i></button>'
+                    : '';
+
                 return '<div class="btn-group btn-group-sm" role="group">'
+                    . $sharedButton
                     . '<button type="button" class="btn btn-info btn-edit-category" data-id="' . $category->id . '"><i class="fas fa-edit"></i></button>'
                     . '<button type="button" class="btn btn-danger btn-delete-category" data-id="' . $category->id . '" data-name="' . e($category->category_name) . '"><i class="fas fa-trash"></i></button>'
                     . '</div>';
@@ -238,6 +275,339 @@ class IndicatorController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->buildPositionEditorPayload($position),
+        ]);
+    }
+
+    /**
+     * Save a position's indicators in one go: create/update indicators, map them with weights,
+     * and clean up indicators that end up unused (deleted, or deactivated if they have scores).
+     * Payload: { categories: [ { category_id, rows: [ { indicator_id?, indicator_name, notes?, weight_percentage } ] } ] }
+     */
+    public function positionIndicatorsSave(Request $request, Position $position): JsonResponse
+    {
+        $validated = $request->validate([
+            'categories' => ['required', 'array'],
+            'categories.*.category_id' => ['required', 'integer', 'exists:kpi_indicator_categories,id'],
+            'categories.*.rows' => ['nullable', 'array'],
+            'categories.*.rows.*.indicator_id' => ['nullable', 'integer'],
+            'categories.*.rows.*.indicator_name' => ['required', 'string', 'max:255'],
+            'categories.*.rows.*.notes' => ['nullable', 'string'],
+            'categories.*.rows.*.weight_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+        ], [
+            'categories.*.rows.*.indicator_name.required' => 'Nama indikator wajib diisi.',
+            'categories.*.rows.*.weight_percentage.required' => 'Bobot indikator wajib diisi.',
+        ]);
+
+        // shared categories are managed from the category itself, never per position
+        $sharedCategoryIds = KpiIndicatorCategory::where('is_shared', true)->pluck('id')->all();
+        $validated['categories'] = array_values(array_filter($validated['categories'], function ($categoryPayload) use ($sharedCategoryIds) {
+            return !in_array((int) $categoryPayload['category_id'], $sharedCategoryIds, true);
+        }));
+
+        foreach ($validated['categories'] as $categoryPayload) {
+            $rows = collect($categoryPayload['rows'] ?? []);
+            $sum = $rows->sum(fn ($row) => (float) $row['weight_percentage']);
+
+            if ($rows->isNotEmpty() && abs($sum - 100.0) > 0.001) {
+                $category = KpiIndicatorCategory::find($categoryPayload['category_id']);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Total bobot kategori ' . ($category?->category_name ?? ('#' . $categoryPayload['category_id'])) . ' harus 100% (sekarang: ' . number_format($sum, 2) . '%).',
+                ], 422);
+            }
+        }
+
+        $stats = ['created' => 0, 'deleted' => 0, 'deactivated' => 0];
+
+        try {
+            DB::transaction(function () use ($validated, $position, &$stats) {
+                foreach ($validated['categories'] as $categoryPayload) {
+                    $categoryId = (int) $categoryPayload['category_id'];
+                    $categoryIndicatorIds = KpiIndicator::where('category_id', $categoryId)->pluck('id');
+
+                    $newMappings = [];
+                    foreach ($categoryPayload['rows'] ?? [] as $row) {
+                        $indicator = $this->resolvePositionIndicator($position, $categoryId, $row, $stats);
+
+                        if (isset($newMappings[$indicator->id])) {
+                            throw new \RuntimeException('Indikator "' . $indicator->indicator_name . '" ditambahkan lebih dari sekali.');
+                        }
+                        $newMappings[$indicator->id] = (float) $row['weight_percentage'];
+                    }
+
+                    KpiPositionIndicator::where('position_id', $position->id)
+                        ->whereIn('indicator_id', $categoryIndicatorIds)
+                        ->delete();
+
+                    foreach ($newMappings as $indicatorId => $weight) {
+                        KpiPositionIndicator::create([
+                            'position_id' => $position->id,
+                            'indicator_id' => $indicatorId,
+                            'weight_percentage' => $weight,
+                        ]);
+                    }
+                }
+
+                $this->cleanupUnusedIndicators($stats);
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $message = $this->messageWithStats('Indikator posisi berhasil disimpan.', $stats);
+
+        return response()->json(['success' => true, 'message' => $message, 'stats' => $stats]);
+    }
+
+    /**
+     * Indicators of a shared category (same for every position), for the category's indicator editor.
+     */
+    public function sharedIndicators(KpiIndicatorCategory $category): JsonResponse
+    {
+        $indicators = KpiIndicator::where('category_id', $category->id)
+            ->orderBy('indicator_name')
+            ->get(['id', 'category_id', 'indicator_name', 'notes', 'shared_weight_percentage', 'is_active']);
+
+        $rows = $this->sharedIndicatorRows($indicators);
+        $suggestions = $indicators->filter(function (KpiIndicator $indicator) {
+            return $indicator->is_active && $indicator->shared_weight_percentage === null;
+        })->pluck('indicator_name')->unique()->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'category_id' => $category->id,
+                'category_name' => $category->category_name,
+                'category_weight_percentage' => (float) $category->weight_percentage,
+                'evaluator_type' => $category->evaluator_type,
+                'is_shared' => (bool) $category->is_shared,
+                'rows' => $rows,
+                'suggestions' => $suggestions,
+            ],
+        ]);
+    }
+
+    /**
+     * Save the indicators of a shared category. Payload: { rows: [ { indicator_id?, indicator_name, notes?, weight_percentage } ] }
+     */
+    public function sharedIndicatorsSave(Request $request, KpiIndicatorCategory $category): JsonResponse
+    {
+        if (!$category->is_shared) {
+            return response()->json(['success' => false, 'message' => 'Kategori ini tidak diatur sebagai indikator untuk semua posisi.'], 422);
+        }
+
+        $validated = $request->validate([
+            'rows' => ['nullable', 'array'],
+            'rows.*.indicator_id' => ['nullable', 'integer'],
+            'rows.*.indicator_name' => ['required', 'string', 'max:255'],
+            'rows.*.notes' => ['nullable', 'string'],
+            'rows.*.weight_percentage' => ['required', 'numeric', 'min:0', 'max:100'],
+        ], [
+            'rows.*.indicator_name.required' => 'Nama indikator wajib diisi.',
+            'rows.*.weight_percentage.required' => 'Bobot indikator wajib diisi.',
+        ]);
+
+        $rows = collect($validated['rows'] ?? []);
+        $sum = $rows->sum(fn ($row) => (float) $row['weight_percentage']);
+        if ($rows->isNotEmpty() && abs($sum - 100.0) > 0.001) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Total bobot kategori ' . $category->category_name . ' harus 100% (sekarang: ' . number_format($sum, 2) . '%).',
+            ], 422);
+        }
+
+        $stats = ['created' => 0, 'deleted' => 0, 'deactivated' => 0];
+
+        try {
+            DB::transaction(function () use ($rows, $category, &$stats) {
+                $keptIds = [];
+
+                foreach ($rows as $row) {
+                    $name = trim($row['indicator_name']);
+                    $notes = isset($row['notes']) && trim($row['notes']) !== '' ? trim($row['notes']) : null;
+
+                    $indicator = !empty($row['indicator_id'])
+                        ? KpiIndicator::where('id', $row['indicator_id'])->where('category_id', $category->id)->first()
+                        : null;
+
+                    $indicator = $indicator ?: KpiIndicator::where('category_id', $category->id)
+                        ->whereRaw('LOWER(indicator_name) = ?', [Str::lower($name)])
+                        ->orderByDesc('is_active')
+                        ->first();
+
+                    if (!$indicator) {
+                        $indicator = new KpiIndicator(['category_id' => $category->id]);
+                        $stats['created']++;
+                    }
+
+                    if (in_array($indicator->id, $keptIds, true)) {
+                        throw new \RuntimeException('Indikator "' . $name . '" ditambahkan lebih dari sekali.');
+                    }
+
+                    $indicator->fill([
+                        'indicator_name' => $name,
+                        'notes' => $notes,
+                        'shared_weight_percentage' => (float) $row['weight_percentage'],
+                        'is_active' => true,
+                    ])->save();
+
+                    $keptIds[] = $indicator->id;
+                }
+
+                KpiIndicator::where('category_id', $category->id)
+                    ->whereNotIn('id', $keptIds)
+                    ->update(['shared_weight_percentage' => null]);
+
+                $this->cleanupUnusedIndicators($stats);
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $message = $this->messageWithStats('Indikator kategori ' . $category->category_name . ' berhasil disimpan.', $stats);
+
+        return response()->json(['success' => true, 'message' => $message, 'stats' => $stats]);
+    }
+
+    /**
+     * What "delete all indicators" would do, shown to the user before confirming.
+     */
+    public function resetIndicatorsPreview(): JsonResponse
+    {
+        $scoredIds = KpiScore::query()->select('indicators_id');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'mappings' => KpiPositionIndicator::count(),
+                'shared' => KpiIndicator::whereNotNull('shared_weight_percentage')->count(),
+                'to_delete' => KpiIndicator::whereNotIn('id', $scoredIds)->count(),
+                'to_keep' => KpiIndicator::whereIn('id', $scoredIds)->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Remove every indicator from every position (and every shared category), then clean up: indicators never
+     * scored are deleted, indicators used by old assessments are only deactivated. kpi_scores is never touched,
+     * and old assessments read their own ss_* snapshot, so past records stay exactly as they were.
+     */
+    public function resetIndicators(Request $request): JsonResponse
+    {
+        $request->validate([
+            'confirm' => ['required', 'in:HAPUS'],
+        ], [
+            'confirm.in' => 'Ketik HAPUS untuk konfirmasi.',
+        ]);
+
+        $stats = ['created' => 0, 'deleted' => 0, 'deactivated' => 0, 'unmapped' => 0];
+
+        DB::transaction(function () use (&$stats) {
+            $stats['unmapped'] = KpiPositionIndicator::query()->delete();
+            KpiIndicator::whereNotNull('shared_weight_percentage')->update(['shared_weight_percentage' => null]);
+            $this->cleanupUnusedIndicators($stats);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Semua indikator dihapus: ' . $stats['deleted'] . ' indikator dihapus, '
+                . $stats['deactivated'] . ' dinonaktifkan karena dipakai penilaian lama, '
+                . $stats['unmapped'] . ' mapping posisi dilepas. Riwayat nilai tidak berubah.',
+            'stats' => $stats,
+        ]);
+    }
+
+    /**
+     * Delete every indicator no position uses (or deactivate it when old scores reference it, since the
+     * kpi_scores FK blocks deleting those). Indicators that belong to a shared category's set are in use.
+     */
+    private function cleanupUnusedIndicators(array &$stats): void
+    {
+        $sharedCategoryIds = KpiIndicatorCategory::where('is_shared', true)->pluck('id');
+
+        $unusedIndicators = KpiIndicator::query()
+            ->whereNotIn('id', KpiPositionIndicator::query()->select('indicator_id'))
+            ->where(function ($query) use ($sharedCategoryIds) {
+                $query->whereNotIn('category_id', $sharedCategoryIds)
+                    ->orWhereNull('shared_weight_percentage');
+            });
+
+        $stats['deactivated'] += (clone $unusedIndicators)
+            ->whereIn('id', KpiScore::query()->select('indicators_id'))
+            ->where('is_active', true)
+            ->update(['is_active' => false]);
+
+        $stats['deleted'] += (clone $unusedIndicators)
+            ->whereNotIn('id', KpiScore::query()->select('indicators_id'))
+            ->delete();
+    }
+
+    private function messageWithStats(string $message, array $stats): string
+    {
+        $details = array_filter([
+            $stats['created'] ? $stats['created'] . ' indikator baru' : null,
+            $stats['deleted'] ? $stats['deleted'] . ' indikator tidak terpakai dihapus' : null,
+            $stats['deactivated'] ? $stats['deactivated'] . ' indikator dinonaktifkan (ada riwayat nilai)' : null,
+        ]);
+
+        return $details ? $message . ' (' . implode(', ', $details) . ')' : $message;
+    }
+
+    /**
+     * Find or create the indicator a submitted row refers to. Edits to an indicator shared with
+     * other positions create a new indicator so the other positions are not affected.
+     */
+    private function resolvePositionIndicator(Position $position, int $categoryId, array $row, array &$stats): KpiIndicator
+    {
+        $name = trim($row['indicator_name']);
+        $notes = isset($row['notes']) && trim($row['notes']) !== '' ? trim($row['notes']) : null;
+
+        $current = !empty($row['indicator_id'])
+            ? KpiIndicator::where('id', $row['indicator_id'])->where('category_id', $categoryId)->first()
+            : null;
+
+        if ($current) {
+            $unchanged = $current->indicator_name === $name && ($current->notes ?: null) === $notes;
+            if ($unchanged) {
+                if (!$current->is_active) {
+                    $current->update(['is_active' => true]);
+                }
+                return $current;
+            }
+
+            $sharedWithOthers = KpiPositionIndicator::where('indicator_id', $current->id)
+                ->where('position_id', '!=', $position->id)
+                ->exists();
+
+            if (!$sharedWithOthers) {
+                $current->update(['indicator_name' => $name, 'notes' => $notes, 'is_active' => true]);
+                return $current;
+            }
+        }
+
+        $existing = KpiIndicator::where('category_id', $categoryId)
+            ->whereRaw('LOWER(indicator_name) = ?', [Str::lower($name)])
+            ->when($current, fn ($q) => $q->where('id', '!=', $current->id))
+            ->orderByDesc('is_active')
+            ->first();
+
+        if ($existing) {
+            $updates = ['is_active' => true];
+            if ($notes !== null && empty($existing->notes)) {
+                $updates['notes'] = $notes;
+            }
+            $existing->update($updates);
+            return $existing;
+        }
+
+        $stats['created']++;
+
+        return KpiIndicator::create([
+            'category_id' => $categoryId,
+            'indicator_name' => $name,
+            'notes' => $notes,
+            'is_active' => true,
         ]);
     }
 
@@ -381,9 +751,16 @@ class IndicatorController extends Controller
 
         $positions = $positionsQuery->get(['id', 'name']);
 
-        $categories = KpiIndicatorCategory::where('is_active', 1)->orderBy('category_name')->get(['id', 'category_name']);
+        $categories = KpiIndicatorCategory::where('is_active', 1)->orderBy('category_name')->get(['id', 'category_name', 'is_shared']);
 
-        $rows = $positions->map(function ($p) use ($categories) {
+        // shared categories: one indicator set (and weight total) for every position
+        $sharedIndicators = KpiIndicator::query()
+            ->where('is_active', true)
+            ->whereNotNull('shared_weight_percentage')
+            ->whereIn('category_id', $categories->where('is_shared', true)->pluck('id'))
+            ->get(['id', 'category_id', 'shared_weight_percentage']);
+
+        $rows = $positions->map(function ($p) use ($categories, $sharedIndicators) {
             // count active employees for this position (exclude status 'tidak aktif')
             $activeEmployees = $p->employees()->whereRaw('LOWER(status) <> ?', ['tidak aktif'])->count();
 
@@ -394,11 +771,19 @@ class IndicatorController extends Controller
             $parts = [];
             $hasIssue = false;
 
+            $indicatorsCount = 0;
+
             foreach ($categories as $cat) {
-                $items = $mappings->filter(function ($m) use ($cat) {
-                    return optional($m->indicator)->category_id == $cat->id;
-                });
-                $sum = $items->sum(function ($it) { return (float) $it->weight_percentage; });
+                if ($cat->is_shared) {
+                    $items = $sharedIndicators->where('category_id', $cat->id);
+                    $sum = $items->sum(function ($it) { return (float) $it->shared_weight_percentage; });
+                } else {
+                    $items = $mappings->filter(function ($m) use ($cat) {
+                        return optional($m->indicator)->category_id == $cat->id;
+                    });
+                    $sum = $items->sum(function ($it) { return (float) $it->weight_percentage; });
+                }
+                $indicatorsCount += $items->count();
                 $sumFmt = number_format($sum, 2);
 
                 // choose badge color
@@ -412,6 +797,7 @@ class IndicatorController extends Controller
                 }
 
                 $parts[] = '<span class="badge ' . $badgeClass . ' mr-1 mb-1 category-badge" style="cursor:pointer" data-pos-id="' . $p->id . '" data-cat-id="' . $cat->id . '" data-cat-name="' . e($cat->category_name) . '">'
+                    . ($cat->is_shared ? '<i class="fas fa-users mr-1" title="Sama untuk semua posisi"></i>' : '')
                     . e($cat->category_name) . ' <strong>' . $sumFmt . '%</strong></span>';
             }
 
@@ -420,9 +806,9 @@ class IndicatorController extends Controller
                 'name' => $p->name,
                 'division_name' => $p->division_names ?: '-',
                 'employee_count' => $activeEmployees,
-                'indicators_count' => $mappings->count(),
+                'indicators_count' => $indicatorsCount,
                 'category_percentages' => implode('', $parts),
-                'action' => '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-position-mapping" data-id="' . $p->id . '" data-name="' . e($p->name) . '"><i class="fas fa-edit mr-1"></i>Edit</button>',
+                'action' => '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-position-mapping" data-id="' . $p->id . '" data-name="' . e($p->name) . '"><i class="fas fa-list-ul mr-1"></i>Indikator</button>',
                 'has_issue' => $hasIssue ? 1 : 0,
             ];
         });
@@ -603,6 +989,7 @@ class IndicatorController extends Controller
     {
         $validated = $request->validate($this->categoryRules());
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['is_shared'] = $request->boolean('is_shared');
         $validated['evaluator_position_id'] = $validated['evaluator_type'] === 'specific_position'
             ? ($validated['evaluator_position_id'] ?? null)
             : null;
@@ -628,6 +1015,7 @@ class IndicatorController extends Controller
     {
         $validated = $request->validate($this->categoryRules());
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['is_shared'] = $request->boolean('is_shared');
         $validated['evaluator_position_id'] = $validated['evaluator_type'] === 'specific_position'
             ? ($validated['evaluator_position_id'] ?? null)
             : null;
@@ -808,6 +1196,7 @@ class IndicatorController extends Controller
                 Rule::requiredIf(request('evaluator_type') === 'specific_position'),
             ],
             'is_active' => ['nullable', 'in:0,1,true,false,on,off'],
+            'is_shared' => ['nullable', 'in:0,1,true,false,on,off'],
         ];
     }
 

@@ -293,57 +293,6 @@ class Employee extends Model
         return $this->user && $this->user->hasRole(['ceo', 'Ceo', 'CEO']);
     }
 
-    // Add these new relationships
-    public function evaluationsAsEvaluator()
-    {
-        return $this->hasMany(PerformanceEvaluation::class, 'evaluator_id');
-    }
-
-    public function evaluationsAsEvaluatee()
-    {
-        return $this->hasMany(PerformanceEvaluation::class, 'evaluatee_id');
-    }
-
-    // Get pending evaluations for this employee to complete
-    public function getPendingEvaluationsAttribute()
-    {
-        return $this->evaluationsAsEvaluator()
-            ->where('status', 'pending')
-            ->with(['evaluatee', 'period'])
-            ->get();
-    }
-
-    // Get average score for a given period
-    public function getScoreForPeriod($periodId)
-    {
-        $evaluations = $this->evaluationsAsEvaluatee()
-            ->where('period_id', $periodId)
-            ->where('status', 'completed')
-            ->with('scores.question') // Added question relation to check question_type
-            ->get();
-
-        if ($evaluations->isEmpty()) {
-            return null;
-        }
-
-        $allScores = collect();
-        foreach ($evaluations as $evaluation) {
-            $allScores = $allScores->concat($evaluation->scores);
-        }
-        
-        // Filter scores to only include score-type questions (not text questions)
-        $scoreTypeScores = $allScores->filter(function ($score) {
-            return $score->question && $score->question->question_type === 'score';
-        });
-        
-        // Return 0 if no score-type questions, otherwise calculate average
-        if ($scoreTypeScores->isEmpty()) {
-            return 0;
-        }
-        
-        return round($scoreTypeScores->avg('score'), 2);
-    }
-
     public function jatahLibur()
     {
         return $this->hasOne(JatahLibur::class, 'employee_id');

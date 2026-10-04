@@ -5,11 +5,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\HRD\PrSlipGaji;
 use App\Models\HRD\Employee;
-use App\Models\HRD\KpiAssessment;
-use App\Models\HRD\KpiAssessmentPeriod;
-use App\Models\HRD\KpiAssessmentScore;
 use App\Models\HRD\PengajuanLembur;
-use App\Services\HRD\KpiAssessmentWeightService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -838,85 +834,8 @@ class PrSlipGajiController extends Controller
         Log::info('filterBulan: ' . $filterBulan . ', bulan: ' . $bulan);
         $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
         $divisions = \App\Models\HRD\Division::query()->orderBy('name')->get();
-        $canImportAssessment = $this->canEditSlipKpiPoin(Auth::user());
-        $assessmentPeriods = $canImportAssessment
-            ? KpiAssessmentPeriod::query()->orderByDesc('assessment_month')->get()
-            : collect();
 
-        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'totalOmset', 'divisions', 'canImportAssessment', 'assessmentPeriods'));
-    }
-
-    public function previewAssessmentKpiImport(Request $request)
-    {
-        abort_unless($this->canEditSlipKpiPoin(Auth::user()), 403);
-
-        $validated = $request->validate([
-            'slip_bulan' => ['required', 'date_format:Y-m'],
-            'assessment_period_id' => ['required', 'integer', 'exists:hrd_kpi_assessment_periods,id'],
-        ]);
-
-        $period = KpiAssessmentPeriod::findOrFail($validated['assessment_period_id']);
-        $rows = $this->buildAssessmentImportPreviewRows($validated['slip_bulan'], $period);
-
-        return response()->json([
-            'success' => true,
-            'slip_bulan' => $validated['slip_bulan'],
-            'slip_bulan_label' => \Carbon\Carbon::createFromFormat('Y-m', $validated['slip_bulan'])->translatedFormat('F Y'),
-            'assessment_period' => [
-                'id' => $period->id,
-                'name' => $period->name,
-                'month' => optional($period->assessment_month)->format('Y-m'),
-                'label' => ($period->name ?: 'KPI Assessment') . ' - ' . optional($period->assessment_month)->translatedFormat('F Y'),
-                'status' => $period->status,
-            ],
-            'rows' => $rows,
-        ]);
-    }
-
-    public function applyAssessmentKpiImport(Request $request)
-    {
-        abort_unless($this->canEditSlipKpiPoin(Auth::user()), 403);
-
-        $validated = $request->validate([
-            'slip_bulan' => ['required', 'date_format:Y-m'],
-            'assessment_period_id' => ['required', 'integer', 'exists:hrd_kpi_assessment_periods,id'],
-            'rows' => ['required', 'array', 'min:1'],
-            'rows.*.slip_id' => ['required', 'integer', 'exists:pr_slip_gaji,id'],
-            'rows.*.kpi_poin' => ['required', 'numeric', 'min:0'],
-        ]);
-
-        $slipIds = collect($validated['rows'])->pluck('slip_id')->map(fn ($id) => (int) $id)->unique()->values();
-
-        $slips = PrSlipGaji::query()
-            ->where('bulan', $validated['slip_bulan'])
-            ->whereIn('id', $slipIds)
-            ->get()
-            ->keyBy('id');
-
-        if ($slips->count() !== $slipIds->count()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sebagian slip gaji tidak ditemukan pada periode slip yang dipilih.',
-            ], 422);
-        }
-
-        DB::transaction(function () use ($validated, $slips) {
-            foreach ($validated['rows'] as $row) {
-                $slip = $slips->get((int) $row['slip_id']);
-                if (!$slip) {
-                    continue;
-                }
-
-                $slip->kpi_poin = round((float) $row['kpi_poin'], 2);
-                $slip->save();
-            }
-        });
-
-        return response()->json([
-            'success' => true,
-            'message' => 'KPI poin dari preview assessment berhasil disimpan ke slip gaji.',
-            'updated_count' => count($validated['rows']),
-        ]);
+        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'totalOmset', 'divisions'));
     }
 
     public function storeAll(Request $request)
@@ -925,8 +844,6 @@ class PrSlipGajiController extends Controller
         // Validate required inputs for creating slips
         $request->validate([
             'bulan' => 'required|string',
-            // periode_penilaian_id is now optional; when omitted, penilaian points will be 0
-            'periode_penilaian_id' => 'nullable',
             // omset inputs are optional; when empty they are treated as 0
             'omset_bulanan' => 'nullable|array',
             'omset_bulanan.*' => 'nullable|numeric'
@@ -994,37 +911,10 @@ class PrSlipGajiController extends Controller
         $benefitJkk = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKK')->value('nominal');
         $benefitJkm = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKM')->value('nominal');
 
-        $periodePenilaianId = $request->input('periode_penilaian_id');
-
         foreach ($employees as $employee) {
             $employeeStatusNormalized = strtolower(preg_replace('/\s+/', '', trim((string) ($employee->status ?? ''))));
             if ($employeeStatusNormalized === 'tidakaktif') {
                 continue;
-            }
-            // Calculate poin penilaian (average score for selected period)
-            $poinPenilaian = 0;
-            if ($periodePenilaianId) {
-                $evaluations = \App\Models\HRD\PerformanceEvaluation::where('period_id', $periodePenilaianId)
-                    ->where('evaluatee_id', $employee->id)
-                    ->where('status', 'completed')
-                    ->with('scores.question')
-                    ->get();
-                $allScores = collect();
-                foreach ($evaluations as $evaluation) {
-                    $allScores = $allScores->concat($evaluation->scores);
-                }
-                $scoreTypeScores = $allScores->filter(function ($score) {
-                    return $score->question &&
-                        $score->question->question_type === 'score' &&
-                        in_array($score->question->evaluation_type, ['manager_to_employee', 'hrd_to_manager', 'ceo_to_manager']);
-                });
-                if ($scoreTypeScores->isNotEmpty()) {
-                    $poinPenilaian = round($scoreTypeScores->avg('score'), 2);
-                }
-            }
-            // If this employee has kategori_pegawai == 'khusus', they should not receive performance evaluation points
-            if (isset($employee->kategori_pegawai) && strtolower($employee->kategori_pegawai) === 'khusus') {
-                $poinPenilaian = 0;
             }
             // Count total hari scheduled
             $totalHariScheduled = $employee->schedules()
@@ -1158,7 +1048,7 @@ class PrSlipGajiController extends Controller
             $unexcused = max($selisih - $excused, 0);
             $minus = ($unexcused * 1) + ($excused * 0.5);
             $poinKehadiran = max($initialPoinKehadiran - $minus - $latenessMinus, 0);
-            $kpiPoin = $initialPoinMarketing + $poinPenilaian + $poinKehadiran;
+            $kpiPoin = $initialPoinMarketing + $poinKehadiran;
 
             // Store slip gaji for each employee, without uang_kpi
             $totalBenefit = ($benefitBpjsKesehatan ?? 0) + ($benefitJht ?? 0) + ($benefitJkk ?? 0) + ($benefitJkm ?? 0);
@@ -1206,7 +1096,7 @@ class PrSlipGajiController extends Controller
                     'total_gaji' => $totalGaji,
                     'total_jam_lembur' => $totalJamLembur,
                     'uang_lembur' => $uangLembur,
-                    'poin_penilaian' => $poinPenilaian,
+                    'poin_penilaian' => 0,
                     'poin_kehadiran' => $poinKehadiran,
                     'poin_marketing' => $initialPoinMedsos,
                     'poin_medsos' => $initialPoinMedsos,
@@ -1480,72 +1370,6 @@ class PrSlipGajiController extends Controller
             'years' => $years,
             'currentYear' => $currentYear,
         ]);
-    }
-
-    private function buildAssessmentImportPreviewRows(string $slipBulan, KpiAssessmentPeriod $period): array
-    {
-        $scoreMap = $this->buildKpiAssessmentFinalScoreMap($period);
-
-        return PrSlipGaji::query()
-            ->with(['employee.positions.divisions'])
-            ->where('bulan', $slipBulan)
-            ->get()
-            ->sortBy(fn (PrSlipGaji $slip) => strtolower((string) optional($slip->employee)->nama))
-            ->values()
-            ->map(function (PrSlipGaji $slip) use ($scoreMap) {
-                $employee = $slip->employee;
-                $assessmentScore = round((float) ($scoreMap[$slip->employee_id] ?? 0), 2);
-
-                return [
-                    'slip_id' => $slip->id,
-                    'employee_id' => $slip->employee_id,
-                    'employee_name' => $employee->nama ?? '-',
-                    'division_name' => optional($employee?->division)->name ?? '-',
-                    'status_gaji' => $this->normalizeSlipStatus($slip->status_gaji),
-                    'current_kpi_poin' => round((float) ($slip->kpi_poin ?? 0), 2),
-                    'assessment_kpi_poin' => $assessmentScore,
-                    'proposed_kpi_poin' => $assessmentScore,
-                ];
-            })
-            ->all();
-    }
-
-    private function buildKpiAssessmentFinalScoreMap(KpiAssessmentPeriod $period): array
-    {
-        $weightService = app(KpiAssessmentWeightService::class);
-        $completedStatuses = ['submitted', 'done'];
-
-        $groupedAssessments = KpiAssessment::query()
-            ->with(['evaluatee.user.roles', 'scores.periodIndicator'])
-            ->where('period_id', $period->id)
-            ->get()
-            ->groupBy('evaluatee_id');
-
-        return $groupedAssessments->mapWithKeys(function ($group, $evaluateeId) use ($weightService, $completedStatuses) {
-            /** @var KpiAssessment|null $firstAssessment */
-            $firstAssessment = $group->first();
-            if (!$firstAssessment?->evaluatee) {
-                return [(int) $evaluateeId => 0.0];
-            }
-
-            $effectiveWeights = $weightService->effectiveWeights(
-                $weightService->indicatorsForEmployee($firstAssessment->period_id, $firstAssessment->evaluatee)
-            );
-
-            $submittedScores = $group
-                ->whereIn('status', $completedStatuses)
-                ->flatMap(fn (KpiAssessment $assessment) => $assessment->scores)
-                ->filter(fn (KpiAssessmentScore $score) => (bool) $score->periodIndicator)
-                ->keyBy('period_indicator_id');
-
-            $finalScore = round($submittedScores->sum(function (KpiAssessmentScore $score) use ($effectiveWeights) {
-                $maxScore = max(1, (int) ($score->periodIndicator->max_score ?? 5));
-
-                return ($score->score / $maxScore) * (float) $effectiveWeights->get($score->period_indicator_id, 0);
-            }), 2);
-
-            return [(int) $evaluateeId => $finalScore];
-        })->all();
     }
 
     /**

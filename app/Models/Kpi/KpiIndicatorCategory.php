@@ -16,7 +16,12 @@ class KpiIndicatorCategory extends Model
         'weight_percentage',
         'evaluator_type',
         'evaluator_position_id',
+        'is_shared',
         'is_active',
+    ];
+
+    protected $casts = [
+        'is_shared' => 'boolean',
     ];
 
     public function indicators()

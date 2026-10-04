@@ -15,6 +15,7 @@ class KpiIndicator extends Model
         'category_id',
         'indicator_name',
         'notes',
+        'shared_weight_percentage',
         'is_active',
     ];
 

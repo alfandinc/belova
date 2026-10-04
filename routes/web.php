@@ -68,13 +68,7 @@ use App\Http\Controllers\HRD\{
     EmployeeContractController,
     DivisionController,
     EmployeeSelfServiceController,
-    PengajuanLiburController,
-    PerformanceEvaluationController,
-    PerformanceQuestionController,
-    PerformanceScoreController,
-    KpiAssessmentController,
-    KpiAssessmentIndicatorController,
-    KpiAssessmentPeriodController
+    PengajuanLiburController
     ,JobListController
 };
 
@@ -1752,31 +1746,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
 
         Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
 
-        Route::prefix('kpi-assessments')->name('hrd.kpi_assessments.')->group(function () {
-            Route::get('/my', [KpiAssessmentController::class, 'myAssessments'])->name('my');
-            Route::get('/assessments/{assessment}', [KpiAssessmentController::class, 'fill'])->name('fill');
-            Route::post('/assessments/{assessment}/submit', [KpiAssessmentController::class, 'submit'])->name('submit');
-
-            Route::middleware('role:Hrd|Admin')->group(function () {
-                Route::get('/periods', [KpiAssessmentPeriodController::class, 'index'])->name('periods.index');
-                Route::post('/periods', [KpiAssessmentPeriodController::class, 'store'])->name('periods.store');
-                Route::get('/periods/{period}', [KpiAssessmentPeriodController::class, 'show'])->name('periods.show');
-                Route::post('/periods/{period}/close', [KpiAssessmentPeriodController::class, 'close'])->name('periods.close');
-                Route::delete('/periods/{period}', [KpiAssessmentPeriodController::class, 'destroy'])->name('periods.destroy');
-            });
-
-            Route::middleware('role:Hrd|Admin')->group(function () {
-                Route::get('/indicators', [KpiAssessmentIndicatorController::class, 'index'])->name('indicators.index');
-                Route::get('/indicators/preview-data', [KpiAssessmentIndicatorController::class, 'previewData'])->name('indicators.preview.data');
-                Route::get('/indicators/preview/{position}', [KpiAssessmentIndicatorController::class, 'previewShow'])->name('indicators.preview.show');
-            });
-
-            Route::middleware('role:Hrd|Admin')->group(function () {
-                Route::post('/indicators', [KpiAssessmentIndicatorController::class, 'store'])->name('indicators.store');
-                Route::put('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'update'])->name('indicators.update');
-                Route::delete('/indicators/{indicator}', [KpiAssessmentIndicatorController::class, 'destroy'])->name('indicators.destroy');
-            });
-        });
         Route::get('/profile/edit-modal', [EmployeeSelfServiceController::class, 'getEditProfileModal'])->name('hrd.employee.profile.modal');
         Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
 
@@ -1825,51 +1794,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::get('/check-capacity', [PengajuanLiburController::class, 'checkCapacity'])->name('check_capacity');
             });
 
-        // Performance Evaluation Routes
-        Route::prefix('performance')->name('hrd.performance.')->middleware(['auth'])->group(function () {
-            // Evaluation Periods
-            Route::get('/periods', [PerformanceEvaluationController::class, 'index'])->name('periods.index');
-            Route::post('/periods', [PerformanceEvaluationController::class, 'store'])->name('periods.store');
-            Route::get('/periods/{period}', [PerformanceEvaluationController::class, 'show'])->name('periods.show');
-            Route::put('/periods/{period}', [PerformanceEvaluationController::class, 'update'])->name('periods.update');
-            Route::delete('/periods/{period}', [PerformanceEvaluationController::class, 'destroy'])->name('periods.destroy');
-            Route::post('/periods/{period}/initiate', [PerformanceEvaluationController::class, 'initiate'])->name('periods.initiate');
-
-            // Questions & Categories with AJAX
-            Route::get('/questions', [PerformanceQuestionController::class, 'index'])->name('questions.index');
-            
-            // Categories AJAX routes
-            Route::get('/questions/categories/data', [PerformanceQuestionController::class, 'getCategories'])->name('categories.data');
-            Route::get('/questions/categories/active', [PerformanceQuestionController::class, 'getActiveCategories'])->name('categories.active');
-            Route::get('/questions/categories/{id}', [PerformanceQuestionController::class, 'getCategoryById'])->name('categories.get');
-            Route::post('/questions/categories', [PerformanceQuestionController::class, 'storeCategory'])->name('categories.store');
-            Route::put('/questions/categories/{id}', [PerformanceQuestionController::class, 'updateCategory'])->name('categories.update');
-            Route::delete('/questions/categories/{id}', [PerformanceQuestionController::class, 'destroyCategory'])->name('categories.destroy');
-            
-            // Questions AJAX routes
-            Route::get('/questions/data', [PerformanceQuestionController::class, 'getQuestions'])->name('questions.data');
-            Route::get('/questions/grouped', [PerformanceQuestionController::class, 'getGroupedQuestions'])->name('questions.grouped');
-            // Preview questions by evaluation type (e.g., manager_to_employee)
-            Route::get('/questions/by-evaluation/{type}', [PerformanceQuestionController::class, 'getQuestionsByEvaluationType'])->name('questions.byEvaluation');
-            Route::get('/questions/all', [PerformanceQuestionController::class, 'getAllQuestions'])->name('questions.getAll');
-            Route::get('/questions/{id}', [PerformanceQuestionController::class, 'getQuestionById'])->name('questions.get');
-            Route::post('/questions', [PerformanceQuestionController::class, 'storeQuestion'])->name('questions.store');
-            Route::put('/questions/{id}', [PerformanceQuestionController::class, 'updateQuestion'])->name('questions.update');
-            Route::delete('/questions/{id}', [PerformanceQuestionController::class, 'destroyQuestion'])->name('questions.destroy');
-
-            // My Evaluations
-            Route::get('/my-evaluations', [PerformanceEvaluationController::class, 'myEvaluations'])->name('my-evaluations');
-            Route::get('/evaluations/{evaluation}/fill', [PerformanceEvaluationController::class, 'fillEvaluation'])->name('evaluations.fill');
-            Route::post('/evaluations/{evaluation}/submit', [PerformanceEvaluationController::class, 'submitEvaluation'])->name('evaluations.submit');
-
-            // Results (HRD only)
-            Route::get('/results', [PerformanceEvaluationController::class, 'results'])->name('results.index');
-            Route::get('/results/data', [PerformanceEvaluationController::class, 'resultsData'])->name('results.data');
-            Route::get('/results/periods/{period}', [PerformanceEvaluationController::class, 'periodResults'])->name('results.period');
-            Route::get('/results/periods/{period}/data', [PerformanceEvaluationController::class, 'periodResultsData'])->name('results.period.data');
-            Route::get('/results/periods/{period}/employees/{employee}', [PerformanceEvaluationController::class, 'employeeResults'])->name('results.employee');
-            Route::get('/results/periods/{period}/download-score', [PerformanceEvaluationController::class, 'downloadScore'])->name('results.download-score');
-        });
     }
 );
 
@@ -2140,10 +2064,14 @@ Route::prefix('indicator')->name('indicator.')->middleware(['auth', 'role:Employ
     Route::get('/categories/total', [IndicatorController::class, 'categoryTotal'])->name('categories.total');
     Route::post('/categories', [IndicatorController::class, 'storeCategory'])->name('categories.store');
     Route::get('/categories/{category}', [IndicatorController::class, 'showCategory'])->name('categories.show');
+    Route::get('/categories/{category}/shared-indicators', [IndicatorController::class, 'sharedIndicators'])->name('categories.shared-indicators');
+    Route::post('/categories/{category}/shared-indicators', [IndicatorController::class, 'sharedIndicatorsSave'])->name('categories.shared-indicators.save');
     Route::put('/categories/{category}', [IndicatorController::class, 'updateCategory'])->name('categories.update');
     Route::delete('/categories/{category}', [IndicatorController::class, 'destroyCategory'])->name('categories.destroy');
 
     Route::get('/indicators/data', [IndicatorController::class, 'indicatorData'])->name('indicators.data');
+    Route::get('/indicators/reset-preview', [IndicatorController::class, 'resetIndicatorsPreview'])->middleware('role:Hrd|Admin')->name('indicators.reset-preview');
+    Route::post('/indicators/reset', [IndicatorController::class, 'resetIndicators'])->middleware('role:Hrd|Admin')->name('indicators.reset');
     Route::post('/indicators', [IndicatorController::class, 'storeIndicator'])->name('indicators.store');
     Route::get('/indicators/{indicator}', [IndicatorController::class, 'showIndicator'])->name('indicators.show');
     Route::put('/indicators/{indicator}', [IndicatorController::class, 'updateIndicator'])->name('indicators.update');
@@ -2152,6 +2080,7 @@ Route::prefix('indicator')->name('indicator.')->middleware(['auth', 'role:Employ
     Route::get('/positions/{position}/mappings', [IndicatorController::class, 'positionMappings'])->name('positions.mappings');
     Route::post('/positions/{position}/mappings', [IndicatorController::class, 'positionMappingsUpdate'])->name('positions.mappings.update');
     Route::post('/positions/{position}/mappings/bulk', [IndicatorController::class, 'positionMappingsBulkUpdate'])->name('positions.mappings.bulk-update');
+    Route::post('/positions/{position}/indicators', [IndicatorController::class, 'positionIndicatorsSave'])->name('positions.indicators.save');
     Route::get('/positions/data', [IndicatorController::class, 'positionData'])->name('positions.data');
     Route::post('/import/preview', [IndicatorController::class, 'importPreview'])->name('import.preview');
     Route::post('/import/commit', [IndicatorController::class, 'importCommit'])->name('import.commit');
@@ -2442,12 +2371,6 @@ Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manag
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
     Route::put('/status/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'changeStatus'])->name('hrd.payroll.slip_gaji.status');
     Route::post('/update/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'update'])->name('hrd.payroll.slip_gaji.update');
-    Route::post('/import-assessment-kpi/preview', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'previewAssessmentKpiImport'])
-        ->middleware(['role:Hrd|Admin'])
-        ->name('hrd.payroll.slip_gaji.import_assessment_kpi.preview');
-    Route::post('/import-assessment-kpi/apply', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'applyAssessmentKpiImport'])
-        ->middleware(['role:Hrd|Admin'])
-        ->name('hrd.payroll.slip_gaji.import_assessment_kpi.apply');
     Route::post('/bulk-status', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'bulkStatus'])
         ->middleware(['role:Hrd|Admin|Manager|Head Manager|Ceo'])
         ->name('hrd.payroll.slip_gaji.bulk_status');
@@ -2460,8 +2383,6 @@ Route::get('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSl
 Route::post('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'store']);
 Route::get('hrd/payroll/slip-gaji/omset-bulanan-total', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getTotal']);
 Route::post('hrd/payroll/slip-gaji/store-all', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'storeAll']);
-// AJAX route for periode penilaian options for modal
-Route::get('hrd/performance-evaluation-periods-for-month', [App\Http\Controllers\HRD\PerformanceEvaluationPeriodController::class, 'getPeriodsForMonth']);
 
 // KPI summary route
 Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);

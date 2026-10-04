@@ -35,15 +35,226 @@ class KpiPeriodController extends Controller
 
     private function activeIndicatorMappingsForPosition(HRDPosition $position)
     {
-        return \App\Models\KPI\KpiPositionIndicator::where('position_id', $position->id)
+        $positionMappings = \App\Models\KPI\KpiPositionIndicator::where('position_id', $position->id)
             ->with(['indicator.category'])
             ->get()
             ->filter(function ($mapping) {
                 return $mapping->indicator
                     && $mapping->indicator->is_active
                     && $mapping->indicator->category
-                    && $mapping->indicator->category->is_active;
+                    && $mapping->indicator->category->is_active
+                    && !$mapping->indicator->category->is_shared;
             });
+
+        // shared categories: the same indicators (with their shared weight) apply to every position
+        $sharedMappings = $this->sharedIndicators()->map(function ($indicator) use ($position) {
+            $mapping = new \App\Models\KPI\KpiPositionIndicator([
+                'position_id' => $position->id,
+                'indicator_id' => $indicator->id,
+                'weight_percentage' => $indicator->shared_weight_percentage,
+            ]);
+
+            return $mapping->setRelation('indicator', $indicator);
+        });
+
+        return $positionMappings->values()->concat($sharedMappings);
+    }
+
+    private $sharedIndicatorsCache = null;
+
+    private function sharedIndicators()
+    {
+        if ($this->sharedIndicatorsCache === null) {
+            $this->sharedIndicatorsCache = \App\Models\KPI\KpiIndicator::query()
+                ->with('category')
+                ->where('is_active', true)
+                ->whereNotNull('shared_weight_percentage')
+                ->whereHas('category', function ($query) {
+                    $query->where('is_active', true)->where('is_shared', true);
+                })
+                ->get();
+        }
+
+        return $this->sharedIndicatorsCache;
+    }
+
+    /**
+     * Work out every assessment a period start creates: for each active employee and each of their active
+     * positions, the position's indicators grouped by category, and the evaluators of each category.
+     * Both the preview and the real start use this, so the preview is exactly what gets generated.
+     *
+     * Returns ['assignments' => [...], 'warnings' => [...]]. One assignment = one kpi_assessments row
+     * (evaluator + evaluator position + evaluatee + evaluatee position + type) with its indicators.
+     */
+    private function buildDistribution(): array
+    {
+        $assignments = [];
+        $warnings = [];
+        $positionPlans = [];
+
+        foreach ($this->activeEmployees() as $employee) {
+            foreach ($this->activeEmployeePositions($employee) as $evaluateePosition) {
+                // evaluators and indicators depend only on the position, so work them out once per position
+                $positionPlans[$evaluateePosition->id] ??= $this->positionPlan($evaluateePosition, $warnings);
+
+                foreach ($positionPlans[$evaluateePosition->id] as $plan) {
+                    $category = $plan['category'];
+                    // the evaluator of a specific position (e.g. HRD) also assesses themselves;
+                    // nobody is their own atasan or their own bawahan
+                    $evaluators = $category->evaluator_type === 'specific_position'
+                        ? $plan['evaluators']
+                        : $plan['evaluators']->reject(function ($evaluator) use ($employee) {
+                            return (int) $evaluator['employee']->id === (int) $employee->id;
+                        });
+
+                    if ($evaluators->isEmpty()) {
+                        if ($plan['reason'] !== null || $plan['evaluators']->isNotEmpty()) {
+                            $this->addWarning($warnings, 'no_evaluator:' . $evaluateePosition->id . ':' . $category->id,
+                                'Posisi ' . $evaluateePosition->name . ' - kategori ' . $category->category_name . ': tidak ada penilai ('
+                                . ($plan['reason'] ?? 'satu-satunya penilai adalah karyawan itu sendiri') . '). Indikator kategori ini tidak dibuat.');
+                        }
+                        continue;
+                    }
+
+                    foreach ($evaluators as $evaluator) {
+                        $key = implode(':', [
+                            $evaluator['employee']->id,
+                            $evaluator['position']->id,
+                            $employee->id,
+                            $evaluateePosition->id,
+                            $category->evaluator_type,
+                        ]);
+
+                        $assignments[$key] ??= [
+                            'evaluator_employee' => $evaluator['employee'],
+                            'evaluator_position' => $evaluator['position'],
+                            'evaluatee_employee' => $employee,
+                            'evaluatee_position' => $evaluateePosition,
+                            'assessment_type' => $category->evaluator_type,
+                            'indicators' => [],
+                        ];
+
+                        foreach ($plan['mappings'] as $mapping) {
+                            $assignments[$key]['indicators'][$mapping->indicator->id] = [
+                                'indicator' => $mapping->indicator,
+                                'category' => $category,
+                                'weight' => (float) ($mapping->weight_percentage ?? 0),
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        $categoryTotal = (float) \App\Models\KPI\KpiIndicatorCategory::where('is_active', true)->sum('weight_percentage');
+        if (abs($categoryTotal - 100.0) > 0.001) {
+            $this->addWarning($warnings, 'category_total',
+                'Total bobot semua kategori aktif ' . number_format($categoryTotal, 2) . '% (seharusnya 100%). Nilai akhir tidak akan berskala 0-100.');
+        }
+
+        return ['assignments' => array_values($assignments), 'warnings' => array_values($warnings)];
+    }
+
+    /**
+     * Indicators of one position grouped by category, with the evaluators of each category.
+     */
+    private function positionPlan(HRDPosition $position, array &$warnings): array
+    {
+        $plans = [];
+        $byCategory = $this->activeIndicatorMappingsForPosition($position)
+            ->groupBy(fn ($mapping) => $mapping->indicator->category_id);
+
+        foreach ($byCategory as $mappings) {
+            $category = $mappings->first()->indicator->category;
+
+            $total = (float) $mappings->sum(fn ($mapping) => (float) $mapping->weight_percentage);
+            if (abs($total - 100.0) > 0.001) {
+                $this->addWarning($warnings, 'weight:' . $position->id . ':' . $category->id,
+                    'Posisi ' . $position->name . ' - kategori ' . $category->category_name . ': total bobot indikator '
+                    . number_format($total, 2) . '% (seharusnya 100%).');
+            }
+
+            [$evaluators, $reason] = $this->evaluatorsForCategory($position, $category);
+
+            $plans[] = [
+                'category' => $category,
+                'mappings' => $mappings->values(),
+                'evaluators' => $evaluators,
+                'reason' => $reason,
+            ];
+        }
+
+        return $plans;
+    }
+
+    /**
+     * Evaluators of a category for an evaluatee position: [collection of ['employee', 'position'], reason or null].
+     * The reason explains an empty list; it stays null when an empty list is expected (bottom-up evaluation
+     * of a position that simply has no subordinates).
+     */
+    private function evaluatorsForCategory(HRDPosition $evaluateePosition, $category): array
+    {
+        $evaluators = collect();
+
+        if ($category->evaluator_type === 'direct_parent') {
+            $parentPositions = $this->activeDirectParentPositions($evaluateePosition);
+            if ($parentPositions->isEmpty()) {
+                return [$evaluators, 'tidak punya posisi atasan langsung yang aktif'];
+            }
+
+            foreach ($parentPositions as $parentPosition) {
+                foreach ($this->activeEvaluatorsForPosition($parentPosition->id) as $employee) {
+                    $evaluators->push(['employee' => $employee, 'position' => $parentPosition]);
+                }
+            }
+
+            // someone holding two parent positions of the same evaluatee assesses them once
+            $evaluators = $evaluators->unique(fn ($evaluator) => $evaluator['employee']->id)->values();
+
+            return [$evaluators, $evaluators->isEmpty() ? 'posisi atasan tidak punya karyawan aktif' : null];
+        }
+
+        if ($category->evaluator_type === 'specific_position') {
+            $specificPosition = $category->evaluator_position_id ? HRDPosition::find($category->evaluator_position_id) : null;
+            if (!$specificPosition || !$specificPosition->is_active) {
+                return [$evaluators, 'posisi penilai kategori tidak ditemukan atau nonaktif'];
+            }
+
+            // one evaluator for a specific position (the earliest registered active employee)
+            $employee = $this->activeEvaluatorsForPosition($specificPosition->id)->sortBy('id')->first();
+            if (!$employee) {
+                return [$evaluators, 'posisi penilai ' . $specificPosition->name . ' tidak punya karyawan aktif'];
+            }
+
+            return [collect([['employee' => $employee, 'position' => $specificPosition]]), null];
+        }
+
+        if ($category->evaluator_type === 'bottom_up') {
+            foreach ($this->bottomUpEvaluatorPositions($evaluateePosition) as $childPosition) {
+                $employees = $this->activeEvaluatorsForPosition($childPosition->id)
+                    ->filter(function ($employee) use ($evaluateePosition, $childPosition) {
+                        return $this->shouldIncludeBottomUpEvaluator($employee, $evaluateePosition->id, $childPosition->id);
+                    });
+
+                foreach ($employees as $employee) {
+                    $evaluators->push(['employee' => $employee, 'position' => $childPosition]);
+                }
+            }
+
+            return [$evaluators, null];
+        }
+
+        return [$evaluators, 'tipe evaluator tidak dikenal: ' . $category->evaluator_type];
+    }
+
+    private function addWarning(array &$warnings, string $key, string $message): void
+    {
+        if (isset($warnings[$key])) {
+            $warnings[$key]['count']++;
+            return;
+        }
+
+        $warnings[$key] = ['message' => $message, 'count' => 1];
     }
 
     private function activeDirectParentPositions(HRDPosition $position)
@@ -140,7 +351,8 @@ class KpiPeriodController extends Controller
             {
                 // Aggregate assessments per employee. When an employee has multiple positions,
                 // calculate each position separately and average the position totals into one row.
-                $assessments = KpiAssessment::with(['evaluateeEmployee', 'evaluateePosition', 'scores.indicator', 'evaluatorEmployee'])
+                // names and weights come from the ss_* snapshot on each score, so indicators are not loaded
+                $assessments = KpiAssessment::with(['evaluateeEmployee', 'evaluateePosition', 'evaluatorEmployee', 'evaluatorPosition', 'scores'])
                     ->where('period_id', $period->id)
                     ->get()
                     ->groupBy('evaluatee_employee_id');
@@ -222,10 +434,10 @@ class KpiPeriodController extends Controller
                             foreach ($assessment->scores as $s) {
                                 $scoresArr[] = [
                                     'indicator_id' => $s->indicators_id,
-                                    'indicator_name' => optional($s->indicator)->indicator_name ?? ($s->ss_indicator_name ?? null),
-                                    'category_name' => optional(optional($s->indicator)->category)->category_name ?? ($s->ss_category_name ?? null) ?? 'Uncategorized',
+                                    'indicator_name' => $s->ss_indicator_name ?? '-',
+                                    'category_name' => $s->ss_category_name ?? 'Uncategorized',
                                     'category_weight' => $s->ss_category_weight_percentage ?? null,
-                                    'indicator_weight' => $s->indicator?->weight_percentage ?? $s->ss_indicator_weight_percentage ?? $s->indicator?->indicator_weight ?? null,
+                                    'indicator_weight' => $s->ss_indicator_weight_percentage,
                                     'score' => $s->score,
                                     'final_calculated_score' => $s->final_calculated_score,
                                     'notes' => $s->notes,
@@ -236,6 +448,9 @@ class KpiPeriodController extends Controller
                                 'assessment_id' => $assessment->id,
                                 'evaluator_id' => $assessment->evaluator_employee_id,
                                 'evaluator_name' => optional($assessment->evaluatorEmployee)->nama ?? optional($assessment->evaluatorEmployee)->name ?? ('Position ' . ($assessment->evaluator_position_id ?? '')),
+                                'evaluator_position' => optional($assessment->evaluatorPosition)->name,
+                                'evaluatee_position' => optional($assessment->evaluateePosition)->name,
+                                'assessment_type' => $assessment->assessment_type,
                                 'status' => $assessment->status,
                                 'total_score' => round((float) array_sum(array_map(fn($x) => (float) ($x['final_calculated_score'] ?? 0), $scoresArr)), 2),
                                 'scores' => $scoresArr,
@@ -247,7 +462,7 @@ class KpiPeriodController extends Controller
                         'row_key' => (string) $evaluateeId,
                         'evaluatee_id' => $firstAssessment->evaluatee_employee_id,
                         'evaluatee_name' => optional($evaluatee)->nama ?? optional($evaluatee)->name ?? '-',
-                        'evaluatee_position' => implode('<br>', $positionNames),
+                        'evaluatee_positions' => $positionNames,
                         'total_score' => round($positionCount > 0 ? ($totalScore / $positionCount) : 0, 2),
                         'done_count' => $doneCount,
                         'pending_count' => $pendingCount,
@@ -256,104 +471,86 @@ class KpiPeriodController extends Controller
                     ];
                 }
 
-                return response()->json(['success' => true, 'data' => $rows]);
+                usort($rows, fn ($a, $b) => strcasecmp($a['evaluatee_name'], $b['evaluatee_name']));
+
+                return response()->json([
+                    'success' => true,
+                    'period' => [
+                        'id' => $period->id,
+                        'name' => $period->period_name,
+                        'label' => trim(($period->month ? \DateTime::createFromFormat('!m', $period->month)->format('F') : '') . ' ' . $period->year),
+                        'status' => $period->status,
+                    ],
+                    'data' => $rows,
+                ]);
             }
 
-            public function startAssessment(Request $request, KpiPeriod $period)
-            {
-                DB::beginTransaction();
-                try {
-                    $employees = $this->activeEmployees();
-
-                    foreach ($employees as $employee) {
-                        $evaluateePositions = $this->activeEmployeePositions($employee);
-                        if ($evaluateePositions->isEmpty()) {
-                            continue;
-                        }
-
-                        foreach ($evaluateePositions as $evaluateePosition) {
-                            $mappings = $this->activeIndicatorMappingsForPosition($evaluateePosition);
-
-                            if ($mappings->isEmpty()) {
-                                continue;
-                            }
-
-                            foreach ($mappings as $map) {
-                                $indicator = $map->indicator;
-                                $category = $indicator->category;
-                                $assessmentType = $category->evaluator_type;
-
-                                    $evaluatorPositionTargets = collect();
-                                if ($assessmentType === 'direct_parent') {
-                    $evaluatorPositionTargets = $this->activeDirectParentPositions($evaluateePosition);
-                                } elseif ($assessmentType === 'specific_position') {
-                                        $specificPosition = HRDPosition::find($category->evaluator_position_id);
-                    $evaluatorPositionTargets = ($specificPosition && $specificPosition->is_active) ? collect([$specificPosition]) : collect();
-                                } elseif ($assessmentType === 'bottom_up') {
-                                        $evaluatorPositionTargets = $this->bottomUpEvaluatorPositions($evaluateePosition);
-                                }
-
-                                    if ($evaluatorPositionTargets->isEmpty()) {
-                                    continue;
-                                }
-
-                                    foreach ($evaluatorPositionTargets as $evPos) {
-                                        $evaluatorPositionId = $evPos->id;
-                                    $evaluatorsQuery = $this->activeEvaluatorsForPosition($evaluatorPositionId);
-
-                                    if ($assessmentType === 'specific_position') {
-                                        $selectedEvaluator = $evaluatorsQuery->first();
-                                        $evaluators = $selectedEvaluator ? collect([$selectedEvaluator]) : collect();
-                                    } else {
-                                        $evaluators = $evaluatorsQuery
-                                        ->filter(function ($evaluator) use ($evaluateePosition, $evaluatorPositionId) {
-                                            return $this->shouldIncludeBottomUpEvaluator(
-                                                $evaluator,
-                                                $evaluateePosition->id,
-                                                $evaluatorPositionId
-                                            );
-                                        })->values();
-                                    }
-
-                                    foreach ($evaluators as $evaluator) {
-                                        $assessment = KpiAssessment::firstOrCreate([
-                                            'period_id' => $period->id,
-                                            'evaluator_employee_id' => $evaluator->id,
-                                            'evaluator_position_id' => $evaluatorPositionId,
-                                            'evaluatee_employee_id' => $employee->id,
-                                            'evaluatee_position_id' => $evaluateePosition->id,
-                                            'assessment_type' => $assessmentType,
-                                        ], [
-                                            'status' => 'pending',
-                                        ]);
-
-                                        KpiScore::firstOrCreate([
-                                            'assessment_id' => $assessment->id,
-                                            'indicators_id' => $indicator->id,
-                                        ], [
-                                            'ss_category_name' => $category->category_name,
-                                            'ss_category_weight_percentage' => $category->weight_percentage,
-                                            'ss_indicator_name' => $indicator->indicator_name,
-                                            'ss_indicator_weight_percentage' => $map->weight_percentage ?? 0,
-                                            'score' => 0,
-                                        ]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    $period->status = 'started';
-                    $period->started_at = now();
-                    $period->save();
-
-                    DB::commit();
-                    return response()->json(['success' => true, 'message' => 'Assessments generated and period started.']);
-                } catch (\Throwable $e) {
-                    DB::rollBack();
-                    return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+    public function startAssessment(Request $request, KpiPeriod $period)
+    {
+        try {
+            $created = DB::transaction(function () use ($period) {
+                // lock the period so a double click or a second user cannot generate the assessments twice
+                $lockedPeriod = KpiPeriod::whereKey($period->id)->lockForUpdate()->first();
+                if ($lockedPeriod->status !== 'draft') {
+                    throw new \RuntimeException('Periode ini sudah dimulai (status: ' . $lockedPeriod->status . '). Assessment tidak dibuat ulang.');
                 }
-            }
+
+                $assignments = $this->buildDistribution()['assignments'];
+                if (empty($assignments)) {
+                    throw new \RuntimeException('Tidak ada assessment yang bisa dibuat. Periksa indikator posisi dan penilai di halaman Master Indicators.');
+                }
+
+                $assessmentCount = 0;
+                $scoreCount = 0;
+
+                foreach ($assignments as $assignment) {
+                    $assessment = KpiAssessment::firstOrCreate([
+                        'period_id' => $lockedPeriod->id,
+                        'evaluator_employee_id' => $assignment['evaluator_employee']->id,
+                        'evaluator_position_id' => $assignment['evaluator_position']->id,
+                        'evaluatee_employee_id' => $assignment['evaluatee_employee']->id,
+                        'evaluatee_position_id' => $assignment['evaluatee_position']->id,
+                        'assessment_type' => $assignment['assessment_type'],
+                    ], [
+                        'status' => 'pending',
+                    ]);
+                    $assessmentCount++;
+
+                    foreach ($assignment['indicators'] as $item) {
+                        // ss_* is the snapshot old assessments keep, whatever changes in the indicators later
+                        KpiScore::firstOrCreate([
+                            'assessment_id' => $assessment->id,
+                            'indicators_id' => $item['indicator']->id,
+                        ], [
+                            'ss_category_name' => $item['category']->category_name,
+                            'ss_category_weight_percentage' => $item['category']->weight_percentage,
+                            'ss_indicator_name' => $item['indicator']->indicator_name,
+                            'ss_indicator_weight_percentage' => $item['weight'],
+                            'score' => 0,
+                        ]);
+                        $scoreCount++;
+                    }
+                }
+
+                $lockedPeriod->status = 'started';
+                $lockedPeriod->started_at = now();
+                $lockedPeriod->save();
+
+                return ['assessments' => $assessmentCount, 'scores' => $scoreCount];
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Gagal memulai periode: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Periode dimulai: ' . $created['assessments'] . ' assessment dan ' . $created['scores'] . ' indikator penilaian dibuat.',
+            'counts' => $created,
+        ]);
+    }
 
     public function store(Request $request)
     {
@@ -381,103 +578,44 @@ class KpiPeriodController extends Controller
 
     public function previewStart(Request $request, KpiPeriod $period)
     {
+        $distribution = $this->buildDistribution();
         $proposals = [];
-        $employees = $this->activeEmployees();
+        $evaluatees = [];
 
-        foreach ($employees as $employee) {
-            $evaluateePositions = $this->activeEmployeePositions($employee);
-            if ($evaluateePositions->isEmpty()) {
-                continue;
-            }
+        foreach ($distribution['assignments'] as $assignment) {
+            $evaluatee = $assignment['evaluatee_employee'];
+            $evaluator = $assignment['evaluator_employee'];
+            $evaluatees[$evaluatee->id] = true;
 
-            foreach ($evaluateePositions as $evaluateePosition) {
-                $mappings = $this->activeIndicatorMappingsForPosition($evaluateePosition);
-
-                if ($mappings->isEmpty()) {
-                    continue;
-                }
-
-                foreach ($mappings as $map) {
-                    $indicator = $map->indicator;
-                    $category = $indicator->category;
-                    $assessmentType = $category->evaluator_type;
-
-                    if ($assessmentType === 'bottom_up') {
-                        foreach ($this->bottomUpEvaluatorPositions($evaluateePosition) as $evPos) {
-                            $evaluators = $this->activeEvaluatorsForPosition($evPos->id)
-                                ->filter(function ($evaluator) use ($evaluateePosition, $evPos) {
-                                    return $this->shouldIncludeBottomUpEvaluator(
-                                        $evaluator,
-                                        $evaluateePosition->id,
-                                        $evPos->id
-                                    );
-                                })->values();
-
-                            foreach ($evaluators as $evaluator) {
-                                $proposals[] = [
-                                    'evaluatee_id' => $employee->id,
-                                    'evaluatee_name' => $employee->nama ?? ($employee->name ?? ''),
-                                    'evaluatee_position_id' => $evaluateePosition->id,
-                                    'evaluatee_position_name' => $evaluateePosition->name ?? '',
-                                    'evaluator_position_id' => $evPos->id,
-                                    'evaluator_position_name' => $evPos->name ?? '',
-                                    'evaluator_employee_id' => $evaluator?->id,
-                                    'evaluator_employee_name' => $evaluator?->nama ?? ($evaluator?->name ?? null),
-                                    'indicator_id' => $indicator->id,
-                                    'indicator_name' => $indicator->indicator_name,
-                                    'category_name' => $category->category_name,
-                                    'category_weight' => $category->weight_percentage ?? 0,
-                                    'indicator_weight' => $map->weight_percentage ?? 0,
-                                    'assessment_type' => $assessmentType,
-                                ];
-                            }
-                        }
-
-                        continue;
-                    }
-
-                    if ($assessmentType === 'direct_parent') {
-                        $evaluatorPositions = $this->activeDirectParentPositions($evaluateePosition);
-                    } elseif ($assessmentType === 'specific_position') {
-                        $specificPosition = HRDPosition::find($category->evaluator_position_id);
-                        $evaluatorPositions = ($specificPosition && $specificPosition->is_active) ? collect([$specificPosition]) : collect();
-                    } else {
-                        $evaluatorPositions = collect();
-                    }
-
-                    if ($evaluatorPositions->isEmpty()) {
-                        continue;
-                    }
-
-                    foreach ($evaluatorPositions as $evaluatorPosition) {
-                        $evaluator = $this->activeEvaluatorsForPosition($evaluatorPosition->id)->first();
-
-                        $proposals[] = [
-                            'evaluatee_id' => $employee->id,
-                            'evaluatee_name' => $employee->nama ?? ($employee->name ?? ''),
-                            'evaluatee_position_id' => $evaluateePosition->id,
-                            'evaluatee_position_name' => $evaluateePosition->name ?? '',
-                            'evaluator_position_id' => $evaluatorPosition->id,
-                            'evaluator_position_name' => $evaluatorPosition->name ?? '',
-                            'evaluator_employee_id' => $evaluator?->id,
-                            'evaluator_employee_name' => $evaluator?->nama ?? ($evaluator?->name ?? null),
-                            'indicator_id' => $indicator->id,
-                            'indicator_name' => $indicator->indicator_name,
-                            'category_name' => $category->category_name,
-                            'category_weight' => $category->weight_percentage ?? 0,
-                            'indicator_weight' => $map->weight_percentage ?? 0,
-                            'assessment_type' => $assessmentType,
-                        ];
-                    }
-                }
+            foreach ($assignment['indicators'] as $item) {
+                $proposals[] = [
+                    'evaluatee_id' => $evaluatee->id,
+                    'evaluatee_name' => $evaluatee->nama ?? ($evaluatee->name ?? ''),
+                    'evaluatee_position_id' => $assignment['evaluatee_position']->id,
+                    'evaluatee_position_name' => $assignment['evaluatee_position']->name ?? '',
+                    'evaluator_position_id' => $assignment['evaluator_position']->id,
+                    'evaluator_position_name' => $assignment['evaluator_position']->name ?? '',
+                    'evaluator_employee_id' => $evaluator->id,
+                    'evaluator_employee_name' => $evaluator->nama ?? ($evaluator->name ?? null),
+                    'indicator_id' => $item['indicator']->id,
+                    'indicator_name' => $item['indicator']->indicator_name,
+                    'category_name' => $item['category']->category_name,
+                    'category_weight' => (float) ($item['category']->weight_percentage ?? 0),
+                    'indicator_weight' => $item['weight'],
+                    'assessment_type' => $assignment['assessment_type'],
+                ];
             }
         }
 
         return response()->json([
             'success' => true,
+            'status' => $period->status,
             'counts' => [
                 'proposals' => count($proposals),
+                'assessments' => count($distribution['assignments']),
+                'evaluatees' => count($evaluatees),
             ],
+            'warnings' => $distribution['warnings'],
             'data' => $proposals,
         ]);
     }
@@ -528,22 +666,34 @@ class KpiPeriodController extends Controller
         return response()->json(['success' => true, 'message' => 'Period closed.', 'data' => $period]);
     }
 
+    /**
+     * An employee holding several positions under the same parent assesses that parent only once:
+     * through their primary position when it is one of them, otherwise through the lowest position id.
+     */
     private function shouldIncludeBottomUpEvaluator(HRDEmployee $evaluator, int $parentPositionId, int $candidatePositionId): bool
     {
-        $positionsUnderParent = $evaluator->positions()
-            ->where('hrd_position.is_active', true)
-            ->whereHas('parentPositions', function ($parentQuery) use ($parentPositionId) {
-                $parentQuery->where('hrd_position.id', $parentPositionId);
-            })
-            ->get();
+        // read the hierarchy pivot directly: a whereHas on the self-referencing parentPositions relation
+        // aliases the joined table, so a hrd_position.id condition never matches the parent
+        $positionIdsUnderParent = DB::table('hrd_employee_position as ep')
+            ->join('hrd_position as p', 'p.id', '=', 'ep.position_id')
+            ->join('hrd_position_division as pd', 'pd.position_id', '=', 'ep.position_id')
+            ->where('ep.employee_id', $evaluator->id)
+            ->where('p.is_active', true)
+            ->where('pd.parent_position_id', $parentPositionId)
+            ->distinct()
+            ->pluck('ep.position_id')
+            ->map(fn ($id) => (int) $id);
 
-        if ($positionsUnderParent->count() <= 1) {
+        if ($positionIdsUnderParent->count() <= 1) {
             return true;
         }
 
         $primaryPosition = $evaluator->primaryPosition();
+        $chosenPositionId = ($primaryPosition && $positionIdsUnderParent->contains((int) $primaryPosition->id))
+            ? (int) $primaryPosition->id
+            : $positionIdsUnderParent->min();
 
-        return $primaryPosition && (int) $primaryPosition->id === $candidatePositionId;
+        return $chosenPositionId === $candidatePositionId;
     }
 
     private function bottomUpEvaluatorPositions(HRDPosition $evaluateePosition)
