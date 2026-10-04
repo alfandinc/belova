@@ -5,18 +5,15 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Finance\FinanceDanaApprover;
+use App\Models\Finance\FinancePengajuanDanaApproval;
 use Yajra\DataTables\DataTables;
 
 class FinanceApproverController extends Controller
 {
-    public function index()
-    {
-        return view('finance.approver.index');
-    }
-
     public function data(Request $request)
     {
-        $query = FinanceDanaApprover::with('user');
+        // managed from the Kelola Approver modal on the pengajuan page (Admin only, see routes)
+        $query = FinanceDanaApprover::with('user:id,name');
         return DataTables::of($query)
             ->addColumn('aktif_label', function ($row) {
                 return $row->aktif ? 'Ya' : 'Tidak';
@@ -72,6 +69,13 @@ class FinanceApproverController extends Controller
     public function destroy($id)
     {
         $approver = FinanceDanaApprover::findOrFail($id);
+        // approvals cascade on delete, so removing an approver who already acted would erase that history
+        if (FinancePengajuanDanaApproval::where('approver_id', $approver->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Approver ini sudah pernah menyetujui/menolak pengajuan. Nonaktifkan saja (Aktif = Tidak) agar riwayat persetujuan tetap tersimpan.',
+            ], 422);
+        }
         $approver->delete();
         return response()->json(['success' => true]);
     }

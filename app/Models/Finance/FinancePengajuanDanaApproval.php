@@ -16,6 +16,7 @@ class FinancePengajuanDanaApproval extends Model
         'approver_id',
         'status',
         'tanggal_approve',
+        'note',
     ];
 
     protected $casts = [

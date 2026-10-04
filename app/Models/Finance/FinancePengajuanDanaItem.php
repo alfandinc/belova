@@ -21,8 +21,7 @@ class FinancePengajuanDanaItem extends Model
         // faktur integration fields
         'fakturbeli_id',
         'is_faktur',
-        'harga_total_snapshot',
-    ];
+        'harga_total_snapshot',    ];
 
     public function pengajuan()
     {

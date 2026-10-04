@@ -1554,8 +1554,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::put('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'update'])->name('finance.pengajuan.update');
     Route::post('/pengajuan-dana/{id}/approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approve'])->name('finance.pengajuan.approve');
     Route::post('/pengajuan-dana/bulk-approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'bulkApprove'])->name('finance.pengajuan.bulk_approve');
-    Route::post('/pengajuan-dana/{id}/pay', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'markPaid'])->name('finance.pengajuan.pay');
-    Route::post('/pengajuan-dana/{id}/decline', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'decline'])->name('finance.pengajuan.decline');
+    Route::post('/pengajuan-dana/{id}/pay', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'markPaid'])->name('finance.pengajuan.pay');    Route::post('/pengajuan-dana/{id}/decline', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'decline'])->name('finance.pengajuan.decline');
     Route::post('/pengajuan-dana/{id}/upload-bukti', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'uploadBukti'])->name('finance.pengajuan.upload_bukti');
     Route::delete('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'destroy'])->name('finance.pengajuan.destroy');
 
@@ -1567,13 +1566,14 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::put('/pengajuan-rekening/{id}', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'update'])->name('finance.rekening.update');
     Route::delete('/pengajuan-rekening/{id}', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'destroy'])->name('finance.rekening.destroy');
 
-    // Approver management (AJAX + DataTables)
-    Route::get('/pengajuan-dana-approvers', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'index'])->name('finance.pengajuan.approver.index');
-    Route::get('/pengajuan-dana-approvers/data', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'data'])->name('finance.pengajuan.approver.data');
-    Route::post('/pengajuan-dana-approvers', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'store'])->name('finance.pengajuan.approver.store');
-    Route::get('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'show'])->name('finance.pengajuan.approver.show');
-    Route::put('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'update'])->name('finance.pengajuan.approver.update');
-    Route::delete('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'destroy'])->name('finance.pengajuan.approver.destroy');
+    // Approver management (Kelola Approver modal on the pengajuan page), Admin only
+    Route::middleware('role:Admin')->group(function () {
+        Route::get('/pengajuan-dana-approvers/data', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'data'])->name('finance.pengajuan.approver.data');
+        Route::post('/pengajuan-dana-approvers', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'store'])->name('finance.pengajuan.approver.store');
+        Route::get('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'show'])->name('finance.pengajuan.approver.show');
+        Route::put('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'update'])->name('finance.pengajuan.approver.update');
+        Route::delete('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'destroy'])->name('finance.pengajuan.approver.destroy');
+    });
     });
     }
 );

@@ -5,7 +5,31 @@
 @endsection
 
 @section('content')
+    <link rel="stylesheet" href="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/css/fixedColumns.bootstrap4.min.css') }}">
     <style>
+        /* Solid backgrounds for pinned columns so scrolled cells don't show through (same palette as billing) */
+        .pengajuan-dt-wrap { --pfc-bg: #2c3144; --pfc-bg-even: #333950; --pfc-bg-hover: #2a2e40; --pfc-head: #333950; }
+        html.theme-light .pengajuan-dt-wrap { --pfc-bg: #fff; --pfc-bg-even: #f1f5fa; --pfc-bg-hover: #f8f8fc; --pfc-head: #f1f5fa; }
+        .pengajuan-dt-wrap table.dataTable tbody tr > .dtfc-fixed-left,
+        .pengajuan-dt-wrap table.dataTable tbody tr > .dtfc-fixed-right { background-color: var(--pfc-bg) !important; }
+        .pengajuan-dt-wrap table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-left,
+        .pengajuan-dt-wrap table.dataTable tbody tr:nth-of-type(even) > .dtfc-fixed-right { background-color: var(--pfc-bg-even) !important; }
+        .pengajuan-dt-wrap table.dataTable tbody tr:hover > .dtfc-fixed-left,
+        .pengajuan-dt-wrap table.dataTable tbody tr:hover > .dtfc-fixed-right { background-color: var(--pfc-bg-hover) !important; }
+        .pengajuan-dt-wrap table.dataTable thead tr > .dtfc-fixed-left,
+        .pengajuan-dt-wrap table.dataTable thead tr > .dtfc-fixed-right { background-color: var(--pfc-head) !important; }
+
+        /* Action buttons: icon and text on one line, buttons never wrap */
+        #pengajuanTable td.actions-cell { white-space: nowrap; }
+        #pengajuanTable td.actions-cell .btn-group { flex-wrap: nowrap; }
+        #pengajuanTable td.actions-cell .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            white-space: nowrap;
+            /* keep the theme's normal btn-sm size; only line-height was being squeezed */
+            line-height: 1.5;
+        }
+        #pengajuanTable td.actions-cell .btn i { display: inline-block; margin-right: 4px; }
+
         /* Constrain items column without forcing table-layout: fixed which collapses other columns */
         #pengajuanTable td.items-list-cell {
             max-width: 360px; /* adjust as needed */
@@ -13,10 +37,23 @@
             word-break: break-word;
             overflow: hidden;
             text-overflow: ellipsis;
-            vertical-align: middle; /* center vertically like other cells */
+            vertical-align: top;
         }
-        /* Center approval + payment badges */
-        #pengajuanTable td.approvals-cell { text-align: center; }
+        /* approval + payment status cells */
+        #pengajuanTable td.approvals-cell, #pengajuanTable td.payment-cell { text-align: left; vertical-align: top; }
+        /* align every body cell to the top */
+        #pengajuanTable tbody td { vertical-align: top !important; }
+        #pengajuanTable .approval-status { cursor: pointer; border-radius: 4px; padding: 4px 6px; margin: -4px -6px; }
+        #pengajuanTable .approval-status:hover { background: #f1f3f5; }
+        #pengajuanTable .approval-label { font-weight: 600; font-size: 13px; white-space: nowrap; }
+        #pengajuanTable .approval-label .fa { margin-right: 3px; }
+        /* status label on the left, progress dots pushed to the right corner of the cell */
+        #pengajuanTable .approval-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        #pengajuanTable .approval-dots { line-height: 1; white-space: nowrap; flex: 0 0 auto; }
+        #pengajuanTable .approval-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; }
+        #pengajuanTable .approval-dot:last-child { margin-right: 0; }
+        #pengajuanTable .approval-info { font-size: 11px; color: #6c757d; margin-top: 2px; line-height: 1.3; }
+        #pengajuanTable .approval-info .decline-note { color: #dc3545; white-space: normal; }
         /* Small, fixed width for the 'No' column */
         #pengajuanTable td.col-no, #pengajuanTable th.col-no {
             text-align: center;
@@ -32,7 +69,8 @@
         #pengajuanTable td.grand-total-cell, #pengajuanTable th.grand-total-cell {
             text-align: right !important;
             padding-right: 12px;
-            vertical-align: middle; /* center vertically */
+            vertical-align: top;
+            white-space: nowrap; /* money nominal must stay on one line (column grows instead) */
         }
         /* Ensure any inner elements also align right and span full width */
         #pengajuanTable td.grand-total-cell > * {
@@ -44,22 +82,65 @@
         @keyframes blinkAnim { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
         /* apply animation directly to approvals-empty so it blinks */
         .approvals-empty { animation: blinkAnim 1.2s linear infinite; }
+        /* blinking danger badge on the top-right corner of the Detail/Edit button when bukti is missing */
+        #pengajuanTable .actions-cell { overflow: visible; }
+        /* keep the flagged button (and its badge) above the neighbouring buttons in the group */
+        #pengajuanTable .btn.has-warn-badge { position: relative; overflow: visible; z-index: 2; }
+        #pengajuanTable .no-bukti-badge {
+            position: absolute; top: -6px; right: -6px;
+            display: flex; align-items: center; justify-content: center;
+            width: 15px; height: 15px; border-radius: 50%;
+            background: #dc3545; color: #fff;
+            box-shadow: 0 0 0 2px #fff;           /* crisp white ring instead of a border */
+            font-family: Arial, sans-serif; font-size: 10px; font-weight: 700; line-height: 1;
+            pointer-events: none;
+            animation: noBuktiPulse 1.4s ease-in-out infinite;
+        }
+        /* blink: fade the red dot but keep it readable */
+        @keyframes noBuktiPulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
         .approvals-empty .fa { margin-right: 6px; }
-        /* ensure inner lists wrap nicely and stay scrollable when long */
-        #pengajuanTable td.items-list-cell > * {
-            display: block;
-            max-height: 140px;
-            overflow: auto;
-        }
-        #pengajuanTable td.items-list-cell ul,
-        #pengajuanTable td.items-list-cell ol {
-            margin: 0;
-            padding-left: 16px;
-        }
+        /* item names: single item as plain text, several items as bullet points */
+        #pengajuanTable td.items-list-cell .items-summary-single { line-height: 1.4; font-weight: 700; }
+        #pengajuanTable td.items-list-cell .items-summary { margin: 0; padding-left: 16px; line-height: 1.4; font-weight: 700; list-style: disc; }
+        #pengajuanTable td.items-list-cell .items-summary li { margin-bottom: 1px; }
+        /* item notes: small muted text under the item name */
+        #pengajuanTable td.items-list-cell .item-notes { font-size: 11px; font-weight: 400; color: #6c757d; line-height: 1.3; white-space: normal; }
+        /* main value of a cell (bold); secondary info below it stays small/muted */
+        #pengajuanTable .cell-main { font-weight: 700; }
+        /* detail pengajuan modal */
+        #itemsDetailTable td, #itemsDetailTable th { vertical-align: middle; }
+        #itemsDetailModal .detail-label { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: .3px; }
+        #itemsDetailModal .detail-info > div > div:last-child { font-weight: 500; }
+        #itemsDetailModal .detail-section { font-weight: 600; margin-bottom: 8px; }
+        #itemsDetailModal .detail-bukti { width: 120px; margin: 0 10px 10px 0; text-align: center; }
+        #itemsDetailModal .detail-bukti img { width: 120px; height: 120px; object-fit: cover; border: 1px solid #dee2e6; border-radius: 4px; cursor: zoom-in; }
         /* Ensure form labels in the pengajuan modal use Title Case instead of all-caps */
         #pengajuanModal label { text-transform: capitalize !important; }
         /* show red asterisk for required fields */
         #pengajuanModal label.required:after { content: " *"; color: #e74c3c; margin-left: 4px; }
+        /* simplified pengajuan form: numbered sections */
+        #pengajuanModal .pj-section { border: 1px solid rgba(0,0,0,.08); border-radius: 6px; padding: 14px 16px 6px; margin-bottom: 14px; }
+        #pengajuanModal .pj-section-title { font-weight: 600; font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; }
+        #pengajuanModal .pj-step {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 22px; height: 22px; border-radius: 50%; margin-right: 8px;
+            background: #1761fd; color: #fff; font-size: 12px; font-weight: 700;
+        }
+        #pengajuanModal .form-group { margin-bottom: 12px; }
+        #pengajuanModal label { font-weight: 500; margin-bottom: 4px; }
+        #pengajuanModal .pj-inline-box { background: rgba(23,97,253,.05); border: 1px dashed rgba(23,97,253,.35); border-radius: 6px; padding: 10px 12px 2px; margin-bottom: 10px; }
+        #pengajuanModal #itemsTable td { vertical-align: middle; padding: 4px; border-top: 1px solid rgba(0,0,0,.06); }
+        #pengajuanModal #itemsTable th { font-weight: 600; font-size: 12px; padding: 6px 4px; border: 0; }
+        #pengajuanModal #itemsTable .form-control { height: 34px; }
+        #pengajuanModal #itemsTable tr.pj-faktur-row .form-control[readonly] { background: rgba(23,97,253,.06); }
+        #pengajuanModal #itemsTable .item-total { border: 0; background: transparent; text-align: right; font-weight: 600; }
+        #pengajuanModal #itemsTable .remove-item { padding: 4px 8px; }
+        #pengajuanModal .pj-grand-total { display: flex; align-items: center; }
+        #pengajuanModal .pj-grand-total-value { border: 0; background: transparent; font-size: 20px; font-weight: 700; color: #1761fd; text-align: right; width: 220px; padding: 0; }
+        #pengajuanModal .pj-grand-total-value:focus { outline: none; }
+        #pengajuanModal #bukti_preview img { width: 90px; height: 90px; object-fit: cover; border-radius: 4px; border: 1px solid #dee2e6; margin: 0 8px 8px 0; }
+        /* select2 fields flagged invalid */
+        #pengajuanModal .select2-invalid + .select2-container .select2-selection { border-color: #dc3545 !important; }
         #buktiModalPreview {
             display: block;
             width: 100%;
@@ -97,60 +178,37 @@
     </style>
 <div class="page-content">
     <div class="container-fluid">
-        <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-flex align-items-center justify-content-between">
-                    <h4 class="mb-0">Pengajuan Dana</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="javascript: void(0);">Finance</a></li>
-                            <li class="breadcrumb-item active">Pengajuan Dana</li>
-                        </ol>
+        <!-- page header (same layout as Billing) -->
+        <div class="row mb-2">
+            <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+                <div>
+                    <h3 class="mb-0 font-weight-bold">Daftar Pengajuan Dana</h3>
+                    <div class="text-muted small">Ajukan dana, pantau persetujuan berjenjang, dan proses pembayaran.</div>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Header actions">
+                        @hasrole('Admin')
+                        <button type="button" class="btn btn-secondary" id="btnKelolaApprover" title="Kelola Approver">
+                            <i class="fas fa-user-check mr-1"></i> Kelola Approver
+                        </button>
+                        @endhasrole
+                        <button type="button" class="btn btn-dark" id="btnKelolaRekening" title="Kelola Rekening">
+                            <i class="fas fa-university mr-1"></i> Kelola Rekening
+                        </button>
+                        <button type="button" class="btn btn-info" id="btnRiwayatPembayaran" title="Riwayat Pembayaran">
+                            <i class="fas fa-history mr-1"></i> Riwayat Pembayaran
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btnAddPengajuan" title="Buat Pengajuan">
+                            <i class="fas fa-plus mr-1"></i> Buat Pengajuan
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
-        <!-- end page title -->
 
         <div class="row">
             <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="d-flex align-items-center justify-content-between flex-nowrap">
-                            <h4 class="card-title mb-0">Daftar Pengajuan Dana</h4>
-                            <div class="col-auto d-flex align-items-center flex-nowrap">
-                                <!-- reduce max width so button stays on same line; use flex-nowrap to avoid wrapping -->
-                                <input type="text" id="filter_tanggal" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:220px; width:220px;" placeholder="Pilih rentang tanggal" readonly>
-                                <select id="filter_jenis" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
-                                    <option value="">Semua Jenis Pembayaran</option>
-                                    <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
-                                    <option value="Pembelian Barang">Pembelian Barang</option>
-                                    <option value="Operasional">Operasional</option>
-                                </select>
-                                <select id="filter_sumber" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
-                                    <option value="">Semua Sumber Dana</option>
-                                    <option value="Kas Bank">Kas Bank</option>
-                                    <option value="Kas Kecil">Kas Kecil</option>
-                                </select>
-                                <select id="filter_approval" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
-                                    <option value="menunggu" selected>Menunggu</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="declined">Ditolak</option>
-                                </select>
-                                <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="clearFilterTanggal" title="Clear filter">Clear</button>
-                                <button type="button" class="btn btn-success btn-sm mr-2" id="btnBulkApprove" title="Approve selected" style="display:none;">
-                                    <i class="fa fa-check-double mr-1"></i> Approve Selected
-                                </button>
-                                <button type="button" class="btn btn-outline-info ml-2" id="btnRiwayatPembayaran">
-                                    <i class="fas fa-history mr-1"></i> Riwayat Pembayaran
-                                </button>
-                                <button type="button" class="btn btn-primary ml-2" id="btnAddPengajuan">
-                                    <i class="fas fa-plus mr-1"></i> Buat Pengajuan
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                <div class="card shadow-sm mb-4">
 
                             <!-- Riwayat Pembayaran Modal (Bootstrap 4) -->
                             <div class="modal fade" id="riwayatPembayaranModal" tabindex="-1" role="dialog" aria-labelledby="riwayatPembayaranModalLabel" aria-hidden="true">
@@ -169,10 +227,12 @@
                                                     <thead>
                                                         <tr>
                                                             <th>No</th>
+                                                            <th>No Pengajuan</th>
                                                             <th>Items</th>
                                                             <th>Rekening</th>
-                                                            <th>Paid At</th>
-                                                            <th>Grand Total</th>
+                                                            <th>Dibayar Pada</th>
+                                                            <th>Nominal</th>
+                                                            <th>Oleh</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody></tbody>
@@ -180,32 +240,336 @@
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Tutup</button>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Detail Pengajuan Modal (Bootstrap 4): info, items + harga, bukti foto -->
+                            <div class="modal fade" id="itemsDetailModal" tabindex="-1" role="dialog" aria-labelledby="itemsDetailModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-lg" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="itemsDetailModalLabel">Detail Pengajuan</h5>
+                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row detail-info mb-3">
+                                                <div class="col-md-4 mb-2"><div class="detail-label">No Pengajuan</div><div id="dt_kode">-</div></div>
+                                                <div class="col-md-4 mb-2"><div class="detail-label">Tanggal Diajukan</div><div id="dt_tanggal">-</div></div>
+                                                <div class="col-md-4 mb-2"><div class="detail-label">Diajukan oleh</div><div id="dt_pengaju">-</div></div>
+                                                <div class="col-md-4 mb-2"><div class="detail-label">Jenis Pengajuan</div><div id="dt_jenis">-</div></div>
+                                                <div class="col-md-4 mb-2"><div class="detail-label">Diajukan ke</div><div id="dt_diajukan">-</div></div>
+                                                <div class="col-md-4 mb-2"><div class="detail-label">Rekening Tujuan</div><div id="dt_rekening">-</div></div>
+                                            </div>
+                                            <h6 class="detail-section">Items</h6>
+                                            <div class="table-responsive">
+                                                <table id="itemsDetailTable" class="table table-sm table-bordered mb-0">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style="width:5%">#</th>
+                                                            <th>Nama Item</th>
+                                                            <th>Notes</th>
+                                                            <th class="text-center" style="width:8%">Qty</th>
+                                                            <th class="text-right" style="width:17%">Harga</th>
+                                                            <th class="text-right" style="width:17%">Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                    <tfoot>
+                                                        <tr>
+                                                            <th colspan="5" class="text-right">Grand Total</th>
+                                                            <th class="text-right" id="itemsDetailGrandTotal"></th>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                            <h6 class="detail-section mt-3">Bukti Foto</h6>
+                                            <div id="dt_bukti" class="d-flex flex-wrap"></div>
+                                            <div id="dt_pembayaran_wrap" style="display:none;">
+                                                <h6 class="detail-section mt-3">Pembayaran</h6>
+                                                <div id="dt_pembayaran"></div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <a href="#" class="btn btn-outline-secondary mr-auto" id="dt_pdf" target="_blank"><i class="fa fa-file-pdf mr-1"></i>Cetak PDF</a>
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Tutup</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Kelola Rekening Modal (Bootstrap 4) -->
+                            <div class="modal fade" id="kelolaRekeningModal" tabindex="-1" role="dialog" aria-labelledby="kelolaRekeningModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-lg" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="kelolaRekeningModalLabel">Kelola Rekening</h5>
+                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <form id="kelolaRekeningForm" class="mb-3" autocomplete="off">
+                                                <input type="hidden" id="kr_id" value="">
+                                                <div class="form-row align-items-end">
+                                                    <div class="col-md-3 mb-2">
+                                                        <label for="kr_bank" class="mb-1">Bank</label>
+                                                        <input type="text" class="form-control form-control-sm" id="kr_bank" name="bank">
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-3 mb-2">
+                                                        <label for="kr_no_rekening" class="mb-1">No. Rekening</label>
+                                                        <input type="text" class="form-control form-control-sm" id="kr_no_rekening" name="no_rekening">
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-3 mb-2">
+                                                        <label for="kr_atas_nama" class="mb-1">Atas Nama</label>
+                                                        <input type="text" class="form-control form-control-sm" id="kr_atas_nama" name="atas_nama">
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-3 mb-2">
+                                                        <button type="submit" class="btn btn-primary btn-sm" id="kr_save"><i class="fa fa-plus mr-1"></i>Tambah</button>
+                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="kr_cancel" style="display:none;"><i class="fa fa-times mr-1"></i>Batal</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                            <div class="table-responsive">
+                                                <table id="kelolaRekeningTable" class="table table-sm table-bordered" style="width:100%">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>No</th>
+                                                            <th>Bank</th>
+                                                            <th>No. Rekening</th>
+                                                            <th>Atas Nama</th>
+                                                            <th style="width:130px">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Tutup</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @hasrole('Admin')
+                            <!-- Kelola Approver Modal (Bootstrap 4, Admin only) -->
+                            <div class="modal fade" id="kelolaApproverModal" tabindex="-1" role="dialog" aria-labelledby="kelolaApproverModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-xl" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="kelolaApproverModalLabel">Kelola Approver Pengajuan</h5>
+                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="alert alert-light border small mb-3">
+                                                Approval berjalan dari <strong>tingkat tertinggi</strong> ke terendah; cukup satu approver per tingkat.
+                                                Sumber dana kosong = berlaku untuk semua sumber dana.
+                                            </div>
+                                            <form id="kelolaApproverForm" class="mb-3" autocomplete="off">
+                                                <input type="hidden" id="ka_id" value="">
+                                                <div class="form-row align-items-end">
+                                                    <div class="col-md-3 mb-2">
+                                                        <label for="ka_user_id" class="mb-1">User <span class="text-danger">*</span></label>
+                                                        <select id="ka_user_id" class="form-control form-control-sm" style="width:100%">
+                                                            <option value="">-- Pilih User --</option>
+                                                            @foreach($approverUsers as $u)
+                                                                <option value="{{ $u->id }}">{{ $u->name }} ({{ $u->email }})</option>
+                                                            @endforeach
+                                                        </select>
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-2 mb-2">
+                                                        <label for="ka_jabatan" class="mb-1">Jabatan</label>
+                                                        <input type="text" class="form-control form-control-sm" id="ka_jabatan">
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-1 mb-2">
+                                                        <label for="ka_tingkat" class="mb-1">Tingkat</label>
+                                                        <input type="number" class="form-control form-control-sm" id="ka_tingkat" min="1" value="1">
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-2 mb-2">
+                                                        <label for="ka_jenis" class="mb-1">Sumber Dana</label>
+                                                        <select id="ka_jenis" class="form-control form-control-sm">
+                                                            <option value="">Semua</option>
+                                                            <option value="Kas Bank">Kas Bank</option>
+                                                            <option value="Kas Kecil">Kas Kecil</option>
+                                                        </select>
+                                                        <div class="invalid-feedback"></div>
+                                                    </div>
+                                                    <div class="col-md-1 mb-2">
+                                                        <div class="custom-control custom-checkbox mb-1">
+                                                            <input type="checkbox" class="custom-control-input" id="ka_aktif" checked>
+                                                            <label class="custom-control-label" for="ka_aktif">Aktif</label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-3 mb-2">
+                                                        <button type="submit" class="btn btn-primary btn-sm" id="ka_save"><i class="fa fa-plus mr-1"></i>Tambah</button>
+                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="ka_cancel" style="display:none;"><i class="fa fa-times mr-1"></i>Batal</button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                            <div class="table-responsive">
+                                                <table id="kelolaApproverTable" class="table table-sm table-bordered" style="width:100%">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>No</th>
+                                                            <th>User</th>
+                                                            <th>Jabatan</th>
+                                                            <th>Tingkat</th>
+                                                            <th>Sumber Dana</th>
+                                                            <th>Aktif</th>
+                                                            <th style="width:130px">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Tutup</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            @endhasrole
+
+                            <!-- Bayar Modal: record one payment (full, partial, or closed with a difference) -->
+                            <div class="modal fade" id="bayarModal" tabindex="-1" role="dialog" aria-labelledby="bayarModalLabel" aria-hidden="true">
+                                <div class="modal-dialog" role="document">
+                                    <div class="modal-content">
+                                        <form id="bayarForm" autocomplete="off">
+                                            <input type="hidden" id="bayar_id" value="">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="bayarModalLabel">Bayar Pengajuan</h5>
+                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <table class="table table-sm mb-3">
+                                                    <tr><td class="text-muted">Total diajukan</td><td class="text-right" id="bayar_grand">-</td></tr>
+                                                    <tr><td class="text-muted">Sudah dibayar</td><td class="text-right" id="bayar_sudah">-</td></tr>
+                                                    <tr><th>Sisa yang bisa dibayar</th><th class="text-right" id="bayar_sisa">-</th></tr>
+                                                </table>
+                                                <div class="form-group">
+                                                    <label for="bayar_nominal" class="mb-1">Nominal dibayar <span class="text-danger">*</span></label>
+                                                    <input type="text" class="form-control" id="bayar_nominal" inputmode="numeric">
+                                                </div>
+                                                <!-- shown only when nominal < sisa -->
+                                                <div id="bayar_kurang_box" class="alert alert-warning py-2" style="display:none;">
+                                                    <div class="mb-1"><strong>Nominal kurang <span id="bayar_selisih"></span> dari sisa.</strong> Sisanya:</div>
+                                                    <div class="custom-control custom-radio">
+                                                        <input type="radio" class="custom-control-input" id="bayar_mode_partial" name="bayar_mode" value="partial" checked>
+                                                        <label class="custom-control-label" for="bayar_mode_partial">Dibayar menyusul (status: Dibayar Sebagian)</label>
+                                                    </div>
+                                                    <div class="custom-control custom-radio">
+                                                        <input type="radio" class="custom-control-input" id="bayar_mode_close" name="bayar_mode" value="close">
+                                                        <label class="custom-control-label" for="bayar_mode_close">Tidak dibayar, selesaikan pembayaran dengan selisih</label>
+                                                    </div>
+                                                </div>
+                                                <div class="form-row">
+                                                    <div class="form-group col-md-6">
+                                                        <label for="bayar_tanggal" class="mb-1">Tanggal bayar</label>
+                                                        <input type="datetime-local" class="form-control" id="bayar_tanggal">
+                                                    </div>
+                                                    <div class="form-group col-md-6">
+                                                        <label for="bayar_bukti" class="mb-1">Bukti transfer</label>
+                                                        <input type="file" class="form-control-file" id="bayar_bukti" accept="image/*,application/pdf">
+                                                    </div>
+                                                </div>
+                                                <div class="form-group mb-0">
+                                                    <label for="bayar_note" class="mb-1">Catatan <span class="text-danger" id="bayar_note_required" style="display:none;">* wajib jika kurang dari sisa</span></label>
+                                                    <textarea class="form-control" id="bayar_note" rows="2" placeholder="Mis. dana kas belum cukup / item X dibatalkan"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                                <button type="submit" class="btn btn-success" id="bayar_submit"><i class="fa fa-wallet mr-1"></i>Simpan Pembayaran</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                     <div class="card-body">
-                        <div class="table-responsive">
-                            <table id="pengajuanTable" class="table table-bordered dt-responsive" style="width:100%">
-                                <thead>
+                        <!-- status tabs left, filters right (same layout as Billing) -->
+                        <div class="d-flex flex-wrap align-items-center justify-content-between" style="gap: .5rem;">
+                            <ul class="nav nav-tabs mb-0" id="pengajuanTabs" role="tablist" style="flex:0 0 auto;">
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link active" href="#" data-status="menunggu" role="tab">
+                                        Menunggu <span id="pj-tab-badge-menunggu" class="badge badge-danger ml-2" style="display:none;">0</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" href="#" data-status="approved" role="tab" title="Badge: sudah disetujui, belum dibayar">
+                                        Disetujui <span id="pj-tab-badge-approved" class="badge badge-primary ml-2" style="display:none;">0</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" href="#" data-status="declined" role="tab">Ditolak</a>
+                                </li>
+                            </ul>
+                            <!-- current tab; read by the DataTable request -->
+                            <input type="hidden" id="filter_approval" value="menunggu">
+
+                            <div class="d-flex flex-wrap align-items-center justify-content-end" style="gap: .5rem; flex:1 1 auto;">
+                                <div class="d-flex align-items-center" style="flex:0 0 200px;">
+                                    <select id="filter_jenis" class="form-control form-control-sm w-100">
+                                        <option value="">Semua Jenis Pengajuan</option>
+                                        <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
+                                        <option value="Pembelian Barang">Pembelian Barang</option>
+                                        <option value="Operasional">Operasional</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 180px;">
+                                    <select id="filter_sumber" class="form-control form-control-sm w-100">
+                                        <option value="">Semua Sumber Dana</option>
+                                        <option value="Kas Bank">Kas Bank</option>
+                                        <option value="Kas Kecil">Kas Kecil</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 260px;">
+                                    <div class="input-group input-group-sm w-100">
+                                        <input type="text" id="filter_tanggal" class="form-control form-control-sm" placeholder="Pilih Rentang Tanggal" readonly>
+                                        <span class="input-group-text"><i class="ti-calendar"></i></span>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-light" id="clearFilterTanggal" title="Reset tanggal"><i class="fas fa-times mr-1"></i>Reset</button>
+                                <span id="bulkSelectionSummary" class="badge badge-light border px-2 py-1" style="display:none; font-size:12px;">
+                                    <span id="bulkSelectionCount">0</span> dipilih &middot; Total <strong id="bulkSelectionTotal">Rp 0</strong>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-success" id="btnBulkApprove" title="Approve yang dipilih" style="display:none;">
+                                    <i class="fas fa-check-double mr-1"></i>Approve Terpilih
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="pt-3">
+                        <!-- horizontal scroll with No + No Pengajuan pinned left and Action pinned right (same as billing) -->
+                        <div class="pengajuan-dt-wrap">
+                            <table id="pengajuanTable" class="table table-bordered table-hover table-striped" style="width:100%">
+                                <thead class="thead-light">
                                     <tr>
                                         <th class="col-no">No</th>
-                                        <th>Detail</th>
-                                        <th>Nama Pengaju</th>
-                                        <th class="d-none">Tanggal</th>
-                                        <th>Items</th>
+                                        <th>No Pengajuan</th>
+                                        <th>Tanggal Diajukan</th>
+                                        <th>Rincian Item</th>
                                         <th>Total</th>
+                                        <th>Rekening Tujuan</th>
                                         <th>Diajukan ke</th>
-                                        <th>Approvals</th>
+                                        <th>Approval Status</th>
+                                        <th>Payment Status</th>
                                         <th style="width:46px; text-align:center">
                                             <input type="checkbox" id="select_all_rows" title="Pilih semua (halaman ini)">
                                         </th>
-                                        <th>Action</th>
+                                        <th>Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
                             </table>
+                        </div>
                         </div>
                     </div>
                 </div>
@@ -238,8 +602,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                            <button type="button" id="buktiModalUpload" class="btn btn-primary">Upload</button>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Batal</button>
+                            <button type="button" id="buktiModalUpload" class="btn btn-primary"><i class="fa fa-upload mr-1"></i>Upload</button>
                         </div>
                     </div>
                 </div>
@@ -261,208 +625,168 @@
 
 <!-- Add/Edit Pengajuan Modal (skeleton) -->
 <div class="modal fade" id="pengajuanModal" tabindex="-1" aria-labelledby="pengajuanModalLabel" aria-hidden="true">
-    <!-- widened modal: increase max-width and use percentage width for better responsiveness -->
-    <div class="modal-dialog modal-xl" style="max-width:1400px; width:95%;">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width:1100px;">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="pengajuanModalLabel">Buat Pengajuan Dana</h5>
+                <div>
+                    <h5 class="modal-title mb-0" id="pengajuanModalLabel">Buat Pengajuan Dana</h5>
+                    <small class="text-muted" id="pengajuanKodeInfo">No. pengajuan dibuat otomatis saat disimpan</small>
+                </div>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-        <form id="pengajuanForm">
+            <form id="pengajuanForm" novalidate>
                 @csrf
                 <input type="hidden" id="pengajuan_id" name="pengajuan_id">
+                <input type="hidden" id="division_id" name="division_id" value="">
+                <input type="hidden" id="items_json" name="items_json">
+                <!-- one-time token per opened form: prevents duplicate pengajuan from double clicks -->
+                <input type="hidden" id="submit_token" name="submit_token">
                 <div class="modal-body">
-        
-                    <!-- Minimal inputs for now; expand later -->
-                    <!-- Compact 2-row layout: Row 1 (kode, sumber, perusahaan, employee), Row 2 (tanggal, jenis, rekening, bukti) -->
-                    <div class="form-row g-2 pengajuan-compact">
-                        <div class="col-md-3">
-                            <label for="kode_pengajuan">Kode Pengajuan</label>
-                            <input type="text" class="form-control" id="kode_pengajuan" name="kode_pengajuan" readonly>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="sumber_dana" class="required">Sumber Dana</label>
-                            <select id="sumber_dana" name="sumber_dana" class="form-control">
-                                <option value="">-- Pilih Sumber Dana --</option>
-                                <option value="Kas Bank">Kas Bank</option>
-                                <option value="Kas Kecil">Kas Kecil</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="perusahaan">Perusahaan</label>
-                            <select id="perusahaan" name="perusahaan" class="form-control">
-                                <option value="">-- Pilih Perusahaan --</option>
-                                <option value="CV Belia Abadi">CV Belia Abadi</option>
-                                <option value="CV Belova Indonesia">CV Belova Indonesia</option>
-                                <option value="Belova Corp">Belova Corp</option>
-                                <option value="CV Grha Asri">CV Grha Asri</option>
-                                <option value="Belova Dental">Belova Dental</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="employee_id" class="required">Nama Pengaju</label>
-                            <select id="employee_id" name="employee_id" class="form-control select2" style="width:100%">
-                                <option value="">-- Pilih Employee --</option>
-                                @php $employees = \App\Models\HRD\Employee::active()->with(['user', 'positions.divisions'])->orderBy('nama')->get(); @endphp
-                                @foreach($employees as $emp)
-                                    @php $divId = $emp->division_id ?? '';
-                                        $divName = $emp->division->name ?? '';
-                                    @endphp
-                                    <option value="{{ $emp->id }}" data-division-id="{{ $divId }}" data-division-name="{{ $divName }}">{{ $emp->user->name ?? $emp->nama }} ({{ $emp->id }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <input type="hidden" id="division_id" name="division_id" value="">
-                    </div>
 
-                    <div class="form-row g-2 mt-2 pengajuan-compact">
-                        <div class="col-md-2">
-                            <label for="tanggal_pengajuan" class="required">Tanggal</label>
-                            <input type="date" class="form-control" id="tanggal_pengajuan" name="tanggal_pengajuan">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="jenis_pengajuan" class="required">Jenis</label>
-                            <select id="jenis_pengajuan" name="jenis_pengajuan" class="form-control">
-                                <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
-                                <option value="Pembelian Barang">Pembelian Barang</option>
-                                <option value="Operasional">Operasional</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label for="rekening_id">Rekening <small class="text-muted" style="font-weight:400;">(Bank / No. Rekening / Atas Nama)</small></label>
-                            <div class="d-flex align-items-center">
-                                <div style="flex:1">
-                                    <select id="rekening_id" name="rekening_id" class="form-control select2" style="width:100%">
-                                        <option value="">-- Pilih Rekening --</option>
-                                        @php $reks = \App\Models\Finance\FinanceRekening::orderBy('bank')->get(); @endphp
-                                        @foreach($reks as $r)
-                                            <option value="{{ $r->id }}">{{ $r->bank }} / {{ $r->no_rekening }} / {{ $r->atas_nama }}</option>
+                    <!-- 1. Informasi pengajuan -->
+                    <div class="pj-section">
+                        <div class="pj-section-title"><span class="pj-step">1</span> Informasi Pengajuan</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label for="employee_id" class="required">Nama Pengaju</label>
+                                @if($canChoosePengaju)
+                                    <select id="employee_id" name="employee_id" class="form-control select2" style="width:100%">
+                                        <option value="">-- Pilih Pengaju --</option>
+                                        @php $employees = \App\Models\HRD\Employee::active()->with('user')->orderBy('nama')->get(); @endphp
+                                        @foreach($employees as $emp)
+                                            <option value="{{ $emp->id }}" data-division-id="{{ $emp->division_id ?? '' }}">{{ $emp->user->name ?? $emp->nama }}</option>
                                         @endforeach
                                     </select>
-                                </div>
-                                <button type="button" class="btn btn-outline-secondary ml-2" id="btnToggleRekInline" title="Tambah Rekening"><i class="fa fa-plus"></i></button>
+                                @else
+                                    {{-- regular users always submit for themselves --}}
+                                    <input type="text" class="form-control" value="{{ optional($currentEmployee)->user->name ?? optional($currentEmployee)->nama ?? auth()->user()->name }}" readonly>
+                                    <input type="hidden" id="employee_id" name="employee_id" value="{{ optional($currentEmployee)->id }}" data-division-id="{{ optional($currentEmployee)->division_id }}">
+                                @endif
+                                <div class="invalid-feedback" id="employee_id-error"></div>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="tanggal_pengajuan" class="required">Tanggal</label>
+                                <input type="date" class="form-control" id="tanggal_pengajuan" name="tanggal_pengajuan">
+                                <div class="invalid-feedback" id="tanggal_pengajuan-error"></div>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label for="jenis_pengajuan" class="required">Jenis Pengajuan</label>
+                                <select id="jenis_pengajuan" name="jenis_pengajuan" class="form-control">
+                                    <option value="">-- Pilih Jenis --</option>
+                                    <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
+                                    <option value="Pembelian Barang">Pembelian Barang</option>
+                                    <option value="Operasional">Operasional</option>
+                                </select>
+                                <div class="invalid-feedback" id="jenis_pengajuan-error"></div>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <label for="bukti_transaksi">Bukti Transaksi <small class="text-muted" style="font-weight:400;">(Gambar) - bisa pilih beberapa file</small></label>
-                            <div class="input-group">
-                                <input type="file" class="d-none" id="bukti_transaksi" name="bukti_transaksi[]" accept="image/*" multiple>
-                                <div class="input-group-prepend">
-                                    <button type="button" class="btn btn-outline-secondary" id="btnChooseBukti"><i class="fa fa-upload"></i> Pilih File</button>
-                                </div>
-                                <input type="text" id="bukti_files_label" class="form-control" readonly placeholder="Tidak ada file terpilih">
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label for="sumber_dana" class="required">Sumber Dana</label>
+                                <select id="sumber_dana" name="sumber_dana" class="form-control">
+                                    <option value="">-- Pilih Sumber Dana --</option>
+                                    <option value="Kas Bank">Kas Bank</option>
+                                    <option value="Kas Kecil">Kas Kecil</option>
+                                </select>
+                                <div class="invalid-feedback" id="sumber_dana-error"></div>
                             </div>
-                            <small class="form-text text-muted">Maks 2MB per file. Format: jpg, png, gif.</small>
-                            <div id="bukti_preview" class="mt-2" style="display:none">
-                                <!-- multiple thumbnails will be injected here -->
+                            <div class="form-group col-md-4">
+                                <label for="perusahaan" class="required">Perusahaan</label>
+                                <select id="perusahaan" name="perusahaan" class="form-control">
+                                    <option value="">-- Pilih Perusahaan --</option>
+                                    <option value="CV Belia Abadi">CV Belia Abadi</option>
+                                    <option value="CV Belova Indonesia">CV Belova Indonesia</option>
+                                    <option value="Belova Corp">Belova Corp</option>
+                                    <option value="CV Grha Asri">CV Grha Asri</option>
+                                    <option value="Belova Dental">Belova Dental</option>
+                                </select>
+                                <div class="invalid-feedback" id="perusahaan-error"></div>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Deskripsi removed as per request (duplicate rekening block removed) -->
-
-                    <!-- inline rekening inputs (moved to top area) -->
-                    <div id="rekeningInline" class="mt-2" style="display:none;">
-                        <div class="pt-2 border-top">
-                            <div class="mb-1"><small class="text-muted">Tambah Rekening Baru — isi data di bawah lalu klik <strong>Simpan Rekening</strong></small></div>
-                            <div class="row g-2 align-items-center" id="rekeningInlineForm">
-                                <div class="col-md-5">
-                                    <input type="text" id="rek_bank_inline" name="bank" class="form-control" placeholder="Bank">
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="text" id="rek_no_inline" name="no_rekening" class="form-control" placeholder="No. Rekening">
-                                </div>
-                                <div class="col-md-3">
-                                    <input type="text" id="rek_atas_inline" name="atas_nama" class="form-control" placeholder="Atas Nama">
-                                </div>
-                                    <div class="col-12 d-flex justify-content-end mt-1">
-                                    <button type="button" class="btn btn-secondary btn-sm mr-2" id="btnCancelRekInline">Batal</button>
-                                    <button type="button" id="saveRekeningInline" class="btn btn-primary btn-sm">Simpan Rekening</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Add Rekening Modal -->
-                    <div class="modal fade" id="rekeningModal" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Tambah Rekening</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                </div>
-                                <div id="rekeningForm">
-                                    <div class="modal-body">
-                                        <div class="form-group">
-                                            <label for="rek_bank">Bank</label>
-                                            <input type="text" id="rek_bank" name="bank" class="form-control">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="rek_no">No. Rekening</label>
-                                            <input type="text" id="rek_no" name="no_rekening" class="form-control">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="rek_atas">Atas Nama</label>
-                                            <input type="text" id="rek_atas" name="atas_nama" class="form-control">
-                                        </div>
+                            <div class="form-group col-md-4">
+                                <label for="rekening_id" class="required">Rekening Tujuan</label>
+                                <div class="d-flex align-items-start">
+                                    <div style="flex:1; min-width:0;">
+                                        <select id="rekening_id" name="rekening_id" class="form-control select2" style="width:100%">
+                                            <option value="">-- Pilih Rekening --</option>
+                                            @php $reks = \App\Models\Finance\FinanceRekening::orderBy('bank')->get(); @endphp
+                                            @foreach($reks as $r)
+                                                <option value="{{ $r->id }}">{{ $r->bank }} / {{ $r->no_rekening }} / {{ $r->atas_nama }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                                        <button type="button" id="saveRekening" class="btn btn-primary">Simpan</button>
-                                    </div>
+                                    <button type="button" class="btn btn-outline-primary ml-2 text-nowrap" id="btnToggleRekInline" title="Tambah rekening baru"><i class="fa fa-plus mr-1"></i>Baru</button>
                                 </div>
+                                <div class="invalid-feedback d-block" id="rekening_id-error"></div>
                             </div>
                         </div>
 
-                        <!-- inline faktur select is rendered in footer as #select_faktur_inline -->
+                        <!-- inline new rekening -->
+                        <div id="rekeningInline" class="pj-inline-box" style="display:none;">
+                            <div class="mb-2"><small class="text-muted">Rekening baru akan langsung dipilih setelah disimpan.</small></div>
+                            <div class="form-row">
+                                <div class="col-md-3 mb-2"><input type="text" id="rek_bank_inline" class="form-control" placeholder="Bank"></div>
+                                <div class="col-md-3 mb-2"><input type="text" id="rek_no_inline" class="form-control" placeholder="No. Rekening"></div>
+                                <div class="col-md-3 mb-2"><input type="text" id="rek_atas_inline" class="form-control" placeholder="Atas Nama"></div>
+                                <div class="col-md-3 mb-2 d-flex">
+                                    <button type="button" id="saveRekeningInline" class="btn btn-primary mr-2"><i class="fa fa-save mr-1"></i>Simpan</button>
+                                    <button type="button" class="btn btn-light" id="btnCancelRekInline"><i class="fa fa-times mr-1"></i>Batal</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    
-                    
-                    <!-- Items section (compact) -->
-                    <div class="form-group mt-3">
-                        <label>Items Pengajuan</label>
-                        <!-- moved faktur select outside of table for clearer layout -->
-                        <div class="mb-2">
-                            <select id="select_faktur_inline" class="form-control form-control-sm" style="min-width:220px; max-width:360px; width:260px;" data-placeholder="Cari faktur (no_faktur / no_permintaan)"></select>
+                    <!-- 2. Rincian item -->
+                    <div class="pj-section">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between mb-2">
+                            <div class="pj-section-title mb-0"><span class="pj-step">2</span> Rincian Item</div>
+                            <div class="pj-faktur-pick">
+                                <select id="select_faktur_inline" class="form-control form-control-sm" style="width:300px;" data-placeholder="Ambil dari faktur pembelian..."></select>
+                            </div>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-sm table-bordered" id="itemsTable">
-                                <thead>
+                            <table class="table table-sm mb-0" id="itemsTable">
+                                <thead class="thead-light">
                                     <tr>
-                                        <th style="width:4%">#</th>
-                                        <th>Nama Item</th>
-                                        <th>Notes</th>
-                                        <th style="width:10%">Qty</th>
-                                        <th style="width:15%">Harga</th>
-                                        <th style="width:15%">Total</th>
-                                        <th style="width:6%"></th>
+                                        <th style="width:36px" class="text-center">#</th>
+                                        <th>Nama Item <span class="text-danger">*</span></th>
+                                        <th style="width:22%">Catatan</th>
+                                        <th style="width:80px">Qty</th>
+                                        <th style="width:16%">Harga</th>
+                                        <th style="width:16%" class="text-right">Subtotal</th>
+                                        <th style="width:84px"></th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="5" class="text-end"><strong>Total</strong></td>
-                                        <td><input type="text" id="grand_total_display" class="form-control" readonly></td>
-                                        <td class="text-end">
-                                            <div class="d-flex justify-content-end align-items-center">
-                                                <button type="button" id="addItemRow" class="btn btn-sm btn-success mr-2" title="Tambah Item"><i class="fa fa-plus"></i></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tfoot>
+                                <tbody></tbody>
                             </table>
                         </div>
-                        <input type="hidden" id="items_json" name="items_json">
+                        <div class="invalid-feedback d-block" id="items_json-error"></div>
+                        <div class="d-flex flex-wrap align-items-center justify-content-between mt-2">
+                            <button type="button" id="addItemRow" class="btn btn-sm btn-outline-success"><i class="fa fa-plus mr-1"></i>Tambah Item</button>
+                            <div class="pj-grand-total">
+                                <span class="text-muted mr-2">Total Pengajuan</span>
+                                <input type="text" id="grand_total_display" class="pj-grand-total-value" readonly tabindex="-1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Bukti transaksi -->
+                    <div class="pj-section mb-0">
+                        <div class="pj-section-title"><span class="pj-step">3</span> Bukti Transaksi / Invoice <small class="text-muted font-weight-normal">(opsional, bisa diupload nanti)</small></div>
+                        <input type="file" class="d-none" id="bukti_transaksi" name="bukti_transaksi[]" accept="image/*" multiple>
+                        <div class="d-flex flex-wrap align-items-center">
+                            <button type="button" class="btn btn-outline-secondary mr-2" id="btnChooseBukti"><i class="fa fa-upload mr-1"></i>Pilih Gambar</button>
+                            <input type="text" id="bukti_files_label" class="form-control-plaintext text-muted" style="width:auto; flex:1;" readonly placeholder="Belum ada file dipilih" tabindex="-1">
+                        </div>
+                        <small class="text-muted d-block mt-1" id="buktiHint">jpg / png / gif, maks 2MB per file, maks 10 file.</small>
+                        <div class="invalid-feedback d-block" id="bukti_transaksi-error"></div>
+                        <div id="bukti_preview" class="mt-2" style="display:none"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <!-- removed data-dismiss so modal can only be closed manually via the X button; keep Save behavior -->
-                    <button type="button" class="btn btn-secondary" id="btnCancelPengajuan">Batal</button>
-                    <button type="submit" id="savePengajuan" class="btn btn-primary">Simpan</button>
+                    <button type="button" class="btn btn-light" id="btnCancelPengajuan"><i class="fa fa-times mr-1"></i>Batal</button>
+                    <button type="submit" id="savePengajuan" class="btn btn-primary"><i class="fa fa-save mr-1"></i>Simpan Pengajuan</button>
                 </div>
             </form>
         </div>
@@ -472,6 +796,7 @@
 @endsection
 
 @section('scripts')
+<script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
 <script>
 $(document).ready(function() {
     function setBuktiModalMode(mode) {
@@ -557,7 +882,8 @@ $(document).ready(function() {
     // server-provided current employee id (logged-in user) to default main employee select
     var __currentEmployeeId = '{{ auth()->check() && optional(auth()->user()->employee)->id ? auth()->user()->employee->id : '' }}';
     if (typeof $.fn.select2 === 'function') {
-        $('#employee_id, #rekening_id').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
+        // #employee_id is a hidden input for regular users (fixed to themselves), so only enhance real selects
+        $('select#employee_id, select#rekening_id').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
     }
 
     // Make pengajuan modal only closable via the X button (no backdrop click, no ESC)
@@ -566,53 +892,77 @@ $(document).ready(function() {
         $('#pengajuanModal').modal({ backdrop: 'static', keyboard: false, show: false });
     }
 
-    // Initialize daterangepicker for filter_tanggal (reuse project convention)
+    // Date range filter (same setup as billing page). Empty by default = show all dates.
+    var filterStartDate = '';
+    var filterEndDate = '';
     if (typeof $.fn.daterangepicker === 'function' && typeof moment !== 'undefined') {
         $('#filter_tanggal').daterangepicker({
-            locale: { format: 'YYYY-MM-DD' },
-            autoUpdateInput: true,
-            startDate: moment().format('YYYY-MM-DD'),
-            endDate: moment().format('YYYY-MM-DD'),
+            autoUpdateInput: false,
+            startDate: moment(),
+            endDate: moment(),
             opens: 'left',
-            singleDatePicker: false,
-            showDropdowns: true
-        }, function(start, end) {
-            $('#filter_tanggal').val(start.format('YYYY-MM-DD') + ' - ' + end.format('YYYY-MM-DD'));
+            locale: {
+                format: 'DD MMMM YYYY',
+                applyLabel: 'Pilih',
+                cancelLabel: 'Batal',
+                fromLabel: 'Dari',
+                toLabel: 'Hingga',
+                customRangeLabel: 'Custom Range',
+                weekLabel: 'W',
+                daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+                monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+                firstDay: 1
+            },
+            ranges: {
+               'Hari Ini': [moment(), moment()],
+               'Kemarin': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+               'Minggu Ini': [moment().startOf('week'), moment().endOf('week')],
+               'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
+               'Bulan Lalu': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            }
+        });
+        // apply on every "Pilih" (also when re-picking the same range)
+        $('#filter_tanggal').on('apply.daterangepicker', function(ev, picker) {
+            filterStartDate = picker.startDate.format('YYYY-MM-DD');
+            filterEndDate = picker.endDate.format('YYYY-MM-DD');
+            $(this).val(picker.startDate.format('DD MMMM YYYY') + ' - ' + picker.endDate.format('DD MMMM YYYY'));
             table.ajax.reload();
         });
-        // default to empty (no filter) to show all by default; user can pick range to filter
-        $('#filter_tanggal').val('');
     }
 
     var table = $('#pengajuanTable').DataTable({
         processing: true,
         serverSide: true,
+        // wait until the user stops typing instead of one request per keystroke
+        searchDelay: 400,
         autoWidth: false,
+        // Horizontal scroll with No + No Pengajuan pinned left and Action pinned right (same as billing)
+        scrollX: true,
+        scrollCollapse: true,
+        fixedColumns: {
+            left: 2,
+            right: 1
+        },
         columnDefs: [
             { targets: 0, width: '32px', className: 'col-no' },
-            { targets: 1, width: '140px' },
-            { targets: 2, width: '220px' },
-            { targets: 3, width: '120px' },
-            { targets: 4, width: '360px', className: 'items-list-cell' },
-            { targets: 5, width: '120px', className: 'text-end grand-total-cell' },
-            { targets: 6, width: '200px' },
-            { targets: 7, width: '160px' },
-            { targets: 8, width: '56px', className: 'text-center' },
-            { targets: 9, width: '120px' }
+            { targets: 1, width: '140px' },                                        // No Pengajuan
+            { targets: 2, width: '200px' },                                        // Tanggal Diajukan (date nowrap)
+            { targets: 3, width: '300px', className: 'items-list-cell' },         // Rincian Item
+            { targets: 4, width: '150px', className: 'text-end grand-total-cell' }, // Total (nowrap)
+            { targets: 5, width: '180px' },                                        // Rekening Tujuan
+            { targets: 6, width: '160px' },                                        // Diajukan ke
+            { targets: 7, width: '190px' },
+            { targets: 8, width: '170px', className: 'payment-cell' },
+            { targets: 9, width: '46px', className: 'text-center' },
+            // Action width follows its (non-wrapping) buttons
+            { targets: 10, className: 'actions-cell' }
         ],
         ajax: {
             url: '{!! route('finance.pengajuan.data') !!}',
             data: function(d) {
                 // include date range filter parameters
-                var tanggal = $('#filter_tanggal').val();
-                var start = '', end = '';
-                if (tanggal && tanggal.indexOf(' - ') !== -1) {
-                    var parts = tanggal.split(' - ');
-                    start = parts[0];
-                    end = parts[1] || parts[0];
-                }
-                d.start_date = start;
-                d.end_date = end;
+                d.start_date = filterStartDate;
+                d.end_date = filterEndDate;
                 // include jenis, sumber_dana and approval status filters
                 d.jenis = $('#filter_jenis').val() || '';
                 d.sumber_dana = $('#filter_sumber').val() || '';
@@ -626,21 +976,24 @@ $(document).ready(function() {
                     return meta.settings._iDisplayStart + meta.row + 1;
                 }
             },
-        { data: 'kode_pengajuan', name: 'kode_pengajuan', orderable: true, orderData: [3] },
-        { data: 'employee_display', name: 'employee_display', defaultContent: '', orderable: true, orderData: [3] },
-        // format tanggal_pengajuan for display as '1 Januari 2025' (Indonesian)
-        { data: 'tanggal_pengajuan', name: 'tanggal_pengajuan', visible: false, render: function(data, type, row, meta) {
-                    if (!data) return '';
-                    // keep raw data for ordering/searching; only format for display/filter
-                    if (type === 'display' || type === 'filter') {
-                        try {
-                            var d = new Date(data);
-                            return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                        } catch (e) {
-                            return data;
-                        }
+        { data: 'kode_pengajuan', name: 'kode_pengajuan', orderable: true, orderData: [2], render: function(data, type) {
+                return type === 'display' ? '<div class="cell-main">' + $('<div>').text(data || '').html() + '</div>' : data;
+            }
+        },
+        // format tanggal_pengajuan as '1 Januari 2025' (Indonesian) with the pengaju name below it
+        { data: 'tanggal_pengajuan', name: 'tanggal_pengajuan', render: function(data, type, row, meta) {
+                    // keep raw data for ordering/searching; only format for display
+                    if (type !== 'display') return data || '';
+                    var tgl = '';
+                    if (data) {
+                        var d = new Date(data);
+                        tgl = isNaN(d.getTime()) ? data : d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
                     }
-                    return data;
+                    var html = '<div class="cell-main text-nowrap">' + $('<div>').text(tgl).html() + '</div>';
+                    if (row.employee_name) {
+                        html += '<div><small class="text-muted">oleh : ' + $('<div>').text(row.employee_name).html() + '</small></div>';
+                    }
+                    return html;
                 }
             },
             { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
@@ -650,7 +1003,13 @@ $(document).ready(function() {
                         try {
                             var n = Number(data);
                             // Prefix Indonesian Rupiah symbol and format number
-                            return 'Rp ' + n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            var html = '<span class="cell-main">Rp ' + n.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>';
+                            // paid amount when it differs from the request (partial / closed with a difference)
+                            var paid = Number(row.total_dibayar || 0);
+                            if (type === 'display' && paid > 0 && Math.abs(paid - n) >= 0.01) {
+                                html += '<div><small class="text-muted text-nowrap">Dibayar Rp ' + paid.toLocaleString('id-ID', { maximumFractionDigits: 0 }) + '</small></div>';
+                            }
+                            return html;
                         } catch (e) {
                             return data;
                         }
@@ -658,9 +1017,11 @@ $(document).ready(function() {
                     // raw data used for ordering/searching
                     return data;
                 }, orderable: false, searchable: false },
+            { data: 'rekening_display', name: 'rekening_display', defaultContent: '', orderable: false, searchable: false },
             { data: 'diajukan_ke', name: 'diajukan_ke', orderable: false, searchable: false, className: 'diajukan-cell' },
             // server returns rendered HTML list for approvals (approver name + date)
             { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false, className: 'approvals-cell' },
+            { data: 'payment_status_display', name: 'payment_status_display', orderable: false, searchable: false },
             // selectable checkbox — enabled only if current row is approvable (detect by presence of approve button in actions HTML)
             { data: null, orderable: false, searchable: false, render: function(data, type, row){
                     var id = row.id;
@@ -673,60 +1034,25 @@ $(document).ready(function() {
         ],
         createdRow: function(row, data, dataIndex) {
             try {
-            // items_list is now at column index 4 — mark it so CSS can constrain it
-            $(row).find('td').eq(4).addClass('items-list-cell');
+            // items_list is at column index 3 — mark it so CSS can constrain it
+            $(row).find('td').eq(3).addClass('items-list-cell');
             // mark first cell as 'col-no' to apply narrow styling
             $(row).find('td').eq(0).addClass('col-no');
 
-                // Move jenis_pengajuan and tanggal into the Kode cell; show tanggal first then jenis badge
-                var jenis = data.jenis_pengajuan || '';
                 var $kodeCell = $(row).find('td').eq(1);
-                // append tanggal under the Nama Pengaju (employee_display) cell (below division text)
-                try {
-                    var tanggalRaw = data.tanggal_pengajuan || '';
-                    var $empCell = $(row).find('td').eq(2);
-                    if (tanggalRaw && $empCell.find('.tanggal-badge').length === 0) {
-                        var d = new Date(tanggalRaw);
-                        if (!isNaN(d.getTime())) {
-                            var formatted = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-                            var $tgl = $('<div class="mt-1 tanggal-badge"><small class="text-muted">'+formatted+'</small></div>');
-                            // if employee display container exists, append there; otherwise append to the cell
-                            var $empDisplay = $empCell.find('.employee-display').first();
-                            if ($empDisplay.length) {
-                                $empDisplay.append($tgl);
-                            } else {
-                                $empCell.append($tgl);
-                            }
-                        }
-                    }
-                } catch(e) {}
-
-                if (jenis) {
-                    var badgeClass = 'badge-secondary';
+                // (missing-bukti warning is rendered server-side as a badge on the Detail/Edit button)
+                // show jenis_pengajuan as small text under the No Pengajuan cell
+                var jenis = data.jenis_pengajuan || '';
+                if (jenis && $kodeCell.find('.jenis-text').length === 0) {
+                    var jenisColor = '#6c757d';
                     var k = jenis.toString().toLowerCase();
-                    if (k.indexOf('operasional') !== -1) badgeClass = 'badge-primary';
-                    else if (k.indexOf('pembelian') !== -1) badgeClass = 'badge-success';
-                    else if (k.indexOf('inkaso') !== -1 || k.indexOf('pembayaran') !== -1) badgeClass = 'badge-warning';
-                    // avoid duplicating if server-side already included badge
-                    if ($kodeCell.find('.jenis-badge').length === 0) {
-                        var $badge = $('<div class="mt-1 jenis-badge"><small><span class="badge '+badgeClass+'">'+jenis+'</span></small></div>');
-                        $kodeCell.append($badge);
-                    }
+                    if (k.indexOf('operasional') !== -1) jenisColor = '#007bff';
+                    else if (k.indexOf('pembelian') !== -1) jenisColor = '#28a745';
+                    else if (k.indexOf('inkaso') !== -1 || k.indexOf('pembayaran') !== -1) jenisColor = '#d39e00'; // darker amber, readable as text
+                    var $jenis = $('<div class="jenis-text"><small style="font-weight:600;"></small></div>');
+                    $jenis.find('small').css('color', jenisColor).text(jenis);
+                    $kodeCell.append($jenis);
                 }
-                // append rekening info under kode if present
-                try {
-                    var rek = data.rekening || null;
-                    if (rek && $kodeCell.find('.rekening-badge').length === 0) {
-                        var rekText = '';
-                        if (rek.bank) rekText += rek.bank;
-                        if (rek.no_rekening) rekText += (rekText ? ' / ' : '') + rek.no_rekening;
-                        if (rek.atas_nama) rekText += (rekText ? ' / ' : '') + rek.atas_nama;
-                        if (rekText) {
-                            var $rek = $('<div class="mt-1 rekening-badge">'+rekText+'</div>');
-                            $kodeCell.append($rek);
-                        }
-                    }
-                } catch(e) {}
                 // If approvals list empty, show blinking warning badge in approvals column
                 var approvalsRaw = (data.approvals_list || '').toString().trim();
                 var $approvalsCell = $(row).find('td.approvals-cell').first();
@@ -737,27 +1063,59 @@ $(document).ready(function() {
                     }
                 }
 
-                // If this pengajuan already has approvals, prevent editing by hiding the Edit button
-                try {
-                    var approvalsCount = Number(data.approvals_count || 0);
-                    if (approvalsCount > 0) {
-                        // hide any edit controls to prevent modification
-                        $(row).find('.edit-pengajuan').each(function() {
-                            $(this).addClass('d-none').attr('title', 'Tidak dapat diedit setelah ada persetujuan');
-                        });
-                    }
-                } catch(ignore) {}
+                // Edit vs Detail button is decided server-side (editable until approved, or after declined)
             } catch(e) {}
         },
-        responsive: true,
-        // tanggal_pengajuan is now at column index 3 (0-based), so order by that
-        order: [[3, 'desc']]
+        // tanggal_pengajuan is at column index 2 (0-based), so order by that
+        order: [[2, 'desc']]
     });
 
-    // Helper to toggle bulk approve button visibility
+    // Status tabs (same pattern as Billing): switch the approval filter and reload
+    $('#pengajuanTabs').on('click', '.nav-link', function(e) {
+        e.preventDefault();
+        if ($(this).hasClass('active')) return;
+        $('#pengajuanTabs .nav-link').removeClass('active');
+        $(this).addClass('active');
+        $('#filter_approval').val($(this).data('status')).trigger('change');
+    });
+
+    // Tab badges: pending approvals, and approved but not yet paid (counts come with each table response)
+    table.on('xhr.dt', function(e, settings, json) {
+        var counts = (json && json.tab_counts) || {};
+        var setBadge = function($badge, n) {
+            n = parseInt(n || 0, 10);
+            $badge.text(n).toggle(n > 0);
+        };
+        setBadge($('#pj-tab-badge-menunggu'), counts.menunggu);
+        setBadge($('#pj-tab-badge-approved'), counts.siap_bayar);
+    });
+
+    function formatNominal(n) {
+        return 'Rp ' + Number(n || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    // Checked rows with their table data (id, kode, nominal) so the approver sees what they approve
+    function getSelectedPengajuan(){
+        var rows = [];
+        $('#pengajuanTable tbody .row-select-checkbox:checked').each(function(){
+            var data = table.row($(this).closest('tr')).data() || {};
+            rows.push({
+                id: $(this).data('id'),
+                kode: data.kode_pengajuan || '-',
+                pengaju: data.employee_name || '',
+                total: Number(data.grand_total || 0)
+            });
+        });
+        return rows;
+    }
+
+    // Helper to toggle bulk approve button + selection summary (count & total nominal)
     function updateBulkApproveVisibility(){
-        var anyChecked = $('#pengajuanTable tbody .row-select-checkbox:checked').length > 0;
-        if (anyChecked) { $('#btnBulkApprove').show(); } else { $('#btnBulkApprove').hide(); }
+        var selected = getSelectedPengajuan();
+        var total = selected.reduce(function(sum, r){ return sum + r.total; }, 0);
+        $('#bulkSelectionCount').text(selected.length);
+        $('#bulkSelectionTotal').text(formatNominal(total));
+        $('#btnBulkApprove, #bulkSelectionSummary').toggle(selected.length > 0);
     }
 
     // Reset select-all state on each draw and recalc visibility
@@ -766,116 +1124,122 @@ $(document).ready(function() {
         updateBulkApproveVisibility();
     });
 
+    // ===================== Pengajuan form (create / edit) =====================
+    var pengajuanSaving = false;   // blocks double submit (double click / Enter) while a request is running
+    var pengajuanEditing = false;
+
+    // local date for <input type="date"> (toISOString() is UTC and gives yesterday before 07:00 WIB)
+    function localToday() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    // one-time token per opened form; the server rejects a second submit with the same token
+    function newSubmitToken() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+        return Date.now() + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    }
+
+    function clearFormErrors() {
+        $('#pengajuanForm .is-invalid').removeClass('is-invalid');
+        $('#pengajuanForm .select2-invalid').removeClass('select2-invalid');
+        $('#pengajuanForm .invalid-feedback').text('');
+    }
+
+    function showFieldError(field, message) {
+        var $el = $('#' + field);
+        $el.addClass($el.hasClass('select2-hidden-accessible') ? 'select2-invalid' : 'is-invalid');
+        $('#' + field + '-error').text(message);
+    }
+
+    function setEmployee(value) {
+        var $emp = $('#employee_id');
+        if ($emp.is('select')) {
+            $emp.val(value || '').trigger('change');
+        } else if (value) {
+            $emp.val(value); // regular users: fixed to themselves
+        }
+    }
+
+    function resetPengajuanForm() {
+        $('#pengajuanForm')[0].reset();
+        clearFormErrors();
+        pengajuanEditing = false;
+        pengajuanSaving = false;
+        $('#pengajuan_id').val('');
+        $('#division_id').val('');
+        $('#items_json').val('');
+        $('#submit_token').val(newSubmitToken());
+        setEmployee(__currentEmployeeId);
+        $('#rekening_id').val('').trigger('change');
+        $('#rekeningInline').hide();
+        $('#tanggal_pengajuan').val(localToday());
+        $('#bukti_transaksi').val('');
+        $('#bukti_files_label').val('');
+        $('#bukti_preview').empty().hide();
+        $('#buktiHint').text('jpg / png / gif, maks 2MB per file, maks 10 file.');
+        $('#itemsTable tbody').empty();
+        addItemRow(null, true);
+        $('#pengajuanModalLabel').text('Buat Pengajuan Dana');
+        $('#pengajuanKodeInfo').text('No. pengajuan dibuat otomatis saat disimpan');
+        $('#savePengajuan').prop('disabled', false).html('<i class="fa fa-save mr-1"></i>Simpan Pengajuan');
+    }
+
     // Open modal for create
     $('#btnAddPengajuan').on('click', function() {
-        $('#pengajuanModalLabel').text('Buat Pengajuan Dana');
-        $('#pengajuanForm')[0].reset();
-        $('#pengajuan_id').val('');
-        $('.invalid-feedback').text('');
-        $('.is-invalid').removeClass('is-invalid');
-        if (typeof $('#employee_id').select2 === 'function') {
-            // default to currently logged-in employee when creating a new pengajuan
-            if (__currentEmployeeId && __currentEmployeeId !== '') {
-                $('#employee_id').val(__currentEmployeeId).trigger('change');
-            } else {
-                $('#employee_id').val('').trigger('change');
-            }
-    }
-        // reset items table for a fresh create
-        $('#itemsTable tbody').empty();
-        addItemRow();
-        recalcItems();
-        // clear rekening select, division hidden, file input and preview, grand total and hidden items_json
-        if (typeof $('#rekening_id').select2 === 'function') { $('#rekening_id').val('').trigger('change'); }
-        $('#division_id').val('');
-        $('#bukti_transaksi').val('');
-        $('#bukti_files_label').val('Tidak ada file terpilih');
-        $('#bukti_preview').hide();
-        $('#bukti_preview img').attr('src', '');
-        setRupiahValue($('#grand_total_display'), 0);
-        $('#items_json').val('');
-        // set tanggal_pengajuan default to today
-        var today = new Date().toISOString().slice(0,10);
-        $('#tanggal_pengajuan').val(today);
-        // fetch generated kode from server
-        $.ajax({
-            url: '/finance/pengajuan-dana/generate-kode',
-            method: 'GET',
-            success: function(res) {
-                if (res.kode) {
-                    $('#kode_pengajuan').val(res.kode);
-                }
-                $('#pengajuanModal').modal('show');
-            },
-            error: function() {
-                // still show modal even if kode generation fails
-                $('#pengajuanModal').modal('show');
-            }
-        });
+        resetPengajuanForm();
+        $('#pengajuanModal').modal('show');
     });
 
-    // when modal is fully hidden, also clear everything to avoid stale data
+    // clear everything when the modal closes so no stale data leaks into the next pengajuan
     $('#pengajuanModal').on('hidden.bs.modal', function () {
-        // reset whole form and selects
-        $('#pengajuanForm')[0].reset();
-        $('#pengajuan_id').val('');
-        $('.invalid-feedback').text('');
-        $('.is-invalid').removeClass('is-invalid');
-        if (typeof $('#employee_id').select2 === 'function') { $('#employee_id').val('').trigger('change'); }
-        $('#division_id').val('');
-        if (typeof $('#rekening_id').select2 === 'function') { $('#rekening_id').val('').trigger('change'); }
-        $('#bukti_transaksi').val('');
-        $('#bukti_files_label').val('Tidak ada file terpilih');
-        $('#bukti_preview').hide();
-        $('#bukti_preview img').attr('src', '');
-        setRupiahValue($('#grand_total_display'), 0);
-        $('#items_json').val('');
-        $('#itemsTable tbody').empty();
-        addItemRow();
-        recalcItems();
-        // reset tanggal_pengajuan to today as default
-        var today = new Date().toISOString().slice(0,10);
-        $('#tanggal_pengajuan').val(today);
+        resetPengajuanForm();
     });
 
-    // Preview selected image
-    $('#bukti_transaksi').on('change', function(e) {
-        var files = this.files || [];
-        var $preview = $('#bukti_preview');
-        $preview.empty();
-        // update label with filenames or count
-        if (!files || files.length === 0) {
-            $('#bukti_files_label').val('Tidak ada file terpilih');
-        } else if (files.length === 1) {
-            $('#bukti_files_label').val(files[0].name);
-        } else {
-            $('#bukti_files_label').val(files.length + ' file terpilih');
-        }
-
-        if (files.length) {
-            // render thumbnails for each selected file
-            Array.from(files).forEach(function(file){
-                if (!file.type || file.type.indexOf('image') === -1) return;
-                var reader = new FileReader();
-                reader.onload = function(evt) {
-                    var $img = $('<img>').attr('src', evt.target.result).css({ 'max-width':'120px', 'max-height':'80px', 'margin-right':'6px', 'margin-bottom':'6px' });
-                    $preview.append($img);
-                };
-                reader.readAsDataURL(file);
-            });
-            $preview.show();
-        } else {
-            $preview.hide();
-            $preview.empty();
-        }
+    $(document).on('click', '#btnCancelPengajuan', function() {
+        $('#pengajuanModal').modal('hide');
     });
 
-    // wire Choose File button to the hidden input
+    // ----- bukti (optional) -----
+    function renderBuktiPreview(srcs) {
+        var $preview = $('#bukti_preview').empty();
+        srcs.forEach(function(src) { $preview.append($('<img>').attr('src', src)); });
+        $preview.toggle(srcs.length > 0);
+    }
+
     $(document).on('click', '#btnChooseBukti', function(){
         $('#bukti_transaksi').trigger('click');
     });
 
-    // Items table management
+    $('#bukti_transaksi').on('change', function() {
+        var files = Array.from(this.files || []);
+        $('#bukti_transaksi-error').text('');
+        if (!files.length) {
+            $('#bukti_files_label').val('');
+            renderBuktiPreview([]);
+            return;
+        }
+        // early feedback; the server validates again
+        var tooBig = files.filter(function(f) { return f.size > 2 * 1024 * 1024; }).map(function(f) { return f.name; });
+        if (files.length > 10) {
+            $('#bukti_transaksi-error').text('Maksimal 10 file bukti.');
+        } else if (tooBig.length) {
+            $('#bukti_transaksi-error').text('Lebih dari 2MB: ' + tooBig.join(', '));
+        }
+        $('#bukti_files_label').val(files.length === 1 ? files[0].name : files.length + ' file dipilih');
+        var srcs = [];
+        files.forEach(function(file) {
+            if (!file.type || file.type.indexOf('image') === -1) return;
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                srcs.push(evt.target.result);
+                renderBuktiPreview(srcs);
+            };
+            reader.readAsDataURL(file);
+        });
+    });
+
+    // ----- items -----
     function parseRupiah(value) {
         if (value === null || value === undefined) return 0;
         var normalized = value.toString().replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
@@ -896,115 +1260,94 @@ $(document).ready(function() {
     function formatEditableRupiah(value) {
         var amount = Number(value || 0);
         if (isNaN(amount) || amount === 0) return '';
-
         var fixed = amount.toFixed(2);
-        if (fixed.slice(-3) === '.00') {
-            return fixed.slice(0, -3);
-        }
-
+        if (fixed.slice(-3) === '.00') return fixed.slice(0, -3);
         return fixed.replace('.', ',');
     }
 
     function sanitizeEditableRupiah(raw) {
         if (raw === null || raw === undefined) return '';
-
-        var cleaned = raw.toString().replace(/\s+/g, '').replace(/^rp/i, '');
-        var negative = cleaned.indexOf('-') === 0 ? '-' : '';
-        cleaned = cleaned.replace(/-/g, '');
-
-        var hasComma = cleaned.indexOf(',') !== -1;
-        if (hasComma) {
+        // no minus sign: prices cannot be negative
+        var cleaned = raw.toString().replace(/\s+/g, '').replace(/^rp/i, '').replace(/-/g, '');
+        if (cleaned.indexOf(',') !== -1) {
             var parts = cleaned.split(',');
             var integerPart = (parts.shift() || '').replace(/[^\d]/g, '');
             var decimalPart = parts.join('').replace(/[^\d]/g, '').slice(0, 2);
             if (integerPart === '' && decimalPart === '') return '';
-            return negative + integerPart + (decimalPart !== '' ? ',' + decimalPart : ',');
+            return integerPart + (decimalPart !== '' ? ',' + decimalPart : ',');
         }
-
-        var digits = cleaned.replace(/[^\d]/g, '');
-        return digits === '' ? '' : negative + digits;
+        return cleaned.replace(/[^\d]/g, '');
     }
 
+    // qty left empty while a price is filled counts as 1
     function getEffectiveQty($tr) {
-        var qtyRaw = ($tr.find('.item-qty').val() || '').toString().trim();
-        var qty = parseFloat(qtyRaw || 0);
+        var qty = parseInt(($tr.find('.item-qty').val() || '').toString().trim(), 10);
         if (qty > 0) return qty;
-
-        var price = parseRupiah($tr.find('.item-price').val() || 0);
-        return price > 0 ? 1 : 0;
+        return parseRupiah($tr.find('.item-price').val() || 0) > 0 ? 1 : 0;
     }
 
     function recalcItems() {
         var grand = 0;
         $('#itemsTable tbody tr').each(function(i, tr) {
             var $tr = $(tr);
-            var qty = getEffectiveQty($tr);
-            var price = parseRupiah($tr.find('.item-price').val() || 0);
-            var total = (qty * price) || 0;
-            if (qty > 0 && (($tr.find('.item-qty').val() || '').toString().trim() === '') && price > 0) {
-                $tr.find('.item-qty').val(qty);
-            }
+            var total = getEffectiveQty($tr) * parseRupiah($tr.find('.item-price').val() || 0);
             setRupiahValue($tr.find('.item-total'), total);
             grand += total;
-            $tr.find('td:first').text(i+1);
+            $tr.find('.item-no').text(i + 1);
         });
         setRupiahValue($('#grand_total_display'), grand);
     }
 
-    function addItemRow(data) {
-    // default qty is empty so auto-appended blank rows won't be counted as items
-    data = data || {desc:'', qty:'', price:0, notes: ''};
+    // faktur rows are read-only: their total comes from the faktur (the server re-reads it)
+    function markFakturRow($tr, fakturId, desc) {
+        $tr.addClass('pj-faktur-row').data('fakturbeli-id', fakturId);
+        $tr.find('.item-desc').prop('readonly', true).attr('title', desc || '');
+        $tr.find('.item-qty').val(1).prop('readonly', true);
+        $tr.find('.item-price').prop('readonly', true);
+    }
+
+    function clearItemRow($tr) {
+        $tr.removeClass('pj-faktur-row is-invalid').removeData('fakturbeli-id');
+        $tr.find('.item-desc, .item-notes, .item-qty, .item-price').prop('readonly', false).val('').removeClass('is-invalid').removeAttr('title');
+    }
+
+    function addItemRow(data, skipFocus) {
+        data = data || {};
         var $tr = $('<tr>');
-        $tr.append('<td class="align-middle text-center"></td>');
-        $tr.append('<td><input type="text" class="form-control item-desc" placeholder="Nama Item" value="'+(data.desc||'')+'"></td>');
-    // notes input (replaces per-item employee select)
-    $tr.append('<td><input type="text" class="form-control item-notes" name="item_notes[]" placeholder="Catatan" value="'+(data.notes||'')+'"></td>');
-        $tr.append('<td><input type="number" min="0" step="1" class="form-control item-qty" value="'+(data.qty||'')+'"></td>');
-        $tr.append('<td><input type="text" inputmode="decimal" class="form-control item-price" value="'+formatRupiah(data.price||0)+'"></td>');
-        $tr.append('<td><input type="text" readonly class="form-control item-total" value="'+formatRupiah(0)+'"></td>');
-        // nicer remove button with icon; we handle last-row protection below
-        $tr.append('<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Hapus item"><i class="fa fa-trash"></i></button></td>');
+        // values are set with .val() so quotes/HTML in item names cannot break the markup
+        $tr.append('<td class="text-center text-muted item-no"></td>');
+        $tr.append($('<td>').append($('<input type="text" class="form-control item-desc" placeholder="Nama item">').val(data.desc || '')));
+        $tr.append($('<td>').append($('<input type="text" class="form-control item-notes" placeholder="Opsional">').val(data.notes || '')));
+        $tr.append($('<td>').append($('<input type="number" min="1" step="1" class="form-control item-qty" placeholder="1">').val(data.qty || '')));
+        $tr.append($('<td>').append($('<input type="text" inputmode="decimal" class="form-control item-price" placeholder="Rp 0">').val(data.price ? formatRupiah(data.price) : '')));
+        $tr.append('<td><input type="text" readonly tabindex="-1" class="form-control item-total"></td>');
+        $tr.append('<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-item" title="Hapus item"><i class="fa fa-trash mr-1"></i>Hapus</button></td>');
+        if (data.fakturbeli_id) markFakturRow($tr, data.fakturbeli_id, data.desc);
         $('#itemsTable tbody').append($tr);
-        // focus the newly added row's description for quick entry
-        $tr.find('.item-desc').focus();
-        // populate notes if provided (edit flow)
-        if (data.notes) {
-            $tr.find('.item-notes').val(data.notes);
-        }
+        if (!skipFocus) $tr.find('.item-desc').focus();
         recalcItems();
+        return $tr;
     }
 
     // initial one row
-    addItemRow();
+    addItemRow(null, true);
 
     $(document).on('click', '#addItemRow', function(){ addItemRow(); });
 
-    // remove with protection: if only 1 row left, clear fields instead of removing
+    // the last row is cleared instead of removed so there is always a row to type in
     $(document).on('click', '.remove-item', function(){
-        var $tbody = $('#itemsTable tbody');
-        var $rows = $tbody.find('tr');
         var $tr = $(this).closest('tr');
-        if ($rows.length <= 1) {
-            // clear the inputs in the last row instead of removing it
-            $tr.find('.item-desc').val('');
-            $tr.find('.item-qty').val(1);
-            setRupiahValue($tr.find('.item-price'), 0);
-            setRupiahValue($tr.find('.item-total'), 0);
+        if ($('#itemsTable tbody tr').length <= 1) {
+            clearItemRow($tr);
             recalcItems();
-            // subtle highlight to show cleared
-            $tr.addClass('table-warning');
-            setTimeout(function(){ $tr.removeClass('table-warning'); }, 800);
             return;
         }
-        // animate removal for clarity
-        $tr.fadeOut(180, function(){
-            $(this).remove();
-            recalcItems();
-        });
+        $tr.remove();
+        recalcItems();
     });
 
-    // recalc on qty changes
     $(document).on('input', '.item-qty', function(){ recalcItems(); });
+    $(document).on('input', '.item-desc', function(){ $(this).removeClass('is-invalid'); });
 
     $(document).on('input', '.item-price', function(){
         $(this).val(sanitizeEditableRupiah($(this).val()));
@@ -1012,367 +1355,237 @@ $(document).ready(function() {
     });
 
     $(document).on('focus', '.item-price', function(){
+        if ($(this).prop('readonly')) return;
         var value = parseRupiah($(this).val());
-        if (value === 0) {
-            $(this).val('');
-        } else {
-            $(this).val(formatEditableRupiah(value));
-        }
+        $(this).val(value === 0 ? '' : formatEditableRupiah(value));
     });
 
     $(document).on('blur', '.item-price', function(){
+        if ($(this).prop('readonly')) return;
         var value = parseRupiah($(this).val());
-        setRupiahValue($(this), value);
+        $(this).val(value > 0 ? formatRupiah(value) : '');
         recalcItems();
     });
 
-    // keyboard UX: Enter in desc jumps to qty, Enter in qty jumps to price, Enter in price adds new row
-    $(document).on('keydown', '.item-desc', function(e){
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            $(this).closest('td').next().find('.item-qty').focus();
-        }
+    // keyboard: Enter moves desc -> qty -> price, Enter on the last price adds a new row
+    $(document).on('keydown', '#itemsTable .item-desc, #itemsTable .item-notes, #itemsTable .item-qty', function(e){
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var $inputs = $(this).closest('tr').find('.item-desc, .item-notes, .item-qty, .item-price').filter(':not([readonly])');
+        var idx = $inputs.index(this);
+        if (idx >= 0 && idx < $inputs.length - 1) $inputs.eq(idx + 1).focus();
     });
-    $(document).on('keydown', '.item-qty', function(e){
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            $(this).closest('td').next().find('.item-price').focus();
-        }
-    });
-    $(document).on('keydown', '.item-price', function(e){
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            // if we're on the last row, add a new row; otherwise move to next desc
-            var $tr = $(this).closest('tr');
-            var $next = $tr.next('tr');
-            if ($next.length === 0) {
-                addItemRow();
-            } else {
-                $next.find('.item-desc').focus();
-            }
-        }
+    $(document).on('keydown', '#itemsTable .item-price', function(e){
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        var $next = $(this).closest('tr').next('tr');
+        if ($next.length) $next.find('.item-desc').focus(); else addItemRow();
     });
 
-    // auto-add a new blank row when the user edits the last row (so they can keep adding quickly)
-    $(document).on('blur', '.item-desc, .item-qty, .item-price', function(){
-        var $tbody = $('#itemsTable tbody');
-        var $rows = $tbody.find('tr');
-        var $last = $rows.last();
-        // check if last row has any content
-        var filled = false;
-        $last.find('input').each(function(){
-            var $input = $(this);
-            var rawValue = ($input.val() || '').toString().trim();
-            if (rawValue === '') return;
-            if ($input.hasClass('item-price') || $input.hasClass('item-total')) {
-                if (parseRupiah(rawValue) > 0) filled = true;
-                return;
-            }
-            if ($input.hasClass('item-qty')) {
-                if (parseFloat(rawValue || 0) > 0) filled = true;
-                return;
-            }
-            filled = true;
-        });
-        if (filled) {
-            // add a new blank row if none exists after a short delay (allow recalc)
-            if ($rows.length === 0 || $rows.last().find('.item-desc').val() !== '') {
-                addItemRow();
-            }
-        }
-    });
-
-    // Save pengajuan (create/update) using FormData to include file
+    // ----- save -----
     $('#pengajuanForm').on('submit', function(e) {
         e.preventDefault();
-        var id = $('#pengajuan_id').val();
-        var url = id ? ('/finance/pengajuan-dana/' + id) : '/finance/pengajuan-dana';
-        var method = id ? 'POST' : 'POST'; // use POST always; for update we'll append _method
+        if (pengajuanSaving) return;
+        clearFormErrors();
 
-        var formEl = document.getElementById('pengajuanForm');
-        // serialize items into hidden input
+        // collect items; untouched blank rows are ignored
         var items = [];
-        $('#itemsTable tbody tr').each(function(){
+        var itemErrors = [];
+        $('#itemsTable tbody tr').each(function(i){
             var $tr = $(this);
-            var desc = $tr.find('.item-desc').val();
-            var descTrim = desc ? desc.toString().trim() : '';
-            var qty = getEffectiveQty($tr);
-            var price = parseRupiah($tr.find('.item-price').val()||0);
-            var notes = $tr.find('.item-notes').val() || null;
-            // If the row is a faktur row, we embed fakturbeli_id into payload
+            var desc = ($tr.find('.item-desc').val() || '').toString().trim();
+            var notes = ($tr.find('.item-notes').val() || '').toString().trim();
+            var qtyRaw = ($tr.find('.item-qty').val() || '').toString().trim();
+            var price = parseRupiah($tr.find('.item-price').val() || 0);
             var fakturId = $tr.data('fakturbeli-id') || null;
-            if (descTrim !== '') {
-                if (fakturId) {
-                    items.push({desc: descTrim, qty: 1, price: price || 0, fakturbeli_id: fakturId, notes: notes});
-                } else {
-                    items.push({desc: descTrim, qty: qty || 0, price: price || 0, notes: notes});
-                }
+            if (desc === '' && notes === '' && qtyRaw === '' && price === 0) return;
+            var qty = fakturId ? 1 : getEffectiveQty($tr);
+            if (desc === '') {
+                $tr.find('.item-desc').addClass('is-invalid');
+                itemErrors.push('baris ' + (i + 1) + ': nama item kosong');
+                return;
             }
+            if (qty <= 0) {
+                $tr.find('.item-qty').addClass('is-invalid');
+                itemErrors.push('baris ' + (i + 1) + ': qty belum diisi');
+                return;
+            }
+            items.push({ desc: desc, qty: qty, price: price, notes: notes || null, fakturbeli_id: fakturId });
         });
         $('#items_json').val(JSON.stringify(items));
 
-        // Client-side validation: required fields + at least 1 item
-        $('.invalid-feedback').text('');
-        $('.is-invalid').removeClass('is-invalid');
-        $('#itemsTable').removeClass('table-danger');
-
-        var errors = [];
-        function requireField(id, label){
-            var val = ($('#'+id).val()||'').toString().trim();
-            if (!val) { $('#'+id).addClass('is-invalid'); errors.push(label); }
+        var missing = [];
+        function requireField(id, label) {
+            if (!($('#' + id).val() || '').toString().trim()) {
+                showFieldError(id, label + ' wajib diisi');
+                missing.push(label);
+            }
         }
-
-        requireField('sumber_dana', 'Sumber Dana');
-        requireField('perusahaan', 'Perusahaan');
         requireField('employee_id', 'Nama Pengaju');
         requireField('tanggal_pengajuan', 'Tanggal');
-        requireField('jenis_pengajuan', 'Jenis');
-        requireField('rekening_id', 'Rekening');
+        requireField('jenis_pengajuan', 'Jenis Pengajuan');
+        requireField('sumber_dana', 'Sumber Dana');
+        requireField('perusahaan', 'Perusahaan');
+        requireField('rekening_id', 'Rekening Tujuan');
+        if (!items.length && !itemErrors.length) itemErrors.push('isi minimal 1 item');
+        if (itemErrors.length) {
+            $('#items_json-error').text('Rincian item: ' + itemErrors.join('; '));
+            missing.push('Rincian Item');
+        }
+        if ($('#bukti_transaksi-error').text()) missing.push('Bukti');
 
-        // Items: require at least one with description, and either qty > 0 or is faktur item
-        var hasValidItem = false;
-        $('#itemsTable tbody tr').each(function(){
-            var $tr = $(this);
-            var descTrim = ($tr.find('.item-desc').val()||'').toString().trim();
-            var qty = parseFloat($tr.find('.item-qty').val()||0);
-            var isFaktur = !!$tr.data('fakturbeli-id');
-            if (descTrim !== '' && (isFaktur || qty > 0)) { hasValidItem = true; return false; }
-        });
-        if (!hasValidItem) {
-            errors.push('Minimal 1 item');
-            $('#itemsTable').addClass('table-danger');
+        if (missing.length) {
+            Swal.fire({ icon: 'warning', title: 'Data belum lengkap', html: 'Periksa: <b>' + missing.join(', ') + '</b>' });
+            return;
         }
 
-        if (errors.length) {
-            var msg = 'Harap lengkapi: ' + errors.join(', ');
-            Swal.fire('Validasi', msg, 'warning');
-            return; // stop submit
-        }
-
-        var formData = new FormData(formEl);
-        // If updating, spoof PUT
+        var id = $('#pengajuan_id').val();
+        var formData = new FormData(this);
         if (id) formData.append('_method', 'PUT');
 
+        pengajuanSaving = true;
+        $('#savePengajuan').prop('disabled', true).html('<i class="fa fa-spinner fa-spin mr-1"></i>Menyimpan...');
         $.ajax({
-            url: url,
-            method: method,
+            url: id ? ('/finance/pengajuan-dana/' + id) : '/finance/pengajuan-dana',
+            method: 'POST',
             data: formData,
             processData: false,
             contentType: false,
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            beforeSend: function() {
-                $('#savePengajuan').attr('disabled', true).text('Menyimpan...');
-            },
             success: function(res) {
-                Swal.fire('Sukses', res.message || 'Data tersimpan', 'success');
                 $('#pengajuanModal').modal('hide');
                 table.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Pengajuan tersimpan', timer: 2200, showConfirmButton: false });
             },
             error: function(xhr) {
-                if (xhr.status === 422) {
-                    var errors = xhr.responseJSON.errors || {};
-                    Object.keys(errors).forEach(function(key) {
-                        $('#' + key).addClass('is-invalid');
-                        $('#' + key + '-error').text(errors[key][0]);
+                var res = xhr.responseJSON || {};
+                if (xhr.status === 422 && res.errors) {
+                    // show each server message under its field
+                    Object.keys(res.errors).forEach(function(key) {
+                        showFieldError(key.split('.')[0], res.errors[key][0]);
                     });
+                    Swal.fire('Data belum valid', res.message || 'Periksa kembali isian yang ditandai merah.', 'warning');
+                } else if (xhr.status === 409) {
+                    // already submitted (double click / retried request): the first one was saved
+                    $('#pengajuanModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    Swal.fire('Sudah tersimpan', res.message || 'Pengajuan ini sudah terkirim.', 'info');
+                } else if (xhr.status === 403) {
+                    // e.g. someone approved it while it was being edited
+                    $('#pengajuanModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    Swal.fire('Tidak Diizinkan', res.message || 'Anda tidak diizinkan melakukan aksi ini.', 'error');
                 } else {
-                    var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Terjadi kesalahan pada server';
-                    Swal.fire(xhr.status === 403 ? 'Tidak Diizinkan' : 'Error', msg, 'error');
+                    Swal.fire('Error', res.message || 'Terjadi kesalahan pada server. Silakan coba lagi.', 'error');
                 }
             },
             complete: function() {
-                $('#savePengajuan').attr('disabled', false).text('Simpan');
+                pengajuanSaving = false;
+                $('#savePengajuan').prop('disabled', false).html('<i class="fa fa-save mr-1"></i>Simpan Pengajuan');
             }
         });
     });
 
-    // Toggle inline rekening form
+    // ----- new rekening (inline) -----
     $(document).on('click', '#btnToggleRekInline', function() {
-        $('#rekeningInline').toggle();
-        if ($('#rekeningInline').is(':visible')) {
-            $('#rek_bank_inline').focus();
-        }
+        $('#rekeningInline').slideToggle(120, function() {
+            if ($(this).is(':visible')) $('#rek_bank_inline').focus();
+        });
     });
 
     $(document).on('click', '#btnCancelRekInline', function() {
-        $('#rekeningInline').hide();
+        $('#rekeningInline').slideUp(120);
     });
 
-    // Click handler for inline save button (avoid nested form submit)
     $(document).on('click', '#saveRekeningInline', function(e) {
         e.preventDefault();
         var btn = $(this);
-        btn.attr('disabled', true).text('Menyimpan...');
         var payload = {
-            bank: $('#rek_bank_inline').val(),
-            no_rekening: $('#rek_no_inline').val(),
-            atas_nama: $('#rek_atas_inline').val()
+            bank: $.trim($('#rek_bank_inline').val()),
+            no_rekening: $.trim($('#rek_no_inline').val()),
+            atas_nama: $.trim($('#rek_atas_inline').val())
         };
+        if (!payload.bank || !payload.no_rekening || !payload.atas_nama) {
+            Swal.fire('Data belum lengkap', 'Isi Bank, No. Rekening, dan Atas Nama.', 'warning');
+            return;
+        }
+        btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin mr-1"></i>Menyimpan...');
         $.ajax({
             url: '{{ route('finance.rekening.store') }}',
             method: 'POST',
             data: payload,
             headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
             success: function(res) {
-                Swal.fire('Sukses', 'Rekening berhasil ditambahkan', 'success');
-                $('#rekeningInline').hide();
-                // clear inline inputs
+                $('#rekeningInline').slideUp(120);
                 $('#rek_bank_inline, #rek_no_inline, #rek_atas_inline').val('');
-                // Add new option to select and select it
-                var opt = new Option(res.data.bank + ' / ' + (res.data.no_rekening||'') + ' / ' + (res.data.atas_nama||''), res.data.id, true, true);
+                // add to the dropdown and select it
+                var opt = new Option(res.data.bank + ' / ' + (res.data.no_rekening || '') + ' / ' + (res.data.atas_nama || ''), res.data.id, true, true);
                 $('#rekening_id').append(opt).trigger('change');
+                $('#rekening_id').removeClass('select2-invalid');
+                $('#rekening_id-error').text('');
             },
             error: function(xhr) {
-                if (xhr.status === 422) {
-                    var errors = xhr.responseJSON.errors || {};
-                    var msgs = Object.keys(errors).map(function(k){ return errors[k][0]; }).join('\n');
-                    Swal.fire('Validasi', msgs, 'warning');
-                } else {
-                    Swal.fire('Error', 'Gagal menambahkan rekening', 'error');
-                }
+                var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+                var msgs = Object.keys(errors).map(function(k){ return errors[k][0]; }).join('\n');
+                Swal.fire(xhr.status === 422 ? 'Validasi' : 'Error', msgs || 'Gagal menambahkan rekening', xhr.status === 422 ? 'warning' : 'error');
             },
             complete: function() {
-                btn.attr('disabled', false).text('Simpan Rekening');
+                btn.prop('disabled', false).html('<i class="fa fa-save mr-1"></i>Simpan');
             }
         });
     });
 
-    // Rekening modal save (same behavior as inline)
-    // Click handler for Rekening modal save button (avoid nested form submit)
-    $(document).on('click', '#saveRekening', function(e) {
-        e.preventDefault();
-        var btn = $(this);
-        btn.attr('disabled', true).text('Menyimpan...');
-        var payload = {
-            bank: $('#rek_bank').val(),
-            no_rekening: $('#rek_no').val(),
-            atas_nama: $('#rek_atas').val()
-        };
-        var $modal = $('#rekeningModal');
-        $.ajax({
-            url: '{{ route('finance.rekening.store') }}',
-            method: 'POST',
-            data: payload,
-            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            success: function(res) {
-                Swal.fire('Sukses', 'Rekening berhasil ditambahkan', 'success');
-                // append and select
-                var opt = new Option(res.data.bank + ' / ' + (res.data.no_rekening||'') + ' / ' + (res.data.atas_nama||''), res.data.id, true, true);
-                $('#rekening_id').append(opt).trigger('change');
-                $modal.modal('hide');
-                // clear modal inputs
-                $('#rek_bank, #rek_no, #rek_atas').val('');
-            },
-            error: function(xhr) {
-                if (xhr.status === 422) {
-                    var errors = xhr.responseJSON.errors || {};
-                    // display validation messages inline
-                    $modal.find('.is-invalid').removeClass('is-invalid');
-                    $modal.find('.invalid-feedback').remove();
-                    Object.keys(errors).forEach(function(k){
-                        var field = $modal.find('[name="'+k+'"]');
-                        field.addClass('is-invalid');
-                        field.after('<div class="invalid-feedback">'+errors[k][0]+'</div>');
-                    });
-                } else {
-                    Swal.fire('Error', 'Gagal menambahkan rekening', 'error');
-                }
-            },
-            complete: function() {
-                btn.attr('disabled', false).text('Simpan');
-            }
-        });
-    });
-
-    // Edit pengajuan
+    // ----- edit -----
     $('#pengajuanTable').on('click', '.edit-pengajuan', function() {
         var id = $(this).data('id');
-        $('.invalid-feedback').text('');
-        $('.is-invalid').removeClass('is-invalid');
-        $.ajax({
-            url: '/finance/pengajuan-dana/' + id,
-            method: 'GET',
-            success: function(res) {
-                $('#pengajuanModalLabel').text('Edit Pengajuan');
-                $('#pengajuan_id').val(res.id);
-                $('#kode_pengajuan').val(res.kode_pengajuan);
-                $('#employee_id').val(res.employee_id).trigger('change');
-                $('#division_id').val(res.division_id).trigger('change');
-                $('#tanggal_pengajuan').val(res.tanggal_pengajuan);
-                $('#jenis_pengajuan').val(res.jenis_pengajuan);
-                // populate new fields
-                $('#sumber_dana').val(res.sumber_dana || '');
-                $('#perusahaan').val(res.perusahaan || '');
-                $('#rekening_id').val(res.rekening_id).trigger('change');
-                if (res.bukti_transaksi) {
-                    // res.bukti_transaksi may be JSON array or single path
-                    var preview = $('#bukti_preview');
-                    preview.empty();
-                    try {
-                        var arr = typeof res.bukti_transaksi === 'string' ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
-                        if (Array.isArray(arr)) {
-                            arr.forEach(function(p){
-                                if (!p) return;
-                                var $img = $('<img>').attr('src', '/storage/' + p).css({ 'max-width':'120px', 'max-height':'80px', 'margin-right':'6px', 'margin-bottom':'6px' });
-                                preview.append($img);
-                            });
-                            preview.show();
-                            try { $('#bukti_files_label').val((arr.length||0) + ' file tersimpan'); } catch(e){}
-                        } else {
-                            // treat as single path
-                            var url = '/storage/' + res.bukti_transaksi;
-                            preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
-                            preview.show();
-                            try { var fn = url.split('/').pop(); $('#bukti_files_label').val(fn); } catch(e){}
-                        }
-                    } catch (e) {
-                        // fallback: treat as single path string
-                        var url = '/storage/' + res.bukti_transaksi;
-                        preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
-                        preview.show();
-                        try { var fn = url.split('/').pop(); $('#bukti_files_label').val(fn); } catch(e){}
-                    }
-                } else {
-                    $('#bukti_preview').hide();
-                    $('#bukti_preview img').attr('src', '');
-                }
-                // populate items table
-                $('#itemsTable tbody').empty();
-                if (res.items && res.items.length) {
-                    res.items.forEach(function(it){
-                        var rowData = { desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan, notes: it.notes || '' };
-                        addItemRow(rowData);
-                        // if item is faktur-type, mark row so serialization and UI are correct
-                        if (it.fakturbeli_id) {
-                            var $last = $('#itemsTable tbody tr').last();
-                            $last.data('fakturbeli-id', it.fakturbeli_id);
-                            $last.find('.item-desc').prop('readonly', true);
-                            $last.find('.item-qty').prop('readonly', true);
-                            $last.find('.item-price').prop('readonly', true);
-                        }
-                    });
-                } else {
-                    addItemRow();
-                }
-                // set grand total display if available
-                setRupiahValue($('#grand_total_display'), parseFloat(res.grand_total || 0));
-                recalcItems();
+        $.get('/finance/pengajuan-dana/' + id).done(function(res) {
+            resetPengajuanForm();
+            pengajuanEditing = true;
+            var declined = (res.approvals || []).some(function(a) { return a.status === 'declined' || a.status === 'rejected'; });
+            $('#pengajuanModalLabel').text('Edit Pengajuan Dana');
+            $('#pengajuanKodeInfo').text(res.kode_pengajuan + (declined ? ' · pengajuan ditolak, menyimpan akan mengajukan ulang' : ''));
+            $('#pengajuan_id').val(res.id);
+            setEmployee(res.employee_id);
+            $('#division_id').val(res.division_id || '');
+            $('#tanggal_pengajuan').val((res.tanggal_pengajuan || '').toString().slice(0, 10));
+            $('#jenis_pengajuan').val(res.jenis_pengajuan || '');
+            $('#sumber_dana').val(res.sumber_dana || '');
+            $('#perusahaan').val(res.perusahaan || '');
+            $('#rekening_id').val(res.rekening_id || '').trigger('change');
 
-                $('#pengajuanModal').modal('show');
-            },
-            error: function() {
-                Swal.fire('Error', 'Gagal memuat data', 'error');
+            // existing bukti (server sends a normalized array of paths)
+            var bukti = Array.isArray(res.bukti_transaksi) ? res.bukti_transaksi : [];
+            renderBuktiPreview(bukti.map(function(p) { return '/storage/' + String(p).replace(/^\/+/, ''); }));
+            if (bukti.length) {
+                $('#bukti_files_label').val(bukti.length + ' bukti tersimpan');
+                $('#buktiHint').text('Memilih gambar baru akan menggantikan bukti yang tersimpan. jpg / png / gif, maks 2MB per file.');
             }
+
+            $('#itemsTable tbody').empty();
+            (res.items || []).forEach(function(it) {
+                addItemRow({ desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan, notes: it.notes || '', fakturbeli_id: it.fakturbeli_id }, true);
+            });
+            if (!(res.items || []).length) addItemRow(null, true);
+            recalcItems();
+
+            $('#pengajuanModal').modal('show');
+        }).fail(function(xhr) {
+            Swal.fire('Error', (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal memuat data', 'error');
         });
     });
 
-    // Auto-fill division when employee selected
-    $('#employee_id').on('change', function() {
-        var opt = $(this).find('option:selected');
-        var divId = opt.data('division-id');
-        if (divId) {
-            $('#division_id').val(divId).trigger('change');
-        }
+    // Auto-fill division when the pengaju is chosen (admins/approvers only; the server also infers it)
+    $(document).on('change', 'select#employee_id', function() {
+        var divId = $(this).find('option:selected').data('division-id');
+        $('#division_id').val(divId || '');
+        $(this).removeClass('select2-invalid');
+        $('#employee_id-error').text('');
+    });
+
+    // clear a field's error as soon as it is changed
+    $(document).on('change input', '#pengajuanForm select, #pengajuanForm input[type=date]', function() {
+        $(this).removeClass('is-invalid select2-invalid');
+        $('#' + this.id + '-error').text('');
     });
 
     // Delete pengajuan
@@ -1396,8 +1609,11 @@ $(document).ready(function() {
                         Swal.fire('Terhapus!', res.message || 'Data telah dihapus', 'success');
                         table.ajax.reload(null, false);
                     },
-                    error: function() {
-                        Swal.fire('Error', 'Gagal menghapus data', 'error');
+                    error: function(xhr) {
+                        // 403 = locked (already approved/paid) -> show reason and refresh buttons
+                        var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menghapus data';
+                        if (xhr.status === 403) table.ajax.reload(null, false);
+                        Swal.fire(xhr.status === 403 ? 'Tidak Diizinkan' : 'Error', msg, 'error');
                     }
                 });
             }
@@ -1428,8 +1644,11 @@ $(document).ready(function() {
                     table.ajax.reload(null, false);
                 },
                 error: function(xhr){
-                    if (xhr.status === 422 || xhr.status === 400) {
-                        Swal.fire('Gagal', xhr.responseJSON.message || 'Validasi gagal', 'warning');
+                    var msg = xhr.responseJSON && xhr.responseJSON.message;
+                    if (msg) {
+                        // rule violations (not your turn, already processed, declined, ...) come back as 403
+                        table.ajax.reload(null, false);
+                        Swal.fire('Gagal', msg, 'warning');
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
                     }
@@ -1439,32 +1658,110 @@ $(document).ready(function() {
     });
 
     // Pay pengajuan (visible when fully approved and unpaid)
+    // first validation message of a 422, otherwise the server message
+    function ajaxErrorMessage(xhr, fallback) {
+        var r = xhr.responseJSON || {};
+        if (r.errors) {
+            var k = Object.keys(r.errors)[0];
+            if (k && r.errors[k] && r.errors[k][0]) return r.errors[k][0];
+        }
+        return r.message || fallback;
+    }
+
+    function nowLocalDatetime() {
+        var d = new Date();
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        return d.toISOString().slice(0, 16);
+    }
+
+    // ----- Bayar: record a payment (full, partial, or closed with a difference) -----
+    var bayarSisa = 0;
+
+    function updateBayarKurang() {
+        var nominal = parseRupiah($('#bayar_nominal').val());
+        var kurang = nominal > 0 && (bayarSisa - nominal) >= 0.01;
+        $('#bayar_kurang_box').toggle(kurang);
+        $('#bayar_note_required').toggle(kurang);
+        if (kurang) $('#bayar_selisih').text(formatNominal(bayarSisa - nominal));
+    }
+
     $('#pengajuanTable').on('click', '.pay-pengajuan', function() {
         var id = $(this).data('id');
-        Swal.fire({
-            title: 'Tandai sebagai dibayar? ',
-            text: 'Status pembayaran akan berubah menjadi paid.',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Bayar',
-            cancelButtonText: 'Batal'
-        }).then(function(result){
-            if (!result.value) return;
-            $.ajax({
-                url: '/finance/pengajuan-dana/' + id + '/pay',
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                success: function(res){
-                    Swal.fire('Sukses', res.message || 'Status pembayaran diperbarui', 'success');
-                    table.ajax.reload(null, false);
-                },
-                error: function(xhr){
-                    var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal memperbarui status pembayaran';
-                    Swal.fire('Error', msg, 'error');
-                }
-            });
+        $('#bayarForm')[0].reset();
+        $('#bayar_id').val(id);
+        $('#bayar_grand, #bayar_sudah, #bayar_sisa').text('...');
+        $('#bayar_tanggal').val(nowLocalDatetime());
+        $('#bayar_mode_partial').prop('checked', true);
+        $('#bayar_kurang_box, #bayar_note_required').hide();
+        $.get('/finance/pengajuan-dana/' + id, function(res) {
+            bayarSisa = Number(res.sisa_bayar || 0);
+            $('#bayarModalLabel').text('Bayar Pengajuan - ' + (res.kode_pengajuan || ''));
+            $('#bayar_grand').text(formatNominal(res.grand_total));
+            $('#bayar_sudah').text(formatNominal(res.total_dibayar));
+            $('#bayar_sisa').text(formatNominal(bayarSisa));
+            $('#bayar_nominal').val(formatNominal(bayarSisa));
+            $('#bayarModal').modal('show');
+        }).fail(function() {
+            Swal.fire('Error', 'Gagal memuat data pengajuan', 'error');
         });
     });
+
+    $('#bayar_nominal').on('input', updateBayarKurang).on('blur', function() {
+        var n = parseRupiah($(this).val());
+        $(this).val(n > 0 ? formatNominal(n) : '');
+        updateBayarKurang();
+    });
+
+    $('#bayarForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#bayar_id').val();
+        var nominal = parseRupiah($('#bayar_nominal').val());
+        if (!(nominal > 0)) {
+            Swal.fire('Validasi', 'Isi nominal dibayar', 'warning');
+            return;
+        }
+        if (nominal - bayarSisa > 0.009) {
+            Swal.fire('Validasi', 'Nominal melebihi sisa yang disetujui (' + formatNominal(bayarSisa) + ')', 'warning');
+            return;
+        }
+        var kurang = (bayarSisa - nominal) >= 0.01;
+        if (kurang && !$.trim($('#bayar_note').val())) {
+            Swal.fire('Validasi', 'Catatan wajib diisi jika nominal kurang dari sisa', 'warning');
+            return;
+        }
+        var fd = new FormData();
+        fd.append('nominal', nominal);
+        fd.append('tanggal_bayar', $('#bayar_tanggal').val() || '');
+        fd.append('note', $('#bayar_note').val() || '');
+        if (kurang) fd.append('mode', $('input[name="bayar_mode"]:checked').val());
+        var file = $('#bayar_bukti')[0].files[0];
+        if (file) fd.append('bukti', file);
+        var $btn = $('#bayar_submit').prop('disabled', true);
+        $.ajax({
+            url: '/finance/pengajuan-dana/' + id + '/pay',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res) {
+                $('#bayarModal').modal('hide');
+                Swal.fire('Sukses', res.message || 'Pembayaran dicatat', 'success');
+                table.ajax.reload(null, false);
+            },
+            error: function(xhr) {
+                Swal.fire('Error', ajaxErrorMessage(xhr, 'Gagal menyimpan pembayaran'), 'error');
+            },
+            complete: function() { $btn.prop('disabled', false); }
+        });
+    });
+
+    // links to uploaded files (payment bukti) on the public disk
+    function fileLinks(paths, label) {
+        return (paths || []).map(function(p, i) {
+            return '<a href="/storage/' + encodeURI(String(p).replace(/^\/+/, '')) + '" target="_blank" class="mr-2"><i class="fa fa-paperclip"></i> ' + label + ' ' + (i + 1) + '</a>';
+        }).join('');
+    }
 
     // Select all toggle (current page only)
     $(document).on('change', '#select_all_rows', function(){
@@ -1484,18 +1781,29 @@ $(document).ready(function() {
 
     // Bulk approve handler
     $('#btnBulkApprove').on('click', function(){
-        var ids = [];
-        $('#pengajuanTable tbody .row-select-checkbox:checked').each(function(){
-            var id = $(this).data('id');
-            if (id) ids.push(id);
-        });
+        var selected = getSelectedPengajuan().filter(function(r){ return r.id; });
+        var ids = selected.map(function(r){ return r.id; });
         if (ids.length === 0) {
             Swal.fire('Info', 'Pilih minimal satu pengajuan yang bisa Anda approve.', 'info');
             return;
         }
+        // list each selected pengajuan with its nominal + grand total, so the approver can double-check
+        var esc = function(s){ return $('<div>').text(s).html(); };
+        var total = selected.reduce(function(sum, r){ return sum + r.total; }, 0);
+        var listHtml = '<div class="text-left" style="max-height:260px; overflow-y:auto;">'
+            + '<table class="table table-sm table-bordered mb-2" style="font-size:13px;">'
+            + '<thead class="thead-light"><tr><th style="width:36px">#</th><th>No Pengajuan</th><th class="text-right">Nominal</th></tr></thead><tbody>'
+            + selected.map(function(r, i){
+                return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.kode)
+                    + (r.pengaju ? '<br><small class="text-muted">' + esc(r.pengaju) + '</small>' : '')
+                    + '</td><td class="text-right text-nowrap">' + formatNominal(r.total) + '</td></tr>';
+            }).join('')
+            + '</tbody><tfoot><tr><th colspan="2" class="text-right">Total</th><th class="text-right text-nowrap">' + formatNominal(total) + '</th></tr></tfoot></table></div>'
+            + '<small class="text-muted">Hanya yang memenuhi hirarki approval yang akan disetujui.</small>';
         Swal.fire({
             title: 'Approve '+ids.length+' pengajuan?',
-            text: 'Tindakan ini akan menyetujui semua yang dipilih (yang memenuhi hirarki).',
+            html: listHtml,
+            width: 600,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Ya, Approve',
@@ -1513,8 +1821,20 @@ $(document).ready(function() {
                     var ok = resp.approved_count || 0;
                     var skipped = (resp.skipped || []).length;
                     var errs = (resp.errors || []).length;
-                    var msg = 'Approved: '+ok+'\nSkipped: '+skipped+'\nErrors: '+errs;
-                    Swal.fire('Selesai', msg.replace(/\n/g,'<br>'), 'success');
+                    var msg = 'Disetujui: '+ok+'<br>Dilewati: '+skipped+'<br>Error: '+errs;
+                    // group skip/error reasons so the approver knows why an item was not approved
+                    var reasons = {};
+                    (resp.skipped || []).concat(resp.errors || []).forEach(function(s){
+                        var r = s.reason || 'Tidak diketahui';
+                        reasons[r] = (reasons[r] || 0) + 1;
+                    });
+                    var reasonKeys = Object.keys(reasons);
+                    if (reasonKeys.length) {
+                        msg += '<div class="text-left mt-2"><small>' + reasonKeys.map(function(r){
+                            return '&bull; ' + $('<div>').text(r).html() + ' (' + reasons[r] + ')';
+                        }).join('<br>') + '</small></div>';
+                    }
+                    Swal.fire(ok > 0 ? 'Selesai' : 'Tidak ada yang disetujui', msg, ok > 0 ? 'success' : 'warning');
                     table.ajax.reload(null, false);
                     updateBulkApproveVisibility();
                 },
@@ -1525,30 +1845,40 @@ $(document).ready(function() {
         });
     });
 
-    // Decline pengajuan (simple confirm; no reason required)
+    // Decline pengajuan: reason (alasan penolakan) is required
     $('#pengajuanTable').on('click', '.decline-pengajuan', function() {
         var id = $(this).data('id');
         Swal.fire({
             title: 'Tolak pengajuan?',
-            text: 'Anda akan menolak pengajuan ini.',
+            text: 'Tuliskan alasan penolakan. Pengaju dapat memperbaiki lalu mengajukan ulang.',
             icon: 'warning',
+            input: 'textarea',
+            inputPlaceholder: 'Alasan penolakan...',
+            inputAttributes: { maxlength: 1000 },
+            inputValidator: function(value) {
+                if (!value || !value.trim()) return 'Alasan penolakan wajib diisi';
+            },
             showCancelButton: true,
             confirmButtonText: 'Tolak',
+            confirmButtonColor: '#dc3545',
             cancelButtonText: 'Batal'
         }).then(function(result){
             if (!result.value) return; // cancelled
             $.ajax({
                 url: '/finance/pengajuan-dana/' + id + '/decline',
                 method: 'POST',
-                data: {},
+                data: { note: result.value.trim() },
                 headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                 success: function(res){
                     Swal.fire('Ditolak', res.message || 'Pengajuan telah ditolak', 'success');
                     table.ajax.reload(null, false);
                 },
                 error: function(xhr){
-                    if (xhr.status === 422 || xhr.status === 400) {
-                        Swal.fire('Gagal', xhr.responseJSON.message || 'Validasi gagal', 'warning');
+                    var msg = xhr.responseJSON && xhr.responseJSON.message;
+                    if (msg) {
+                        // rule violations (not your turn, already processed, declined, ...) come back as 403
+                        table.ajax.reload(null, false);
+                        Swal.fire('Gagal', msg, 'warning');
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
                     }
@@ -1557,24 +1887,14 @@ $(document).ready(function() {
         });
     });
 
-    // Upload bukti handler - open modal in upload mode
-    $('#pengajuanTable').on('click', '.upload-bukti', function() {
-        var id = $(this).data('id');
-        openBuktiModal(id, 'upload');
-    });
-
-    // View bukti handler - open modal in read-only mode
-    $('#pengajuanTable').on('click', '.show-bukti', function() {
-        var id = $(this).data('id');
-        openBuktiModal(id, 'view');
-    });
-
     $(document).on('click', '#buktiModalPreview img', function() {
         openBuktiZoom($(this).attr('src'));
     });
 
     $('#buktiZoomModal').on('hidden.bs.modal', function() {
         $('#buktiZoomImage').attr('src', '');
+        // keep the underlying modal (e.g. detail) scrollable after closing the stacked zoom modal
+        if ($('.modal.show').length) $('body').addClass('modal-open');
     });
 
     // file input change inside bukti modal - update label and preview of selected files
@@ -1622,7 +1942,11 @@ $(document).ready(function() {
 
     // Clear date filter button
     $(document).on('click', '#clearFilterTanggal', function() {
+        filterStartDate = '';
+        filterEndDate = '';
         $('#filter_tanggal').val('');
+        var picker = $('#filter_tanggal').data('daterangepicker');
+        if (picker) { picker.setStartDate(moment()); picker.setEndDate(moment()); }
         table.ajax.reload();
     });
 
@@ -1637,11 +1961,6 @@ $(document).ready(function() {
     // Sumber Dana filter change -> reload table
     $(document).on('change', '#filter_sumber', function() {
         table.ajax.reload();
-    });
-
-    // Footer cancel button: hide modal (will trigger existing hidden.bs.modal reset logic)
-    $(document).on('click', '#btnCancelPengajuan', function() {
-        $('#pengajuanModal').modal('hide');
     });
 
     // Riwayat Pembayaran: open modal and initialize DataTable
@@ -1686,17 +2005,474 @@ $(document).ready(function() {
                     }
                 },
                 columns: [
-                    { data: 'id', render: function(data, type, row, meta){ return meta.row + 1; }, orderable:false },
+                    // one row per transfer (finance_pengajuan_dana_payment)
+                    { data: 'id', render: function(data, type, row, meta){ return meta.settings._iDisplayStart + meta.row + 1; }, orderable:false, searchable:false },
+                    { data: 'kode_pengajuan', name: 'kode_pengajuan', orderable: false, searchable: false },
                     { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
                     { data: 'rekening', name: 'rekening', orderable: false, searchable: false },
-                    { data: 'payment_date', name: 'payment_date' },
-                    { data: 'grand_total', name: 'grand_total', render: function(data){ if (!data) data=0; return 'Rp ' + Number(data).toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2}); }, orderable:false }
+                    { data: 'payment_date', name: 'tanggal_bayar', searchable: false },
+                    { data: 'nominal_display', name: 'nominal', orderable: false, searchable: false },
+                    { data: 'paid_by_name', name: 'paid_by_name', orderable: false, searchable: false }
                 ],
-                order: [[3, 'desc']]
+                order: [[4, 'desc']]
             });
         } else {
             paidHistoryTable.ajax.reload();
         }
+    });
+
+    // Kelola Rekening: list / add / edit / delete rekening in a modal
+    var kelolaRekeningTable = null;
+    var kelolaRekeningChanged = false;
+    var rekeningBaseUrl = '{{ url('finance/pengajuan-rekening') }}';
+
+    function escapeHtmlRek(s) {
+        return $('<div>').text(s == null ? '' : String(s)).html();
+    }
+
+    function resetKelolaRekeningForm() {
+        $('#kr_id').val('');
+        $('#kr_bank, #kr_no_rekening, #kr_atas_nama').val('').removeClass('is-invalid');
+        $('#kelolaRekeningForm .invalid-feedback').text('');
+        $('#kr_save').html('<i class="fa fa-plus mr-1"></i>Tambah');
+        $('#kr_cancel').hide();
+    }
+
+    // keep the Rekening select in the pengajuan form in sync with changes made here
+    function syncRekeningOption(rek, removed) {
+        var $sel = $('#rekening_id');
+        var $opt = $sel.find('option[value="' + rek.id + '"]');
+        if (removed) {
+            $opt.remove();
+        } else {
+            var label = (rek.bank || '') + ' / ' + (rek.no_rekening || '') + ' / ' + (rek.atas_nama || '');
+            if ($opt.length) $opt.text(label);
+            else $sel.append(new Option(label, rek.id, false, false));
+        }
+        $sel.trigger('change.select2');
+    }
+
+    $(document).on('click', '#btnKelolaRekening', function() {
+        resetKelolaRekeningForm();
+        kelolaRekeningChanged = false;
+        $('#kelolaRekeningModal').modal('show');
+        if (kelolaRekeningTable === null) {
+            kelolaRekeningTable = $('#kelolaRekeningTable').DataTable({
+                processing: true,
+                serverSide: true,
+                ajax: '{!! route('finance.rekening.data') !!}',
+                columns: [
+                    { data: 'id', orderable: false, searchable: false, render: function(data, type, row, meta) {
+                            return meta.settings._iDisplayStart + meta.row + 1;
+                        }
+                    },
+                    { data: 'bank', name: 'bank', render: function(d) { return escapeHtmlRek(d); } },
+                    { data: 'no_rekening', name: 'no_rekening', render: function(d) { return escapeHtmlRek(d); } },
+                    { data: 'atas_nama', name: 'atas_nama', render: function(d) { return escapeHtmlRek(d); } },
+                    { data: null, orderable: false, searchable: false, render: function(data, type, row) {
+                            return '<button type="button" class="btn btn-sm btn-primary kr-edit" data-id="' + row.id + '" title="Edit"><i class="fa fa-edit mr-1"></i>Edit</button>' +
+                                   ' <button type="button" class="btn btn-sm btn-danger kr-delete" data-id="' + row.id + '" title="Hapus"><i class="fa fa-trash mr-1"></i>Hapus</button>';
+                        }
+                    }
+                ],
+                order: [[1, 'asc']]
+            });
+        } else {
+            kelolaRekeningTable.ajax.reload();
+        }
+    });
+
+    // refresh the main table when rekening data changed (Rekening Tujuan column)
+    $('#kelolaRekeningModal').on('hidden.bs.modal', function() {
+        if (kelolaRekeningChanged) table.ajax.reload(null, false);
+    });
+
+    $(document).on('click', '#kr_cancel', resetKelolaRekeningForm);
+
+    $(document).on('click', '.kr-edit', function() {
+        var row = kelolaRekeningTable.row($(this).closest('tr')).data();
+        if (!row) return;
+        $('#kr_id').val(row.id);
+        $('#kr_bank').val(row.bank || '');
+        $('#kr_no_rekening').val(row.no_rekening || '');
+        $('#kr_atas_nama').val(row.atas_nama || '');
+        $('#kr_save').html('<i class="fa fa-save mr-1"></i>Simpan');
+        $('#kr_cancel').show();
+        $('#kr_bank').focus();
+    });
+
+    $('#kelolaRekeningForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#kr_id').val();
+        var $btn = $('#kr_save');
+        $('#kelolaRekeningForm .is-invalid').removeClass('is-invalid');
+        $('#kelolaRekeningForm .invalid-feedback').text('');
+        var payload = {
+            bank: $('#kr_bank').val(),
+            no_rekening: $('#kr_no_rekening').val(),
+            atas_nama: $('#kr_atas_nama').val()
+        };
+        if (!$.trim(payload.bank) && !$.trim(payload.no_rekening) && !$.trim(payload.atas_nama)) {
+            Swal.fire('Validasi', 'Isi minimal salah satu data rekening', 'warning');
+            return;
+        }
+        if (id) payload._method = 'PUT';
+        $btn.prop('disabled', true);
+        $.ajax({
+            url: id ? rekeningBaseUrl + '/' + id : '{{ route('finance.rekening.store') }}',
+            method: 'POST',
+            data: payload,
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res) {
+                kelolaRekeningChanged = true;
+                if (res && res.data) syncRekeningOption(res.data, false);
+                resetKelolaRekeningForm();
+                kelolaRekeningTable.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Sukses', text: id ? 'Rekening berhasil diperbarui' : 'Rekening berhasil ditambahkan', timer: 1200, showConfirmButton: false });
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+                    var map = { bank: '#kr_bank', no_rekening: '#kr_no_rekening', atas_nama: '#kr_atas_nama' };
+                    Object.keys(errors).forEach(function(k) {
+                        if (map[k]) $(map[k]).addClass('is-invalid').siblings('.invalid-feedback').text(errors[k][0]);
+                    });
+                } else {
+                    Swal.fire('Error', 'Gagal menyimpan rekening', 'error');
+                }
+            },
+            complete: function() { $btn.prop('disabled', false); }
+        });
+    });
+
+    $(document).on('click', '.kr-delete', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Hapus rekening?',
+            text: 'Data rekening akan dihapus permanen.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#dc3545'
+        }).then(function(result) {
+            if (!(result.isConfirmed || result.value)) return;
+            $.ajax({
+                url: rekeningBaseUrl + '/' + id,
+                method: 'POST',
+                data: { _method: 'DELETE' },
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function() {
+                    kelolaRekeningChanged = true;
+                    syncRekeningOption({ id: id }, true);
+                    if (String($('#kr_id').val()) === String(id)) resetKelolaRekeningForm();
+                    kelolaRekeningTable.ajax.reload(null, false);
+                    Swal.fire({ icon: 'success', title: 'Terhapus', timer: 1200, showConfirmButton: false });
+                },
+                error: function(xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menghapus rekening';
+                    Swal.fire('Error', msg, 'error');
+                }
+            });
+        });
+    });
+
+    // Kelola Approver (Admin only): list / add / edit / delete approvers in a modal
+    var kelolaApproverTable = null;
+    var kelolaApproverChanged = false;
+    var approverBaseUrl = '{{ url('finance/pengajuan-dana-approvers') }}';
+
+    function resetKelolaApproverForm() {
+        $('#ka_id').val('');
+        $('#ka_user_id').val('').trigger('change');
+        $('#ka_jabatan').val('');
+        $('#ka_tingkat').val(1);
+        $('#ka_jenis').val('');
+        $('#ka_aktif').prop('checked', true);
+        $('#kelolaApproverForm .is-invalid').removeClass('is-invalid');
+        $('#kelolaApproverForm .invalid-feedback').text('');
+        $('#ka_save').html('<i class="fa fa-plus mr-1"></i>Tambah');
+        $('#ka_cancel').hide();
+    }
+
+    $(document).on('click', '#btnKelolaApprover', function() {
+        if (typeof $.fn.select2 === 'function' && !$('#ka_user_id').hasClass('select2-hidden-accessible')) {
+            $('#ka_user_id').select2({ dropdownParent: $('#kelolaApproverModal'), width: '100%' });
+        }
+        resetKelolaApproverForm();
+        kelolaApproverChanged = false;
+        $('#kelolaApproverModal').modal('show');
+        if (kelolaApproverTable === null) {
+            kelolaApproverTable = $('#kelolaApproverTable').DataTable({
+                processing: true,
+                serverSide: true,
+                ajax: '{!! route('finance.pengajuan.approver.data') !!}',
+                columns: [
+                    { data: 'id', orderable: false, searchable: false, render: function(data, type, row, meta) {
+                            return meta.settings._iDisplayStart + meta.row + 1;
+                        }
+                    },
+                    { data: 'user.name', name: 'user.name', defaultContent: '', render: function(d) { return escapeHtmlRek(d); } },
+                    { data: 'jabatan', name: 'jabatan', defaultContent: '', render: function(d) { return escapeHtmlRek(d); } },
+                    { data: 'tingkat', name: 'tingkat' },
+                    { data: 'jenis', name: 'jenis', render: function(d) {
+                            return d ? escapeHtmlRek(d) : '<span class="text-muted">Semua</span>';
+                        }
+                    },
+                    { data: 'aktif', name: 'aktif', searchable: false, render: function(d) {
+                            return d == 1 ? '<span class="badge badge-success">Ya</span>' : '<span class="badge badge-secondary">Tidak</span>';
+                        }
+                    },
+                    { data: null, orderable: false, searchable: false, render: function(data, type, row) {
+                            return '<button type="button" class="btn btn-sm btn-primary ka-edit" data-id="' + row.id + '" title="Edit"><i class="fa fa-edit mr-1"></i>Edit</button>' +
+                                   ' <button type="button" class="btn btn-sm btn-danger ka-delete" data-id="' + row.id + '" title="Hapus"><i class="fa fa-trash mr-1"></i>Hapus</button>';
+                        }
+                    }
+                ],
+                order: [[3, 'desc']]
+            });
+        } else {
+            kelolaApproverTable.ajax.reload();
+        }
+    });
+
+    // approver changes affect approval status + Approve buttons in the main table
+    $('#kelolaApproverModal').on('hidden.bs.modal', function() {
+        if (kelolaApproverChanged) table.ajax.reload(null, false);
+    });
+
+    $(document).on('click', '#ka_cancel', resetKelolaApproverForm);
+
+    $(document).on('click', '.ka-edit', function() {
+        var row = kelolaApproverTable.row($(this).closest('tr')).data();
+        if (!row) return;
+        resetKelolaApproverForm();
+        $('#ka_id').val(row.id);
+        $('#ka_user_id').val(row.user_id).trigger('change');
+        $('#ka_jabatan').val(row.jabatan || '');
+        $('#ka_tingkat').val(row.tingkat || 1);
+        $('#ka_jenis').val(row.jenis || '');
+        $('#ka_aktif').prop('checked', row.aktif == 1);
+        $('#ka_save').html('<i class="fa fa-save mr-1"></i>Simpan');
+        $('#ka_cancel').show();
+    });
+
+    $('#kelolaApproverForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#ka_id').val();
+        var $btn = $('#ka_save');
+        $('#kelolaApproverForm .is-invalid').removeClass('is-invalid');
+        $('#kelolaApproverForm .invalid-feedback').text('');
+        var payload = {
+            user_id: $('#ka_user_id').val(),
+            jabatan: $('#ka_jabatan').val(),
+            tingkat: parseInt($('#ka_tingkat').val() || 1, 10),
+            jenis: $('#ka_jenis').val() || '',
+            aktif: $('#ka_aktif').is(':checked') ? 1 : 0
+        };
+        if (!payload.user_id) {
+            Swal.fire('Validasi', 'Pilih user approver', 'warning');
+            return;
+        }
+        if (id) payload._method = 'PUT';
+        $btn.prop('disabled', true);
+        $.ajax({
+            url: id ? approverBaseUrl + '/' + id : '{{ route('finance.pengajuan.approver.store') }}',
+            method: 'POST',
+            data: payload,
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function() {
+                kelolaApproverChanged = true;
+                resetKelolaApproverForm();
+                kelolaApproverTable.ajax.reload(null, false);
+                Swal.fire({ icon: 'success', title: 'Sukses', text: id ? 'Approver berhasil diperbarui' : 'Approver berhasil ditambahkan', timer: 1200, showConfirmButton: false });
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    var errors = (xhr.responseJSON && xhr.responseJSON.errors) || {};
+                    var map = { user_id: '#ka_user_id', jabatan: '#ka_jabatan', tingkat: '#ka_tingkat', jenis: '#ka_jenis' };
+                    Object.keys(errors).forEach(function(k) {
+                        if (map[k]) $(map[k]).addClass('is-invalid').siblings('.invalid-feedback').text(errors[k][0]);
+                    });
+                } else {
+                    Swal.fire('Error', (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menyimpan approver', 'error');
+                }
+            },
+            complete: function() { $btn.prop('disabled', false); }
+        });
+    });
+
+    $(document).on('click', '.ka-delete', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Hapus approver?',
+            text: 'Approver akan dihapus dari alur persetujuan.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#dc3545'
+        }).then(function(result) {
+            if (!(result.isConfirmed || result.value)) return;
+            $.ajax({
+                url: approverBaseUrl + '/' + id,
+                method: 'POST',
+                data: { _method: 'DELETE' },
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function() {
+                    kelolaApproverChanged = true;
+                    if (String($('#ka_id').val()) === String(id)) resetKelolaApproverForm();
+                    kelolaApproverTable.ajax.reload(null, false);
+                    Swal.fire({ icon: 'success', title: 'Terhapus', timer: 1200, showConfirmButton: false });
+                },
+                error: function(xhr) {
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menghapus approver';
+                    Swal.fire('Error', msg, 'error');
+                }
+            });
+        });
+    });
+
+    // Detail Pengajuan: open modal with info, all items + harga and bukti photos
+    $('#pengajuanTable').on('click', '.show-detail', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        if (!id) return;
+        var $tbody = $('#itemsDetailTable tbody');
+        var $bukti = $('#dt_bukti');
+        $('#itemsDetailModalLabel').text('Detail Pengajuan');
+        $('#dt_kode, #dt_tanggal, #dt_pengaju, #dt_jenis, #dt_diajukan, #dt_rekening').text('-');
+        $tbody.html('<tr><td colspan="6" class="text-center text-muted">Memuat...</td></tr>');
+        $('#itemsDetailGrandTotal').text('');
+        $bukti.empty();
+        $('#dt_pembayaran_wrap').hide();
+        $('#dt_pembayaran').empty();
+        $('#dt_pdf').attr('href', '/finance/pengajuan-dana/' + id + '/pdf');
+        $('#itemsDetailModal').modal('show');
+        $.get('/finance/pengajuan-dana/' + id, function(res) {
+            if (!res || typeof res !== 'object') {
+                $tbody.html('<tr><td colspan="6" class="text-center text-danger">Gagal memuat detail</td></tr>');
+                return;
+            }
+            // info
+            if (res.kode_pengajuan) {
+                $('#itemsDetailModalLabel').text('Detail Pengajuan - ' + res.kode_pengajuan);
+                $('#dt_kode').text(res.kode_pengajuan);
+            }
+            if (res.tanggal_pengajuan) {
+                var tgl = new Date(res.tanggal_pengajuan);
+                $('#dt_tanggal').text(isNaN(tgl.getTime()) ? res.tanggal_pengajuan : tgl.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+            }
+            var emp = res.employee || null;
+            var empName = emp ? ((emp.user && emp.user.name) || emp.nama || '') : '';
+            if (empName) $('#dt_pengaju').text(empName);
+            if (res.jenis_pengajuan) $('#dt_jenis').text(res.jenis_pengajuan);
+            var diajukan = [res.sumber_dana, res.perusahaan].filter(function(v) { return v && String(v).trim() !== ''; }).join(' - ');
+            if (diajukan) $('#dt_diajukan').text(diajukan);
+            var rek = res.rekening || null;
+            if (rek) {
+                var rekMain = [rek.bank, rek.no_rekening].filter(function(v) { return v && String(v).trim() !== ''; }).join(' - ');
+                $('#dt_rekening').html(escapeHtmlRek(rekMain || '-') + (rek.atas_nama ? '<div><small class="text-muted">' + escapeHtmlRek(rek.atas_nama) + '</small></div>' : ''));
+            }
+
+            // bukti photos (same storage layout as the bukti modal)
+            var buktiArr = [];
+            try {
+                buktiArr = (typeof res.bukti_transaksi === 'string') ? JSON.parse(res.bukti_transaksi) : (res.bukti_transaksi || []);
+            } catch (err) {
+                buktiArr = res.bukti_transaksi ? [res.bukti_transaksi] : [];
+            }
+            if (!Array.isArray(buktiArr)) buktiArr = buktiArr ? [buktiArr] : [];
+            buktiArr = buktiArr.filter(function(p) { return p && String(p).trim() !== ''; });
+            if (!buktiArr.length) {
+                $bukti.html('<div class="w-100"><div class="text-muted mb-2"><i class="fa fa-exclamation-triangle text-danger mr-1"></i>Belum ada bukti foto.</div>' +
+                    '<button type="button" class="btn btn-sm btn-warning detail-upload-bukti" data-id="' + id + '"><i class="fa fa-upload mr-1"></i>Upload Bukti Transaksi / Invoice</button></div>');
+            } else {
+                buktiArr.forEach(function(p, index) {
+                    var src = '/storage/' + String(p).replace(/^\/+/, '');
+                    var $card = $('<div class="detail-bukti"></div>');
+                    $card.append($('<img>').attr('src', src).attr('alt', 'Bukti ' + (index + 1)));
+                    $card.append($('<a class="btn btn-sm btn-link p-0 mt-1" target="_blank"><i class="fa fa-download mr-1"></i>Download</a>')
+                        .attr('href', '/finance/pengajuan-dana/' + id + '/download-bukti/' + index));
+                    $bukti.append($card);
+                });
+            }
+
+            renderDetailPembayaran(res);
+
+            // items
+            var items = res.items || [];
+            if (!items.length) {
+                $tbody.html('<tr><td colspan="6" class="text-center text-muted">Tidak ada item</td></tr>');
+                $('#itemsDetailGrandTotal').text(formatRupiah(res.grand_total || 0));
+                return;
+            }
+            var sum = 0;
+            var rows = items.map(function(it, i) {
+                var qty = Number(it.jumlah || 0);
+                var harga = Number(it.harga_satuan || 0);
+                var total = (it.harga_total_snapshot !== null && it.harga_total_snapshot !== undefined) ? Number(it.harga_total_snapshot) : qty * harga;
+                sum += total;
+                return '<tr>' +
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + escapeHtmlRek(it.nama_item) + '</td>' +
+                    '<td><small class="text-muted">' + escapeHtmlRek(it.notes) + '</small></td>' +
+                    '<td class="text-center">' + escapeHtmlRek(it.jumlah) + '</td>' +
+                    '<td class="text-right text-nowrap">' + formatRupiah(harga) + '</td>' +
+                    '<td class="text-right text-nowrap">' + formatRupiah(total) + '</td>' +
+                '</tr>';
+            });
+            $tbody.html(rows.join(''));
+            var grand = (res.grand_total !== null && res.grand_total !== undefined) ? res.grand_total : sum;
+            $('#itemsDetailGrandTotal').text(formatRupiah(grand));
+        }).fail(function() {
+            $tbody.html('<tr><td colspan="6" class="text-center text-danger">Gagal memuat detail</td></tr>');
+        });
+    });
+
+    function formatTanggalWaktu(v) {
+        if (!v) return '-';
+        var d = new Date(v);
+        return isNaN(d.getTime()) ? v : d.toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Detail modal: list of payments (transfers) with totals
+    function renderDetailPembayaran(res) {
+        var payments = res.payments || [];
+        if (!payments.length) return;
+        var rows = payments.map(function(p, i) {
+            return '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td class="text-nowrap">' + escapeHtmlRek(formatTanggalWaktu(p.tanggal_bayar)) + '</td>' +
+                '<td class="text-right text-nowrap">' + formatNominal(p.nominal) + '</td>' +
+                '<td>' + escapeHtmlRek(p.note || '') + (p.bukti ? ' ' + fileLinks([p.bukti], 'Bukti') : '') + '</td>' +
+                '<td>' + escapeHtmlRek((p.paid_by && p.paid_by.name) || '') + '</td>' +
+            '</tr>';
+        });
+        var dibayar = Number(res.total_dibayar || 0);
+        var grand = Number(res.grand_total || 0);
+        var selisihLabel = res.payment_status === 'partial' ? 'Sisa belum dibayar' : 'Selisih (tidak dibayar)';
+        var foot = '<tr><th colspan="2" class="text-right">Total dibayar</th><th class="text-right text-nowrap">' + formatNominal(dibayar) + '</th><th colspan="2"></th></tr>';
+        if (grand - dibayar >= 0.01) {
+            foot += '<tr><th colspan="2" class="text-right">' + selisihLabel + '</th><th class="text-right text-nowrap text-danger">' + formatNominal(grand - dibayar) + '</th><th colspan="2"></th></tr>';
+        }
+        $('#dt_pembayaran').html('<div class="table-responsive"><table class="table table-sm table-bordered mb-0">' +
+            '<thead class="thead-light"><tr><th style="width:5%">#</th><th>Tanggal</th><th class="text-right">Nominal</th><th>Catatan</th><th>Oleh</th></tr></thead>' +
+            '<tbody>' + rows.join('') + '</tbody><tfoot>' + foot + '</tfoot></table></div>');
+        $('#dt_pembayaran_wrap').show();
+    }
+
+    // upload bukti from the detail modal: close detail, then open the existing upload modal
+    $(document).on('click', '#itemsDetailModal .detail-upload-bukti', function() {
+        var id = $(this).data('id');
+        $('#itemsDetailModal').one('hidden.bs.modal', function() {
+            openBuktiModal(id, 'upload');
+        }).modal('hide');
+    });
+
+    // zoom bukti photo from the detail modal
+    $(document).on('click', '#itemsDetailModal .detail-bukti img', function() {
+        openBuktiZoom($(this).attr('src'));
     });
 
     // Initialize inline Select2 for faktur search (in footer)
@@ -1776,35 +2552,30 @@ $(document).ready(function() {
                             // use full item list for the nama_item (it's stored as TEXT in DB)
                             var fullList = itemNames.join(', ');
                             var desc = 'Faktur: ' + no + (fullList ? ' (' + fullList + ')' : '');
+                            var fakturId = res.id || id;
                             var $tbody = $('#itemsTable tbody');
-                            // prefer reusing the first empty row (description empty). If none, append a new row.
-                            var $empty = $tbody.find('tr').filter(function() {
-                                var v = $(this).find('.item-desc').val() || '';
-                                return v.toString().trim() === '';
-                            }).first();
+                            $('#select_faktur_inline').val(null).trigger('change');
 
-                            if ($empty.length) {
-                                // populate the empty row; store full description and also set title for full view
-                                $empty.find('.item-desc').val(desc).prop('readonly', true).attr('title', desc);
-                                $empty.find('.item-qty').val(1).prop('readonly', true);
-                                setRupiahValue($empty.find('.item-price'), price);
-                                $empty.find('.item-price').prop('readonly', true);
-                                setRupiahValue($empty.find('.item-total'), (1 * price));
-                                $empty.data('fakturbeli-id', res.id);
-                            } else {
-                                // no empty row; append a new faktur row (do not default per-item employee)
-                                addItemRow({ desc: desc, qty: 1, price: price });
-                                var $new = $tbody.find('tr').last();
-                                $new.data('fakturbeli-id', res.id);
-                                $new.find('.item-desc').prop('readonly', true).attr('title', desc);
-                                $new.find('.item-qty').prop('readonly', true).val(1);
-                                $new.find('.item-price').prop('readonly', true);
-                                setRupiahValue($new.find('.item-price'), price);
+                            // the same faktur only once per pengajuan (the server also blocks it across pengajuan)
+                            var already = $tbody.find('tr').filter(function() {
+                                return String($(this).data('fakturbeli-id') || '') === String(fakturId);
+                            });
+                            if (already.length) {
+                                Swal.fire('Sudah ada', 'Faktur ' + no + ' sudah ada di rincian item.', 'info');
+                                return;
                             }
 
+                            // reuse the first completely empty row, otherwise append one
+                            var $row = $tbody.find('tr').filter(function() {
+                                var $t = $(this);
+                                return !$t.data('fakturbeli-id') && !($t.find('.item-desc').val() || '').trim()
+                                    && !($t.find('.item-qty').val() || '').trim() && parseRupiah($t.find('.item-price').val()) === 0;
+                            }).first();
+                            if (!$row.length) $row = addItemRow(null, true);
+                            $row.find('.item-desc').val(desc);
+                            setRupiahValue($row.find('.item-price'), price);
+                            markFakturRow($row, fakturId, desc);
                             recalcItems();
-                            // clear selection to allow adding another
-                            $('#select_faktur_inline').val(null).trigger('change');
                         },
                 error: function() {
                     Swal.fire('Error', 'Gagal mengambil data faktur', 'error');
@@ -1853,8 +2624,8 @@ $(document).ready(function() {
                     if (!groups[lvl]) groups[lvl] = [];
                     groups[lvl].push(it);
                 });
-                // sort tingkat numeric ascending
-                var levels = Object.keys(groups).sort(function(a,b){ return Number(a) - Number(b); });
+                // approval order: highest tingkat acts first
+                var levels = Object.keys(groups).sort(function(a,b){ return Number(b) - Number(a); });
                 var counter = 1;
                 levels.forEach(function(lvl){
                     // group header row to indicate tingkat
@@ -1872,11 +2643,17 @@ $(document).ready(function() {
                             } else if (it.status === 'declined' || it.status === 'rejected') {
                                 icon = '<i class="fa fa-times-circle text-danger" title="Ditolak"></i>';
                             } else {
-                                icon = '<i class="fa fa-clock text-muted" title="Menunggu"></i>';
+                                icon = (it.status === 'skipped')
+                                    ? '<span class="text-muted" title="Tidak perlu, sudah disetujui approver lain di tingkat ini">&ndash;</span>'
+                                    : '<i class="fa fa-clock text-muted" title="Menunggu"></i>';
                             }
                         } catch(e) { icon = ''; }
                         html += '<td class="text-center">' + icon + '</td>';
                         html += '</tr>';
+                        if (it.note) {
+                            // alasan penolakan under the approver row
+                            html += '<tr><td></td><td colspan="4"><small class="text-danger"><strong>Alasan:</strong> ' + _esc(it.note) + '</small></td></tr>';
+                        }
                     });
                 });
             } else {
@@ -1884,10 +2661,10 @@ $(document).ready(function() {
             }
             html += '</tbody></table>';
             // informational note: only one approval needed per tingkat (styled red)
-            html += '<div class="mt-2"><small class="text-danger">Catatan: Hanya perlu 1 approval tiap tingkat.</small></div>';
+            html += '<div class="mt-2"><small class="text-danger">Catatan: Persetujuan dimulai dari tingkat tertinggi. Hanya perlu 1 approval tiap tingkat.</small></div>';
             html += '</div>';
             html += '<div class="modal-footer">';
-            html += '<button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>';
+            html += '<button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Tutup</button>';
             html += '</div></div></div></div>';
 
             // ensure only one approvals modal exists

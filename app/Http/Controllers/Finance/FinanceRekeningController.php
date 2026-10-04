@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Finance\FinanceRekening;
+use App\Models\Finance\FinancePengajuanDana;
 use Yajra\DataTables\DataTables;
 
 class FinanceRekeningController extends Controller
@@ -59,6 +60,14 @@ class FinanceRekeningController extends Controller
     public function destroy($id)
     {
         $rec = FinanceRekening::findOrFail($id);
+        // no FK on finance_pengajuan_dana.rekening_id, so guard against orphaning pengajuan
+        $usedCount = FinancePengajuanDana::where('rekening_id', $rec->id)->count();
+        if ($usedCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Rekening tidak dapat dihapus karena sudah digunakan pada ' . $usedCount . ' pengajuan dana.',
+            ], 422);
+        }
         $rec->delete();
         return response()->json(['success' => true]);
     }

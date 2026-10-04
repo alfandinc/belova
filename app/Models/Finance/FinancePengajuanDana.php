@@ -58,4 +58,8 @@ class FinancePengajuanDana extends Model
     {
         return $this->belongsTo(\App\Models\Finance\FinanceRekening::class, 'rekening_id');
     }
-}
+
+    public function payments()
+    {
+        return $this->hasMany(FinancePengajuanDanaPayment::class, 'pengajuan_id')->orderBy('tanggal_bayar')->orderBy('id');
+    }}

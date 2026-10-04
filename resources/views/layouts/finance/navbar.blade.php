@@ -102,14 +102,6 @@
                         </a>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Admin|Finance')
-                    <li>
-                        <a href="{{ route('finance.pengajuan.approver.index') }}">
-                            <i class="fas fa-user-check align-self-center menu-icon"></i>
-                            <span>Approver Pengajuan</span>
-                        </a>
-                    </li>
-                    @endhasanyrole
                     {{-- <li>
                         <a href="javascript: void(0);">
                             <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
