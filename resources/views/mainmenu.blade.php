@@ -1139,10 +1139,7 @@
                 </a>
 
                 <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
-                     <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee"
-                         @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Finance','Admin']))
-                       onclick="showRoleWarning(event, 'HRD')"
-                   @endif>
+                     <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-user-friends"></i></div>
                         <div class="menu-badge">Team</div>

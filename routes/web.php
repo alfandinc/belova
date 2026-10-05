@@ -213,8 +213,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('piutang/{id}/receive', [PiutangController::class, 'receivePayment'])->name('finance.piutang.receive');
     });
 
+    // HRD dashboard: accessible to every authenticated user
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
     Route::get('/dashboard', [\App\Http\Controllers\Dashboard\DashboardController::class, 'index'])
         ->name('dashboard.index');
@@ -244,7 +244,6 @@ Route::middleware(['auth'])->group(function () {
     // Memorandum routes moved to Workdoc section
     // AJAX: Pending approvals filtered by date range (no reload)
     Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
-        ->middleware('role:Hrd|Manager|Employee|Admin|Ceo|Head Manager')
         ->name('hrd.dashboard.pending');
 
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])
