@@ -369,7 +369,9 @@ class EmployeeScheduleController extends Controller
         $targetDates = collect(range(0, 6))->map(fn($i) => $targetStart->copy()->addDays($i)->toDateString());
         $sourceDates = collect(range(0, 6))->map(fn($i) => $sourceStart->copy()->addDays($i)->toDateString());
 
-        $employeeIds = Employee::whereRaw('LOWER(status) <> ?', ['tidak aktif'])->pluck('id');
+        $employeeIds = Employee::whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->whereDoesntHave('user.roles', fn($q) => $q->whereRaw('LOWER(name) = ?', ['ceo'])) // CEO tidak dijadwalkan
+            ->pluck('id');
 
         // Build a set of employee_id_date that should be treated as Libur/Cuti on target week
         $liburMap = [];
@@ -511,6 +513,8 @@ class EmployeeScheduleController extends Controller
     {
         $employees = Employee::with(['positions.divisions', 'user.roles'])
             ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            // Role CEO tidak dijadwalkan
+            ->whereDoesntHave('user.roles', fn($q) => $q->whereRaw('LOWER(name) = ?', ['ceo']))
             ->orderBy('nama')
             ->get();
 
