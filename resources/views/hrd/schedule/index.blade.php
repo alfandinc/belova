@@ -433,6 +433,8 @@
         sel.innerHTML = opts;
         sel.value = cur;
         if (sel.value !== cur) sel.value = '';
+        // Tanpa pengelompokan divisi, filter divisi tidak berguna
+        sel.style.display = document.querySelector('#sched-table tr.sched-division') ? '' : 'none';
     }
     function applyFilters() {
         var q = $id('emp-search').value.trim().toLowerCase();

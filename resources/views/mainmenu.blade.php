@@ -2108,7 +2108,7 @@
                             var me = key === 'karyawan' && p.id === state.data.me ? ' me' : '';
                             return '<div class="jv-row' + me + '"><div class="jv-name">' + personName(p) + '</div><div class="jv-val">' + right + '</div></div>';
                         }).join('');
-                        if (rows) { any = true; html += '<div class="jv-group">' + esc(g.name) + '</div>' + rows; }
+                        if (rows) { any = true; html += (g.name ? '<div class="jv-group">' + esc(g.name) + '</div>' : '') + rows; }
                     });
                     return any ? html : html + '<div class="jv-empty">Tidak ada jadwal ' + (key === 'dokter' ? 'dokter ' : '') + 'di hari ini.</div>';
                 }
@@ -2124,7 +2124,7 @@
                         var people = (key === 'dokter' ? g.dokters : g.employees).filter(function (p) { return matches(p.nama); });
                         if (!people.length) return;
                         any = true;
-                        html += '<tr class="jv-group-row"><td colspan="' + (dates.length + 1) + '"><span class="jv-group-label">' + esc(g.name) + '</span></td></tr>';
+                        if (g.name) html += '<tr class="jv-group-row"><td colspan="' + (dates.length + 1) + '"><span class="jv-group-label">' + esc(g.name) + '</span></td></tr>';
                         people.forEach(function (p) {
                             var me = key === 'karyawan' && p.id === state.data.me ? ' class="me"' : '';
                             html += '<tr' + me + '><td class="jv-sticky jv-name">' + personName(p) + '</td>';

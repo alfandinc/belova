@@ -59,9 +59,11 @@
         </thead>
         <tbody>
             @foreach($employeesByDivision as $divisionName => $employees)
+                @if($divisionName !== '')
                 <tr>
                     <td colspan="{{ count($dates) + 1 }}" class="division-header" style="text-align:left;">{{ $divisionName }}</td>
                 </tr>
+                @endif
                 @foreach($employees as $employee)
                     @php
                         $hasSchedule = false;

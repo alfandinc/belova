@@ -43,6 +43,7 @@
         </thead>
         <tbody>
             @foreach($employeesByDivision as $divisionName => $employees)
+                @if($divisionName !== '')
                 <tr class="sched-division" data-division="{{ $divisionName }}">
                     <td colspan="{{ count($dates) + 1 }}">
                         <i class="fa fa-chevron-down sched-caret"></i>
@@ -50,6 +51,7 @@
                         <span class="badge badge-light ml-1">{{ count($employees) }}</span>
                     </td>
                 </tr>
+                @endif
                 @foreach($employees as $employee)
                     <tr class="employee-row" data-division="{{ $divisionName }}" data-name="{{ strtolower($employee->nama) }}">
                         <td class="sched-name-col sched-emp" title="Klik untuk memilih satu minggu">

@@ -503,8 +503,8 @@ class EmployeeScheduleController extends Controller
     }
 
     /**
-     * Kelompokkan karyawan aktif per divisi (dari posisi utama), lalu urutkan
-     * berdasarkan hierarki organisasi: posisi paling atas (CEO) di atas, lalu bawahannya.
+     * Kelompokkan karyawan aktif untuk jadwal: Head Manager, Manager on Duty, lalu per divisi.
+     * Di dalam tiap kelompok diurutkan berdasarkan hierarki organisasi (atasan di atas).
      * Urutan: kedalaman hierarki -> level jabatan -> nama posisi -> nama karyawan.
      */
     private function groupEmployeesByDivision()
@@ -542,25 +542,41 @@ class EmployeeScheduleController extends Controller
         $rows = $employees->map(function ($emp) use ($levelRank, $depth) {
             $position = $emp->positions->first(fn($p) => (int) $p->pivot->is_primary === 1) ?? $emp->positions->first();
             $division = $position ? $position->divisions->first() : null;
+            $d = $position ? $depth($position->id) : 999;
+
+            // Kelompok jadwal:
+            //  1. Head Manager  : direktur/CEO (puncak) & posisi langsung di bawahnya
+            //  2. Manager on Duty: level Manager / Penanggung Jawab, atau bawahan langsung Head Manager
+            //  3. Sisanya dipisah per divisi
+            if ($d <= 1) {
+                $group = 'Head Manager';
+                $groupOrder = 0;
+            } elseif ($d === 2 || in_array($position?->level, ['Manager', 'Penanggung Jawab'], true)) {
+                $group = 'Manager on Duty';
+                $groupOrder = 1;
+            } else {
+                $group = $division?->name ?? 'Tanpa Divisi';
+                $groupOrder = $division ? 2 : 3;
+            }
 
             $emp->schedule_position_name = $position?->name;
+            $emp->schedule_group_order = $groupOrder;
             $emp->schedule_sort = [
-                $position ? $depth($position->id) : 999,
+                $d,
                 -($levelRank[$position?->level] ?? -1),
                 strtolower($position?->name ?? 'zzz'),
                 strtolower($emp->nama),
             ];
 
-            return ['division' => $division?->name ?? 'Tanpa Divisi', 'employee' => $emp];
+            return ['group' => $group, 'employee' => $emp];
         });
 
-        return $rows->groupBy('division')
-            ->map(fn($group) => $group->pluck('employee')
+        return $rows->groupBy('group')
+            ->map(fn($items) => $items->pluck('employee')
                 ->sort(fn($a, $b) => $a->schedule_sort <=> $b->schedule_sort)
                 ->values())
-            // Divisi diurutkan berdasarkan posisi tertinggi di dalamnya, "Tanpa Divisi" paling bawah
-            ->sort(fn($a, $b) => array_slice($a->first()->schedule_sort, 0, 2) <=> array_slice($b->first()->schedule_sort, 0, 2))
-            ->sortBy(fn($group, $name) => $name === 'Tanpa Divisi' ? 1 : 0);
+            // Head Manager -> Manager on Duty -> divisi (urut posisi tertinggi di dalamnya, lalu nama) -> Tanpa Divisi
+            ->sortBy(fn($items, $name) => [$items->first()->schedule_group_order, $items->first()->schedule_sort[0], strtolower($name)]);
     }
 
 
