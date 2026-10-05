@@ -504,8 +504,8 @@ class EmployeeScheduleController extends Controller
 
     /**
      * Kelompokkan karyawan aktif per divisi (dari posisi utama), lalu urutkan
-     * posisi tertinggi di atas: level jabatan dulu, kemudian kedalaman hierarki
-     * (posisi tanpa atasan di divisi tsb paling atas), lalu nama posisi & nama karyawan.
+     * berdasarkan hierarki organisasi: posisi paling atas (CEO) di atas, lalu bawahannya.
+     * Urutan: kedalaman hierarki -> level jabatan -> nama posisi -> nama karyawan.
      */
     private function groupEmployeesByDivision()
     {
@@ -516,23 +516,27 @@ class EmployeeScheduleController extends Controller
 
         $levelRank = array_flip(Position::LEVEL_OPTIONS); // Staff=0 ... Direktur=5
 
-        // [division_id][position_id] => [parent_position_id, ...]
+        // position_id => [parent_position_id, ...] (lintas divisi, hierarki berlaku untuk seluruh organisasi)
         $parents = [];
-        foreach (PositionDivision::all(['position_id', 'division_id', 'parent_position_id']) as $row) {
-            $parents[$row->division_id][$row->position_id][] = $row->parent_position_id;
+        foreach (PositionDivision::all(['position_id', 'parent_position_id']) as $row) {
+            $parents[$row->position_id][] = $row->parent_position_id;
         }
-        $depth = function ($positionId, $divisionId) use ($parents) {
-            $d = 0;
-            $seen = [];
-            $current = $positionId;
-            while ($current && !isset($seen[$current])) {
-                $seen[$current] = true;
-                $parentId = collect($parents[$divisionId][$current] ?? [])->filter()->first();
-                if (!$parentId) break;
-                $d++;
-                $current = $parentId;
+
+        // Kedalaman di bagan organisasi: tanpa atasan = 0 (CEO), bawahannya +1, dst.
+        // Jika punya beberapa atasan, ambil jalur terpendek ke puncak.
+        $memo = [];
+        $depth = function ($positionId, array $visiting = []) use (&$depth, &$memo, $parents) {
+            if (isset($memo[$positionId])) return $memo[$positionId];
+            if (!isset($parents[$positionId])) return 99; // posisi belum dipetakan ke bagan
+            $parentIds = array_filter($parents[$positionId]);
+            if (!$parentIds) return $memo[$positionId] = 0;
+            $visiting[$positionId] = true;
+            $best = 99;
+            foreach ($parentIds as $parentId) {
+                if (isset($visiting[$parentId])) continue; // cegah siklus
+                $best = min($best, $depth($parentId, $visiting) + 1);
             }
-            return $d;
+            return $memo[$positionId] = $best;
         };
 
         $rows = $employees->map(function ($emp) use ($levelRank, $depth) {
@@ -541,8 +545,8 @@ class EmployeeScheduleController extends Controller
 
             $emp->schedule_position_name = $position?->name;
             $emp->schedule_sort = [
+                $position ? $depth($position->id) : 999,
                 -($levelRank[$position?->level] ?? -1),
-                $position && $division ? $depth($position->id, $division->id) : 99,
                 strtolower($position?->name ?? 'zzz'),
                 strtolower($emp->nama),
             ];
@@ -555,10 +559,7 @@ class EmployeeScheduleController extends Controller
                 ->sort(fn($a, $b) => $a->schedule_sort <=> $b->schedule_sort)
                 ->values())
             // Divisi diurutkan berdasarkan posisi tertinggi di dalamnya, "Tanpa Divisi" paling bawah
-            ->sort(function ($a, $b) {
-                return [$a->first()->schedule_sort[0], $a->first()->schedule_sort[1]]
-                    <=> [$b->first()->schedule_sort[0], $b->first()->schedule_sort[1]];
-            })
+            ->sort(fn($a, $b) => array_slice($a->first()->schedule_sort, 0, 2) <=> array_slice($b->first()->schedule_sort, 0, 2))
             ->sortBy(fn($group, $name) => $name === 'Tanpa Divisi' ? 1 : 0);
     }
 
