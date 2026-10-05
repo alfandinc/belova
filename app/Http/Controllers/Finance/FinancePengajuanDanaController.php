@@ -9,6 +9,7 @@ use App\Models\Finance\FinancePengajuanDanaItem;
 use App\Models\Finance\FinancePengajuanDanaApproval;
 use App\Models\Finance\FinanceDanaApprover;
 use App\Models\Finance\FinancePengajuanDanaPayment;
+use App\Models\Finance\FinancePengajuanDanaRealisasi;
 use App\Models\ERM\FakturBeli;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
@@ -487,7 +488,7 @@ class FinancePengajuanDanaController extends Controller
     public function data(Request $request)
     {
         // only the relations the table renders (employee.positions.divisions caused one division query per row)
-        $query = FinancePengajuanDana::with(['employee:id,user_id,nama', 'employee.user:id,name', 'approvals.approver.user:id,name', 'rekening', 'items:id,pengajuan_id,nama_item,notes'])
+        $query = FinancePengajuanDana::with(['employee:id,user_id,nama', 'employee.user:id,name', 'approvals.approver.user:id,name', 'rekening', 'items:id,pengajuan_id,nama_item,notes', 'realisasi'])
             ->withCount('approvals')
             ->withSum('payments as total_dibayar', 'nominal');
         $this->scopePengajuanVisibility($query);
@@ -528,6 +529,8 @@ class FinancePengajuanDanaController extends Controller
         $totalLevelsSql = "(SELECT COUNT(DISTINCT {$levelSql}) FROM finance_dana_approver fda WHERE {$chainSql})";
         $approvedLevelsSql = "(SELECT COUNT(DISTINCT {$levelSql}) FROM finance_dana_approver fda JOIN finance_pengajuan_dana_approval ap ON ap.approver_id = fda.id AND ap.pengajuan_id = finance_pengajuan_dana.id AND ap.status = 'approved' WHERE {$chainSql})";
         $declinedExistsSql = "(SELECT 1 FROM finance_pengajuan_dana_approval ap2 WHERE ap2.pengajuan_id = finance_pengajuan_dana.id AND (ap2.status = 'declined' OR ap2.status = 'rejected') LIMIT 1)";
+        // realisasi to do: paid, and the realisasi is missing or not settled yet
+        $realisasiSql = "finance_pengajuan_dana.payment_status = 'paid' AND NOT EXISTS (SELECT 1 FROM finance_pengajuan_dana_realisasi r WHERE r.pengajuan_id = finance_pengajuan_dana.id AND r.status = 'selesai')";
 
         // pending (menunggu): not declined and not fully approved
         $pendingSql = "NOT EXISTS {$declinedExistsSql} AND NOT ({$totalLevelsSql} > 0 AND {$approvedLevelsSql} >= {$totalLevelsSql})";
@@ -537,7 +540,8 @@ class FinancePengajuanDanaController extends Controller
         // badge counts for the status tabs (same filters except the tab itself), in one query
         $tabCounts = (clone $query)->toBase()
             ->select(DB::raw("SUM(CASE WHEN {$pendingSql} THEN 1 ELSE 0 END) AS menunggu, "
-                . "SUM(CASE WHEN {$approvedSql} AND COALESCE(finance_pengajuan_dana.payment_status, '') <> 'paid' THEN 1 ELSE 0 END) AS siap_bayar"))
+                . "SUM(CASE WHEN {$approvedSql} AND COALESCE(finance_pengajuan_dana.payment_status, '') <> 'paid' THEN 1 ELSE 0 END) AS siap_bayar, "
+                . "SUM(CASE WHEN {$realisasiSql} THEN 1 ELSE 0 END) AS realisasi"))
             ->first();
 
         if ($approvalStatus === 'declined') {
@@ -545,6 +549,8 @@ class FinancePengajuanDanaController extends Controller
             $query->whereRaw("EXISTS {$declinedExistsSql}");
         } elseif ($approvalStatus === 'approved') {
             $query->whereRaw($approvedSql);
+        } elseif ($approvalStatus === 'realisasi') {
+            $query->whereRaw($realisasiSql);
         } else {
             $query->whereRaw($pendingSql);
         }
@@ -560,6 +566,7 @@ class FinancePengajuanDanaController extends Controller
         };
         $currentUser = Auth::user();
         $currentUserIsApprover = $currentUser && $activeApprovers->contains('user_id', $currentUser->id);
+        $currentUserHasGlobalAccess = $this->getPengajuanVisibilityContext()['has_global_access'];
 
         return DataTables::of($query)
             ->filter(function($q) use ($request) {
@@ -641,7 +648,7 @@ class FinancePengajuanDanaController extends Controller
                 return '<ul class="items-summary"><li>' . $names->implode('</li><li>') . '</li></ul>';
             })
 
-            ->addColumn('actions', function ($row) use ($approvalState, $activeApprovers, $currentUserIsApprover) {
+            ->addColumn('actions', function ($row) use ($approvalState, $activeApprovers, $currentUserIsApprover, $currentUserHasGlobalAccess) {
                 $btns = '<div class="btn-group" role="group">';
 
                 // Only the employee who created the pengajuan can edit/delete it
@@ -683,6 +690,17 @@ class FinancePengajuanDanaController extends Controller
                 if ($state === 'approved' && !$isPaid && $currentUserIsApprover) {
                     $payLabel = $row->payment_status === 'partial' ? 'Bayar Sisa' : 'Bayar';
                     $btns .= '<button class="btn btn-sm btn-success pay-pengajuan ms-1" data-id="' . $row->id . '" title="' . $payLabel . '"><i class="fa fa-wallet mr-1"></i>' . $payLabel . '</button>';
+                }
+
+                // Realisasi: once paid, the pengaju (or admin/approver) reports what was actually spent
+                $realisasi = $row->realisasi;
+                if ($isPaid && ($isOwner || $currentUserHasGlobalAccess) && (!$realisasi || $realisasi->status !== 'selesai')) {
+                    $realLabel = $realisasi ? 'Edit Realisasi' : 'Realisasi';
+                    $btns .= '<button class="btn btn-sm btn-warning realisasi-pengajuan ms-1" data-id="' . $row->id . '" title="' . $realLabel . '"><i class="fa fa-receipt mr-1"></i>' . $realLabel . '</button>';
+                }
+                // Konfirmasi: a realisasi with a difference (money returned / overspent) is checked by an approver
+                if ($realisasi && $realisasi->status === 'menunggu_konfirmasi' && $currentUserIsApprover) {
+                    $btns .= '<button class="btn btn-sm btn-success confirm-realisasi ms-1" data-id="' . $row->id . '" title="Konfirmasi Realisasi"><i class="fa fa-check-double mr-1"></i>Konfirmasi</button>';
                 }
                 $btns .= '</div>';
                 return $btns;
@@ -754,6 +772,7 @@ class FinancePengajuanDanaController extends Controller
                     if ($dibayar > 0 && $dibayar < $grand) {
                         $extra .= '<div class="approval-info text-danger">Dibayar ' . e($this->rupiah($dibayar)) . ' dari ' . e($this->rupiah($grand)) . '</div>';
                     }
+                    $extra .= $this->realisasiStatusHtml($row->realisasi);
                 } elseif ($row->payment_status === 'partial') {
                     $color = '#fd7e14';
                     $label = '<i class="fa fa-adjust"></i> Dibayar Sebagian';
@@ -792,6 +811,7 @@ class FinancePengajuanDanaController extends Controller
             ->with('tab_counts', [
                 'menunggu' => (int) ($tabCounts->menunggu ?? 0),
                 'siap_bayar' => (int) ($tabCounts->siap_bayar ?? 0),
+                'realisasi' => (int) ($tabCounts->realisasi ?? 0),
             ])
             // send only what the table renders (raw model fields + relations were ~3KB per row)
             ->only(['id', 'kode_pengajuan', 'jenis_pengajuan', 'tanggal_pengajuan', 'grand_total', 'total_dibayar', 'payment_status', 'employee_name',
@@ -1021,7 +1041,7 @@ class FinancePengajuanDanaController extends Controller
     public function show($id)
     {
         $pengajuan = FinancePengajuanDana::with(['items', 'approvals', 'employee.user', 'division', 'rekening',
-            'payments.paidBy:id,name'])->findOrFail($id);
+            'payments.paidBy:id,name', 'realisasi.submittedBy:id,name', 'realisasi.confirmedBy:id,name'])->findOrFail($id);
         $this->authorizePengajuanAccess($pengajuan);
         $data = $pengajuan->toArray();
         $data['total_dibayar'] = (float) $pengajuan->payments->sum('nominal');
@@ -1449,6 +1469,152 @@ class FinancePengajuanDanaController extends Controller
             Storage::disk('public')->delete($buktiPath);
         }
         return $response;
+    }
+
+    /** Realisasi line under the payment status (paid pengajuan only). */
+    private function realisasiStatusHtml($realisasi): string
+    {
+        if (!$realisasi) {
+            return '<div class="approval-info" style="color:#d39e00;"><i class="fa fa-receipt"></i> Belum realisasi</div>';
+        }
+        if ($realisasi->status === 'selesai') {
+            return '<div class="approval-info" style="color:#28a745;"><i class="fa fa-receipt"></i> Realisasi selesai</div>';
+        }
+        $sisa = (float) $realisasi->sisa;
+        $diff = $sisa > 0 ? 'dikembalikan ' . $this->rupiah($sisa) : 'kurang ' . $this->rupiah(abs($sisa));
+        return '<div class="approval-info" style="color:#fd7e14;"><i class="fa fa-receipt"></i> Realisasi menunggu konfirmasi (' . e($diff) . ')</div>';
+    }
+
+    /**
+     * Submit (or revise) the realisasi of a paid pengajuan: actual amount spent per item, nota files,
+     * and, when money is left over, the bukti pengembalian.
+     * Body: items_json [{id, realisasi}], note, nota[] (files), bukti_pengembalian (file).
+     * sisa = total dibayar - total realisasi. No difference -> 'selesai';
+     * a difference -> 'menunggu_konfirmasi' until an approver confirms it.
+     */
+    public function submitRealisasi(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'items_json' => 'required|json',
+            'note' => 'nullable|string|max:1000',
+            'nota' => 'nullable|array|max:10',
+            'nota.*' => 'file|mimes:jpeg,png,jpg,pdf|max:4096',
+            'bukti_pengembalian' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:4096',
+        ], [
+            'items_json.required' => 'Isi realisasi per item',
+            'nota.max' => 'Maksimal 10 file nota',
+            'nota.*.mimes' => 'Nota harus berupa gambar (jpg/png) atau PDF',
+            'nota.*.max' => 'Ukuran nota maksimal 4MB per file',
+            'bukti_pengembalian.mimes' => 'Bukti pengembalian harus berupa gambar (jpg/png) atau PDF',
+            'bukti_pengembalian.max' => 'Ukuran bukti pengembalian maksimal 4MB',
+        ]);
+
+        $amounts = [];
+        foreach ((array) json_decode($validated['items_json'], true) as $row) {
+            if (!is_array($row) || empty($row['id'])) continue;
+            $amount = (float) ($row['realisasi'] ?? 0);
+            if ($amount < 0) {
+                return response()->json(['success' => false, 'message' => 'Realisasi item tidak boleh negatif'], 422);
+            }
+            $amounts[(int) $row['id']] = round($amount, 2);
+        }
+
+        $notaPaths = $this->storeFinanceFiles((array) $request->file('nota', []), 'finance/pengajuan/realisasi');
+        $pengembalianPath = $request->hasFile('bukti_pengembalian')
+            ? ($this->storeFinanceFiles([$request->file('bukti_pengembalian')], 'finance/pengajuan/realisasi')[0] ?? null)
+            : null;
+        $newFiles = array_values(array_filter(array_merge($notaPaths, [$pengembalianPath])));
+
+        $user = Auth::user();
+        $replacedFiles = [];
+        $response = DB::transaction(function() use ($id, $amounts, $validated, $notaPaths, $pengembalianPath, $user, &$replacedFiles) {
+            $pengajuan = FinancePengajuanDana::whereKey($id)->lockForUpdate()->firstOrFail();
+            $this->authorizePengajuanAccess($pengajuan);
+
+            if ($pengajuan->payment_status !== 'paid') {
+                return response()->json(['success' => false, 'message' => 'Realisasi hanya bisa diisi setelah pengajuan dibayar.'], 422);
+            }
+            $realisasi = $pengajuan->realisasi()->first();
+            if ($realisasi && $realisasi->status === 'selesai') {
+                return response()->json(['success' => false, 'message' => 'Realisasi sudah selesai dan tidak dapat diubah.'], 422);
+            }
+
+            $items = $pengajuan->items()->get();
+            if ($items->pluck('id')->map('intval')->diff(array_keys($amounts))->isNotEmpty()) {
+                return response()->json(['success' => false, 'message' => 'Isi realisasi untuk semua item.'], 422);
+            }
+
+            $dibayar = (float) $pengajuan->payments()->sum('nominal');
+            $total = round(array_sum(array_intersect_key($amounts, array_flip($items->pluck('id')->all()))), 2);
+            $sisa = round($dibayar - $total, 2);
+            $hasDiff = abs($sisa) >= 0.01;
+            $note = trim((string) ($validated['note'] ?? ''));
+            if ($hasDiff && $note === '') {
+                return response()->json(['success' => false, 'message' => 'Catatan wajib diisi jika realisasi berbeda dengan yang dibayar.'], 422);
+            }
+
+            foreach ($items as $item) {
+                $item->realisasi = $amounts[$item->id];
+                $item->save();
+            }
+
+            $realisasi = $realisasi ?: new FinancePengajuanDanaRealisasi(['pengajuan_id' => $pengajuan->id]);
+            // new notas are added to the ones already uploaded; a new bukti pengembalian replaces the old one
+            $realisasi->nota = array_values(array_merge((array) ($realisasi->nota ?? []), $notaPaths));
+            if ($pengembalianPath) {
+                if ($realisasi->bukti_pengembalian) $replacedFiles[] = $realisasi->bukti_pengembalian;
+                $realisasi->bukti_pengembalian = $pengembalianPath;
+            }
+            $realisasi->fill([
+                'total_realisasi' => $total,
+                'sisa' => $sisa,
+                'note' => $note !== '' ? $note : null,
+                'status' => $hasDiff ? 'menunggu_konfirmasi' : 'selesai',
+                'submitted_by' => $user ? $user->id : null,
+                'submitted_at' => Carbon::now(),
+                'confirmed_by' => null,
+                'confirmed_at' => null,
+            ]);
+            $realisasi->save();
+
+            if (!$hasDiff) {
+                $message = 'Realisasi disimpan dan selesai';
+            } elseif ($sisa > 0) {
+                $message = 'Realisasi disimpan. Sisa dana ' . $this->rupiah($sisa) . ' dikembalikan, menunggu konfirmasi.';
+            } else {
+                $message = 'Realisasi disimpan. Kekurangan ' . $this->rupiah(abs($sisa)) . ', menunggu konfirmasi.';
+            }
+            return response()->json(['success' => true, 'message' => $message]);
+        });
+
+        // refused inside the transaction: the uploaded files are not referenced anywhere
+        if ($response->getStatusCode() !== 200) {
+            Storage::disk('public')->delete($newFiles);
+        } elseif (!empty($replacedFiles)) {
+            Storage::disk('public')->delete($replacedFiles);
+        }
+        return $response;
+    }
+
+    /** An active approver confirms a realisasi with a difference (money returned / overspent) -> 'selesai'. */
+    public function confirmRealisasi($id)
+    {
+        $user = Auth::user();
+        if (!$user || !$this->loadActiveApprovers()->contains('user_id', $user->id)) {
+            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+        }
+
+        return DB::transaction(function() use ($id, $user) {
+            $realisasi = FinancePengajuanDanaRealisasi::where('pengajuan_id', $id)->lockForUpdate()->first();
+            if (!$realisasi || $realisasi->status !== 'menunggu_konfirmasi') {
+                return response()->json(['success' => false, 'message' => 'Tidak ada realisasi yang menunggu konfirmasi.'], 422);
+            }
+            $realisasi->status = 'selesai';
+            $realisasi->confirmed_by = $user->id;
+            $realisasi->confirmed_at = Carbon::now();
+            $realisasi->save();
+            return response()->json(['success' => true, 'message' => 'Realisasi dikonfirmasi']);
+        });
     }
 
     /**

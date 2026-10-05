@@ -62,4 +62,10 @@ class FinancePengajuanDana extends Model
     public function payments()
     {
         return $this->hasMany(FinancePengajuanDanaPayment::class, 'pengajuan_id')->orderBy('tanggal_bayar')->orderBy('id');
-    }}
+    }
+
+    public function realisasi()
+    {
+        return $this->hasOne(FinancePengajuanDanaRealisasi::class, 'pengajuan_id');
+    }
+}

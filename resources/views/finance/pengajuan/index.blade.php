@@ -291,6 +291,10 @@
                                                 <h6 class="detail-section mt-3">Pembayaran</h6>
                                                 <div id="dt_pembayaran"></div>
                                             </div>
+                                            <div id="dt_realisasi_wrap" style="display:none;">
+                                                <h6 class="detail-section mt-3">Realisasi</h6>
+                                                <div id="dt_realisasi"></div>
+                                            </div>
                                         </div>
                                         <div class="modal-footer">
                                             <a href="#" class="btn btn-outline-secondary mr-auto" id="dt_pdf" target="_blank"><i class="fa fa-file-pdf mr-1"></i>Cetak PDF</a>
@@ -493,6 +497,62 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Realisasi Modal: actual amount spent per item, nota, and bukti pengembalian when money is left over -->
+                            <div class="modal fade" id="realisasiModal" tabindex="-1" role="dialog" aria-labelledby="realisasiModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-lg" role="document">
+                                    <div class="modal-content">
+                                        <form id="realisasiForm" autocomplete="off">
+                                            <input type="hidden" id="realisasi_id" value="">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="realisasiModalLabel">Realisasi Pengajuan</h5>
+                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-bordered mb-3" id="realisasiItemsTable">
+                                                        <thead class="thead-light">
+                                                            <tr>
+                                                                <th style="width:5%">#</th>
+                                                                <th>Nama Item</th>
+                                                                <th class="text-right" style="width:20%">Diajukan</th>
+                                                                <th class="text-right" style="width:24%">Realisasi <span class="text-danger">*</span></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody></tbody>
+                                                    </table>
+                                                </div>
+                                                <table class="table table-sm mb-3">
+                                                    <tr><td class="text-muted">Total dibayar</td><td class="text-right" id="realisasi_dibayar">-</td></tr>
+                                                    <tr><td class="text-muted">Total realisasi</td><td class="text-right" id="realisasi_total">-</td></tr>
+                                                    <tr><th id="realisasi_sisa_label">Selisih</th><th class="text-right" id="realisasi_sisa">-</th></tr>
+                                                </table>
+                                                <div id="realisasi_diff_box" class="alert alert-warning py-2" style="display:none;"></div>
+                                                <div class="form-row">
+                                                    <div class="form-group col-md-6">
+                                                        <label for="realisasi_nota" class="mb-1">Nota / kwitansi</label>
+                                                        <input type="file" class="form-control-file" id="realisasi_nota" accept="image/*,application/pdf" multiple>
+                                                        <div id="realisasi_nota_existing" class="small mt-1"></div>
+                                                    </div>
+                                                    <div class="form-group col-md-6" id="realisasi_pengembalian_group" style="display:none;">
+                                                        <label for="realisasi_pengembalian" class="mb-1">Bukti pengembalian dana</label>
+                                                        <input type="file" class="form-control-file" id="realisasi_pengembalian" accept="image/*,application/pdf">
+                                                        <div id="realisasi_pengembalian_existing" class="small mt-1"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="form-group mb-0">
+                                                    <label for="realisasi_note" class="mb-1">Catatan <span class="text-danger" id="realisasi_note_required" style="display:none;">* wajib jika ada selisih</span></label>
+                                                    <textarea class="form-control" id="realisasi_note" rows="2" placeholder="Mis. harga barang turun / ada tambahan ongkir"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                                <button type="submit" class="btn btn-warning" id="realisasi_submit"><i class="fa fa-receipt mr-1"></i>Simpan Realisasi</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                     <div class="card-body">
                         <!-- status tabs left, filters right (same layout as Billing) -->
                         <div class="d-flex flex-wrap align-items-center justify-content-between" style="gap: .5rem;">
@@ -505,6 +565,11 @@
                                 <li class="nav-item" role="presentation">
                                     <a class="nav-link" href="#" data-status="approved" role="tab" title="Badge: sudah disetujui, belum dibayar">
                                         Disetujui <span id="pj-tab-badge-approved" class="badge badge-primary ml-2" style="display:none;">0</span>
+                                    </a>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <a class="nav-link" href="#" data-status="realisasi" role="tab" title="Sudah dibayar, realisasi belum selesai">
+                                        Realisasi <span id="pj-tab-badge-realisasi" class="badge badge-warning ml-2" style="display:none;">0</span>
                                     </a>
                                 </li>
                                 <li class="nav-item" role="presentation">
@@ -1088,6 +1153,7 @@ $(document).ready(function() {
         };
         setBadge($('#pj-tab-badge-menunggu'), counts.menunggu);
         setBadge($('#pj-tab-badge-approved'), counts.siap_bayar);
+        setBadge($('#pj-tab-badge-realisasi'), counts.realisasi);
     });
 
     function formatNominal(n) {
@@ -1763,6 +1829,155 @@ $(document).ready(function() {
         }).join('');
     }
 
+    // ----- Realisasi: actual amount spent per item after the pengajuan is paid -----
+    // amount requested for one item (faktur rows use their snapshot total)
+    function itemDiajukan(it) {
+        if (it.harga_total_snapshot !== null && it.harga_total_snapshot !== undefined) return Number(it.harga_total_snapshot);
+        return Number(it.jumlah || 0) * Number(it.harga_satuan || 0);
+    }
+
+    var realisasiDibayar = 0;
+
+    // sisa = dibayar - realisasi: > 0 money is returned, < 0 overspent
+    function updateRealisasiTotals() {
+        var total = 0;
+        $('#realisasiItemsTable .realisasi-amount').each(function() { total += parseRupiah($(this).val()); });
+        var sisa = Math.round((realisasiDibayar - total) * 100) / 100;
+        var hasDiff = Math.abs(sisa) >= 0.01;
+        $('#realisasi_total').text(formatNominal(total));
+        $('#realisasi_sisa_label').text(sisa > 0 ? 'Sisa dana (dikembalikan)' : (sisa < 0 ? 'Kekurangan' : 'Selisih'));
+        $('#realisasi_sisa').text(formatNominal(Math.abs(sisa))).toggleClass('text-danger', hasDiff);
+        $('#realisasi_note_required').toggle(hasDiff);
+        $('#realisasi_pengembalian_group').toggle(sisa > 0);
+        if (hasDiff) {
+            $('#realisasi_diff_box').html(sisa > 0
+                ? 'Sisa dana <strong>' + formatNominal(sisa) + '</strong> harus dikembalikan. Upload bukti pengembalian; realisasi menunggu konfirmasi.'
+                : 'Realisasi melebihi yang dibayar <strong>' + formatNominal(-sisa) + '</strong>. Realisasi menunggu konfirmasi.').show();
+        } else {
+            $('#realisasi_diff_box').hide();
+        }
+        return { total: total, sisa: sisa, hasDiff: hasDiff };
+    }
+
+    $('#pengajuanTable').on('click', '.realisasi-pengajuan', function() {
+        var id = $(this).data('id');
+        $('#realisasiForm')[0].reset();
+        $('#realisasi_id').val(id);
+        $('#realisasiItemsTable tbody').html('<tr><td colspan="4" class="text-center text-muted">Memuat...</td></tr>');
+        $('#realisasi_nota_existing, #realisasi_pengembalian_existing').empty();
+        $.get('/finance/pengajuan-dana/' + id, function(res) {
+            var real = res.realisasi || null;
+            realisasiDibayar = Number(res.total_dibayar || 0);
+            $('#realisasiModalLabel').text('Realisasi Pengajuan - ' + (res.kode_pengajuan || ''));
+            $('#realisasi_dibayar').text(formatNominal(realisasiDibayar));
+            $('#realisasi_note').val(real && real.note ? real.note : '');
+            if (real) {
+                $('#realisasi_nota_existing').html(fileLinks(real.nota, 'Nota'));
+                if (real.bukti_pengembalian) $('#realisasi_pengembalian_existing').html(fileLinks([real.bukti_pengembalian], 'Bukti') + ' <span class="text-muted">(upload baru untuk mengganti)</span>');
+            }
+            var rows = (res.items || []).map(function(it, i) {
+                var diajukan = itemDiajukan(it);
+                // prefill: saved realisasi, otherwise the requested amount
+                var val = (it.realisasi !== null && it.realisasi !== undefined) ? Number(it.realisasi) : diajukan;
+                return '<tr>' +
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + escapeHtmlRek(it.nama_item) + (it.notes ? '<div><small class="text-muted">' + escapeHtmlRek(it.notes) + '</small></div>' : '') + '</td>' +
+                    '<td class="text-right text-nowrap">' + formatNominal(diajukan) + '</td>' +
+                    '<td><input type="text" class="form-control form-control-sm text-right realisasi-amount" inputmode="numeric" data-item-id="' + it.id + '" value="' + formatNominal(val) + '"></td>' +
+                '</tr>';
+            });
+            $('#realisasiItemsTable tbody').html(rows.join('') || '<tr><td colspan="4" class="text-center text-muted">Tidak ada item</td></tr>');
+            updateRealisasiTotals();
+            $('#realisasiModal').modal('show');
+        }).fail(function() {
+            Swal.fire('Error', 'Gagal memuat data pengajuan', 'error');
+        });
+    });
+
+    $(document).on('input', '#realisasiItemsTable .realisasi-amount', updateRealisasiTotals);
+    $(document).on('blur', '#realisasiItemsTable .realisasi-amount', function() {
+        $(this).val(formatNominal(parseRupiah($(this).val())));
+        updateRealisasiTotals();
+    });
+
+    $('#realisasiForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#realisasi_id').val();
+        var totals = updateRealisasiTotals();
+        if (totals.hasDiff && !$.trim($('#realisasi_note').val())) {
+            Swal.fire('Validasi', 'Catatan wajib diisi jika realisasi berbeda dengan yang dibayar', 'warning');
+            return;
+        }
+        var items = [];
+        $('#realisasiItemsTable .realisasi-amount').each(function() {
+            items.push({ id: $(this).data('item-id'), realisasi: parseRupiah($(this).val()) });
+        });
+        var fd = new FormData();
+        fd.append('items_json', JSON.stringify(items));
+        fd.append('note', $('#realisasi_note').val() || '');
+        $.each($('#realisasi_nota')[0].files, function(i, f) { fd.append('nota[]', f); });
+        var pengembalian = $('#realisasi_pengembalian')[0].files[0];
+        if (pengembalian && totals.sisa > 0) fd.append('bukti_pengembalian', pengembalian);
+        var $btn = $('#realisasi_submit').prop('disabled', true);
+        $.ajax({
+            url: '/finance/pengajuan-dana/' + id + '/realisasi',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res) {
+                $('#realisasiModal').modal('hide');
+                Swal.fire('Sukses', res.message || 'Realisasi disimpan', 'success');
+                table.ajax.reload(null, false);
+            },
+            error: function(xhr) {
+                Swal.fire('Error', ajaxErrorMessage(xhr, 'Gagal menyimpan realisasi'), 'error');
+            },
+            complete: function() { $btn.prop('disabled', false); }
+        });
+    });
+
+    // Konfirmasi realisasi with a difference (approver)
+    $('#pengajuanTable').on('click', '.confirm-realisasi', function() {
+        var id = $(this).data('id');
+        $.get('/finance/pengajuan-dana/' + id, function(res) {
+            var real = res.realisasi || {};
+            var sisa = Number(real.sisa || 0);
+            var html = '<table class="table table-sm text-left mb-2">' +
+                '<tr><td>Total dibayar</td><td class="text-right">' + formatNominal(res.total_dibayar) + '</td></tr>' +
+                '<tr><td>Total realisasi</td><td class="text-right">' + formatNominal(real.total_realisasi) + '</td></tr>' +
+                '<tr><th>' + (sisa > 0 ? 'Sisa dana dikembalikan' : 'Kekurangan') + '</th><th class="text-right text-danger">' + formatNominal(Math.abs(sisa)) + '</th></tr>' +
+                '</table>' +
+                (real.note ? '<div class="text-left small mb-1"><strong>Catatan:</strong> ' + escapeHtmlRek(real.note) + '</div>' : '') +
+                '<div class="text-left small">' + fileLinks(real.nota, 'Nota') + (real.bukti_pengembalian ? fileLinks([real.bukti_pengembalian], 'Bukti pengembalian') : '') + '</div>';
+            Swal.fire({
+                title: 'Konfirmasi Realisasi ' + (res.kode_pengajuan || ''),
+                html: html,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Konfirmasi',
+                cancelButtonText: 'Batal'
+            }).then(function(result) {
+                if (!(result.isConfirmed || result.value)) return;
+                $.ajax({
+                    url: '/finance/pengajuan-dana/' + id + '/realisasi/confirm',
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                    success: function(r) {
+                        Swal.fire('Sukses', r.message || 'Realisasi dikonfirmasi', 'success');
+                        table.ajax.reload(null, false);
+                    },
+                    error: function(xhr) {
+                        Swal.fire('Error', ajaxErrorMessage(xhr, 'Gagal konfirmasi realisasi'), 'error');
+                    }
+                });
+            });
+        }).fail(function() {
+            Swal.fire('Error', 'Gagal memuat data pengajuan', 'error');
+        });
+    });
+
     // Select all toggle (current page only)
     $(document).on('change', '#select_all_rows', function(){
         var checked = $(this).is(':checked');
@@ -2345,8 +2560,8 @@ $(document).ready(function() {
         $tbody.html('<tr><td colspan="6" class="text-center text-muted">Memuat...</td></tr>');
         $('#itemsDetailGrandTotal').text('');
         $bukti.empty();
-        $('#dt_pembayaran_wrap').hide();
-        $('#dt_pembayaran').empty();
+        $('#dt_pembayaran_wrap, #dt_realisasi_wrap').hide();
+        $('#dt_pembayaran, #dt_realisasi').empty();
         $('#dt_pdf').attr('href', '/finance/pengajuan-dana/' + id + '/pdf');
         $('#itemsDetailModal').modal('show');
         $.get('/finance/pengajuan-dana/' + id, function(res) {
@@ -2399,6 +2614,7 @@ $(document).ready(function() {
             }
 
             renderDetailPembayaran(res);
+            renderDetailRealisasi(res);
 
             // items
             var items = res.items || [];
@@ -2460,6 +2676,49 @@ $(document).ready(function() {
             '<thead class="thead-light"><tr><th style="width:5%">#</th><th>Tanggal</th><th class="text-right">Nominal</th><th>Catatan</th><th>Oleh</th></tr></thead>' +
             '<tbody>' + rows.join('') + '</tbody><tfoot>' + foot + '</tfoot></table></div>');
         $('#dt_pembayaran_wrap').show();
+    }
+
+    // Detail modal: realisasi per item, totals, status, nota and bukti pengembalian
+    function renderDetailRealisasi(res) {
+        var real = res.realisasi;
+        if (!real) {
+            if (res.payment_status === 'paid') {
+                $('#dt_realisasi').html('<div class="text-muted"><i class="fa fa-exclamation-triangle text-warning mr-1"></i>Belum ada realisasi.</div>');
+                $('#dt_realisasi_wrap').show();
+            }
+            return;
+        }
+        var rows = (res.items || []).map(function(it, i) {
+            var diajukan = itemDiajukan(it);
+            var r = Number(it.realisasi || 0);
+            return '<tr>' +
+                '<td>' + (i + 1) + '</td>' +
+                '<td>' + escapeHtmlRek(it.nama_item) + '</td>' +
+                '<td class="text-right text-nowrap">' + formatNominal(diajukan) + '</td>' +
+                '<td class="text-right text-nowrap' + (Math.abs(r - diajukan) >= 0.01 ? ' text-danger' : '') + '">' + formatNominal(r) + '</td>' +
+            '</tr>';
+        });
+        var sisa = Number(real.sisa || 0);
+        var foot = '<tr><th colspan="3" class="text-right">Total dibayar</th><th class="text-right text-nowrap">' + formatNominal(res.total_dibayar) + '</th></tr>' +
+            '<tr><th colspan="3" class="text-right">Total realisasi</th><th class="text-right text-nowrap">' + formatNominal(real.total_realisasi) + '</th></tr>';
+        if (Math.abs(sisa) >= 0.01) {
+            foot += '<tr><th colspan="3" class="text-right">' + (sisa > 0 ? 'Sisa dana (dikembalikan)' : 'Kekurangan') + '</th><th class="text-right text-nowrap text-danger">' + formatNominal(Math.abs(sisa)) + '</th></tr>';
+        }
+        var status = real.status === 'selesai'
+            ? '<span class="badge badge-success">Selesai</span>'
+            : '<span class="badge badge-warning">Menunggu konfirmasi</span>';
+        var info = '<div class="mb-2">' + status +
+            ' <small class="text-muted ml-1">diisi ' + escapeHtmlRek((real.submitted_by && real.submitted_by.name) || '') + ', ' + escapeHtmlRek(formatTanggalWaktu(real.submitted_at)) +
+            (real.confirmed_at ? ' &middot; dikonfirmasi ' + escapeHtmlRek((real.confirmed_by && real.confirmed_by.name) || '') + ', ' + escapeHtmlRek(formatTanggalWaktu(real.confirmed_at)) : '') +
+            '</small></div>';
+        var extra = '';
+        if (real.note) extra += '<div class="small mt-2"><strong>Catatan:</strong> ' + escapeHtmlRek(real.note) + '</div>';
+        var files = fileLinks(real.nota, 'Nota') + (real.bukti_pengembalian ? fileLinks([real.bukti_pengembalian], 'Bukti pengembalian') : '');
+        if (files) extra += '<div class="small mt-1">' + files + '</div>';
+        $('#dt_realisasi').html(info + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0">' +
+            '<thead class="thead-light"><tr><th style="width:5%">#</th><th>Nama Item</th><th class="text-right">Diajukan</th><th class="text-right">Realisasi</th></tr></thead>' +
+            '<tbody>' + rows.join('') + '</tbody><tfoot>' + foot + '</tfoot></table></div>' + extra);
+        $('#dt_realisasi_wrap').show();
     }
 
     // upload bukti from the detail modal: close detail, then open the existing upload modal
