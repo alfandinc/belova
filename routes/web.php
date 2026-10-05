@@ -1628,7 +1628,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::post('dokter-schedule/move/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'moveJadwal'])->name('hrd.dokter-schedule.move');
     Route::post('dokter-schedule/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'store'])->name('hrd.dokter-schedule.store');
     Route::post('dokter-schedule/save-week', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'saveWeek'])->name('hrd.dokter-schedule.save_week');
-    Route::post('dokter-schedule/copy-week', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'copyWeek'])->name('hrd.dokter-schedule.copy_week');
+    Route::get('dokter-schedule/view-data', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'viewData'])->name('hrd.dokter-schedule.view_data');
+    Route::get('schedule/view-data', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'viewData'])->name('hrd.schedule.view_data');
+    Route::post('dokter-schedule/copy-week',[\App\Http\Controllers\HRD\DokterScheduleController::class, 'copyWeek'])->name('hrd.dokter-schedule.copy_week');
     // Create or update doctor shifts (HRD)
     Route::post('dokter-shifts/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeShift'])->name('hrd.dokter-shifts.store');
     Route::post('dokter-shifts/update/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateShift'])->name('hrd.dokter-shifts.update');

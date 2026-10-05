@@ -43,6 +43,8 @@
     #shift-picker .sp-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; font-size: 13px; }
     #shift-picker .sp-item:hover { background: #f1f5ff; }
     #shift-picker .sp-dot { width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; flex: none; }
+    .sc-gl { background: #fd7e14 !important; color: #fff !important; }
+    .sched-palette .pal-chip.sc-gl kbd { background: rgba(0,0,0,.25); }
     #shift-picker .sp-time { color: #6c757d; font-size: 11px; margin-left: auto; margin-right: 6px; }
     #shift-picker .sp-add { border: 1px solid #ccc; background: #fff; border-radius: 3px; font-size: 11px; padding: 0 5px; line-height: 18px; }
     #shift-picker .sp-add:hover { background: #1e88e5; color: #fff; border-color: #1e88e5; }
@@ -94,7 +96,7 @@
         </div>
         <div id="sched-help" class="collapse small text-muted sched-help mt-2">
             <b>Pilih sel:</b> klik / tarik (drag) untuk blok, <kbd>Shift</kbd>+klik untuk rentang, <kbd>Ctrl</kbd>+klik tambah sel, klik nama karyawan = 1 minggu, klik header hari = 1 kolom.
-            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>Del</kbd> kosongkan.
+            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>G</kbd> = ganti libur (jatah -1); <kbd>Del</kbd> kosongkan.
             &nbsp;<b>Lainnya:</b> <kbd>←↑↓→</kbd> pindah sel, <kbd>Enter</kbd> buka pilihan, <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Ctrl+Z</kbd> undo, <kbd>Ctrl+S</kbd> simpan, <kbd>Esc</kbd> batal pilih.
         </div>
     </div>
@@ -233,6 +235,11 @@
     function renderCell(td) {
         var ids = getIds(td);
         if (!ids.length) { td.innerHTML = '<span class="sc-empty">–</span>'; td.title = ''; return; }
+        if (ids[0] === 'GL') {
+            td.innerHTML = '<span class="sc-chip sc-gl">Ganti Libur</span>';
+            td.title = 'Ganti libur (jatah ganti libur -1)';
+            return;
+        }
         var html = '', titles = [];
         ids.forEach(function (id) {
             var s = shiftMap[id];
@@ -248,6 +255,7 @@
     function setIds(td, ids, batch) {
         if (!isEditable(td)) return;
         ids = ids.filter(function (v, i, a) { return v && a.indexOf(v) === i; }).slice(0, 2);
+        if (ids.indexOf('GL') !== -1) ids = ['GL']; // ganti libur tidak digabung dengan shift
         var before = td.getAttribute('data-shifts') || '';
         var after = ids.join(',');
         if (before === after) return;
@@ -267,7 +275,7 @@
 
     function applyToSelection(fn) {
         var batch = [];
-        selected.forEach(function (td) { if (isEditable(td)) setIds(td, fn(getIds(td)), batch); });
+        selected.forEach(function (td) { if (isEditable(td)) setIds(td, fn(getIds(td), td), batch); });
         commitBatch(batch);
         if (!batch.length && selected.size) showAlert('info', 'Tidak ada perubahan');
     }
@@ -275,12 +283,25 @@
     function addShift(id) {
         id = String(id);
         applyToSelection(function (ids) {
-            if (!ids.length) return [id];
+            if (!ids.length || ids[0] === 'GL') return [id];
             if (ids.indexOf(id) !== -1) return ids;
             return [ids[0], id];
         });
     }
     function clearShift() { applyToSelection(function () { return []; }); }
+    // Tandai hari ganti libur (jatah -1 saat disimpan). Tidak berlaku di hari Minggu / libur nasional.
+    function setGantiLibur() {
+        var skipped = 0;
+        applyToSelection(function (ids, td) {
+            if (isHariGantiLibur(td)) { skipped++; return ids; }
+            return ['GL'];
+        });
+        if (skipped) showAlert('info', skipped + ' sel hari Minggu/libur nasional dilewati');
+    }
+    function isHariGantiLibur(td) {
+        var th = document.querySelector('#sched-table th.sched-day-head[data-col="' + td.getAttribute('data-col') + '"]');
+        return th && th.hasAttribute('data-hari-ganti-libur');
+    }
 
     function undo() {
         var batch = undoStack.pop();
@@ -309,7 +330,7 @@
         var counts = [0, 0, 0, 0, 0, 0, 0], libur = [0, 0, 0, 0, 0, 0, 0];
         table.querySelectorAll('tbody td.sc').forEach(function (td) {
             var c = +td.getAttribute('data-col');
-            if (td.hasAttribute('data-libur')) libur[c]++;
+            if (td.hasAttribute('data-libur') || td.getAttribute('data-shifts') === 'GL') libur[c]++;
             else if (td.getAttribute('data-shifts')) counts[c]++;
         });
         table.querySelectorAll('tfoot .sched-count').forEach(function (td) {
@@ -368,10 +389,11 @@
             html += '<button type="button" class="pal-chip" data-shift-id="' + s.id + '" style="background:' + esc(bg) + ';color:' + contrast(bg) + '" title="' + esc(s.start + '–' + s.end) + ' · Shift+klik = shift kedua">' +
                 (i < 9 ? '<kbd>' + (i + 1) + '</kbd>' : '') + esc(s.name) + '</button>';
         });
+        html += '<button type="button" class="pal-chip pal-gl sc-gl" title="Jadikan hari ganti libur, jatah -1 (G)"><kbd>G</kbd>Ganti Libur</button>';
         html += '<button type="button" class="pal-chip pal-clear" style="background:#f1f3f5;color:#c62828" title="Kosongkan (Del)"><i class="fa fa-eraser"></i> Kosongkan</button>';
         el.innerHTML = html;
 
-        var list = '';
+        var list = '<div class="sp-item sp-gl"><span class="sp-dot sc-gl"></span><span><kbd class="mr-1" style="font-size:10px">G</kbd>Ganti Libur</span><span class="sp-time">jatah -1</span></div>';
         palette.forEach(function (s, i) {
             list += '<div class="sp-item" data-shift-id="' + s.id + '">' +
                 '<span class="sp-dot" style="background:' + esc(s.color || '#adb5bd') + '"></span>' +
@@ -523,7 +545,7 @@
         })
             .then(function (res) { return res.json(); })
             .then(function (data) {
-                if (!data || !data.success) throw new Error();
+                if (!data || !data.success) throw new Error((data && data.message) || '');
                 dirty.forEach(function (td) {
                     td.setAttribute('data-orig', td.getAttribute('data-shifts') || '');
                     td.classList.remove('dirty');
@@ -532,7 +554,7 @@
                 showSaveResult(dirty.length, data.ganti_libur || []);
                 return true;
             })
-            .catch(function () { showAlert('danger', 'Gagal menyimpan jadwal'); return false; })
+            .catch(function (err) { showAlert('danger', (err && err.message) || 'Gagal menyimpan jadwal'); return false; })
             .finally(function () { saving = false; showLoading(false); refreshStatus(); });
     }
 
@@ -541,8 +563,10 @@
         if (gantiLibur.length) {
             var rows = gantiLibur.map(function (g) {
                 var change = '';
-                if (g.added.length) change += '<div class="text-success font-weight-bold">+' + g.added.length + ' <small class="text-muted font-weight-normal">(Minggu ' + esc(g.added.join(', ')) + ')</small></div>';
-                if (g.removed.length) change += '<div class="text-danger font-weight-bold">-' + g.removed.length + ' <small class="text-muted font-weight-normal">(Minggu ' + esc(g.removed.join(', ')) + ')</small></div>';
+                if (g.added.length) change += '<div class="text-success font-weight-bold">+' + g.added.length + ' <small class="text-muted font-weight-normal">(kerja ' + esc(g.added.join(', ')) + ')</small></div>';
+                if (g.removed.length) change += '<div class="text-danger font-weight-bold">-' + g.removed.length + ' <small class="text-muted font-weight-normal">(jadwal ' + esc(g.removed.join(', ')) + ' dihapus)</small></div>';
+                if (g.used.length) change += '<div class="text-danger font-weight-bold">-' + g.used.length + ' <small class="text-muted font-weight-normal">(libur ' + esc(g.used.join(', ')) + ')</small></div>';
+                if (g.refunded.length) change += '<div class="text-success font-weight-bold">+' + g.refunded.length + ' <small class="text-muted font-weight-normal">(ganti libur ' + esc(g.refunded.join(', ')) + ' dibatalkan)</small></div>';
                 return '<tr><td class="text-left">' + esc(g.nama) + '</td><td class="text-left">' + change + '</td><td class="text-center font-weight-bold">' + g.saldo + '</td></tr>';
             }).join('');
             html += '<div class="mt-3 mb-1 font-weight-bold text-left">Perubahan Jatah Ganti Libur</div>' +
@@ -784,6 +808,7 @@
             if (!chip) return;
             if (!selected.size) { showAlert('info', 'Pilih sel terlebih dahulu'); return; }
             if (chip.classList.contains('pal-clear')) clearShift();
+            else if (chip.classList.contains('pal-gl')) setGantiLibur();
             else if (e.shiftKey) addShift(chip.getAttribute('data-shift-id'));
             else setShift(chip.getAttribute('data-shift-id'));
         });
@@ -791,6 +816,7 @@
         // Picker
         $id('shift-picker').addEventListener('mousedown', function (e) { e.stopPropagation(); });
         $id('sp-list').addEventListener('click', function (e) {
+            if (e.target.closest('.sp-gl')) { setGantiLibur(); closePicker(); return; }
             var addBtn = e.target.closest('.sp-add');
             if (addBtn) { addShift(addBtn.getAttribute('data-shift-id')); closePicker(); return; }
             var item = e.target.closest('.sp-item');
@@ -835,6 +861,7 @@
                 return;
             }
             if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); clearShift(); closePicker(); return; }
+            if (e.key.toLowerCase() === 'g' && !ctrl && !e.altKey) { e.preventDefault(); setGantiLibur(); closePicker(); return; }
             if (e.key === 'Enter') { e.preventDefault(); openPicker(); return; }
 
             var dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];

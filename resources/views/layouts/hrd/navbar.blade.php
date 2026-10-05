@@ -245,17 +245,6 @@
                 </a>
             </li>
             
-            <!-- For Managers: Team Management -->
-            @if(Auth::check() && $hasDirectSubordinates)
-            <li>
-                <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Divisi Saya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.division.mine') }}"><i class="ti-control-record"></i>Informasi Divisi</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.division.team') }}"><i class="ti-control-record"></i>Anggota Tim</a></li>
-                </ul>
-            </li>
-            @endif
-            
             <!-- For HRD and CEO: Employee Management -->
             @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Head Manager','Admin')))
             <li>

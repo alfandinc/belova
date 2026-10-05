@@ -95,6 +95,55 @@ class DokterScheduleController extends Controller
         return view('hrd.dokter_schedule.index', $viewData);
     }
 
+    // Data jadwal dokter mingguan (read-only) untuk tampilan di main menu / HP
+    public function viewData(Request $request)
+    {
+        $startOfWeek = $request->input('start_date')
+            ? Carbon::parse($request->input('start_date'))->startOfWeek()
+            : Carbon::now()->startOfWeek();
+        $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
+        $today = now()->toDateString();
+        $colorMap = $this->doctorColorMap();
+
+        $schedules = DokterSchedule::with('dokter.user', 'dokter.klinik')
+            ->whereIn('date', $dates)
+            ->when($request->input('clinic_id'), fn($q, $id) => $q->whereHas('dokter', fn($d) => $d->where('klinik_id', $id)))
+            ->orderBy('jam_mulai')
+            ->get();
+
+        $kliniks = $schedules->groupBy(fn($s) => $s->dokter->klinik->nama ?? 'Tanpa Klinik')->sortKeys()
+            ->map(function ($rows, $klinik) use ($colorMap) {
+                $dokters = $rows->groupBy('dokter_id')->map(function ($items, $dokterId) use ($colorMap) {
+                    $first = $items->first();
+                    $days = [];
+                    foreach ($items as $s) {
+                        $days[Carbon::parse($s->date)->toDateString()] = substr($s->jam_mulai, 0, 5) . '–' . substr($s->jam_selesai, 0, 5);
+                    }
+                    return [
+                        'nama' => $first->dokter->user->name ?? ('Dokter #' . $dokterId),
+                        'color' => $colorMap[$dokterId] ?? $this->defaultDoctorColor((int) $dokterId),
+                        'days' => $days,
+                    ];
+                })->sortBy('nama')->values();
+                return ['name' => $klinik, 'dokters' => $dokters];
+            })->values();
+
+        return response()->json([
+            'start' => $dates->first(),
+            'label' => $startOfWeek->locale('id')->isoFormat('D MMM') . ' – ' . $startOfWeek->copy()->addDays(6)->locale('id')->isoFormat('D MMM YYYY'),
+            'dates' => $dates->map(fn($d) => [
+                'date' => $d,
+                'day' => Carbon::parse($d)->locale('id')->isoFormat('ddd'),
+                'dayLong' => Carbon::parse($d)->locale('id')->isoFormat('dddd, D MMMM'),
+                'num' => Carbon::parse($d)->format('j'),
+                'today' => $d === $today,
+                'sunday' => Carbon::parse($d)->isSunday(),
+            ])->values(),
+            'kliniks' => $kliniks,
+            'clinicOptions' => \App\Models\ERM\Klinik::orderBy('nama')->get(['id', 'nama']),
+        ]);
+    }
+
     // Simpan perubahan jadwal mingguan sekaligus: schedule[dokter_id][date] = "HH:MM-HH:MM" | ""
     public function saveWeek(Request $request)
     {

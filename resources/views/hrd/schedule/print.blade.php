@@ -47,7 +47,13 @@
             <tr>
                 <th>Karyawan</th>
                 @foreach($dates as $date)
-                    <th>{{ \Carbon\Carbon::parse($date)->format('D, d M') }}</th>
+                    @php $d = \Carbon\Carbon::parse($date)->locale('id'); @endphp
+                    <th>
+                        {{ $d->isoFormat('ddd, D MMM') }}
+                        @if(!empty($holidays[$date]))
+                            <div style="font-size:9px;color:#c0392b;font-weight:normal;">{{ $holidays[$date] }}</div>
+                        @endif
+                    </th>
                 @endforeach
             </tr>
         </thead>
@@ -69,7 +75,12 @@
                     @endphp
                     @if($hasSchedule)
                         <tr>
-                            <td style="text-align:left;">{{ $employee->nama }}</td>
+                            <td style="text-align:left;">
+                                {{ $employee->nama }}
+                                @if($employee->schedule_position_name)
+                                    <div style="font-size:9px;color:#666;">{{ $employee->schedule_position_name }}</div>
+                                @endif
+                            </td>
                             @foreach($dates as $date)
                                 @php
                                     $key = $employee->id . '_' . $date;

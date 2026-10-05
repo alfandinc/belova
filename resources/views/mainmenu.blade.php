@@ -701,18 +701,79 @@
             padding-bottom: calc(72px + 20px); /* footer height + extra spacing */
         }
 
-        /* Responsive styles for Jadwal modal and PDF iframe containers */
-        .jadwal-modal-iframe {
-            width: 100%;
-            height: 70vh; /* use viewport height for responsiveness */
-            border: 1px solid #eee;
-            background: #fafafa;
-            display: block;
-            align-items: flex-start;
-            justify-content: flex-start;
-            overflow: auto;
-            padding: 12px;
-            box-sizing: border-box;
+        /* ===== Jadwal viewer (modal) ===== */
+        .jv-dialog { max-width: 1200px; width: 95vw; }
+        .jv-tabs .nav-link { font-weight: 600; padding: 8px; }
+        .jv-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .jv-nav .btn { min-height: 40px; }
+        .jv-nav .jv-label { flex: 1; font-weight: 700; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .jv-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
+        .jv-mode { min-width: 40px; }
+        .jv-day { min-width: 0; min-height: 50px; border: 1px solid rgba(128,128,128,.35); border-radius: 10px; background: transparent; color: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 2px; position: relative; }
+        .jv-day small { font-size: 11px; opacity: .75; }
+        .jv-day b { font-size: 16px; line-height: 1.2; }
+        .jv-day.red small, .jv-day.red b { color: #e74c3c; }
+        .jv-day.today::after { content: ''; position: absolute; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: #1e88e5; }
+        .jv-day.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
+        .jv-day.active small, .jv-day.active b { color: #fff; }
+        .jv-day.active.today::after { background: #fff; }
+        .jv-filters { display: flex; gap: 6px; margin-bottom: 8px; }
+        .jv-filters .form-control { min-height: 38px; font-size: 15px; }
+        .jv-filters .jv-clinic { max-width: 45%; }
+        .jv-me-card { border: 1px solid rgba(30,136,229,.5); background: rgba(30,136,229,.08); border-radius: 10px; padding: 8px; margin-bottom: 10px; }
+        .jv-me-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+        /* Jadwal Saya: geser ke samping, berhenti rapi per hari */
+        .jv-me-grid { position: relative; display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+        .jv-me-grid::-webkit-scrollbar, .jv-table-wrap::-webkit-scrollbar { display: none; }
+        .jv-me-day { flex: 0 0 auto; min-width: 104px; scroll-snap-align: start; text-align: center; border-radius: 8px; padding: 6px; background: rgba(128,128,128,.10); }
+        .jv-me-day.today { background: rgba(30,136,229,.22); box-shadow: inset 0 0 0 1px rgba(30,136,229,.6); }
+        .jv-me-day > small { display: block; font-size: 11px; font-weight: 600; opacity: .85; margin-bottom: 5px; white-space: nowrap; }
+        .jv-mini { border-radius: 6px; font-size: 12px; font-weight: 700; line-height: 1.3; padding: 4px 8px; white-space: nowrap; }
+        .jv-mini + .jv-mini { margin-top: 3px; }
+        .jv-mini.off { opacity: .45; font-weight: 400; }
+        .jv-mini.libur { background: #e74c3c; color: #fff; }
+        .jv-body { max-height: calc(100vh - 330px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .jv-empty { padding: 24px 8px; text-align: center; opacity: .75; }
+        .jv-day-title { font-weight: 700; padding: 4px 2px 6px; }
+        .jv-group { position: sticky; top: 0; z-index: 1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; background: rgba(128,128,128,.18); backdrop-filter: blur(6px); border-radius: 6px; margin-top: 6px; }
+        .jv-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-bottom: 1px solid rgba(128,128,128,.18); }
+        .jv-row.me, .jv-table tr.me td { background: rgba(30,136,229,.12); }
+        .jv-name { min-width: 0; font-size: 14px; font-weight: 600; }
+        .jv-name small { display: block; font-weight: 400; font-size: 11px; opacity: .7; }
+        .jv-val { flex: none; max-width: 48%; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+        .jv-chip { display: inline-block; border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .jv-chip2 { text-align: center; line-height: 1.25; padding: 4px 10px; }
+        .jv-chip2 small { display: block; font-size: 10.5px; font-weight: 600; opacity: .85; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+        .jv-libur { background: #e74c3c; color: #fff; }
+        .jv-off { opacity: .55; font-size: 12px; }
+        .jv-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+        .jv-table-wrap { overflow: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .jv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+        .jv-table th, .jv-table td { padding: 5px 6px; border-bottom: 1px solid rgba(128,128,128,.2); text-align: center; vertical-align: middle; }
+        .jv-table td { min-width: 112px; padding: 6px 5px; }
+        .jv-table thead th { min-width: 112px; }
+        body.jv-open #belovaChatWidget { display: none !important; }
+        .jv-table thead th { position: sticky; top: 0; z-index: 2; background: var(--jv-bg, #fff); }
+        .jv-table th.today, .jv-table td.today { background-color: rgba(30,136,229,.08); }
+        .jv-table th.red { color: #e74c3c; }
+        .jv-table .jv-sticky { position: sticky; left: 0; z-index: 1; background: var(--jv-bg, #fff); text-align: left; min-width: 150px; }
+        .jv-table thead .jv-sticky { z-index: 3; }
+        .jv-table .jv-group-row td { font-weight: 700; font-size: 12px; text-transform: uppercase; background: rgba(128,128,128,.15); text-align: left; }
+        .jv-group-label { position: sticky; left: 8px; }
+        .jv-table tr.me td.jv-sticky { background: linear-gradient(rgba(30,136,229,.12), rgba(30,136,229,.12)), var(--jv-bg, #fff); }
+        @media (max-width: 767.98px) {
+            #jadwalModal .modal-dialog.jv-dialog { margin: 0; width: 100%; max-width: 100%; height: 100%; }
+            #jadwalModal .modal-content { min-height: 100%; border-radius: 0; border: 0; }
+            .jv-body { max-height: none; }
+            .jv-day b { font-size: 15px; }
+            .jv-name { font-size: 13.5px; }
+            .jv-nav { gap: 4px; }
+            .jv-table { font-size: 12px; }
+            .jv-table td, .jv-table thead th { min-width: 108px; }
+            .jv-table .jv-sticky { min-width: 118px; max-width: 128px; white-space: normal; box-shadow: 2px 0 4px rgba(0,0,0,.15); }
+            .jv-table .jv-sticky.jv-name { font-size: 12.5px; }
+            .jv-nav .btn { padding: 6px 10px; }
+            .jv-nav .jv-label { font-size: 14px; padding: 6px 2px; }
         }
 
         /* Tablet and small desktop */
@@ -726,7 +787,6 @@
             .menu-tile { min-height: 140px; }
             .menu-icon { font-size: 2.4rem; margin-bottom: 12px; }
             .menu-label { font-size: 12px; }
-            .jadwal-modal-iframe { height: 60vh; }
             .modal-dialog { margin: 10px; width: calc(100% - 20px); }
             .modal-content { border-radius: 8px; }
             .welcome-dashboard-btn { min-width: 0; }
@@ -738,7 +798,6 @@
             .menu-tile { min-height: 120px; border-radius: 8px; }
             .menu-icon { font-size: 2rem; margin-bottom: 10px; }
             .menu-label { font-size: 12px; bottom: 10px; }
-            .jadwal-modal-iframe { height: 55vh; }
             .topbar { padding: 8px; }
             .logo img { height: 32px; }
         }
@@ -1364,76 +1423,48 @@
                     </div>
                 </div>
             </div>
-            <!-- Jadwal Modal -->
-                        <!-- Jadwal Improved Modal -->
-                                    <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog modal-fullscreen" role="document" style="max-width:1800px; width:95vw;">
-                                            <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="jadwalModalLabel">Cetak Jadwal</h5>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                            <span aria-hidden="true">&times;</span>
-                                        </button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <ul class="nav nav-tabs" id="jadwalTab" role="tablist">
-                                            <li class="nav-item">
-                                                <a class="nav-link active" id="karyawan-tab" data-toggle="tab" href="#karyawan" role="tab" aria-controls="karyawan" aria-selected="true">Karyawan</a>
-                                            </li>
-                                            <li class="nav-item">
-                                                <a class="nav-link" id="dokter-tab" data-toggle="tab" href="#dokter" role="tab" aria-controls="dokter" aria-selected="false">Dokter</a>
-                                            </li>
-                                        </ul>
-                                        <div class="tab-content mt-3" id="jadwalTabContent">
-                                            <!-- Karyawan Tab -->
-                                            <div class="tab-pane fade show active" id="karyawan" role="tabpanel" aria-labelledby="karyawan-tab">
-                                                <div class="form-row mb-3">
-                                                    <div class="col-md-4 d-flex align-items-end">
-                                                            <div style="width:100%">
-                                                                <label for="jadwal-week">Periode (Minggu)</label>
-                                                                <div class="d-flex" style="gap:8px;">
-                                                                    <input type="hidden" id="jadwal-week" value="{{ date('Y-\WW') }}">
-                                                                    <button type="button" id="thisWeekBtn" class="btn btn-outline-light" style="height:38px; white-space:nowrap;">This Week</button>
-                                                                    <button type="button" id="nextWeekBtn" class="btn btn-outline-light" style="height:38px; white-space:nowrap;">Next Week</button>
-                                                                </div>
-                                                            </div>
-                                                            <button id="downloadJadwalImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal (Gambar)</button>
-                                                    </div>
-                                                </div>
-                                                <canvas id="jadwalPdfCanvas" style="display:none;"></canvas>
-                                                <div id="jadwal-karyawan-pdf" class="jadwal-modal-iframe">
-                                                    <span>Pilih klinik dan periode untuk melihat jadwal karyawan.</span>
-                                                </div>
-                                            </div>
-                                            <!-- Dokter Tab -->
-                                            <div class="tab-pane fade" id="dokter" role="tabpanel" aria-labelledby="dokter-tab">
-                                                <div class="form-row mb-3">
-                                                    <div class="col-md-4">
-                                                        <label for="jadwal-klinik-dokter">Klinik</label>
-                                                        <select class="form-control" id="jadwal-klinik-dokter"></select>
-                                                    </div>
-                                                    <div class="col-md-4 d-flex align-items-end">
-                                                        <div style="width:100%">
-                                                            <label for="jadwal-month">Periode (Bulan)</label>
-                                                            <input type="month" class="form-control" id="jadwal-month" value="{{ date('Y-m') }}">
-                                                        </div>
-                                                        <button id="downloadJadwalDokterImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal Dokter (Gambar)</button>
-                                                    </div>
-                                                </div>
-                                                <canvas id="jadwalDokterPdfCanvas" style="display:none;"></canvas>
-                                                <div id="jadwal-dokter-pdf" class="jadwal-modal-iframe">
-                                                    <span>Pilih klinik dan periode untuk melihat jadwal dokter.</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                                    </div>
-                                </div>
-                            </div>
+            <!-- Jadwal Modal (tampilan HTML, ramah HP) -->
+            <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
+                <div class="modal-dialog jv-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header py-2">
+                            <h5 class="modal-title" id="jadwalModalLabel"><i class="fas fa-calendar-alt mr-1"></i> Jadwal</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                         </div>
+                        <div class="modal-body p-2 p-md-3">
+                            <ul class="nav nav-pills nav-justified jv-tabs mb-2" role="tablist">
+                                <li class="nav-item"><a class="nav-link active" data-toggle="pill" href="#jv-karyawan" data-jv="karyawan" role="tab">Karyawan</a></li>
+                                <li class="nav-item"><a class="nav-link" data-toggle="pill" href="#jv-dokter" data-jv="dokter" role="tab">Dokter</a></li>
+                            </ul>
+                            <div class="tab-content">
+                                @foreach(['karyawan' => 'Cari karyawan...', 'dokter' => 'Cari dokter...'] as $jvKey => $jvPlaceholder)
+                                <div class="tab-pane fade {{ $jvKey === 'karyawan' ? 'show active' : '' }}" id="jv-{{ $jvKey }}" role="tabpanel" data-jv-pane="{{ $jvKey }}">
+                                    <div class="jv-nav">
+                                        <button type="button" class="btn btn-outline-secondary jv-prev" aria-label="Minggu sebelumnya"><i class="fas fa-chevron-left"></i></button>
+                                        <button type="button" class="btn btn-link jv-label" title="Kembali ke minggu ini">-</button>
+                                        <button type="button" class="btn btn-outline-secondary jv-next" aria-label="Minggu berikutnya"><i class="fas fa-chevron-right"></i></button>
+                                        <button type="button" class="btn btn-outline-secondary jv-mode" title="Tampilan seminggu / per hari"><i class="fas fa-table"></i></button>
+                                        <button type="button" class="btn btn-primary jv-download" title="Download gambar"><i class="fas fa-download"></i><span class="d-none d-md-inline ml-1">Gambar</span></button>
+                                    </div>
+                                    <div class="jv-days"></div>
+                                    <div class="jv-filters">
+                                        @if($jvKey === 'dokter')
+                                            <select class="form-control form-control-sm jv-clinic"><option value="">Semua Klinik</option></select>
+                                        @endif
+                                        <input type="search" class="form-control form-control-sm jv-search" placeholder="{{ $jvPlaceholder }}">
+                                    </div>
+                                    <div class="jv-me"></div>
+                                    <div class="jv-body"><div class="jv-empty">Memuat jadwal...</div></div>
+                                </div>
+                                @endforeach
+                            </div>
+                            <canvas id="jadwalPdfCanvas" style="display:none;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+
 
         <!-- Footer -->
         <footer class="footer">
@@ -1928,18 +1959,6 @@
             }
         }
 
-        // Download Jadwal Dokter (Gambar) button logic (all pages)
-        $('#downloadJadwalDokterImageBtn').on('click', function() {
-            var clinicId = $('#jadwal-klinik-dokter').val();
-            var month = $('#jadwal-month').val();
-            if (!month) {
-                Swal.fire({icon:'warning',text:'Pilih periode bulan terlebih dahulu.'});
-                return;
-            }
-            var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
-            var canvas = document.getElementById('jadwalDokterPdfCanvas');
-            renderPdfToSingleImage(url, 'jadwal_dokter_' + month, canvas);
-        });
         // System update modal
         if (!localStorage.getItem('systemUpdateModalShown')) {
             $('#systemUpdateModal').modal('show');
@@ -1948,175 +1967,245 @@
         $('#info-update-btn').on('click', function() {
             $('#systemUpdateModal').modal('show');
         });
-        // Jadwal Improved Modal logic
-        $('#jadwal-menu-tile').on('click', function() {
-            $('#jadwalModal').modal('show');
-            // Load jadwal for active tab when modal opens
-            setTimeout(function() {
-                if ($('#karyawan-tab').hasClass('active')) {
-                    loadKaryawanPDF();
-                } else if ($('#dokter-tab').hasClass('active')) {
-                    loadDokterPDF();
-                }
-            }, 300); // Wait for modal animation
-        });
+        // ===== Jadwal viewer (HTML, ramah HP) =====
+        (function () {
+            var URL_KARYAWAN = "{{ route('hrd.schedule.view_data') }}";
+            var URL_DOKTER = "{{ route('hrd.dokter-schedule.view_data') }}";
+            var isMobile = function () { return window.matchMedia('(max-width: 767.98px)').matches; };
 
-        // Download Jadwal (Gambar) button logic (all pages)
-        $('#downloadJadwalImageBtn').on('click', function() {
-            var week = $('#jadwal-week').val();
-            if (!week) {
-                Swal.fire({icon:'warning',text:'Pilih periode minggu terlebih dahulu.'});
-                return;
+            function esc(s) { return $('<div>').text(s == null ? '' : s).html(); }
+            function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+            function mondayOf(d) { d = new Date(d); var day = d.getDay(); d.setDate(d.getDate() + ((day === 0 ? -6 : 1) - day)); return ymd(d); }
+            function addDays(s, n) { var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return ymd(d); }
+            function contrast(hex) {
+                var c = (hex || '').replace('#', '');
+                if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+                if (c.length !== 6) return '#000';
+                var r = parseInt(c.substr(0, 2), 16), g = parseInt(c.substr(2, 2), 16), b = parseInt(c.substr(4, 2), 16);
+                return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#000' : '#fff';
             }
-            var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
-            var url = '/hrd/schedule/print?start_date='+startDate;
-            var canvas = document.getElementById('jadwalPdfCanvas');
-            renderPdfToSingleImage(url, 'jadwal_karyawan_' + startDate, canvas);
-        });
+            function chip(text, color, title) {
+                return '<span class="jv-chip" style="background:' + esc(color) + ';color:' + contrast(color) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(text) + '</span>';
+            }
+            // "09:00","19:00" -> "09.00 – 19.00" (satu baris, format Indonesia)
+            function jam(start, end) { return String(start).replace(':', '.') + ' – ' + String(end).replace(':', '.'); }
+            function jamRange(t) { var p = String(t).split('–'); return p.length === 2 ? jam(p[0], p[1]) : t; }
+            function liburChip(label) { return '<span class="jv-chip jv-libur">' + esc(label) + '</span>'; }
 
-        // Helper: compute ISO week start (Monday) for a given Date or 'this'/'next'
-        function getIsoWeekStartDateFromDate(d) {
-            // clone
-            const date = new Date(d.getTime());
-            // ISO week starts Monday; getDay() returns 0-6 (Sun-Sat)
-            const day = (date.getDay() + 6) % 7; // 0=Mon, 6=Sun
-            date.setDate(date.getDate() - day);
-            return date;
-        }
+            // Isi sel karyawan untuk satu hari (compact = tabel mingguan, selain itu = daftar harian)
+            function karyawanCell(day, compact) {
+                if (!day) return '<span class="jv-off">Libur</span>';
+                if (day.libur) return liburChip(day.libur);
+                return day.shifts.map(function (s) {
+                    if (compact) return chip(jam(s.start, s.end), s.color, s.name);
+                    return '<span class="jv-chip jv-chip2" style="background:' + esc(s.color) + ';color:' + contrast(s.color) + '">' +
+                        '<small>' + esc(s.name) + '</small>' + esc(jam(s.start, s.end)) + '</span>';
+                }).join('');
+            }
+            // Sel mini untuk kartu "Jadwal Saya": jam mulai & selesai bertumpuk agar muat 7 kolom di HP
+            function miniCell(day) {
+                if (!day) return '<div class="jv-mini off">–</div>';
+                if (day.libur) return '<div class="jv-mini libur">' + esc(day.libur) + '</div>';
+                return day.shifts.map(function (s) {
+                    return '<div class="jv-mini" style="background:' + esc(s.color) + ';color:' + contrast(s.color) + '" title="' + esc(s.name) + '">' +
+                        esc(jam(s.start, s.end)) + '</div>';
+                }).join('');
+            }
 
-        function toWeekInputValue(date) {
-            // date is JS Date representing start of ISO week
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const isoWeekNumber = moment(date).isoWeek();
-            return year + '-W' + String(isoWeekNumber).padStart(2, '0');
-        }
+            function createViewer(key) {
+                var $pane = $('[data-jv-pane="' + key + '"]');
+                var state = { start: mondayOf(new Date()), day: null, mode: null, data: null };
 
-        // Provide fallback currentStartDate in case week input is unsupported on some phones
-        let currentStartDate = getIsoWeekStartDateFromDate(new Date());
-
-        $('#thisWeekBtn').on('click', function() {
-            currentStartDate = getIsoWeekStartDateFromDate(new Date());
-            $('#jadwal-week').val(toWeekInputValue(currentStartDate));
-            loadKaryawanPDF();
-        });
-
-        $('#nextWeekBtn').on('click', function() {
-            const next = new Date();
-            next.setDate(next.getDate() + 7);
-            currentStartDate = getIsoWeekStartDateFromDate(next);
-            $('#jadwal-week').val(toWeekInputValue(currentStartDate));
-            loadKaryawanPDF();
-        });
-
-        // On change of native week input, update currentStartDate and load PDF
-        $('#jadwal-week').on('change', function() {
-            const w = $(this).val();
-            if (!w) return;
-            // moment can parse 'YYYY-Www'
-            const start = moment(w, 'YYYY-\WW').startOf('isoWeek').toDate();
-            currentStartDate = getIsoWeekStartDateFromDate(start);
-            loadKaryawanPDF();
-        });
-
-        // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
-        function fetchKlinikList(selectId) {
-            $.get('/marketing/clinics', function(data) {
-                var select = $(selectId);
-                select.empty();
-                select.append('<option value="">Semua Klinik</option>');
-                var klinikList = [];
-                if (data && data.success && Array.isArray(data.data)) {
-                    klinikList = data.data;
-                } else if (Array.isArray(data)) {
-                    klinikList = data;
+                function load() {
+                    var params = { start_date: state.start };
+                    if (key === 'dokter') params.clinic_id = $pane.find('.jv-clinic').val() || '';
+                    $pane.find('.jv-body').html('<div class="jv-empty"><span class="spinner-border spinner-border-sm mr-1"></span> Memuat jadwal...</div>');
+                    $pane.find('.jv-me').empty();
+                    $.getJSON(key === 'dokter' ? URL_DOKTER : URL_KARYAWAN, params)
+                        .done(function (data) {
+                            state.data = data;
+                            var today = data.dates.filter(function (d) { return d.today; })[0];
+                            if (!state.day || !data.dates.some(function (d) { return d.date === state.day; })) {
+                                state.day = today ? today.date : data.dates[0].date;
+                            }
+                            if (key === 'dokter' && data.clinicOptions) {
+                                var $sel = $pane.find('.jv-clinic');
+                                if ($sel.find('option').length <= 1) {
+                                    data.clinicOptions.forEach(function (k) { $sel.append('<option value="' + k.id + '">' + esc(k.nama) + '</option>'); });
+                                }
+                            }
+                            render();
+                        })
+                        .fail(function () {
+                            $pane.find('.jv-body').html('<div class="jv-empty text-danger">Gagal memuat jadwal.</div>');
+                        });
                 }
-                klinikList.forEach(function(klinik) {
-                    select.append('<option value="'+klinik.id+'">'+klinik.nama+'</option>');
+
+                function renderDays() {
+                    var html = state.data.dates.map(function (d) {
+                        var cls = 'jv-day' + (state.mode === 'day' && d.date === state.day ? ' active' : '') + (d.today ? ' today' : '') + (d.sunday || d.holiday ? ' red' : '');
+                        return '<button type="button" class="' + cls + '" data-date="' + d.date + '"' + (d.holiday ? ' title="' + esc(d.holiday) + '"' : '') + '>' +
+                            '<small>' + esc(d.day) + '</small><b>' + esc(d.num) + '</b></button>';
+                    }).join('');
+                    $pane.find('.jv-days').html(html);
+                    // Tombol mode: tampilkan ikon tujuan (tabel seminggu <-> daftar harian)
+                    $pane.find('.jv-mode').toggleClass('active', state.mode === 'week')
+                        .html(state.mode === 'week' ? '<i class="fas fa-list"></i>' : '<i class="fas fa-table"></i>');
+                    $pane.find('.jv-label').text(state.data.label);
+                }
+
+                function matches(name) {
+                    var q = ($pane.find('.jv-search').val() || '').trim().toLowerCase();
+                    return !q || (name || '').toLowerCase().indexOf(q) !== -1;
+                }
+
+                function render() {
+                    if (!state.data) return;
+                    if (!state.mode) state.mode = isMobile() ? 'day' : 'week';
+                    renderDays();
+                    if (key === 'karyawan') renderMe();
+                    var groups = key === 'dokter' ? state.data.kliniks : state.data.divisions;
+                    $pane.find('.jv-body').html(state.mode === 'day' ? renderDay(groups) : renderWeek(groups));
+                    if (state.mode === 'week') {
+                        // Geser tabel supaya kolom hari yang dipilih langsung terlihat di samping kolom nama
+                        var wrap = $pane.find('.jv-table-wrap')[0];
+                        var idx = state.data.dates.findIndex(function (d) { return d.date === state.day; });
+                        var th = wrap && wrap.querySelectorAll('thead th')[idx + 1];
+                        var sticky = wrap && wrap.querySelector('thead th.jv-sticky');
+                        if (th && sticky && idx > 0) wrap.scrollLeft = th.offsetLeft - sticky.offsetWidth;
+                    }
+                }
+
+                // Kartu "Jadwal Saya" untuk karyawan yang login
+                function renderMe() {
+                    var me = null;
+                    state.data.divisions.forEach(function (g) { g.employees.forEach(function (e) { if (e.id === state.data.me) me = e; }); });
+                    if (!me) { $pane.find('.jv-me').empty(); return; }
+                    var cells = state.data.dates.map(function (d) {
+                        return '<div class="jv-me-day' + (d.today ? ' today' : '') + '"><small>' + esc(d.day) + ' ' + esc(d.num) + '</small>' + miniCell(me.days[d.date]) + '</div>';
+                    }).join('');
+                    $pane.find('.jv-me').html('<div class="jv-me-card"><div class="jv-me-title"><i class="fas fa-user mr-1"></i> Jadwal Saya <small class="text-muted font-weight-normal">· geser untuk hari lain</small></div><div class="jv-me-grid">' + cells + '</div></div>');
+                    // Mulai dari hari ini
+                    var grid = $pane.find('.jv-me-grid')[0], todayEl = $pane.find('.jv-me-day.today')[0];
+                    if (grid && todayEl) grid.scrollLeft = todayEl.offsetLeft;
+                }
+
+                function personName(p) {
+                    return (key === 'dokter' ? '<span class="jv-dot" style="background:' + esc(p.color) + '"></span>' : '') +
+                        esc(p.nama) + (p.posisi ? '<small>' + esc(p.posisi) + '</small>' : '');
+                }
+
+                function renderDay(groups) {
+                    var dayInfo = state.data.dates.filter(function (d) { return d.date === state.day; })[0];
+                    var html = '<div class="jv-day-title">' + esc(dayInfo.dayLong) + (dayInfo.holiday ? ' <span class="badge badge-danger">' + esc(dayInfo.holiday) + '</span>' : '') + '</div>';
+                    var any = false;
+                    groups.forEach(function (g) {
+                        var people = key === 'dokter' ? g.dokters : g.employees;
+                        var rows = people.filter(function (p) {
+                            return matches(p.nama) && (key === 'dokter' ? !!p.days[state.day] : true);
+                        }).map(function (p) {
+                            var right = key === 'dokter' ? chip(jamRange(p.days[state.day]), p.color) : karyawanCell(p.days[state.day], false);
+                            var me = key === 'karyawan' && p.id === state.data.me ? ' me' : '';
+                            return '<div class="jv-row' + me + '"><div class="jv-name">' + personName(p) + '</div><div class="jv-val">' + right + '</div></div>';
+                        }).join('');
+                        if (rows) { any = true; html += '<div class="jv-group">' + esc(g.name) + '</div>' + rows; }
+                    });
+                    return any ? html : html + '<div class="jv-empty">Tidak ada jadwal ' + (key === 'dokter' ? 'dokter ' : '') + 'di hari ini.</div>';
+                }
+
+                function renderWeek(groups) {
+                    var dates = state.data.dates;
+                    var html = '<div class="jv-table-wrap"><table class="jv-table"><thead><tr><th class="jv-sticky">' + (key === 'dokter' ? 'Dokter' : 'Karyawan') + '</th>' +
+                        dates.map(function (d) {
+                            return '<th class="' + (d.today ? 'today' : '') + (d.sunday || d.holiday ? ' red' : '') + '"' + (d.holiday ? ' title="' + esc(d.holiday) + '"' : '') + '>' + esc(d.day) + '<br><small>' + esc(d.num) + '</small></th>';
+                        }).join('') + '</tr></thead><tbody>';
+                    var any = false;
+                    groups.forEach(function (g) {
+                        var people = (key === 'dokter' ? g.dokters : g.employees).filter(function (p) { return matches(p.nama); });
+                        if (!people.length) return;
+                        any = true;
+                        html += '<tr class="jv-group-row"><td colspan="' + (dates.length + 1) + '"><span class="jv-group-label">' + esc(g.name) + '</span></td></tr>';
+                        people.forEach(function (p) {
+                            var me = key === 'karyawan' && p.id === state.data.me ? ' class="me"' : '';
+                            html += '<tr' + me + '><td class="jv-sticky jv-name">' + personName(p) + '</td>';
+                            dates.forEach(function (d) {
+                                // Jam mulai/selesai bertumpuk supaya 7 hari muat di layar HP
+                                var v;
+                                if (key === 'dokter') {
+                                    var t = p.days[d.date];
+                                    v = t ? '<div class="jv-mini" style="background:' + esc(p.color) + ';color:' + contrast(p.color) + '">' + esc(jamRange(t)) + '</div>' : '<div class="jv-mini off">–</div>';
+                                } else {
+                                    v = miniCell(p.days[d.date]);
+                                }
+                                html += '<td class="' + (d.today ? 'today' : '') + '">' + v + '</td>';
+                            });
+                            html += '</tr>';
+                        });
+                    });
+                    html += '</tbody></table></div>';
+                    return any ? html : '<div class="jv-empty">Tidak ada jadwal minggu ini.</div>';
+                }
+
+                // Events
+                $pane.on('click', '.jv-prev', function () { state.start = addDays(state.start, -7); state.day = null; load(); });
+                $pane.on('click', '.jv-next', function () { state.start = addDays(state.start, 7); state.day = null; load(); });
+                $pane.on('click', '.jv-label', function () { state.start = mondayOf(new Date()); state.day = null; load(); });
+                $pane.on('click', '.jv-day', function () {
+                    state.mode = 'day';
+                    state.day = $(this).data('date');
+                    render();
                 });
-                // If this is dokter selector, load PDF after populating
-                if (selectId === '#jadwal-klinik-dokter') {
-                    loadDokterPDF();
-                }
+                $pane.on('click', '.jv-mode', function () {
+                    state.mode = state.mode === 'week' ? 'day' : 'week';
+                    render();
+                });
+                $pane.on('input', '.jv-search', render);
+                $pane.on('change', '.jv-clinic', load);
+                $pane.on('click', '.jv-download', function () {
+                    var clinic = $pane.find('.jv-clinic').val();
+                    var url = key === 'dokter'
+                        ? "{{ route('hrd.dokter-schedule.print') }}?month=" + state.start.slice(0, 7) + (clinic ? '&clinic_id=' + clinic : '')
+                        : "{{ route('hrd.schedule.print') }}?start_date=" + state.start;
+                    var name = key === 'dokter' ? 'jadwal_dokter_' + state.start.slice(0, 7) : 'jadwal_karyawan_' + state.start;
+                    var $btn = $(this).prop('disabled', true);
+                    Promise.resolve(renderPdfToSingleImage(url, name, document.getElementById('jadwalPdfCanvas')))
+                        .finally(function () { $btn.prop('disabled', false); });
+                });
+
+                // Geser kiri/kanan di daftar harian untuk ganti hari (HP)
+                var touchX = null;
+                $pane.on('touchstart', '.jv-body', function (e) { touchX = e.originalEvent.touches[0].clientX; });
+                $pane.on('touchend', '.jv-body', function (e) {
+                    if (touchX === null || state.mode !== 'day' || !state.data) return;
+                    var dx = e.originalEvent.changedTouches[0].clientX - touchX;
+                    touchX = null;
+                    if (Math.abs(dx) < 60) return;
+                    var idx = state.data.dates.findIndex(function (d) { return d.date === state.day; }) + (dx < 0 ? 1 : -1);
+                    if (idx < 0) { state.start = addDays(state.start, -7); state.day = addDays(state.start, 6); load(); return; }
+                    if (idx > 6) { state.start = addDays(state.start, 7); state.day = state.start; load(); return; }
+                    state.day = state.data.dates[idx].date;
+                    render();
+                });
+
+                return { load: function () { if (!state.data) load(); } };
+            }
+
+            var viewers = { karyawan: createViewer('karyawan'), dokter: createViewer('dokter') };
+            // Kolom/header sticky butuh warna latar solid yang sama dengan modal (tema terang/gelap)
+            $('#jadwalModal').on('shown.bs.modal', function () {
+                var content = this.querySelector('.modal-content');
+                content.style.setProperty('--jv-bg', getComputedStyle(content).backgroundColor);
             });
-        }
-    // Load klinik list for dokter, then load PDF if tab is active
-    fetchKlinikList('#jadwal-klinik-dokter');
-    $('#jadwal-klinik-dokter').on('change', loadDokterPDF);
-
-        // Render PDF into a container using pdf.js (better than iframe embedding)
-        async function renderPdfIntoContainer(containerEl, url, filenameHint) {
-            const container = $(containerEl);
-            container.empty();
-            const loadingMessage = $('<div>').text('Memuat jadwal...').css({padding: '12px'});
-            container.append(loadingMessage);
-
-            try {
-                const loadingTask = pdfjsLib.getDocument(url);
-                const pdf = await loadingTask.promise;
-                container.empty();
-
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const viewport = page.getViewport({ scale: 1.2 });
-                    const canvas = document.createElement('canvas');
-                    canvas.style.display = 'block';
-                    canvas.style.marginBottom = '12px';
-                    canvas.width = Math.round(viewport.width);
-                    canvas.height = Math.round(viewport.height);
-                    const ctx = canvas.getContext('2d');
-                    await page.render({ canvasContext: ctx, viewport }).promise;
-                    container.append(canvas);
-                }
-
-                // Add a small hint/fallback link to open the PDF in a new tab
-                const openLink = $('<a>').attr('href', url).attr('target', '_blank').text('Buka PDF di tab baru');
-                openLink.css({display: 'inline-block', marginTop: '8px'});
-                container.append(openLink);
-            } catch (err) {
-                console.error('Failed to render PDF into container', err);
-                container.empty();
-                const msg = $('<div>').text('Gagal menampilkan jadwal. ').css({padding:'12px'});
-                const openLink = $('<a>').attr('href', url).attr('target', '_blank').text('Buka PDF di tab baru');
-                msg.append(openLink);
-                container.append(msg);
-            }
-        }
-
-        // Load PDF for karyawan
-        function loadKaryawanPDF() {
-            var week = $('#jadwal-week').val();
-            if (!week) return;
-            var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
-            var url = '/hrd/schedule/print?start_date='+startDate;
-            renderPdfIntoContainer('#jadwal-karyawan-pdf', url, 'jadwal_karyawan_' + startDate);
-        }
-        $('#jadwal-week').on('change', loadKaryawanPDF);
-
-        // Load PDF for dokter
-        function loadDokterPDF() {
-            var clinicId = $('#jadwal-klinik-dokter').val();
-            var month = $('#jadwal-month').val();
-            if (!month) return;
-            var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
-            renderPdfIntoContainer('#jadwal-dokter-pdf', url, 'jadwal_dokter_' + month);
-        }
-        $('#jadwal-month').on('change', loadDokterPDF);
-
-        // Tab switch: load PDF if already selected
-        $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
-            if ($(e.target).attr('id') === 'karyawan-tab') {
-                loadKaryawanPDF();
-            } else {
-                loadDokterPDF();
-            }
-        });
-        // Print Jadwal Dokter by clinic name
-        $('.print-jadwal-dokter-btn').on('click', function() {
-            var clinicId = $(this).data('clinic-id');
-            window.open("{{ route('hrd.dokter-schedule.print') }}?clinic_id=" + clinicId, '_blank');
-            $('#jadwalModal').modal('hide');
-        });
+            // Tombol chat melayang menutupi daftar di HP: sembunyikan selama jadwal terbuka
+            $('#jadwalModal').on('show.bs.modal', function () { $('body').addClass('jv-open'); })
+                .on('hidden.bs.modal', function () { $('body').removeClass('jv-open'); });
+            $('#jadwal-menu-tile').on('click', function (e) {
+                e.preventDefault();
+                $('#jadwalModal').modal('show');
+                viewers[$('.jv-tabs .nav-link.active').data('jv')].load();
+            });
+            $('.jv-tabs a[data-toggle="pill"]').on('shown.bs.tab', function () { viewers[$(this).data('jv')].load(); });
+        })();
     });
     </script>
     <script>

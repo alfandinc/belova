@@ -8,6 +8,7 @@
         'active' => (bool) $s->active,
     ])->values();
     $today = now()->toDateString();
+    $holidays = \App\Models\HRD\LiburNasional::namesByDate($dates[0], $dates[count($dates) - 1]);
     $totalEmployees = collect($employeesByDivision)->flatten(1)->count();
 @endphp
 <input type="hidden" id="week-start" value="{{ $startOfWeek->toDateString() }}">
@@ -20,12 +21,20 @@
             <tr>
                 <th class="sched-name-col">Karyawan</th>
                 @foreach($dates as $i => $date)
-                    @php $d = \Carbon\Carbon::parse($date)->locale('id'); @endphp
+                    @php
+                        $d = \Carbon\Carbon::parse($date)->locale('id');
+                        $holidayName = $holidays[$date] ?? null;
+                        $hariGantiLibur = $d->isSunday() || $holidayName;
+                    @endphp
                     <th class="sched-day-head {{ $date === $today ? 'is-today' : '' }} {{ $d->isWeekend() ? 'is-weekend' : '' }}"
-                        data-col="{{ $i }}" title="Klik untuk memilih seluruh kolom">
+                        data-col="{{ $i }}" @if($hariGantiLibur) data-hari-ganti-libur="1" @endif
+                        title="Klik untuk memilih seluruh kolom{{ $holidayName ? ' · ' . $holidayName : '' }}">
                         <div>{{ $d->isoFormat('dddd') }}</div>
                         <small>{{ $d->isoFormat('D MMM') }}</small>
-                        @if($d->isSunday())
+                        @if($holidayName)
+                            <small class="d-block text-danger text-truncate" style="max-width:140px;margin:auto">{{ $holidayName }}</small>
+                        @endif
+                        @if($hariGantiLibur)
                             <span class="badge badge-warning d-block mt-1" style="font-size:10px;">+1 Ganti Libur</span>
                         @endif
                     </th>
@@ -54,7 +63,9 @@
                                 $daySchedules = collect($schedules[$employee->id . '_' . $date] ?? [])->values();
                                 $first = $daySchedules[0] ?? null;
                                 $isLibur = $first && !empty($first->is_libur);
-                                $ids = $isLibur ? '' : $daySchedules->pluck('shift_id')->filter()->take(2)->implode(',');
+                                $ids = $first && !empty($first->is_ganti_libur)
+                                    ? 'GL'
+                                    : ($isLibur ? '' : $daySchedules->pluck('shift_id')->filter()->take(2)->implode(','));
                             @endphp
                             @if($isLibur)
                                 <td class="sc sc-libur {{ $date === $today ? 'is-today' : '' }}" data-col="{{ $i }}" data-libur="1">{{ $first->label ?? 'Libur/Cuti' }}</td>
