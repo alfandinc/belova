@@ -674,8 +674,6 @@
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
-    .tile-ceodashboard { background-color: #2758b6; }  /* CEO dashboard blue */
-
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
         .footer {
@@ -1330,9 +1328,7 @@
                 </a>
                 @php
                     // Allow access only to users with role 'Satusehat' or 'Admin'
-                    $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;
-                    $hasCeoDashboardAccess = count(array_intersect($userRoles, ['Ceo','CEO','Head Manager','Manager','Hrd','Admin'])) > 0;
-                @endphp
+                    $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;                @endphp
                 <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
                    @if(!$hasSatusehatAccess)
                        onclick="showRoleWarning(event, 'Satusehat')"
@@ -1343,17 +1339,6 @@
                     </div>
                     <div class="menu-title">SatuSehat</div>
                     <div class="menu-sub">Integrasi Data Kesehatan</div>
-                </a>
-                <a href="{{ $hasCeoDashboardAccess ? '/ceo-dashboard' : '#' }}" class="menu-tile tile-ceodashboard animate-item delay-20" id="ceodashboard-tile" data-filter="ceo dashboard executive analytics statistik"
-                   @if(!$hasCeoDashboardAccess)
-                       onclick="showRoleWarning(event, 'CEO Dashboard')"
-                   @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-user-tie"></i></div>
-                        <div class="menu-badge">CEO</div>
-                    </div>
-                    <div class="menu-title">CEO Dashboard</div>
-                    <div class="menu-sub">Executive Summary & KPI</div>
                 </a>
                 <!-- Assessment module (added last) -->
                 <a href="{{ route('kpi.evaluatees.index') }}" class="menu-tile tile-hrd animate-item delay-21" id="assessment-tile" data-filter="assessment penilaian kpi"

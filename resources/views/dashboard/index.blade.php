@@ -1,6 +1,6 @@
 @extends('layouts.erm.app')
 
-@section('title', request()->routeIs('ceo-dashboard.*') ? 'CEO Dashboard' : 'Dashboard')
+@section('title', 'Dashboard')
 
 @section('navbar')
     @include('dashboard.navbar')
@@ -8,19 +8,14 @@
 
 @section('content')
     @php
-        $isCeoDashboardRoute = request()->routeIs('ceo-dashboard.*');
         $dashboardGreetingHour = now()->hour;
         $dashboardGreeting = $dashboardGreetingHour < 12
             ? 'Good Morning'
             : ($dashboardGreetingHour < 17 ? 'Good Afternoon' : 'Good Evening');
         $dashboardDisplayName = auth()->user()->name ?? 'User';
         $dashboardSubtitle = $employeePosition
-            ? ($isCeoDashboardRoute
-                ? 'CEO dashboard for ' . $employeePosition->name . ' - Ringkasan widget Belova Corp'
-                : 'Custom dashboard for ' . $employeePosition->name . ' - Ringkasan widget Belova Corp')
-            : ($isCeoDashboardRoute
-                ? 'CEO dashboard - Ringkasan widget Belova Corp'
-                : 'Custom dashboard - Ringkasan widget Belova Corp');
+            ? 'Custom dashboard for ' . $employeePosition->name . ' - Ringkasan widget Belova Corp'
+            : 'Custom dashboard - Ringkasan widget Belova Corp';
         $dashboardFormattedRange = \Carbon\Carbon::parse($dashboardFilter['start_date'])->format('d M Y') . ' - ' . \Carbon\Carbon::parse($dashboardFilter['end_date'])->format('d M Y');
     @endphp
 
@@ -365,7 +360,7 @@
                 }
 
                 return $.ajax({
-                    url: '{{ request()->routeIs('ceo-dashboard.*') ? route('ceo-dashboard.index') : route('dashboard.index') }}',
+                    url: '{{ route('dashboard.index') }}',
                     type: 'GET',
                     data: requestData,
                     headers: {

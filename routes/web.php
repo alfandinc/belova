@@ -504,47 +504,6 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->middleware('auth')
     ->name('running.wa_preview');
 
-// CEO Dashboard - executive analytics module
-Route::prefix('ceo-dashboard')->name('ceo-dashboard.')->middleware(['auth','role:Ceo|CEO|Head Manager|Manager|Hrd|Admin'])->group(function () {
-    Route::get('/', [\App\Http\Controllers\CeoDashboardController::class, 'index'])
-        ->name('index');
-    Route::get('/daily-tasks/reported', [\App\Http\Controllers\CeoDashboardController::class, 'reportedDailyTasks'])
-        ->name('daily-tasks.index');
-    // Future CEO Dashboard routes (e.g. reports) should go here, e.g.:
-    // Route::get('/reports', [CeoDashboardController::class, 'reports'])->name('reports');
-    // Doctor analytics JSON endpoints used by the Premiere Belova doctor tab
-    Route::get('/dokter/{id}/data', [\App\Http\Controllers\CeoDashboardController::class, 'dokterData'])->name('dokter.data');
-    // Visitation statistics (JSON) for a dokter
-    Route::get('/dokter/{id}/visitation-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterVisitationStats'])->name('dokter.visits');
-    // Visitation breakdown (jenis kunjungan + recent rows)
-    Route::get('/dokter/{id}/visitation-breakdown', [\App\Http\Controllers\CeoDashboardController::class, 'dokterVisitationBreakdown'])->name('dokter.breakdown');
-    // Patient statistics for a dokter (total patients, gender, age buckets, status)
-    Route::get('/dokter/{id}/patient-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterPatientStats'])->name('dokter.patient_stats');
-    // Top patients by visit count for a dokter
-    Route::get('/dokter/{id}/top-patients', [\App\Http\Controllers\CeoDashboardController::class, 'dokterTopPatients'])->name('dokter.top_patients');
-    // Retention / new vs returning patients summary
-    Route::get('/dokter/{id}/retention-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterRetentionStats'])->name('dokter.retention_stats');
-    Route::get('/dokter/{id}/tindakan-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterTindakanStats'])->name('dokter.tindakan_stats');
-    Route::get('/dokter/{id}/obat-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterObatStats'])->name('dokter.obat_stats');
-    Route::get('/dokter/{id}/lab-stats', [\App\Http\Controllers\CeoDashboardController::class, 'dokterLabStats'])->name('dokter.lab_stats');
-    Route::get('/dokter/{id}/revenue-transactions', [\App\Http\Controllers\CeoDashboardController::class, 'dokterRevenueTransactions'])->name('dokter.revenue_transactions');
-    Route::get('/pasien/{id}/revenue-transactions', [\App\Http\Controllers\CeoDashboardController::class, 'patientRevenueTransactions'])->name('pasien.revenue_transactions');
-    Route::get('/clinic/{id}/patient-revenue-rankings', [\App\Http\Controllers\CeoDashboardController::class, 'clinicPatientRevenueRankings'])->name('clinic.patient_revenue_rankings');
-    Route::get('/clinic/{id}/spend-class-visits/{classKey}', [\App\Http\Controllers\CeoDashboardController::class, 'clinicSpendClassVisits'])->name('clinic.spend_class_visits');
-    Route::get('/clinic/{id}/obat-revenue-rankings', [\App\Http\Controllers\CeoDashboardController::class, 'clinicObatRevenueRankings'])->name('clinic.obat_revenue_rankings');
-    Route::get('/clinic/{id}/treatment-revenue-rankings', [\App\Http\Controllers\CeoDashboardController::class, 'clinicTreatmentRevenueRankings'])->name('clinic.treatment_revenue_rankings');
-    Route::get('/clinic/{id}/obat/{itemId}/revenue-details', [\App\Http\Controllers\CeoDashboardController::class, 'clinicObatRevenueDetails'])->name('clinic.obat_revenue_details');
-    Route::get('/clinic/{id}/treatment/{itemId}/revenue-details', [\App\Http\Controllers\CeoDashboardController::class, 'clinicTreatmentRevenueDetails'])->name('clinic.treatment_revenue_details');
-    // Premiere Belova statistics (clinic id = 1)
-    Route::get('/premiere-belova', [\App\Http\Controllers\CeoDashboardController::class, 'premiereBelova'])->name('premiere_belova.index');
-    // Belova Skin statistics (clinic id = 2)
-    Route::get('/belova-skin', [\App\Http\Controllers\CeoDashboardController::class, 'belovaSkin'])->name('belova_skin.index');
-    // Belova Dental statistics (clinic id = 3)
-    Route::get('/belova-dental', [\App\Http\Controllers\CeoDashboardController::class, 'belovaDental'])->name('belova_dental.index');
-    // Belova Center Living statistics
-    Route::get('/belova-center-living', [\App\Http\Controllers\CeoDashboardController::class, 'belovaCenterLiving'])->name('bcl.index');
-});
-
 // SatuSehat dashboard (uses ERM layout with custom navbar)
 Route::get('/satusehat', [SatusehatDashboardController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.index');
 
