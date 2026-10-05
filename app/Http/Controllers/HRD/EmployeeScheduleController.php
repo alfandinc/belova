@@ -545,24 +545,24 @@ class EmployeeScheduleController extends Controller
             $d = $position ? $depth($position->id) : 999;
 
             // Kelompok jadwal berdasarkan role user:
-            //  1. role Head Manager -> "Head Manager"
-            //  2. role Manager / Hrd -> "Manager on Duty"
-            //  3. sisanya dipisah per divisi (dari posisi utama)
+            //  - role Head Manager / Hrd / Manager -> "Manager on Duty"
+            //  - sisanya dipisah per divisi (dari posisi utama)
             $roles = $emp->user?->roles->pluck('name')->map(fn($r) => strtolower($r))->all() ?? [];
-            if (in_array('head manager', $roles, true)) {
-                $group = 'Head Manager';
-                $groupOrder = 0;
-            } elseif (array_intersect(['manager', 'hrd'], $roles)) {
+            // Urutan di dalam Manager on Duty: Head Manager -> Hrd -> Manager lainnya
+            $roleRank = in_array('head manager', $roles, true) ? 0 : (in_array('hrd', $roles, true) ? 1 : 2);
+            if (array_intersect(['head manager', 'hrd', 'manager'], $roles)) {
                 $group = 'Manager on Duty';
-                $groupOrder = 1;
+                $groupOrder = 0;
             } else {
                 $group = $division?->name ?? 'Tanpa Divisi';
-                $groupOrder = $division ? 2 : 3;
+                $groupOrder = $division ? 1 : 2;
+                $roleRank = 0; // di grup divisi hanya hierarki yang menentukan
             }
 
             $emp->schedule_position_name = $position?->name;
             $emp->schedule_group_order = $groupOrder;
             $emp->schedule_sort = [
+                $roleRank,
                 $d,
                 -($levelRank[$position?->level] ?? -1),
                 strtolower($position?->name ?? 'zzz'),
@@ -576,8 +576,8 @@ class EmployeeScheduleController extends Controller
             ->map(fn($items) => $items->pluck('employee')
                 ->sort(fn($a, $b) => $a->schedule_sort <=> $b->schedule_sort)
                 ->values())
-            // Head Manager -> Manager on Duty -> divisi (urut posisi tertinggi di dalamnya, lalu nama) -> Tanpa Divisi
-            ->sortBy(fn($items, $name) => [$items->first()->schedule_group_order, $items->first()->schedule_sort[0], strtolower($name)]);
+            // Manager on Duty -> divisi (urut posisi tertinggi di dalamnya, lalu nama) -> Tanpa Divisi
+            ->sortBy(fn($items, $name) => [$items->first()->schedule_group_order, $items->first()->schedule_sort[1], strtolower($name)]);
     }
 
 
