@@ -4,6 +4,14 @@
     @include('layouts.hrd.navbar')
 @endsection
 
+@php
+    $tabs = [];
+    if ($hasEmployeeProfile) $tabs['panePersonal'] = ['label' => 'Pengajuan Saya', 'icon' => 'fa-user', 'badge' => 0, 'badgeId' => null];
+    if ($canApproveTeam) $tabs['paneTeam'] = ['label' => 'Persetujuan Tim', 'icon' => 'fa-users', 'badge' => $teamPending, 'badgeId' => 'badgeTeamPending'];
+    if ($isHrd) $tabs['paneApproval'] = ['label' => 'Persetujuan HRD', 'icon' => 'fa-user-check', 'badge' => $hrdPending, 'badgeId' => 'badgeHrdPending'];
+    $preferredPane = ['personal' => 'panePersonal', 'team' => 'paneTeam', 'approval' => 'paneApproval'][request('view')] ?? null;
+@endphp
+
 @section('content')
 <div class="container-fluid px-2">
     <div class="row mb-2">
@@ -12,156 +20,176 @@
                 <h3 class="mb-0 font-weight-bold">Pengajuan Cuti/Libur</h3>
                 <div class="text-muted small">Kelola pengajuan cuti dan ganti libur karyawan</div>
             </div>
-            <div class="d-flex align-items-center">
-                <input type="text" id="dateRange" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
-                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLibur">
-                    <i class="fas fa-plus-circle mr-2"></i>Buat Pengajuan Baru
-                </a>
+            <div class="d-flex align-items-center pengajuan-toolbar">
+                <input type="text" id="dateRangeFilter" class="form-control form-control-sm mr-2" placeholder="Filter tanggal" title="Filter tanggal libur" readonly />
+                @if($hasEmployeeProfile)
+                <button type="button" class="btn btn-sm btn-primary text-nowrap" id="btnCreateLibur">
+                    <i class="fas fa-plus-circle mr-1"></i>Buat Pengajuan
+                </button>
+                @endif
             </div>
         </div>
     </div>
 
-            <div class="row">
-                <div class="col-md-12">
-                    @if(($hasEmployeeProfile ?? false) || auth()->user()->hasRole('Hrd'))
-                        <div class="d-flex flex-wrap align-items-center mb-2">
-                            <div class="mr-3">
-                                <div class="alert alert-info py-2 mb-2">
-                                    <p class="mb-0"><strong>Saldo Cuti Tahunan:</strong> {{ auth()->user()->employee->jatahLibur->jatah_cuti_tahunan ?? 0 }} hari</p>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="alert alert-info py-2 mb-2">
-                                    <p class="mb-0"><strong>Saldo Ganti Libur:</strong> {{ auth()->user()->employee->jatahLibur->jatah_ganti_libur ?? 0 }} hari</p>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
-
-                    @if($hasEmployeeProfile ?? false)
-                        <table id="tableLiburKaryawan" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Tanggal</th>
-                                    <th>Alasan</th>
-                                    <th>Catatan</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    @endif
-
-                    @if($canApproveTeam ?? false)
-                        <h5 class="mt-4">Persetujuan Tim (Manager)</h5>
-                        <table id="tableLiburManager" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama Karyawan</th>
-                                    <th>Tanggal</th>
-                                    <th>Alasan</th>
-                                    <th>Catatan</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    @endif
-
-                    @if(auth()->user()->hasRole('Hrd'))
-                        <h5 class="mt-4">Persetujuan HRD</h5>
-                        <table id="tableLiburHRD" class="table table-bordered table-striped">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama Karyawan</th>
-                                    <th>Tanggal</th>
-                                    <th>Alasan</th>
-                                    <th>Catatan</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    @endif
+    @if($saldo)
+    <div class="row mb-1">
+        @foreach($saldo as $jenis => $s)
+        <div class="col-sm-6 col-lg-3 mb-2">
+            <div class="card mb-0 border-left-0">
+                <div class="card-body py-2 px-3">
+                    <div class="text-muted small">{{ $s['label'] }}</div>
+                    <div class="h4 mb-0 font-weight-bold"><span data-saldo="{{ $jenis }}.tersedia">{{ $s['tersedia'] }}</span> <small class="text-muted">hari tersedia</small></div>
+                    <div class="small text-muted" data-saldo-note="{{ $jenis }}">
+                        Saldo {{ $s['saldo'] }} hari
+                        @if($s['pending'] > 0) &middot; {{ $s['pending'] }} hari menunggu persetujuan @endif
+                    </div>
                 </div>
             </div>
         </div>
+        @endforeach
+    </div>
+    @endif
 
+    @if(empty($tabs))
+        <div class="alert alert-info">Akun Anda belum terhubung dengan data karyawan, sehingga belum ada pengajuan yang dapat ditampilkan.</div>
+    @else
+    <div class="card">
+        <div class="card-body p-2">
+            <ul class="nav nav-tabs pengajuan-tabs mb-2 {{ count($tabs) < 2 ? 'd-none' : '' }}" role="tablist">
+                @foreach($tabs as $paneId => $tab)
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#{{ $paneId }}" role="tab">
+                        <i class="fas {{ $tab['icon'] }} mr-1"></i>{{ $tab['label'] }}
+                        @if($tab['badge'] > 0)<span class="badge badge-pill badge-danger ml-1" id="{{ $tab['badgeId'] }}">{{ $tab['badge'] }}</span>@endif
+                    </a>
+                </li>
+                @endforeach
+            </ul>
+
+            <div class="tab-content">
+                @if($hasEmployeeProfile)
+                <div class="tab-pane fade" id="panePersonal" role="tabpanel">
+                    <table id="tableLiburKaryawan" class="table table-bordered table-hover w-100">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Tanggal</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                @endif
+
+                @if($canApproveTeam)
+                <div class="tab-pane fade" id="paneTeam" role="tabpanel">
+                    <table id="tableLiburManager" class="table table-bordered table-hover w-100">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Karyawan</th>
+                                <th>Tanggal</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                @endif
+
+                @if($isHrd)
+                <div class="tab-pane fade" id="paneApproval" role="tabpanel">
+                    <table id="tableLiburHRD" class="table table-bordered table-hover w-100">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                <th>Nama Karyawan</th>
+                                <th>Tanggal</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                @endif
+            </div>
+
+            @if($canApproveTeam || $isHrd)
+            <div class="pengajuan-legend text-muted mt-2">
+                <span class="swatch mr-1"></span> Menunggu persetujuan Anda. Selalu tampil paling atas, apa pun filter tanggalnya.
+            </div>
+            @endif
+        </div>
+    </div>
+    @endif
+</div>
+
+@if($hasEmployeeProfile)
 <!-- Modal Create Pengajuan -->
 <div class="modal fade" id="modalCreateLibur" tabindex="-1" role="dialog" aria-labelledby="modalCreateLiburLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalCreateLiburLabel">Form Pengajuan Cuti/Libur</h5>
+                <h5 class="modal-title" id="modalCreateLiburLabel">Pengajuan Cuti/Libur</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="formCreateLibur">
-                @csrf
+            <form id="formCreateLibur" novalidate>
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>Jenis Cuti/Libur <span class="text-danger">*</span></label>
+                        <label for="jenis_libur">Jenis <span class="text-danger">*</span></label>
                         <select class="form-control" name="jenis_libur" id="jenis_libur" required>
                             <option value="">Pilih Jenis</option>
                             <option value="cuti_tahunan">Cuti Tahunan</option>
                             <option value="ganti_libur">Ganti Libur</option>
                         </select>
                     </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Tanggal Mulai <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" name="tanggal_mulai" id="tanggal_mulai" required>
-                            </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label for="tanggal_mulai">Tanggal Mulai <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="tanggal_mulai" id="tanggal_mulai" required>
                         </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Tanggal Selesai <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" name="tanggal_selesai" id="tanggal_selesai" required>
-                            </div>
+                        <div class="form-group col-6">
+                            <label for="tanggal_selesai">Tanggal Selesai <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="tanggal_selesai" id="tanggal_selesai" required>
                         </div>
                     </div>
-                    <div class="alert alert-info small">
-                        <i class="fas fa-info-circle"></i> Catatan: Jumlah hari dihitung secara inklusif termasuk tanggal awal dan akhir.
-                        <br>Contoh: Libur 1 hari (1 Jan) - isi tanggal mulai dan selesai sama: 1 Jan.
-                        <br>Contoh: Libur 4 hari (9-12 Jan) - isi tanggal mulai: 9 Jan, tanggal selesai: 12 Jan.
+
+                    <div class="form-group d-none" id="hariMasukGroup">
+                        <label>Hari Minggu / libur nasional yang Anda masuk (pengganti) <span class="text-danger">*</span></label>
+                        <div id="hariMasukList" class="border rounded p-2" style="max-height: 180px; overflow-y: auto;"></div>
+                        <small class="form-text text-muted" id="hariMasukHint">Pilih satu hari untuk setiap hari libur yang diajukan. Hanya hari Minggu dan libur nasional di jadwal Anda yang sudah lewat.</small>
                     </div>
-                    
-                    <div class="form-group">
-                        <label>Alasan <span class="text-danger">*</span></label>
-                        <textarea class="form-control" name="alasan" id="alasan" rows="3" required></textarea>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="alert alert-info">
-                                <p class="mb-0"><strong>Jatah Cuti Tahunan:</strong> <span id="jatahCutiTahunan">{{ auth()->user()->employee->jatahLibur->jatah_cuti_tahunan ?? 0 }} hari</span></p>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="alert alert-info">
-                                <p class="mb-0"><strong>Saldo Ganti Libur:</strong> <span id="jatahGantiLibur">{{ auth()->user()->employee->jatahLibur->jatah_ganti_libur ?? 0 }} hari</span></p>
-                            </div>
-                        </div>
+
+                    <div id="liburInfo" class="mb-3"></div>
+
+                    <div class="form-group mb-0">
+                        <label for="alasan">Alasan <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="alasan" id="alasan" rows="3" maxlength="1000" required></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary" id="btnSubmitLibur">Ajukan</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+@endif
 
 <!-- Modal Detail Pengajuan -->
 <div class="modal fade" id="modalDetailLibur" tabindex="-1" role="dialog" aria-labelledby="modalDetailLiburLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalDetailLiburLabel">Detail Pengajuan Cuti/Libur</h5>
@@ -169,642 +197,282 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body" id="modalDetailLiburBody">
-                <!-- Content will be loaded via AJAX -->
-            </div>
+            <div class="modal-body"></div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal Approval Manager -->
-<div class="modal fade" id="modalApprovalManager" tabindex="-1" role="dialog" aria-labelledby="modalApprovalManagerLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalApprovalManagerLabel">Persetujuan Manager</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="formApprovalManager">
-                @csrf
-                <input type="hidden" name="_method" value="PUT">
-                <input type="hidden" name="pengajuan_id" id="manager_pengajuan_id">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Status <span class="text-danger">*</span></label>
-                        <select class="form-control" name="status" id="status_manager" required>
-                            <option value="">Pilih Status</option>
-                            <option value="disetujui">Disetujui</option>
-                            <option value="ditolak">Ditolak</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Catatan</label>
-                        <textarea class="form-control" name="komentar_manager" id="komentar_manager" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                    <button type="submit" class="btn btn-primary" id="btnSubmitApprovalManager">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Approval HRD -->
-<div class="modal fade" id="modalApprovalHRD" tabindex="-1" role="dialog" aria-labelledby="modalApprovalHRDLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalApprovalHRDLabel">Persetujuan HRD</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="formApprovalHRD">
-                @csrf
-                <input type="hidden" name="_method" value="PUT">
-                <input type="hidden" name="pengajuan_id" id="hrd_pengajuan_id">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Status <span class="text-danger">*</span></label>
-                        <select class="form-control" name="status" id="status_hrd" required>
-                            <option value="">Pilih Status</option>
-                            <option value="disetujui">Disetujui</option>
-                            <option value="ditolak">Ditolak</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Catatan</label>
-                        <textarea class="form-control" name="komentar_hrd" id="komentar_hrd" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                    <button type="submit" class="btn btn-primary" id="btnSubmitApprovalHRD">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalManager', 'title' => 'Persetujuan Manager', 'commentName' => 'komentar_manager', 'adjust' => 'date'])
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalHRD', 'title' => 'Persetujuan HRD', 'commentName' => 'komentar_hrd', 'adjust' => 'date',
+    'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika disetujui, saldo karyawan otomatis dikurangi sesuai jumlah hari yang disetujui.</div>'])
 @endsection
 
 @section('scripts')
-<!-- daterangepicker (CDN) -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
-<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-<style>
-/* Hide the "Anda akan mengajukan libur" messages outside of modal */
-.container-fluid .alert-info p.mb-0 + .hari-info,
-.container-fluid .alert-info div:contains("Anda akan mengajukan libur") {
-    display: none !important;
-}
-</style>
+@include('hrd.pengajuan._scripts')
 <script>
-$(document).ready(function() {
-    var checkCapacityUrl = "{{ route('hrd.libur.check_capacity') }}";
+$(function () {
+    var P = window.Pengajuan;
+    var baseUrl = "{{ url('hrd/libur') }}";
+    var indexUrl = "{{ route('hrd.libur.index') }}";
+    var tables = [];
 
-    function formatDatesForMessage(dates) {
-        try {
-            return dates.map(function(d){ return moment(d).locale('id').format('D MMMM YYYY'); }).join(', ');
-        } catch (e) { return dates.join(', '); }
-    }
-
-    function checkLeaveCapacity(startDateVal, endDateVal) {
-        var dfd = $.Deferred();
-        if (!startDateVal || !endDateVal) {
-            dfd.resolve(true);
-            return dfd.promise();
-        }
-        $.ajax({
-            url: checkCapacityUrl,
-            type: 'GET',
-            dataType: 'json',
-            data: { start: startDateVal, end: endDateVal },
-            success: function(resp) {
-                if (resp && resp.capacityExceeded) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Kuota Libur Penuh',
-                        html: 'Kuota maksimal <b>' + (resp.capacity || 2) + '</b> orang per hari. Tidak dapat memilih tanggal: <br><b>' + formatDatesForMessage(resp.blockedDates || []) + '</b>',
-                        confirmButtonText: 'OK'
-                    });
-                    dfd.resolve(false);
-                } else {
-                    dfd.resolve(true);
-                }
-            },
-            error: function(){ dfd.resolve(true); }
-        });
-        return dfd.promise();
-    }
-    // Init Date Range Picker with default (this month to end of next month)
-    var drpStart = moment("{{ isset($defaultDateStart) ? $defaultDateStart : now()->startOfMonth()->toDateString() }}");
-    var drpEnd = moment("{{ isset($defaultDateEnd) ? $defaultDateEnd : now()->addMonthNoOverflow()->endOfMonth()->toDateString() }}");
-
-    $('#dateRange').daterangepicker({
-        startDate: drpStart,
-        endDate: drpEnd,
-        autoApply: true,
-        locale: {
-            format: 'DD/MM/YYYY',
-            separator: ' - '
-        },
-        ranges: {
-            'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
-            's.d Bulan Depan': [moment().startOf('month'), moment().add(1,'month').endOf('month')],
-            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
-            '30 Hari Terakhir': [moment().subtract(29, 'days'), moment()],
-            'Bulan Depan': [moment().add(1,'month').startOf('month'), moment().add(1,'month').endOf('month')]
-        }
-    }, function(start, end) {
-        drpStart = start;
-        drpEnd = end;
-        // Reload all tables that exist
-        if (typeof tableKaryawan !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburKaryawan')) {
-            tableKaryawan.ajax.reload();
-        }
-        if (typeof tableManager !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburManager')) {
-            tableManager.ajax.reload();
-        }
-        if (typeof tableHRD !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburHRD')) {
-            tableHRD.ajax.reload();
-        }
+    var range = P.initDateRange($('#dateRangeFilter'), "{{ $defaultDateStart }}", "{{ $defaultDateEnd }}", function () {
+        P.reloadTables(tables);
     });
 
-    // Remove any "Anda akan mengajukan libur" text from the main page alerts
-    $('.page-content .alert-info').each(function() {
-        $(this).find('div, p').each(function() {
-            if ($(this).text().indexOf('Anda akan mengajukan libur') !== -1) {
-                $(this).remove();
-            }
-        });
-    });
-    
-    // Also clean up any dynamically added elements with specific IDs
-    $('[id$="day-info"]').not('#modalCreateLibur [id$="day-info"]').remove();
-    // Initialize DataTable for Employee (if table exists)
+    var baseColumns = [
+        {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
+        {data: 'alasan', name: 'alasan', orderable: false},
+        {data: 'catatan', name: 'catatan', orderable: false, searchable: false},
+        {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
+        {data: 'action', name: 'action', orderable: false, searchable: false}
+    ];
+    var noCol = {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false};
+    var nameCol = {data: 'employee_nama', name: 'employee_nama', orderable: false};
+
     if ($('#tableLiburKaryawan').length) {
-    var tableKaryawan = $('#tableLiburKaryawan').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: "{{ route('hrd.libur.index') }}?view=personal",
-            data: function(d) {
-                d.date_start = drpStart.format('YYYY-MM-DD');
-                d.date_end = drpEnd.format('YYYY-MM-DD');
-            }
-        },
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
-            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
-            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
-            {data: 'action', name: 'action', orderable: false, searchable: false},
-        ]
-    });
+        tables.push(P.dataTable('#tableLiburKaryawan', indexUrl + '?view=personal', range, [noCol].concat(baseColumns)));
     }
-    
-    // Initialize DataTable for Manager (if table exists)
     if ($('#tableLiburManager').length) {
-    var tableManager = $('#tableLiburManager').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: "{{ route('hrd.libur.index') }}?view=team",
-            data: function(d) {
-                d.date_start = drpStart.format('YYYY-MM-DD');
-                d.date_end = drpEnd.format('YYYY-MM-DD');
-            }
-        },
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'employee.nama', name: 'employee.nama'},
-            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
-            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
-            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
-            {data: 'action', name: 'action', orderable: false, searchable: false},
-        ]
-    });
+        tables.push(P.dataTable('#tableLiburManager', indexUrl + '?view=team', range, [noCol, nameCol].concat(baseColumns)));
     }
-    
-    // Initialize DataTable for HRD (if table exists)
     if ($('#tableLiburHRD').length) {
-    var tableHRD = $('#tableLiburHRD').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: "{{ route('hrd.libur.index') }}?view=approval",
-            data: function(d) {
-                d.date_start = drpStart.format('YYYY-MM-DD');
-                d.date_end = drpEnd.format('YYYY-MM-DD');
-            }
-        },
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'employee.nama', name: 'employee.nama'},
-            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
-            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
-            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
-            {data: 'action', name: 'action', orderable: false, searchable: false},
-        ]
-    });
+        tables.push(P.dataTable('#tableLiburHRD', indexUrl + '?view=approval', range, [noCol, nameCol].concat(baseColumns)));
     }
-    
-    // Create modal
-    $('#btnCreateLibur').click(function() {
-        $('#formCreateLibur')[0].reset();
+
+    P.initTabs('hrd.libur.tab', @json($preferredPane));
+
+    // ===================== Detail & approval =====================
+    P.bindDetail('.btn-detail', function (id) { return baseUrl + '/' + id; }, '#modalDetailLibur');
+
+    P.bindApproval({
+        modal: '#modalApprovalManager',
+        trigger: '.btn-approve-manager',
+        method: 'PUT',
+        url: function (id) { return baseUrl + '/' + id + '/manager'; },
+        onSuccess: function () { P.decrementBadge('#badgeTeamPending'); P.reloadTables(tables); },
+        onStale: function () { P.reloadTables(tables); }
+    });
+
+    P.bindApproval({
+        modal: '#modalApprovalHRD',
+        trigger: '.btn-approve-hrd',
+        method: 'PUT',
+        url: function (id) { return baseUrl + '/' + id + '/hrd'; },
+        onSuccess: function () { P.decrementBadge('#badgeHrdPending'); P.reloadTables(tables); },
+        onStale: function () { P.reloadTables(tables); }
+    });
+
+    // ===================== Create =====================
+    var $form = $('#formCreateLibur');
+    if (!$form.length) return;
+
+    var TODAY = "{{ now()->toDateString() }}";
+    var saldo = @json($saldo);
+    var checkCapacityUrl = "{{ route('hrd.libur.check_capacity') }}";
+    var $jenis = $('#jenis_libur'), $mulai = $('#tanggal_mulai'), $selesai = $('#tanggal_selesai'), $alasan = $('#alasan');
+    var $submit = $('#btnSubmitLibur');
+    var capacity = { key: null, blocked: [], max: null };
+
+    function fmtDate(d) { return moment(d, 'YYYY-MM-DD').locale('id').format('D MMM YYYY'); }
+
+    // ---- Ganti libur: which worked Sunday(s) this day off replaces ----
+    var hariMasukUrl = "{{ route('hrd.libur.hari_masuk_tersedia') }}";
+    var $hariMasukGroup = $('#hariMasukGroup'), $hariMasukList = $('#hariMasukList');
+    var hariMasuk = null; // null = not loaded, false = failed, [] = loaded
+
+    function isGanti() { return $jenis.val() === 'ganti_libur'; }
+    function selectedHariMasuk() { return $hariMasukList.find('input:checked').length; }
+
+    function renderHariMasuk() {
+        if (hariMasuk === null) {
+            $hariMasukList.html('<span class="text-muted small"><i class="fa fa-spinner fa-spin mr-1"></i>Memuat jadwal...</span>');
+        } else if (hariMasuk === false) {
+            $hariMasukList.html('<span class="text-danger small">Gagal memuat jadwal. Tutup dan buka kembali formulir.</span>');
+        } else if (!hariMasuk.length) {
+            $hariMasukList.html('<span class="text-muted small">Belum ada hari Minggu atau libur nasional di jadwal Anda (yang sudah lewat) yang belum dipakai untuk ganti libur.</span>');
+        } else {
+            $hariMasukList.html($.map(hariMasuk, function (h) {
+                var id = 'hm_' + h.date;
+                return '<div class="custom-control custom-checkbox">'
+                    + '<input type="checkbox" class="custom-control-input" name="tanggal_masuk_pengganti[]" value="' + h.date + '" id="' + id + '">'
+                    + '<label class="custom-control-label" for="' + id + '">' + P.escapeHtml(h.label)
+                    + (h.libur ? ' <span class="badge badge-danger">' + P.escapeHtml(h.libur) + '</span>' : '')
+                    + (h.shift ? ' <small class="text-muted">(' + P.escapeHtml(h.shift) + ')</small>' : '') + '</label></div>';
+            }).join(''));
+        }
+    }
+
+    function loadHariMasuk() {
+        hariMasuk = null;
+        renderHariMasuk();
+        $.getJSON(hariMasukUrl)
+            .done(function (res) { hariMasuk = (res && res.data) || []; })
+            .fail(function () { hariMasuk = false; })
+            .always(function () { renderHariMasuk(); evaluate(); });
+    }
+
+    $hariMasukList.on('change', 'input', function () { evaluate(); });
+
+    function renderSaldoCards() {
+        if (!saldo) return;
+        $.each(saldo, function (jenis, s) {
+            $('[data-saldo="' + jenis + '.tersedia"]').text(s.tersedia);
+            $('[data-saldo-note="' + jenis + '"]').text('Saldo ' + s.saldo + ' hari' + (s.pending > 0 ? ' · ' + s.pending + ' hari menunggu persetujuan' : ''));
+        });
+        $jenis.find('option[value]').each(function () {
+            var s = saldo[this.value];
+            if (s) $(this).text(s.label + ' (tersedia ' + s.tersedia + ' hari)');
+        });
+    }
+
+    // Returns a description of anything blocking submission ('' when OK) and renders the info box
+    function evaluate() {
+        var s = $mulai.val(), e = $selesai.val(), jenis = $jenis.val();
+        var days = P.dayCount(s, e), html = '', problem = '';
+
+        if (!days) {
+            html = '<div class="alert alert-light border small mb-0"><i class="fas fa-info-circle mr-1"></i>'
+                + 'Jumlah hari dihitung inklusif. Libur 1 hari: isi tanggal mulai dan selesai sama.</div>';
+        } else {
+            var lines = ['Anda mengajukan <strong>' + days + ' hari</strong> (' + fmtDate(s) + (s !== e ? ' - ' + fmtDate(e) : '') + ').'];
+            var cls = 'alert-info';
+            if (jenis && saldo && saldo[jenis]) {
+                var sisa = saldo[jenis].tersedia - days;
+                if (sisa < 0) {
+                    cls = 'alert-danger';
+                    problem = 'Saldo ' + saldo[jenis].label + ' tidak mencukupi (tersedia ' + saldo[jenis].tersedia + ' hari).';
+                    lines.push('<i class="fas fa-exclamation-triangle mr-1"></i>' + problem);
+                } else {
+                    lines.push('Sisa saldo ' + saldo[jenis].label + ' setelah pengajuan ini: <strong>' + sisa + ' hari</strong>.');
+                }
+            }
+            if (isGanti()) {
+                var picked = selectedHariMasuk(), hmMsg = '';
+                if (hariMasuk === null) hmMsg = 'Menunggu jadwal dimuat.';
+                else if (hariMasuk === false || !hariMasuk.length) hmMsg = 'Tidak ada hari Minggu / libur nasional yang bisa dipakai sebagai pengganti.';
+                else if (picked !== days) hmMsg = 'Pilih ' + days + ' hari pengganti (dipilih ' + picked + ').';
+                if (hmMsg) {
+                    if (cls !== 'alert-danger') cls = 'alert-warning';
+                    problem = problem || hmMsg;
+                    lines.push('<i class="fas fa-calendar-check mr-1"></i>' + hmMsg);
+                }
+            }
+            if (capacity.key === s + '|' + e && capacity.blocked.length) {
+                cls = 'alert-danger';
+                var capMsg = 'Kuota libur penuh (maks. ' + capacity.max + ' orang/hari) pada: ' + $.map(capacity.blocked, fmtDate).join(', ') + '.';
+                problem = problem || capMsg;
+                lines.push('<i class="fas fa-ban mr-1"></i>' + capMsg);
+            }
+            html = '<div class="alert ' + cls + ' small mb-0">' + lines.join('<br>') + '</div>';
+        }
+
+        $('#liburInfo').html(html);
+        $submit.prop('disabled', !!problem);
+        return problem;
+    }
+
+    function checkCapacity() {
+        var s = $mulai.val(), e = $selesai.val(), key = s + '|' + e;
+        if (!s || !e || e < s || capacity.key === key) return $.Deferred().resolve().promise();
+        return $.getJSON(checkCapacityUrl, { start: s, end: e })
+            .done(function (r) {
+                if ($mulai.val() + '|' + $selesai.val() !== key) return; // dates changed meanwhile
+                capacity = { key: key, blocked: (r && r.blockedDates) || [], max: r && r.capacity };
+                evaluate();
+            });
+            // On failure the server still validates capacity when submitting
+    }
+
+    $mulai.on('change', function () {
+        var s = $mulai.val();
+        if (s && s < TODAY) {
+            P.setFieldError($mulai, 'Tanggal mulai tidak boleh sebelum hari ini.');
+        } else {
+            P.clearFieldError($mulai);
+        }
+        $selesai.attr('min', s || TODAY);
+        // Keep the end date valid automatically instead of rejecting it
+        if (s && (!$selesai.val() || $selesai.val() < s)) $selesai.val(s);
+        P.clearFieldError($selesai);
+        evaluate();
+        checkCapacity();
+    });
+
+    $selesai.on('change', function () {
+        var s = $mulai.val(), e = $selesai.val();
+        if (s && e && e < s) {
+            P.setFieldError($selesai, 'Tanggal selesai tidak boleh sebelum tanggal mulai.');
+        } else {
+            P.clearFieldError($selesai);
+        }
+        evaluate();
+        checkCapacity();
+    });
+
+    $jenis.on('change', function () {
+        P.clearFieldError($jenis);
+        $hariMasukGroup.toggleClass('d-none', !isGanti());
+        if (isGanti()) {
+            if (hariMasuk === null || hariMasuk === false) loadHariMasuk();
+        } else {
+            $hariMasukList.find('input').prop('checked', false); // not sent for cuti tahunan
+        }
+        evaluate();
+    });
+    $alasan.on('input', function () { P.clearFieldError($alasan); });
+
+    $('#btnCreateLibur').on('click', function () {
+        $form[0].reset();
+        P.clearFieldErrors($form);
+        capacity = { key: null, blocked: [], max: null };
+        // Reload each time: Sundays used by other requests change
+        hariMasuk = null;
+        $hariMasukList.empty();
+        $hariMasukGroup.addClass('d-none');
+        $mulai.attr('min', TODAY);
+        $selesai.attr('min', TODAY);
+        renderSaldoCards();
+        evaluate();
         $('#modalCreateLibur').modal('show');
     });
-    
-    // Submit create form
-    $('#formCreateLibur').submit(function(e) {
+
+    $form.on('submit', function (e) {
         e.preventDefault();
-        // Validate dates are not before today and end >= start
-        var startDateVal = $('#tanggal_mulai').val();
-        var endDateVal = $('#tanggal_selesai').val();
-        var todayStart = new Date();
-        todayStart.setHours(0,0,0,0);
-        if (startDateVal) {
-            var startDate = new Date(startDateVal + 'T00:00:00');
-            if (startDate < todayStart) {
-                Swal.fire({
-                    title: 'Peringatan!',
-                    text: 'Tanggal mulai tidak boleh sebelum hari ini',
-                    icon: 'warning',
-                    confirmButtonText: 'OK'
-                });
-                return;
-            }
-        }
-        if (endDateVal) {
-            var endDate = new Date(endDateVal + 'T00:00:00');
-            if (endDate < todayStart) {
-                Swal.fire({
-                    title: 'Peringatan!',
-                    text: 'Tanggal selesai tidak boleh sebelum hari ini',
-                    icon: 'warning',
-                    confirmButtonText: 'OK'
-                });
-                return;
-            }
-        }
-        if (startDateVal && endDateVal) {
-            var startDate2 = new Date(startDateVal + 'T00:00:00');
-            var endDate2 = new Date(endDateVal + 'T00:00:00');
-            if (endDate2 < startDate2) {
-                Swal.fire({
-                    title: 'Peringatan!',
-                    text: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
-                    icon: 'warning',
-                    confirmButtonText: 'OK'
-                });
-                return;
-            }
-        }
+        P.clearFieldErrors($form);
 
-        var self = this;
-        var formData = $(self).serialize();
+        var ok = true;
+        $.each([$jenis, $mulai, $selesai, $alasan], function (_, $i) {
+            if (!$.trim($i.val())) { P.setFieldError($i, 'Wajib diisi.'); ok = false; }
+        });
+        if ($mulai.val() && $mulai.val() < TODAY) { P.setFieldError($mulai, 'Tanggal mulai tidak boleh sebelum hari ini.'); ok = false; }
+        if ($mulai.val() && $selesai.val() && $selesai.val() < $mulai.val()) { P.setFieldError($selesai, 'Tanggal selesai tidak boleh sebelum tanggal mulai.'); ok = false; }
+        if (!ok) { $form.find('.is-invalid').first().trigger('focus'); return; }
 
-        $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
-            if (!ok) return;
-            $.ajax({
-                url: "{{ route('hrd.libur.store') }}",
-                type: "POST",
-                data: formData,
-                beforeSend: function() {
-                    $('#btnSubmitLibur').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
-                },
-                success: function(response) {
+        P.setBusy($submit, true);
+        checkCapacity().always(function () {
+            if (evaluate()) { P.setBusy($submit, false); $submit.prop('disabled', true); return; }
+            $submit.prop('disabled', true); // evaluate() re-enables it; keep it locked while saving
+
+            $.ajax({ url: "{{ route('hrd.libur.store') }}", type: 'POST', data: $form.serialize() })
+                .done(function (res) {
                     $('#modalCreateLibur').modal('hide');
-                    $('#formCreateLibur')[0].reset();
+                    if (res && res.saldo) { saldo = res.saldo; renderSaldoCards(); }
+                    Swal.fire({ icon: 'success', title: 'Berhasil!', text: (res && res.message) || 'Pengajuan libur berhasil diajukan.' });
+                    P.reloadTables(tables);
+                })
+                .fail(function (xhr) {
+                    if (!P.applyServerErrors($form, xhr)) P.showError(xhr, 'Gagal mengajukan libur');
+                    capacity.key = null; // force a fresh capacity check next time
+                })
+                .always(function () { P.setBusy($submit, false); });
+        });
+    });
 
-                    Swal.fire({
-                        title: 'Berhasil!',
-                        text: 'Pengajuan libur berhasil diajukan',
-                        icon: 'success',
-                        confirmButtonText: 'OK'
-                    });
-                    
-                    if(typeof tableKaryawan !== 'undefined') {
-                        tableKaryawan.ajax.reload();
-                    }
-                },
-                error: function(xhr) {
-                    var msg = 'Terjadi kesalahan';
-                    if (xhr && xhr.responseJSON) {
-                        if (xhr.responseJSON.message) {
-                            msg = xhr.responseJSON.message;
-                        } else if (xhr.responseJSON.errors) {
-                            var errorMessage = '';
-                            $.each(xhr.responseJSON.errors, function(key, value) {
-                                errorMessage += value[0] + '<br>';
-                            });
-                            msg = errorMessage;
-                        }
-                    }
-                    Swal.fire({
-                        title: 'Gagal!',
-                        html: msg,
-                        icon: 'error',
-                        confirmButtonText: 'OK'
-                    });
-                },
-                complete: function() {
-                    $('#btnSubmitLibur').attr('disabled', false).html('Ajukan');
-                }
-            });
-        });
-    });
-    
-    // Show detail modal
-    $(document).on('click', '.btn-detail', function() {
-        var id = $(this).data('id');
-        
-        $.ajax({
-            url: "{{ url('hrd/libur') }}/" + id,
-            type: "GET",
-            success: function(response) {
-                $('#modalDetailLiburBody').html(response);
-                $('#modalDetailLibur').modal('show');
-            }
-        });
-    });
-    
-    // Show manager approval modal
-    $(document).on('click', '.btn-approve-manager', function() {
-        var id = $(this).data('id');
-        $('#manager_pengajuan_id').val(id);
-        $('#formApprovalManager')[0].reset();
-        
-        // Fetch current status and notes
-        $.ajax({
-            url: "{{ url('hrd/libur') }}/" + id + "/approval-status",
-            type: "GET",
-            success: function(response) {
-                if (response.success) {
-                    var data = response.data;
-                    $('#status_manager').val(data.status_manager);
-                    $('#komentar_manager').val(data.komentar_manager);
-                }
-                $('#modalApprovalManager').modal('show');
-            },
-            error: function() {
-                $('#modalApprovalManager').modal('show');
-            }
-        });
-    });
-    
-    // Submit manager approval
-    $('#formApprovalManager').submit(function(e) {
-        e.preventDefault();
-        
-        var id = $('#manager_pengajuan_id').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ url('hrd/libur') }}/" + id + "/manager",
-            type: "PUT",
-            data: formData,
-            beforeSend: function() {
-                $('#btnSubmitApprovalManager').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
-            },
-            success: function(response) {
-                $('#modalApprovalManager').modal('hide');
-                
-                Swal.fire({
-                    title: 'Berhasil!',
-                    text: 'Status pengajuan berhasil diperbarui',
-                    icon: 'success',
-                    confirmButtonText: 'OK'
-                });
-                
-                if(typeof tableManager !== 'undefined') {
-                    tableManager.ajax.reload();
-                }
-            },
-            error: function(xhr) {
-                var errors = xhr.responseJSON.errors;
-                var errorMessage = '';
-                
-                $.each(errors, function(key, value) {
-                    errorMessage += value[0] + '<br>';
-                });
-                
-                Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMessage,
-                    icon: 'error',
-                    confirmButtonText: 'OK'
-                });
-            },
-            complete: function() {
-                $('#btnSubmitApprovalManager').attr('disabled', false).html('Simpan');
-            }
-        });
-    });
-    
-    // Show HRD approval modal
-    $(document).on('click', '.btn-approve-hrd', function() {
-        var id = $(this).data('id');
-        $('#hrd_pengajuan_id').val(id);
-        $('#formApprovalHRD')[0].reset();
-        
-        // Fetch current status and notes
-        $.ajax({
-            url: "{{ url('hrd/libur') }}/" + id + "/approval-status",
-            type: "GET",
-            success: function(response) {
-                if (response.success) {
-                    var data = response.data;
-                    $('#status_hrd').val(data.status_hrd);
-                    $('#komentar_hrd').val(data.komentar_hrd);
-                }
-                $('#modalApprovalHRD').modal('show');
-            },
-            error: function() {
-                $('#modalApprovalHRD').modal('show');
-            }
-        });
-    });
-    
-    // Submit HRD approval
-    $('#formApprovalHRD').submit(function(e) {
-        e.preventDefault();
-        
-        var id = $('#hrd_pengajuan_id').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ url('hrd/libur') }}/" + id + "/hrd",
-            type: "PUT",
-            data: formData,
-            beforeSend: function() {
-                $('#btnSubmitApprovalHRD').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
-            },
-            success: function(response) {
-                $('#modalApprovalHRD').modal('hide');
-                
-                Swal.fire({
-                    title: 'Berhasil!',
-                    text: 'Status pengajuan berhasil diperbarui',
-                    icon: 'success',
-                    confirmButtonText: 'OK'
-                });
-                
-                if(typeof tableHRD !== 'undefined') {
-                    tableHRD.ajax.reload();
-                }
-            },
-            error: function(xhr) {
-                var errors = xhr.responseJSON.errors;
-                var errorMessage = '';
-                
-                $.each(errors, function(key, value) {
-                    errorMessage += value[0] + '<br>';
-                });
-                
-                Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMessage,
-                    icon: 'error',
-                    confirmButtonText: 'OK'
-                });
-            },
-            complete: function() {
-                $('#btnSubmitApprovalHRD').attr('disabled', false).html('Simpan');
-            }
-        });
-    });
-    
-    // Date validation and day calculation
-    function updateDayCount() {
-        var startDateVal = $('#tanggal_mulai').val();
-        var endDateVal = $('#tanggal_selesai').val();
-        
-        if (startDateVal && endDateVal) {
-            var startDate = new Date(startDateVal + 'T00:00:00'); // Add time to ensure proper date handling
-            var endDate = new Date(endDateVal + 'T00:00:00');
-            
-            // Calculate days between dates (inclusive)
-            // Force absolute value to ensure positive number regardless of date order
-            var diffTime = Math.abs(endDate - startDate);
-            var diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end date
-            
-            // Safety check - ensure at least 1 day
-            if (diffDays < 1) {
-                diffDays = 1;
-            }
-            
-            // Show message with day count only in the modal's info alert about calculation
-            var infoMessage = 'Anda akan mengajukan libur selama <b>' + diffDays + ' hari</b>.';
-            
-            // Find the alert in the modal that contains the calculation info
-            var $targetAlert = $('#modalCreateLibur .alert-info').filter(function() {
-                return $(this).text().indexOf('Jumlah hari dihitung secara inklusif') !== -1;
-            });
-            
-            if (!$('#day-info').length) {
-                // Only append to the alert in the modal that explains the calculation
-                $targetAlert.append('<div id="day-info" class="mt-2">' + infoMessage + '</div>');
-            } else {
-                $('#day-info').html(infoMessage);
-            }
-        }
-    }
-
-    
-    $('#tanggal_selesai').change(function() {
-        var startDate = new Date($('#tanggal_mulai').val());
-        var endDate = new Date($(this).val());
-        var todayStart = new Date();
-        todayStart.setHours(0,0,0,0);
-
-        if (endDate < todayStart) {
-            Swal.fire({
-                title: 'Peringatan!',
-                text: 'Tanggal selesai tidak boleh sebelum hari ini',
-                icon: 'warning',
-                confirmButtonText: 'OK'
-            });
-            $(this).val('');
-            return;
-        }
-        
-        if (endDate < startDate) {
-            Swal.fire({
-                title: 'Peringatan!',
-                text: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
-                icon: 'warning',
-                confirmButtonText: 'OK'
-            });
-            $(this).val('');
-        } else {
-            var startDateVal = $('#tanggal_mulai').val();
-            var endDateVal = $('#tanggal_selesai').val();
-            var that = this;
-            $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
-                if (!ok) {
-                    $(that).val('');
-                } else {
-                    updateDayCount();
-                }
-            });
-        }
-    });
-    
-    $('#tanggal_mulai').change(function() {
-        var startDate = new Date($(this).val());
-        var endDateInput = $('#tanggal_selesai');
-        var todayStart = new Date();
-        todayStart.setHours(0,0,0,0);
-
-        if (startDate < todayStart) {
-            Swal.fire({
-                title: 'Peringatan!',
-                text: 'Tanggal mulai tidak boleh sebelum hari ini',
-                icon: 'warning',
-                confirmButtonText: 'OK'
-            });
-            $(this).val('');
-            return;
-        }
-        
-        if (endDateInput.val()) {
-            var endDate = new Date(endDateInput.val());
-            
-            if (endDate < startDate) {
-                Swal.fire({
-                    title: 'Peringatan!',
-                    text: 'Tanggal mulai tidak boleh setelah tanggal selesai',
-                    icon: 'warning',
-                    confirmButtonText: 'OK'
-                });
-                $(this).val('');
-            } else {
-                var startDateVal = $('#tanggal_mulai').val();
-                var endDateVal = $('#tanggal_selesai').val();
-                var that = this;
-                $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
-                    if (!ok) {
-                        $(that).val('');
-                    } else {
-                        updateDayCount();
-                    }
-                });
-            }
-        }
-    });
+    renderSaldoCards();
 });
 </script>
 @endsection

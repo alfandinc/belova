@@ -14,9 +14,13 @@ class PengajuanLibur extends Model
     protected $fillable = [
         'employee_id',
         'jenis_libur',
+        'tanggal_masuk_pengganti',
         'tanggal_mulai',
         'tanggal_selesai',
         'total_hari',
+        'tanggal_mulai_diajukan',
+        'tanggal_selesai_diajukan',
+        'total_hari_diajukan',
         'alasan',
         'status_manager',
         'notes_manager',
@@ -29,6 +33,9 @@ class PengajuanLibur extends Model
     protected $casts = [
         'tanggal_mulai' => 'date',
         'tanggal_selesai' => 'date',
+        'tanggal_mulai_diajukan' => 'date',
+        'tanggal_selesai_diajukan' => 'date',
+        'tanggal_masuk_pengganti' => 'array',
         'tanggal_persetujuan_manager' => 'datetime',
         'tanggal_persetujuan_hrd' => 'datetime',
     ];

@@ -1627,6 +1627,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::post('dokter-schedule/store-single', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeSingle'])->name('hrd.dokter-schedule.store_single');
     Route::post('dokter-schedule/move/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'moveJadwal'])->name('hrd.dokter-schedule.move');
     Route::post('dokter-schedule/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'store'])->name('hrd.dokter-schedule.store');
+    Route::post('dokter-schedule/save-week', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'saveWeek'])->name('hrd.dokter-schedule.save_week');
+    Route::post('dokter-schedule/copy-week', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'copyWeek'])->name('hrd.dokter-schedule.copy_week');
     // Create or update doctor shifts (HRD)
     Route::post('dokter-shifts/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeShift'])->name('hrd.dokter-shifts.store');
     Route::post('dokter-shifts/update/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateShift'])->name('hrd.dokter-shifts.update');
@@ -1709,6 +1711,14 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::delete('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'destroy'])->name('destroy');
         });
 
+        // Libur Nasional (holidays earn jatah ganti libur when scheduled)
+        Route::prefix('master/libur-nasional')->name('hrd.master.libur-nasional.')->middleware('role:Hrd|Admin')->group(function () {
+            Route::get('/', [App\Http\Controllers\HRD\LiburNasionalController::class, 'index'])->name('index');
+            Route::post('/', [App\Http\Controllers\HRD\LiburNasionalController::class, 'store'])->name('store');
+            Route::put('/{id}', [App\Http\Controllers\HRD\LiburNasionalController::class, 'update'])->name('update');
+            Route::delete('/{id}', [App\Http\Controllers\HRD\LiburNasionalController::class, 'destroy'])->name('destroy');
+        });
+
         // Jatah Libur Management
         Route::prefix('master/jatah-libur')->name('hrd.master.jatah-libur.')->group(function () {
             Route::get('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'index'])->name('index');
@@ -1716,11 +1726,11 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::get('/employees-without-jatah-libur', [App\Http\Controllers\HRD\JatahLiburController::class, 'getEmployeesWithoutJatahLibur'])->name('employees-without-jatah-libur');
             Route::post('/reset-annual', [App\Http\Controllers\HRD\JatahLiburController::class, 'resetAnnualLeave'])->name('reset_annual');
             Route::post('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'store'])->name('store');
-            Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
-            Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
-            // Leave capacity settings
+            // Leave capacity settings (must be registered before /{id}, otherwise "leave-capacity" is captured as an id)
             Route::get('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'getLeaveCapacity'])->name('leave_capacity.get');
             Route::post('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateLeaveCapacity'])->name('leave_capacity.update');
+            Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
+            Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
         });
 
         // Employee Management Routes
@@ -1787,11 +1797,13 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {
                 Route::get('/', [PengajuanLiburController::class, 'index'])->name('index');
                 Route::post('/', [PengajuanLiburController::class, 'store'])->name('store');
+                // Must be registered before /{id}, otherwise "check-capacity" is captured as an id
+                Route::get('/check-capacity', [PengajuanLiburController::class, 'checkCapacity'])->name('check_capacity');
+                Route::get('/hari-masuk-tersedia', [PengajuanLiburController::class, 'hariMasukTersedia'])->name('hari_masuk_tersedia');
                 Route::get('/{id}', [PengajuanLiburController::class, 'show'])->name('show');
                 Route::get('/{id}/approval-status', [PengajuanLiburController::class, 'getApprovalStatus'])->name('approval.status');
                 Route::put('/{id}/manager', [PengajuanLiburController::class, 'persetujuanManager'])->name('manager.approve');
                 Route::put('/{id}/hrd', [PengajuanLiburController::class, 'persetujuanHRD'])->name('hrd.approve');
-            Route::get('/check-capacity', [PengajuanLiburController::class, 'checkCapacity'])->name('check_capacity');
             });
 
     }

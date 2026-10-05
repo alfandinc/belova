@@ -17,6 +17,9 @@ class PengajuanTidakMasuk extends Model
         'tanggal_mulai',
         'tanggal_selesai',
         'total_hari',
+        'tanggal_mulai_diajukan',
+        'tanggal_selesai_diajukan',
+        'total_hari_diajukan',
         'alasan',
         'bukti', // path to image/pdf
         'status_manager',
@@ -30,6 +33,8 @@ class PengajuanTidakMasuk extends Model
     protected $casts = [
         'tanggal_mulai' => 'date',
         'tanggal_selesai' => 'date',
+        'tanggal_mulai_diajukan' => 'date',
+        'tanggal_selesai_diajukan' => 'date',
         'tanggal_persetujuan_manager' => 'datetime',
         'tanggal_persetujuan_hrd' => 'datetime',
     ];

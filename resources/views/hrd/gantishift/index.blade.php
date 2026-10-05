@@ -4,746 +4,377 @@
     @include('layouts.hrd.navbar')
 @endsection
 
+@php
+    $tabs = [];
+    if ($hasEmployeeProfile) $tabs['panePersonal'] = ['label' => 'Pengajuan Saya', 'icon' => 'fa-user', 'badge' => $targetPending, 'badgeId' => 'badgeTargetPending'];
+    if ($canApproveTeam) $tabs['paneTeam'] = ['label' => 'Persetujuan Tim', 'icon' => 'fa-users', 'badge' => $teamPending, 'badgeId' => 'badgeTeamPending'];
+    if ($isHrd) $tabs['paneApproval'] = ['label' => 'Persetujuan HRD', 'icon' => 'fa-user-check', 'badge' => $hrdPending, 'badgeId' => 'badgeHrdPending'];
+    $preferredPane = ['personal' => 'panePersonal', 'team' => 'paneTeam', 'approval' => 'paneApproval'][request('view')] ?? null;
+@endphp
+
 @section('content')
 <div class="container-fluid px-2">
-            <div class="row">
-                <div class="col-12">
-                    <div class="page-title-box d-flex align-items-center justify-content-between">
-                        <h4 class="mb-0">Pengajuan Ganti Shift</h4>
-                    </div>
-                </div>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Pengajuan Ganti Shift</h3>
+                <div class="text-muted small">Ganti shift sendiri atau tukar shift dengan rekan kerja</div>
             </div>
-            
-            <div class="row">
-                @if($hasEmployeeProfile ?? false)
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">Pengajuan Ganti Shift Saya</h4>
-                            <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="table-responsive">
-                                <table id="tableGantiShiftPersonal" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Tanggal Shift</th>
-                                            <th>Shift Lama</th>
-                                            <th>Shift Baru</th>
-                                            <th>Jenis</th>
-                                            <th>Status Manager</th>
-                                            <th>Status HRD</th>
-                                            <th>Status Target</th>
-                                            <th>Aksi</th>
-                                        </tr>
-                                    </thead>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @endif
-
-                @if($canApproveTeam ?? false)
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">Persetujuan Ganti Shift Tim</h4>
-                            <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="table-responsive">
-                                <table id="tableGantiShiftTeam" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Nama Karyawan</th>
-                                            <th>Tanggal Shift</th>
-                                            <th>Shift Lama</th>
-                                            <th>Shift Baru</th>
-                                            <th>Jenis</th>
-                                            <th>Status</th>
-                                            <th>Aksi</th>
-                                        </tr>
-                                    </thead>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @endif
-
-                @if(auth()->user()->hasRole('Hrd'))
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">Persetujuan HRD - Ganti Shift</h4>
-                            <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
-                        </div>
-                        <div class="card-body p-2">
-                            <div class="table-responsive">
-                                <table id="tableGantiShiftApproval" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>Nama Karyawan</th>
-                                            <th>Tanggal Shift</th>
-                                            <th>Shift Lama</th>
-                                            <th>Shift Baru</th>
-                                            <th>Jenis</th>
-                                            <th>Status Manager</th>
-                                            <th>Status HRD</th>
-                                            <th>Status Target</th>
-                                            <th>Aksi</th>
-                                        </tr>
-                                    </thead>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div class="d-flex align-items-center pengajuan-toolbar">
+                <input type="text" id="dateRangeFilter" class="form-control form-control-sm mr-2" placeholder="Filter tanggal" title="Filter tanggal shift" readonly />
+                @if($hasEmployeeProfile)
+                <button type="button" class="btn btn-sm btn-primary text-nowrap" id="btnCreateGantiShift">
+                    <i class="fas fa-plus-circle mr-1"></i>Buat Pengajuan
+                </button>
                 @endif
             </div>
+        </div>
+    </div>
 
-<!-- Modal Create Ganti Shift -->
+    @if($targetPending > 0)
+    <div class="alert alert-warning py-2 d-flex align-items-center" id="targetPendingAlert">
+        <i class="fas fa-exchange-alt mr-2"></i>
+        <div>Ada <strong id="targetPendingCount">{{ $targetPending }}</strong> permintaan tukar shift dari rekan kerja yang menunggu tanggapan Anda (tab Pengajuan Saya).</div>
+    </div>
+    @endif
+
+    @if(empty($tabs))
+        <div class="alert alert-info">Akun Anda belum terhubung dengan data karyawan, sehingga belum ada pengajuan yang dapat ditampilkan.</div>
+    @else
+    <div class="card">
+        <div class="card-body p-2">
+            <ul class="nav nav-tabs pengajuan-tabs mb-2 {{ count($tabs) < 2 ? 'd-none' : '' }}" role="tablist">
+                @foreach($tabs as $paneId => $tab)
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#{{ $paneId }}" role="tab">
+                        <i class="fas {{ $tab['icon'] }} mr-1"></i>{{ $tab['label'] }}
+                        @if($tab['badge'] > 0)<span class="badge badge-pill badge-danger ml-1" id="{{ $tab['badgeId'] }}">{{ $tab['badge'] }}</span>@endif
+                    </a>
+                </li>
+                @endforeach
+            </ul>
+
+            <div class="tab-content">
+                @foreach($tabs as $paneId => $tab)
+                <div class="tab-pane fade" id="{{ $paneId }}" role="tabpanel">
+                    <table id="table_{{ $paneId }}" class="table table-bordered table-hover w-100">
+                        <thead>
+                            <tr>
+                                <th>No</th>
+                                @if($paneId !== 'panePersonal')<th>Nama Karyawan</th>@endif
+                                <th>Tanggal &amp; Shift</th>
+                                <th>Jenis</th>
+                                <th>Alasan</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+                @endforeach
+            </div>
+
+            <div class="pengajuan-legend text-muted mt-2">
+                <span class="swatch mr-1"></span> Menunggu tanggapan Anda. Selalu tampil paling atas, apa pun filter tanggalnya.
+                <span class="d-block mt-1"><i class="fas fa-info-circle mr-1"></i>Alur tukar shift: rekan menyetujui &rarr; atasan langsung &rarr; HRD. Jadwal diperbarui otomatis setelah disetujui HRD.</span>
+            </div>
+        </div>
+    </div>
+    @endif
+</div>
+
+@if($hasEmployeeProfile)
+<!-- Modal Create -->
 <div class="modal fade" id="modalCreateGantiShift" tabindex="-1" role="dialog" aria-labelledby="modalCreateGantiShiftLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalCreateGantiShiftLabel">Buat Pengajuan Ganti Shift</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <h5 class="modal-title" id="modalCreateGantiShiftLabel">Pengajuan Ganti Shift</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
-            <form id="formCreateGantiShift">
-                @csrf
+            <form id="formCreateGantiShift" novalidate>
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="tanggal_shift">Tanggal Shift <span class="text-danger">*</span></label>
+                        <label for="tanggal_shift">Tanggal <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="tanggal_shift" name="tanggal_shift" required>
                     </div>
-                    
-                    <!-- Tukar Shift Checkbox -->
-                    <div class="form-group">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="is_tukar_shift" name="is_tukar_shift" value="1">
-                            <label class="form-check-label" for="is_tukar_shift">
-                                Tukar Shift dengan Karyawan Lain
-                            </label>
-                            <small class="form-text text-muted">Centang jika ingin menukar shift dengan karyawan lain yang memiliki shift yang sama</small>
+
+                    <div id="shiftStep" class="d-none">
+                        <div class="form-group">
+                            <label class="d-block">Jadwal Anda di tanggal ini</label>
+                            <div id="currentShiftInfo" class="small"></div>
+                            <select class="form-control d-none mt-1" id="shift_lama_id" name="shift_lama_id"></select>
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="shift_baru_id">Shift Baru <span class="text-danger">*</span></label>
-                        <select class="form-control" id="shift_baru_id" name="shift_baru_id" required>
-                            <option value="">Pilih Shift</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="shift_lama_display">Shift Saat Ini</label>
-                        <input type="text" class="form-control" id="shift_lama_display" readonly placeholder="Tidak ada shift">
-                    </div>
-                    
-                    <!-- Target Employee Selection for Tukar Shift -->
-                    <div class="form-group" id="target_employee_group" style="display: none;">
-                        <label for="target_employee_id">Karyawan untuk Ditukar <span class="text-danger">*</span></label>
-                        <select class="form-control" id="target_employee_id" name="target_employee_id">
-                            <option value="">Pilih Karyawan</option>
-                        </select>
-                        <small class="form-text text-muted">Karyawan yang akan ditukar shiftnya dengan Anda</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="alasan">Alasan <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="alasan" name="alasan" rows="3" required placeholder="Jelaskan alasan Anda meminta ganti shift..."></textarea>
+
+                        <div class="form-group">
+                            <label class="d-block">Jenis Pengajuan <span class="text-danger">*</span></label>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" id="jenisGanti" name="jenis" value="ganti" class="custom-control-input" checked>
+                                <label class="custom-control-label" for="jenisGanti">Ganti shift saya</label>
+                            </div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" id="jenisTukar" name="jenis" value="tukar" class="custom-control-input">
+                                <label class="custom-control-label" for="jenisTukar">Tukar dengan rekan</label>
+                            </div>
+                            <input type="hidden" name="is_tukar_shift" id="is_tukar_shift" value="0">
+                            <small class="form-text text-muted" id="jenisHint"></small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="shift_baru_id" id="shiftBaruLabel">Shift Baru <span class="text-danger">*</span></label>
+                            <select class="form-control" id="shift_baru_id" name="shift_baru_id" required></select>
+                        </div>
+
+                        <div class="form-group d-none" id="targetGroup">
+                            <label for="target_employee_id">Rekan yang Ditukar <span class="text-danger">*</span></label>
+                            <select class="form-control" id="target_employee_id" name="target_employee_id"></select>
+                            <small class="form-text text-muted">Rekan yang terjadwal pada shift tersebut di tanggal ini. Rekan akan mendapat shift Anda.</small>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <label for="alasan">Alasan <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="alasan" name="alasan" rows="3" maxlength="1000" required placeholder="Jelaskan alasan Anda meminta ganti shift"></textarea>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Kirim Pengajuan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitGantiShift" disabled>Ajukan</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+@endif
 
-<!-- Modal Detail Ganti Shift -->
+<!-- Modal Detail -->
 <div class="modal fade" id="modalDetailGantiShift" tabindex="-1" role="dialog" aria-labelledby="modalDetailGantiShiftLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalDetailGantiShiftLabel">Detail Pengajuan Ganti Shift</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
-            <div class="modal-body" id="modalDetailGantiShiftBody">
-                <!-- Content will be loaded here -->
-            </div>
+            <div class="modal-body"></div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal Approval Manager -->
-<div class="modal fade" id="modalApprovalManagerGantiShift" tabindex="-1" role="dialog" aria-labelledby="modalApprovalManagerGantiShiftLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalApprovalManagerGantiShiftLabel">Persetujuan Manager</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="formApprovalManagerGantiShift">
-                @csrf
-                <input type="hidden" id="manager_gantishift_id" name="gantishift_id">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="status_manager">Keputusan <span class="text-danger">*</span></label>
-                        <select class="form-control" id="status_manager" name="status" required>
-                            <option value="">Pilih Keputusan</option>
-                            <option value="disetujui">Setujui</option>
-                            <option value="ditolak">Tolak</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="komentar_manager">Komentar</label>
-                        <textarea class="form-control" id="komentar_manager" name="komentar_manager" rows="3" placeholder="Berikan komentar (opsional)..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Keputusan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Approval HRD -->
-<div class="modal fade" id="modalApprovalHRDGantiShift" tabindex="-1" role="dialog" aria-labelledby="modalApprovalHRDGantiShiftLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalApprovalHRDGantiShiftLabel">Persetujuan HRD</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="formApprovalHRDGantiShift">
-                @csrf
-                <input type="hidden" id="hrd_gantishift_id" name="gantishift_id">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="status_hrd">Keputusan <span class="text-danger">*</span></label>
-                        <select class="form-control" id="status_hrd" name="status" required>
-                            <option value="">Pilih Keputusan</option>
-                            <option value="disetujui">Setujui</option>
-                            <option value="ditolak">Tolak</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="komentar_hrd">Komentar</label>
-                        <textarea class="form-control" id="komentar_hrd" name="komentar_hrd" rows="3" placeholder="Berikan komentar (opsional)..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Keputusan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Approval Target Employee (for Tukar Shift) -->
-<div class="modal fade" id="modalTargetEmployeeApproval" tabindex="-1" role="dialog" aria-labelledby="modalTargetEmployeeApprovalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalTargetEmployeeApprovalLabel">Persetujuan Tukar Shift</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="formTargetEmployeeApproval">
-                @csrf
-                <input type="hidden" id="target_approval_id" name="id">
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <strong>Permintaan Tukar Shift</strong><br>
-                        Rekan kerja Anda ingin menukar shift dengan Anda. Silakan berikan persetujuan.
-                    </div>
-                    <div class="form-group">
-                        <label>Keputusan <span class="text-danger">*</span></label>
-                        <div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="target_approve" value="disetujui" required>
-                                <label class="form-check-label" for="target_approve">Setuju</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="status" id="target_reject" value="ditolak" required>
-                                <label class="form-check-label" for="target_reject">Tolak</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="target_notes">Catatan</label>
-                        <textarea class="form-control" id="target_notes" name="notes" rows="3" placeholder="Berikan catatan (opsional)..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan Keputusan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalTargetApproval', 'title' => 'Tanggapi Permintaan Tukar Shift', 'commentName' => 'notes',
+    'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika Anda setuju, shift Anda dan rekan akan ditukar setelah disetujui atasan dan HRD.</div>'])
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalManagerGantiShift', 'title' => 'Persetujuan Atasan', 'commentName' => 'komentar_manager'])
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalHRDGantiShift', 'title' => 'Persetujuan HRD', 'commentName' => 'komentar_hrd',
+    'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika disetujui, jadwal karyawan langsung diperbarui.</div>'])
 @endsection
 
 @section('scripts')
-<meta name="csrf-token" content="{{ csrf_token() }}">
+@include('hrd.pengajuan._scripts')
 <script>
-$.ajaxSetup({
-    headers: {
-        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+$(function () {
+    var P = window.Pengajuan;
+    var baseUrl = "{{ url('hrd/gantishift') }}";
+    var indexUrl = "{{ route('hrd.gantishift.index') }}";
+    var tables = [];
+
+    var range = P.initDateRange($('#dateRangeFilter'), "{{ $defaultDateStart }}", "{{ $defaultDateEnd }}", function () {
+        P.reloadTables(tables);
+    });
+
+    var cols = [
+        {data: 'tanggal', name: 'tanggal', orderable: false, searchable: false},
+        {data: 'jenis', name: 'jenis', orderable: false, searchable: false},
+        {data: 'alasan', name: 'alasan', orderable: false},
+        {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
+        {data: 'action', name: 'action', orderable: false, searchable: false}
+    ];
+    var noCol = {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false};
+    var nameCol = {data: 'employee_nama', name: 'employee_nama', orderable: false};
+
+    if ($('#table_panePersonal').length) tables.push(P.dataTable('#table_panePersonal', indexUrl + '?view=personal', range, [noCol].concat(cols)));
+    if ($('#table_paneTeam').length) tables.push(P.dataTable('#table_paneTeam', indexUrl + '?view=team', range, [noCol, nameCol].concat(cols)));
+    if ($('#table_paneApproval').length) tables.push(P.dataTable('#table_paneApproval', indexUrl + '?view=approval', range, [noCol, nameCol].concat(cols)));
+
+    P.initTabs('hrd.gantishift.tab', @json($preferredPane));
+
+    // ===================== Detail & approvals =====================
+    P.bindDetail('.btn-detail', function (id) { return baseUrl + '/' + id; }, '#modalDetailGantiShift');
+
+    function refreshAll() { P.reloadTables(tables); }
+
+    P.bindApproval({
+        modal: '#modalTargetApproval',
+        trigger: '.btn-target-approve',
+        method: 'PUT',
+        url: function (id) { return baseUrl + '/' + id + '/target-approval'; },
+        onSuccess: function () {
+            P.decrementBadge('#badgeTargetPending');
+            P.decrementBadge('#targetPendingCount');
+            if (!$('#targetPendingCount').length) $('#targetPendingAlert').remove();
+            refreshAll();
+        },
+        onStale: refreshAll
+    });
+
+    P.bindApproval({
+        modal: '#modalApprovalManagerGantiShift',
+        trigger: '.btn-approve-manager',
+        method: 'PUT',
+        url: function (id) { return baseUrl + '/' + id + '/manager'; },
+        onSuccess: function () { P.decrementBadge('#badgeTeamPending'); refreshAll(); },
+        onStale: refreshAll
+    });
+
+    P.bindApproval({
+        modal: '#modalApprovalHRDGantiShift',
+        trigger: '.btn-approve-hrd',
+        method: 'PUT',
+        url: function (id) { return baseUrl + '/' + id + '/hrd'; },
+        onSuccess: function () { P.decrementBadge('#badgeHrdPending'); refreshAll(); },
+        onStale: refreshAll
+    });
+
+    // ===================== Create =====================
+    var $form = $('#formCreateGantiShift');
+    if (!$form.length) return;
+
+    var $tanggal = $('#tanggal_shift'), $shiftLama = $('#shift_lama_id'), $shiftBaru = $('#shift_baru_id');
+    var $target = $('#target_employee_id'), $alasan = $('#alasan'), $submit = $('#btnSubmitGantiShift');
+    var state = { shifts: [], current: [], loadingFor: null };
+
+    function isTukar() { return $('input[name="jenis"]:checked').val() === 'tukar'; }
+
+    function option(value, text, disabled) {
+        return $('<option>').val(value).text(text).prop('disabled', !!disabled);
     }
-});
 
-$(document).ready(function() {
-    // DataTable untuk Employee
-    @if($hasEmployeeProfile ?? false)
-    var tablePersonal = $('#tableGantiShiftPersonal').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: "{{ route('hrd.gantishift.index') }}?view=personal",
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'tanggal_shift', name: 'tanggal_shift'},
-            {data: 'shift_lama', name: 'shift_lama'},
-            {data: 'shift_baru', name: 'shift_baru'},
-            {data: 'jenis', name: 'jenis', orderable: false},
-            {data: 'status_manager', name: 'status_manager'},
-            {data: 'status_hrd', name: 'status_hrd'},
-            {data: 'status_target', name: 'status_target'},
-            {data: 'action', name: 'action', orderable: false, searchable: false}
-        ]
+    // Shift options: everything except the shift(s) already on the schedule
+    function fillShiftBaru() {
+        var currentIds = $.map(state.current, function (s) { return s.id; });
+        $shiftBaru.empty().append(option('', 'Pilih shift'));
+        $.each(state.shifts, function (_, s) {
+            if ($.inArray(s.id, currentIds) === -1) $shiftBaru.append(option(s.id, s.label));
+        });
+    }
+
+    function renderCurrent() {
+        var cur = state.current;
+        $shiftLama.empty().addClass('d-none');
+        if (!cur.length) {
+            $('#currentShiftInfo').html('<span class="badge badge-light border">Libur / tidak ada shift</span>');
+        } else if (cur.length === 1) {
+            $('#currentShiftInfo').html('<span class="badge badge-info">' + P.escapeHtml(cur[0].label) + '</span>');
+            $shiftLama.append(option(cur[0].id, cur[0].label));
+        } else {
+            $('#currentShiftInfo').html('<span class="text-muted">Anda punya 2 shift. Pilih shift yang ingin diganti:</span>');
+            $shiftLama.append(option('', 'Pilih shift yang diganti'));
+            $.each(cur, function (_, s) { $shiftLama.append(option(s.id, s.label)); });
+            $shiftLama.removeClass('d-none');
+        }
+
+        // Tukar needs an own shift to give away
+        $('#jenisTukar').prop('disabled', !cur.length);
+        if (!cur.length && isTukar()) $('#jenisGanti').prop('checked', true);
+        applyJenis();
+    }
+
+    function applyJenis() {
+        var tukar = isTukar();
+        $('#is_tukar_shift').val(tukar ? 1 : 0);
+        $('#targetGroup').toggleClass('d-none', !tukar);
+        $('#shiftBaruLabel').html((tukar ? 'Shift rekan yang ingin Anda ambil' : 'Shift Baru') + ' <span class="text-danger">*</span>');
+        $('#jenisHint').text(tukar
+            ? 'Anda mengambil shift rekan, dan rekan mendapat shift Anda. Rekan harus menyetujui lebih dulu.'
+            : (state.current.length ? 'Shift Anda diganti dengan shift baru.' : 'Anda tidak punya shift di tanggal ini; shift baru akan ditambahkan ke jadwal Anda.'));
+        P.clearFieldError($target);
+        if (tukar) loadTargets(); else $target.empty();
+    }
+
+    function loadTargets() {
+        var date = $tanggal.val(), shiftId = $shiftBaru.val();
+        $target.empty();
+        if (!date || !shiftId) {
+            $target.append(option('', 'Pilih shift rekan terlebih dahulu', true));
+            return;
+        }
+        $target.append(option('', 'Memuat...', true));
+        $.getJSON("{{ route('hrd.gantishift.same-shift-employees') }}", { date: date, shift_id: shiftId })
+            .done(function (res) {
+                if ($tanggal.val() !== date || $shiftBaru.val() !== shiftId) return; // changed meanwhile
+                var list = (res && res.employees) || [];
+                $target.empty();
+                if (!list.length) {
+                    $target.append(option('', 'Tidak ada rekan yang terjadwal pada shift ini', true));
+                    return;
+                }
+                $target.append(option('', 'Pilih rekan'));
+                $.each(list, function (_, e) { $target.append(option(e.id, e.name + (e.position ? ' (' + e.position + ')' : ''))); });
+            })
+            .fail(function (xhr) { $target.empty().append(option('', 'Gagal memuat rekan', true)); P.showError(xhr); });
+    }
+
+    $tanggal.on('change', function () {
+        var date = $tanggal.val();
+        P.clearFieldError($tanggal);
+        $('#shiftStep').addClass('d-none');
+        $submit.prop('disabled', true);
+        if (!date) return;
+
+        state.loadingFor = date;
+        $.getJSON("{{ route('hrd.gantishift.available-shifts') }}", { date: date })
+            .done(function (res) {
+                if (state.loadingFor !== date) return;
+                state.shifts = (res && res.shifts) || [];
+                state.current = (res && res.current_shifts) || [];
+                fillShiftBaru();
+                renderCurrent();
+                $('#shiftStep').removeClass('d-none');
+                $submit.prop('disabled', false);
+            })
+            .fail(function (xhr) { P.showError(xhr, 'Gagal memuat jadwal'); });
     });
-    @endif
 
-    // DataTable untuk Manager (team)
-    @if($canApproveTeam ?? false)
-    var tableTeam = $('#tableGantiShiftTeam').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: "{{ route('hrd.gantishift.index') }}?view=team",
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'employee_name', name: 'employee_name'},
-            {data: 'tanggal_shift', name: 'tanggal_shift'},
-            {data: 'shift_lama', name: 'shift_lama'},
-            {data: 'shift_baru', name: 'shift_baru'},
-            {data: 'jenis', name: 'jenis', orderable: false},
-            {data: 'status_manager', name: 'status_manager'},
-            {data: 'action', name: 'action', orderable: false, searchable: false}
-        ]
-    });
-    @endif
+    $('input[name="jenis"]').on('change', applyJenis);
+    $shiftBaru.on('change', function () { P.clearFieldError($shiftBaru); if (isTukar()) loadTargets(); });
+    $shiftLama.add($target).on('change', function () { P.clearFieldError($(this)); });
+    $alasan.on('input', function () { P.clearFieldError($alasan); });
 
-    // DataTable untuk HRD (approval)
-    @if(auth()->user()->hasRole('Hrd'))
-    var tableApproval = $('#tableGantiShiftApproval').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: "{{ route('hrd.gantishift.index') }}?view=approval",
-        columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'employee_name', name: 'employee_name'},
-            {data: 'tanggal_shift', name: 'tanggal_shift'},
-            {data: 'shift_lama', name: 'shift_lama'},
-            {data: 'shift_baru', name: 'shift_baru'},
-            {data: 'jenis', name: 'jenis', orderable: false},
-            {data: 'status_manager', name: 'status_manager'},
-            {data: 'status_hrd', name: 'status_hrd'},
-            {data: 'status_target', name: 'status_target'},
-            {data: 'action', name: 'action', orderable: false, searchable: false}
-        ]
-    });
-    @endif
-
-    // Show create modal
-    $('#btnCreateGantiShift').click(function() {
-        $('#formCreateGantiShift')[0].reset();
-        $('#shift_lama_display').val('');
-        $('#shift_baru_id').empty().append('<option value="">Pilih Shift</option>');
-        $('#target_employee_id').empty().append('<option value="">Pilih Karyawan</option>');
-        $('#target_employee_group').hide();
+    $('#btnCreateGantiShift').on('click', function () {
+        $form[0].reset();
+        P.clearFieldErrors($form);
+        state = { shifts: [], current: [], loadingFor: null };
+        $('#shiftStep').addClass('d-none');
+        $('#jenisTukar').prop('disabled', false);
+        $submit.prop('disabled', true);
         $('#modalCreateGantiShift').modal('show');
     });
 
-    // Handle tukar shift checkbox
-    $('#is_tukar_shift').change(function() {
-        if ($(this).is(':checked')) {
-            $('#target_employee_group').show();
-            $('#target_employee_id').prop('required', true);
-            
-            // Load employees if date and shift are already selected
-            var date = $('#tanggal_shift').val();
-            var shiftId = $('#shift_baru_id').val();
-            if (date && shiftId) {
-                loadEmployeesSameShift(date, shiftId);
-            }
-        } else {
-            $('#target_employee_group').hide();
-            $('#target_employee_id').prop('required', false);
-        }
-    });
-
-    // Function to load employees with same shift
-    function loadEmployeesSameShift(date, shiftId) {
-        console.log('Loading employees for shift exchange...', { date, shiftId });
-        $.ajax({
-            url: "{{ route('hrd.gantishift.same-shift-employees') }}",
-            method: 'GET',
-            data: { date: date, shift_id: shiftId },
-            success: function(response) {
-                console.log('Employees response:', response);
-                var employeeSelect = $('#target_employee_id');
-                employeeSelect.empty().append('<option value="">Pilih Karyawan</option>');
-                
-                if (response.employees && response.employees.length > 0) {
-                    response.employees.forEach(function(employee) {
-                        var displayName = employee.name;
-                        if (employee.position && employee.position.trim() !== '') {
-                            displayName += ' (' + employee.position + ')';
-                        }
-                        employeeSelect.append('<option value="' + employee.id + '">' + displayName + '</option>');
-                    });
-                    console.log('Added ' + response.employees.length + ' employees to select');
-                } else {
-                    employeeSelect.append('<option value="" disabled>Tidak ada karyawan dengan shift yang sama</option>');
-                    console.log('No employees found with same shift');
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX Error:', { xhr, status, error });
-                var errorMessage = 'Gagal memuat data karyawan';
-                if (xhr.responseJSON && xhr.responseJSON.error) {
-                    errorMessage += ': ' + xhr.responseJSON.error;
-                }
-                Swal.fire('Error', errorMessage, 'error');
-            }
-        });
-    }
-
-    // When date is selected, load available shifts
-    $('#tanggal_shift').change(function() {
-        var date = $(this).val();
-        if (date) {
-            $.ajax({
-                url: "{{ route('hrd.gantishift.available-shifts') }}",
-                method: 'GET',
-                data: { date: date },
-                success: function(response) {
-                    var shiftSelect = $('#shift_baru_id');
-                    shiftSelect.empty().append('<option value="">Pilih Shift</option>');
-                    
-                    response.shifts.forEach(function(shift) {
-                        shiftSelect.append('<option value="' + shift.id + '">' + 
-                            shift.name + ' (' + shift.start_time + '-' + shift.end_time + ')</option>');
-                    });
-
-                    // Display current shift
-                    if (response.current_shift_id) {
-                        var currentShift = response.shifts.find(s => s.id == response.current_shift_id);
-                        if (currentShift) {
-                            $('#shift_lama_display').val(currentShift.name + ' (' + currentShift.start_time + '-' + currentShift.end_time + ')');
-                        }
-                    } else {
-                        $('#shift_lama_display').val('Tidak ada shift');
-                    }
-                },
-                error: function() {
-                    Swal.fire('Error', 'Gagal memuat data shift', 'error');
-                }
-            });
-        }
-    });
-
-    // When shift is selected and tukar shift is checked, load employees with same shift
-    $('#shift_baru_id').change(function() {
-        var shiftId = $(this).val();
-        var date = $('#tanggal_shift').val();
-        var isTukarShift = $('#is_tukar_shift').is(':checked');
-        
-        console.log('Shift changed:', { shiftId, date, isTukarShift });
-        
-        if (shiftId && date && isTukarShift) {
-            loadEmployeesSameShift(date, shiftId);
-        } else {
-            // Clear employee select if conditions not met
-            $('#target_employee_id').empty().append('<option value="">Pilih Karyawan</option>');
-        }
-    });
-
-    // Submit create form
-    $('#formCreateGantiShift').submit(function(e) {
+    $form.on('submit', function (e) {
         e.preventDefault();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ route('hrd.gantishift.store') }}",
-            method: 'POST',
-            data: formData,
-            success: function(response) {
+        P.clearFieldErrors($form);
+
+        var ok = true;
+        var required = [$tanggal, $shiftBaru, $alasan];
+        if (!$shiftLama.hasClass('d-none')) required.push($shiftLama);
+        if (isTukar()) required.push($target);
+        $.each(required, function (_, $i) {
+            if (!$.trim($i.val())) { P.setFieldError($i, 'Wajib diisi.'); ok = false; }
+        });
+        if (!ok) { $form.find('.is-invalid').first().trigger('focus'); return; }
+
+        P.setBusy($submit, true);
+        $.ajax({ url: "{{ route('hrd.gantishift.store') }}", type: 'POST', data: $form.serialize() })
+            .done(function (res) {
                 $('#modalCreateGantiShift').modal('hide');
-                Swal.fire('Berhasil', 'Pengajuan ganti shift berhasil diajukan', 'success');
-                @if(auth()->user()->hasRole('Employee'))
-                tablePersonal.ajax.reload();
-                @endif
-            },
-            error: function(xhr) {
-                // Handle validation errors (422) and other server errors
-                var title = 'Terjadi kesalahan';
-                var text = '';
-
-                if (xhr.status === 422) {
-                    // Laravel validation error
-                    var errors = (xhr.responseJSON && xhr.responseJSON.errors) ? xhr.responseJSON.errors : null;
-                    if (errors) {
-                        // Collect first message from each field
-                        var messages = [];
-                        Object.keys(errors).forEach(function (key) {
-                            if (Array.isArray(errors[key])) {
-                                messages.push(errors[key].join('\n'));
-                            } else {
-                                messages.push(errors[key]);
-                            }
-                        });
-                        text = messages.join('\n');
-                        title = 'Validasi gagal';
-                    } else if (xhr.responseJSON && xhr.responseJSON.error) {
-                        text = xhr.responseJSON.error;
-                    } else {
-                        text = 'Data tidak valid. Periksa input Anda.';
-                    }
-                } else if (xhr.responseJSON && xhr.responseJSON.error) {
-                    text = xhr.responseJSON.error;
-                } else if (xhr.responseText) {
-                    text = xhr.responseText;
-                } else {
-                    text = 'Terjadi kesalahan pada server.';
-                }
-
-                // Show more helpful modal with details
-                Swal.fire({
-                    icon: 'error',
-                    title: title,
-                    text: text,
-                    customClass: { popup: 'swal2-preformatted' }
-                });
-                console.error('AJAX error (create gantishift):', xhr);
-            }
-        });
-    });
-
-    // Show detail modal
-    $(document).on('click', '.btn-detail', function() {
-        var id = $(this).data('id');
-        $.ajax({
-            url: "{{ route('hrd.gantishift.show', ':id') }}".replace(':id', id),
-            method: 'GET',
-            success: function(response) {
-                var data = response.data;
-                var html = `
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Nama Karyawan:</strong> ${data.employee_name}</p>
-                            <p><strong>Tanggal Shift:</strong> ${data.tanggal_shift}</p>
-                            <p><strong>Shift Lama:</strong> ${data.shift_lama}</p>
-                            <p><strong>Shift Baru:</strong> ${data.shift_baru}</p>
-                        </div>
-                        <div class="col-md-6">
-                            <p><strong>Status Manager:</strong> <span class="badge badge-${data.status_manager === 'disetujui' ? 'success' : data.status_manager === 'ditolak' ? 'danger' : 'warning'}">${data.status_manager}</span></p>
-                            <p><strong>Status HRD:</strong> <span class="badge badge-${data.status_hrd === 'disetujui' ? 'success' : data.status_hrd === 'ditolak' ? 'danger' : 'warning'}">${data.status_hrd}</span></p>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-12">
-                            <p><strong>Alasan:</strong></p>
-                            <p>${data.alasan}</p>
-                        </div>
-                    </div>
-                `;
-                
-                if (data.notes_manager) {
-                    html += `
-                        <div class="row">
-                            <div class="col-12">
-                                <p><strong>Catatan Manager:</strong></p>
-                                <p>${data.notes_manager}</p>
-                                <small class="text-muted">Tanggal: ${data.tanggal_persetujuan_manager || '-'}</small>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                if (data.notes_hrd) {
-                    html += `
-                        <div class="row">
-                            <div class="col-12">
-                                <p><strong>Catatan HRD:</strong></p>
-                                <p>${data.notes_hrd}</p>
-                                <small class="text-muted">Tanggal: ${data.tanggal_persetujuan_hrd || '-'}</small>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                // Show schedule update status if both approvals are granted
-                if (data.status_manager === 'disetujui' && data.status_hrd === 'disetujui' && data.schedule_info) {
-                    html += `
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="alert alert-${data.schedule_info.is_updated ? 'success' : 'warning'}">
-                                    <h6><strong>Status Jadwal:</strong></h6>
-                                    ${data.schedule_info.is_updated 
-                                        ? `✅ Jadwal telah berhasil diperbarui ke: <strong>${data.schedule_info.current_shift_name} (${data.schedule_info.current_shift_time})</strong>`
-                                        : `⚠️ Jadwal belum diperbarui. Shift saat ini: <strong>${data.schedule_info.current_shift_name} (${data.schedule_info.current_shift_time})</strong>`
-                                    }
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                $('#modalDetailGantiShiftBody').html(html);
-                $('#modalDetailGantiShift').modal('show');
-            },
-            error: function() {
-                Swal.fire('Error', 'Gagal memuat detail pengajuan', 'error');
-            }
-        });
-    });
-
-    // Show target employee approval modal
-    $(document).on('click', '.btn-target-approve', function() {
-        var id = $(this).data('id');
-        $('#target_approval_id').val(id);
-        $('#formTargetEmployeeApproval')[0].reset();
-        $('#modalTargetEmployeeApproval').modal('show');
-    });
-
-    // Submit target employee approval
-    $('#formTargetEmployeeApproval').submit(function(e) {
-        e.preventDefault();
-        var id = $('#target_approval_id').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ route('hrd.gantishift.target-approval', ':id') }}".replace(':id', id),
-            method: 'PUT',
-            data: formData,
-            success: function(response) {
-                $('#modalTargetEmployeeApproval').modal('hide');
-                Swal.fire('Sukses', response.message, 'success');
-                @if(auth()->user()->hasRole('Employee'))
-                tablePersonal.ajax.reload();
-                @endif
-            },
-            error: function(xhr) {
-                var message = 'Gagal memproses persetujuan';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
-                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
-                }
-                Swal.fire('Error', message, 'error');
-                console.error('AJAX error (target approval):', xhr);
-            }
-        });
-    });
-
-    // Show manager approval modal
-    $(document).on('click', '.btn-approve-manager', function() {
-        var id = $(this).data('id');
-        $('#manager_gantishift_id').val(id);
-        $('#formApprovalManagerGantiShift')[0].reset();
-        $('#modalApprovalManagerGantiShift').modal('show');
-    });
-
-    // Submit manager approval
-    $('#formApprovalManagerGantiShift').submit(function(e) {
-        e.preventDefault();
-        var id = $('#manager_gantishift_id').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ route('hrd.gantishift.manager', ':id') }}".replace(':id', id),
-            method: 'PUT',
-            data: formData,
-            success: function(response) {
-                $('#modalApprovalManagerGantiShift').modal('hide');
-                var message = response.message || 'Keputusan berhasil disimpan';
-                Swal.fire('Berhasil', message, 'success');
-                @if(auth()->user()->hasRole('Manager'))
-                tableTeam.ajax.reload();
-                @endif
-            },
-            error: function(xhr) {
-                var message = 'Gagal menyimpan keputusan';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
-                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
-                }
-                Swal.fire('Error', message, 'error');
-                console.error('AJAX error (manager approval):', xhr);
-            }
-        });
-    });
-
-    // Show HRD approval modal
-    $(document).on('click', '.btn-approve-hrd', function() {
-        var id = $(this).data('id');
-        $('#hrd_gantishift_id').val(id);
-        $('#formApprovalHRDGantiShift')[0].reset();
-        $('#modalApprovalHRDGantiShift').modal('show');
-    });
-
-    // Submit HRD approval
-    $('#formApprovalHRDGantiShift').submit(function(e) {
-        e.preventDefault();
-        var id = $('#hrd_gantishift_id').val();
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ route('hrd.gantishift.hrd', ':id') }}".replace(':id', id),
-            method: 'PUT',
-            data: formData,
-            success: function(response) {
-                $('#modalApprovalHRDGantiShift').modal('hide');
-                var message = response.message || 'Keputusan berhasil disimpan';
-                Swal.fire('Berhasil', message, 'success');
-                @if(auth()->user()->hasRole('Hrd'))
-                tableApproval.ajax.reload();
-                @endif
-            },
-            error: function(xhr) {
-                var message = 'Gagal menyimpan keputusan';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
-                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
-                }
-                Swal.fire('Error', message, 'error');
-                console.error('AJAX error (hrd approval):', xhr);
-            }
-        });
+                Swal.fire({ icon: 'success', title: 'Berhasil!', text: (res && res.message) || 'Pengajuan berhasil diajukan.' });
+                refreshAll();
+            })
+            .fail(function (xhr) {
+                if (!P.applyServerErrors($form, xhr)) P.showError(xhr, 'Gagal mengajukan');
+            })
+            .always(function () { P.setBusy($submit, false); });
     });
 });
 </script>

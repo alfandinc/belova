@@ -1,57 +1,119 @@
 @extends('layouts.hrd.app')
-@section('title', 'HRD | Daftar Karyawan')
+@section('title', 'HRD | Jadwal Karyawan')
 @section('navbar')
     @include('layouts.hrd.navbar')
 @endsection
 
 @section('content')
+<style>
+    .sched-toolbar { position: sticky; top: 0; z-index: 30; background: #fff; padding: 8px 0; border-bottom: 1px solid #e8ebf3; }
+    .sched-toolbar .btn { white-space: nowrap; }
+    .sched-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .sched-palette .pal-chip { border: 0; border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .sched-palette .pal-chip kbd { font-size: 10px; padding: 0 4px; margin-right: 4px; background: rgba(0,0,0,.25); color: #fff; }
+    .sched-palette .pal-chip:disabled { opacity: .45; cursor: not-allowed; }
+    .sched-scroll { max-height: calc(100vh - 250px); overflow: auto; border: 1px solid #dee2e6; }
+    .sched-table { border-collapse: separate; border-spacing: 0; user-select: none; }
+    .sched-table th, .sched-table td { padding: 4px 6px; vertical-align: middle; }
+    .sched-table thead th { position: sticky; top: 0; z-index: 3; background: #f8f9fa; text-align: center; cursor: pointer; vertical-align: top !important; font-weight: 700; }
+    .sched-table thead th small { color: #6c757d; font-weight: 700; }
+    .sched-table tfoot td { position: sticky; bottom: 0; z-index: 3; background: #f8f9fa; }
+    .sched-table .sched-name-col { position: sticky; left: 0; z-index: 2; background: #fff; min-width: 180px; max-width: 220px; }
+    .sched-table thead .sched-name-col, .sched-table tfoot .sched-name-col { z-index: 4; background: #f8f9fa; cursor: default; }
+    .sched-table .sched-emp { cursor: pointer; font-size: 13px; }
+    .sched-table .sched-emp:hover { background: #f1f5ff; }
+    .sched-table th.is-today { background: #e3f2fd; color: #0d47a1; }
+    .sched-table th.is-weekend small { color: #dc3545; }
+    .sched-division td { background: #eef1f6 !important; font-weight: 700; color: #333; cursor: pointer; position: sticky; left: 0; }
+    .sched-division.collapsed .sched-caret { transform: rotate(-90deg); }
+    .sched-caret { transition: transform .15s; font-size: 11px; width: 12px; }
+    td.sc { min-width: 110px; height: 34px; cursor: cell; position: relative; }
+    td.sc.is-today { background: #f5faff; }
+    td.sc.sel { box-shadow: inset 0 0 0 2px #1e88e5; background: #e3f2fd; }
+    td.sc.cursor { box-shadow: inset 0 0 0 3px #0d47a1; }
+    td.sc.dirty::after { content: ''; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 9px 9px 0; border-color: transparent #ff9800 transparent transparent; }
+    td.sc-libur { background: #dc3545 !important; color: #fff; font-weight: 700; font-size: 12px; text-align: center; }
+    td.sc-libur.sel { opacity: .8; }
+    .sc-chip { display: block; border-radius: 3px; padding: 1px 6px; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sc-chip + .sc-chip { margin-top: 2px; }
+    .sc-empty { color: #c0c4cc; display: block; text-align: center; }
+    #shift-picker { position: fixed; z-index: 1050; width: 250px; background: #fff; border: 1px solid #d0d7e2; border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.15); display: none; }
+    #shift-picker .sp-head { padding: 6px 10px; font-size: 12px; color: #6c757d; border-bottom: 1px solid #eee; }
+    #shift-picker .sp-list { max-height: 280px; overflow-y: auto; }
+    #shift-picker .sp-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; font-size: 13px; }
+    #shift-picker .sp-item:hover { background: #f1f5ff; }
+    #shift-picker .sp-dot { width: 14px; height: 14px; border-radius: 3px; margin-right: 8px; flex: none; }
+    #shift-picker .sp-time { color: #6c757d; font-size: 11px; margin-left: auto; margin-right: 6px; }
+    #shift-picker .sp-add { border: 1px solid #ccc; background: #fff; border-radius: 3px; font-size: 11px; padding: 0 5px; line-height: 18px; }
+    #shift-picker .sp-add:hover { background: #1e88e5; color: #fff; border-color: #1e88e5; }
+    #shift-picker .sp-foot { border-top: 1px solid #eee; padding: 6px 8px; display: flex; justify-content: space-between; }
+    .sched-help kbd { font-size: 10px; }
+    #save-schedule-btn .badge { font-size: 10px; }
+</style>
+
 <div class="container-fluid">
-    <div class="row mb-2">
-        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
-            <div>
-                <h3 class="mb-0 font-weight-bold">Jadwal Karyawan Mingguan</h3>
-                <div class="text-muted small">Kelola jadwal karyawan per minggu: atur shift dan copy jadwal ke Minggu Ini.</div>
-            </div>
-            <div class="d-flex align-items-center">
-                <button id="save-schedule-btn" type="button" class="btn btn-primary btn-sm" disabled>Simpan Jadwal</button>
-            </div>
-        </div>
-    </div>
-    <div class="d-flex justify-content-between align-items-center mb-3" id="week-nav">
-        <form id="prev-week-form" method="GET" action="{{ route('hrd.schedule.index') }}" class="d-inline">
-            <input type="hidden" name="start_date" id="prev-week-date" value="{{ $startOfWeek->copy()->subWeek()->toDateString() }}">
-            <button type="submit" class="btn btn-outline-primary">&laquo; Minggu Sebelumnya</button>
-        </form>
-        <div class="d-flex flex-column align-items-center">
-            <span class="font-weight-bold mb-2" id="week-range">{{ $startOfWeek->format('d M Y') }} - {{ $startOfWeek->copy()->addDays(6)->format('d M Y') }}</span>
-            <div class="d-flex align-items-center justify-content-center">
-                <button id="this-week-btn" type="button" class="btn btn-outline-success btn-sm mr-2">
-                    <i data-feather="rotate-ccw" class="icon-xs mr-1"></i>
-                    Kembali ke Minggu Ini
-                </button>
-                <div class="btn-group">
-                    <button id="copy-week-toggle" type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i data-feather="copy" class="icon-xs mr-1"></i>
-                        Copy Jadwal
+    <div class="sched-toolbar">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center flex-wrap">
+                <h4 class="mb-0 font-weight-bold mr-3">Jadwal Karyawan</h4>
+                <div class="btn-group btn-group-sm mr-2">
+                    <button type="button" class="btn btn-outline-primary" id="prev-week-btn" title="Minggu sebelumnya (Alt+←)">&laquo;</button>
+                    <button type="button" class="btn btn-outline-primary font-weight-bold" id="week-range" title="Pilih tanggal">
+                        {{ $startOfWeek->format('d M Y') }} - {{ $startOfWeek->copy()->addDays(6)->format('d M Y') }}
                     </button>
-                    <div id="copy-week-dropdown" class="dropdown-menu dropdown-menu-right">
-                        <a href="#" class="dropdown-item copy-week-option" data-target="this">Copy ke Minggu Ini</a>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="next">Copy ke Minggu Depan</a>
+                    <button type="button" class="btn btn-outline-primary" id="next-week-btn" title="Minggu berikutnya (Alt+→)">&raquo;</button>
+                </div>
+                <input type="date" id="week-jump" class="d-none">
+                <button id="this-week-btn" type="button" class="btn btn-outline-success btn-sm mr-2">Minggu Ini</button>
+            </div>
+            <div class="d-flex align-items-center flex-wrap">
+                <input type="search" id="emp-search" class="form-control form-control-sm mr-2" placeholder="Cari karyawan... ( / )" style="width:180px;">
+                <select id="division-filter" class="form-control form-control-sm mr-2" style="width:auto;">
+                    <option value="">Semua Divisi</option>
+                </select>
+                <div class="btn-group btn-group-sm mr-2">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown">
+                        <i class="fa fa-copy"></i> Copy Minggu
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a href="#" class="dropdown-item copy-week-option" data-target="this">Copy minggu ini ke Minggu Ini</a>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="next">Copy minggu ini ke Minggu Depan</a>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="following">Copy minggu ini ke minggu setelahnya</a>
                     </div>
                 </div>
+                <a href="#" id="print-btn" target="_blank" class="btn btn-outline-secondary btn-sm mr-2"><i class="fa fa-print"></i> Print</a>
+                <button id="undo-btn" type="button" class="btn btn-outline-secondary btn-sm mr-2" disabled title="Undo (Ctrl+Z)"><i class="fa fa-undo"></i></button>
+                <button id="save-schedule-btn" type="button" class="btn btn-primary btn-sm" disabled title="Simpan (Ctrl+S)">
+                    <i class="fa fa-save"></i> Simpan <span class="badge badge-light ml-1" id="pending-count">0</span>
+                </button>
             </div>
         </div>
-        <form id="next-week-form" method="GET" action="{{ route('hrd.schedule.index') }}" class="d-inline">
-            <input type="hidden" name="start_date" id="next-week-date" value="{{ $startOfWeek->copy()->addWeek()->toDateString() }}">
-            <button type="submit" class="btn btn-outline-primary">Minggu Berikutnya &raquo;</button>
-        </form>
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <div class="sched-palette" id="sched-palette"></div>
+            <a href="#" class="small text-muted" data-toggle="collapse" data-target="#sched-help">Pintasan keyboard</a>
+        </div>
+        <div id="sched-help" class="collapse small text-muted sched-help mt-2">
+            <b>Pilih sel:</b> klik / tarik (drag) untuk blok, <kbd>Shift</kbd>+klik untuk rentang, <kbd>Ctrl</kbd>+klik tambah sel, klik nama karyawan = 1 minggu, klik header hari = 1 kolom.
+            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>Del</kbd> kosongkan.
+            &nbsp;<b>Lainnya:</b> <kbd>←↑↓→</kbd> pindah sel, <kbd>Enter</kbd> buka pilihan, <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Ctrl+Z</kbd> undo, <kbd>Ctrl+S</kbd> simpan, <kbd>Esc</kbd> batal pilih.
+        </div>
     </div>
-    <div id="ajax-loading" style="display:none;text-align:center;">
-        <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>
+
+    <div id="ajax-loading" style="display:none;text-align:center;" class="my-2">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div> Memuat...
     </div>
-    <div id="alert-wrapper"></div>
-    <div id="jadwal-wrapper">
-    @include('hrd.schedule._table', ['dates' => $dates, 'employeesByDivision' => $employeesByDivision, 'shifts' => $shifts, 'allShifts' => $allShifts, 'schedules' => $schedules, 'startOfWeek' => $startOfWeek])
+    <div id="jadwal-wrapper" class="mt-2">
+        @include('hrd.schedule._table', ['dates' => $dates, 'employeesByDivision' => $employeesByDivision, 'shifts' => $shifts, 'allShifts' => $allShifts, 'schedules' => $schedules, 'startOfWeek' => $startOfWeek])
+    </div>
+
+    <!-- Shift picker popup (shared) -->
+    <div id="shift-picker">
+        <div class="sp-head" id="sp-head"></div>
+        <div class="sp-list" id="sp-list"></div>
+        <div class="sp-foot">
+            <button type="button" class="btn btn-sm btn-outline-danger" id="sp-clear"><i class="fa fa-eraser"></i> Kosongkan</button>
+            <button type="button" class="btn btn-sm btn-light" id="sp-close">Tutup</button>
+        </div>
     </div>
 
     <!-- Shift Management Modal -->
@@ -71,25 +133,28 @@
                             <label for="shift-name">Nama Shift</label>
                             <input type="text" class="form-control" id="shift-name" placeholder="Pagi-Service">
                         </div>
-                        <div class="form-group">
-                            <label for="shift-start">Jam Mulai</label>
-                            <input type="time" class="form-control" id="shift-start" step="60" min="00:00" max="23:59">
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="shift-start">Jam Mulai</label>
+                                <input type="time" class="form-control" id="shift-start" step="60">
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="shift-end">Jam Selesai</label>
+                                <input type="time" class="form-control" id="shift-end" step="60">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label for="shift-end">Jam Selesai</label>
-                            <input type="time" class="form-control" id="shift-end" step="60" min="00:00" max="23:59">
-                        </div>
-                        <div class="form-group">
-                            <label for="shift-color">Warna Shift</label>
-                            <input type="color" class="form-control" id="shift-color" value="#007bff">
-                            <small class="form-text text-muted">Pilih warna background untuk shift ini.</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="shift-active">Status</label>
-                            <select class="form-control" id="shift-active">
-                                <option value="1">Aktif</option>
-                                <option value="0">Tidak Aktif</option>
-                            </select>
+                        <div class="form-row">
+                            <div class="form-group col-6">
+                                <label for="shift-color">Warna Shift</label>
+                                <input type="color" class="form-control" id="shift-color" value="#007bff">
+                            </div>
+                            <div class="form-group col-6">
+                                <label for="shift-active">Status</label>
+                                <select class="form-control" id="shift-active">
+                                    <option value="1">Aktif</option>
+                                    <option value="0">Tidak Aktif</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -105,719 +170,760 @@
 
 @push('scripts')
 <script>
-function showLoading(show) {
-    document.getElementById('ajax-loading').style.display = show ? 'block' : 'none';
-}
-function showAlert(type, message) {
-    // SweetAlert2
-    let icon = 'info';
-    if(type === 'success') icon = 'success';
-    else if(type === 'danger' || type === 'error') icon = 'error';
-    else if(type === 'warning') icon = 'warning';
-    swal.fire({
-        title: message,
-        icon: icon,
-        timer: 2000,
-        showConfirmButton: false,
-        toast: true,
-        position: 'top-end'
-    });
-}
-// State for shift modal
-var currentShiftMode = null; // 'add' or 'edit'
-// Pending changes storage: { employeeId: { date: [shiftId, ...] } }
-var pendingChanges = {};
+(function () {
+    var URLS = {
+        index: "{{ route('hrd.schedule.index') }}",
+        store: "{{ route('hrd.schedule.store') }}",
+        copyWeek: "{{ route('hrd.schedule.copy_week') }}",
+        print: "{{ route('hrd.schedule.print') }}",
+        shiftStore: "{{ route('hrd.master.shift.store') }}",
+        shiftUpdate: "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}",
+        shiftDestroy: "{{ route('hrd.master.shift.destroy', ['shift' => '__ID__']) }}"
+    };
+    var CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-// Helper to resolve shift color from management table by shift ID
-function getShiftColorById(shiftId) {
-    if (!shiftId) return null;
-    var btn = document.querySelector('#shift-table .shift-edit-btn[data-shift-id="' + shiftId + '"]');
-    return btn ? btn.getAttribute('data-shift-color') : null;
-}
+    var shiftMap = {};       // id -> shift
+    var palette = [];        // active shifts, sorted by start time (index = number key - 1)
+    var selected = new Set(); // selected td.sc elements
+    var anchor = null;       // anchor cell for range selection / keyboard cursor
+    var dragging = false;
+    var dragMoved = false;
+    var undoStack = [];
+    var clipboard = null;    // 2D array of shift-id arrays
+    var currentShiftMode = null;
 
-// Determine appropriate text color (black/white) based on background brightness
-function getContrastTextColor(hexColor) {
-    if (!hexColor) return '#000000';
-    var c = hexColor.trim();
-    if (c[0] === '#') c = c.slice(1);
-    if (c.length === 3) {
-        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
-    }
-    if (c.length !== 6) return '#000000';
-    var r = parseInt(c.substr(0, 2), 16);
-    var g = parseInt(c.substr(2, 2), 16);
-    var b = parseInt(c.substr(4, 2), 16);
-    if (isNaN(r) || isNaN(g) || isNaN(b)) return '#000000';
-    var brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness > 150 ? '#000000' : '#ffffff';
-}
-
-function updateShiftColor(select) {
-    var cell = select.closest('td');
-    if (!cell) return;
-
-    // Reset classes and inline styles
-    cell.className = 'shift-cell';
-    select.className = 'form-control shift-select';
-    select.style.removeProperty('background-color');
-    select.style.removeProperty('color');
-
-    var selected = select.options[select.selectedIndex];
-    if (!selected) return;
-
-    var shiftId = select.value;
-    var shiftColor = selected.getAttribute('data-shift-color') || getShiftColorById(shiftId);
-    var shiftName = selected.getAttribute('data-shift-name');
-
-    if (shiftColor) {
-        // Apply dynamic color from database, use !important to beat theme CSS
-        select.style.setProperty('background-color', shiftColor, 'important');
-        select.style.setProperty('color', getContrastTextColor(shiftColor), 'important');
-    } else if (shiftName) {
-        // Fallback to legacy class-based coloring
-        cell.classList.add('shift-' + shiftName);
-        select.classList.add('shift-' + shiftName);
-    }
-}
-function reapplyShiftColors() {
-    document.querySelectorAll('.shift-select').forEach(function(sel){
-        // Attach unified handler for color + marking pending changes
-        sel.removeEventListener && sel.removeEventListener('change', null);
-        sel.addEventListener('change', function(){ onShiftChanged(sel); });
-        updateShiftColor(sel);
-    });
-}
-
-function onShiftChanged(select) {
-    updateShiftColor(select);
-    markPendingChange(select);
-}
-
-function markPendingChange(select) {
-    var employeeId = select.getAttribute('data-employee-id');
-    var date = select.getAttribute('data-date');
-    if (!employeeId || !date) return;
-    var cell = select.closest('td');
-    if (!cell) return;
-    var selects = cell.querySelectorAll('.shift-select');
-    var shiftIds = [];
-    selects.forEach(function(s) { if (s.value) shiftIds.push(s.value); });
-    if (!pendingChanges[employeeId]) pendingChanges[employeeId] = {};
-    pendingChanges[employeeId][date] = shiftIds;
-    updateSaveButtonState();
-}
-
-function updateSaveButtonState() {
-    var btn = document.getElementById('save-schedule-btn');
-    if (!btn) return;
-    var hasPending = Object.keys(pendingChanges).length > 0 && Object.values(pendingChanges).some(function(d){ return Object.keys(d).length>0; });
-    btn.disabled = !hasPending;
-}
-
-function savePendingChanges() {
-    var btn = document.getElementById('save-schedule-btn');
-    if (!btn) return;
-    if (Object.keys(pendingChanges).length === 0) {
-        showAlert('info', 'Tidak ada perubahan untuk disimpan');
-        return;
-    }
-    var payload = { schedule: pendingChanges };
-    showLoading(true);
-    btn.disabled = true;
-    fetch("{{ route('hrd.schedule.store') }}", {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(function(res){ return res.json(); })
-    .then(function(data){
-        if (data && data.success) {
-            // Refresh week view to reflect saved schedules
-            var weekStart = document.getElementById('week-start').value;
-            fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(function(res){ return res.text(); })
-            .then(function(html){
-                document.getElementById('jadwal-wrapper').innerHTML = html;
-                // Clear pending changes and UI
-                pendingChanges = {};
-                updateSaveButtonState();
-                reapplyShiftColors();
-                updateWeekNav();
-                attachNavEvents();
-                initShiftDataTable();
-                showLoading(false);
-                showAlert('success', 'Jadwal disimpan');
-            });
-        } else {
-            showAlert('danger', 'Gagal menyimpan jadwal');
-            showLoading(false);
-            btn.disabled = false;
+    // ---------- helpers ----------
+    function $id(id) { return document.getElementById(id); }
+    function showLoading(show) { $id('ajax-loading').style.display = show ? 'block' : 'none'; }
+    function showAlert(type, message) {
+        var icon = { success: 'success', danger: 'error', error: 'error', warning: 'warning' }[type] || 'info';
+        if (icon === 'success' || icon === 'error') {
+            // Modal di tengah seperti halaman lain
+            swal.fire({ title: icon === 'success' ? 'Berhasil!' : 'Gagal!', text: message, icon: icon, confirmButtonText: 'OK' });
+            return;
         }
-    })
-    .catch(function(){
-        showAlert('danger', 'Gagal menyimpan jadwal');
-        showLoading(false);
-        btn.disabled = false;
-    });
-}
-function updateWeekNav() {
-    var weekStartEl = document.getElementById('week-start');
-    var weekEndEl = document.getElementById('week-end');
-    if (!weekStartEl || !weekEndEl) return;
-    var weekStart = weekStartEl.value;
-    var weekEnd = weekEndEl.value;
-    var options = { day: '2-digit', month: 'short', year: 'numeric' };
-    document.getElementById('week-range').textContent =
-        new Date(weekStart).toLocaleDateString('id-ID', options) + ' - ' +
-        new Date(weekEnd).toLocaleDateString('id-ID', options);
-    // Update hidden input prev/next week agar navigasi bisa ke minggu berapapun
-    var prevWeekDate = new Date(weekStart);
-    prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-    document.getElementById('prev-week-date').value = prevWeekDate.toISOString().slice(0,10);
-    var nextWeekDate = new Date(weekStart);
-    nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-    document.getElementById('next-week-date').value = nextWeekDate.toISOString().slice(0,10);
-}
-
-// Perform copy of schedules from sourceStart to targetStart with confirmation
-function performCopyWeek(sourceStart, targetStart, label) {
-    if (sourceStart === targetStart) {
-        showAlert('info', 'Anda sedang membuka ' + label);
-        return;
+        swal.fire({ title: message, icon: icon, timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
     }
-    swal.fire({
-        title: 'Copy jadwal ke ' + label + '?',
-        text: 'Jadwal yang sudah ada di ' + label + ' tidak akan ditimpa.',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Ya, Copy',
-        cancelButtonText: 'Batal',
-        reverseButtons: true
-    }).then(function(result){
-        if (!result.value) return;
-        showLoading(true);
-        fetch("{{ route('hrd.schedule.copy_week') }}", {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({
-                target_start_date: targetStart,
-                source_start_date: sourceStart,
-                overwrite: false
-            })
-        })
-        .then(function(res){ return res.json(); })
-        .then(function(data){
-            if (data && data.success) {
-                showAlert('success', (data.message || 'Berhasil') + (data.inserted ? (' (+' + data.inserted + ' shift)') : ''));
-                // Navigate/reload to target week so the user can see the result
-                fetch("{{ route('hrd.schedule.index') }}?start_date=" + targetStart, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    function ymd(d) {
+        // local date -> YYYY-MM-DD (avoid toISOString timezone shift)
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function parseYmd(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    function addDays(s, n) { var d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); }
+    function mondayOf(d) { d = new Date(d); var day = d.getDay(); d.setDate(d.getDate() + ((day === 0 ? -6 : 1) - day)); return ymd(d); }
+    function weekStart() { var el = $id('week-start'); return el ? el.value : mondayOf(new Date()); }
+    function contrast(hex) {
+        if (!hex) return '#000';
+        var c = hex.replace('#', '');
+        if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+        if (c.length !== 6) return '#000';
+        var r = parseInt(c.substr(0, 2), 16), g = parseInt(c.substr(2, 2), 16), b = parseInt(c.substr(4, 2), 16);
+        return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#000' : '#fff';
+    }
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+    function isTyping(e) {
+        var t = e.target;
+        return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    }
+
+    // ---------- cell state ----------
+    function getIds(td) { var v = td.getAttribute('data-shifts'); return v ? v.split(',') : []; }
+    function isEditable(td) { return td && td.classList.contains('sc') && !td.hasAttribute('data-libur'); }
+
+    function renderCell(td) {
+        var ids = getIds(td);
+        if (!ids.length) { td.innerHTML = '<span class="sc-empty">–</span>'; td.title = ''; return; }
+        var html = '', titles = [];
+        ids.forEach(function (id) {
+            var s = shiftMap[id];
+            if (!s) { html += '<span class="sc-chip" style="background:#ccc">#' + esc(id) + '</span>'; return; }
+            var bg = s.color || '#adb5bd';
+            html += '<span class="sc-chip" style="background:' + esc(bg) + ';color:' + contrast(bg) + '">' + esc(s.name) + '</span>';
+            titles.push(s.name + ' (' + s.start + '–' + s.end + ')' + (s.active ? '' : ' [tidak aktif]'));
+        });
+        td.innerHTML = html;
+        td.title = titles.join('\n');
+    }
+
+    function setIds(td, ids, batch) {
+        if (!isEditable(td)) return;
+        ids = ids.filter(function (v, i, a) { return v && a.indexOf(v) === i; }).slice(0, 2);
+        var before = td.getAttribute('data-shifts') || '';
+        var after = ids.join(',');
+        if (before === after) return;
+        if (batch) batch.push({ td: td, before: before });
+        td.setAttribute('data-shifts', after);
+        td.classList.toggle('dirty', after !== (td.getAttribute('data-orig') || ''));
+        renderCell(td);
+    }
+
+    function commitBatch(batch) {
+        if (batch.length) {
+            undoStack.push(batch);
+            if (undoStack.length > 100) undoStack.shift();
+        }
+        refreshStatus();
+    }
+
+    function applyToSelection(fn) {
+        var batch = [];
+        selected.forEach(function (td) { if (isEditable(td)) setIds(td, fn(getIds(td)), batch); });
+        commitBatch(batch);
+        if (!batch.length && selected.size) showAlert('info', 'Tidak ada perubahan');
+    }
+    function setShift(id) { applyToSelection(function () { return [String(id)]; }); }
+    function addShift(id) {
+        id = String(id);
+        applyToSelection(function (ids) {
+            if (!ids.length) return [id];
+            if (ids.indexOf(id) !== -1) return ids;
+            return [ids[0], id];
+        });
+    }
+    function clearShift() { applyToSelection(function () { return []; }); }
+
+    function undo() {
+        var batch = undoStack.pop();
+        if (!batch) return;
+        batch.reverse().forEach(function (c) {
+            if (!document.body.contains(c.td)) return;
+            c.td.setAttribute('data-shifts', c.before);
+            c.td.classList.toggle('dirty', c.before !== (c.td.getAttribute('data-orig') || ''));
+            renderCell(c.td);
+        });
+        refreshStatus();
+    }
+
+    function refreshStatus() {
+        var dirty = document.querySelectorAll('#sched-table td.sc.dirty').length;
+        $id('pending-count').textContent = dirty;
+        $id('save-schedule-btn').disabled = dirty === 0;
+        $id('undo-btn').disabled = undoStack.length === 0;
+        updateCounts();
+    }
+
+    function updateCounts() {
+        var table = $id('sched-table');
+        if (!table) return;
+        var total = table.getAttribute('data-total');
+        var counts = [0, 0, 0, 0, 0, 0, 0], libur = [0, 0, 0, 0, 0, 0, 0];
+        table.querySelectorAll('tbody td.sc').forEach(function (td) {
+            var c = +td.getAttribute('data-col');
+            if (td.hasAttribute('data-libur')) libur[c]++;
+            else if (td.getAttribute('data-shifts')) counts[c]++;
+        });
+        table.querySelectorAll('tfoot .sched-count').forEach(function (td) {
+            var c = +td.getAttribute('data-col');
+            td.innerHTML = '<b>' + counts[c] + '</b>/' + total + (libur[c] ? ' <span class="text-danger">(' + libur[c] + ' libur)</span>' : '');
+        });
+    }
+
+    // ---------- selection ----------
+    function clearSelection() {
+        selected.forEach(function (td) { td.classList.remove('sel'); });
+        selected.clear();
+    }
+    function setCursor(td) {
+        if (anchor) anchor.classList.remove('cursor');
+        anchor = td;
+        if (td) td.classList.add('cursor');
+    }
+    function select(tds, additive) {
+        if (!additive) clearSelection();
+        tds.forEach(function (td) { selected.add(td); td.classList.add('sel'); });
+    }
+    function visibleRows() {
+        return Array.prototype.filter.call(document.querySelectorAll('#sched-table tr.employee-row'), function (tr) {
+            return tr.style.display !== 'none';
+        });
+    }
+    function cellAt(tr, col) { return tr.querySelector('td.sc[data-col="' + col + '"]'); }
+    function rectCells(a, b) {
+        var rows = visibleRows();
+        var r1 = rows.indexOf(a.parentNode), r2 = rows.indexOf(b.parentNode);
+        if (r1 < 0 || r2 < 0) return [b];
+        var c1 = +a.getAttribute('data-col'), c2 = +b.getAttribute('data-col');
+        var out = [];
+        for (var r = Math.min(r1, r2); r <= Math.max(r1, r2); r++)
+            for (var c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) out.push(cellAt(rows[r], c));
+        return out;
+    }
+    function selectionBounds() {
+        // Returns {rows, r1, r2, c1, c2} for the selection's bounding box over visible rows
+        var rows = visibleRows(), r1 = Infinity, r2 = -1, c1 = 7, c2 = -1;
+        selected.forEach(function (td) {
+            var r = rows.indexOf(td.parentNode), c = +td.getAttribute('data-col');
+            if (r < 0) return;
+            r1 = Math.min(r1, r); r2 = Math.max(r2, r); c1 = Math.min(c1, c); c2 = Math.max(c2, c);
+        });
+        return r2 < 0 ? null : { rows: rows, r1: r1, r2: r2, c1: c1, c2: c2 };
+    }
+
+    // ---------- picker ----------
+    function buildPalette() {
+        var el = $id('sched-palette');
+        var html = '<span class="small text-muted mr-1">Shift:</span>';
+        palette.forEach(function (s, i) {
+            var bg = s.color || '#adb5bd';
+            html += '<button type="button" class="pal-chip" data-shift-id="' + s.id + '" style="background:' + esc(bg) + ';color:' + contrast(bg) + '" title="' + esc(s.start + '–' + s.end) + ' · Shift+klik = shift kedua">' +
+                (i < 9 ? '<kbd>' + (i + 1) + '</kbd>' : '') + esc(s.name) + '</button>';
+        });
+        html += '<button type="button" class="pal-chip pal-clear" style="background:#f1f3f5;color:#c62828" title="Kosongkan (Del)"><i class="fa fa-eraser"></i> Kosongkan</button>';
+        el.innerHTML = html;
+
+        var list = '';
+        palette.forEach(function (s, i) {
+            list += '<div class="sp-item" data-shift-id="' + s.id + '">' +
+                '<span class="sp-dot" style="background:' + esc(s.color || '#adb5bd') + '"></span>' +
+                '<span>' + (i < 9 ? '<kbd class="mr-1" style="font-size:10px">' + (i + 1) + '</kbd>' : '') + esc(s.name) + '</span>' +
+                '<span class="sp-time">' + esc(s.start) + '–' + esc(s.end) + '</span>' +
+                '<button type="button" class="sp-add" data-shift-id="' + s.id + '" title="Tambah sebagai shift kedua (double shift)">+2</button>' +
+                '</div>';
+        });
+        $id('sp-list').innerHTML = list || '<div class="p-2 small text-muted">Belum ada shift aktif.</div>';
+    }
+
+    function openPicker() {
+        var picker = $id('shift-picker');
+        var editable = Array.from(selected).filter(isEditable);
+        if (!editable.length) { closePicker(); return; }
+        $id('sp-head').textContent = editable.length === 1 ? 'Pilih shift' : 'Terapkan ke ' + editable.length + ' sel';
+        var target = anchor && selected.has(anchor) ? anchor : editable[editable.length - 1];
+        var r = target.getBoundingClientRect();
+        picker.style.display = 'block';
+        var pw = picker.offsetWidth, ph = picker.offsetHeight;
+        var left = Math.min(r.left, window.innerWidth - pw - 8);
+        var top = r.bottom + 4;
+        if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+        picker.style.left = Math.max(8, left) + 'px';
+        picker.style.top = top + 'px';
+    }
+    function closePicker() { $id('shift-picker').style.display = 'none'; }
+
+    // ---------- filters ----------
+    function buildDivisionFilter() {
+        var sel = $id('division-filter'), cur = sel.value;
+        var opts = '<option value="">Semua Divisi</option>';
+        document.querySelectorAll('#sched-table tr.sched-division').forEach(function (tr) {
+            var d = tr.getAttribute('data-division');
+            opts += '<option value="' + esc(d) + '">' + esc(d) + '</option>';
+        });
+        sel.innerHTML = opts;
+        sel.value = cur;
+        if (sel.value !== cur) sel.value = '';
+    }
+    function applyFilters() {
+        var q = $id('emp-search').value.trim().toLowerCase();
+        var div = $id('division-filter').value;
+        var collapsed = {};
+        document.querySelectorAll('#sched-table tr.sched-division').forEach(function (tr) {
+            collapsed[tr.getAttribute('data-division')] = tr.classList.contains('collapsed');
+        });
+        var visiblePerDiv = {};
+        document.querySelectorAll('#sched-table tr.employee-row').forEach(function (tr) {
+            var d = tr.getAttribute('data-division');
+            var match = (!div || d === div) && (!q || tr.getAttribute('data-name').indexOf(q) !== -1);
+            if (match) visiblePerDiv[d] = (visiblePerDiv[d] || 0) + 1;
+            tr.style.display = match && !collapsed[d] ? '' : 'none';
+        });
+        document.querySelectorAll('#sched-table tr.sched-division').forEach(function (tr) {
+            tr.style.display = visiblePerDiv[tr.getAttribute('data-division')] ? '' : 'none';
+        });
+    }
+
+    // ---------- table init (after every load) ----------
+    function initTable() {
+        var dataEl = $id('shift-data');
+        var shifts = dataEl ? JSON.parse(dataEl.textContent) : [];
+        shiftMap = {};
+        shifts.forEach(function (s) { shiftMap[String(s.id)] = s; });
+        palette = shifts.filter(function (s) { return s.active; })
+            .sort(function (a, b) { return (a.start || '').localeCompare(b.start || '') || a.name.localeCompare(b.name); });
+
+        selected.clear();
+        anchor = null;
+        undoStack = [];
+        closePicker();
+
+        document.querySelectorAll('#sched-table td.sc:not([data-libur])').forEach(renderCell);
+        buildPalette();
+        buildDivisionFilter();
+        applyFilters();
+        updateWeekNav();
+        initShiftDataTable();
+        refreshStatus();
+
+        try {
+            if (localStorage.getItem('sched.shiftMgmtOpen') === '1') $('#shift-mgmt-body').addClass('show');
+        } catch (e) {}
+        $('#shift-mgmt-body').off('shown.bs.collapse hidden.bs.collapse')
+            .on('shown.bs.collapse', function () { try { localStorage.setItem('sched.shiftMgmtOpen', '1'); } catch (e) {} })
+            .on('hidden.bs.collapse', function () { try { localStorage.setItem('sched.shiftMgmtOpen', '0'); } catch (e) {} });
+    }
+
+    function updateWeekNav() {
+        var ws = weekStart(), we = addDays(ws, 6);
+        var opt = { day: '2-digit', month: 'short', year: 'numeric' };
+        $id('week-range').textContent = parseYmd(ws).toLocaleDateString('id-ID', opt) + ' - ' + parseYmd(we).toLocaleDateString('id-ID', opt);
+        $id('print-btn').href = URLS.print + '?start_date=' + ws;
+        $id('week-jump').value = ws;
+    }
+
+    function hasDirty() { return document.querySelectorAll('#sched-table td.sc.dirty').length > 0; }
+
+    function confirmDiscard() {
+        if (!hasDirty()) return Promise.resolve(true);
+        return swal.fire({
+            title: 'Ada perubahan belum disimpan',
+            text: 'Simpan dulu sebelum lanjut?',
+            icon: 'warning',
+            showCancelButton: true,
+            showCloseButton: true,
+            confirmButtonText: 'Simpan & lanjut',
+            cancelButtonText: 'Buang perubahan'
+        }).then(function (r) {
+            if (r.value) return save();
+            return r.dismiss === swal.DismissReason.cancel; // close/Esc/backdrop = batal
+        });
+    }
+
+    function loadWeek(startDate, skipConfirm) {
+        return (skipConfirm ? Promise.resolve(true) : confirmDiscard()).then(function (ok) {
+            if (!ok) return;
+            showLoading(true);
+            return fetch(URLS.index + '?start_date=' + encodeURIComponent(startDate), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (res) { if (!res.ok) throw new Error(); return res.text(); })
+                .then(function (html) {
+                    $id('jadwal-wrapper').innerHTML = html;
+                    initTable();
                 })
-                .then(function(res){ return res.text(); })
-                .then(function(html){
-                    document.getElementById('jadwal-wrapper').innerHTML = html;
-                    reapplyShiftColors();
-                    updateWeekNav();
-                    attachNavEvents();
-                    initShiftDataTable();
-                    showLoading(false);
+                .catch(function () { showAlert('danger', 'Gagal memuat jadwal'); })
+                .finally(function () { showLoading(false); });
+        });
+    }
+
+    // ---------- save ----------
+    var saving = false;
+    function save() {
+        var dirty = document.querySelectorAll('#sched-table td.sc.dirty');
+        if (!dirty.length || saving) return Promise.resolve(!dirty.length);
+        var payload = {};
+        dirty.forEach(function (td) {
+            var emp = td.getAttribute('data-emp');
+            (payload[emp] = payload[emp] || {})[td.getAttribute('data-date')] = getIds(td);
+        });
+        saving = true;
+        var btn = $id('save-schedule-btn');
+        btn.disabled = true;
+        showLoading(true);
+        return fetch(URLS.store, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            body: JSON.stringify({ schedule: payload })
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data || !data.success) throw new Error();
+                dirty.forEach(function (td) {
+                    td.setAttribute('data-orig', td.getAttribute('data-shifts') || '');
+                    td.classList.remove('dirty');
                 });
-            } else {
-                showAlert('danger', (data && data.message) ? data.message : 'Gagal copy jadwal');
-                showLoading(false);
-            }
-        })
-        .catch(function(){
-            showAlert('danger', 'Gagal copy jadwal');
-            showLoading(false);
-        });
-    });
-}
-
-// Inisialisasi DataTable untuk manajemen shift
-function initShiftDataTable() {
-    if (typeof $ === 'undefined' || !$.fn || !$.fn.DataTable) {
-        return; // jQuery/DataTables tidak tersedia
-    }
-    var table = $('#shift-table');
-    if (!table.length) return;
-
-    if ($.fn.DataTable.isDataTable('#shift-table')) {
-        table.DataTable().destroy();
+                undoStack = [];
+                showSaveResult(dirty.length, data.ganti_libur || []);
+                return true;
+            })
+            .catch(function () { showAlert('danger', 'Gagal menyimpan jadwal'); return false; })
+            .finally(function () { saving = false; showLoading(false); refreshStatus(); });
     }
 
-    var dataTable = table.DataTable({
-        paging: false,
-        searching: true,
-        info: false,
-        ordering: true,
-        order: [[0, 'asc']],
-        initComplete: function () {
-            var api = this.api();
-            // Sembunyikan filter bawaan DataTables
-            $(api.table().container()).find('.dataTables_filter').hide();
-
-            var statusFilter = $('#shift-status-filter');
-            // Default: hanya tampilkan Aktif
-            statusFilter.val('active');
-            api.column(3).search('^\\s*Aktif\\s*$', true, false).draw();
-
-            statusFilter.off('change').on('change', function () {
-                var val = $(this).val();
-                if (val === 'active') {
-                    api.column(3).search('^\\s*Aktif\\s*$', true, false).draw();
-                } else if (val === 'inactive') {
-                    api.column(3).search('^\\s*Tidak\\s+Aktif\\s*$', true, false).draw();
-                } else {
-                    api.column(3).search('', false, false).draw();
-                }
-            });
+    function showSaveResult(cellCount, gantiLibur) {
+        var html = '<div>' + cellCount + ' sel jadwal berhasil disimpan.</div>';
+        if (gantiLibur.length) {
+            var rows = gantiLibur.map(function (g) {
+                var change = '';
+                if (g.added.length) change += '<div class="text-success font-weight-bold">+' + g.added.length + ' <small class="text-muted font-weight-normal">(Minggu ' + esc(g.added.join(', ')) + ')</small></div>';
+                if (g.removed.length) change += '<div class="text-danger font-weight-bold">-' + g.removed.length + ' <small class="text-muted font-weight-normal">(Minggu ' + esc(g.removed.join(', ')) + ')</small></div>';
+                return '<tr><td class="text-left">' + esc(g.nama) + '</td><td class="text-left">' + change + '</td><td class="text-center font-weight-bold">' + g.saldo + '</td></tr>';
+            }).join('');
+            html += '<div class="mt-3 mb-1 font-weight-bold text-left">Perubahan Jatah Ganti Libur</div>' +
+                '<table class="table table-sm table-bordered mb-0" style="font-size:13px">' +
+                '<thead class="thead-light"><tr><th class="text-left">Karyawan</th><th class="text-left">Perubahan</th><th class="text-center">Saldo</th></tr></thead>' +
+                '<tbody>' + rows + '</tbody></table>';
         }
-    });
-}
-
-// Make navigation event binding reusable so it can be called
-// after AJAX reloads as well as on initial page load.
-function attachNavEvents() {
-    // Detach event listener lama dengan cloneNode agar event lama benar-benar hilang
-    var prevForm = document.getElementById('prev-week-form');
-    var nextForm = document.getElementById('next-week-form');
-    var thisWeekBtn = document.getElementById('this-week-btn');
-    var copyWeekEl = document.getElementById('copy-week-dropdown') || document.getElementById('copy-week-toggle') || document.getElementById('copy-to-this-week-btn');
-    if (!prevForm || !nextForm || !thisWeekBtn || !copyWeekEl) {
-        return;
+        swal.fire({ title: 'Berhasil!', html: html, icon: 'success', confirmButtonText: 'OK', width: gantiLibur.length ? 600 : undefined });
     }
-    var prevFormClone = prevForm.cloneNode(true);
-    var nextFormClone = nextForm.cloneNode(true);
-    var thisWeekBtnClone = thisWeekBtn.cloneNode(true);
-    prevForm.parentNode.replaceChild(prevFormClone, prevForm);
-    nextForm.parentNode.replaceChild(nextFormClone, nextForm);
-    thisWeekBtn.parentNode.replaceChild(thisWeekBtnClone, thisWeekBtn);
 
-    prevFormClone.addEventListener('submit', function(e){
-        e.preventDefault();
-        var form = this;
-        var startDate = document.getElementById('prev-week-date').value;
-        showLoading(true);
-        fetch(form.action + '?start_date=' + startDate, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(res => res.text())
-        .then(html => {
-            document.getElementById('jadwal-wrapper').innerHTML = html;
-            reapplyShiftColors();
-            updateWeekNav();
-            attachNavEvents();
-            initShiftDataTable();
-            showLoading(false);
-        });
-    });
-    nextFormClone.addEventListener('submit', function(e){
-        e.preventDefault();
-        var form = this;
-        var startDate = document.getElementById('next-week-date').value;
-        showLoading(true);
-        fetch(form.action + '?start_date=' + startDate, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(res => res.text())
-        .then(html => {
-            document.getElementById('jadwal-wrapper').innerHTML = html;
-            reapplyShiftColors();
-            updateWeekNav();
-            attachNavEvents();
-            initShiftDataTable();
-            showLoading(false);
-        });
-    });
-    thisWeekBtnClone.addEventListener('click', function(){
-        var now = new Date();
-        var nowDay = now.getDay();
-        var mondayDiff = (nowDay === 0 ? -6 : 1) - nowDay;
-        var monday = new Date(now);
-        monday.setDate(now.getDate() + mondayDiff);
-        var mondayStr = monday.toISOString().slice(0,10);
-        var currentWeekStart = document.getElementById('week-start').value;
-        if (currentWeekStart === mondayStr) {
-            showAlert('info', 'Sudah berada di minggu ini!');
-            return;
-        }
-        showLoading(true);
-        fetch('{{ route('hrd.schedule.index') }}?start_date=' + mondayStr, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(res => res.text())
-        .then(html => {
-            document.getElementById('jadwal-wrapper').innerHTML = html;
-            reapplyShiftColors();
-            updateWeekNav();
-            attachNavEvents();
-            initShiftDataTable();
-            showLoading(false);
-        });
-    });
-    // Copy schedules FROM currently opened week TO a target week (this/next)
-    var copyWeekMenu = document.getElementById('copy-week-dropdown');
-    if (copyWeekMenu) {
-        // Attach listeners to options
-        var opts = copyWeekMenu.querySelectorAll('.copy-week-option');
-        opts.forEach(function(opt){
-            opt.addEventListener('click', function(e){
-                e.preventDefault();
-                var weekStartEl = document.getElementById('week-start');
-                if (!weekStartEl) { showAlert('danger', 'Tidak dapat menemukan minggu saat ini'); return; }
-                var sourceStart = weekStartEl.value;
-
-                // calculate monday of today's week (local)
-                var now = new Date();
-                var day = now.getDay();
-                var diffToMonday = (day === 0 ? -6 : 1) - day;
-                var monday = new Date(now);
-                monday.setDate(now.getDate() + diffToMonday);
-                var mondayStr = monday.toISOString().slice(0,10);
-
-                var target = opt.getAttribute('data-target');
-                var targetStart = mondayStr;
-                var label = 'Minggu Ini';
-                if (target === 'next') {
-                    var next = new Date(monday);
-                    next.setDate(next.getDate() + 7);
-                    targetStart = next.toISOString().slice(0,10);
-                    label = 'Minggu Depan';
-                }
-                performCopyWeek(sourceStart, targetStart, label);
-            });
-        });
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    reapplyShiftColors();
-    // Handle delete schedule button click
-    document.addEventListener('click', function(e) {
-        // Delegated handler for copy-week dropdown options (works after DOM updates)
-        if (e.target.classList.contains('copy-week-option') || (e.target.closest && e.target.closest('.copy-week-option'))) {
-            e.preventDefault();
-            var opt = e.target.classList.contains('copy-week-option') ? e.target : e.target.closest('.copy-week-option');
-            var weekStartEl = document.getElementById('week-start');
-            if (!weekStartEl) { showAlert('danger', 'Tidak dapat menemukan minggu saat ini'); return; }
-            var sourceStart = weekStartEl.value;
-
-            var now = new Date();
-            var day = now.getDay();
-            var diffToMonday = (day === 0 ? -6 : 1) - day;
-            var monday = new Date(now);
-            monday.setDate(now.getDate() + diffToMonday);
-            var mondayStr = monday.toISOString().slice(0,10);
-
-            var target = opt.getAttribute('data-target');
-            var targetStart = mondayStr;
-            var label = 'Minggu Ini';
-            if (target === 'next') {
-                var next = new Date(monday);
-                next.setDate(next.getDate() + 7);
-                targetStart = next.toISOString().slice(0,10);
-                label = 'Minggu Depan';
-            }
-            performCopyWeek(sourceStart, targetStart, label);
-            return;
-        }
-        if (e.target.classList.contains('delete-schedule-btn') || (e.target.closest && e.target.closest('.delete-schedule-btn'))) {
-            var btn = e.target.classList.contains('delete-schedule-btn') ? e.target : e.target.closest('.delete-schedule-btn');
-            var employeeId = btn.getAttribute('data-employee-id');
-            var date = btn.getAttribute('data-date');
-                var scheduleId = btn.getAttribute('data-schedule-id');
-            if (!employeeId || !date) return;
-            swal.fire({
-                title: 'Hapus jadwal karyawan?',
-                    text: 'Jadwal untuk shift ini akan dihapus. Lanjutkan?',
-                icon: 'warning',
+    // ---------- copy week ----------
+    function performCopyWeek(sourceStart, targetStart, label) {
+        if (sourceStart === targetStart) { showAlert('info', 'Anda sedang membuka ' + label); return; }
+        confirmDiscard().then(function (ok) {
+            if (!ok) return;
+            return swal.fire({
+                title: 'Copy jadwal ke ' + label + '?',
+                text: 'Jadwal yang sudah ada di ' + label + ' tidak akan ditimpa.',
+                icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Ya, hapus!',
+                confirmButtonText: 'Ya, Copy',
                 cancelButtonText: 'Batal',
                 reverseButtons: true
-            }).then(function(result) {
-                if (result.value) {
-                    showLoading(true);
-                    fetch("{{ route('hrd.schedule.delete') }}", {
-                        method: 'POST',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-                        },
-                                body: JSON.stringify({ employee_id: employeeId, date: date, schedule_id: scheduleId })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        if(data.success){
-                            showAlert('success', 'Jadwal berhasil dihapus!');
-                            // Reload the schedule table via AJAX
-                            var weekStart = document.getElementById('week-start').value;
-                            showLoading(true);
-                            fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
-                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                            })
-                            .then(res => res.text())
-                            .then(html => {
-                                document.getElementById('jadwal-wrapper').innerHTML = html;
-                                reapplyShiftColors();
-                                updateWeekNav();
-                                attachNavEvents();
-                                initShiftDataTable();
-                                showLoading(false);
-                            });
-                        }else{
-                            showAlert('danger', 'Gagal menghapus jadwal!');
-                            showLoading(false);
-                        }
-                    })
-                    .catch(() => {
-                        showAlert('danger', 'Gagal menghapus jadwal!');
-                        showLoading(false);
-                    });
-                }
-            });
-        }
-
-        // Opsi: Double Shift dari menu dalam sel (hanya untuk hari tersebut)
-        if (e.target.classList.contains('option-double-shift') || (e.target.closest && e.target.closest('.option-double-shift'))) {
-            e.preventDefault();
-            var opt = e.target.classList.contains('option-double-shift') ? e.target : e.target.closest('.option-double-shift');
-            var cell = opt.closest('td');
-            if (!cell) return;
-
-            var secondRow = cell.querySelector('.second-shift-row');
-            if (!secondRow) return;
-
-            var isHidden = secondRow.classList.contains('d-none');
-            if (isHidden) {
-                secondRow.classList.remove('d-none');
-                secondRow.classList.add('d-flex');
-            } else {
-                secondRow.classList.remove('d-flex');
-                secondRow.classList.add('d-none');
-            }
-            return;
-        }
-
-        // Shift management: add new shift
-        if (e.target.id === 'btn-add-shift' || (e.target.closest && e.target.closest('#btn-add-shift'))) {
-            e.preventDefault();
-            openShiftForm('add');
-        }
-
-        // Shift management: edit existing shift
-        if (e.target.classList.contains('shift-edit-btn') || (e.target.closest && e.target.closest('.shift-edit-btn'))) {
-            e.preventDefault();
-            var btnEdit = e.target.classList.contains('shift-edit-btn') ? e.target : e.target.closest('.shift-edit-btn');
-            openShiftForm('edit', {
-                id: btnEdit.getAttribute('data-shift-id'),
-                name: btnEdit.getAttribute('data-shift-name'),
-                start: btnEdit.getAttribute('data-shift-start'),
-                end: btnEdit.getAttribute('data-shift-end'),
-                active: btnEdit.getAttribute('data-shift-active') || '1',
-                color: btnEdit.getAttribute('data-shift-color') || '#007bff'
-            });
-        }
-
-        // Shift management: delete existing shift
-        if (e.target.classList.contains('shift-delete-btn') || (e.target.closest && e.target.closest('.shift-delete-btn'))) {
-            e.preventDefault();
-            var btnDel = e.target.classList.contains('shift-delete-btn') ? e.target : e.target.closest('.shift-delete-btn');
-            var shiftId = btnDel.getAttribute('data-shift-id');
-            if (!shiftId) return;
-
-            swal.fire({
-                title: 'Hapus shift ini?',
-                text: 'Semua jadwal yang menggunakan shift ini juga akan terhapus. Lanjutkan?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, hapus!',
-                cancelButtonText: 'Batal',
-                reverseButtons: true
-            }).then(function(result){
+            }).then(function (result) {
                 if (!result.value) return;
                 showLoading(true);
-                fetch("{{ route('hrd.master.shift.destroy', ['shift' => '__ID__']) }}".replace('__ID__', shiftId), {
-                    method: 'DELETE',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-                    }
+                return fetch(URLS.copyWeek, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                    body: JSON.stringify({ target_start_date: targetStart, source_start_date: sourceStart, overwrite: false })
                 })
-                .then(function(res){ return res.json(); })
-                .then(function(data){
-                    if (data && data.success) {
-                        showAlert('success', 'Shift berhasil dihapus');
-                        // Reload current week view to refresh legend & selects
-                        var weekStart = document.getElementById('week-start').value;
-                        fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                        })
-                        .then(function(res){ return res.text(); })
-                        .then(function(html){
-                            document.getElementById('jadwal-wrapper').innerHTML = html;
-                            reapplyShiftColors();
-                            updateWeekNav();
-                            attachNavEvents();
-                            initShiftDataTable();
-                            showLoading(false);
-                        });
-                    } else {
-                        showAlert('danger', 'Gagal menghapus shift');
-                        showLoading(false);
-                    }
-                })
-                .catch(function(){
-                    showAlert('danger', 'Gagal menghapus shift');
-                    showLoading(false);
-                });
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (data && data.success) {
+                            showAlert('success', 'Berhasil copy' + (data.inserted ? ' (+' + data.inserted + ' shift)' : ''));
+                            return loadWeek(targetStart, true);
+                        }
+                        showAlert('danger', (data && data.message) || 'Gagal copy jadwal');
+                    })
+                    .catch(function () { showAlert('danger', 'Gagal copy jadwal'); })
+                    .finally(function () { showLoading(false); });
             });
-            return;
-        }
-    });
-    attachNavEvents();
-    initShiftDataTable();
-    // Bind Save button to submit pending changes
-    var saveBtn = document.getElementById('save-schedule-btn');
-    if (saveBtn) {
-        saveBtn.addEventListener('click', function(e){
-            e.preventDefault();
-            savePendingChanges();
         });
     }
-    // Legacy manual submit (kept for safety, though jadwal sekarang auto-save)
-    document.addEventListener('submit', function(e){
-        if(e.target && e.target.id === 'jadwal-form'){
-            e.preventDefault();
-            var form = e.target;
-            showLoading(true);
-            fetch(form.action, {
-                method: 'POST',
-                body: new FormData(form),
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.success){
-                    showAlert('success', 'Jadwal berhasil disimpan!');
-                }else{
-                    showAlert('danger', 'Gagal menyimpan jadwal!');
-                }
-                showLoading(false);
-            });
-        }
-    });
-});
-// Open Bootstrap modal for shift add/edit
-function openShiftForm(mode, shift) {
-    currentShiftMode = mode;
-    shift = shift || {};
 
-    var title = mode === 'edit' ? 'Edit Shift' : 'Tambah Shift';
-    var name = shift.name || '';
-    var start = shift.start || '';
-    var end = shift.end || '';
-    var active = (typeof shift.active !== 'undefined') ? String(shift.active) : '1';
-    var color = shift.color || '#007bff';
-
-    var modal = $('#shiftModal');
-    modal.find('#shiftModalLabel').text(title);
-    modal.find('#shift-id').val(shift.id || '');
-    modal.find('#shift-name').val(name);
-    modal.find('#shift-start').val(start);
-    modal.find('#shift-end').val(end);
-    modal.find('#shift-active').val(active);
-    modal.find('#shift-color').val(color);
-
-    modal.modal('show');
-}
-
-// Handle shift form submit via AJAX
-document.addEventListener('DOMContentLoaded', function(){
-    var shiftForm = document.getElementById('shift-form');
-    if (!shiftForm) return;
-
-    shiftForm.addEventListener('submit', function(e){
-        e.preventDefault();
-        var id = document.getElementById('shift-id').value;
-        var nameVal = document.getElementById('shift-name').value.trim();
-        var startVal = document.getElementById('shift-start').value.trim();
-        var endVal = document.getElementById('shift-end').value.trim();
-        var activeVal = document.getElementById('shift-active').value;
-        var colorVal = document.getElementById('shift-color').value;
-
-        if (!nameVal || !startVal || !endVal) {
-            showAlert('danger', 'Semua field shift wajib diisi');
-            return;
-        }
-
-        var url, method;
-        if (currentShiftMode === 'edit' && id) {
-            url = "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}".replace('__ID__', id);
-            method = 'PUT';
-        } else {
-            url = "{{ route('hrd.master.shift.store') }}";
-            method = 'POST';
-        }
-
-        showLoading(true);
-        fetch(url, {
-            method: method,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({
-                name: nameVal,
-                start_time: startVal,
-                end_time: endVal,
-                active: activeVal,
-                color: colorVal
-            })
-        })
-        .then(function(res){ return res.json(); })
-        .then(function(data){
-            if (data && data.success) {
-                showAlert('success', 'Shift berhasil disimpan');
-                $('#shiftModal').modal('hide');
-                // Reload current week view to refresh legend & selects
-                var weekStart = document.getElementById('week-start').value;
-                fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                .then(function(res){ return res.text(); })
-                .then(function(html){
-                    document.getElementById('jadwal-wrapper').innerHTML = html;
-                    reapplyShiftColors();
-                    updateWeekNav();
-                    attachNavEvents();
-                    initShiftDataTable();
-                    showLoading(false);
-                });
-            } else {
-                showAlert('danger', 'Gagal menyimpan shift');
-                showLoading(false);
+    // ---------- clipboard ----------
+    function copySelection() {
+        var b = selectionBounds();
+        if (!b) return;
+        clipboard = [];
+        for (var r = b.r1; r <= b.r2; r++) {
+            var row = [];
+            for (var c = b.c1; c <= b.c2; c++) {
+                var td = cellAt(b.rows[r], c);
+                row.push(td && selected.has(td) && isEditable(td) ? getIds(td) : null);
             }
-        })
-        .catch(function(){
-            showAlert('danger', 'Gagal menyimpan shift');
-            showLoading(false);
+            clipboard.push(row);
+        }
+        showAlert('info', 'Disalin ' + clipboard.length + '×' + clipboard[0].length + ' sel');
+    }
+    function pasteSelection() {
+        if (!clipboard) return;
+        var b = selectionBounds();
+        if (!b) return;
+        var batch = [];
+        if (clipboard.length === 1 && clipboard[0].length === 1) {
+            // single cell -> fill whole selection
+            var ids = clipboard[0][0] || [];
+            selected.forEach(function (td) { setIds(td, ids.slice(), batch); });
+        } else {
+            // block -> paste starting at top-left of selection
+            for (var r = 0; r < clipboard.length; r++) {
+                var tr = b.rows[b.r1 + r];
+                if (!tr) break;
+                for (var c = 0; c < clipboard[r].length; c++) {
+                    if (b.c1 + c > 6 || clipboard[r][c] === null) continue;
+                    var td = cellAt(tr, b.c1 + c);
+                    if (td) setIds(td, clipboard[r][c].slice(), batch);
+                }
+            }
+        }
+        commitBatch(batch);
+    }
+
+    // ---------- shift management ----------
+    function initShiftDataTable() {
+        if (typeof $ === 'undefined' || !$.fn || !$.fn.DataTable || !$('#shift-table').length) return;
+        if ($.fn.DataTable.isDataTable('#shift-table')) $('#shift-table').DataTable().destroy();
+        $('#shift-table').DataTable({
+            paging: false, searching: true, info: false, ordering: true, order: [[0, 'asc']],
+            initComplete: function () {
+                var api = this.api();
+                $(api.table().container()).find('.dataTables_filter').hide();
+                var filter = function (val) {
+                    if (val === 'active') api.column(3).search('^\\s*Aktif\\s*$', true, false).draw();
+                    else if (val === 'inactive') api.column(3).search('^\\s*Tidak\\s+Aktif\\s*$', true, false).draw();
+                    else api.column(3).search('', false, false).draw();
+                };
+                $('#shift-status-filter').val('active').off('change').on('change', function () { filter($(this).val()); });
+                filter('active');
+            }
+        });
+    }
+
+    function openShiftForm(mode, shift) {
+        currentShiftMode = mode;
+        shift = shift || {};
+        var modal = $('#shiftModal');
+        modal.find('#shiftModalLabel').text(mode === 'edit' ? 'Edit Shift' : 'Tambah Shift');
+        modal.find('#shift-id').val(shift.id || '');
+        modal.find('#shift-name').val(shift.name || '');
+        modal.find('#shift-start').val(shift.start || '');
+        modal.find('#shift-end').val(shift.end || '');
+        modal.find('#shift-active').val(typeof shift.active !== 'undefined' ? String(shift.active) : '1');
+        modal.find('#shift-color').val(shift.color || '#007bff');
+        modal.modal('show');
+    }
+
+    function reloadAfterShiftChange() {
+        // Shift list changed: reload table but keep unsaved edits warning
+        return loadWeek(weekStart());
+    }
+
+    // ---------- events ----------
+    document.addEventListener('DOMContentLoaded', function () {
+        initTable();
+
+        var wrapper = $id('jadwal-wrapper');
+
+        // Cell selection (mouse)
+        wrapper.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            var td = e.target.closest('td.sc');
+            if (!td) return;
+            e.preventDefault();
+            closePicker();
+            if (e.ctrlKey || e.metaKey) {
+                if (selected.has(td)) { selected.delete(td); td.classList.remove('sel'); }
+                else select([td], true);
+                setCursor(td);
+                return;
+            }
+            if (e.shiftKey && anchor) {
+                select(rectCells(anchor, td));
+                return;
+            }
+            setCursor(td);
+            select([td]);
+            dragging = true;
+            dragMoved = false;
+        });
+        wrapper.addEventListener('mouseover', function (e) {
+            if (!dragging) return;
+            var td = e.target.closest('td.sc');
+            if (!td || !anchor) return;
+            dragMoved = true;
+            select(rectCells(anchor, td));
+        });
+        document.addEventListener('mouseup', function (e) {
+            if (dragging) {
+                dragging = false;
+                if (selected.size) openPicker();
+                return;
+            }
+            if (e.target.closest && e.target.closest('td.sc') && (e.ctrlKey || e.metaKey || e.shiftKey) && selected.size) openPicker();
+        });
+
+        // Header / row / division clicks
+        wrapper.addEventListener('click', function (e) {
+            var th = e.target.closest('th.sched-day-head');
+            if (th) {
+                var col = th.getAttribute('data-col');
+                var cells = visibleRows().map(function (tr) { return cellAt(tr, col); }).filter(Boolean);
+                select(cells, e.ctrlKey || e.metaKey);
+                setCursor(cells[0] || null);
+                openPicker();
+                return;
+            }
+            var emp = e.target.closest('td.sched-emp');
+            if (emp) {
+                var tds = Array.from(emp.parentNode.querySelectorAll('td.sc'));
+                select(tds, e.ctrlKey || e.metaKey);
+                setCursor(tds[0]);
+                openPicker();
+                return;
+            }
+            var div = e.target.closest('tr.sched-division');
+            if (div) {
+                div.classList.toggle('collapsed');
+                applyFilters();
+                return;
+            }
+            // Shift management buttons
+            var add = e.target.closest('#btn-add-shift');
+            if (add) { e.preventDefault(); openShiftForm('add'); return; }
+            var edit = e.target.closest('.shift-edit-btn');
+            if (edit) {
+                e.preventDefault();
+                openShiftForm('edit', {
+                    id: edit.getAttribute('data-shift-id'),
+                    name: edit.getAttribute('data-shift-name'),
+                    start: edit.getAttribute('data-shift-start'),
+                    end: edit.getAttribute('data-shift-end'),
+                    active: edit.getAttribute('data-shift-active') || '1',
+                    color: edit.getAttribute('data-shift-color') || '#007bff'
+                });
+                return;
+            }
+            var del = e.target.closest('.shift-delete-btn');
+            if (del) {
+                e.preventDefault();
+                var shiftId = del.getAttribute('data-shift-id');
+                swal.fire({
+                    title: 'Hapus shift ini?',
+                    text: 'Semua jadwal yang menggunakan shift ini juga akan terhapus. Lanjutkan?',
+                    icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, hapus!', cancelButtonText: 'Batal', reverseButtons: true
+                }).then(function (result) {
+                    if (!result.value) return;
+                    showLoading(true);
+                    fetch(URLS.shiftDestroy.replace('__ID__', shiftId), {
+                        method: 'DELETE',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF }
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            if (!data || !data.success) throw new Error();
+                            showAlert('success', 'Shift berhasil dihapus');
+                            return reloadAfterShiftChange();
+                        })
+                        .catch(function () { showAlert('danger', 'Gagal menghapus shift'); })
+                        .finally(function () { showLoading(false); });
+                });
+            }
+        });
+
+        // Palette bar
+        $id('sched-palette').addEventListener('click', function (e) {
+            var chip = e.target.closest('.pal-chip');
+            if (!chip) return;
+            if (!selected.size) { showAlert('info', 'Pilih sel terlebih dahulu'); return; }
+            if (chip.classList.contains('pal-clear')) clearShift();
+            else if (e.shiftKey) addShift(chip.getAttribute('data-shift-id'));
+            else setShift(chip.getAttribute('data-shift-id'));
+        });
+
+        // Picker
+        $id('shift-picker').addEventListener('mousedown', function (e) { e.stopPropagation(); });
+        $id('sp-list').addEventListener('click', function (e) {
+            var addBtn = e.target.closest('.sp-add');
+            if (addBtn) { addShift(addBtn.getAttribute('data-shift-id')); closePicker(); return; }
+            var item = e.target.closest('.sp-item');
+            if (item) { setShift(item.getAttribute('data-shift-id')); closePicker(); }
+        });
+        $id('sp-clear').addEventListener('click', function () { clearShift(); closePicker(); });
+        $id('sp-close').addEventListener('click', closePicker);
+        document.addEventListener('mousedown', function (e) {
+            if (!e.target.closest('#shift-picker') && !e.target.closest('#jadwal-wrapper') && !e.target.closest('.sched-toolbar')) {
+                closePicker();
+            }
+        });
+        wrapper.addEventListener('scroll', closePicker, true);
+        window.addEventListener('resize', closePicker);
+        window.addEventListener('scroll', closePicker);
+
+        // Keyboard
+        document.addEventListener('keydown', function (e) {
+            if (isTyping(e) || $('.modal.show').length || document.querySelector('.swal2-popup:not(.swal2-toast)')) {
+                if (e.key === 'Escape' && e.target.id === 'emp-search') e.target.blur();
+                return;
+            }
+            var ctrl = e.ctrlKey || e.metaKey;
+            if (ctrl && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+            if (ctrl && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+            if (ctrl && e.key.toLowerCase() === 'c' && selected.size) { e.preventDefault(); copySelection(); return; }
+            if (ctrl && e.key.toLowerCase() === 'v' && selected.size) { e.preventDefault(); pasteSelection(); closePicker(); return; }
+            if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); loadWeek(addDays(weekStart(), -7)); return; }
+            if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); loadWeek(addDays(weekStart(), 7)); return; }
+            if (e.key === '/') { e.preventDefault(); $id('emp-search').focus(); return; }
+            if (e.key === 'Escape') { closePicker(); clearSelection(); setCursor(null); return; }
+
+            if (!selected.size && !anchor) return;
+
+            var m = /^Digit([1-9])$/.exec(e.code) || /^Numpad([1-9])$/.exec(e.code);
+            if (m && !ctrl && !e.altKey) {
+                var s = palette[+m[1] - 1];
+                if (!s) return;
+                e.preventDefault();
+                if (e.shiftKey) addShift(s.id); else setShift(s.id);
+                closePicker();
+                return;
+            }
+            if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); clearShift(); closePicker(); return; }
+            if (e.key === 'Enter') { e.preventDefault(); openPicker(); return; }
+
+            var dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+            if (dir && anchor) {
+                e.preventDefault();
+                var rows = visibleRows();
+                var r = rows.indexOf(anchor.parentNode) + dir[0];
+                var c = +anchor.getAttribute('data-col') + dir[1];
+                if (r < 0 || r >= rows.length || c < 0 || c > 6) return;
+                var next = cellAt(rows[r], c);
+                if (!next) return;
+                closePicker();
+                setCursor(next);
+                select([next]);
+                next.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+        });
+
+        // Toolbar
+        $id('save-schedule-btn').addEventListener('click', function () { save(); });
+        $id('undo-btn').addEventListener('click', undo);
+        $id('prev-week-btn').addEventListener('click', function () { loadWeek(addDays(weekStart(), -7)); });
+        $id('next-week-btn').addEventListener('click', function () { loadWeek(addDays(weekStart(), 7)); });
+        $id('this-week-btn').addEventListener('click', function () {
+            var monday = mondayOf(new Date());
+            if (monday === weekStart()) { showAlert('info', 'Sudah berada di minggu ini'); return; }
+            loadWeek(monday);
+        });
+        $id('week-range').addEventListener('click', function () {
+            var inp = $id('week-jump');
+            if (inp.showPicker) { inp.classList.remove('d-none'); inp.style.cssText = 'position:absolute;opacity:0;width:1px;height:1px;'; try { inp.showPicker(); return; } catch (err) {} }
+            inp.classList.remove('d-none');
+            inp.style.cssText = 'width:150px;';
+            inp.focus();
+        });
+        $id('week-jump').addEventListener('change', function () {
+            if (this.value) loadWeek(mondayOf(parseYmd(this.value)));
+        });
+        $id('emp-search').addEventListener('input', function () { clearSelection(); closePicker(); applyFilters(); });
+        $id('division-filter').addEventListener('change', function () { clearSelection(); closePicker(); applyFilters(); });
+
+        document.querySelectorAll('.copy-week-option').forEach(function (opt) {
+            opt.addEventListener('click', function (e) {
+                e.preventDefault();
+                var thisMonday = mondayOf(new Date());
+                var t = opt.getAttribute('data-target');
+                if (t === 'this') performCopyWeek(weekStart(), thisMonday, 'Minggu Ini');
+                else if (t === 'next') performCopyWeek(weekStart(), addDays(thisMonday, 7), 'Minggu Depan');
+                else {
+                    var target = addDays(weekStart(), 7);
+                    performCopyWeek(weekStart(), target, 'minggu ' + parseYmd(target).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }));
+                }
+            });
+        });
+
+        window.addEventListener('beforeunload', function (e) {
+            if (hasDirty()) { e.preventDefault(); e.returnValue = ''; }
+        });
+
+        // Shift form submit
+        $id('shift-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var id = $id('shift-id').value;
+            var body = {
+                name: $id('shift-name').value.trim(),
+                start_time: $id('shift-start').value.trim(),
+                end_time: $id('shift-end').value.trim(),
+                active: $id('shift-active').value,
+                color: $id('shift-color').value
+            };
+            if (!body.name || !body.start_time || !body.end_time) { showAlert('danger', 'Semua field shift wajib diisi'); return; }
+            var isEdit = currentShiftMode === 'edit' && id;
+            showLoading(true);
+            fetch(isEdit ? URLS.shiftUpdate.replace('__ID__', id) : URLS.shiftStore, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+                body: JSON.stringify(body)
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (!data || !data.success) throw new Error();
+                    showAlert('success', 'Shift berhasil disimpan');
+                    $('#shiftModal').modal('hide');
+                    return reloadAfterShiftChange();
+                })
+                .catch(function () { showAlert('danger', 'Gagal menyimpan shift'); })
+                .finally(function () { showLoading(false); });
         });
     });
-});
+})();
 </script>
 @endpush

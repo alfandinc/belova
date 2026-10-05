@@ -3,25 +3,32 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HRD\Concerns\HandlesPengajuanApproval;
 use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
-use App\Models\HRD\PengajuanCuti;
-use App\Models\HRD\SaldoCuti;
 use App\Models\HRD\Employee;
+use App\Models\HRD\EmployeeSchedule;
 use App\Models\HRD\JatahLibur;
+use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanLibur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 use App\Helpers\HrdConfig;
 
 class PengajuanLiburController extends Controller
 {
     use ResolvesDirectManagerApprovals;
+    use HandlesPengajuanApproval;
+
+    private const JENIS_LABEL = [
+        'cuti_tahunan' => 'Cuti Tahunan',
+        'ganti_libur' => 'Ganti Libur',
+    ];
 
     /**
-     * Helper: get dates within range that already have >= 2 leave requests
+     * Helper: get dates within range that already reached the daily leave capacity
      * (counts any request not explicitly rejected by Manager or HRD)
      */
     private function getBlockedDatesByCapacity(Carbon $start, Carbon $end, $excludeId = null): array
@@ -37,7 +44,6 @@ class PengajuanLiburController extends Controller
                 ->when($excludeId, function ($q) use ($excludeId) {
                     $q->where('id', '!=', $excludeId);
                 })
-                // Count all except explicitly rejected by either Manager or HRD
                 ->where(function ($q) {
                     $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
                 })
@@ -55,8 +61,14 @@ class PengajuanLiburController extends Controller
         return $blocked;
     }
 
+    private function overlapFilter($query, Carbon $filterStart, Carbon $filterEnd)
+    {
+        return $query->whereDate('tanggal_mulai', '<=', $filterEnd)
+            ->whereDate('tanggal_selesai', '>=', $filterStart);
+    }
+
     /**
-     * AJAX: check capacity for a date range; returns blocked dates (>=2 existing)
+     * AJAX: check capacity for a date range; returns blocked dates
      */
     public function checkCapacity(Request $request)
     {
@@ -65,18 +77,16 @@ class PengajuanLiburController extends Controller
             'end' => 'required|date',
         ]);
 
-        try {
-            $start = Carbon::parse($request->input('start'))->startOfDay();
-            $end = Carbon::parse($request->input('end'))->startOfDay();
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid date format',
-            ], 422);
-        }
+        $start = Carbon::parse($request->input('start'))->startOfDay();
+        $end = Carbon::parse($request->input('end'))->startOfDay();
 
         if ($end->lt($start)) {
             [$start, $end] = [$end, $start];
+        }
+
+        // Guard against huge ranges (one query per day)
+        if ($start->diffInDays($end, true) > 366) {
+            return response()->json(['success' => false, 'message' => 'Rentang tanggal terlalu panjang.'], 422);
         }
 
         $blockedDates = $this->getBlockedDatesByCapacity($start, $end);
@@ -89,534 +99,469 @@ class PengajuanLiburController extends Controller
         ]);
     }
 
-    public function index(Request $request)
-{
-    $user = Auth::user();
-    $viewType = $request->input('view', 'personal'); // Default to personal view
+    /**
+     * Scheduled Sundays and national holidays (up to today) the employee worked that are not yet claimed
+     * by another non-rejected ganti libur request. Newest first: [date => ['date', 'label', 'shift', 'libur']].
+     */
+    private function availableHariMasuk(Employee $employee, $excludeId = null): array
+    {
+        $used = PengajuanLibur::where('employee_id', $employee->id)
+            ->where('jenis_libur', 'ganti_libur')
+            ->whereNotNull('tanggal_masuk_pengganti')
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->where(function ($q) {
+                $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
+            })
+            ->where(function ($q) {
+                $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
+            })
+            ->get()
+            ->pluck('tanggal_masuk_pengganti')
+            ->flatten()
+            ->all();
 
-    // Date filter: default to this month until end of next month
-    $defaultStart = Carbon::now()->startOfMonth();
-    $defaultEnd = Carbon::now()->copy()->addMonthNoOverflow()->endOfMonth();
+        $holidays = LiburNasional::namesByDate(null, Carbon::today());
 
-    $dateStart = $request->input('date_start');
-    $dateEnd = $request->input('date_end');
-
-    try {
-        $filterStart = $dateStart ? Carbon::parse($dateStart)->startOfDay() : $defaultStart->copy()->startOfDay();
-    } catch (\Exception $e) {
-        $filterStart = $defaultStart->copy()->startOfDay();
-    }
-
-    try {
-        $filterEnd = $dateEnd ? Carbon::parse($dateEnd)->endOfDay() : $defaultEnd->copy()->endOfDay();
-    } catch (\Exception $e) {
-        $filterEnd = $defaultEnd->copy()->endOfDay();
-    }
-
-    // dd($user->getRoleNames()); // Debugging line to check user roles
-    // For debugging role issues
-    if ($request->ajax() && $request->has('debug_role')) {
-        return response()->json([
-            'roles' => $user->getRoleNames(),
-            'is_manager' => $this->canAccessDirectApprovalTeam($user),
-            'is_employee' => (bool) $user->employee,
-            'is_hrd' => $user->hasRole('Hrd')
-        ]);
-    }
-    
-    if ($request->ajax()) {
-        // For employee view - show their own requests
-        if (($viewType == 'personal' || empty($viewType)) && $user->employee) {
-            $data = PengajuanLibur::where('employee_id', $user->employee->id)
-                ->where(function($q) use ($filterStart, $filterEnd) {
-                    // Overlap filter: start <= filterEnd AND end >= filterStart
-                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
-                      ->whereDate('tanggal_selesai', '>=', $filterStart);
-                })
-                ->latest()
-                ->get();
-            
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('jenis_libur', function($row) {
-                    return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                })
-                ->addColumn('tanggal_range', function($row) {
-                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
-                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                    $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
-                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
-                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
-                })
-                    ->addColumn('alasan', function($row) {
-                        return e($row->alasan);
-                    })
-                ->addColumn('catatan', function($row) {
-                    $out = '';
-                    if (!empty($row->notes_manager)) {
-                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
-                    }
-                    if (!empty($row->notes_hrd)) {
-                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
-                    }
-                    return $out;
-                })
-                ->addColumn('status_pengajuan', function($row) {
-                    if ($row->status_hrd == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui HRD</span>';
-                    } elseif ($row->status_hrd == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak HRD</span>';
-                    } elseif ($row->status_manager == 'disetujui') {
-                        return '<span class="badge badge-warning">Disetujui Manager</span>';
-                    } elseif ($row->status_manager == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak Manager</span>';
-                    } else {
-                        return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
-                    }
-                })
-                ->addColumn('action', function($row) {
-                    $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button>';
-                    return $btn;
-                })
-                ->rawColumns(['tanggal_range','status_pengajuan','catatan', 'action'])
-                ->make(true);
-        } 
-        // For manager team view - show team requests
-        else if ($viewType == 'team' && $this->canAccessDirectApprovalTeam($user)) {
-            $employee = $user->employee;
-                if ($employee) {
-                    $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
-                    if (!empty($teamEmployeeIds)) {
-                        // Exclude the manager's own requests from the team approval list
-                        // (they are already shown in 'Pengajuan Saya')
-                        // Show all requests from team, not just 'menunggu'
-                        $data = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
-                            ->where(function($q) use ($filterStart, $filterEnd) {
-                                $q->whereDate('tanggal_mulai', '<=', $filterEnd)
-                                  ->whereDate('tanggal_selesai', '>=', $filterStart);
-                            })
-                            ->with('employee')
-                            ->latest()
-                            ->get();
-                    
-                    return DataTables::of($data)
-                        ->addIndexColumn()
-                        ->addColumn('jenis_libur', function($row) {
-                            return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                        })
-                        ->addColumn('tanggal_range', function($row) {
-                            $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
-                            $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                            $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
-                            $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
-                            return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
-                                ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
-                        })
-                        ->addColumn('alasan', function($row) {
-                            return e($row->alasan);
-                        })
-                        ->addColumn('catatan', function($row) {
-                            $out = '';
-                            if (!empty($row->notes_manager)) {
-                                $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
-                            }
-                            if (!empty($row->notes_hrd)) {
-                                $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
-                            }
-                            return $out;
-                        })
-                        ->addColumn('action', function($row) {
-                            $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
-                            if ($row->status_manager === 'menunggu') {
-                                $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
-                            }
-                            return $btn;
-                        })
-                        ->addColumn('status_pengajuan', function($row) {
-                            // Status logic: show who last approved/rejected and color
-                            if ($row->status_hrd == 'disetujui') {
-                                return '<span class="badge badge-success">Disetujui HRD</span>';
-                            } elseif ($row->status_hrd == 'ditolak') {
-                                return '<span class="badge badge-danger">Ditolak HRD</span>';
-                            } elseif ($row->status_manager == 'disetujui') {
-                                return '<span class="badge badge-warning">Disetujui Manager</span>';
-                            } elseif ($row->status_manager == 'ditolak') {
-                                return '<span class="badge badge-danger">Ditolak Manager</span>';
-                            } else {
-                                return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
-                            }
-                        })
-                        ->rawColumns(['tanggal_range','action', 'status_pengajuan','catatan'])
-                        ->make(true);
+        $available = [];
+        EmployeeSchedule::with('shift')
+            ->where('employee_id', $employee->id)
+            ->whereDate('date', '<=', Carbon::today())
+            ->orderByDesc('date')
+            ->get()
+            ->groupBy(fn($s) => Carbon::parse($s->date)->toDateString())
+            ->each(function ($schedules, $date) use (&$available, $used, $holidays) {
+                if (!LiburNasional::isHariGantiLibur($date, $holidays) || in_array($date, $used, true)) {
+                    return;
                 }
-            }
-            
-            return DataTables::of([])->make(true);
+                $available[$date] = [
+                    'date' => $date,
+                    'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
+                    'shift' => $schedules->map(fn($s) => $s->shift->name ?? null)->filter()->unique()->implode(', '),
+                    'libur' => $holidays[$date] ?? null,
+                ];
+            });
+
+        return $available;
+    }
+
+    /**
+     * AJAX: Sundays the current employee can claim for a ganti libur request.
+     */
+    public function hariMasukTersedia(Request $request)
+    {
+        $employee = Auth::user()->employee;
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Akun Anda belum terhubung dengan data karyawan.'], 422);
         }
-        // For HRD approval view
-        else if (($viewType == 'approval' || empty($viewType)) && $user->hasRole('Hrd')) {
-            // Show all requests with status_manager = 'disetujui', regardless of status_hrd
-            $data = PengajuanLibur::where('status_manager', 'disetujui')
-                ->where(function($q) use ($filterStart, $filterEnd) {
-                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
-                      ->whereDate('tanggal_selesai', '>=', $filterStart);
-                })
-                ->with('employee')
-                ->latest()
-                ->get();
-            
+
+        return response()->json(['success' => true, 'data' => array_values($this->availableHariMasuk($employee))]);
+    }
+
+    /**
+     * When a ganti libur is approved for fewer days, keep only as many replacement Sundays as approved days
+     * (earliest first); the rest become available to claim again.
+     */
+    private function trimHariMasuk(PengajuanLibur $pengajuan, array $adjust): array
+    {
+        if (!$adjust || $pengajuan->jenis_libur !== 'ganti_libur' || empty($pengajuan->tanggal_masuk_pengganti)) {
+            return $adjust;
+        }
+
+        $adjust['tanggal_masuk_pengganti'] = collect($pengajuan->tanggal_masuk_pengganti)
+            ->sort()->values()->take((int) $adjust['total_hari'])->all();
+
+        return $adjust;
+    }
+
+    private function renderHariMasuk($row): string
+    {
+        if ($row->jenis_libur !== 'ganti_libur' || empty($row->tanggal_masuk_pengganti)) {
+            return '';
+        }
+        $dates = collect($row->tanggal_masuk_pengganti)->sort()
+            ->map(fn($d) => Carbon::parse($d)->locale('id')->translatedFormat('j M Y'))
+            ->implode(', ');
+
+        return '<div class="small mt-1"><i class="fas fa-calendar-check text-success mr-1"></i>Pengganti masuk: ' . e($dates) . '</div>';
+    }
+
+    public function index(Request $request)
+    {
+        $user = Auth::user();
+        $employee = $user->employee;
+        $isHrd = $this->isHrdApprover($user);
+        $subordinateIds = $employee ? $this->getSubordinateEmployeeIds($employee) : [];
+        [$filterStart, $filterEnd] = $this->resolveDateFilter($request);
+        $viewType = $request->input('view', 'personal');
+
+        if ($request->ajax()) {
+            $needsAction = function ($row) {
+                return false;
+            };
+
+            if ($viewType === 'personal' && $employee) {
+                $query = $this->overlapFilter(PengajuanLibur::where('employee_id', $employee->id), $filterStart, $filterEnd);
+            } elseif ($viewType === 'team' && !empty($subordinateIds)) {
+                // Team requests in range, plus anything still waiting for this manager
+                $query = PengajuanLibur::whereIn('employee_id', $subordinateIds)
+                    ->where(function ($q) use ($filterStart, $filterEnd) {
+                        $q->where(function ($q) use ($filterStart, $filterEnd) {
+                            $this->overlapFilter($q, $filterStart, $filterEnd);
+                        })->orWhere('status_manager', 'menunggu');
+                    });
+                $needsAction = function ($row) {
+                    return $row->status_manager === 'menunggu';
+                };
+            } elseif ($viewType === 'approval' && $isHrd) {
+                // Manager-approved requests in range, plus anything still waiting for HRD
+                $query = PengajuanLibur::where('status_manager', 'disetujui')
+                    ->where(function ($q) use ($filterStart, $filterEnd) {
+                        $q->where(function ($q) use ($filterStart, $filterEnd) {
+                            $this->overlapFilter($q, $filterStart, $filterEnd);
+                        })->orWhere('status_hrd', 'menunggu');
+                    });
+                $needsAction = function ($row) {
+                    return $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu';
+                };
+            } else {
+                return DataTables::of(collect())->make(true);
+            }
+
+            $data = $this->sortNeedsActionFirst($query->with('employee')->get(), $needsAction);
+            $approveClass = $viewType === 'team' ? 'btn-approve-manager' : 'btn-approve-hrd';
+
             return DataTables::of($data)
                 ->addIndexColumn()
-                ->addColumn('jenis_libur', function($row) {
-                    return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                ->setRowClass(function ($row) use ($needsAction) {
+                    return $needsAction($row) ? 'row-needs-action' : '';
                 })
-                ->addColumn('tanggal_range', function($row) {
-                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
-                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                ->addColumn('employee_nama', function ($row) {
+                    return e($row->employee->nama ?? '-');
+                })
+                ->addColumn('tanggal_range', function ($row) {
+                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j M Y');
+                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j M Y');
+                    $range = $row->tanggal_mulai->isSameDay($row->tanggal_selesai) ? $mulai : $mulai . ' - ' . $selesai;
                     $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
-                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
-                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
+
+                    return $range . ' <strong>(' . (int) $row->total_hari . ' hari)</strong>'
+                        . '<div class="mt-1"><span class="badge ' . $badgeClass . '">' . (self::JENIS_LABEL[$row->jenis_libur] ?? e($row->jenis_libur)) . '</span></div>'
+                        . $this->renderHariMasuk($row)
+                        . $this->renderDiajukanDates($row);
                 })
-                ->addColumn('alasan', function($row) {
-                    return e($row->alasan);
+                // Plain values for the approval modal's "approve fewer days" inputs
+                ->addColumn('tanggal_mulai_ymd', function ($row) {
+                    return $row->tanggal_mulai->toDateString();
                 })
-                ->addColumn('catatan', function($row) {
-                    $out = '';
-                    if (!empty($row->notes_manager)) {
-                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                ->addColumn('tanggal_selesai_ymd', function ($row) {
+                    return $row->tanggal_selesai->toDateString();
+                })
+                ->addColumn('alasan', function ($row) {
+                    return nl2br(e($row->alasan));
+                })
+                ->addColumn('catatan', function ($row) {
+                    return $this->renderCatatan($row);
+                })
+                ->addColumn('status_pengajuan', function ($row) {
+                    return $this->renderStatusBadge($row);
+                })
+                ->addColumn('action', function ($row) use ($needsAction, $approveClass) {
+                    $extra = [];
+                    if ($needsAction($row)) {
+                        $extra[] = '<button type="button" class="btn btn-primary ' . $approveClass . '" data-id="' . $row->id . '"><i class="fas fa-check-circle"></i> Approval</button>';
                     }
-                    if (!empty($row->notes_hrd)) {
-                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
-                    }
-                    return $out;
+
+                    return $this->renderActionButtons($row, 'btn-detail', $extra);
                 })
-                ->addColumn('action', function($row) {
-                    $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
-                    if ($row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu') {
-                        $btn .= '<button type="button" class="btn btn-sm btn-primary btn-approve-hrd" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
-                    }
-                    return $btn;
-                })
-                ->addColumn('status_pengajuan', function($row) {
-                    // Status logic: show who last approved/rejected and color
-                    if ($row->status_hrd == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui HRD</span>';
-                    } elseif ($row->status_hrd == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak HRD</span>';
-                    } elseif ($row->status_manager == 'disetujui') {
-                        return '<span class="badge badge-warning">Disetujui Manager</span>';
-                    } elseif ($row->status_manager == 'ditolak') {
-                        return '<span class="badge badge-danger">Ditolak Manager</span>';
-                    } else {
-                        return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
-                    }
-                })
-                ->rawColumns(['tanggal_range','action', 'status_pengajuan','catatan'])
+                ->rawColumns(['employee_nama', 'tanggal_range', 'alasan', 'catatan', 'status_pengajuan', 'action'])
                 ->make(true);
         }
-        
-        return response()->json(['error' => 'Unauthorized'], 403);
-    }
 
-    // For non-AJAX requests, gather necessary data based on role and view type
-    $pengajuanLibur = null;
-    $jatahLibur = null;
-    
-    $canApproveTeam = $this->canAccessDirectApprovalTeam($user);
+        $teamPending = !empty($subordinateIds)
+            ? PengajuanLibur::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu')->count()
+            : 0;
+        $hrdPending = $isHrd
+            ? PengajuanLibur::where('status_manager', 'disetujui')->where('status_hrd', 'menunggu')->count()
+            : 0;
 
-    if ($user->employee) {
-        $employee = $user->employee;
-        if ($employee) {
-            $jatahLibur = $employee->ensureJatahLibur();
-        }
-    } 
-    if ($canApproveTeam && $viewType == 'team') {
-            $employee = $user->employee;
-            if ($employee) {
-                $teamEmployeeIds = $this->getSubordinateEmployeeIds($employee);
-                $pengajuanLibur = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
-                    ->where('status_manager', 'menunggu')
-                    ->with('employee')
-                    ->count();
-            }
-    }
-
-    if ($user->hasRole('Hrd')) {
-        $pengajuanLibur = PengajuanLibur::where('status_manager', 'disetujui')
-            ->where('status_hrd', 'menunggu')
-            ->with('employee')
-            ->count();
-    }
-    
-    // Determine which view to render based on user role and view type
-    if ($canApproveTeam && $viewType == 'team') {
         return view('hrd.libur.index', [
-            'viewType' => 'team',
-            'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur,
-            'canApproveTeam' => $canApproveTeam,
-            'hasEmployeeProfile' => (bool) $user->employee,
-            'defaultDateStart' => $filterStart->toDateString(),
-            'defaultDateEnd' => $filterEnd->toDateString(),
-        ]);
-    } 
-    elseif ($user->hasRole('Hrd') && $viewType == 'approval') {
-        return view('hrd.libur.index', [
-            'viewType' => 'approval',
-            'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur,
-            'canApproveTeam' => $canApproveTeam,
-            'hasEmployeeProfile' => (bool) $user->employee,
-            'defaultDateStart' => $filterStart->toDateString(),
-            'defaultDateEnd' => $filterEnd->toDateString(),
-        ]);
-    } 
-    else {
-        return view('hrd.libur.index', [
-            'viewType' => 'personal',
-            'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur,
-            'canApproveTeam' => $canApproveTeam,
-            'hasEmployeeProfile' => (bool) $user->employee,
+            'viewType' => in_array($viewType, ['personal', 'team', 'approval'], true) ? $viewType : 'personal',
+            'canApproveTeam' => !empty($subordinateIds),
+            'isHrd' => $isHrd,
+            'hasEmployeeProfile' => (bool) $employee,
+            'saldo' => $employee ? $this->getSaldoSummary($employee) : null,
+            'teamPending' => $teamPending,
+            'hrdPending' => $hrdPending,
             'defaultDateStart' => $filterStart->toDateString(),
             'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     }
-}
 
     public function store(Request $request)
     {
         $request->validate([
             'jenis_libur' => 'required|in:cuti_tahunan,ganti_libur',
-            'tanggal_mulai' => 'required|date',
+            'tanggal_mulai' => 'required|date|after_or_equal:today',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
-            'alasan' => 'required|string',
+            'alasan' => 'required|string|max:1000',
+            'tanggal_masuk_pengganti' => 'required_if:jenis_libur,ganti_libur|array',
+            'tanggal_masuk_pengganti.*' => 'date',
+        ], [
+            'tanggal_mulai.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini.',
+            'tanggal_selesai.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
+            'tanggal_masuk_pengganti.required_if' => 'Pilih hari Minggu / libur nasional yang Anda masuk sebagai pengganti libur ini.',
         ]);
 
-        // Capacity check: ensure no date in the selected range already has >= 2 requests
-        $capStart = Carbon::parse($request->tanggal_mulai)->startOfDay();
-        $capEnd = Carbon::parse($request->tanggal_selesai)->startOfDay();
-        if ($capEnd->lt($capStart)) {
-            [$capStart, $capEnd] = [$capEnd, $capStart];
+        $user = Auth::user();
+        $employee = $user->employee;
+        if (!$employee) {
+            return $this->errorResponse($request, 'Akun Anda belum terhubung dengan data karyawan.');
         }
-        $blockedDates = $this->getBlockedDatesByCapacity($capStart, $capEnd);
+
+        $tanggalMulai = Carbon::parse($request->tanggal_mulai)->startOfDay();
+        $tanggalSelesai = Carbon::parse($request->tanggal_selesai)->startOfDay();
+        $totalHari = $this->inclusiveDayCount($tanggalMulai, $tanggalSelesai);
+
+        // Ganti libur must name the scheduled Sunday(s) / national holiday(s) worked, one per day off
+        $hariMasuk = null;
+        if ($request->jenis_libur === 'ganti_libur') {
+            $hariMasuk = collect($request->input('tanggal_masuk_pengganti', []))
+                ->map(fn($d) => Carbon::parse($d)->toDateString())
+                ->unique()->sort()->values()->all();
+
+            if (count($hariMasuk) !== $totalHari) {
+                return $this->errorResponse($request, 'Pilih tepat ' . $totalHari . ' hari Minggu / libur nasional pengganti, sesuai jumlah hari libur yang diajukan (dipilih ' . count($hariMasuk) . ').');
+            }
+
+            $invalid = array_diff($hariMasuk, array_keys($this->availableHariMasuk($employee)));
+            if ($invalid) {
+                return $this->errorResponse($request, 'Tanggal berikut tidak dapat dipakai: '
+                    . implode(', ', array_map(fn($d) => Carbon::parse($d)->translatedFormat('j F Y'), $invalid))
+                    . '. Hanya hari Minggu atau libur nasional yang sudah lewat, ada di jadwal Anda, dan belum dipakai pengajuan ganti libur lain.');
+            }
+        }
+
+        // Prevent duplicate / overlapping requests from the same employee
+        $overlap = PengajuanLibur::where('employee_id', $employee->id)
+            ->whereDate('tanggal_mulai', '<=', $tanggalSelesai)
+            ->whereDate('tanggal_selesai', '>=', $tanggalMulai)
+            ->where(function ($q) {
+                $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
+            })
+            ->where(function ($q) {
+                $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
+            })
+            ->first();
+        if ($overlap) {
+            return $this->errorResponse($request, 'Anda sudah memiliki pengajuan libur pada tanggal '
+                . $overlap->tanggal_mulai->translatedFormat('j F Y') . ' - ' . $overlap->tanggal_selesai->translatedFormat('j F Y')
+                . ' yang belum ditolak.');
+        }
+
+        // Capacity check: ensure no date in the range already reached the daily limit
+        $blockedDates = $this->getBlockedDatesByCapacity($tanggalMulai, $tanggalSelesai);
         if (!empty($blockedDates)) {
             $cap = HrdConfig::getLeaveDailyCapacity();
             $msg = 'Tidak dapat mengajukan libur. Kuota maksimal ' . $cap . ' orang per hari telah tercapai pada tanggal: ' . implode(', ', array_map(function ($d) {
                 return Carbon::parse($d)->translatedFormat('j F Y');
             }, $blockedDates)) . '.';
 
-            if ($request->ajax()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $msg,
-                    'blockedDates' => $blockedDates,
-                ], 422);
+            return $this->errorResponse($request, $msg);
+        }
+
+        // Balance check, counting days already reserved by requests still in process
+        $saldo = $this->getSaldoSummary($employee)[$request->jenis_libur];
+        if ($saldo['tersedia'] < $totalHari) {
+            $msg = 'Saldo ' . $saldo['label'] . ' tidak mencukupi. Diajukan ' . $totalHari . ' hari, tersedia ' . $saldo['tersedia'] . ' hari';
+            if ($saldo['pending'] > 0) {
+                $msg .= ' (' . $saldo['pending'] . ' hari sedang menunggu persetujuan)';
             }
 
-            return redirect()->back()->with('error', $msg)->withInput();
+            return $this->errorResponse($request, $msg . '.');
         }
 
-        // Parse dates with Carbon to ensure consistent handling
-        $tanggalMulai = Carbon::parse($request->tanggal_mulai)->startOfDay();
-        $tanggalSelesai = Carbon::parse($request->tanggal_selesai)->startOfDay();
-
-        // Calculate days by counting dates between start and end (inclusive)
-        // Manual calculation to ensure accuracy:
-        // 1. Get all days between the two dates
-        // 2. Count them + 1 to include the start date
-        $startTimestamp = $tanggalMulai->getTimestamp();
-        $endTimestamp = $tanggalSelesai->getTimestamp();
-        $totalHari = (int)round(($endTimestamp - $startTimestamp) / 86400) + 1;
-        
-        // Force positive value (absolute) to prevent negative days
-        $totalHari = abs($totalHari);
-        
-        // Safety check - ensure at least 1 day
-        if ($totalHari < 1) {
-            $totalHari = 1;
-        }
-        
-        // Add debug logging to ensure calculation is correct
-        Log::info('PengajuanLibur - Day Calculation', [
-            'tanggal_mulai' => $tanggalMulai->toDateString(),
-            'tanggal_selesai' => $tanggalSelesai->toDateString(),
-            'start_timestamp' => $startTimestamp,
-            'end_timestamp' => $endTimestamp,
-            'diff_seconds' => $endTimestamp - $startTimestamp,
-            'diff_days_raw' => ($endTimestamp - $startTimestamp) / 86400,
-            'total_hari' => $totalHari
-        ]);
-
-        $user = Auth::user();
-        $employee = $user->employee;
-        $jatahLibur = $employee->ensureJatahLibur();
-
-        // Periksa apakah karyawan memiliki jatah libur yang cukup
-        if ($request->jenis_libur == 'cuti_tahunan' && ($jatahLibur->jatah_cuti_tahunan < $totalHari)) {
-            return redirect()->back()->with('error', 'Jatah cuti tahunan Anda tidak mencukupi.');
-        }
-
-        if ($request->jenis_libur == 'ganti_libur' && ($jatahLibur->jatah_ganti_libur < $totalHari)) {
-            return redirect()->back()->with('error', 'Jatah ganti libur Anda tidak mencukupi.');
-        }
-
-        // Auto-approval based on role
-        $statusManager = 'menunggu';
+        // Manager step goes to the direct superior of the employee's position
+        $managerApproval = $this->initialManagerApproval($employee);
         $statusHrd = 'menunggu';
-        $tglApproveManager = null;
         $tglApproveHrd = null;
 
-        if ($user->hasAnyRole(['Manager', 'Head Manager'])) {
-            $statusManager = 'disetujui';
-            $tglApproveManager = now();
-        }
-        if ($user->hasRole('Hrd')) {
-            $statusManager = 'disetujui';
-            $tglApproveManager = now();
+        // HRD staff's own request skips the HRD step only once the manager step is already approved
+        if ($user->hasRole('Hrd') && $managerApproval['status_manager'] === 'disetujui') {
             $statusHrd = 'disetujui';
             $tglApproveHrd = now();
         }
 
-        $pengajuan = PengajuanLibur::create([
-            'employee_id' => $employee->id,
-            'jenis_libur' => $request->jenis_libur,
-            'tanggal_mulai' => $request->tanggal_mulai,
-            'tanggal_selesai' => $request->tanggal_selesai,
-            'total_hari' => $totalHari,
-            'alasan' => $request->alasan,
-            'status_manager' => $statusManager,
-            'tanggal_persetujuan_manager' => $tglApproveManager,
-            'status_hrd' => $statusHrd,
-            'tanggal_persetujuan_hrd' => $tglApproveHrd,
-        ]);
+        $pengajuan = DB::transaction(function () use ($employee, $request, $totalHari, $managerApproval, $statusHrd, $tglApproveHrd, $hariMasuk) {
+            $pengajuan = PengajuanLibur::create(array_merge([
+                'employee_id' => $employee->id,
+                'jenis_libur' => $request->jenis_libur,
+                'tanggal_masuk_pengganti' => $hariMasuk,
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'total_hari' => $totalHari,
+                'alasan' => $request->alasan,
+                'status_hrd' => $statusHrd,
+                'tanggal_persetujuan_hrd' => $tglApproveHrd,
+            ], $managerApproval));
 
-        // If HRD auto-approved, deduct jatah immediately
-        if ($statusHrd === 'disetujui') {
-            if ($pengajuan->jenis_libur == 'cuti_tahunan') {
-                $jatahLibur->jatah_cuti_tahunan -= $pengajuan->total_hari;
-            } else {
-                $jatahLibur->jatah_ganti_libur -= $pengajuan->total_hari;
+            // If HRD auto-approved, deduct jatah immediately
+            if ($statusHrd === 'disetujui') {
+                $this->deductJatah($pengajuan);
             }
-            $jatahLibur->save();
-        }
+
+            return $pengajuan;
+        });
 
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Pengajuan libur berhasil diajukan',
-                'data' => $pengajuan
+                'message' => 'Pengajuan libur berhasil diajukan.',
+                'data' => $pengajuan,
+                'saldo' => $this->getSaldoSummary($employee->fresh()),
             ]);
         }
 
         return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diajukan.');
     }
 
+    /**
+     * Deduct the request's days from the employee's balance. Must run inside a transaction.
+     *
+     * @throws \DomainException when the balance is insufficient
+     */
+    private function deductJatah(PengajuanLibur $pengajuan): void
+    {
+        $pengajuan->employee->ensureJatahLibur();
+        $jatah = JatahLibur::where('employee_id', $pengajuan->employee_id)->lockForUpdate()->firstOrFail();
+        $column = $pengajuan->jenis_libur == 'cuti_tahunan' ? 'jatah_cuti_tahunan' : 'jatah_ganti_libur';
+
+        if ((int) $jatah->{$column} < (int) $pengajuan->total_hari) {
+            throw new \DomainException('Saldo ' . (self::JENIS_LABEL[$pengajuan->jenis_libur] ?? 'libur')
+                . ' karyawan tidak mencukupi (sisa ' . (int) $jatah->{$column} . ' hari, dibutuhkan ' . (int) $pengajuan->total_hari . ' hari).');
+        }
+
+        $jatah->{$column} = (int) $jatah->{$column} - (int) $pengajuan->total_hari;
+        $jatah->save();
+    }
+
     public function persetujuanManager(Request $request, $id)
     {
-        $request->validate([
-            'komentar_manager' => 'nullable|string',
+        $request->validate(array_merge([
+            'komentar_manager' => 'nullable|string|max:1000',
             'status' => 'required|in:disetujui,ditolak',
-        ]);
+        ], $this->partialApprovalRules(false)));
 
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
 
         if (!Auth::user()->employee || !$this->canApproveAsDirectManager(Auth::user()->employee, $pengajuanLibur->employee)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Anda bukan atasan langsung untuk pengajuan ini.',
-            ], 403);
+            return $this->forbiddenResponse($request, 'Anda bukan atasan langsung untuk pengajuan ini.');
         }
 
         if ($pengajuanLibur->status_manager !== 'menunggu') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pengajuan ini sudah diproses pada approval tingkat 1.',
-            ], 422);
+            return $this->errorResponse($request, 'Pengajuan ini sudah diproses pada approval tingkat 1.');
         }
 
-        $pengajuanLibur->update([
+        $daysBefore = (int) $pengajuanLibur->total_hari;
+        try {
+            $adjust = $this->trimHariMasuk($pengajuanLibur, $this->buildDateAdjustment($pengajuanLibur, $request));
+        } catch (\DomainException $e) {
+            return $this->errorResponse($request, $e->getMessage());
+        }
+
+        $pengajuanLibur->update(array_merge([
             'status_manager' => $request->status,
             'notes_manager' => $request->komentar_manager,
             'tanggal_persetujuan_manager' => now(),
-        ]);
+        ], $adjust));
 
+        $message = $this->dateApprovalMessage($request, $adjust, $pengajuanLibur, $daysBefore);
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Pengajuan libur berhasil diperbarui',
+                'message' => $message,
                 'data' => $pengajuanLibur
             ]);
         }
 
-        return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diperbarui.');
+        return redirect()->route('hrd.libur.index')->with('success', $message);
     }
 
     public function persetujuanHRD(Request $request, $id)
     {
-        $request->validate([
-            'komentar_hrd' => 'nullable|string',
+        $request->validate(array_merge([
+            'komentar_hrd' => 'nullable|string|max:1000',
             'status' => 'required|in:disetujui,ditolak',
-        ]);
+        ], $this->partialApprovalRules(false)));
 
-        $pengajuanLibur = PengajuanLibur::findOrFail($id);
-
-        if ($pengajuanLibur->status_manager !== 'disetujui') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.',
-            ], 422);
+        if (!$this->isHrdApprover(Auth::user())) {
+            return $this->forbiddenResponse($request, 'Hanya HRD yang dapat melakukan approval final.');
         }
 
-        if ($pengajuanLibur->status_hrd !== 'menunggu') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pengajuan ini sudah diproses pada approval final HRD.',
-            ], 422);
-        }
+        $message = '';
+        try {
+            $pengajuanLibur = DB::transaction(function () use ($request, $id, &$message) {
+                $pengajuanLibur = PengajuanLibur::with('employee')->lockForUpdate()->findOrFail($id);
 
-        $pengajuanLibur->update([
-            'status_hrd' => $request->status,
-            'notes_hrd' => $request->komentar_hrd,
-            'tanggal_persetujuan_hrd' => now(),
-        ]);
+                if ($pengajuanLibur->status_manager !== 'disetujui') {
+                    throw new \DomainException('Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.');
+                }
+                if ($pengajuanLibur->status_hrd !== 'menunggu') {
+                    throw new \DomainException('Pengajuan ini sudah diproses pada approval final HRD.');
+                }
 
-        // Jika disetujui oleh HRD, kurangi jatah libur
-        if ($request->status == 'disetujui') {
-            $employee = $pengajuanLibur->employee;
-            $jatahLibur = $employee->jatahLibur;
+                $daysBefore = (int) $pengajuanLibur->total_hari;
+                $adjust = $this->trimHariMasuk($pengajuanLibur, $this->buildDateAdjustment($pengajuanLibur, $request));
 
-            if ($pengajuanLibur->jenis_libur == 'cuti_tahunan') {
-                $jatahLibur->jatah_cuti_tahunan -= $pengajuanLibur->total_hari;
-            } else {
-                $jatahLibur->jatah_ganti_libur -= $pengajuanLibur->total_hari;
-            }
+                // Apply the (possibly shorter) range first so the balance is cut by the approved days only
+                $pengajuanLibur->update(array_merge([
+                    'status_hrd' => $request->status,
+                    'notes_hrd' => $request->komentar_hrd,
+                    'tanggal_persetujuan_hrd' => now(),
+                ], $adjust));
 
-            $jatahLibur->save();
+                // Jika disetujui oleh HRD, kurangi jatah libur
+                if ($request->status == 'disetujui') {
+                    $this->deductJatah($pengajuanLibur);
+                }
+
+                $message = $this->dateApprovalMessage($request, $adjust, $pengajuanLibur, $daysBefore);
+
+                return $pengajuanLibur;
+            });
+        } catch (\DomainException $e) {
+            return $this->errorResponse($request, $e->getMessage());
         }
 
         if ($request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Pengajuan libur berhasil diperbarui',
+                'message' => $message,
                 'data' => $pengajuanLibur
             ]);
         }
 
-        return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diperbarui.');
+        return redirect()->route('hrd.libur.index')->with('success', $message);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $pengajuanLibur = PengajuanLibur::findOrFail($id);
+        $pengajuanLibur = PengajuanLibur::with('employee')->findOrFail($id);
+
+        if (!$this->canViewPengajuan(Auth::user(), $pengajuanLibur)) {
+            return $this->forbiddenResponse($request);
+        }
+
         return view('hrd.libur.show', compact('pengajuanLibur'));
     }
-    
-    public function getApprovalStatus($id)
+
+    public function getApprovalStatus(Request $request, $id)
     {
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
+
+        if (!$this->canViewPengajuan(Auth::user(), $pengajuanLibur)) {
+            return $this->forbiddenResponse($request);
+        }
+
         return response()->json([
             'success' => true,
             'data' => [

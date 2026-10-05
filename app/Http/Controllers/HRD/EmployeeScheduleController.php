@@ -6,6 +6,10 @@ use Illuminate\Http\Request;
 use App\Models\HRD\Employee;
 use App\Models\HRD\Shift;
 use App\Models\HRD\EmployeeSchedule;
+use App\Models\HRD\Position;
+use App\Models\HRD\PositionDivision;
+use App\Models\HRD\JatahLibur;
+use App\Models\HRD\LiburNasional;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -42,83 +46,8 @@ class EmployeeScheduleController extends Controller
     {
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString()); // array of Y-m-d
-        // Ambil employee beserta user dan roles, urutkan per nama
-        $employees = Employee::with(['user.roles'])
-            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
-            ->orderBy('nama')
-            ->get();
-        
-        // Define role priority order as requested
-        $rolePriority = [
-            'CEO' => 1,
-            'Ceo' => 1,
-            'Hrd' => 2,
-            'Manager' => 3,
-            'Admin' => 4,
-            'Marketing' => 5,
-            'Kasir' => 6,
-            'Inventaris' => 7,
-            'Farmasi' => 8,
-            'Beautician' => 9,
-            'Perawat' => 10,
-            'Dokter' => 11,
-            'Pendaftaran' => 12,
-            'Lab' => 13,
-            'Employee' => 14
-        ];
-        
-        // Define role display labels
-        $roleDisplayLabels = [
-            'Hrd' => 'HRD',
-            'Manager' => 'Manager on Duty',
-            'Admin' => 'IT',
-            'Marketing' => 'Marketing & FO',
-            'Kasir' => 'Kasir & Akunting',
-            'Inventaris' => 'Inventaris',
-            'Farmasi' => 'Farmasi',
-            'Beautician' => 'Beautician',
-            'Perawat' => 'Perawat',
-            'CEO' => 'CEO',
-            'Ceo' => 'CEO',
-            'Dokter' => 'Dokter',
-            'Pendaftaran' => 'Pendaftaran',
-            'Lab' => 'Lab',
-            'Employee' => 'Lain-Lain'
-        ];
-        
-        // Kelompokkan per role berdasarkan prioritas tertinggi
-        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority, $roleDisplayLabels){
-            if (!$emp->user || !$emp->user->roles->count()) {
-                return 'Tanpa Role';
-            }
-            
-            // Cari role dengan prioritas tertinggi (angka terkecil)
-            $highestPriorityRole = null;
-            $highestPriority = 999;
-            
-            foreach ($emp->user->roles as $role) {
-                $priority = $rolePriority[$role->name] ?? 999;
-                if ($priority < $highestPriority) {
-                    $highestPriority = $priority;
-                    $highestPriorityRole = $role->name;
-                }
-            }
-            
-            // Return display label instead of role name
-            return $roleDisplayLabels[$highestPriorityRole] ?? ($highestPriorityRole ?? 'Lainnya');
-        });
-        
-        // Urutkan dalam setiap grup berdasarkan nama
-        $employeesByDivision = $employeesByDivision->map(function($group){
-            return $group->sortBy('nama')->values();
-        });
-        
-        // Urutkan grup berdasarkan prioritas role
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $displayLabel) use ($rolePriority, $roleDisplayLabels) {
-            // Find the original role name from display label
-            $originalRole = array_search($displayLabel, $roleDisplayLabels);
-            return $rolePriority[$originalRole] ?? 999;
-        });
+        // Kelompokkan per divisi, urut posisi tertinggi di atas
+        $employeesByDivision = $this->groupEmployeesByDivision();
         // Shifts aktif untuk dropdown penjadwalan
         $activeShifts = Shift::where('active', true)->get();
         // Semua shift (aktif & tidak aktif) untuk manajemen shift
@@ -172,29 +101,67 @@ class EmployeeScheduleController extends Controller
     {
         $data = $request->input('schedule', []);
 
-        foreach ($data as $employeeId => $days) {
-            foreach ($days as $date => $shiftIds) {
-                $normalizedDate = Carbon::parse($date)->toDateString();
+        $gantiLibur = []; // employee_id => ['added' => [tanggal], 'removed' => [tanggal]]
+        $liburNasional = LiburNasional::namesByDate(); // loaded once, checked per date below
+        DB::transaction(function () use ($data, &$gantiLibur, $liburNasional) {
+            foreach ($data as $employeeId => $days) {
+                foreach ((array) $days as $date => $shiftIds) {
+                    $normalizedDate = Carbon::parse($date)->toDateString();
+                    $wasEmpty = !EmployeeSchedule::where('employee_id', $employeeId)->where('date', $normalizedDate)->exists();
 
-                // Hapus semua jadwal existing untuk karyawan & tanggal ini,
-                // lalu simpan kembali berdasarkan input (bisa 0, 1, atau 2 shift).
-                EmployeeSchedule::where('employee_id', $employeeId)
-                    ->where('date', $normalizedDate)
-                    ->delete();
+                    // Hapus semua jadwal existing untuk karyawan & tanggal ini,
+                    // lalu simpan kembali berdasarkan input (bisa 0, 1, atau 2 shift).
+                    EmployeeSchedule::where('employee_id', $employeeId)
+                        ->where('date', $normalizedDate)
+                        ->delete();
 
-                $shiftIds = array_values(array_filter((array) $shiftIds)); // buang yang kosong
+                    $shiftIds = array_slice(array_values(array_unique(array_filter((array) $shiftIds))), 0, 2); // buang yang kosong, maks 2
 
-                foreach ($shiftIds as $shiftId) {
-                    EmployeeSchedule::create([
-                        'employee_id' => $employeeId,
-                        'date'        => $normalizedDate,
-                        'shift_id'    => $shiftId,
-                    ]);
+                    foreach ($shiftIds as $shiftId) {
+                        EmployeeSchedule::create([
+                            'employee_id' => $employeeId,
+                            'date'        => $normalizedDate,
+                            'shift_id'    => $shiftId,
+                        ]);
+                    }
+
+                    // Hari Minggu / libur nasional: jadwal baru = +1 jatah ganti libur, jadwal dihapus = -1
+                    if (LiburNasional::isHariGantiLibur($normalizedDate, $liburNasional)) {
+                        $isEmpty = count($shiftIds) === 0;
+                        if ($wasEmpty !== $isEmpty) {
+                            $jatah = JatahLibur::firstOrCreate(
+                                ['employee_id' => $employeeId],
+                                ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
+                            );
+                            if ($wasEmpty) {
+                                $jatah->increment('jatah_ganti_libur');
+                                $gantiLibur[$employeeId]['added'][] = $normalizedDate;
+                            } else {
+                                $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur - 1);
+                                $jatah->save();
+                                $gantiLibur[$employeeId]['removed'][] = $normalizedDate;
+                            }
+                        }
+                    }
                 }
             }
-        }
+        });
         if ($request->ajax()) {
-            return response()->json(['success' => true]);
+            // Ringkasan per karyawan untuk notifikasi
+            $summary = [];
+            if ($gantiLibur) {
+                $names = Employee::whereIn('id', array_keys($gantiLibur))->pluck('nama', 'id');
+                $saldo = JatahLibur::whereIn('employee_id', array_keys($gantiLibur))->pluck('jatah_ganti_libur', 'employee_id');
+                foreach ($gantiLibur as $employeeId => $changes) {
+                    $summary[] = [
+                        'nama' => $names[$employeeId] ?? ('#' . $employeeId),
+                        'added' => array_map(fn($d) => Carbon::parse($d)->locale('id')->isoFormat('D MMM'), $changes['added'] ?? []),
+                        'removed' => array_map(fn($d) => Carbon::parse($d)->locale('id')->isoFormat('D MMM'), $changes['removed'] ?? []),
+                        'saldo' => (int) ($saldo[$employeeId] ?? 0),
+                    ];
+                }
+            }
+            return response()->json(['success' => true, 'ganti_libur' => $summary]);
         }
         return redirect()->route('hrd.schedule.index')->with('success', 'Jadwal berhasil disimpan');
     }
@@ -329,78 +296,7 @@ class EmployeeScheduleController extends Controller
     {
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
-        $employees = Employee::with(['user.roles'])
-            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
-            ->orderBy('nama')
-            ->get();
-        
-        // Define role priority order as requested
-        $rolePriority = [
-            'CEO' => 1,
-            'Ceo' => 1,
-            'Hrd' => 2,
-            'Manager' => 3,
-            'Admin' => 4,
-            'Marketing' => 5,
-            'Kasir' => 6,
-            'Inventaris' => 7,
-            'Farmasi' => 8,
-            'Beautician' => 9,
-            'Perawat' => 10,
-            'Dokter' => 11,
-            'Pendaftaran' => 12,
-            'Lab' => 13,
-            'Employee' => 14
-        ];
-        
-        // Define role display labels
-        $roleDisplayLabels = [
-            'Hrd' => 'HRD',
-            'Manager' => 'Manager on Duty',
-            'Admin' => 'IT',
-            'Marketing' => 'Marketing & FO',
-            'Kasir' => 'Kasir & Akunting',
-            'Inventaris' => 'Inventaris',
-            'Farmasi' => 'Farmasi',
-            'Beautician' => 'Beautician',
-            'Perawat' => 'Perawat',
-            'CEO' => 'CEO',
-            'Ceo' => 'CEO',
-            'Dokter' => 'Dokter',
-            'Pendaftaran' => 'Pendaftaran',
-            'Lab' => 'Lab',
-            'Employee' => 'Lain-Lain'
-        ];
-        
-        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority, $roleDisplayLabels){
-            if (!$emp->user || !$emp->user->roles->count()) {
-                return 'Tanpa Role';
-            }
-            
-            // Cari role dengan prioritas tertinggi (angka terkecil)
-            $highestPriorityRole = null;
-            $highestPriority = 999;
-            
-            foreach ($emp->user->roles as $role) {
-                $priority = $rolePriority[$role->name] ?? 999;
-                if ($priority < $highestPriority) {
-                    $highestPriority = $priority;
-                    $highestPriorityRole = $role->name;
-                }
-            }
-            
-            // Return display label instead of role name
-            return $roleDisplayLabels[$highestPriorityRole] ?? ($highestPriorityRole ?? 'Lainnya');
-        })->map(function($group){
-            return $group->sortBy('nama')->values();
-        });
-        
-        // Urutkan grup berdasarkan prioritas role
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $displayLabel) use ($rolePriority, $roleDisplayLabels) {
-            // Find the original role name from display label
-            $originalRole = array_search($displayLabel, $roleDisplayLabels);
-            return $rolePriority[$originalRole] ?? 999;
-        });
+        $employeesByDivision = $this->groupEmployeesByDivision();
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
             ->with('shift')
@@ -451,6 +347,66 @@ class EmployeeScheduleController extends Controller
 
         $pdf = \PDF::loadView('hrd.schedule.print', $viewData)->setPaper('A4', 'landscape');
         return $pdf->stream('jadwal_karyawan_mingguan.pdf');
+    }
+
+    /**
+     * Kelompokkan karyawan aktif per divisi (dari posisi utama), lalu urutkan
+     * posisi tertinggi di atas: level jabatan dulu, kemudian kedalaman hierarki
+     * (posisi tanpa atasan di divisi tsb paling atas), lalu nama posisi & nama karyawan.
+     */
+    private function groupEmployeesByDivision()
+    {
+        $employees = Employee::with(['positions.divisions'])
+            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->orderBy('nama')
+            ->get();
+
+        $levelRank = array_flip(Position::LEVEL_OPTIONS); // Staff=0 ... Direktur=5
+
+        // [division_id][position_id] => [parent_position_id, ...]
+        $parents = [];
+        foreach (PositionDivision::all(['position_id', 'division_id', 'parent_position_id']) as $row) {
+            $parents[$row->division_id][$row->position_id][] = $row->parent_position_id;
+        }
+        $depth = function ($positionId, $divisionId) use ($parents) {
+            $d = 0;
+            $seen = [];
+            $current = $positionId;
+            while ($current && !isset($seen[$current])) {
+                $seen[$current] = true;
+                $parentId = collect($parents[$divisionId][$current] ?? [])->filter()->first();
+                if (!$parentId) break;
+                $d++;
+                $current = $parentId;
+            }
+            return $d;
+        };
+
+        $rows = $employees->map(function ($emp) use ($levelRank, $depth) {
+            $position = $emp->positions->first(fn($p) => (int) $p->pivot->is_primary === 1) ?? $emp->positions->first();
+            $division = $position ? $position->divisions->first() : null;
+
+            $emp->schedule_position_name = $position?->name;
+            $emp->schedule_sort = [
+                -($levelRank[$position?->level] ?? -1),
+                $position && $division ? $depth($position->id, $division->id) : 99,
+                strtolower($position?->name ?? 'zzz'),
+                strtolower($emp->nama),
+            ];
+
+            return ['division' => $division?->name ?? 'Tanpa Divisi', 'employee' => $emp];
+        });
+
+        return $rows->groupBy('division')
+            ->map(fn($group) => $group->pluck('employee')
+                ->sort(fn($a, $b) => $a->schedule_sort <=> $b->schedule_sort)
+                ->values())
+            // Divisi diurutkan berdasarkan posisi tertinggi di dalamnya, "Tanpa Divisi" paling bawah
+            ->sort(function ($a, $b) {
+                return [$a->first()->schedule_sort[0], $a->first()->schedule_sort[1]]
+                    <=> [$b->first()->schedule_sort[0], $b->first()->schedule_sort[1]];
+            })
+            ->sortBy(fn($group, $name) => $name === 'Tanpa Divisi' ? 1 : 0);
     }
 
 

@@ -1,86 +1,49 @@
 <div class="table-responsive">
-    <table class="table table-bordered">
+    <table class="table table-bordered mb-0">
         <tr>
             <th style="width: 30%">Nama Karyawan</th>
-            <td>{{ $pengajuanLibur->employee->nama }}</td>
-        </tr>
-        <tr>
-            <th>Divisi</th>
-            <td>{{ $pengajuanLibur->employee->division->name ?? '-' }}</td>
+            <td>{{ $pengajuanLibur->employee->nama ?? '-' }}</td>
         </tr>
         <tr>
             <th>Jenis Libur</th>
             <td>
                 @if($pengajuanLibur->jenis_libur == 'cuti_tahunan')
-                    Cuti Tahunan
+                    <span class="badge badge-info">Cuti Tahunan</span>
                 @else
-                    Ganti Libur
+                    <span class="badge badge-secondary">Ganti Libur</span>
                 @endif
             </td>
         </tr>
         <tr>
-            <th>Tanggal Mulai</th>
-            <td>{{ $pengajuanLibur->tanggal_mulai->format('d/m/Y') }}</td>
-        </tr>
-        <tr>
-            <th>Tanggal Selesai</th>
-            <td>{{ $pengajuanLibur->tanggal_selesai->format('d/m/Y') }}</td>
+            <th>Tanggal</th>
+            <td>
+                {{ $pengajuanLibur->tanggal_mulai->locale('id')->translatedFormat('l, j F Y') }}
+                @unless($pengajuanLibur->tanggal_mulai->isSameDay($pengajuanLibur->tanggal_selesai))
+                    &ndash; {{ $pengajuanLibur->tanggal_selesai->locale('id')->translatedFormat('l, j F Y') }}
+                @endunless
+            </td>
         </tr>
         <tr>
             <th>Jumlah Hari</th>
             <td>{{ $pengajuanLibur->total_hari }} hari</td>
         </tr>
+        @include('hrd.pengajuan._diajukan_row', ['p' => $pengajuanLibur])
+        @if($pengajuanLibur->jenis_libur === 'ganti_libur')
+        <tr>
+            <th>Pengganti (Masuk Minggu / Libur Nasional)</th>
+            <td>
+                @forelse(collect($pengajuanLibur->tanggal_masuk_pengganti ?? [])->sort() as $tgl)
+                    <div><i class="fas fa-calendar-check text-success mr-1"></i>{{ \Carbon\Carbon::parse($tgl)->locale('id')->translatedFormat('l, j F Y') }}</div>
+                @empty
+                    <span class="text-muted">Tidak dicatat (pengajuan lama)</span>
+                @endforelse
+            </td>
+        </tr>
+        @endif
         <tr>
             <th>Alasan</th>
-            <td>{{ $pengajuanLibur->alasan }}</td>
+            <td>{!! nl2br(e($pengajuanLibur->alasan)) !!}</td>
         </tr>
-        <tr>
-            <th>Status Persetujuan Manager</th>
-            <td>
-                @if($pengajuanLibur->status_manager == 'menunggu')
-                    <span class="badge badge-warning">Menunggu</span>
-                @elseif($pengajuanLibur->status_manager == 'disetujui')
-                    <span class="badge badge-success">Disetujui</span>
-                @else
-                    <span class="badge badge-danger">Ditolak</span>
-                @endif
-            </td>
-        </tr>
-        @if($pengajuanLibur->komentar_manager)
-        <tr>
-            <th>Catatan Manager</th>
-            <td>{{ $pengajuanLibur->komentar_manager }}</td>
-        </tr>
-        @endif
-        @if($pengajuanLibur->tanggal_persetujuan_manager)
-        <tr>
-            <th>Tanggal Persetujuan Manager</th>
-            <td>{{ $pengajuanLibur->tanggal_persetujuan_manager->format('d/m/Y H:i') }}</td>
-        </tr>
-        @endif
-        <tr>
-            <th>Status Persetujuan HRD</th>
-            <td>
-                @if($pengajuanLibur->status_hrd == 'menunggu')
-                    <span class="badge badge-warning">Menunggu</span>
-                @elseif($pengajuanLibur->status_hrd == 'disetujui')
-                    <span class="badge badge-success">Disetujui</span>
-                @else
-                    <span class="badge badge-danger">Ditolak</span>
-                @endif
-            </td>
-        </tr>
-        @if($pengajuanLibur->komentar_hrd)
-        <tr>
-            <th>Catatan HRD</th>
-            <td>{{ $pengajuanLibur->komentar_hrd }}</td>
-        </tr>
-        @endif
-        @if($pengajuanLibur->tanggal_persetujuan_hrd)
-        <tr>
-            <th>Tanggal Persetujuan HRD</th>
-            <td>{{ $pengajuanLibur->tanggal_persetujuan_hrd->format('d/m/Y H:i') }}</td>
-        </tr>
-        @endif
+        @include('hrd.pengajuan._approval_progress', ['p' => $pengajuanLibur])
     </table>
 </div>

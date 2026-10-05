@@ -17,6 +17,9 @@ class PengajuanLembur extends Model
         'jam_mulai',
         'jam_selesai',
         'total_jam',
+        'jam_mulai_diajukan',
+        'jam_selesai_diajukan',
+        'total_jam_diajukan',
         'alasan',
         'status_manager',
         'notes_manager',
@@ -64,7 +67,20 @@ class PengajuanLembur extends Model
      */
     public function getTotalJamFormattedAttribute()
     {
-        $minutes = (int) $this->total_jam;
+        return self::formatMinutes($this->total_jam);
+    }
+
+    /**
+     * Originally requested total (before an approver reduced it), formatted. Null when never reduced.
+     */
+    public function getTotalJamDiajukanFormattedAttribute()
+    {
+        return $this->total_jam_diajukan === null ? null : self::formatMinutes($this->total_jam_diajukan);
+    }
+
+    public static function formatMinutes($minutes)
+    {
+        $minutes = (int) $minutes;
         $jam = floor($minutes / 60);
         $menit = $minutes % 60;
         $result = [];

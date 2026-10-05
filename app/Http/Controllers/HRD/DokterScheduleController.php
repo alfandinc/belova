@@ -5,7 +5,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\HRD\DokterSchedule;
 use App\Models\HRD\ShiftDokter;
+use App\Models\ERM\Dokter;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class DokterScheduleController extends Controller
 {
@@ -55,18 +58,108 @@ class DokterScheduleController extends Controller
         return $this->defaultDoctorColor((int) $dokterId);
     }
 
+    // Tampilan jadwal dokter mingguan (grid dokter x hari)
     public function index(Request $request)
     {
-    // Ambil data shift dokter
-    $shifts = ShiftDokter::with('dokter.user')->get()->map(function ($shift) {
-            $shift->color_hex = $this->normalizeColor($shift->color_hex, (int) $shift->dokter_id);
-            return $shift;
+        $startOfWeek = $request->input('start_date')
+            ? Carbon::parse($request->input('start_date'))->startOfWeek()
+            : Carbon::now()->startOfWeek();
+        $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
+
+        // Shift default per dokter (ambil yang terbaru)
+        $shiftByDokter = ShiftDokter::orderByDesc('id')->get()->unique('dokter_id')->keyBy('dokter_id');
+
+        $dokters = Dokter::with(['user', 'klinik'])->get()
+            ->map(function ($d) use ($shiftByDokter) {
+                $shift = $shiftByDokter[$d->id] ?? null;
+                $d->schedule_name = $d->user->name ?? ('Dokter #' . $d->id);
+                $d->schedule_color = $this->normalizeColor($shift?->color_hex, (int) $d->id);
+                $d->schedule_shift_id = $shift?->id;
+                $d->schedule_default = $shift ? substr($shift->jam_mulai, 0, 5) . '-' . substr($shift->jam_selesai, 0, 5) : '';
+                return $d;
+            })
+            ->sortBy(fn($d) => strtolower($d->schedule_name))
+            ->values();
+
+        $doktersByKlinik = $dokters->groupBy(fn($d) => $d->klinik->nama ?? 'Tanpa Klinik')->sortKeys();
+
+        // value per sel: "HH:MM-HH:MM"
+        $schedules = DokterSchedule::whereIn('date', $dates)->orderBy('id')->get()
+            ->groupBy(fn($s) => $s->dokter_id . '_' . Carbon::parse($s->date)->toDateString())
+            ->map(fn($rows) => substr($rows->last()->jam_mulai, 0, 5) . '-' . substr($rows->last()->jam_selesai, 0, 5));
+
+        $viewData = compact('dates', 'doktersByKlinik', 'schedules', 'startOfWeek');
+        if ($request->ajax()) {
+            return view('hrd.dokter_schedule._table', $viewData)->render();
+        }
+        return view('hrd.dokter_schedule.index', $viewData);
+    }
+
+    // Simpan perubahan jadwal mingguan sekaligus: schedule[dokter_id][date] = "HH:MM-HH:MM" | ""
+    public function saveWeek(Request $request)
+    {
+        $data = (array) $request->input('schedule', []);
+        $saved = 0;
+        $removed = 0;
+
+        DB::transaction(function () use ($data, &$saved, &$removed) {
+            foreach ($data as $dokterId => $days) {
+                foreach ((array) $days as $date => $value) {
+                    $date = Carbon::parse($date)->toDateString();
+                    DokterSchedule::where('dokter_id', $dokterId)->where('date', $date)->delete();
+
+                    if (!preg_match('/^(\d{2}:\d{2})-(\d{2}:\d{2})$/', (string) $value, $m)) {
+                        $removed++;
+                        continue;
+                    }
+                    DokterSchedule::create([
+                        'dokter_id' => $dokterId,
+                        'date' => $date,
+                        'jam_mulai' => $m[1],
+                        'jam_selesai' => $m[2],
+                    ]);
+                    $saved++;
+                }
+            }
         });
-        // Ambil jadwal dokter untuk 1 bulan (default bulan ini)
-        $month = $request->input('month', now()->format('Y-m'));
-        $schedules = DokterSchedule::whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$month])->get();
-        $doctorColorMap = $this->doctorColorMap($shifts);
-    return view('hrd.dokter_schedule.index', compact('shifts', 'schedules', 'month', 'doctorColorMap'));
+
+        return response()->json(['success' => true, 'saved' => $saved, 'removed' => $removed]);
+    }
+
+    // Copy jadwal dari minggu sumber ke minggu tujuan (tidak menimpa yang sudah ada)
+    public function copyWeek(Request $request)
+    {
+        $request->validate([
+            'source_start_date' => 'required|date',
+            'target_start_date' => 'required|date',
+        ]);
+        $sourceStart = Carbon::parse($request->source_start_date)->startOfWeek();
+        $targetStart = Carbon::parse($request->target_start_date)->startOfWeek();
+        $offset = $sourceStart->diffInDays($targetStart, false);
+
+        $existing = DokterSchedule::whereBetween('date', [$targetStart->toDateString(), $targetStart->copy()->addDays(6)->toDateString()])
+            ->get()
+            ->map(fn($s) => $s->dokter_id . '_' . Carbon::parse($s->date)->toDateString())
+            ->flip();
+
+        $inserted = 0;
+        DB::transaction(function () use ($sourceStart, $offset, $existing, &$inserted) {
+            $source = DokterSchedule::whereBetween('date', [$sourceStart->toDateString(), $sourceStart->copy()->addDays(6)->toDateString()])->get();
+            foreach ($source as $s) {
+                $target = Carbon::parse($s->date)->addDays($offset)->toDateString();
+                if (isset($existing[$s->dokter_id . '_' . $target])) continue;
+                DokterSchedule::create([
+                    'dokter_id' => $s->dokter_id,
+                    'date' => $target,
+                    'jam_mulai' => $s->jam_mulai,
+                    'jam_selesai' => $s->jam_selesai,
+                ]);
+                $existing[$s->dokter_id . '_' . $target] = true;
+                $inserted++;
+            }
+        });
+
+        return response()->json(['success' => true, 'inserted' => $inserted]);
     }
 
     public function store(Request $request)
