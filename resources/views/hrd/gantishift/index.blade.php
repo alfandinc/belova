@@ -116,19 +116,23 @@
                                 <input type="radio" id="jenisTukar" name="jenis" value="tukar" class="custom-control-input">
                                 <label class="custom-control-label" for="jenisTukar">Tukar dengan rekan</label>
                             </div>
+                            <div class="custom-control custom-radio custom-control-inline">
+                                <input type="radio" id="jenisGantikan" name="jenis" value="gantikan" class="custom-control-input">
+                                <label class="custom-control-label" for="jenisGantikan">Digantikan rekan (saya libur)</label>
+                            </div>
                             <input type="hidden" name="is_tukar_shift" id="is_tukar_shift" value="0">
                             <small class="form-text text-muted" id="jenisHint"></small>
                         </div>
 
-                        <div class="form-group">
+                        <div class="form-group" id="shiftBaruGroup">
                             <label for="shift_baru_id" id="shiftBaruLabel">Shift Baru <span class="text-danger">*</span></label>
                             <select class="form-control" id="shift_baru_id" name="shift_baru_id" required></select>
                         </div>
 
                         <div class="form-group d-none" id="targetGroup">
-                            <label for="target_employee_id">Rekan yang Ditukar <span class="text-danger">*</span></label>
+                            <label for="target_employee_id" id="targetLabel">Rekan yang Ditukar <span class="text-danger">*</span></label>
                             <select class="form-control" id="target_employee_id" name="target_employee_id"></select>
-                            <small class="form-text text-muted">Rekan yang terjadwal pada shift tersebut di tanggal ini. Rekan akan mendapat shift Anda.</small>
+                            <small class="form-text text-muted" id="targetHint">Rekan yang terjadwal pada shift tersebut di tanggal ini. Rekan akan mendapat shift Anda.</small>
                         </div>
 
                         <div class="form-group mb-0">
@@ -164,7 +168,7 @@
 </div>
 
 @include('hrd.pengajuan._approval_modal', ['modalId' => 'modalTargetApproval', 'title' => 'Tanggapi Permintaan Tukar Shift', 'commentName' => 'notes',
-    'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika Anda setuju, shift Anda dan rekan akan ditukar setelah disetujui atasan dan HRD.</div>'])
+    'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika Anda setuju, shift Anda dan rekan akan ditukar (atau Anda mengambil shift rekan, untuk permintaan menggantikan) setelah disetujui atasan dan HRD.</div>'])
 @include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalManagerGantiShift', 'title' => 'Persetujuan Atasan', 'commentName' => 'komentar_manager'])
 @include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalHRDGantiShift', 'title' => 'Persetujuan HRD', 'commentName' => 'komentar_hrd',
     'extra' => '<div class="small text-muted"><i class="fas fa-info-circle mr-1"></i>Jika disetujui, jadwal karyawan langsung diperbarui.</div>'])
@@ -242,9 +246,12 @@ $(function () {
 
     var $tanggal = $('#tanggal_shift'), $shiftLama = $('#shift_lama_id'), $shiftBaru = $('#shift_baru_id');
     var $target = $('#target_employee_id'), $alasan = $('#alasan'), $submit = $('#btnSubmitGantiShift');
-    var state = { shifts: [], current: [], loadingFor: null };
+    var state = { shifts: [], current: [], gantiLiburDay: false, loadingFor: null };
 
-    function isTukar() { return $('input[name="jenis"]:checked').val() === 'tukar'; }
+    function jenis() { return $('input[name="jenis"]:checked').val(); }
+    function isTukar() { return jenis() === 'tukar'; }
+    function isGantikan() { return jenis() === 'gantikan'; }
+    function needsTarget() { return isTukar() || isGantikan(); }
 
     function option(value, text, disabled) {
         return $('<option>').val(value).text(text).prop('disabled', !!disabled);
@@ -274,39 +281,59 @@ $(function () {
             $shiftLama.removeClass('d-none');
         }
 
-        // Tukar needs an own shift to give away
-        $('#jenisTukar').prop('disabled', !cur.length);
-        if (!cur.length && isTukar()) $('#jenisGanti').prop('checked', true);
+        // Tukar / digantikan need an own shift to give away
+        $('#jenisTukar, #jenisGantikan').prop('disabled', !cur.length);
+        if (!cur.length && needsTarget()) $('#jenisGanti').prop('checked', true);
         applyJenis();
     }
 
     function applyJenis() {
-        var tukar = isTukar();
-        $('#is_tukar_shift').val(tukar ? 1 : 0);
-        $('#targetGroup').toggleClass('d-none', !tukar);
+        var tukar = isTukar(), gantikan = isGantikan();
+        $('#is_tukar_shift').val(tukar || gantikan ? 1 : 0);
+        $('#targetGroup').toggleClass('d-none', !(tukar || gantikan));
+        $('#shiftBaruGroup').toggleClass('d-none', gantikan);
         $('#shiftBaruLabel').html((tukar ? 'Shift rekan yang ingin Anda ambil' : 'Shift Baru') + ' <span class="text-danger">*</span>');
-        $('#jenisHint').text(tukar
-            ? 'Anda mengambil shift rekan, dan rekan mendapat shift Anda. Rekan harus menyetujui lebih dulu.'
-            : (state.current.length ? 'Shift Anda diganti dengan shift baru.' : 'Anda tidak punya shift di tanggal ini; shift baru akan ditambahkan ke jadwal Anda.'));
+        $('#targetLabel').html((gantikan ? 'Rekan yang Menggantikan' : 'Rekan yang Ditukar') + ' <span class="text-danger">*</span>');
+        $('#targetHint').text(gantikan
+            ? 'Rekan yang libur / tidak punya jadwal di tanggal ini. Rekan akan mengambil shift Anda, dan Anda menjadi libur.'
+            : 'Rekan yang terjadwal pada shift tersebut di tanggal ini. Rekan akan mendapat shift Anda.');
+
+        var hint;
+        if (gantikan) {
+            hint = 'Rekan yang sedang libur menggantikan shift Anda, dan Anda menjadi libur. Rekan harus menyetujui lebih dulu.';
+            if (state.gantiLiburDay) {
+                hint += ' Karena hari Minggu / libur nasional: rekan mendapat +1 jatah ganti libur'
+                    + (state.current.length === 1 ? ' dan jatah ganti libur Anda berkurang 1.' : '.');
+            }
+        } else if (tukar) {
+            hint = 'Anda mengambil shift rekan, dan rekan mendapat shift Anda. Rekan harus menyetujui lebih dulu.';
+        } else {
+            hint = state.current.length ? 'Shift Anda diganti dengan shift baru.' : 'Anda tidak punya shift di tanggal ini; shift baru akan ditambahkan ke jadwal Anda.'
+                + (state.gantiLiburDay ? ' Karena hari Minggu / libur nasional, Anda mendapat +1 jatah ganti libur.' : '');
+        }
+        $('#jenisHint').text(hint);
+
         P.clearFieldError($target);
-        if (tukar) loadTargets(); else $target.empty();
+        if (tukar || gantikan) loadTargets(); else $target.empty();
     }
 
     function loadTargets() {
-        var date = $tanggal.val(), shiftId = $shiftBaru.val();
+        var date = $tanggal.val(), gantikan = isGantikan(), shiftId = gantikan ? '' : $shiftBaru.val();
         $target.empty();
-        if (!date || !shiftId) {
+        if (!date || (!gantikan && !shiftId)) {
             $target.append(option('', 'Pilih shift rekan terlebih dahulu', true));
             return;
         }
         $target.append(option('', 'Memuat...', true));
-        $.getJSON("{{ route('hrd.gantishift.same-shift-employees') }}", { date: date, shift_id: shiftId })
+        var params = gantikan ? { date: date, mode: 'libur' } : { date: date, shift_id: shiftId };
+        $.getJSON("{{ route('hrd.gantishift.same-shift-employees') }}", params)
             .done(function (res) {
-                if ($tanggal.val() !== date || $shiftBaru.val() !== shiftId) return; // changed meanwhile
+                // changed meanwhile
+                if ($tanggal.val() !== date || isGantikan() !== gantikan || (!gantikan && $shiftBaru.val() !== shiftId)) return;
                 var list = (res && res.employees) || [];
                 $target.empty();
                 if (!list.length) {
-                    $target.append(option('', 'Tidak ada rekan yang terjadwal pada shift ini', true));
+                    $target.append(option('', gantikan ? 'Tidak ada rekan yang libur di tanggal ini' : 'Tidak ada rekan yang terjadwal pada shift ini', true));
                     return;
                 }
                 $target.append(option('', 'Pilih rekan'));
@@ -328,6 +355,7 @@ $(function () {
                 if (state.loadingFor !== date) return;
                 state.shifts = (res && res.shifts) || [];
                 state.current = (res && res.current_shifts) || [];
+                state.gantiLiburDay = !!(res && res.is_hari_ganti_libur);
                 fillShiftBaru();
                 renderCurrent();
                 $('#shiftStep').removeClass('d-none');
@@ -344,9 +372,9 @@ $(function () {
     $('#btnCreateGantiShift').on('click', function () {
         $form[0].reset();
         P.clearFieldErrors($form);
-        state = { shifts: [], current: [], loadingFor: null };
+        state = { shifts: [], current: [], gantiLiburDay: false, loadingFor: null };
         $('#shiftStep').addClass('d-none');
-        $('#jenisTukar').prop('disabled', false);
+        $('#jenisTukar, #jenisGantikan').prop('disabled', false);
         $submit.prop('disabled', true);
         $('#modalCreateGantiShift').modal('show');
     });
@@ -356,9 +384,10 @@ $(function () {
         P.clearFieldErrors($form);
 
         var ok = true;
-        var required = [$tanggal, $shiftBaru, $alasan];
+        var required = [$tanggal, $alasan];
+        if (!isGantikan()) required.push($shiftBaru);
         if (!$shiftLama.hasClass('d-none')) required.push($shiftLama);
-        if (isTukar()) required.push($target);
+        if (needsTarget()) required.push($target);
         $.each(required, function (_, $i) {
             if (!$.trim($i.val())) { P.setFieldError($i, 'Wajib diisi.'); ok = false; }
         });

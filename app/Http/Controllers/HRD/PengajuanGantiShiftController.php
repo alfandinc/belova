@@ -10,6 +10,7 @@ use App\Models\HRD\EmployeeSchedule;
 use App\Models\HRD\JatahLibur;
 use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanGantiShift;
+use App\Models\HRD\PengajuanLibur;
 use App\Models\HRD\Shift;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -105,6 +106,43 @@ class PengajuanGantiShiftController extends Controller
         return '<span class="badge badge-secondary">Menunggu Persetujuan</span><div class="small text-muted mt-1">Menunggu Atasan</div>';
     }
 
+    private function lockedJatah($employeeId): JatahLibur
+    {
+        return JatahLibur::lockForUpdate()->firstOrCreate(
+            ['employee_id' => $employeeId],
+            ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
+        );
+    }
+
+    /**
+     * Giving away a Sunday / national holiday shift makes the employee off that day, which is not allowed
+     * once the day is already claimed as hari masuk for a (non-rejected) ganti libur request.
+     */
+    private function gantiLiburClaimError($employeeId, string $tanggal, int $shiftCountThatDay): ?string
+    {
+        if ($shiftCountThatDay !== 1 || !LiburNasional::isHariGantiLibur($tanggal)) {
+            return null;
+        }
+
+        $claimed = PengajuanLibur::where('employee_id', $employeeId)
+            ->where('jenis_libur', 'ganti_libur')
+            ->whereNotNull('tanggal_masuk_pengganti')
+            ->where(function ($q) {
+                $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
+            })
+            ->where(function ($q) {
+                $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
+            })
+            ->get()
+            ->pluck('tanggal_masuk_pengganti')
+            ->flatten()
+            ->contains($tanggal);
+
+        return $claimed
+            ? 'Tanggal ini sudah dipakai sebagai hari masuk pengganti pada pengajuan ganti libur, sehingga tidak bisa digantikan rekan.'
+            : null;
+    }
+
     private function canViewGantiShift($user, PengajuanGantiShift $p): bool
     {
         $me = $user->employee;
@@ -165,13 +203,20 @@ class PengajuanGantiShiftController extends Controller
                 ->setRowClass(fn($row) => $needsAction($row) ? 'row-needs-action' : '')
                 ->addColumn('employee_nama', fn($row) => e($row->employee->nama ?? '-'))
                 ->addColumn('tanggal', function ($row) {
+                    $baru = $row->isGantikan() ? 'Libur' : $this->shiftLabel($row->shiftBaru);
                     return '<div><i class="fas fa-calendar-alt mr-1 text-muted"></i>' . $row->tanggal_shift->locale('id')->translatedFormat('l, j F Y') . '</div>'
                         . '<div class="mt-1 small"><span class="text-muted">' . e($this->shiftLabel($row->shiftLama)) . '</span>'
-                        . ' <i class="fas fa-arrow-right mx-1 text-primary"></i> <strong>' . e($this->shiftLabel($row->shiftBaru)) . '</strong></div>';
+                        . ' <i class="fas fa-arrow-right mx-1 text-primary"></i> <strong>' . e($baru) . '</strong></div>';
                 })
                 ->addColumn('jenis', function ($row) use ($employee) {
                     if (!$row->is_tukar_shift) {
                         return '<span class="badge badge-secondary">Ganti Shift</span>';
+                    }
+                    if ($row->isGantikan()) {
+                        if ($employee && (int) $row->target_employee_id === (int) $employee->id) {
+                            return '<span class="badge badge-warning">Permintaan Menggantikan</span><div class="small mt-1">dari: ' . e($row->employee->nama ?? '-') . '</div>';
+                        }
+                        return '<span class="badge badge-info">Digantikan Rekan</span><div class="small mt-1">oleh: ' . e($row->targetEmployee->nama ?? '-') . '</div>';
                     }
                     if ($employee && (int) $row->target_employee_id === (int) $employee->id) {
                         return '<span class="badge badge-warning">Permintaan Tukar</span><div class="small mt-1">dari: ' . e($row->employee->nama ?? '-') . '</div>';
@@ -234,12 +279,13 @@ class PengajuanGantiShiftController extends Controller
 
     public function store(Request $request)
     {
-        $isTukar = $request->boolean('is_tukar_shift');
+        $isGantikan = $request->input('jenis') === 'gantikan';
+        $isTukar = $isGantikan || $request->boolean('is_tukar_shift');
         $request->validate([
             // any date allowed (past dates included, per earlier request)
             'tanggal_shift' => 'required|date',
             'shift_lama_id' => 'nullable|exists:hrd_shifts,id',
-            'shift_baru_id' => 'required|exists:hrd_shifts,id,active,1',
+            'shift_baru_id' => ($isGantikan ? 'nullable' : 'required') . '|exists:hrd_shifts,id,active,1',
             'alasan' => 'required|string|max:1000',
             'is_tukar_shift' => 'nullable|boolean',
             'target_employee_id' => ($isTukar ? 'required' : 'nullable') . '|exists:hrd_employee,id',
@@ -278,14 +324,29 @@ class PengajuanGantiShiftController extends Controller
         if ($shiftLamaId && !in_array($shiftLamaId, array_map('intval', $currentShiftIds), true)) {
             return $this->errorResponse($request, 'Shift yang ingin diganti tidak ada di jadwal Anda pada tanggal ini.');
         }
-        if ($shiftLamaId === (int) $request->shift_baru_id) {
+
+        if ($isGantikan) {
+            if (!$shiftLamaId) {
+                return $this->errorResponse($request, 'Digantikan rekan hanya bisa dilakukan jika Anda memiliki jadwal pada tanggal tersebut.');
+            }
+            if ((int) $request->target_employee_id === (int) $employee->id) {
+                return $this->errorResponse($request, 'Tidak dapat digantikan oleh diri sendiri.');
+            }
+            if (EmployeeSchedule::where('employee_id', $request->target_employee_id)->whereDate('date', $tanggal)->exists()) {
+                return $this->errorResponse($request, 'Rekan yang dipilih sudah memiliki jadwal di tanggal ini. Gunakan Tukar Shift.');
+            }
+            if ($error = $this->gantiLiburClaimError($employee->id, $tanggal, count($currentShiftIds))) {
+                return $this->errorResponse($request, $error);
+            }
+            // The shift handed over; see PengajuanGantiShift::isGantikan()
+            $request->merge(['shift_baru_id' => $shiftLamaId]);
+        } elseif ($shiftLamaId === (int) $request->shift_baru_id) {
             return $this->errorResponse($request, 'Shift baru sama dengan shift saat ini.');
-        }
-        if (in_array((int) $request->shift_baru_id, array_map('intval', $currentShiftIds), true)) {
+        } elseif (in_array((int) $request->shift_baru_id, array_map('intval', $currentShiftIds), true)) {
             return $this->errorResponse($request, 'Anda sudah terjadwal pada shift tersebut di tanggal ini.');
         }
 
-        if ($isTukar) {
+        if ($isTukar && !$isGantikan) {
             if (!$shiftLamaId) {
                 return $this->errorResponse($request, 'Tukar shift hanya bisa dilakukan jika Anda memiliki jadwal pada tanggal tersebut.');
             }
@@ -314,7 +375,7 @@ class PengajuanGantiShiftController extends Controller
         $pengajuan = PengajuanGantiShift::create($data);
 
         $message = $isTukar
-            ? 'Pengajuan tukar shift berhasil diajukan. Menunggu persetujuan rekan Anda.'
+            ? 'Pengajuan ' . ($isGantikan ? 'digantikan rekan' : 'tukar shift') . ' berhasil diajukan. Menunggu persetujuan rekan Anda.'
             : 'Pengajuan ganti shift berhasil diajukan.';
 
         if ($request->ajax()) {
@@ -452,6 +513,44 @@ class PengajuanGantiShiftController extends Controller
         $tanggal = $p->tanggal_shift->toDateString();
         $changed = 'Jadwal karyawan pada ' . $p->tanggal_shift->translatedFormat('j F Y') . ' sudah berubah sejak pengajuan dibuat';
 
+        if ($p->isGantikan()) {
+            $mine = EmployeeSchedule::where('employee_id', $p->employee_id)->whereDate('date', $tanggal)
+                ->where('shift_id', $p->shift_lama_id)->lockForUpdate()->first();
+            if (!$mine) {
+                throw new \DomainException($changed . ' (shift yang akan digantikan tidak ditemukan). Tolak pengajuan ini dan minta karyawan mengajukan ulang.');
+            }
+            if (EmployeeSchedule::where('employee_id', $p->target_employee_id)->whereDate('date', $tanggal)->exists()) {
+                throw new \DomainException(($p->targetEmployee->nama ?? 'Rekan') . ' sekarang sudah memiliki jadwal di tanggal ini. Tolak pengajuan ini dan gunakan Tukar Shift.');
+            }
+            $myShiftCount = EmployeeSchedule::where('employee_id', $p->employee_id)->whereDate('date', $tanggal)->count();
+            if ($error = $this->gantiLiburClaimError($p->employee_id, $tanggal, $myShiftCount)) {
+                throw new \DomainException($error);
+            }
+
+            // The colleague takes over my shift row; I am off unless I still have a second shift
+            $mine->update(['employee_id' => $p->target_employee_id]);
+
+            // Sunday / national holiday: same rule as the schedule screen (start working +1, stop working -1)
+            $jatahNote = '';
+            if (LiburNasional::isHariGantiLibur($tanggal)) {
+                $this->lockedJatah($p->target_employee_id)->increment('jatah_ganti_libur');
+                $jatahNote = ' ' . ($p->targetEmployee->nama ?? 'Rekan') . ' mendapat +1 jatah ganti libur';
+                if ($myShiftCount === 1) {
+                    $jatah = $this->lockedJatah($p->employee_id);
+                    $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur - 1);
+                    $jatah->save();
+                    $jatahNote .= ', jatah ganti libur ' . ($p->employee->nama ?? '-') . ' -1';
+                }
+                $jatahNote .= '.';
+            }
+
+            Log::info('Ganti shift: digantikan rekan applied', ['pengajuan_id' => $p->id, 'date' => $tanggal,
+                'employee_id' => $p->employee_id, 'target_employee_id' => $p->target_employee_id, 'shift_id' => $p->shift_lama_id]);
+
+            return 'Pengajuan disetujui. ' . ($p->targetEmployee->nama ?? '-') . ' menggantikan ' . ($p->employee->nama ?? '-')
+                . ' pada ' . $this->shiftLabel($p->shiftLama) . '.' . $jatahNote;
+        }
+
         if ($p->is_tukar_shift) {
             $mine = EmployeeSchedule::where('employee_id', $p->employee_id)->whereDate('date', $tanggal)
                 ->where('shift_id', $p->shift_lama_id)->lockForUpdate()->first();
@@ -491,8 +590,7 @@ class PengajuanGantiShiftController extends Controller
 
             // Newly working a Sunday / national holiday earns ganti libur, same rule as the schedule screen
             if (LiburNasional::isHariGantiLibur($tanggal)) {
-                JatahLibur::firstOrCreate(['employee_id' => $p->employee_id], ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0])
-                    ->increment('jatah_ganti_libur');
+                $this->lockedJatah($p->employee_id)->increment('jatah_ganti_libur');
             }
         }
 
@@ -521,7 +619,7 @@ class PengajuanGantiShiftController extends Controller
         return view('hrd.gantishift.show', [
             'pengajuan' => $pengajuan,
             'shiftLama' => $this->shiftLabel($pengajuan->shiftLama),
-            'shiftBaru' => $this->shiftLabel($pengajuan->shiftBaru),
+            'shiftBaru' => $pengajuan->isGantikan() ? 'Libur' : $this->shiftLabel($pengajuan->shiftBaru),
             'currentShifts' => $currentShifts,
         ]);
     }
@@ -578,6 +676,7 @@ class PengajuanGantiShiftController extends Controller
             'success' => true,
             'shifts' => Shift::where('active', true)->orderBy('start_time')->get()->map($format)->values(),
             'current_shifts' => $current,
+            'is_hari_ganti_libur' => LiburNasional::isHariGantiLibur($request->input('date')),
             // kept for backward compatibility
             'current_shift_id' => $current->first()['id'] ?? null,
         ]);
@@ -585,14 +684,30 @@ class PengajuanGantiShiftController extends Controller
 
     /**
      * AJAX for tukar shift: colleagues scheduled on $shift_id at $date.
+     * With mode=libur (digantikan rekan): active colleagues with no schedule at all on $date.
      */
     public function getEmployeesSameShift(Request $request)
     {
-        $request->validate(['date' => 'required|date', 'shift_id' => 'required|integer']);
+        $offMode = $request->input('mode') === 'libur';
+        $request->validate(['date' => 'required|date', 'shift_id' => ($offMode ? 'nullable' : 'required') . '|integer']);
 
         $employee = Auth::user()->employee;
         if (!$employee) {
             return response()->json(['success' => false, 'message' => 'Akun Anda belum terhubung dengan data karyawan.'], 422);
+        }
+
+        if ($offMode) {
+            $scheduledIds = EmployeeSchedule::whereDate('date', $request->input('date'))->pluck('employee_id')->unique();
+            $employees = Employee::active()
+                ->where('id', '!=', $employee->id)
+                ->whereNotIn('id', $scheduledIds)
+                ->with('position')
+                ->orderBy('nama')
+                ->get()
+                ->map(fn($e) => ['id' => $e->id, 'name' => $e->nama, 'position' => $e->position->name ?? ''])
+                ->values();
+
+            return response()->json(['success' => true, 'employees' => $employees]);
         }
 
         $employees = EmployeeSchedule::whereDate('date', $request->input('date'))

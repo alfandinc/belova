@@ -7,7 +7,13 @@
         <tr>
             <th>Jenis</th>
             <td>
-                @if($pengajuan->is_tukar_shift)
+                @if($pengajuan->isGantikan())
+                    <span class="badge badge-info">Digantikan Rekan</span>
+                    oleh <strong>{{ $pengajuan->targetEmployee->nama ?? '-' }}</strong>
+                    @if(\App\Models\HRD\LiburNasional::isHariGantiLibur($pengajuan->tanggal_shift))
+                        <div class="small text-muted mt-1"><i class="fas fa-info-circle mr-1"></i>Hari Minggu / libur nasional: setelah disetujui HRD, {{ $pengajuan->targetEmployee->nama ?? 'rekan' }} mendapat +1 jatah ganti libur dan jatah ganti libur {{ $pengajuan->employee->nama ?? 'pemohon' }} berkurang 1.</div>
+                    @endif
+                @elseif($pengajuan->is_tukar_shift)
                     <span class="badge badge-info">Tukar Shift</span>
                     dengan <strong>{{ $pengajuan->targetEmployee->nama ?? '-' }}</strong>
                 @else
@@ -26,7 +32,7 @@
                 <i class="fas fa-arrow-right mx-1 text-primary"></i>
                 <strong>{{ $shiftBaru }}</strong>
                 @if($pengajuan->is_tukar_shift)
-                    <div class="small text-muted mt-1">{{ $pengajuan->targetEmployee->nama ?? 'Rekan' }} akan mendapat {{ $shiftLama }}.</div>
+                    <div class="small text-muted mt-1">{{ $pengajuan->targetEmployee->nama ?? 'Rekan' }} akan mendapat {{ $shiftLama }}{{ $pengajuan->isGantikan() ? ' (sebelumnya libur)' : '' }}.</div>
                 @endif
             </td>
         </tr>

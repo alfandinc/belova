@@ -58,6 +58,16 @@ class PengajuanGantiShift extends Model
         return $this->belongsTo(Employee::class, 'target_employee_id');
     }
 
+    /**
+     * "Digantikan rekan": a colleague who is off that day takes over the requester's shift and the
+     * requester becomes off. Stored as a tukar shift with shift_baru_id = shift_lama_id (the shift
+     * handed over), a combination a normal ganti/tukar request can never have.
+     */
+    public function isGantikan(): bool
+    {
+        return $this->is_tukar_shift && $this->shift_lama_id && (int) $this->shift_lama_id === (int) $this->shift_baru_id;
+    }
+
     public function isFullyApproved()
     {
         if ($this->is_tukar_shift) {
