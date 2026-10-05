@@ -305,6 +305,32 @@ class FinancePengajuanDanaController extends Controller
         }));
     }
 
+    /**
+     * Which paid pengajuan need a realisasi (single source for tab, badge, buttons, status and submit):
+     * paid on/after REALISASI_START_DATE (older ones were paid before the feature existed),
+     * and not a jenis with an exact amount (Inkaso pays a fixed supplier faktur).
+     */
+    private const REALISASI_START_DATE = '2026-10-05';
+    private const REALISASI_EXCLUDED_JENIS = ['Pembayaran Inkaso'];
+
+    private function requiresRealisasi(FinancePengajuanDana $pengajuan): bool
+    {
+        return $pengajuan->payment_status === 'paid'
+            && !in_array(trim((string) $pengajuan->jenis_pengajuan), self::REALISASI_EXCLUDED_JENIS, true)
+            && $pengajuan->payment_date
+            && Carbon::parse($pengajuan->payment_date)->gte(Carbon::parse(self::REALISASI_START_DATE)->startOfDay());
+    }
+
+    /** SQL version of requiresRealisasi() for finance_pengajuan_dana rows. */
+    private function requiresRealisasiSql(): string
+    {
+        $pdo = DB::connection()->getPdo();
+        $excluded = implode(', ', array_map(function($j) use ($pdo) { return $pdo->quote($j); }, self::REALISASI_EXCLUDED_JENIS));
+        return "finance_pengajuan_dana.payment_status = 'paid'"
+            . " AND TRIM(COALESCE(finance_pengajuan_dana.jenis_pengajuan, '')) NOT IN ({$excluded})"
+            . " AND finance_pengajuan_dana.payment_date >= " . $pdo->quote(self::REALISASI_START_DATE . ' 00:00:00');
+    }
+
     /** Fields of the pengajuan form that may be written from a request (status/payment are never client-controlled). */
     private const FORM_FIELDS = ['employee_id', 'division_id', 'sumber_dana', 'perusahaan', 'tanggal_pengajuan', 'jenis_pengajuan', 'rekening_id'];
 
@@ -529,8 +555,8 @@ class FinancePengajuanDanaController extends Controller
         $totalLevelsSql = "(SELECT COUNT(DISTINCT {$levelSql}) FROM finance_dana_approver fda WHERE {$chainSql})";
         $approvedLevelsSql = "(SELECT COUNT(DISTINCT {$levelSql}) FROM finance_dana_approver fda JOIN finance_pengajuan_dana_approval ap ON ap.approver_id = fda.id AND ap.pengajuan_id = finance_pengajuan_dana.id AND ap.status = 'approved' WHERE {$chainSql})";
         $declinedExistsSql = "(SELECT 1 FROM finance_pengajuan_dana_approval ap2 WHERE ap2.pengajuan_id = finance_pengajuan_dana.id AND (ap2.status = 'declined' OR ap2.status = 'rejected') LIMIT 1)";
-        // realisasi to do: paid, and the realisasi is missing or not settled yet
-        $realisasiSql = "finance_pengajuan_dana.payment_status = 'paid' AND NOT EXISTS (SELECT 1 FROM finance_pengajuan_dana_realisasi r WHERE r.pengajuan_id = finance_pengajuan_dana.id AND r.status = 'selesai')";
+        // realisasi to do: needs a realisasi (see requiresRealisasi), and it is missing or not settled yet
+        $realisasiSql = $this->requiresRealisasiSql() . " AND NOT EXISTS (SELECT 1 FROM finance_pengajuan_dana_realisasi r WHERE r.pengajuan_id = finance_pengajuan_dana.id AND r.status = 'selesai')";
 
         // pending (menunggu): not declined and not fully approved
         $pendingSql = "NOT EXISTS {$declinedExistsSql} AND NOT ({$totalLevelsSql} > 0 AND {$approvedLevelsSql} >= {$totalLevelsSql})";
@@ -694,7 +720,7 @@ class FinancePengajuanDanaController extends Controller
 
                 // Realisasi: once paid, the pengaju (or admin/approver) reports what was actually spent
                 $realisasi = $row->realisasi;
-                if ($isPaid && ($isOwner || $currentUserHasGlobalAccess) && (!$realisasi || $realisasi->status !== 'selesai')) {
+                if ($this->requiresRealisasi($row) && ($isOwner || $currentUserHasGlobalAccess) && (!$realisasi || $realisasi->status !== 'selesai')) {
                     $realLabel = $realisasi ? 'Edit Realisasi' : 'Realisasi';
                     $btns .= '<button class="btn btn-sm btn-warning realisasi-pengajuan ms-1" data-id="' . $row->id . '" title="' . $realLabel . '"><i class="fa fa-receipt mr-1"></i>' . $realLabel . '</button>';
                 }
@@ -772,7 +798,10 @@ class FinancePengajuanDanaController extends Controller
                     if ($dibayar > 0 && $dibayar < $grand) {
                         $extra .= '<div class="approval-info text-danger">Dibayar ' . e($this->rupiah($dibayar)) . ' dari ' . e($this->rupiah($grand)) . '</div>';
                     }
-                    $extra .= $this->realisasiStatusHtml($row->realisasi);
+                    // old / Inkaso pengajuan without a realisasi: nothing to show
+                    if ($row->realisasi || $this->requiresRealisasi($row)) {
+                        $extra .= $this->realisasiStatusHtml($row->realisasi);
+                    }
                 } elseif ($row->payment_status === 'partial') {
                     $color = '#fd7e14';
                     $label = '<i class="fa fa-adjust"></i> Dibayar Sebagian';
@@ -1046,6 +1075,7 @@ class FinancePengajuanDanaController extends Controller
         $data = $pengajuan->toArray();
         $data['total_dibayar'] = (float) $pengajuan->payments->sum('nominal');
         $data['sisa_bayar'] = max(0, (float) $pengajuan->grand_total - $data['total_dibayar']);
+        $data['realisasi_required'] = $this->requiresRealisasi($pengajuan);
         // normalized for the frontend: plain Y-m-d for <input type="date">, bukti always an array of paths
         $data['tanggal_pengajuan'] = $pengajuan->tanggal_pengajuan ? $pengajuan->tanggal_pengajuan->format('Y-m-d') : null;
         $data['bukti_transaksi'] = $this->buktiPaths($pengajuan);
@@ -1535,6 +1565,10 @@ class FinancePengajuanDanaController extends Controller
                 return response()->json(['success' => false, 'message' => 'Realisasi hanya bisa diisi setelah pengajuan dibayar.'], 422);
             }
             $realisasi = $pengajuan->realisasi()->first();
+            // an existing (not settled) realisasi may still be revised; otherwise the pengajuan must need one
+            if (!$realisasi && !$this->requiresRealisasi($pengajuan)) {
+                return response()->json(['success' => false, 'message' => 'Pengajuan ini tidak memerlukan realisasi.'], 422);
+            }
             if ($realisasi && $realisasi->status === 'selesai') {
                 return response()->json(['success' => false, 'message' => 'Realisasi sudah selesai dan tidak dapat diubah.'], 422);
             }

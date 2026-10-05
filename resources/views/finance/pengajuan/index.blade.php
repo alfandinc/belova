@@ -9,6 +9,8 @@
     <style>
         /* Solid backgrounds for pinned columns so scrolled cells don't show through (same palette as billing) */
         .pengajuan-dt-wrap { --pfc-bg: #2c3144; --pfc-bg-even: #333950; --pfc-bg-hover: #2a2e40; --pfc-head: #333950; }
+        /* the table never stretches the page: it scrolls left/right inside this box (Aksi stays pinned right) */
+        .pengajuan-dt-wrap { width: 100%; max-width: 100%; min-width: 0; contain: inline-size; }
         html.theme-light .pengajuan-dt-wrap { --pfc-bg: #fff; --pfc-bg-even: #f1f5fa; --pfc-bg-hover: #f8f8fc; --pfc-head: #f1f5fa; }
         .pengajuan-dt-wrap table.dataTable tbody tr > .dtfc-fixed-left,
         .pengajuan-dt-wrap table.dataTable tbody tr > .dtfc-fixed-right { background-color: var(--pfc-bg) !important; }
@@ -1163,6 +1165,25 @@ $(document).ready(function() {
         // tanggal_pengajuan is at column index 2 (0-based), so order by that
         order: [[2, 'desc']]
     });
+
+    // Re-measure columns when the table box changes width (sidebar expand/collapse, window resize),
+    // so the horizontal scroll and the pinned columns stay correct
+    (function() {
+        var adjustTimer = null;
+        var adjust = function() {
+            clearTimeout(adjustTimer);
+            adjustTimer = setTimeout(function() { table.columns.adjust(); }, 150);
+        };
+        var lastWidth = 0;
+        if (window.ResizeObserver) {
+            new ResizeObserver(function(entries) {
+                var w = Math.round(entries[0].contentRect.width);
+                if (w !== lastWidth) { lastWidth = w; adjust(); }
+            }).observe(document.querySelector('.pengajuan-dt-wrap'));
+        } else {
+            $(window).on('resize', adjust);
+        }
+    })();
 
     // Status tabs (same pattern as Billing): switch the approval filter and reload
     $('#pengajuanTabs').on('click', '.nav-link', function(e) {
@@ -2764,7 +2785,7 @@ $(document).ready(function() {
     function renderDetailRealisasi(res) {
         var real = res.realisasi;
         if (!real) {
-            if (res.payment_status === 'paid') {
+            if (res.realisasi_required) {
                 $('#dt_realisasi').html('<div class="text-muted"><i class="fa fa-exclamation-triangle text-warning mr-1"></i>Belum ada realisasi.</div>');
                 $('#dt_realisasi_wrap').show();
             }
