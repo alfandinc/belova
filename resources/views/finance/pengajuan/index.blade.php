@@ -112,6 +112,14 @@
         #pengajuanTable td.items-list-cell .item-notes { font-size: 11px; font-weight: 400; color: #6c757d; line-height: 1.3; white-space: normal; }
         /* main value of a cell (bold); secondary info below it stays small/muted */
         #pengajuanTable .cell-main { font-weight: 700; }
+        /* Columns size to their content instead of being squeezed into the box width;
+           when everything together is wider than the box, the table scrolls horizontally (scrollX) */
+        .pengajuan-dt-wrap table.dataTable thead th { white-space: nowrap; }
+        #pengajuanTable td.diajukan-cell { white-space: nowrap; }
+        #pengajuanTable td.rekening-cell { min-width: 190px; }
+        #pengajuanTable td.rekening-cell .cell-main { white-space: nowrap; }
+        #pengajuanTable td.approvals-cell { min-width: 200px; }
+        #pengajuanTable td.payment-cell { min-width: 190px; }
         /* detail pengajuan modal */
         #itemsDetailTable td, #itemsDetailTable th { vertical-align: middle; }
         #itemsDetailModal .detail-label { font-size: 11px; color: #6c757d; text-transform: uppercase; letter-spacing: .3px; }
@@ -1113,7 +1121,7 @@ $(document).ready(function() {
                     // raw data used for ordering/searching
                     return data;
                 }, orderable: false, searchable: false },
-            { data: 'rekening_display', name: 'rekening_display', defaultContent: '', orderable: false, searchable: false },
+            { data: 'rekening_display', name: 'rekening_display', defaultContent: '', orderable: false, searchable: false, className: 'rekening-cell' },
             { data: 'diajukan_ke', name: 'diajukan_ke', orderable: false, searchable: false, className: 'diajukan-cell' },
             // server returns rendered HTML list for approvals (approver name + date)
             { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false, className: 'approvals-cell' },
