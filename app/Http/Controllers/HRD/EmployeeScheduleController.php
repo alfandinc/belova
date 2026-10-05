@@ -546,13 +546,13 @@ class EmployeeScheduleController extends Controller
 
             // Kelompok jadwal berdasarkan role user:
             //  1. role Head Manager -> "Head Manager"
-            //  2. role Manager      -> "Manager on Duty"
+            //  2. role Manager / Hrd -> "Manager on Duty"
             //  3. sisanya dipisah per divisi (dari posisi utama)
             $roles = $emp->user?->roles->pluck('name')->map(fn($r) => strtolower($r))->all() ?? [];
             if (in_array('head manager', $roles, true)) {
                 $group = 'Head Manager';
                 $groupOrder = 0;
-            } elseif (in_array('manager', $roles, true)) {
+            } elseif (array_intersect(['manager', 'hrd'], $roles)) {
                 $group = 'Manager on Duty';
                 $groupOrder = 1;
             } else {

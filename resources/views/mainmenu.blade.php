@@ -706,12 +706,12 @@
         .jv-tabs .nav-link { font-weight: 600; padding: 8px; }
         .jv-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
         .jv-nav .btn { min-height: 40px; }
-        .jv-nav .jv-label { flex: 1; font-weight: 700; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .jv-nav .jv-label { flex: 1; font-weight: 600; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .jv-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
         .jv-mode { min-width: 40px; }
         .jv-day { min-width: 0; min-height: 50px; border: 1px solid rgba(128,128,128,.35); border-radius: 10px; background: transparent; color: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 2px; position: relative; }
         .jv-day small { font-size: 11px; opacity: .75; }
-        .jv-day b { font-size: 16px; line-height: 1.2; }
+        .jv-day b { font-size: 16px; line-height: 1.2; font-weight: 600; }
         .jv-day.red small, .jv-day.red b { color: #e74c3c; }
         .jv-day.today::after { content: ''; position: absolute; bottom: 4px; width: 6px; height: 6px; border-radius: 50%; background: #1e88e5; }
         .jv-day.active { background: #1e88e5; border-color: #1e88e5; color: #fff; }
@@ -720,30 +720,23 @@
         .jv-filters { display: flex; gap: 6px; margin-bottom: 8px; }
         .jv-filters .form-control { min-height: 38px; font-size: 15px; }
         .jv-filters .jv-clinic { max-width: 45%; }
-        .jv-me-card { border: 1px solid rgba(30,136,229,.5); background: rgba(30,136,229,.08); border-radius: 10px; padding: 8px; margin-bottom: 10px; }
-        .jv-me-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
-        /* Jadwal Saya: geser ke samping, berhenti rapi per hari */
-        .jv-me-grid { position: relative; display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
-        .jv-me-grid::-webkit-scrollbar, .jv-table-wrap::-webkit-scrollbar { display: none; }
-        .jv-me-day { flex: 0 0 auto; min-width: 104px; scroll-snap-align: start; text-align: center; border-radius: 8px; padding: 6px; background: rgba(128,128,128,.10); }
-        .jv-me-day.today { background: rgba(30,136,229,.22); box-shadow: inset 0 0 0 1px rgba(30,136,229,.6); }
-        .jv-me-day > small { display: block; font-size: 11px; font-weight: 600; opacity: .85; margin-bottom: 5px; white-space: nowrap; }
-        .jv-mini { border-radius: 6px; font-size: 12px; font-weight: 700; line-height: 1.3; padding: 4px 8px; white-space: nowrap; }
+        .jv-table-wrap::-webkit-scrollbar { display: none; }
+        .jv-mini { border-radius: 6px; font-size: 12px; font-weight: 500; line-height: 1.3; padding: 4px 8px; white-space: nowrap; }
         .jv-mini + .jv-mini { margin-top: 3px; }
         .jv-mini.off { opacity: .45; font-weight: 400; }
         .jv-mini.libur { background: #e74c3c; color: #fff; }
         .jv-body { max-height: calc(100vh - 330px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
         .jv-empty { padding: 24px 8px; text-align: center; opacity: .75; }
-        .jv-day-title { font-weight: 700; padding: 4px 2px 6px; }
+        .jv-day-title { font-weight: 600; padding: 4px 2px 6px; }
         .jv-group { position: sticky; top: 0; z-index: 1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 6px 8px; background: rgba(128,128,128,.18); backdrop-filter: blur(6px); border-radius: 6px; margin-top: 6px; }
         .jv-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-bottom: 1px solid rgba(128,128,128,.18); }
         .jv-row.me, .jv-table tr.me td { background: rgba(30,136,229,.12); }
-        .jv-name { min-width: 0; font-size: 14px; font-weight: 600; }
+        .jv-name { min-width: 0; font-size: 14px; font-weight: 400; }
         .jv-name small { display: block; font-weight: 400; font-size: 11px; opacity: .7; }
         .jv-val { flex: none; max-width: 48%; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-        .jv-chip { display: inline-block; border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .jv-chip { display: inline-block; border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 500; white-space: nowrap; }
         .jv-chip2 { text-align: center; line-height: 1.25; padding: 4px 10px; }
-        .jv-chip2 small { display: block; font-size: 10.5px; font-weight: 600; opacity: .85; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+        .jv-chip2 small { display: block; font-size: 10.5px; font-weight: 400; opacity: .85; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
         .jv-libur { background: #e74c3c; color: #fff; }
         .jv-off { opacity: .55; font-size: 12px; }
         .jv-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
@@ -751,7 +744,7 @@
         .jv-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
         .jv-table th, .jv-table td { padding: 5px 6px; border-bottom: 1px solid rgba(128,128,128,.2); text-align: center; vertical-align: middle; }
         .jv-table td { min-width: 112px; padding: 6px 5px; }
-        .jv-table thead th { min-width: 112px; }
+        .jv-table thead th { min-width: 112px; font-weight: 600; }
         body.jv-open #belovaChatWidget { display: none !important; }
         .jv-table thead th { position: sticky; top: 0; z-index: 2; background: var(--jv-bg, #fff); }
         .jv-table th.today, .jv-table td.today { background-color: rgba(30,136,229,.08); }
@@ -1453,7 +1446,6 @@
                                         @endif
                                         <input type="search" class="form-control form-control-sm jv-search" placeholder="{{ $jvPlaceholder }}">
                                     </div>
-                                    <div class="jv-me"></div>
                                     <div class="jv-body"><div class="jv-empty">Memuat jadwal...</div></div>
                                 </div>
                                 @endforeach
@@ -2002,7 +1994,7 @@
                         '<small>' + esc(s.name) + '</small>' + esc(jam(s.start, s.end)) + '</span>';
                 }).join('');
             }
-            // Sel mini untuk kartu "Jadwal Saya": jam mulai & selesai bertumpuk agar muat 7 kolom di HP
+            // Sel ringkas untuk tabel mingguan: "09.00 – 19.00" satu baris
             function miniCell(day) {
                 if (!day) return '<div class="jv-mini off">–</div>';
                 if (day.libur) return '<div class="jv-mini libur">' + esc(day.libur) + '</div>';
@@ -2020,7 +2012,6 @@
                     var params = { start_date: state.start };
                     if (key === 'dokter') params.clinic_id = $pane.find('.jv-clinic').val() || '';
                     $pane.find('.jv-body').html('<div class="jv-empty"><span class="spinner-border spinner-border-sm mr-1"></span> Memuat jadwal...</div>');
-                    $pane.find('.jv-me').empty();
                     $.getJSON(key === 'dokter' ? URL_DOKTER : URL_KARYAWAN, params)
                         .done(function (data) {
                             state.data = data;
@@ -2063,7 +2054,6 @@
                     if (!state.data) return;
                     if (!state.mode) state.mode = isMobile() ? 'day' : 'week';
                     renderDays();
-                    if (key === 'karyawan') renderMe();
                     var groups = key === 'dokter' ? state.data.kliniks : state.data.divisions;
                     $pane.find('.jv-body').html(state.mode === 'day' ? renderDay(groups) : renderWeek(groups));
                     if (state.mode === 'week') {
@@ -2074,20 +2064,6 @@
                         var sticky = wrap && wrap.querySelector('thead th.jv-sticky');
                         if (th && sticky && idx > 0) wrap.scrollLeft = th.offsetLeft - sticky.offsetWidth;
                     }
-                }
-
-                // Kartu "Jadwal Saya" untuk karyawan yang login
-                function renderMe() {
-                    var me = null;
-                    state.data.divisions.forEach(function (g) { g.employees.forEach(function (e) { if (e.id === state.data.me) me = e; }); });
-                    if (!me) { $pane.find('.jv-me').empty(); return; }
-                    var cells = state.data.dates.map(function (d) {
-                        return '<div class="jv-me-day' + (d.today ? ' today' : '') + '"><small>' + esc(d.day) + ' ' + esc(d.num) + '</small>' + miniCell(me.days[d.date]) + '</div>';
-                    }).join('');
-                    $pane.find('.jv-me').html('<div class="jv-me-card"><div class="jv-me-title"><i class="fas fa-user mr-1"></i> Jadwal Saya <small class="text-muted font-weight-normal">· geser untuk hari lain</small></div><div class="jv-me-grid">' + cells + '</div></div>');
-                    // Mulai dari hari ini
-                    var grid = $pane.find('.jv-me-grid')[0], todayEl = $pane.find('.jv-me-day.today')[0];
-                    if (grid && todayEl) grid.scrollLeft = todayEl.offsetLeft;
                 }
 
                 function personName(p) {
