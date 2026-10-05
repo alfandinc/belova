@@ -1467,10 +1467,6 @@ class TindakanController extends Controller
         }
         \App\Models\ERM\SpkTindakan::where('riwayat_tindakan_id', $riwayat->id)->delete();
 
-        if (method_exists($riwayat, 'slimmingRecords')) {
-            $riwayat->slimmingRecords()->delete();
-        }
-
         $riwayat->delete();
     }
 

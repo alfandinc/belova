@@ -60,9 +60,4 @@ class RiwayatTindakan extends Model
     {
         return $this->hasOne(Spk::class, 'riwayat_tindakan_id');
     }
-
-    public function slimmingRecords()
-    {
-        return $this->hasMany(Slimming::class, 'riwayat_tindakan_id');
-    }
 }
