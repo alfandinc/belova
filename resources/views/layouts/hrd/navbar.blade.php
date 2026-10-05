@@ -46,11 +46,11 @@
             {{-- Memorandum moved to Workdoc navbar --}}
             <!-- Jadwal Karyawan -->
                 {{-- @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager')) --}}
-                    <!-- Jadwal dan Absensi Group -->
+                    <!-- Jadwal Group -->
                     <li>
                         <a href="javascript: void(0);">
                             <i data-feather="calendar" class="align-self-center menu-icon"></i>
-                            <span>Jadwal dan Absensi</span>
+                            <span>Jadwal</span>
                             <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -59,13 +59,6 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('hrd.schedule.index') }}">
                                     <i class="ti-control-record"></i>Jadwal Karyawan
-                                </a>
-                            </li>
-
-
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('hrd.absensi_rekap.index') }}">
-                                    <i class="ti-control-record"></i>Rekap Absensi
                                 </a>
                             </li>
                             @endif
@@ -100,7 +93,6 @@
                     </a>
                 </li>
             @endif
-            <li>
                     @php
                         use App\Models\HRD\PengajuanLibur;
                         $currentEmployee = Auth::check() ? Auth::user()->employee : null;
@@ -120,15 +112,6 @@
                             }
                         }
                     @endphp
-                    <a href="{{ route('hrd.libur.index') }}"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Cuti & Libur</span>
-                        @if($pendingLiburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
-                            <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
-                        @endif
-                        @if($pendingLiburManager > 0 && $hasDirectSubordinates)
-                            <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
-                        @endif
-                    </a>
-            </li>
 
             <!-- Pengajuan Tidak Masuk (Sakit/Izin) - Visible to all authenticated users -->
             @php
@@ -151,18 +134,6 @@
                     }
                 }
             @endphp
-            <li>
-                <a href="{{ route('hrd.tidakmasuk.index') }}">
-                    <i data-feather="user-x" class="align-self-center menu-icon"></i>
-                    <span>Pengajuan Sakit/Izin</span>
-                    @if($pendingTidakMasukHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
-                        <span class="badge badge-warning ml-1">{{ $pendingTidakMasukHRD }}</span>
-                    @endif
-                    @if($pendingTidakMasukManager > 0 && $hasDirectSubordinates)
-                        <span class="badge badge-info ml-1">{{ $pendingTidakMasukManager }}</span>
-                    @endif
-                </a>
-            </li>
             <!-- Pengajuan Lembur - Visible to all authenticated users -->
             @php
                 if (!class_exists('App\\Models\\HRD\\PengajuanLembur')) {
@@ -187,19 +158,7 @@
                     }
                 }
             @endphp
-            <li>
-                <a href="{{ route('hrd.lembur.index') }}">
-                    <i data-feather="clock" class="align-self-center menu-icon"></i>
-                    <span>Lembur</span>
-                    @if($pendingLemburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
-                        <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
-                    @endif
-                    @if($pendingLemburManager > 0 && $hasDirectSubordinates)
-                        <span class="badge badge-info ml-1">{{ $pendingLemburManager }}</span>
-                    @endif
-                </a>
-            </li>
-            
+
             <!-- Pengajuan Ganti Shift - Visible to all authenticated users -->
             @php
                 // Compute pending counts for Ganti/Tukar Shift safely
@@ -232,19 +191,80 @@
                     }
                 }
             @endphp
+            @php
+                $isHrdAdmin = Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin');
+                $pendingAbsensiHRD = $isHrdAdmin ? ($pendingLiburHRD + $pendingTidakMasukHRD + $pendingLemburHRD + $pendingGantiShiftHRD) : 0;
+                $pendingAbsensiManager = $hasDirectSubordinates ? ($pendingLiburManager + $pendingTidakMasukManager + $pendingLemburManager + $pendingGantiShiftManager) : 0;
+            @endphp
+            <!-- Absensi Group -->
             <li>
-                <a href="{{ route('hrd.gantishift.index') }}">
-                    <i data-feather="refresh-cw" class="align-self-center menu-icon"></i>
-                    <span>Ganti/Tukar Sihft</span>
-                    @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
-                        <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
+                <a href="javascript: void(0);">
+                    <i data-feather="user-check" class="align-self-center menu-icon"></i>
+                    <span>Absensi</span>
+                    @if($pendingAbsensiHRD > 0)
+                        <span class="badge badge-warning ml-1">{{ $pendingAbsensiHRD }}</span>
                     @endif
-                    @if($pendingGantiShiftManager > 0 && $hasDirectSubordinates)
-                        <span class="badge badge-info ml-1">{{ $pendingGantiShiftManager }}</span>
+                    @if($pendingAbsensiManager > 0)
+                        <span class="badge badge-info ml-1">{{ $pendingAbsensiManager }}</span>
                     @endif
+                    <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                 </a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('hrd.libur.index') }}">
+                            <i class="ti-control-record"></i>Cuti &amp; Libur
+                            @if($pendingLiburHRD > 0 && $isHrdAdmin)
+                                <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
+                            @endif
+                            @if($pendingLiburManager > 0 && $hasDirectSubordinates)
+                                <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
+                            @endif
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('hrd.tidakmasuk.index') }}">
+                            <i class="ti-control-record"></i>Izin &amp; Sakit
+                            @if($pendingTidakMasukHRD > 0 && $isHrdAdmin)
+                                <span class="badge badge-warning ml-1">{{ $pendingTidakMasukHRD }}</span>
+                            @endif
+                            @if($pendingTidakMasukManager > 0 && $hasDirectSubordinates)
+                                <span class="badge badge-info ml-1">{{ $pendingTidakMasukManager }}</span>
+                            @endif
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('hrd.lembur.index') }}">
+                            <i class="ti-control-record"></i>Lembur
+                            @if($pendingLemburHRD > 0 && $isHrdAdmin)
+                                <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
+                            @endif
+                            @if($pendingLemburManager > 0 && $hasDirectSubordinates)
+                                <span class="badge badge-info ml-1">{{ $pendingLemburManager }}</span>
+                            @endif
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('hrd.gantishift.index') }}">
+                            <i class="ti-control-record"></i>Ganti/Tukar Shift
+                            @if($pendingGantiShiftHRD > 0 && $isHrdAdmin)
+                                <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
+                            @endif
+                            @if($pendingGantiShiftManager > 0 && $hasDirectSubordinates)
+                                <span class="badge badge-info ml-1">{{ $pendingGantiShiftManager }}</span>
+                            @endif
+                        </a>
+                    </li>
+                    @if($isHrdAdmin)
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('hrd.absensi_rekap.index') }}">
+                            <i class="ti-control-record"></i>Rekap Absensi
+                        </a>
+                    </li>
+                    @endif
+                </ul>
             </li>
-            
+
+
             <!-- For HRD and CEO: Employee Management -->
             @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Head Manager','Admin')))
             <li>
