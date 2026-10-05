@@ -503,13 +503,13 @@ class EmployeeScheduleController extends Controller
     }
 
     /**
-     * Kelompokkan karyawan aktif untuk jadwal: Head Manager, Manager on Duty, lalu per divisi.
+     * Kelompokkan karyawan aktif untuk jadwal berdasarkan role: Head Manager, Manager on Duty, lalu per divisi.
      * Di dalam tiap kelompok diurutkan berdasarkan hierarki organisasi (atasan di atas).
      * Urutan: kedalaman hierarki -> level jabatan -> nama posisi -> nama karyawan.
      */
     private function groupEmployeesByDivision()
     {
-        $employees = Employee::with(['positions.divisions'])
+        $employees = Employee::with(['positions.divisions', 'user.roles'])
             ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
             ->orderBy('nama')
             ->get();
@@ -544,14 +544,15 @@ class EmployeeScheduleController extends Controller
             $division = $position ? $position->divisions->first() : null;
             $d = $position ? $depth($position->id) : 999;
 
-            // Kelompok jadwal:
-            //  1. Head Manager  : direktur/CEO (puncak) & posisi langsung di bawahnya
-            //  2. Manager on Duty: level Manager / Penanggung Jawab, atau bawahan langsung Head Manager
-            //  3. Sisanya dipisah per divisi
-            if ($d <= 1) {
+            // Kelompok jadwal berdasarkan role user:
+            //  1. role Head Manager -> "Head Manager"
+            //  2. role Manager      -> "Manager on Duty"
+            //  3. sisanya dipisah per divisi (dari posisi utama)
+            $roles = $emp->user?->roles->pluck('name')->map(fn($r) => strtolower($r))->all() ?? [];
+            if (in_array('head manager', $roles, true)) {
                 $group = 'Head Manager';
                 $groupOrder = 0;
-            } elseif ($d === 2 || in_array($position?->level, ['Manager', 'Penanggung Jawab'], true)) {
+            } elseif (in_array('manager', $roles, true)) {
                 $group = 'Manager on Duty';
                 $groupOrder = 1;
             } else {
