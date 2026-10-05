@@ -4105,15 +4105,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if (!empty($item->billable_type) && !empty($item->billable_id)) {
                                 if ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
                                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
-                                    if ($resep && isset($resep->obat) && $resep->obat) return $resep->obat->hpp_jual ?? null;
+                                    if ($resep && isset($resep->obat) && $resep->obat) return $resep->obat->hpp ?? null;
                                 } elseif ($item->billable_type == 'App\\Models\\ERM\\Obat') {
                                     $obat = \App\Models\ERM\Obat::withInactive()->find($item->billable_id);
-                                    if ($obat) return $obat->hpp_jual ?? null;
+                                    if ($obat) return $obat->hpp ?? null;
                                 }
                                 $model = app($item->billable_type)::find($item->billable_id);
                                 if ($model) {
-                                    if (isset($model->hpp_jual)) return $model->hpp_jual;
-                                    if (isset($model->obat) && isset($model->obat->hpp_jual)) return $model->obat->hpp_jual;
+                                    if (isset($model->hpp)) return $model->hpp;
+                                    if (isset($model->obat) && isset($model->obat->hpp)) return $model->obat->hpp;
                                 }
                             }
                         } catch (\Exception $e) {
@@ -4340,7 +4340,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $vals = [];
                             foreach ($racikanItems as $ri) {
                                 if (isset($ri->billable) && isset($ri->billable->obat) && $ri->billable->obat) {
-                                    $vals[] = $ri->billable->obat->hpp_jual ?? null;
+                                    $vals[] = $ri->billable->obat->hpp ?? null;
                                 }
                             }
                             $vals = array_filter($vals, function($v){ return !is_null($v); });

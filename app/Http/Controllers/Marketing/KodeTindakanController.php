@@ -27,7 +27,7 @@ class KodeTindakanController extends Controller
                 'qty' => $pivot->qty,
                 'dosis' => $pivot->dosis,
                 'satuan_dosis' => $pivot->satuan_dosis,
-                'hpp_jual' => $obat->hpp_jual ?? null,
+                'hpp' => $obat->hpp ?? null,
             ];
         }
         return response()->json($obats);

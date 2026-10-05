@@ -99,8 +99,8 @@ class StokGudangController extends Controller {
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
                 'o.satuan as obat_satuan',
-                // Use a numeric alias for HPP (fallback to hpp_jual) for reliable calculations
-                DB::raw('COALESCE(o.hpp, o.hpp_jual, 0) as hpp_val'),
+                // Use a numeric alias for HPP for reliable calculations
+                DB::raw('COALESCE(o.hpp, 0) as hpp_val'),
                 'g.nama as gudang_nama',
                 'latest_follow_up.tindak_lanjut as latest_tindak_lanjut'
             )
@@ -268,11 +268,11 @@ class StokGudangController extends Controller {
             ->orderColumn('total_stok', 'total_stok $1')
             // Allow ordering by HPP (use COALESCE to mirror displayed hpp_val)
             ->orderColumn('hpp', function($query, $direction) use ($table) {
-                $query->orderBy(DB::raw('COALESCE(o.hpp, o.hpp_jual, 0)'), $direction);
+                $query->orderBy(DB::raw('COALESCE(o.hpp, 0)'), $direction);
             })
             // Allow ordering by Nilai Stok (total_stok * hpp_val)
             ->orderColumn('nilai_stok', function($query, $direction) use ($table) {
-                $expr = DB::raw('SUM(' . $table . '.stok) * COALESCE(o.hpp, o.hpp_jual, 0)');
+                $expr = DB::raw('SUM(' . $table . '.stok) * COALESCE(o.hpp, 0)');
                 $query->orderBy($expr, $direction);
             })
             ->rawColumns(['nama_obat', 'actions', 'hpp', 'total_stok'])
@@ -410,6 +410,104 @@ class StokGudangController extends Controller {
                 'success' => false,
                 'message' => 'Gagal update stok batch: ' . $e->getMessage()
             ], 422);
+        }
+    }
+
+    /**
+     * Daftar batch hasil migrasi stok lama (batch MIGRATE-*) untuk dilengkapi ED dan stoknya.
+     */
+    public function stokMigrate(Request $request)
+    {
+        $query = DB::table('erm_obat_stok_gudang as s')
+            ->join('erm_obat as o', 'o.id', '=', 's.obat_id')
+            ->leftJoin('erm_gudang as g', 'g.id', '=', 's.gudang_id')
+            ->whereNull('s.deleted_at')
+            ->where('s.batch', 'like', 'MIGRATE%')
+            ->select(
+                's.id', 's.obat_id', 's.batch', 's.stok', 's.expiration_date', 's.updated_at',
+                'o.kode_obat', 'o.nama as nama_obat', 'o.satuan', 'o.kategori',
+                'g.nama as nama_gudang'
+            )
+            ->orderByDesc('s.stok')
+            ->orderBy('o.nama');
+
+        if (!$request->boolean('include_empty')) {
+            $query->where('s.stok', '>', 0);
+        }
+
+        return response()->json([
+            'data' => $query->get(),
+            'total_with_stock' => DB::table('erm_obat_stok_gudang')
+                ->whereNull('deleted_at')
+                ->where('batch', 'like', 'MIGRATE%')
+                ->where('stok', '>', 0)
+                ->count(),
+        ]);
+    }
+
+    /**
+     * Ganti nama batch (mis. batch MIGRATE-* menjadi nomor batch asli).
+     * Riwayat kartu stok batch lama di gudang yang sama ikut dipindah ke nama baru.
+     */
+    public function updateBatchName(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:erm_obat_stok_gudang,id',
+            'batch' => 'required|string|max:255'
+        ]);
+
+        $newBatch = trim($request->batch);
+        if ($newBatch === '') {
+            return response()->json(['success' => false, 'message' => 'Nama batch wajib diisi.'], 422);
+        }
+
+        try {
+            return DB::transaction(function () use ($request, $newBatch) {
+                $stokGudang = ObatStokGudang::lockForUpdate()->findOrFail($request->id);
+                $oldBatch = $stokGudang->batch;
+
+                if ($oldBatch === $newBatch) {
+                    return response()->json(['success' => true, 'message' => 'Nama batch tidak berubah.']);
+                }
+
+                $duplicate = ObatStokGudang::where('obat_id', $stokGudang->obat_id)
+                    ->where('gudang_id', $stokGudang->gudang_id)
+                    ->where('batch', $newBatch)
+                    ->where('id', '!=', $stokGudang->id)
+                    ->exists();
+                if ($duplicate) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Batch {$newBatch} sudah ada untuk obat ini di gudang yang sama."
+                    ], 422);
+                }
+
+                $stokGudang->batch = $newBatch;
+                $stokGudang->save();
+
+                $kartuUpdated = KartuStok::where('obat_id', $stokGudang->obat_id)
+                    ->where('gudang_id', $stokGudang->gudang_id)
+                    ->where('batch', $oldBatch)
+                    ->update(['batch' => $newBatch]);
+
+                \Illuminate\Support\Facades\Log::info('Batch renamed', [
+                    'stok_gudang_id' => $stokGudang->id,
+                    'obat_id' => $stokGudang->obat_id,
+                    'gudang_id' => $stokGudang->gudang_id,
+                    'old_batch' => $oldBatch,
+                    'new_batch' => $newBatch,
+                    'kartu_stok_updated' => $kartuUpdated,
+                    'user_id' => Auth::id(),
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Nama batch berhasil diubah',
+                    'data' => ['batch' => $newBatch, 'kartu_stok_updated' => $kartuUpdated]
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal mengubah batch: ' . $e->getMessage()], 422);
         }
     }
 

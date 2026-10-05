@@ -33,7 +33,7 @@ class StokOpnameController extends Controller
         $totalStokSistem = 0;
         $totalStokFisik = 0;
         foreach ($items as $item) {
-            $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            $hppJual = $item->obat ? ($item->obat->hpp ?? 0) : 0;
             // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
@@ -880,11 +880,11 @@ class StokOpnameController extends Controller
             ->where('stok_opname_id', $stokOpname->id)
             ->get();
 
-        // Calculate total nilai stok sistem and stok fisik (based on hpp_jual)
+        // Calculate total nilai stok sistem and stok fisik (based on hpp)
         $totalStokSistem = 0;
         $totalStokFisik = 0;
         foreach ($items as $item) {
-            $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            $hppJual = $item->obat ? ($item->obat->hpp ?? 0) : 0;
             // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
@@ -1155,7 +1155,7 @@ class StokOpnameController extends Controller
                 ->select(
                     'erm_stok_opname_items.*',
                     'erm_obat.nama as nama_obat',
-                    'erm_obat.hpp_jual as hpp_jual',
+                    'erm_obat.hpp as hpp_obat',
                     'erm_obat.satuan as satuan',
                     'erm_obat.kategori as kategori',
                     DB::raw($batchSub),

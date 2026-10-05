@@ -563,7 +563,7 @@ $(function () {
             { data: 'total_temuan', name: 'total_temuan', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { if (data === null || data === undefined) data = 0; return formatQty(data); } },
             { data: 'selisih', name: 'selisih', className: 'text-right', render: function(data, type, row) { var txt = formatQty(data); if (parseFloat(data) != 0) { return txt + ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>'; } else { return txt + ' <i class="fa fa-check text-success" title="Sesuai"></i>'; } } },
             { data: 'nearest_exp', name: 'nearest_exp', className: 'text-center', render: function(data, type, row) { return data || '-'; } },
-            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_jual) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
+            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
                 { data: null, orderable: false, searchable: false, className: 'text-center', render: function(data, type, row) {
                         var id = row.id || '';
                         var obatId = row.obat_id || row.obatId || '';
@@ -631,9 +631,9 @@ $(function () {
                         var selisihCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk kolom Selisih
                         var icon = parseFloat(res.selisih) != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                         selisihCell.html(formatQty(res.selisih) + ' ' + icon);
-                        // Update Nilai Stok cell using hpp_jual from row data (now at index 8)
+                        // Update Nilai Stok cell using hpp_obat from row data (now at index 8)
                         var rowData = table.row(rowIdx).data();
-                        var hpp = parseFloat(rowData.hpp_jual) || 0;
+                        var hpp = parseFloat(rowData.hpp_obat) || 0;
                         var nilai = hpp * (parseFloat(res.stok_fisik) || 0);
                         var nilaiCell = $(table.cell(rowIdx, 8).node()); // Index 8 untuk Nilai Stok (rightmost)
                         nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
@@ -648,7 +648,7 @@ $(function () {
                             var totalFisik = 0;
                             table.rows().every(function() {
                                 var d = this.data();
-                                var h = parseFloat(d.hpp_jual) || 0;
+                                var h = parseFloat(d.hpp_obat) || 0;
                                 var s = parseFloat(d.stok_sistem) || 0;
                                 var f = parseFloat(d.stok_fisik) || 0;
                                 totalSistem += h * s;

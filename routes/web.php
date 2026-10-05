@@ -765,6 +765,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
         Route::post('/update-batch-stok', [StokGudangController::class, 'updateBatchStok'])->name('erm.stok-gudang.update-batch-stok');
         Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
+        Route::get('/stok-migrate', [StokGudangController::class, 'stokMigrate'])->name('erm.stok-gudang.stok-migrate');
+        Route::post('/update-batch-name', [StokGudangController::class, 'updateBatchName'])->name('erm.stok-gudang.update-batch-name');
         Route::post('/update-minmax', [StokGudangController::class, 'updateMinMax'])->name('erm.stok-gudang.update-minmax');
         Route::post('/sync-missing-minmax', [StokGudangController::class, 'syncMissingMinMax'])->name('erm.stok-gudang.sync-missing-minmax');
     });

@@ -65,7 +65,6 @@ class Obat extends Model
         'metode_bayar_id',
         'status_aktif',
         'hpp',
-        'hpp_jual',
         'is_generik',
         'is_favorite',
     ];

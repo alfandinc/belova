@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Auth;
 
 class StokService {
     /**
-     * Hitung nilai stok gudang tertentu (stok * hpp_jual per obat di gudang)
+     * Hitung nilai stok gudang tertentu (stok * hpp per obat di gudang)
      * @param int $gudangId
      * @return float
      */
@@ -25,17 +25,17 @@ class StokService {
             ->with('obat')
             ->get()
             ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation; fallback to `hpp_jual` if needed
+                // Use master cost (`hpp`) for inventory valuation
                 $hpp = 0;
                 if ($item->obat) {
-                    $hpp = $item->obat->hpp ?? ($item->obat->hpp_jual ?? 0);
+                    $hpp = $item->obat->hpp ?? 0;
                 }
                 return ((float)($item->stok ?? 0)) * (float)$hpp;
             });
     }
 
     /**
-     * Hitung nilai stok keseluruhan (stok * hpp_jual per obat di semua gudang)
+     * Hitung nilai stok keseluruhan (stok * hpp per obat di semua gudang)
      * @return float
      */
     public function getNilaiStokKeseluruhan()
@@ -46,10 +46,10 @@ class StokService {
             ->with('obat')
             ->get()
             ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation; fallback to `hpp_jual` if needed
+                // Use master cost (`hpp`) for inventory valuation
                 $hpp = 0;
                 if ($item->obat) {
-                    $hpp = $item->obat->hpp ?? ($item->obat->hpp_jual ?? 0);
+                    $hpp = $item->obat->hpp ?? 0;
                 }
                 return ((float)($item->stok ?? 0)) * (float)$hpp;
             });
@@ -101,14 +101,12 @@ class StokService {
 
             // Update HPP di master obat jika ada harga beli baru (hanya untuk pembelian)
             // Use the price that excludes discounts (`hargaBeliJual`) when available.
-            // Set master `hpp` and `hpp_jual` directly to the new price (no averaging).
+            // Set master `hpp` directly to the new price (no averaging).
             if ($hargaBeli !== null || $hargaBeliJual !== null) {
                 $obat = Obat::find($obatId);
                 if ($obat) {
                     if ($hargaBeliJual !== null) {
-                        $priceNoDiscount = (float) $hargaBeliJual;
-                        $obat->hpp = $priceNoDiscount;
-                        $obat->hpp_jual = $priceNoDiscount;
+                        $obat->hpp = (float) $hargaBeliJual;
                     } else {
                         // Fallback: only hargaBeli provided (may include discount) — set hpp to that value
                         $obat->hpp = (float) $hargaBeli;

@@ -35,10 +35,10 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
                 $userName = $u ? $u->name : null;
             }
 
-            // HPP used in stok opname create page totals: obat.hpp_jual
+            // HPP used in stok opname create page totals: obat.hpp
             $hppJual = 0.0;
             if ($r->item && $r->item->obat) {
-                $hppJual = (float) ($r->item->obat->hpp_jual ?? 0);
+                $hppJual = (float) ($r->item->obat->hpp ?? 0);
             }
 
             $qty = (float) ($r->qty ?? 0);

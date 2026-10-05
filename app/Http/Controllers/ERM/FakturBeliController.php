@@ -636,7 +636,7 @@ class FakturBeliController extends Controller
                 
                 $obat = $item->obat;
                 $oldHpp = $obat->hpp ?? 0;
-                $oldHppJual = $obat->hpp_jual ?? 0;
+                $oldHppJual = $obat->hpp ?? 0;
                 $oldStok = $obat->total_stok ?? 0; // Use total_stok attribute
 
                 // Per-unit costs used by the system when updating master HPP

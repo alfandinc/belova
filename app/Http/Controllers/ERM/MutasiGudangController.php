@@ -507,7 +507,7 @@ class MutasiGudangController extends Controller
                     $batchName,
                     $expirationDate,
                     $obat->hpp ?? 0,
-                    $obat->hpp_jual ?? 0
+                    null
                 );
                 
                 // TIDAK reset field stok untuk safety - biarkan admin cleanup manual nanti

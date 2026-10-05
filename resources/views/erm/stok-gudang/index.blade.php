@@ -90,9 +90,12 @@
                             <i class="fas fa-exclamation-triangle"></i>&nbsp;Stok Habis
                             <span id="low-stock-count" class="notification-badge" style="display:none;">0</span>
                         </button>
-                        <button type="button" class="btn btn-warning" id="btn-expiring" title="Tampilkan obat yang kadaluarsa dalam 6 bulan">
+                        <button type="button" class="btn btn-warning mr-2" id="btn-expiring" title="Tampilkan obat yang kadaluarsa dalam 6 bulan">
                             <i class="fas fa-hourglass-half"></i>&nbsp;Stok Expired
                             <span id="expiring-count" class="notification-badge" style="display:none;">0</span>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="btnStokMigrate" title="Lengkapi ED dan stok batch hasil migrasi stok lama">
+                            <i class="fas fa-box-open"></i>&nbsp;Stok MIGRATE
                         </button>
                     </div>
                 </div>
@@ -448,6 +451,53 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-primary" id="save-expired-follow-up-btn"><i class="fas fa-save"></i> Simpan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Stok batch MIGRATE -->
+<div class="modal fade" id="stokMigrateModal" tabindex="-1" role="dialog" aria-labelledby="stokMigrateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="stokMigrateModalLabel">Stok Batch MIGRATE</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-2">
+                    Batch <strong>MIGRATE-*</strong> berasal dari migrasi stok lama dan ED-nya masih tanggal sementara.
+                    Ganti nama batch dengan nomor batch asli, lalu isi ED dan stok sesuai hasil cek fisik. Batch yang sudah diganti namanya tidak muncul lagi di daftar ini.
+                    Perubahan stok wajib diberi keterangan dan tercatat di kartu stok.
+                </p>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="migrateIncludeEmpty">
+                        <label class="custom-control-label" for="migrateIncludeEmpty">Tampilkan juga yang stoknya 0</label>
+                    </div>
+                    <span class="badge badge-warning" id="migrateCountBadge"></span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered table-hover mb-0" id="stokMigrateTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Obat</th>
+                                <th>Gudang</th>
+                                <th style="width:200px">Batch</th>
+                                <th style="width:150px">ED</th>
+                                <th style="width:130px" class="text-right">Stok</th>
+                                <th style="width:200px">Keterangan</th>
+                                <th style="width:80px"></th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -1332,5 +1382,142 @@ $(document).ready(function() {
         });
     });
 });
+</script>
+
+<script>
+    // Stok batch MIGRATE: lihat dan lengkapi ED / stok hasil migrasi
+    function migrateEscape(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).replace(/[&<>"']/g, function(s) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s];
+        });
+    }
+
+    function loadStokMigrate() {
+        var $tbody = $('#stokMigrateTable tbody');
+        $tbody.html('<tr><td colspan="7" class="text-center text-muted">Memuat...</td></tr>');
+        $.get('{{ route('erm.stok-gudang.stok-migrate') }}', {
+            include_empty: $('#migrateIncludeEmpty').is(':checked') ? 1 : 0
+        }).done(function(res) {
+            var rows = res.data || [];
+            $('#migrateCountBadge').text(res.total_with_stock + ' batch masih berisi stok');
+            if (!rows.length) {
+                $tbody.html('<tr><td colspan="7" class="text-center text-muted">Tidak ada batch MIGRATE.</td></tr>');
+                return;
+            }
+            var html = '';
+            rows.forEach(function(r) {
+                var ed = r.expiration_date ? String(r.expiration_date).substring(0, 10) : '';
+                var stok = parseFloat(r.stok) || 0;
+                html += '<tr data-id="' + r.id + '" data-batch="' + migrateEscape(r.batch) + '" data-ed="' + migrateEscape(ed) + '" data-stok="' + stok + '">'
+                    + '<td>' + migrateEscape(r.nama_obat)
+                    + '<br><small class="text-muted">' + migrateEscape(r.kode_obat || '-') + ' · ' + migrateEscape(r.satuan || '-') + ' · ' + migrateEscape(r.kategori || '-') + '</small></td>'
+                    + '<td>' + migrateEscape(r.nama_gudang || '-') + '</td>'
+                    + '<td><input type="text" class="form-control form-control-sm migrate-batch" maxlength="255" value="' + migrateEscape(r.batch) + '"></td>'
+                    + '<td><input type="date" class="form-control form-control-sm migrate-ed" value="' + migrateEscape(ed) + '"></td>'
+                    + '<td><input type="number" class="form-control form-control-sm text-right migrate-stok" min="0" step="any" value="' + stok + '"></td>'
+                    + '<td><input type="text" class="form-control form-control-sm migrate-ket" placeholder="Wajib jika stok diubah"></td>'
+                    + '<td><button type="button" class="btn btn-sm btn-primary btn-save-migrate">Simpan</button></td>'
+                    + '</tr>';
+            });
+            $tbody.html(html);
+        }).fail(function() {
+            $tbody.html('<tr><td colspan="7" class="text-center text-danger">Gagal memuat data.</td></tr>');
+        });
+    }
+
+    $(document).on('click', '#btnStokMigrate', function(e) {
+        e.preventDefault();
+        $('#stokMigrateModal').modal('show');
+        loadStokMigrate();
+    });
+
+    $(document).on('change', '#migrateIncludeEmpty', loadStokMigrate);
+
+    $(document).on('click', '.btn-save-migrate', function() {
+        var $btn = $(this);
+        var $tr = $btn.closest('tr');
+        var id = $tr.data('id');
+        var oldBatch = String($tr.data('batch') || '');
+        var newBatch = $.trim($tr.find('.migrate-batch').val());
+        var oldEd = String($tr.data('ed') || '');
+        var oldStok = parseFloat($tr.data('stok')) || 0;
+        var newEd = $tr.find('.migrate-ed').val();
+        var newStokRaw = $tr.find('.migrate-stok').val();
+        var newStok = parseFloat(newStokRaw);
+        var ket = $.trim($tr.find('.migrate-ket').val());
+        var token = '{{ csrf_token() }}';
+
+        if (newStokRaw === '' || isNaN(newStok) || newStok < 0) {
+            alert('Stok harus angka 0 atau lebih.');
+            return;
+        }
+
+        if (!newBatch) {
+            alert('Nama batch wajib diisi.');
+            $tr.find('.migrate-batch').focus();
+            return;
+        }
+
+        var batchChanged = newBatch !== oldBatch;
+        var edChanged = newEd !== oldEd;
+        var stokChanged = Math.abs(newStok - oldStok) > 0.00001;
+
+        if (!batchChanged && !edChanged && !stokChanged) {
+            alert('Tidak ada perubahan.');
+            return;
+        }
+        if (stokChanged && !ket) {
+            alert('Keterangan wajib diisi saat mengubah stok.');
+            $tr.find('.migrate-ket').focus();
+            return;
+        }
+
+        var requests = [];
+        // Rename first: if the new batch name is rejected (duplicate), nothing else is saved
+        if (batchChanged) {
+            requests.push(function() {
+                return $.post('{{ route('erm.stok-gudang.update-batch-name') }}', { _token: token, id: id, batch: newBatch });
+            });
+        }
+        if (edChanged) {
+            requests.push(function() {
+                return $.post('{{ route('erm.stok-gudang.update-batch-exp') }}', { _token: token, id: id, expiration_date: newEd });
+            });
+        }
+        if (stokChanged) {
+            requests.push(function() {
+                return $.post('{{ route('erm.stok-gudang.update-batch-stok') }}', { _token: token, id: id, stok: newStok, keterangan: ket });
+            });
+        }
+
+        $btn.prop('disabled', true).text('Menyimpan...');
+        // Run sequentially so a failure stops the remaining save
+        requests.reduce(function(chain, next) {
+            return chain.then(next);
+        }, $.Deferred().resolve().promise()).done(function() {
+            $tr.data('batch', newBatch).attr('data-batch', newBatch);
+            $tr.data('ed', newEd).attr('data-ed', newEd);
+            $tr.data('stok', newStok).attr('data-stok', newStok);
+            $tr.find('.migrate-ket').val('');
+            $tr.addClass('table-success');
+            setTimeout(function() {
+                $tr.removeClass('table-success');
+                // Renamed batches are no longer MIGRATE, so refresh the list to drop them
+                if (batchChanged && newBatch.indexOf('MIGRATE') !== 0) {
+                    loadStokMigrate();
+                }
+            }, 1500);
+            if ($.fn.DataTable.isDataTable('#stok-table')) {
+                $('#stok-table').DataTable().ajax.reload(null, false);
+            }
+        }).fail(function(xhr) {
+            var msg = (xhr.responseJSON && xhr.responseJSON.message) || xhr.statusText || 'Gagal menyimpan';
+            alert(msg);
+            loadStokMigrate();
+        }).always(function() {
+            $btn.prop('disabled', false).text('Simpan');
+        });
+    });
 </script>
 @endsection

@@ -67,7 +67,6 @@ class UpdateObatSeeder extends Seeder
                 // Always update kategori, even if only case changes
                 $obat->kategori = isset($data['Kategori']) ? $data['Kategori'] : '';
                 $obat->stok = (isset($data['Stok']) && trim($data['Stok']) !== '') ? $data['Stok'] : 0;
-                $obat->hpp_jual = (isset($data['HPP Jual']) && trim($data['HPP Jual']) !== '') ? $toDecimal($data['HPP Jual']) : null;
                 $obat->status_aktif = (isset($data['Status Aktif']) && trim($data['Status Aktif']) !== '') ? $data['Status Aktif'] : 0;
                 $obat->save();
             } else {

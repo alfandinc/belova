@@ -146,7 +146,6 @@ class ObatController extends Controller
             'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
             'hpp' => 'nullable|numeric',
-            'hpp_jual' => 'nullable|numeric',
             'status_aktif' => 'nullable|integer',
         ]);
 
@@ -156,7 +155,7 @@ class ObatController extends Controller
             $up = [];
             $fields = [
                 'nama','kode_obat','dosis','satuan','harga_net','hna','harga_fornas','harga_nonfornas',
-                'stok','kategori','is_generik','metode_bayar_id','status_aktif','hpp','hpp_jual'
+                'stok','kategori','is_generik','metode_bayar_id','status_aktif','hpp'
             ];
             foreach ($fields as $f) {
                 if ($request->has($f)) {
@@ -208,16 +207,13 @@ class ObatController extends Controller
         if ($request->ajax()) {
             $PPN = 11;
             // Use default global scope (only active obat) so monitor profit shows active items only
-            $obats = Obat::select(['id', 'kode_obat', 'nama', 'hpp', 'hpp_jual', 'harga_nonfornas'])
+            $obats = Obat::select(['id', 'kode_obat', 'nama', 'hpp', 'harga_nonfornas'])
                 // profit_percent_value: profit sebelum PPN
-                ->selectRaw('(CASE WHEN hpp_jual > 0 THEN (((harga_nonfornas / (1 + '.$PPN.'/100)) - hpp_jual) / hpp_jual) * 100 ELSE NULL END) as profit_percent_value')
+                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas / (1 + '.$PPN.'/100)) - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value')
                 // profit_percent_setelah_ppn: profit setelah PPN
-                ->selectRaw('(CASE WHEN hpp_jual > 0 THEN (((harga_nonfornas - hpp_jual) / hpp_jual) * 100) ELSE NULL END) as profit_percent_setelah_ppn');
+                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas - hpp) / hpp) * 100) ELSE NULL END) as profit_percent_setelah_ppn');
             $defaultProfit = 30; // Default profit percent
             return DataTables::of($obats)
-                ->addColumn('hpp_jual', function ($obat) {
-                    return number_format($obat->hpp_jual, 0);
-                })
                 ->addColumn('profit_percent', function ($obat) {
                     if (isset($obat->profit_percent_value)) {
                         $percent = $obat->profit_percent_value;
@@ -236,11 +232,11 @@ class ObatController extends Controller
                     return '-';
                 })
                 ->addColumn('saran_harga_jual', function ($obat) use ($PPN, $defaultProfit) {
-                    $hpp_jual = floatval($obat->hpp_jual);
+                    $hpp = floatval($obat->hpp);
                     $profitPercent = $defaultProfit;
                     // Calculate suggested selling price WITHOUT PPN
-                    $saran = $hpp_jual * ((100 + $profitPercent) / 100);
-                    return $hpp_jual > 0 ? number_format($saran, 0) : '-';
+                    $saran = $hpp * ((100 + $profitPercent) / 100);
+                    return $hpp > 0 ? number_format($saran, 0) : '-';
                 })
                 ->orderColumn('profit_percent', 'profit_percent_value $1')
                 ->editColumn('hpp', function ($obat) {
@@ -1014,7 +1010,6 @@ class ObatController extends Controller
             'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
             'hpp' => 'nullable|numeric',
-            'hpp_jual' => 'nullable|numeric',
         ]);
 
         DB::beginTransaction();
@@ -1028,7 +1023,6 @@ class ObatController extends Controller
             
             // The status_aktif value to be used - directly from the request
             $statusAktif = $request->input('status_aktif', 1); // Default to 1 (active) if not provided
-            $requestedHppJual = $request->has('hpp_jual') ? $request->input('hpp_jual') : null;
             
             \Illuminate\Support\Facades\Log::info('Status aktif processed: ' . $statusAktif);
             
@@ -1036,7 +1030,6 @@ class ObatController extends Controller
             if ($request->filled('id')) {
                 // Update existing record using find + update
                 $obat = Obat::withInactive()->findOrFail($request->id);
-                $hppJual = $requestedHppJual ?? $obat->hpp_jual ?? $request->hpp;
                 $obat->update([
                     'nama' => $request->nama,
                     'kode_obat' => $request->kode_obat,
@@ -1052,11 +1045,9 @@ class ObatController extends Controller
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
-                    'hpp_jual' => $hppJual,
                 ]);
             } else {
                 // Create new record
-                $hppJual = $requestedHppJual ?? $request->hpp;
                 $obat = Obat::create([
                     'nama' => $request->nama,
                     'kode_obat' => $request->kode_obat,
@@ -1072,7 +1063,6 @@ class ObatController extends Controller
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
                     'hpp' => $request->hpp,
-                    'hpp_jual' => $hppJual,
                 ]);
             }
 
@@ -1124,7 +1114,6 @@ class ObatController extends Controller
                 'kode_obat' => $obat->kode_obat,
                 'nama' => $obat->nama,
                 'hpp' => $obat->hpp,
-                'hpp_jual' => $obat->hpp_jual,
                 'harga_net' => $obat->harga_net,
                 'hna' => $obat->hna,
                 'harga_nonfornas' => $obat->harga_nonfornas,

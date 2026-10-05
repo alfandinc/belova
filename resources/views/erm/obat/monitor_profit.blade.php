@@ -53,8 +53,7 @@
                                 <th>Kode Obat</th>
                                 <th>Nama Obat</th>
                                 <th>HPP</th>
-                                <th>HPP Jual</th>
-                                <th>Saran Harga Jual<br><small>(HPP Jual × 1.3)</small></th>
+                                <th>Saran Harga Jual<br><small>(HPP × 1.3)</small></th>
                                 <th>Harga Jual</th>
                                 <th>Profit (%)<br><small>(Sebelum PPN)</small></th>
                                 <th>Profit (%) Setelah PPN</th>
@@ -111,14 +110,13 @@ $(function() {
         { data: 'kode_obat', name: 'kode_obat' },
         { data: 'nama', name: 'nama' },
         { data: 'hpp', name: 'hpp' },
-        { data: 'hpp_jual', name: 'hpp_jual' },
         { data: 'saran_harga_jual', name: 'saran_harga_jual', orderable: false, searchable: false },
         { data: 'harga_nonfornas', name: 'harga_nonfornas', title: 'Harga Jual' },
     { data: 'profit_percent', name: 'profit_percent', orderable: true, searchable: false },
     { data: 'profit_percent_setelah_ppn', name: 'profit_percent_setelah_ppn', orderable: false, searchable: false },
         { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
     ],
-    order: [[6, 'desc']]
+    order: [[5, 'desc']]
     });
 
         // Handle edit button click
