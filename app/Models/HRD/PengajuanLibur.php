@@ -44,7 +44,32 @@ class PengajuanLibur extends Model
     {
         return $this->belongsTo(Employee::class);
     }
-    
+
+    /**
+     * Non-rejected ganti libur requests of an employee that name the Sunday / holiday worked.
+     */
+    public function scopeGantiLiburAktif($query, $employeeId = null)
+    {
+        return $query->where('jenis_libur', 'ganti_libur')
+            ->when($employeeId, fn($q) => $q->whereIn('employee_id', (array) $employeeId))
+            ->where(fn($q) => $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak'))
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak'));
+    }
+
+    /**
+     * Sunday / holiday dates (Y-m-d) already claimed as pengganti by the employee's ganti libur requests.
+     */
+    public static function claimedHariMasuk($employeeId, $excludeId = null): array
+    {
+        return static::gantiLiburAktif($employeeId)
+            ->whereNotNull('tanggal_masuk_pengganti')
+            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
+            ->get()
+            ->pluck('tanggal_masuk_pengganti')
+            ->flatten()
+            ->all();
+    }
+
     /**
      * Calculate the total days between start and end dates when saving
      */

@@ -218,16 +218,33 @@ class EmployeeScheduleController extends Controller
                     }
                 }
 
+                // Sebelumnya ganti libur dari HRD -> batalkan & kembalikan jatah. Dilakukan lebih dulu supaya
+                // hari Minggu yang dipakainya sudah bebas saat dicek di bawah (simpanan yang sama).
+                foreach ($regular as $employeeId => $days) {
+                    foreach (array_keys($days) as $date) {
+                        $normalizedDate = Carbon::parse($date)->toDateString();
+                        if ($this->cancelGantiLiburHrd($employeeId, $normalizedDate)) {
+                            $gantiLibur[$employeeId]['refunded'][] = $normalizedDate;
+                        }
+                    }
+                }
+
                 foreach ($regular as $employeeId => $days) {
                     foreach ($days as $date => $shiftIds) {
                         $normalizedDate = Carbon::parse($date)->toDateString();
 
-                        // Sebelumnya ganti libur dari HRD -> batalkan & kembalikan jatah
-                        if ($this->cancelGantiLiburHrd($employeeId, $normalizedDate)) {
-                            $gantiLibur[$employeeId]['refunded'][] = $normalizedDate;
-                        }
-
                         $wasEmpty = !EmployeeSchedule::where('employee_id', $employeeId)->where('date', $normalizedDate)->exists();
+
+                        // Hari Minggu / libur nasional yang sudah dipakai ganti libur tidak boleh dikosongkan
+                        if (!$wasEmpty && !array_filter((array) $shiftIds) && LiburNasional::isHariGantiLibur($normalizedDate, $liburNasional)
+                            && ($claim = $this->findClaimOf($employeeId, $normalizedDate))) {
+                            $name = Employee::whereKey($employeeId)->value('nama');
+                            $fmt = fn($d) => Carbon::parse($d)->locale('id')->isoFormat('ddd D MMM YYYY');
+                            throw new \DomainException("Jadwal {$name} tanggal " . $fmt($normalizedDate)
+                                . ' tidak bisa dikosongkan karena sudah dipakai ganti libur tanggal ' . $fmt($claim->tanggal_mulai)
+                                . ($claim->total_hari > 1 ? ' – ' . $fmt($claim->tanggal_selesai) : '')
+                                . '. Batalkan / tolak ganti libur tersebut terlebih dahulu.');
+                        }
 
                         // Hapus semua jadwal existing untuk karyawan & tanggal ini,
                         // lalu simpan kembali berdasarkan input (bisa 0, 1, atau 2 shift).
@@ -275,9 +292,12 @@ class EmployeeScheduleController extends Controller
                     }
 
                     EmployeeSchedule::where('employee_id', $employeeId)->where('date', $date)->delete();
+                    $hariMasuk = $this->oldestUnclaimedHariMasuk($employeeId, $liburNasional);
                     PengajuanLibur::create([
                         'employee_id' => $employeeId,
                         'jenis_libur' => 'ganti_libur',
+                        // Hari Minggu / libur nasional yang diganti; null jika jatah berasal dari saldo manual
+                        'tanggal_masuk_pengganti' => $hariMasuk ? [$hariMasuk] : null,
                         'tanggal_mulai' => $date,
                         'tanggal_selesai' => $date,
                         'alasan' => self::GANTI_LIBUR_HRD,
@@ -318,12 +338,140 @@ class EmployeeScheduleController extends Controller
         return redirect()->route('hrd.schedule.index')->with('success', 'Jadwal berhasil disimpan');
     }
 
+    /**
+     * Rekap jatah ganti libur: tiap hari masuk Minggu / libur nasional (EmployeeSchedule, dasar +1 jatah)
+     * dipasangkan dengan tanggal libur penggantinya (PengajuanLibur.tanggal_masuk_pengganti).
+     */
+    public function rekapHariLibur(Request $request)
+    {
+        $from = Carbon::parse($request->input('from', now()->startOfMonth()))->toDateString();
+        $to = Carbon::parse($request->input('to', now()->endOfMonth()))->toDateString();
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $holidays = LiburNasional::namesByDate($from, $to);
+
+        $rows = EmployeeSchedule::with(['shift', 'employee:id,nama'])
+            ->whereBetween('date', [$from, $to])
+            ->where(fn($q) => $q->whereRaw('DAYOFWEEK(date) = 1')->orWhereIn('date', array_keys($holidays)))
+            ->orderBy('date')
+            ->get()
+            ->groupBy(fn($s) => $s->employee_id . '_' . Carbon::parse($s->date)->toDateString());
+
+        // Ganti libur yang tanggal liburnya di rentang ini, atau yang mengklaim hari masuk di rentang ini
+        $workedEmpIds = $rows->map(fn($items) => $items->first()->employee_id)->unique()->values()->all();
+        $gantiLibur = PengajuanLibur::gantiLiburAktif()
+            ->with('employee:id,nama')
+            ->where(fn($q) => $q->whereIn('employee_id', $workedEmpIds)
+                ->orWhere(fn($q) => $q->whereDate('tanggal_mulai', '<=', $to)->whereDate('tanggal_selesai', '>=', $from)))
+            ->orderBy('tanggal_mulai')
+            ->get();
+
+        // "employeeId_Y-m-d" (hari masuk) => pengajuan ganti libur yang memakainya
+        $claimedBy = [];
+        foreach ($gantiLibur as $p) {
+            foreach ((array) $p->tanggal_masuk_pengganti as $d) {
+                $claimedBy[$p->employee_id . '_' . Carbon::parse($d)->toDateString()] = $p;
+            }
+        }
+
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->isoFormat('ddd, D MMM YYYY');
+        $liburInfo = function (PengajuanLibur $p) use ($fmt) {
+            $menunggu = $p->status_manager !== 'disetujui' || ($p->status_hrd && $p->status_hrd !== 'disetujui');
+            return [
+                'label' => $fmt($p->tanggal_mulai) . ($p->total_hari > 1 ? ' – ' . $fmt($p->tanggal_selesai) : ''),
+                'status' => $menunggu ? 'Menunggu persetujuan' : 'Disetujui',
+                'sumber' => $p->alasan === self::GANTI_LIBUR_HRD ? 'Jadwal HRD' : 'Pengajuan',
+            ];
+        };
+
+        $employees = [];
+        $addPair = function ($empId, $nama, $sortDate, array $pair) use (&$employees) {
+            $employees[$empId] ??= ['id' => $empId, 'nama' => $nama ?? ('#' . $empId), 'pairs' => []];
+            $employees[$empId]['pairs'][] = ['sort' => $sortDate] + $pair;
+        };
+
+        // 1) Setiap hari masuk Minggu / libur nasional -> libur penggantinya (atau belum dipakai)
+        foreach ($rows as $items) {
+            $first = $items->first();
+            $key = Carbon::parse($first->date)->toDateString();
+            $p = $claimedBy[$first->employee_id . '_' . $key] ?? null;
+            $addPair($first->employee_id, $first->employee->nama ?? null, $key, [
+                'masuk' => [
+                    'label' => $fmt($key),
+                    'keterangan' => $holidays[$key] ?? 'Minggu',
+                    'is_holiday' => isset($holidays[$key]),
+                    'shifts' => $items->filter(fn($s) => $s->shift)
+                        ->map(fn($s) => $s->shift->name . ' (' . substr($s->shift->start_time, 0, 5) . '–' . substr($s->shift->end_time, 0, 5) . ')')
+                        ->values()->all(),
+                ],
+                'libur' => $p ? $liburInfo($p) : null,
+            ]);
+        }
+
+        // 2) Libur ganti libur di rentang ini yang tidak menyebut hari masuk (dari saldo lama / manual)
+        foreach ($gantiLibur as $p) {
+            if (!empty($p->tanggal_masuk_pengganti)) {
+                continue;
+            }
+            $mulai = Carbon::parse($p->tanggal_mulai)->toDateString();
+            $selesai = Carbon::parse($p->tanggal_selesai)->toDateString();
+            if ($mulai > $to || $selesai < $from) {
+                continue;
+            }
+            $addPair($p->employee_id, $p->employee->nama ?? null, $mulai, ['masuk' => null, 'libur' => $liburInfo($p)]);
+        }
+
+        $saldo = JatahLibur::whereIn('employee_id', array_keys($employees))->pluck('jatah_ganti_libur', 'employee_id');
+        $employees = collect($employees)
+            ->map(function ($e) use ($saldo) {
+                usort($e['pairs'], fn($a, $b) => strcmp($a['sort'], $b['sort']));
+                $masuk = collect($e['pairs'])->filter(fn($x) => $x['masuk']);
+                return $e + [
+                    'total_masuk' => $masuk->count(),
+                    'belum_dipakai' => $masuk->filter(fn($x) => !$x['libur'])->count(),
+                    'saldo' => (int) ($saldo[$e['id']] ?? 0),
+                ];
+            })
+            ->sortBy(fn($e) => strtolower($e['nama']))
+            ->values();
+
+        return response()->json([
+            'from' => $from,
+            'to' => $to,
+            'employees' => $employees,
+        ]);
+    }
+
     private function jatahFor($employeeId): JatahLibur
     {
         return JatahLibur::lockForUpdate()->firstOrCreate(
             ['employee_id' => $employeeId],
             ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
         );
+    }
+
+    // Hari Minggu / libur nasional terlama yang dijadwalkan masuk dan belum dipakai ganti libur lain
+    private function oldestUnclaimedHariMasuk($employeeId, array $holidays): ?string
+    {
+        $claimed = PengajuanLibur::claimedHariMasuk($employeeId);
+
+        return EmployeeSchedule::where('employee_id', $employeeId)
+            ->orderBy('date')
+            ->pluck('date')
+            ->map(fn($d) => Carbon::parse($d)->toDateString())
+            ->unique()
+            ->first(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true));
+    }
+
+    // Ganti libur aktif yang memakai hari masuk ini sebagai pengganti
+    private function findClaimOf($employeeId, string $date): ?PengajuanLibur
+    {
+        return PengajuanLibur::gantiLiburAktif($employeeId)
+            ->whereNotNull('tanggal_masuk_pengganti')
+            ->get()
+            ->first(fn($p) => in_array($date, array_map(fn($d) => Carbon::parse($d)->toDateString(), (array) $p->tanggal_masuk_pengganti), true));
     }
 
     private function findGantiLiburHrd($employeeId, string $date): ?PengajuanLibur

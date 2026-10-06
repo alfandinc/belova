@@ -83,6 +83,9 @@
                         <a href="#" class="dropdown-item copy-week-option" data-target="following">Copy minggu ini ke minggu setelahnya</a>
                     </div>
                 </div>
+                <button type="button" id="rekap-libur-btn" class="btn btn-outline-warning btn-sm mr-2" title="Rekap karyawan masuk di hari Minggu / libur nasional">
+                    <i class="fa fa-calendar-check-o"></i> Rekap Minggu/Libur
+                </button>
                 <a href="#" id="print-btn" target="_blank" class="btn btn-outline-secondary btn-sm mr-2"><i class="fa fa-print"></i> Print</a>
                 <button id="undo-btn" type="button" class="btn btn-outline-secondary btn-sm mr-2" disabled title="Undo (Ctrl+Z)"><i class="fa fa-undo"></i></button>
                 <button id="save-schedule-btn" type="button" class="btn btn-primary btn-sm" disabled title="Simpan (Ctrl+S)">
@@ -115,6 +118,38 @@
         <div class="sp-foot">
             <button type="button" class="btn btn-sm btn-outline-danger" id="sp-clear"><i class="fa fa-eraser"></i> Kosongkan</button>
             <button type="button" class="btn btn-sm btn-light" id="sp-close">Tutup</button>
+        </div>
+    </div>
+
+    <!-- Rekap masuk hari Minggu / libur nasional -->
+    <div class="modal fade" id="rekapLiburModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Rekap Masuk Hari Minggu / Libur Nasional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-row align-items-end mb-2">
+                        <div class="col-auto">
+                            <label class="small mb-0">Dari</label>
+                            <input type="date" id="rekap-from" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-auto">
+                            <label class="small mb-0">Sampai</label>
+                            <input type="date" id="rekap-to" class="form-control form-control-sm">
+                        </div>
+                        <div class="col">
+                            <input type="search" id="rekap-search" class="form-control form-control-sm" placeholder="Cari karyawan...">
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" id="rekap-load" class="btn btn-primary btn-sm"><i class="fa fa-search"></i> Tampilkan</button>
+                        </div>
+                    </div>
+                    <div class="small text-muted mb-2">Tiap hari masuk Minggu / libur nasional = +1 jatah ganti libur, dipasangkan dengan tanggal libur penggantinya.</div>
+                    <div id="rekap-body" style="max-height:60vh;overflow:auto;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -178,6 +213,7 @@
         store: "{{ route('hrd.schedule.store') }}",
         copyWeek: "{{ route('hrd.schedule.copy_week') }}",
         print: "{{ route('hrd.schedule.print') }}",
+        rekapLibur: "{{ route('hrd.schedule.rekap_hari_libur') }}",
         shiftStore: "{{ route('hrd.master.shift.store') }}",
         shiftUpdate: "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}",
         shiftDestroy: "{{ route('hrd.master.shift.destroy', ['shift' => '__ID__']) }}"
@@ -653,6 +689,45 @@
         commitBatch(batch);
     }
 
+    // ---------- rekap masuk hari Minggu / libur nasional ----------
+    var rekapData = [];
+    function loadRekapLibur() {
+        var from = $id('rekap-from').value, to = $id('rekap-to').value;
+        if (!from || !to) { showAlert('info', 'Isi rentang tanggal'); return; }
+        $id('rekap-body').innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary"></div> Memuat...</div>';
+        fetch(URLS.rekapLibur + '?from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to), { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function (res) { if (!res.ok) throw new Error(); return res.json(); })
+            .then(function (data) { rekapData = data.employees || []; renderRekapLibur(); })
+            .catch(function () { $id('rekap-body').innerHTML = '<div class="text-danger p-2">Gagal memuat rekap</div>'; });
+    }
+    function renderRekapLibur() {
+        var q = $id('rekap-search').value.trim().toLowerCase();
+        var list = rekapData.filter(function (e) { return !q || e.nama.toLowerCase().indexOf(q) !== -1; });
+        if (!list.length) { $id('rekap-body').innerHTML = '<div class="text-muted text-center p-3">Tidak ada karyawan masuk di hari Minggu / libur nasional pada rentang ini.</div>'; return; }
+        var rows = list.map(function (e) {
+            var n = e.pairs.length;
+            return e.pairs.map(function (p, i) {
+                var masuk = p.masuk
+                    ? '<b>' + esc(p.masuk.label) + '</b> <span class="badge ' + (p.masuk.is_holiday ? 'badge-danger' : 'badge-warning') + '">' + esc(p.masuk.keterangan) + '</span>' +
+                      (p.masuk.shifts.length ? '<div class="small text-muted">' + esc(p.masuk.shifts.join(', ')) + '</div>' : '')
+                    : '<span class="text-muted font-italic">Tanpa tanggal masuk (saldo lama)</span>';
+                var libur = p.libur
+                    ? '<b>' + esc(p.libur.label) + '</b><div class="small text-muted">' + esc(p.libur.sumber) + '</div>'
+                    : '<span class="badge badge-success">Belum dipakai</span>';
+                var status = p.libur
+                    ? '<span class="badge ' + (p.libur.status === 'Disetujui' ? 'badge-primary' : 'badge-secondary') + '">' + esc(p.libur.status) + '</span>'
+                    : '';
+                var head = i === 0
+                    ? '<td rowspan="' + n + '">' + esc(e.nama) + '<div class="small text-muted">Masuk: ' + e.total_masuk + ' · belum dipakai: ' + e.belum_dipakai + ' · saldo GL: ' + e.saldo + '</div></td>'
+                    : '';
+                return '<tr>' + head + '<td>' + masuk + '</td><td class="text-center text-muted">&rarr;</td><td>' + libur + '</td><td>' + status + '</td></tr>';
+            }).join('');
+        }).join('');
+        $id('rekap-body').innerHTML = '<table class="table table-sm table-bordered mb-0" style="font-size:13px">' +
+            '<thead class="thead-light"><tr><th>Karyawan</th><th>Masuk (Minggu / Libur Nasional)</th><th></th><th>Diganti Libur Tanggal</th><th>Status</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody></table>';
+    }
+
     // ---------- shift management ----------
     function initShiftDataTable() {
         if (typeof $ === 'undefined' || !$.fn || !$.fn.DataTable || !$('#shift-table').length) return;
@@ -902,6 +977,18 @@
         $id('week-jump').addEventListener('change', function () {
             if (this.value) loadWeek(mondayOf(parseYmd(this.value)));
         });
+        $id('rekap-libur-btn').addEventListener('click', function () {
+            if (!$id('rekap-from').value) {
+                // default: bulan dari minggu yang sedang dibuka
+                var d = parseYmd(weekStart());
+                $id('rekap-from').value = ymd(new Date(d.getFullYear(), d.getMonth(), 1));
+                $id('rekap-to').value = ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+            }
+            $('#rekapLiburModal').modal('show');
+            loadRekapLibur();
+        });
+        $id('rekap-load').addEventListener('click', loadRekapLibur);
+        $id('rekap-search').addEventListener('input', renderRekapLibur);
         $id('emp-search').addEventListener('input', function () { clearSelection(); closePicker(); applyFilters(); });
         $id('division-filter').addEventListener('change', function () { clearSelection(); closePicker(); applyFilters(); });
 

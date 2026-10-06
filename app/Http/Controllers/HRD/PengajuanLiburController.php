@@ -105,20 +105,7 @@ class PengajuanLiburController extends Controller
      */
     private function availableHariMasuk(Employee $employee, $excludeId = null): array
     {
-        $used = PengajuanLibur::where('employee_id', $employee->id)
-            ->where('jenis_libur', 'ganti_libur')
-            ->whereNotNull('tanggal_masuk_pengganti')
-            ->when($excludeId, fn($q) => $q->where('id', '!=', $excludeId))
-            ->where(function ($q) {
-                $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
-            })
-            ->where(function ($q) {
-                $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
-            })
-            ->get()
-            ->pluck('tanggal_masuk_pengganti')
-            ->flatten()
-            ->all();
+        $used = PengajuanLibur::claimedHariMasuk($employee->id, $excludeId);
 
         $holidays = LiburNasional::namesByDate(null, Carbon::today());
 
