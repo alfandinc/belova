@@ -65,8 +65,6 @@
                     || request()->is('marketing/promo')
                     || request()->is('marketing/events')
                     || request()->is('marketing/events/*')
-                    || request()->is('marketing/penawaran')
-                    || request()->is('marketing/penawaran/*')
                     || request()->is('marketing/kunjungan')
                     || request()->is('marketing/kunjungan/*')
                     || request()->is('marketing/catatan-keluhan')
@@ -119,7 +117,6 @@
                     <li><a href="/marketing/followup"><i data-feather="check-square" class="align-self-center menu-icon"></i>Follow Up</a></li>
                     <li><a href="/marketing/promo"><i data-feather="tag" class="align-self-center menu-icon"></i>Promo</a></li>
                     <li><a href="{{ route('marketing.events.index') }}"><i data-feather="calendar" class="align-self-center menu-icon"></i>Event</a></li>
-                    <li><a href="{{ route('marketing.penawaran.index') }}"><i data-feather="file-text" class="align-self-center menu-icon"></i>Penawaran</a></li>
                     <li><a href="{{ route('marketing.kunjungan.index') }}"><i data-feather="map-pin" class="align-self-center menu-icon"></i>Kunjungan</a></li>
                     <li><a href="/marketing/catatan-keluhan"><i data-feather="alert-circle" class="align-self-center menu-icon"></i>Catatan Keluhan Customer</a></li>
                     <li><a href="/marketing/pasien-data"><i data-feather="user" class="align-self-center menu-icon"></i>Pasien Data</a></li>

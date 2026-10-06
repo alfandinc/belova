@@ -16,9 +16,8 @@
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h4 class="page-title mb-0">Daftar Resep Kunjungan Rawat Jalan</h4>
                             <div>
-                                <button id="btn-penawaran" type="button" class="btn btn-primary ml-2 position-relative" style="min-width:110px;">
-                                    Penawaran
-                                    <span id="penawaran-ready-badge" class="badge badge-danger" style="display:none; position:absolute; top:-6px; right:-6px;">0</span>
+                                <button id="btn-statistik-resep" type="button" class="btn btn-outline-primary" style="min-width:110px;" title="Statistik resep sesuai filter">
+                                    <i class="fas fa-chart-bar mr-1"></i>Statistik
                                 </button>
                                 <button id="btn-old-notifs" type="button" class="btn btn-primary ml-2 text-center position-relative" style="min-width:110px;" title="Lihat Notifikasi Lama">
                                     Notification
@@ -57,6 +56,12 @@
             .dataTables_wrapper .patient-name { font-weight: 700; display:inline-block; }
             .dataTables_wrapper .patient-rm { font-weight: 400; color:#6c757d; display:inline-block; margin-left:6px; font-size: .95rem; }
             .dataTables_wrapper .patient-info { color: #6c757d; font-size: .85rem; margin-top: 3px; }
+            #modalStatistikResep .stat-tile { border: 1px solid #e9ecef; border-left-width: 4px; border-radius: 6px; padding: 12px 14px; height: 100%; }
+            #modalStatistikResep .stat-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6c757d; font-weight: 600; }
+            #modalStatistikResep .stat-value { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
+            #modalStatistikResep .stat-sub { font-size: .85rem; color: #6c757d; }
+            #modalStatistikResep .stat-table td, #modalStatistikResep .stat-table th { padding: .4rem .6rem; }
+            #modalStatistikResep.is-loading .stat-body { opacity: .45; pointer-events: none; }
             </style>
             <div class="row mb-3">
                 <div class="col-md-3">
@@ -128,31 +133,86 @@
                 </div>
             </div>
 
-            <!-- Modal: Penawaran -->
-            <div class="modal fade" id="modalPenawaranFarmasi" tabindex="-1" role="dialog" aria-hidden="true">
-                <div class="modal-dialog modal-xl" role="document">
+            <!-- Modal: Statistik Resep -->
+            <div class="modal fade" id="modalStatistikResep" tabindex="-1" role="dialog" aria-labelledby="modalStatistikResepLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Penawaran (Disetujui)</h5>
+                            <div>
+                                <h5 class="modal-title" id="modalStatistikResepLabel">Statistik Resep</h5>
+                                <small class="text-muted" id="stat-filter-info"></small>
+                            </div>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
-                        <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-striped w-100" id="penawaran-farmasi-table">
-                                    <thead>
-                                        <tr>
-                                            <th>No</th>
-                                            <th>Pasien</th>
-                                            <th>Items</th>
-                                            <th>Aksi</th>
-                                        </tr>
-                                    </thead>
-                                </table>
+                        <div class="modal-body">
+                            <div id="stat-error" class="alert alert-danger py-2" style="display:none;">Gagal memuat statistik.</div>
+                            <div class="stat-body">
+                                <div class="row">
+                                    <div class="col-6 col-md-3 mb-3">
+                                        <div class="stat-tile" style="border-left-color:#6c757d;">
+                                            <div class="stat-label">Total Resep</div>
+                                            <div class="stat-value" id="stat-total">-</div>
+                                            <div class="stat-sub">resep masuk</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3">
+                                        <div class="stat-tile" style="border-left-color:#28a745;">
+                                            <div class="stat-label">Sudah Dilayani</div>
+                                            <div class="stat-value text-success" id="stat-terlayani">-</div>
+                                            <div class="stat-sub" id="stat-terlayani-pct">&nbsp;</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3">
+                                        <div class="stat-tile" style="border-left-color:#dc3545;">
+                                            <div class="stat-label">Belum Dilayani</div>
+                                            <div class="stat-value text-danger" id="stat-belum">-</div>
+                                            <div class="stat-sub" id="stat-belum-pct">&nbsp;</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-3 mb-3">
+                                        <div class="stat-tile" style="border-left-color:#007bff;">
+                                            <div class="stat-label">Item Dilayani</div>
+                                            <div class="stat-value text-primary" id="stat-items">-</div>
+                                            <div class="stat-sub" id="stat-items-sub">&nbsp;</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="progress mb-1" style="height:10px;" title="Proporsi resep sudah dilayani">
+                                    <div class="progress-bar bg-success" id="stat-progress" role="progressbar" style="width:0%"></div>
+                                    <div class="progress-bar bg-danger" id="stat-progress-belum" role="progressbar" style="width:0%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small text-muted mb-3">
+                                    <span><span class="text-success">&#9632;</span> Sudah dilayani</span>
+                                    <span><span class="text-danger">&#9632;</span> Belum dilayani</span>
+                                </div>
+
+                                <div class="table-responsive" style="max-height:40vh; overflow-y:auto;">
+                                    <table class="table table-sm table-bordered table-hover mb-0 stat-table">
+                                        <thead class="thead-light" style="position:sticky; top:0; z-index:1;">
+                                            <tr>
+                                                <th>Tanggal</th>
+                                                <th class="text-right">Sudah</th>
+                                                <th class="text-right">Belum</th>
+                                                <th class="text-right">Non-Racikan</th>
+                                                <th class="text-right">Racikan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="stat-rows">
+                                            <tr><td colspan="5" class="text-center text-muted">Memuat...</td></tr>
+                                        </tbody>
+                                        <tfoot id="stat-foot"></tfoot>
+                                    </table>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    Non-Racikan = jumlah item obat satuan. Racikan = jumlah paket racikan (1 paket dihitung 1). Item hanya dihitung dari resep yang sudah dilayani.
+                                </small>
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <button type="button" class="btn btn-light" id="btn-stat-refresh"><i class="fas fa-sync-alt mr-1"></i>Refresh</button>
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         </div>
                     </div>
@@ -189,6 +249,7 @@ $(document).ready(function () {
         $('#filter_tanggal_mulai').val(start.format('YYYY-MM-DD'));
         $('#filter_tanggal_selesai').val(end.format('YYYY-MM-DD'));
         table.ajax.reload();
+        refreshStatistikIfOpen();
     });
     
     // Set default value tanggal ke hari ini
@@ -404,104 +465,13 @@ $(document).ready(function () {
         ],
     });
 
-    // Penawaran modal DataTable
-    var penawaranTable = null;
-    var penawaranFarmasiDataUrl = '{{ route("erm.penawaran.farmasi.data") }}';
-    var penawaranFarmasiCountUrl = '{{ route("erm.penawaran.farmasi.count") }}';
-    var penawaranProcessBaseUrl = '{{ url("erm/penawaran") }}';
-
-    function refreshPenawaranReadyBadge() {
-        $.get(penawaranFarmasiCountUrl, function (res) {
-            var n = 0;
-            if (res && res.count !== undefined && res.count !== null) {
-                n = parseInt(res.count, 10);
-                if (isNaN(n) || n < 0) n = 0;
-            }
-
-            if (n > 0) {
-                $('#penawaran-ready-badge').text(n).show();
-            } else {
-                $('#penawaran-ready-badge').hide();
-            }
-        }).fail(function () {
-            // ignore badge errors
-        });
-    }
-
-    $(document).on('click', '#btn-penawaran', function () {
-        refreshPenawaranReadyBadge();
-        $('#modalPenawaranFarmasi').modal('show');
-
-        if (!penawaranTable) {
-            penawaranTable = $('#penawaran-farmasi-table').DataTable({
-                processing: true,
-                serverSide: true,
-                responsive: true,
-                ajax: penawaranFarmasiDataUrl,
-                columns: [
-                    { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
-                    { data: 'pasien_info', name: 'pasien.nama', orderable: false, searchable: false },
-                    { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
-                    { data: 'action', name: 'action', orderable: false, searchable: false },
-                ],
-            });
-        } else {
-            penawaranTable.ajax.reload(null, false);
-        }
-    });
-
-    $(document).on('click', '.btn-proses-penawaran', function () {
-        var id = $(this).data('id');
-        if (!id) return;
-        if (!confirm('Proses penawaran ini?')) return;
-
-        $.ajax({
-            url: penawaranProcessBaseUrl + '/' + id + '/process',
-            method: 'POST',
-            data: { _token: csrfToken },
-            success: function (res) {
-                if (res && res.success) {
-                    if (res.redirect) {
-                        window.location.href = res.redirect;
-                        return;
-                    }
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: res.message || 'Berhasil',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    if (penawaranTable) penawaranTable.ajax.reload(null, false);
-                    refreshPenawaranReadyBadge();
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: (res && res.message) ? res.message : 'Gagal'
-                    });
-                }
-            },
-            error: function (xhr) {
-                var msg = 'Gagal memproses penawaran.';
-                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
-            }
-        });
-    });
-
     // initial & periodic badge refresh
-    refreshPenawaranReadyBadge();
     refreshOldNotifsBadge();
 
     // Auto-refresh table every 10 seconds (keep current page)
     setInterval(function() {
         try {
             table.ajax.reload(null, false);
-        } catch (e) {}
-
-        try {
-            refreshPenawaranReadyBadge();
         } catch (e) {}
 
         try {
@@ -513,6 +483,100 @@ $(document).ready(function () {
     $('#filter_dokter, #filter_klinik, #filter_status_resep').on('change', function () {
         table.ajax.reload();
     });
+    $('#filter_dokter, #filter_klinik').on('change', refreshStatistikIfOpen);
+
+    // Statistik Resep modal (uses the same tanggal/dokter/klinik filters as the table)
+    var statistikUrl = '{{ route("erm.statistic.summary") }}';
+    var statistikXhr = null;
+    var HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    var BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+    function fmtTanggal(iso, withDay) {
+        var m = moment(iso, 'YYYY-MM-DD');
+        if (!m.isValid()) return iso || '';
+        return (withDay ? HARI[m.day()] + ', ' : '') + m.date() + ' ' + BULAN[m.month()] + ' ' + m.year();
+    }
+    function fmtNum(n) { return (Number(n) || 0).toLocaleString('id-ID'); }
+    function pct(part, total) { return total > 0 ? Math.round(part / total * 100) : 0; }
+
+    function refreshStatistikIfOpen() {
+        if ($('#modalStatistikResep').hasClass('show')) loadStatistik();
+    }
+
+    function loadStatistik() {
+        var start = $('#filter_tanggal_mulai').val();
+        var end = $('#filter_tanggal_selesai').val();
+        var dokterText = $('#filter_dokter').val() ? $('#filter_dokter option:selected').text() : 'Semua dokter';
+        var klinikText = $('#filter_klinik').val() ? $('#filter_klinik option:selected').text() : 'Semua klinik';
+        var periode = start === end ? fmtTanggal(start, true) : fmtTanggal(start) + ' – ' + fmtTanggal(end);
+        $('#stat-filter-info').text(periode + ' · ' + dokterText + ' · ' + klinikText);
+
+        if (statistikXhr) statistikXhr.abort();
+        $('#stat-error').hide();
+        $('#modalStatistikResep').addClass('is-loading');
+
+        statistikXhr = $.get(statistikUrl, {
+            start_date: start,
+            end_date: end,
+            dokter_id: $('#filter_dokter').val(),
+            klinik_id: $('#filter_klinik').val()
+        }).done(renderStatistik).fail(function (xhr, status) {
+            if (status !== 'abort') $('#stat-error').show();
+        }).always(function (xhr, status) {
+            if (status !== 'abort') $('#modalStatistikResep').removeClass('is-loading');
+        });
+    }
+
+    function renderStatistik(res) {
+        var t = res.totals || {};
+        var total = (t.terlayani || 0) + (t.belum || 0);
+        var items = (t.non_racikan || 0) + (t.racikan || 0);
+        var pSudah = pct(t.terlayani, total);
+
+        $('#stat-total').text(fmtNum(total));
+        $('#stat-terlayani').text(fmtNum(t.terlayani));
+        $('#stat-belum').text(fmtNum(t.belum));
+        $('#stat-terlayani-pct').text(pSudah + '% dari total');
+        $('#stat-belum-pct').text((total > 0 ? 100 - pSudah : 0) + '% dari total');
+        $('#stat-items').text(fmtNum(items));
+        $('#stat-items-sub').text(fmtNum(t.non_racikan) + ' non-racikan · ' + fmtNum(t.racikan) + ' racikan');
+        $('#stat-progress').css('width', pSudah + '%');
+        $('#stat-progress-belum').css('width', (total > 0 ? 100 - pSudah : 0) + '%');
+
+        var rows = res.rows || [];
+        var $body = $('#stat-rows').empty();
+        $('#stat-foot').empty();
+        if (!rows.length) {
+            $body.append('<tr><td colspan="5" class="text-center text-muted">Tidak ada resep pada periode ini.</td></tr>');
+            return;
+        }
+        var html = '';
+        rows.forEach(function (r) {
+            html += '<tr>'
+                + '<td>' + fmtTanggal(r.tanggal, true) + '</td>'
+                + '<td class="text-right text-success">' + fmtNum(r.terlayani) + '</td>'
+                + '<td class="text-right' + (r.belum > 0 ? ' text-danger font-weight-bold' : ' text-muted') + '">' + fmtNum(r.belum) + '</td>'
+                + '<td class="text-right">' + fmtNum(r.non_racikan) + '</td>'
+                + '<td class="text-right">' + fmtNum(r.racikan) + '</td>'
+                + '</tr>';
+        });
+        $body.html(html);
+        if (rows.length > 1) {
+            $('#stat-foot').html('<tr class="font-weight-bold" style="background:#f8f9fa;">'
+                + '<td>Total</td>'
+                + '<td class="text-right">' + fmtNum(t.terlayani) + '</td>'
+                + '<td class="text-right">' + fmtNum(t.belum) + '</td>'
+                + '<td class="text-right">' + fmtNum(t.non_racikan) + '</td>'
+                + '<td class="text-right">' + fmtNum(t.racikan) + '</td>'
+                + '</tr>');
+        }
+    }
+
+    $('#btn-statistik-resep').on('click', function () {
+        $('#modalStatistikResep').modal('show');
+        loadStatistik();
+    });
+    $('#btn-stat-refresh').on('click', loadStatistik);
 
     // ambil no antrian otomatis
     $('#reschedule-dokter-id, #reschedule-tanggal-visitation').on('change', function() {

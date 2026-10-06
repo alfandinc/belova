@@ -74,15 +74,7 @@
                     @endhasanyrole
                     @hasanyrole('Farmasi|Admin')    
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/eresepfarmasi"><i data-feather="file" class="align-self-center menu-icon"></i><span>Daftar Resep Rajal</span></a>
-                            </li>                           
-                            <li>
-                                <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Resep</span></a>
-                            </li>
-                        </ul>
+                        <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span></a>
                     </li>
                     @endhasanyrole
                     @hasanyrole('Farmasi|Admin') 

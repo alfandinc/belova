@@ -982,8 +982,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/eresepfarmasi/etiket-biru/print', [EresepController::class, 'printEtiketBiru'])->name('erm.eresepfarmasi.etiket-biru.print');
 
     // Statistik Farmasi Routes
-    Route::get('/statistic', [StatisticController::class, 'index'])->name('erm.statistic.index');
-    Route::get('/statistic/data', [StatisticController::class, 'getResepData'])->name('erm.statistic.data');
+    Route::get('/statistic/summary', [StatisticController::class, 'summary'])->name('erm.statistic.summary');
 
     Route::post('/edukasi-obat/store', [EresepController::class, 'storeEdukasiObat'])->name('edukasi.obat.store');
     Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');
@@ -1719,19 +1718,6 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::post('/birthday/generate-image', [BirthdayController::class, 'generateImage'])->name('marketing.birthday.generate-image');
     Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'])->name('marketing.birthday.show-image');
 
-    // Penawaran
-    Route::get('/penawaran', [\App\Http\Controllers\Marketing\PenawaranController::class, 'index'])->name('marketing.penawaran.index');
-    Route::get('/penawaran/data', [\App\Http\Controllers\Marketing\PenawaranController::class, 'index'])->name('marketing.penawaran.data');
-    Route::post('/penawaran', [\App\Http\Controllers\Marketing\PenawaranController::class, 'store'])->name('marketing.penawaran.store');
-    Route::get('/penawaran/{id}/items', [\App\Http\Controllers\Marketing\PenawaranController::class, 'items'])->name('marketing.penawaran.items');
-    Route::post('/penawaran/{id}/status', [\App\Http\Controllers\Marketing\PenawaranController::class, 'updateStatus'])->name('marketing.penawaran.status');
-    Route::post('/penawaran/{id}/submit', [\App\Http\Controllers\Marketing\PenawaranController::class, 'submit'])->name('marketing.penawaran.submit');
-    Route::get('/penawaran/pasien/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'pasienSelect2'])->name('marketing.penawaran.pasien.search');
-    Route::get('/penawaran/obat/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'obatSelect2'])->name('marketing.penawaran.obat.search');
-    Route::get('/penawaran/klinik/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'klinikSelect2'])->name('marketing.penawaran.klinik.search');
-    Route::get('/penawaran/dokter/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'dokterSelect2'])->name('marketing.penawaran.dokter.search');
-    Route::get('/penawaran/metode-bayar/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'metodeBayarSelect2'])->name('marketing.penawaran.metode_bayar.search');
-
     // Marketing Events moved to the Events module (main menu)
     Route::get('/events', fn () => redirect()->route('events.index'))->name('marketing.events.index');
 
@@ -1902,13 +1888,6 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/promo/{promo}', [PromoController::class, 'show']);
     Route::put('/promo/{promo}', [PromoController::class, 'update'])->name('marketing.promo.update');
     Route::delete('/promo/{promo}', [PromoController::class, 'destroy'])->name('marketing.promo.destroy');
-});
-
-// Farmasi: Penawaran processing endpoints inside ERM
-Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
-    Route::get('/penawaran/farmasi-data', [\App\Http\Controllers\Marketing\PenawaranController::class, 'farmasiData'])->name('erm.penawaran.farmasi.data');
-    Route::get('/penawaran/farmasi-count', [\App\Http\Controllers\Marketing\PenawaranController::class, 'farmasiReadyCount'])->name('erm.penawaran.farmasi.count');
-    Route::post('/penawaran/{id}/process', [\App\Http\Controllers\Marketing\PenawaranController::class, 'process'])->name('erm.penawaran.process');
 });
 
 
