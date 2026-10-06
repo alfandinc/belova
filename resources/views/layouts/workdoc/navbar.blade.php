@@ -71,7 +71,11 @@
                 <li>
                     <a href="{{ route('workdoc.memorandum.index') }}"> <i data-feather="file-text" class="align-self-center menu-icon"></i><span>Memorandum</span></a>
                 </li>
-        </ul>              
+
+            <li>
+                <a href="{{ route('akreditasi.index') }}"> <i data-feather="award" class="align-self-center menu-icon"></i><span>Akreditasi</span></a>
+            </li>
+        </ul>            
     </div>
 </div>
 <!-- end left-sidenav-->

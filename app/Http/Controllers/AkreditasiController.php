@@ -10,150 +10,130 @@ use Illuminate\Support\Facades\Storage;
 
 class AkreditasiController extends Controller
 {
-    // Standar detail page with all EPs as tabs
+    // Single page: BAB/Standar list on the left, EPs + documents of the selected Standar on the right
+    public function index()
+    {
+        return $this->page(null);
+    }
+
     public function showStandar(Standar $standar)
     {
-        // Eager load EPs for the Standar
-        $standar->load('eps');
-        return view('akreditasi.standar_detail', compact('standar'));
+        return $this->page($standar);
     }
-    // BAB CRUD
-    public function index(Request $request)
+
+    private function page(?Standar $standar)
     {
-        if ($request->ajax()) {
-            return datatables()->of(Bab::query())
-                ->addColumn('action', function($row) {
-                    return '<button class="btn btn-sm btn-warning edit-btn">Edit</button> '
-                        . '<button class="btn btn-sm btn-danger delete-btn">Delete</button>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
+        $babs = Bab::with(['standars' => function ($q) {
+            $q->orderBy('id')->withCount([
+                'eps',
+                'eps as eps_done_count' => function ($q) { $q->has('documents'); },
+            ]);
+        }])->orderBy('id')->get();
+
+        if (!$standar) {
+            $standar = $babs->pluck('standars')->flatten()->first();
         }
-        return view('akreditasi.index');
+        if ($standar) {
+            $standar->load(['bab', 'eps' => function ($q) {
+                $q->orderBy('id')->with(['documents' => function ($q) { $q->orderByDesc('created_at'); }]);
+            }]);
+        }
+
+        $isAdmin = auth()->user()->hasRole('Admin');
+
+        return view('akreditasi.index', compact('babs', 'standar', 'isAdmin'));
     }
+
+    // BAB
     public function storeBab(Request $request)
     {
-        $bab = Bab::create($request->only('name'));
+        $bab = Bab::create($request->validate(['name' => 'required|string|max:255']));
         return response()->json(['success' => true, 'data' => $bab]);
     }
     public function updateBab(Request $request, Bab $bab)
     {
-        $bab->update($request->only('name'));
+        $bab->update($request->validate(['name' => 'required|string|max:255']));
         return response()->json(['success' => true, 'data' => $bab]);
     }
     public function destroyBab(Bab $bab)
     {
+        // Deleting cascades in the database, so refuse while it still has content
+        if ($bab->standars()->exists()) {
+            return response()->json(['success' => false, 'message' => 'BAB masih memiliki Standar. Hapus Standar di dalamnya terlebih dahulu.'], 422);
+        }
         $bab->delete();
         return response()->json(['success' => true]);
     }
 
-    // Standar CRUD
-    public function standars(Request $request, Bab $bab)
-    {
-        if ($request->ajax()) {
-            return datatables()->of($bab->standars())
-                ->addColumn('action', function($row) {
-                    return '<button class="btn btn-sm btn-warning edit-btn">Edit</button> '
-                        . '<button class="btn btn-sm btn-danger delete-btn">Delete</button>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
-        }
-        return view('akreditasi.standar', compact('bab'));
-    }
+    // Standar
     public function storeStandar(Request $request, Bab $bab)
     {
-        $standar = $bab->standars()->create($request->only('name'));
+        $standar = $bab->standars()->create($request->validate(['name' => 'required|string|max:255']));
         return response()->json(['success' => true, 'data' => $standar]);
     }
     public function updateStandar(Request $request, Standar $standar)
     {
-        $standar->update($request->only('name'));
+        $standar->update($request->validate(['name' => 'required|string|max:255']));
         return response()->json(['success' => true, 'data' => $standar]);
     }
     public function destroyStandar(Standar $standar)
     {
+        if ($standar->eps()->exists()) {
+            return response()->json(['success' => false, 'message' => 'Standar masih memiliki EP. Hapus EP di dalamnya terlebih dahulu.'], 422);
+        }
         $standar->delete();
         return response()->json(['success' => true]);
     }
 
-    // EP CRUD
-    public function eps(Request $request, Standar $standar)
+    // EP
+    private function validateEp(Request $request)
     {
-        if ($request->ajax()) {
-            return datatables()->of($standar->eps())
-                ->addColumn('elemen_penilaian', function($row) {
-                    $text = $row->elemen_penilaian ?? '';
-                    return strlen($text) > 40 ? substr($text, 0, 40) . '...' : $text;
-                })
-                ->addColumn('kelengkapan_bukti', function($row) {
-                    $text = $row->kelengkapan_bukti ?? '';
-                    return strlen($text) > 40 ? substr($text, 0, 40) . '...' : $text;
-                })
-                ->addColumn('action', function($row) {
-                    return '<button class="btn btn-sm btn-warning edit-btn">Edit</button> '
-                        . '<button class="btn btn-sm btn-danger delete-btn">Delete</button>';
-                })
-                ->rawColumns(['action'])
-                ->make(true);
-        }
-        return view('akreditasi.ep', compact('standar'));
+        return $request->validate([
+            'name' => 'required|string|max:255',
+            'elemen_penilaian' => 'nullable|string|max:255',
+            'kelengkapan_bukti' => 'required|string|max:255',
+            'skor_maksimal' => 'required|integer|min:0',
+        ]);
     }
     public function storeEp(Request $request, Standar $standar)
     {
-        $ep = $standar->eps()->create($request->only(['name', 'elemen_penilaian', 'kelengkapan_bukti', 'skor_maksimal']));
+        $ep = $standar->eps()->create($this->validateEp($request));
         return response()->json(['success' => true, 'data' => $ep]);
     }
     public function updateEp(Request $request, Ep $ep)
     {
-        $ep->update($request->only(['name', 'elemen_penilaian', 'kelengkapan_bukti', 'skor_maksimal']));
+        $ep->update($this->validateEp($request));
         return response()->json(['success' => true, 'data' => $ep]);
     }
     public function destroyEp(Ep $ep)
     {
+        if ($ep->documents()->exists()) {
+            return response()->json(['success' => false, 'message' => 'EP masih memiliki dokumen. Hapus dokumennya terlebih dahulu.'], 422);
+        }
         $ep->delete();
         return response()->json(['success' => true]);
     }
 
-    // EP Detail & Document CRUD
-    public function showEp(Request $request, Ep $ep)
-    {
-        if ($request->ajax()) {
-            return datatables()->of($ep->documents())
-                ->addColumn('preview', function($row) {
-                    $ext = strtolower(pathinfo($row->filename, PATHINFO_EXTENSION));
-                    $url = asset('storage/' . $row->filepath);
-                    if (in_array($ext, ['jpg','jpeg','png','gif','bmp','webp'])) {
-                        return '<img src="' . $url . '" alt="preview" style="max-width:80px;max-height:80px">';
-                    } elseif (in_array($ext, ['mp4','webm','ogg','mov','avi','mkv'])) {
-                        return '<video src="' . $url . '" controls style="max-width:120px;max-height:80px"></video>';
-                    } elseif ($ext === 'pdf') {
-                        return '<a href="' . $url . '" target="_blank">PDF</a>';
-                    } else {
-                        return '<a href="' . $url . '" target="_blank">Download</a>';
-                    }
-                })
-                ->addColumn('created_at', function($row) {
-                    return $row->created_at ? $row->created_at->format('Y-m-d H:i:s') : '';
-                })
-                ->addColumn('updated_at', function($row) {
-                    return $row->updated_at ? $row->updated_at->format('Y-m-d H:i:s') : '';
-                })
-                ->addColumn('action', function($row) {
-                    return '<a href="' . asset('storage/' . $row->filepath) . '" target="_blank" class="btn btn-sm btn-info">View</a> '
-                        . '<button class="btn btn-sm btn-danger delete-btn">Delete</button>';
-                })
-                ->rawColumns(['action','preview'])
-                ->make(true);
-        }
-        return view('akreditasi.ep_detail', compact('ep'));
-    }
+    // Documents
     public function uploadDocument(Request $request, Ep $ep)
     {
-        $request->validate(['document' => 'required|file']);
+        $request->validate([
+            'document' => 'required|file',
+            'custom_filename' => 'nullable|string|max:200',
+        ]);
         $file = $request->file('document');
-        $customFilename = $request->input('custom_filename');
-        $filename = $customFilename ? $customFilename . '.' . $file->getClientOriginalExtension() : $file->getClientOriginalName();
+        $ext = $file->getClientOriginalExtension();
+        $base = trim((string) $request->input('custom_filename'));
+        $base = $base !== '' ? $base : pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $base = trim(preg_replace('/[\\\\\/:*?"<>|]+/', '-', $base)) ?: 'dokumen';
+
+        // Never overwrite an existing file: add a counter when the name is taken
+        $filename = $base . ($ext ? '.' . $ext : '');
+        $i = 1;
+        while (Storage::disk('public')->exists('akreditasi/' . $filename)) {
+            $filename = $base . ' (' . $i++ . ')' . ($ext ? '.' . $ext : '');
+        }
+
         $path = $file->storeAs('akreditasi', $filename, 'public');
         $doc = $ep->documents()->create([
             'filename' => $filename,
@@ -163,7 +143,11 @@ class AkreditasiController extends Controller
     }
     public function destroyDocument(Document $document)
     {
-        Storage::disk('public')->delete($document->filepath);
+        // Older uploads could share one file; only remove it when no other record uses it
+        $shared = Document::where('filepath', $document->filepath)->where('id', '!=', $document->id)->exists();
+        if (!$shared) {
+            Storage::disk('public')->delete($document->filepath);
+        }
         $document->delete();
         return response()->json(['success' => true]);
     }

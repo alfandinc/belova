@@ -85,9 +85,7 @@
                     || request()->is('marketing/kodetindakan')
                     || request()->is('marketing/kodetindakan/*')
                     || request()->is('marketing/kategori-tindakan')
-                    || request()->is('marketing/kategori-tindakan/*')
-                    || request()->is('marketing/survey-questions')
-                    || request()->is('marketing/survey-questions/*');
+                    || request()->is('marketing/kategori-tindakan/*');
             @endphp
             <li class="menu-label mt-0">Main</li>
             <li>
@@ -162,9 +160,7 @@
                     <li><a href="/marketing/biaya-konsultasi"><i data-feather="credit-card" class="align-self-center menu-icon"></i>Biaya Konsultasi dan Lain Lain</a></li>
                     <li><a href="/marketing/tindakan"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i>Paket Tindakan</a></li>
                     <li><a href="/marketing/kodetindakan"><i data-feather="key" class="align-self-center menu-icon"></i>Kode Tindakan</a></li>
-                    <li><a href="/erm/marketing/kategori-tindakan"><i data-feather="layers" class="align-self-center menu-icon"></i>Kategori Tindakan</a></li>
-                    <li><a href="/marketing/survey-questions"><i data-feather="edit-3" class="align-self-center menu-icon"></i>Survey Questions</a></li>
-                </ul>
+                    <li><a href="/erm/marketing/kategori-tindakan"><i data-feather="layers" class="align-self-center menu-icon"></i>Kategori Tindakan</a></li>                </ul>
             </li>
             
             

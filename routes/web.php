@@ -8,8 +8,6 @@ use App\Http\Controllers\{
     MarketingDashboardController,
     FinanceDashboardController,
     WorkdocDashboardController,
-    AkreditasiDashboardController,
-    CustSurveyController,
     BCLDashboardController
 };
 use App\Http\Controllers\ERM\StokGudangController;
@@ -79,7 +77,6 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Marketing\PromoController;
 use App\Http\Controllers\Insiden\LaporanInsidenController;
-use App\Http\Controllers\LaporanDashboardController;
 
 use App\Http\Controllers\BCL\{
     ChatTemplateController,
@@ -263,18 +260,15 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')
         ->name('workdoc.dashboard');
 
-    Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')
-        ->name('akreditasi.dashboard');
+    // Akreditasi has been merged into Dokumen Kerja (Workdoc); keep old links working
+    Route::get('/akreditasi/{path?}', function ($path = null) {
+        return redirect('/workdoc/akreditasi' . ($path ? '/' . $path : ''));
+    })->where('path', '.*')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin');
 
     // Insiden menu (Admin & Hrd roles)
     Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
         ->middleware('role:Admin|Hrd|Manager|Head Manager|Employee')
         ->name('insiden.dashboard');
-
-    Route::get('/laporan', [LaporanDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Head Manager|Admin|Kasir|Finance')
-        ->name('laporan.dashboard');
 
     Route::get('/bcl', [BCLDashboardController::class, 'index'])
         ->middleware('role:Kos|Admin')
@@ -361,9 +355,6 @@ Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObat
     ->name('erm.stok-gudang.delete');
 
 
-
-Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
-Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
 
 // Belova Mengaji module
 Route::get('/belova-mengaji', [BelovaMengajiController::class, 'index'])->middleware('auth')->name('belova.mengaji.index');
@@ -655,41 +646,6 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
 
 
 
-//LAPORAN Routes
-Route::prefix('laporan')->middleware('role:Hrd|Manager|Head Manager|Admin|Finance|Farmasi')->group(function () {
-    // AJAX endpoint for HRD Rekap Kehadiran DataTable
-    Route::get('/hrd/rekap-kehadiran/data', [\App\Http\Controllers\Laporan\HRDController::class, 'rekapKehadiranData'])->name('laporan.hrd.rekap-kehadiran.data');
-    Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
-    Route::get('/farmasi/penjualan-obat/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanPdf'])->name('laporan.farmasi.penjualan-obat.pdf');
-    Route::get('/farmasi/penjualan-obat', [\App\Http\Controllers\Laporan\FarmasiController::class, 'penjualanObat'])->name('laporan.farmasi.penjualan-obat');
-    Route::get('/farmasi/stok-tanggal', [\App\Http\Controllers\Laporan\FarmasiController::class, 'stokTanggal'])->name('laporan.farmasi.stok-tanggal');
-    Route::get('/farmasi/stok-tanggal/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportStokTanggalExcel'])->name('laporan.farmasi.stok-tanggal.excel');
-    Route::get('/', [LaporanDashboardController::class, 'index'])->name('laporan.dashboard');
-    Route::get('/farmasi', [\App\Http\Controllers\Laporan\FarmasiController::class, 'index'])->name('laporan.farmasi');
-    Route::get('/farmasi/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportExcel'])->name('laporan.farmasi.excel');
-    Route::get('/farmasi/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPdf'])->name('laporan.farmasi.pdf');
-
-    // HRD Rekap Kehadiran
-    Route::get('/hrd/rekap-kehadiran', [\App\Http\Controllers\Laporan\HRDController::class, 'rekapKehadiran'])->name('laporan.hrd.rekap-kehadiran');
-
-    // Export Rekap Kehadiran
-    Route::get('/hrd/rekap-kehadiran/excel', [\App\Http\Controllers\Laporan\HRDController::class, 'exportExcel'])->name('laporan.hrd.rekap-kehadiran.excel');
-    Route::get('/hrd/rekap-kehadiran/pdf', [\App\Http\Controllers\Laporan\HRDController::class, 'exportPdf'])->name('laporan.hrd.rekap-kehadiran.pdf');
-
-    // Laporan Laboratorium
-    Route::get('/laboratorium', [\App\Http\Controllers\Laporan\LabController::class, 'index'])->name('laporan.laboratorium');
-    Route::get('/laboratorium/data', [\App\Http\Controllers\Laporan\LabController::class, 'data'])->name('laporan.laboratorium.data');
-    Route::get('/laboratorium/grouped-data', [\App\Http\Controllers\Laporan\LabController::class, 'groupedData']);
-    Route::get('/laboratorium/permintaan-details/{visitationId}', [\App\Http\Controllers\Laporan\LabController::class, 'permintaanDetails']);
-        Route::get('/laboratorium/monthly-stats', [\App\Http\Controllers\Laporan\LabController::class, 'monthlyStats']);
-    Route::get('/laboratorium/chart', function() { return view('laporan.laboratorium.lab_chart'); });
-    // Dokter & Klinik list for laporan filter (no middleware)
-    Route::get('/dokters', [\App\Http\Controllers\Laporan\LabController::class, 'listDokters'])->name('laporan.dokters');
-    Route::get('/kliniks', [\App\Http\Controllers\Laporan\LabController::class, 'listKliniks'])->name('laporan.kliniks');
-    // Export & Print routes for Laporan Laboratorium
-    Route::get('/laboratorium/export-excel', [\App\Http\Controllers\Laporan\LabController::class, 'exportExcel'])->name('laporan.laboratorium.exportExcel');
-    Route::get('/laboratorium/print-pdf', [\App\Http\Controllers\Laporan\LabController::class, 'printPdf'])->name('laporan.laboratorium.printPdf');
-});
 
 Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'exportExcel'])->name('hrd.absensi_rekap.export_excel');
 // Admin: visitation CSV import (dashboard form posts here)
@@ -1361,32 +1317,35 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Head Manager|Employee|Adm
 });
 
 
-Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
-    // BAB CRUD
-    Route::get('/bab', [AkreditasiController::class, 'index'])->name('akreditasi.index');
+Route::prefix('workdoc/akreditasi')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
+    // Single page: BAB/Standar list + EPs & documents of the selected Standar
+    Route::get('/', [AkreditasiController::class, 'index'])->name('akreditasi.index');
+    Route::get('/standar/{standar}', [AkreditasiController::class, 'showStandar'])->name('akreditasi.standar.detail');
+
+    // Old standalone pages now open the single page
+    Route::get('/bab', fn () => redirect()->route('akreditasi.index'));
+    Route::get('/bab/{bab}/standars', fn () => redirect()->route('akreditasi.index'));
+    Route::get('/standar/{standar}/eps', fn (\App\Models\Akreditasi\Standar $standar) => redirect()->route('akreditasi.standar.detail', $standar));
+    Route::get('/ep/{ep}', fn (\App\Models\Akreditasi\Ep $ep) => redirect()->route('akreditasi.standar.detail', $ep->standar_id));
+
+    // BAB
     Route::post('/bab', [AkreditasiController::class, 'storeBab'])->name('akreditasi.bab.store');
     Route::put('/bab/{bab}', [AkreditasiController::class, 'updateBab'])->name('akreditasi.bab.update');
     Route::delete('/bab/{bab}', [AkreditasiController::class, 'destroyBab'])->name('akreditasi.bab.destroy');
 
-    // Standar CRUD
-    Route::get('/bab/{bab}/standars', [AkreditasiController::class, 'standars'])->name('akreditasi.standars');
+    // Standar
     Route::post('/bab/{bab}/standar', [AkreditasiController::class, 'storeStandar'])->name('akreditasi.standar.store');
     Route::put('/standar/{standar}', [AkreditasiController::class, 'updateStandar'])->name('akreditasi.standar.update');
     Route::delete('/standar/{standar}', [AkreditasiController::class, 'destroyStandar'])->name('akreditasi.standar.destroy');
 
-    // EP CRUD
-    Route::get('/standar/{standar}/eps', [AkreditasiController::class, 'eps'])->name('akreditasi.eps');
+    // EP
     Route::post('/standar/{standar}/ep', [AkreditasiController::class, 'storeEp'])->name('akreditasi.ep.store');
     Route::put('/ep/{ep}', [AkreditasiController::class, 'updateEp'])->name('akreditasi.ep.update');
     Route::delete('/ep/{ep}', [AkreditasiController::class, 'destroyEp'])->name('akreditasi.ep.destroy');
 
-    // EP Detail & Document CRUD
-    Route::get('/ep/{ep}', [AkreditasiController::class, 'showEp'])->name('akreditasi.ep');
+    // Documents
     Route::post('/ep/{ep}/document', [AkreditasiController::class, 'uploadDocument'])->name('akreditasi.ep.document.upload');
     Route::delete('/document/{document}', [AkreditasiController::class, 'destroyDocument'])->name('akreditasi.document.destroy');
-
-    // Standar detail with all EPs as tabs
-    Route::get('/standar/{standar}', [AkreditasiController::class, 'showStandar'])->name('akreditasi.standar.detail');
 });
 
 
@@ -1894,17 +1853,6 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::delete('/tindakan/paket/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroyPaket']);
 
     Route::get('/pasien-data', [App\Http\Controllers\Marketing\MarketingController::class, 'pasienData'])->name('marketing.pasien-data');
-
-    // Survey Question Management
-    Route::get('survey-questions', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'index']);
-    Route::get('survey-questions/datatable', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'datatable']);
-    Route::get('survey-questions/{id}', function($id) {
-        $q = \App\Models\Survey\SurveyQuestion::findOrFail($id);
-        return response()->json(['data' => $q]);
-    });
-    Route::post('survey-questions', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'store']);
-    Route::put('survey-questions/{id}', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'update']);
-    Route::delete('survey-questions/{id}', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'destroy']);
 
     // Content Plan Management
     Route::get('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'index'])->name('marketing.content-plan.index');

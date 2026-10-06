@@ -657,11 +657,9 @@
     .tile-lab { background-color: #ef6b6b; }          /* soft red */
     .tile-hrd { background-color: #5bb0ff; }          /* light sky blue */
     .tile-dokumen { background-color: #4f8ef7; }      /* blue */
-    .tile-laporan { background-color: #8b5cf6; }      /* violet */
     .tile-marketing { background-color: #ffab66; }    /* warm orange */
     .tile-finance { background-color: #f6b042; }      /* amber/gold */
     .tile-inventory { background-color: #b794ff; }    /* soft purple */
-    .tile-akreditasi { background-color: #2dd4bf; }   /* teal-light */
     .tile-kos { background-color: #ff6fb5; }          /* magenta */
     .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
@@ -1051,7 +1049,7 @@
                     }
                 @endphp
 
-                <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
+                <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician -->
                 <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1" data-filter="erm healthcare patient"
                    @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi']))
                        onclick="showRoleWarning(event, 'ERM')"
@@ -1127,16 +1125,7 @@
                     <div class="menu-sub">Task & Status Harian</div>
                 </a>
 
-                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5" data-filter="survey feedback rating">
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-star-half-alt"></i></div>
-                        <div class="menu-badge">Feedback</div>
-                    </div>
-                    <div class="menu-title">Penilaian Pelanggan</div>
-                    <div class="menu-sub">Survey & Rating</div>
-                </a>
-
-                <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
+                <!-- Row 2: HRD, Dokumen Kerja, Marketing, Finance -->
                      <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-user-friends"></i></div>
@@ -1146,7 +1135,7 @@
                     <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
-                     <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
+                     <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files akreditasi quality compliance"
                          @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
                    @endif>
@@ -1160,19 +1149,7 @@
                         @endif
                     </div>
                     <div class="menu-title">Dokumen Kerja</div>
-                    <div class="menu-sub">SOP & Template</div>
-                </a>
-
-                     <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8" data-filter="laporan reports analytics"
-                         @if(!array_intersect($userRoles, ['Manager','Head Manager','Hrd','Admin','Finance','Farmasi']))
-                       onclick="showRoleWarning(event, 'Laporan')"
-                   @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-file-alt"></i></div>
-                        <div class="menu-badge">Report</div>
-                    </div>
-                    <div class="menu-title">Laporan</div>
-                    <div class="menu-sub">Statistik & Export</div>
+                    <div class="menu-sub">SOP, Template & Akreditasi</div>
                 </a>
 
                 <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9" data-filter="marketing campaign ads"
@@ -1223,18 +1200,6 @@
                     </div>
                     <div class="menu-title">Product R&D</div>
                     <div class="menu-sub">Research and Development</div>
-                </a>
-
-                     <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-13" data-filter="akreditasi quality compliance"
-                         @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
-                       onclick="showRoleWarning(event, 'Akreditasi')"
-                   @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-medal"></i></div>
-                        <div class="menu-badge">Quality</div>
-                    </div>
-                    <div class="menu-title">Akreditasi</div>
-                    <div class="menu-sub">Compliance</div>
                 </a>
 
                 <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13" data-filter="insiden laporan kecelakaan"
