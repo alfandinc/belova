@@ -17,10 +17,7 @@
 
             <li class="menu-label">User Management</li>
             <li>
-                <a href="{{ route('admin.users.index') }}"><i data-feather="users" class="align-self-center menu-icon"></i><span>Users</span></a>
-            </li>
-            <li>
-                <a href="{{ route('admin.roles.index') }}"><i data-feather="shield" class="align-self-center menu-icon"></i><span>Roles</span></a>
+                <a href="{{ route('admin.users.index') }}"><i data-feather="users" class="align-self-center menu-icon"></i><span>Users & Roles</span></a>
             </li>
 
             <li class="menu-label">SatuSehat</li>

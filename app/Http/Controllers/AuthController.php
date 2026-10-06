@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
 use Carbon\Carbon;
@@ -184,8 +185,8 @@ class AuthController extends Controller
             return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
         }
 
-        // Attempt to login
-        if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+        // Attempt to login (nonaktif accounts are rejected)
+        if (Auth::attempt(['email' => $request->email, 'password' => $request->password, 'is_active' => true])) {
             $loggedInUser = Auth::user();
             $emotion = $request->input('emotion', self::DEFAULT_EMOTION);
             if ($loggedInUser) {
@@ -199,6 +200,10 @@ class AuthController extends Controller
             }
             // Redirect ke main menu
             return redirect('/');
+        }
+
+        if (!$user->is_active && Hash::check($request->password, $user->password)) {
+            return back()->withErrors(['email' => 'Akun Anda dinonaktifkan. Hubungi Admin.'])->withInput();
         }
 
         return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();

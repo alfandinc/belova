@@ -11,7 +11,7 @@
     <div class="d-flex align-items-center justify-content-between mb-4">
         <h2 class="mb-0">Admin Dashboard</h2>
         <div>
-            <a href="{{ route('admin.users.create') ?? url('/admin/users/create') }}" class="btn btn-primary">Add New User</a>
+            <a href="{{ route('admin.users.index', ['add' => 1]) }}" class="btn btn-primary">Add New User</a>
         </div>
     </div>
 
@@ -49,7 +49,7 @@
                     </div>
                 </div>
                 <div class="card-footer bg-transparent">
-                    <a href="{{ route('admin.roles.index') ?? url('/admin/roles') }}" class="text-white">Manage roles &raquo;</a>
+                    <a href="{{ route('admin.users.index') }}" class="text-white">Manage roles &raquo;</a>
                 </div>
             </div>
         </div>
@@ -70,8 +70,8 @@
                 <div class="card-body">
                     <h5 class="card-title">Quick actions</h5>
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="{{ route('admin.users.create') ?? url('/admin/users/create') }}" class="btn btn-outline-primary">Create user</a>
-                        <a href="{{ route('admin.roles.index') ?? url('/admin/roles') }}" class="btn btn-outline-success">Manage roles</a>
+                        <a href="{{ route('admin.users.index', ['add' => 1]) }}" class="btn btn-outline-primary">Create user</a>
+                        <a href="{{ route('admin.users.index') }}" class="btn btn-outline-success">Manage roles</a>
                         <a href="/admin/settings" class="btn btn-outline-secondary">Settings</a>
                     </div>
                     <hr />

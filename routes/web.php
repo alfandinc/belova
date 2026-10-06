@@ -2020,10 +2020,12 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
     // function () {
         //User Management
         Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
-        Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
+        Route::get('/users/create', fn () => redirect()->route('admin.users.index'));
+        Route::get('/users/{id}/edit', fn () => redirect()->route('admin.users.index'));
         Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
-        Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
+        Route::get('/users/{id}', [UserController::class, 'show'])->whereNumber('id')->name('admin.users.show');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
+        Route::post('/users/{id}/toggle-active', [UserController::class, 'toggleActive'])->name('admin.users.toggle_active');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
 
         // ICD10 management
@@ -2043,6 +2045,7 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         //Role Management
         Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
         Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->name('admin.roles.destroy');
             // Admin dashboard
             Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
             // Activity data for dashboard chart
