@@ -11,11 +11,9 @@ use App\Models\ERM\MetodeBayar;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use App\Services\VisitationWhatsAppScheduler;
 
 class VisitationController extends Controller
 {
@@ -94,12 +92,10 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
         return response()->json([
             'success' => true,
             'message' => 'Kunjungan berhasil disimpan.',
-            'whatsapp' => $waQueue,
         ]);
     }
     public function storeProduk(Request $request)
@@ -138,12 +134,10 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
         return response()->json([
             'success' => true,
             'message' => 'Kunjungan berhasil disimpan.',
-            'whatsapp' => $waQueue,
         ]);
     }
     public function storeLab(Request $request)
@@ -182,12 +176,10 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
-        $waQueue = $this->queueVisitationWhatsApp($visitation);
 
         return response()->json([
             'success' => true,
             'message' => 'Kunjungan berhasil disimpan.',
-            'whatsapp' => $waQueue,
         ]);
     }
 
@@ -244,7 +236,6 @@ class VisitationController extends Controller
 
             DB::commit();
 
-            $waQueue = $this->queueVisitationWhatsApp($visitation);
 
             return response()->json([
                 'success' => true,
@@ -253,7 +244,6 @@ class VisitationController extends Controller
                     'id' => $pasien->id,
                     'nama' => $pasien->nama,
                 ],
-                'whatsapp' => $waQueue,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -454,12 +444,10 @@ class VisitationController extends Controller
 
             DB::commit();
 
-            $waQueue = $this->queueVisitationWhatsApp($visitation);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Rujuk and visitation created successfully.',
-                'whatsapp' => $waQueue,
             ]);
         } catch (\Illuminate\Validation\ValidationException $ve) {
             DB::rollBack();
@@ -498,116 +486,6 @@ class VisitationController extends Controller
         return response()->json([
             'message' => "Created $created missing resep detail records."
         ]);
-    }
-
-    /**
-     * Send WhatsApp notification for new visitation
-     */
-    // private function sendVisitationWhatsApp($visitation)
-    // {
-    //     try {
-    //         // Load pasien data
-    //         $visitation->load(['pasien', 'dokter.user', 'klinik']);
-            
-    //         // Check if patient has phone number
-    //         if (!$visitation->pasien->no_hp) {
-    //             Log::info('Patient has no phone number, skipping WhatsApp notification', [
-    //                 'visitation_id' => $visitation->id,
-    //                 'pasien_id' => $visitation->pasien_id
-    //             ]);
-    //             return;
-    //         }
-
-    //         // Create and dispatch WhatsApp job
-    //         SendVisitationWhatsAppNotification::dispatch($visitation->id);
-            
-    //         Log::info('WhatsApp notification queued for visitation', [
-    //             'visitation_id' => $visitation->id,
-    //             'pasien_id' => $visitation->pasien_id,
-    //             'patient_phone' => $visitation->pasien->no_hp
-    //         ]);
-            
-    //     } catch (\Exception $e) {
-    //         Log::error('Error queuing WhatsApp notification for visitation', [
-    //             'visitation_id' => $visitation->id,
-    //             'error' => $e->getMessage()
-    //         ]);
-    //     }
-    // }
-
-    /**
-     * Test WhatsApp functionality for specific visitation
-     */
-    // public function testVisitationWhatsApp($id)
-    // {
-    //     if (!config('whatsapp.enabled')) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'WhatsApp service is disabled'
-    //         ]);
-    //     }
-
-    //     $whatsappService = new WhatsAppService();
-        
-    //     // Check service health
-    //     $health = $whatsappService->getServiceHealth();
-    //     if ($health['status'] !== 'running') {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'WhatsApp service is not running: ' . ($health['message'] ?? 'Unknown error')
-    //         ]);
-    //     }
-        
-    //     if (!$whatsappService->isConnected()) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'WhatsApp service is not connected to WhatsApp Web'
-    //         ]);
-    //     }
-
-    //     $result = $whatsappService->sendVisitationNotification($id);
-        
-    //     return response()->json($result);
-    // }
-
-    /**
-     * Get WhatsApp service status
-     */
-    public function getWhatsAppStatus()
-    {
-        $serviceUrl = rtrim(config('app.wa_bot_url', 'http://localhost:3000'), '/');
-
-        try {
-            $response = Http::timeout(10)->get($serviceUrl . '/sessions');
-
-            if (!$response->successful()) {
-                return response()->json([
-                    'enabled' => true,
-                    'connected' => false,
-                    'message' => 'Failed to reach WhatsApp bot service',
-                    'service_url' => $serviceUrl,
-                ], 502);
-            }
-
-            $sessions = collect($response->json());
-            $connected = $sessions->contains(function ($session) {
-                return in_array($session['status'] ?? null, ['ready', 'authenticated'], true);
-            });
-
-            return response()->json([
-                'enabled' => true,
-                'connected' => $connected,
-                'sessions' => $sessions->values(),
-                'service_url' => $serviceUrl,
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'enabled' => true,
-                'connected' => false,
-                'message' => $e->getMessage(),
-                'service_url' => $serviceUrl,
-            ], 502);
-        }
     }
 
     /**
@@ -771,25 +649,5 @@ class VisitationController extends Controller
         ]);
 
         return $visitation;
-    }
-
-    private function queueVisitationWhatsApp(Visitation $visitation): array
-    {
-        try {
-            return app(VisitationWhatsAppScheduler::class)->queueForVisitation($visitation);
-        } catch (\Exception $e) {
-            Log::error('Error queueing visitation WhatsApp notification', [
-                'visitation_id' => $visitation->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'queued' => false,
-                'reason' => 'queue_exception',
-                'message' => 'Pesan WhatsApp tidak dijadwalkan karena terjadi kesalahan internal.',
-                'session_status' => 'error',
-                'session_note' => $e->getMessage(),
-            ];
-        }
     }
 }

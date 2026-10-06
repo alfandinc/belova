@@ -1,7 +1,7 @@
-@extends('layouts.erm.app')
+@extends('layouts.admin.app')
 
 @section('navbar')
-    @include('layouts.satusehat.navbar')
+    @include('layouts.admin.navbar')
 @endsection
 
 @section('title', 'Mapping Dokter')

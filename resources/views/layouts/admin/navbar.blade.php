@@ -23,15 +23,15 @@
                 <a href="{{ route('admin.roles.index') }}"><i data-feather="shield" class="align-self-center menu-icon"></i><span>Roles</span></a>
             </li>
 
-            <li class="menu-label">WhatsApp</li>
+            <li class="menu-label">SatuSehat</li>
             <li>
-                <a href="{{ route('admin.whatsapp_test.index') }}"><i data-feather="message-circle" class="align-self-center menu-icon"></i><span>WhatsApp Test</span></a>
+                <a href="{{ route('satusehat.pasiens.index') }}"><i data-feather="users" class="align-self-center menu-icon"></i><span>Pasien SatuSehat</span></a>
             </li>
             <li>
-                <a href="{{ route('admin.wa_visitation_templates.index') }}"><i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Visitation Templates</span></a>
+                <a href="/satusehat/obat-kfa"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat KFA Mapping</span></a>
             </li>
             <li>
-                <a href="{{ route('admin.wa_messages.index') }}"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Message Log</span></a>
+                <a href="{{ route('satusehat.dokter_mapping.index') }}"><i data-feather="link-2" class="align-self-center menu-icon"></i><span>Mapping Dokter</span></a>
             </li>
 
             <li class="menu-label">Others</li>

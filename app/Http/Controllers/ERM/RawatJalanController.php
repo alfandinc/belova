@@ -25,13 +25,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use App\Models\ERM\PasienMerchandise;
-use App\Models\WaMessage;
-use App\Models\WaScheduledMessage;
-use App\Services\VisitationWhatsAppScheduler;
 use App\Notifications\DokterToPerawatNotification;
 use App\Notifications\PerawatToDokterNotification;
 use Carbon\Carbon;
-use Yajra\DataTables\Facades\DataTables;
 use App\View\Composers\DaftarKunjunganModalComposer;
 
 class RawatJalanController extends Controller
@@ -496,50 +492,6 @@ class RawatJalanController extends Controller
         ]);
     }
 
-    public function scheduledMessages(Request $request)
-    {
-        $query = WaScheduledMessage::query()
-            ->leftJoin('erm_pasiens as pasien', 'wa_scheduled_messages.pasien_id', '=', 'pasien.id')
-            ->select([
-                'wa_scheduled_messages.id',
-                'wa_scheduled_messages.client_id',
-                'wa_scheduled_messages.pasien_id',
-                'wa_scheduled_messages.to',
-                'wa_scheduled_messages.message',
-                'wa_scheduled_messages.schedule_at',
-                'wa_scheduled_messages.status',
-                'wa_scheduled_messages.created_at',
-                'pasien.nama as pasien_nama',
-            ]);
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('wa_scheduled_messages.schedule_at', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('wa_scheduled_messages.schedule_at', '<=', $request->end_date);
-        }
-
-        return DataTables::of($query)
-            ->filterColumn('pasien_nama', function ($query, $keyword) {
-                $query->where('pasien.nama', 'like', "%{$keyword}%");
-            })
-            ->editColumn('pasien_nama', function ($row) {
-                return $row->pasien_nama ?: '-';
-            })
-            ->editColumn('schedule_at', function ($row) {
-                if (empty($row->schedule_at)) {
-                    return null;
-                }
-
-                return Carbon::parse($row->schedule_at)->toDateTimeString();
-            })
-            ->addColumn('message_preview', function ($row) {
-                return \Illuminate\Support\Str::limit(trim((string) $row->message), 80);
-            })
-            ->toJson();
-    }
-
     public function queueCalendar(Request $request)
     {
         if (!Auth::check()) {
@@ -699,39 +651,6 @@ class RawatJalanController extends Controller
         ]);
     }
 
-    public function visitationMessages(string $visitation)
-    {
-        $visitationModel = Visitation::with(['pasien:id,nama'])->findOrFail($visitation);
-
-        $messages = WaMessage::query()
-            ->where('visitation_id', (string) $visitation)
-            ->orderBy('created_at')
-            ->get(['id', 'direction', 'from', 'to', 'body', 'message_id', 'created_at'])
-            ->map(function ($message) {
-                return [
-                    'id' => $message->id,
-                    'direction' => $message->direction,
-                    'from' => $message->from,
-                    'to' => $message->to,
-                    'body' => $message->body,
-                    'message_id' => $message->message_id,
-                    'created_at' => optional($message->created_at)->toDateTimeString(),
-                ];
-            })
-            ->values();
-
-        return response()->json([
-            'visitation' => [
-                'id' => (string) $visitationModel->id,
-                'pasien_nama' => optional($visitationModel->pasien)->nama ?: '-',
-            ],
-            'messages' => $messages,
-        ]);
-    }
-
-        /**
-     * Restore visitation status from dibatalkan (7) to tidak datang (0)
-     */
     public function restoreStatus(Request $request)
     {
         $request->validate([
@@ -801,8 +720,6 @@ class RawatJalanController extends Controller
                     // avoid eager-load queries by using cheap correlated subqueries
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
-                    ->selectRaw('EXISTS(SELECT 1 FROM wa_scheduled_messages wsm WHERE wsm.visitation_id = erm_visitations.id) as has_wa_scheduled_message')
-                    ->selectRaw("(SELECT COUNT(1) FROM wa_messages wm WHERE wm.visitation_id = erm_visitations.id AND LOWER(COALESCE(wm.direction, '')) = 'in') as incoming_wa_message_count")
                     ->selectRaw("CASE WHEN EXISTS (
                         SELECT 1
                         FROM erm_visitations ev_prev
@@ -1048,7 +965,6 @@ class RawatJalanController extends Controller
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $actionButtons = [];
-                    $whatsAppButton = '';
                     if ($user->hasRole('Perawat')) {
                         $visitationId = (string) $v->id;
                         if (!empty($v->has_screening_batuk)) {
@@ -1090,25 +1006,10 @@ class RawatJalanController extends Controller
                         $actionButtons[] = '<a href="' . route('surat.mondok', $v->latest_surat_mondok_id) . '" target="_blank" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Buka Surat Mondok"><i class="fas fa-bed mr-1"></i>Surat Mondok</a>';
                     }
 
-                    if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
-                        $incomingWaCount = intval($v->incoming_wa_message_count ?? 0);
-                        if ($user->hasRole('Pendaftaran') && (!empty($v->has_wa_scheduled_message) || $incomingWaCount > 0)) {
-                            $badgeHtml = $incomingWaCount > 0
-                                ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $incomingWaCount . '</span>'
-                                : '';
-                            $whatsAppButton = '<button class="btn btn-sm btn-success open-visitation-chat position-relative" style="font-weight:bold; overflow: visible;" data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? '-') . '" title="Riwayat WhatsApp"><i class="fab fa-whatsapp"></i>' . $badgeHtml . '</button>';
-                        }
-                    }
-
                         $buttonHtml = '';
-                        if (!empty($actionButtons) || $whatsAppButton !== '') {
+                        if (!empty($actionButtons)) {
                             $buttonHtml .= '<div class="d-inline-flex align-items-center">';
-                            if (!empty($actionButtons)) {
-                                $buttonHtml .= '<div class="btn-group btn-group-sm" role="group">' . implode('', $actionButtons) . '</div>';
-                            }
-                            if ($whatsAppButton !== '') {
-                                $buttonHtml .= '<div class="ml-1">' . $whatsAppButton . '</div>';
-                            }
+                            $buttonHtml .= '<div class="btn-group btn-group-sm" role="group">' . implode('', $actionButtons) . '</div>';
                             $buttonHtml .= '</div>';
                         }
 
@@ -1734,7 +1635,7 @@ class RawatJalanController extends Controller
         }
 
         // buat kunjungan baru
-        $visitation = Visitation::create([
+        Visitation::create([
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
             'tanggal_visitation' => $request->tanggal_visitation,
@@ -1744,15 +1645,6 @@ class RawatJalanController extends Controller
             'status_kunjungan' => 0,
             'jenis_kunjungan' => 1,
         ]);
-
-        try {
-            app(VisitationWhatsAppScheduler::class)->queueForVisitation($visitation);
-        } catch (\Exception $e) {
-            Log::error('Failed to queue visitation WhatsApp from RawatJalanController', [
-                'visitation_id' => $visitation->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
 
         return response()->json(['message' => 'Berhasil menjadwalkan ulang pasien.']);
     }

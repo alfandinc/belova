@@ -5,89 +5,20 @@ namespace App\Http\Controllers\Satusehat;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Satusehat\Location;
-use App\Models\ERM\Klinik;
 
+// Locations are edited per klinik in Admin > Klinik Setting (tab SatuSehat); this controller keeps link/delete
 class LocationController extends Controller
 {
-    public function index()
+    // Attach a location that has no klinik (or is a second location for a klinik) to a klinik without one
+    public function link(Request $request, Location $location)
     {
-        $kliniks = Klinik::orderBy('nama')->get();
-        return view('satusehat.locations.index', compact('kliniks'));
-    }
+        $data = $request->validate(['klinik_id' => 'required|exists:erm_klinik,id']);
+        if (Location::where('klinik_id', $data['klinik_id'])->where('id', '!=', $location->id)->exists()) {
+            return response()->json(['ok' => false, 'message' => 'Klinik ini sudah memiliki lokasi SatuSehat'], 422);
+        }
+        $location->update(['klinik_id' => $data['klinik_id']]);
 
-    public function data()
-    {
-        $locations = Location::with('klinik')->orderBy('id','desc')->get();
-        $rows = $locations->map(function($loc){
-            return [
-                'id' => $loc->id,
-                'klinik' => optional($loc->klinik)->nama,
-                'name' => $loc->name,
-                'identifier_value' => $loc->identifier_value,
-                'province' => $loc->province,
-                'city' => $loc->city,
-                'latlng' => ($loc->latitude || $loc->longitude) ? ($loc->latitude . ', ' . $loc->longitude) : '',
-                'aksi' => '<button class="btn btn-sm btn-primary btn-edit" data-id="'.$loc->id.'">Edit</button> '
-                         .'<button class="btn btn-sm btn-danger btn-delete" data-id="'.$loc->id.'">Delete</button>'
-            ];
-        });
-        return response()->json(['data' => $rows]);
-    }
-
-    public function show(Location $location)
-    {
-        return response()->json(['ok' => true, 'data' => $location]);
-    }
-
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'klinik_id' => 'nullable|integer',
-            'location_id' => 'nullable|string',
-            'description' => 'nullable|string',
-            'province' => 'nullable|string',
-            'city' => 'nullable|string',
-            'district' => 'nullable|string',
-            'village' => 'nullable|string',
-            'rt' => 'nullable|string',
-            'rw' => 'nullable|string',
-            'line' => 'nullable|string',
-            'postal_code' => 'nullable|string',
-            'identifier_value' => 'nullable|string',
-            'name' => 'nullable|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric'
-        ]);
-        // normalize empty strings to null for numeric fields
-        if(array_key_exists('latitude', $data) && $data['latitude'] === '') $data['latitude'] = null;
-        if(array_key_exists('longitude', $data) && $data['longitude'] === '') $data['longitude'] = null;
-        $loc = Location::create($data);
-        return response()->json(['ok' => true, 'data' => $loc]);
-    }
-
-    public function update(Request $request, Location $location)
-    {
-        $data = $request->validate([
-            'klinik_id' => 'nullable|integer',
-            'location_id' => 'nullable|string',
-            'description' => 'nullable|string',
-            'province' => 'nullable|string',
-            'city' => 'nullable|string',
-            'district' => 'nullable|string',
-            'village' => 'nullable|string',
-            'rt' => 'nullable|string',
-            'rw' => 'nullable|string',
-            'line' => 'nullable|string',
-            'postal_code' => 'nullable|string',
-            'identifier_value' => 'nullable|string',
-            'name' => 'nullable|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric'
-        ]);
-        if(array_key_exists('latitude', $data) && $data['latitude'] === '') $data['latitude'] = null;
-        if(array_key_exists('longitude', $data) && $data['longitude'] === '') $data['longitude'] = null;
-        $location->update($data);
-        return response()->json(['ok' => true, 'data' => $location]);
+        return response()->json(['ok' => true, 'message' => 'Lokasi dihubungkan ke klinik']);
     }
 
     public function destroy(Location $location)

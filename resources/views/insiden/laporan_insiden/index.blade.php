@@ -1,7 +1,7 @@
-@extends('layouts.insiden.app')
+@extends('layouts.workdoc.app')
 @section('title', 'Laporan Insiden')
 @section('navbar')
-    @include('layouts.insiden.navbar')
+    @include('layouts.workdoc.navbar')
 @endsection
 
 @section('content')
@@ -93,7 +93,7 @@ $(function() {
             return;
         }
         $.ajax({
-            url: '/insiden/laporan_insiden/' + id + '/diterima',
+            url: '/workdoc/insiden/laporan_insiden/' + id + '/diterima',
             type: 'POST',
             data: {
                 grading_resiko: grading,
@@ -158,7 +158,7 @@ $(function() {
     // Edit button event (delegated, still using modal or you can change to full page)
     // $('#laporanInsidenTable').on('click', '.btn-edit', function() {
     //     var id = $(this).data('id');
-    //     $.get('/insiden/laporan_insiden/' + id + '/edit', function(html) {
+    //     $.get('/workdoc/insiden/laporan_insiden/' + id + '/edit', function(html) {
     //         $('#modalLaporanInsidenBody').html(html);
     //         $('#modalLaporanInsiden').modal('show');
     //     });
@@ -178,7 +178,7 @@ $(function() {
         }).then((result) => {
             if (result.value) {
                 $.ajax({
-                    url: '/insiden/laporan_insiden/' + id,
+                    url: '/workdoc/insiden/laporan_insiden/' + id,
                     type: 'DELETE',
                     data: {
                         _token: $('meta[name="csrf-token"]').attr('content')

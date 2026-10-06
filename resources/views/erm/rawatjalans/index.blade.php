@@ -13,8 +13,6 @@
 
 @include('erm.partials.modal-reschedule')
 @include('erm.rawatjalans.partials.modal-daftar-kunjungan')
-@include('erm.rawatjalans.partials.modal-visitation-chat')
-@include('erm.rawatjalans.partials.modal-scheduled-messages')
 
 <div class="modal fade" id="modalKalenderAntrian" tabindex="-1" role="dialog" aria-labelledby="modalKalenderAntrianLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -196,9 +194,6 @@
 
                 <div class="rawatjalan-toolbar-actions rawatjalan-toolbar-actions-right">
                     <div class="btn-group" role="group" aria-label="Rawat jalan actions">
-                        {{-- <button type="button" class="btn btn-success" id="btn-scheduled-messages">
-                            <i class="fab fa-whatsapp"></i> Whatsapp Bot
-                        </button> --}}
                         <button type="button" class="btn btn-success" id="btn-queue-calendar">
                             <i class="fas fa-calendar-alt"></i> Antrian
                         </button>

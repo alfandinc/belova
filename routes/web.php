@@ -14,7 +14,6 @@ use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
     UserController,
     RoleController,
-    // WhatsAppController removed (waweb-js uninstalled)
 };
 use App\Http\Controllers\Finance\{
     BillingController,
@@ -97,7 +96,6 @@ use App\Http\Controllers\BCL\{
 
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\BelovaMengajiController;
-use App\Http\Controllers\SatusehatDashboardController;
 use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController;
 use App\Http\Controllers\BukuMenuController;
 use App\Http\Controllers\ChatController;
@@ -265,10 +263,10 @@ Route::middleware(['auth'])->group(function () {
         return redirect('/workdoc/akreditasi' . ($path ? '/' . $path : ''));
     })->where('path', '.*')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin');
 
-    // Insiden menu (Admin & Hrd roles)
-    Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
-        ->middleware('role:Admin|Hrd|Manager|Head Manager|Employee')
-        ->name('insiden.dashboard');
+    // Laporan Insiden has been merged into Dokumen Kerja (Workdoc); keep old links working
+    Route::get('/insiden/{path?}', function ($path = null) {
+        return redirect('/workdoc/insiden/laporan_insiden' . ($path && $path !== 'laporan_insiden' ? '/' . preg_replace('#^laporan_insiden/#', '', $path) : ''));
+    })->where('path', '.*')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin');
 
     Route::get('/bcl', [BCLDashboardController::class, 'index'])
         ->middleware('role:Kos|Admin')
@@ -346,8 +344,6 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Admin|Rnd|rnd|RND')
         ->name('rnd.masters.destroy');
 });
-
-// WhatsApp (waweb-js) integration removed: Node service and related endpoints deleted
 
 // AJAX: delete (zero-out) all stok records for an obat in a gudang (requires auth + role)
 Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObatFromGudang'])
@@ -432,9 +428,6 @@ Route::get('/running/export-csv', [\App\Http\Controllers\RunningController::clas
 Route::post('/running/verify', [\App\Http\Controllers\RunningController::class, 'verify'])
     ->middleware('auth')
     ->name('running.verify');
-Route::post('/running/{id}/mark-sent', [\App\Http\Controllers\RunningController::class, 'markSent'])
-    ->middleware('auth')
-    ->name('running.mark_sent');
 Route::post('/running/{id}/mark-email-sent', [\App\Http\Controllers\RunningController::class, 'markEmailSent'])
     ->middleware('auth')
     ->name('running.mark_email_sent');
@@ -452,9 +445,6 @@ Route::get('/running/ticket-html/{id}', [\App\Http\Controllers\RunningController
     ->name('running.ticket.html');
 
     
-// Public token-protected ticket HTML for bot (no auth middleware)
-Route::get('/running/ticket-html-public/{id}', [\App\Http\Controllers\RunningController::class, 'ticketHtmlForBot'])
-    ->name('running.ticket.html.public');
 
 // Public-facing Belova Premiere Run page (no auth required)
 Route::get('/belovapremiererun', function(){
@@ -473,14 +463,6 @@ Route::get('/belovapremiererun/ticket-html/{id}', [\App\Http\Controllers\Running
 Route::get('/belovapremiererun/ticket-download/{id}', [\App\Http\Controllers\RunningController::class, 'publicTicketImageDownload'])
     ->name('belovapremiererun.ticket_download');
 
-// Send running ticket via WhatsApp (single / bulk)
-Route::post('/running/send-whatsapp', [\App\Http\Controllers\RunningController::class, 'sendWhatsapp'])
-    ->middleware('auth')
-    ->name('running.send_whatsapp');
-Route::post('/running/send-whatsapp-bulk', [\App\Http\Controllers\RunningController::class, 'sendWhatsappBulk'])
-    ->middleware('auth')
-    ->name('running.send_whatsapp_bulk');
-
 // Verify peserta with notes (AJAX)
 Route::post('/running/{id}/verify-with-notes', [\App\Http\Controllers\RunningController::class, 'verifyWithNotes'])
     ->middleware('auth')
@@ -495,27 +477,21 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->middleware('auth')
     ->name('running.wa_preview');
 
-// SatuSehat dashboard (uses ERM layout with custom navbar)
-Route::get('/satusehat', [SatusehatDashboardController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.index');
+// SatuSehat lives in the Admin Panel; klinik configs are edited in Admin > Klinik Setting (tab SatuSehat)
+Route::get('/satusehat', fn () => redirect()->route('admin.klinik_settings.index'))->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.index');
 
 Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
-    Route::get('/clinics', [\App\Http\Controllers\SatusehatClinicController::class, 'index'])->name('satusehat.clinics.index');
-    Route::get('/clinics/data', [\App\Http\Controllers\SatusehatClinicController::class, 'data'])->name('satusehat.clinics.data');
-    Route::get('/clinics/create', [\App\Http\Controllers\SatusehatClinicController::class, 'create'])->name('satusehat.clinics.create');
-    Route::post('/clinics', [\App\Http\Controllers\SatusehatClinicController::class, 'store'])->name('satusehat.clinics.store');
-    Route::get('/clinics/{clinicConfig}/edit', [\App\Http\Controllers\SatusehatClinicController::class, 'edit'])->name('satusehat.clinics.edit');
-    Route::put('/clinics/{clinicConfig}', [\App\Http\Controllers\SatusehatClinicController::class, 'update'])->name('satusehat.clinics.update');
+    Route::get('/clinics/{any?}', fn () => redirect()->route('admin.klinik_settings.index'))->where('any', '.*')->name('satusehat.clinics.index');
+    Route::post('/clinics/{clinicConfig}/link', [\App\Http\Controllers\SatusehatClinicController::class, 'link'])->name('satusehat.clinics.link');
     Route::delete('/clinics/{clinicConfig}', [\App\Http\Controllers\SatusehatClinicController::class, 'destroy'])->name('satusehat.clinics.destroy');
     Route::post('/clinics/{clinicConfig}/token', [\App\Http\Controllers\SatusehatClinicController::class, 'requestToken'])->name('satusehat.clinics.token');
 });
 
 // SatuSehat Locations CRUD
 Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
-    Route::get('/locations', [\App\Http\Controllers\Satusehat\LocationController::class, 'index'])->name('satusehat.locations.index');
-    Route::get('/locations/data', [\App\Http\Controllers\Satusehat\LocationController::class, 'data'])->name('satusehat.locations.data');
-    Route::get('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'show'])->name('satusehat.locations.show');
-    Route::post('/locations', [\App\Http\Controllers\Satusehat\LocationController::class, 'store'])->name('satusehat.locations.store');
-    Route::put('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'update'])->name('satusehat.locations.update');
+    // Locations are edited per klinik in Admin > Klinik Setting (tab SatuSehat)
+    Route::get('/locations/{any?}', fn () => redirect()->route('admin.klinik_settings.index'))->where('any', '.*')->name('satusehat.locations.index');
+    Route::post('/locations/{location}/link', [\App\Http\Controllers\Satusehat\LocationController::class, 'link'])->name('satusehat.locations.link');
     Route::delete('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'destroy'])->name('satusehat.locations.destroy');
 });
 
@@ -894,16 +870,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/visitations/marketplace', [VisitationController::class, 'storeMarketplace'])->name('erm.visitations.marketplace.store');
     Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
-    
-    // WhatsApp Integration Routes removed (waweb-js uninstalled)
-    Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
+
+    Route::get('/rawatjalans',[RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/assets/index.js', [RawatJalanController::class, 'assetsJs'])->name('erm.rawatjalans.assets.js');
     Route::get('/rawatjalans/modals/common', [RawatJalanController::class, 'commonModals'])->name('erm.rawatjalans.modals.common');
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
     Route::get('/rawatjalans/modals/screening-vaksin', [RawatJalanController::class, 'screeningVaksinModals'])->name('erm.rawatjalans.modals.screeningVaksin');
     Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
-    Route::get('/rawatjalans/scheduled-messages', [RawatJalanController::class, 'scheduledMessages'])->name('erm.rawatjalans.scheduledMessages');
-    Route::get('/rawatjalans/{visitation}/messages', [RawatJalanController::class, 'visitationMessages'])->name('erm.rawatjalans.visitationMessages');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
@@ -1939,7 +1912,7 @@ Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
 });
 
 
-Route::prefix('insiden')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
+Route::prefix('workdoc/insiden')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
 
     Route::get('laporan_insiden/division-select2', [LaporanInsidenController::class, 'divisionSelect2'])->name('insiden.laporan_insiden.division-select2');
     Route::get('laporan_insiden', [LaporanInsidenController::class, 'index'])->name('insiden.laporan_insiden.index');
@@ -2074,29 +2047,7 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
             // Activity data for dashboard chart
             Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
-            // WhatsApp sessions management (Admin)
-            Route::post('/wa-sessions', [\App\Http\Controllers\Admin\WaSessionController::class, 'store'])->name('admin.wa_sessions.store');
-            Route::delete('/wa-sessions/{waSession}', [\App\Http\Controllers\Admin\WaSessionController::class, 'destroy'])->name('admin.wa_sessions.destroy');
-                Route::get('/wa-visitation-templates', [\App\Http\Controllers\Admin\WaVisitationTemplateController::class, 'index'])->name('admin.wa_visitation_templates.index');
-                Route::put('/wa-visitation-templates/{waSession}', [\App\Http\Controllers\Admin\WaVisitationTemplateController::class, 'update'])->name('admin.wa_visitation_templates.update');
-            
-                    // Admin message log (DataTables)
-                    Route::get('/wa-messages-log', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'index'])->name('admin.wa_messages.index');
-                    Route::get('/wa-messages-log/data', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'data'])->name('admin.wa_messages.data');
-                    Route::get('/wa-messages-log/pasien/{pasien}', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'conversation'])->name('admin.wa_messages.conversation');
-                    Route::get('/wa-messages-log/pasien/{pasien}/partial', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'conversationPartial'])->name('admin.wa_messages.conversation_partial');
-            
-    // WhatsApp admin UI removed (waweb-js uninstalled)
-    
     });
-
-// Public endpoint for wa-bot to fetch sessions (no auth)
-Route::get('/wa-sessions', [\App\Http\Controllers\Admin\WaSessionController::class, 'index']);
-// Public endpoint to receive message logs from wa-bot (exclude CSRF)
-Route::post('/wa-messages', [\App\Http\Controllers\Admin\WaMessageController::class, 'store'])
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
-
-// WhatsApp webhook routes removed
 
 // Get Master Data
 Route::get('/get-provinces', [AddressController::class, 'getProvinces']);
@@ -2321,8 +2272,6 @@ Route::post('/finance/notifications/{id}/mark-read', [\App\Http\Controllers\ERM\
 // KPI simulation preview route for HRD
 Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
 
-// WhatsApp integration test/debug routes removed
-
 // Payroll Slip Gaji Dokter (standalone slips for Dokter)
 Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'index'])->name('hrd.payroll.slip_gaji_dokter.index');
@@ -2377,15 +2326,6 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Head Manager|Employee|Adm
     Route::get('/surat-keluar/{id}/download', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'download'])->name('workdoc.surat-keluar.download');
 });
 
-// Admin WhatsApp Test UI (simple forwarder to local Node wa-bot)
-Route::get('/admin/whatsapp-test', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'index'])
-    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.index');
-Route::post('/admin/whatsapp-test/send', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'send'])
-    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.send');
-
-// AJAX pasien search for WhatsApp Test Select2
-Route::get('/admin/whatsapp-test/pasien-search', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'pasienSearch'])
-    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.pasien_search');
 
 
 // Lab config: select active Dokter for Lembar Monitoring (only dokters with Spesialisasi 'Laboratorium')

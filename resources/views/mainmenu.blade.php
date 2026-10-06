@@ -661,7 +661,6 @@
     .tile-finance { background-color: #f6b042; }      /* amber/gold */
     .tile-inventory { background-color: #b794ff; }    /* soft purple */
     .tile-kos { background-color: #ff6fb5; }          /* magenta */
-    .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
     .tile-belova-mengaji { background-color: #0ed668; } /* green */
     .tile-joblist { background-color: #00b8d9; }      /* bright cyan */
@@ -670,7 +669,6 @@
     .tile-daily-journal { background-color: #da16d0; } /* warm pink */
     .tile-rnd { background-color: #0f766e; }       /* research teal */
 
-    .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
@@ -1135,7 +1133,7 @@
                     <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
-                     <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files akreditasi quality compliance"
+                     <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files akreditasi quality compliance insiden laporan kecelakaan"
                          @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
                    @endif>
@@ -1149,7 +1147,7 @@
                         @endif
                     </div>
                     <div class="menu-title">Dokumen Kerja</div>
-                    <div class="menu-sub">SOP, Template & Akreditasi</div>
+                    <div class="menu-sub">SOP, Akreditasi & Insiden</div>
                 </a>
 
                 <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9" data-filter="marketing campaign ads"
@@ -1200,18 +1198,6 @@
                     </div>
                     <div class="menu-title">Product R&D</div>
                     <div class="menu-sub">Research and Development</div>
-                </a>
-
-                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13" data-filter="insiden laporan kecelakaan"
-                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Head Manager','Employee','Admin']))
-                       onclick="showRoleWarning(event, 'INSIDEN')"
-                    @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="menu-badge">Alert</div>
-                    </div>
-                    <div class="menu-title">Laporan Insiden</div>
-                    <div class="menu-sub">Keamanan & Laporan</div>
                 </a>
 
                 <a href="/bcl" class="menu-tile tile-kos animate-item delay-14" data-filter="bcl kos"
@@ -1280,7 +1266,7 @@
                 --}}
                 
                 <!-- Admin Panel -->
-                <a href="/admin/users" class="menu-tile tile-admin animate-item delay-18" data-filter="admin users pengaturan"
+                <a href="/admin/users" class="menu-tile tile-admin animate-item delay-18" data-filter="admin users pengaturan satusehat bpjs kesehatan"
                    @if(!array_intersect($userRoles, ['Admin']))
                        onclick="showRoleWarning(event, 'Admin Panel')"
                    @endif>
@@ -1289,21 +1275,7 @@
                         <div class="menu-badge">Admin</div>
                     </div>
                     <div class="menu-title">Admin Panel</div>
-                    <div class="menu-sub">Manajemen Pengguna</div>
-                </a>
-                @php
-                    // Allow access only to users with role 'Satusehat' or 'Admin'
-                    $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;                @endphp
-                <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
-                   @if(!$hasSatusehatAccess)
-                       onclick="showRoleWarning(event, 'Satusehat')"
-                   @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-hospital"></i></div>
-                        <div class="menu-badge">SatuSehat</div>
-                    </div>
-                    <div class="menu-title">SatuSehat</div>
-                    <div class="menu-sub">Integrasi Data Kesehatan</div>
+                    <div class="menu-sub">Pengguna & SatuSehat</div>
                 </a>
                 <!-- Assessment module (added last) -->
                 <a href="{{ route('kpi.evaluatees.index') }}" class="menu-tile tile-hrd animate-item delay-21" id="assessment-tile" data-filter="assessment penilaian kpi"

@@ -230,16 +230,6 @@ class Visitation extends Model
         return $this->hasOne(ScreeningVaksin::class, 'visitation_id');
     }
 
-    public function waMessages()
-    {
-        return $this->hasMany(\App\Models\WaMessage::class, 'visitation_id');
-    }
-
-    public function waScheduledMessages()
-    {
-        return $this->hasMany(\App\Models\WaScheduledMessage::class, 'visitation_id');
-    }
-
     public function suratIstirahats()
     {
         return $this->hasMany(SuratIstirahat::class, 'pasien_id', 'pasien_id');

@@ -1,7 +1,7 @@
-@extends('layouts.insiden.app')
+@extends('layouts.workdoc.app')
 @section('title', 'Tambah Laporan Insiden')
 @section('navbar')
-    @include('layouts.insiden.navbar')
+    @include('layouts.workdoc.navbar')
 @endsection
 @section('content')
 <div class="container-fluid">
@@ -393,7 +393,7 @@ $(function() {
         placeholder: 'Pilih Unit Penyebab',
         allowClear: true,
         ajax: {
-            url: '/insiden/laporan_insiden/division-select2',
+            url: '/workdoc/insiden/laporan_insiden/division-select2',
             dataType: 'json',
             delay: 250,
             data: function (params) {

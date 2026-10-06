@@ -3,37 +3,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Satusehat\ClinicConfig;
-use App\Models\ERM\Klinik;
-use Yajra\DataTables\Facades\DataTables;
 use GuzzleHttp\Client;
 
 class SatusehatClinicController extends Controller
 {
-    public function index()
-    {
-        return view('satusehat.clinics.index');
-    }
-
-    /**
-     * Data for Yajra DataTable (server-side)
-     */
-    public function data(Request $request)
-    {
-        $query = ClinicConfig::with('klinik')->select('satusehat_clinic_configs.*');
-        return DataTables::of($query)
-            ->addColumn('klinik', function ($row) {
-                return $row->klinik->nama ?? '-';
-            })
-            ->addColumn('actions', function ($row) {
-                $edit = '<button data-id="' . $row->id . '" class="btn btn-sm btn-secondary btn-edit">Edit</button>';
-                $token = '<button data-id="' . $row->id . '" class="btn btn-sm btn-info btn-token">Token</button>';
-                $del = '<button data-id="' . $row->id . '" class="btn btn-sm btn-danger btn-delete">Hapus</button>';
-                return $edit . ' ' . $token . ' ' . $del;
-            })
-            ->rawColumns(['actions'])
-            ->make(true);
-    }
-
+    // Klinik configs are managed in Admin > Klinik Setting; this controller keeps the SatuSehat-specific actions
     /**
      * Request access token from the configured auth_url using client credentials
      */
@@ -151,84 +125,16 @@ class SatusehatClinicController extends Controller
         }
     }
 
-    public function create()
+    // Attach a config that has no klinik (or is a second config for a klinik) to a klinik without one
+    public function link(Request $request, ClinicConfig $clinicConfig)
     {
-        // not used (modal form used instead)
-        $kliniks = Klinik::orderBy('nama')->get();
-        return view('satusehat.clinics.form', ['kliniks' => $kliniks, 'config' => new ClinicConfig()]);
-    }
-
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'klinik_id' => 'nullable|exists:erm_klinik,id',
-            'auth_url' => 'nullable|string|max:255',
-            'base_url' => 'nullable|string|max:255',
-            'consent_url' => 'nullable|string|max:255',
-            'client_id' => 'nullable|string|max:255',
-            'client_secret' => 'nullable|string|max:255',
-            'organization_id' => 'nullable|string|max:255',
-            'token' => 'nullable|string',
-        ]);
-
-        // default SatuSehat endpoints
-        $defaults = [
-            'auth_url' => 'https://api-satusehat.kemkes.go.id/oauth2/v1',
-            'base_url' => 'https://api-satusehat.kemkes.go.id/fhir-r4/v1',
-            'consent_url' => 'https://api-satusehat.kemkes.go.id/consent/v1',
-        ];
-
-        $data = array_merge($defaults, $data);
-
-        $config = ClinicConfig::create($data);
-
-        if ($request->ajax()) {
-            return response()->json(['ok' => true, 'data' => $config, 'message' => 'Konfigurasi klinik berhasil ditambahkan']);
+        $data = $request->validate(['klinik_id' => 'required|exists:erm_klinik,id']);
+        if (ClinicConfig::where('klinik_id', $data['klinik_id'])->where('id', '!=', $clinicConfig->id)->exists()) {
+            return response()->json(['ok' => false, 'message' => 'Klinik ini sudah memiliki konfigurasi SatuSehat'], 422);
         }
+        $clinicConfig->update(['klinik_id' => $data['klinik_id']]);
 
-        return redirect()->route('satusehat.clinics.index')->with('success','Konfigurasi klinik berhasil ditambahkan');
-    }
-
-    public function edit(Request $request, ClinicConfig $clinicConfig)
-    {
-        // if requested via AJAX, return JSON for modal population
-        if ($request->ajax()) {
-            return response()->json($clinicConfig->load('klinik'));
-        }
-
-        $kliniks = Klinik::orderBy('nama')->get();
-        return view('satusehat.clinics.form', ['kliniks' => $kliniks, 'config' => $clinicConfig]);
-    }
-
-    public function update(Request $request, ClinicConfig $clinicConfig)
-    {
-        $data = $request->validate([
-            'klinik_id' => 'nullable|exists:erm_klinik,id',
-            'auth_url' => 'nullable|string|max:255',
-            'base_url' => 'nullable|string|max:255',
-            'consent_url' => 'nullable|string|max:255',
-            'client_id' => 'nullable|string|max:255',
-            'client_secret' => 'nullable|string|max:255',
-            'organization_id' => 'nullable|string|max:255',
-            'token' => 'nullable|string',
-        ]);
-
-        // ensure defaults exist if not provided during update
-        $defaults = [
-            'auth_url' => 'https://api-satusehat.kemkes.go.id/oauth2/v1',
-            'base_url' => 'https://api-satusehat.kemkes.go.id/fhir-r4/v1',
-            'consent_url' => 'https://api-satusehat.kemkes.go.id/consent/v1',
-        ];
-
-        $data = array_merge($defaults, $data);
-
-        $clinicConfig->update($data);
-
-        if ($request->ajax()) {
-            return response()->json(['ok' => true, 'data' => $clinicConfig, 'message' => 'Konfigurasi klinik berhasil diperbarui']);
-        }
-
-        return redirect()->route('satusehat.clinics.index')->with('success','Konfigurasi klinik berhasil diperbarui');
+        return response()->json(['ok' => true, 'message' => 'Konfigurasi dihubungkan ke klinik']);
     }
 
     public function destroy(Request $request, ClinicConfig $clinicConfig)

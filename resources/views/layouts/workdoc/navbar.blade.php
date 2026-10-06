@@ -75,6 +75,9 @@
             <li>
                 <a href="{{ route('akreditasi.index') }}"> <i data-feather="award" class="align-self-center menu-icon"></i><span>Akreditasi</span></a>
             </li>
+            <li>
+                <a href="{{ route('insiden.laporan_insiden.index') }}"> <i data-feather="alert-triangle" class="align-self-center menu-icon"></i><span>Laporan Insiden</span></a>
+            </li>
         </ul>            
     </div>
 </div>
