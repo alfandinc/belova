@@ -32,15 +32,34 @@ class EmployeeScheduleController extends Controller
             return response()->json(['success' => false, 'message' => 'Missing employee_id or date'], 400);
         }
 
-        $query = EmployeeSchedule::where('employee_id', $employeeId)
-            ->where('date', $date);
+        $date = Carbon::parse($date)->toDateString();
+        try {
+            $deleted = DB::transaction(function () use ($employeeId, $date, $scheduleId) {
+                $query = EmployeeSchedule::where('employee_id', $employeeId)->whereDate('date', $date);
+                $before = (clone $query)->count();
 
-        // Jika ada schedule_id, hapus hanya jadwal tersebut.
-        if ($scheduleId) {
-            $query->where('id', $scheduleId);
+                // Jika ada schedule_id, hapus hanya jadwal tersebut.
+                if ($scheduleId) {
+                    $query->where('id', $scheduleId);
+                }
+                $deleted = $query->delete();
+
+                // Hari Minggu / libur nasional jadi kosong: sama seperti simpan jadwal (cek klaim, jatah -1)
+                if ($deleted && $deleted === $before && LiburNasional::isHariGantiLibur($date)) {
+                    if ($error = PengajuanLibur::claimedError($employeeId, $date)) {
+                        throw new \DomainException('Jadwal tidak bisa dihapus. ' . $error);
+                    }
+                    JatahLibur::adjustGantiLibur($employeeId, -1);
+                }
+
+                return $deleted;
+            });
+        } catch (\DomainException $e) {
+            return $request->ajax()
+                ? response()->json(['success' => false, 'message' => $e->getMessage()], 422)
+                : redirect()->back()->with('error', $e->getMessage());
         }
 
-        $deleted = $query->delete();
         if ($request->ajax()) {
             return response()->json(['success' => $deleted > 0]);
         }
@@ -237,13 +256,8 @@ class EmployeeScheduleController extends Controller
 
                         // Hari Minggu / libur nasional yang sudah dipakai ganti libur tidak boleh dikosongkan
                         if (!$wasEmpty && !array_filter((array) $shiftIds) && LiburNasional::isHariGantiLibur($normalizedDate, $liburNasional)
-                            && ($claim = $this->findClaimOf($employeeId, $normalizedDate))) {
-                            $name = Employee::whereKey($employeeId)->value('nama');
-                            $fmt = fn($d) => Carbon::parse($d)->locale('id')->isoFormat('ddd D MMM YYYY');
-                            throw new \DomainException("Jadwal {$name} tanggal " . $fmt($normalizedDate)
-                                . ' tidak bisa dikosongkan karena sudah dipakai ganti libur tanggal ' . $fmt($claim->tanggal_mulai)
-                                . ($claim->total_hari > 1 ? ' – ' . $fmt($claim->tanggal_selesai) : '')
-                                . '. Batalkan / tolak ganti libur tersebut terlebih dahulu.');
+                            && ($error = PengajuanLibur::claimedError($employeeId, $normalizedDate))) {
+                            throw new \DomainException('Jadwal tidak bisa dikosongkan. ' . $error);
                         }
 
                         // Hapus semua jadwal existing untuk karyawan & tanggal ini,
@@ -465,15 +479,6 @@ class EmployeeScheduleController extends Controller
             ->first(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true));
     }
 
-    // Ganti libur aktif yang memakai hari masuk ini sebagai pengganti
-    private function findClaimOf($employeeId, string $date): ?PengajuanLibur
-    {
-        return PengajuanLibur::gantiLiburAktif($employeeId)
-            ->whereNotNull('tanggal_masuk_pengganti')
-            ->get()
-            ->first(fn($p) => in_array($date, array_map(fn($d) => Carbon::parse($d)->toDateString(), (array) $p->tanggal_masuk_pengganti), true));
-    }
-
     private function findGantiLiburHrd($employeeId, string $date): ?PengajuanLibur
     {
         return PengajuanLibur::where('employee_id', $employeeId)
@@ -523,11 +528,12 @@ class EmployeeScheduleController extends Controller
 
         // Build a set of employee_id_date that should be treated as Libur/Cuti on target week
         $liburMap = [];
-        $libur = \App\Models\HRD\PengajuanLibur::where('status_manager', 'disetujui')
+        // Sama dengan tampilan grid (weekSchedules): disetujui atasan, tidak ditolak HRD, beririsan dengan minggu target
+        $libur = PengajuanLibur::where('status_manager', 'disetujui')
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak'))
             ->whereIn('employee_id', $employeeIds)
-            ->where(function ($q) use ($targetDates) {
-                $q->whereIn('tanggal_mulai', $targetDates)->orWhereIn('tanggal_selesai', $targetDates);
-            })
+            ->whereDate('tanggal_mulai', '<=', $targetDates->last())
+            ->whereDate('tanggal_selesai', '>=', $targetDates->first())
             ->get();
         foreach ($libur as $cuti) {
             $empId = $cuti->employee_id;
@@ -568,6 +574,8 @@ class EmployeeScheduleController extends Controller
         }
 
         $inserted = 0;
+        $gantiLiburAdded = 0;
+        $holidays = LiburNasional::namesByDate($targetDates->first(), $targetDates->last());
         DB::beginTransaction();
         try {
             foreach ($sourceMap as $key => $shiftIds) {
@@ -588,7 +596,9 @@ class EmployeeScheduleController extends Controller
                     if (isset($existingTarget[$empId . '_' . $tgtDate])) {
                         continue;
                     }
-                } else {
+                }
+                $wasEmpty = !EmployeeSchedule::where('employee_id', $empId)->where('date', $tgtDate)->exists();
+                if ($overwrite) {
                     EmployeeSchedule::where('employee_id', $empId)
                         ->where('date', $tgtDate)
                         ->delete();
@@ -603,6 +613,12 @@ class EmployeeScheduleController extends Controller
                     ]);
                     $inserted++;
                 }
+
+                // Hari Minggu / libur nasional yang sebelumnya kosong: +1 jatah ganti libur (sama seperti simpan jadwal)
+                if ($wasEmpty && $shiftIds && LiburNasional::isHariGantiLibur($tgtDate, $holidays)) {
+                    JatahLibur::adjustGantiLibur($empId, +1);
+                    $gantiLiburAdded++;
+                }
             }
 
             DB::commit();
@@ -615,6 +631,7 @@ class EmployeeScheduleController extends Controller
             'success' => true,
             'message' => 'Jadwal berhasil dicopy dari minggu sebelumnya.',
             'inserted' => $inserted,
+            'ganti_libur_added' => $gantiLiburAdded,
             'source_start' => $sourceStart->toDateString(),
             'target_start' => $targetStart->toDateString(),
         ]);

@@ -21,4 +21,15 @@ class JatahLibur extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+
+    /**
+     * +1 / -1 jatah ganti libur (never below 0). Must run inside a transaction.
+     */
+    public static function adjustGantiLibur($employeeId, int $delta): void
+    {
+        static::firstOrCreate(['employee_id' => $employeeId], ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]);
+        $jatah = static::where('employee_id', $employeeId)->lockForUpdate()->first();
+        $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur + $delta);
+        $jatah->save();
+    }
 }

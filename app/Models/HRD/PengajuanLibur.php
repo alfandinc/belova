@@ -67,7 +67,39 @@ class PengajuanLibur extends Model
             ->get()
             ->pluck('tanggal_masuk_pengganti')
             ->flatten()
+            ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())
             ->all();
+    }
+
+    /**
+     * The active ganti libur request that uses $date (Sunday / holiday worked) as its pengganti, if any.
+     */
+    public static function claimOf($employeeId, $date): ?self
+    {
+        $date = \Carbon\Carbon::parse($date)->toDateString();
+
+        return static::gantiLiburAktif($employeeId)
+            ->whereNotNull('tanggal_masuk_pengganti')
+            ->get()
+            ->first(fn($p) => collect($p->tanggal_masuk_pengganti)
+                ->contains(fn($d) => \Carbon\Carbon::parse($d)->toDateString() === $date));
+    }
+
+    /**
+     * Error message for removing the work on a claimed Sunday / holiday, or null when it is free.
+     */
+    public static function claimedError($employeeId, $date): ?string
+    {
+        $claim = static::claimOf($employeeId, $date);
+        if (!$claim) {
+            return null;
+        }
+        $fmt = fn($d) => \Carbon\Carbon::parse($d)->locale('id')->isoFormat('ddd D MMM YYYY');
+        $nama = Employee::whereKey($employeeId)->value('nama') ?? ('#' . $employeeId);
+
+        return "Hari masuk {$nama} tanggal " . $fmt($date) . ' sudah dipakai ganti libur tanggal ' . $fmt($claim->tanggal_mulai)
+            . ($claim->total_hari > 1 ? ' – ' . $fmt($claim->tanggal_selesai) : '')
+            . '. Batalkan / tolak ganti libur tersebut terlebih dahulu.';
     }
 
     /**

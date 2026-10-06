@@ -639,7 +639,8 @@
                     .then(function (res) { return res.json(); })
                     .then(function (data) {
                         if (data && data.success) {
-                            showAlert('success', 'Berhasil copy' + (data.inserted ? ' (+' + data.inserted + ' shift)' : ''));
+                            showAlert('success', 'Berhasil copy' + (data.inserted ? ' (+' + data.inserted + ' shift)' : '') +
+                                (data.ganti_libur_added ? '. Jatah ganti libur +1 untuk ' + data.ganti_libur_added + ' hari Minggu/libur nasional.' : ''));
                             return loadWeek(targetStart, true);
                         }
                         showAlert('danger', (data && data.message) || 'Gagal copy jadwal');
@@ -869,11 +870,11 @@
                     })
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
-                            if (!data || !data.success) throw new Error();
-                            showAlert('success', 'Shift berhasil dihapus');
+                            if (!data || !data.success) throw new Error((data && data.message) || '');
+                            showAlert('success', 'Shift berhasil dihapus' + (data.ganti_libur_removed ? '. Jatah ganti libur -1 untuk ' + data.ganti_libur_removed + ' hari Minggu/libur nasional yang jadi kosong.' : ''));
                             return reloadAfterShiftChange();
                         })
-                        .catch(function () { showAlert('danger', 'Gagal menghapus shift'); })
+                        .catch(function (err) { showAlert('danger', (err && err.message) || 'Gagal menghapus shift'); })
                         .finally(function () { showLoading(false); });
                 });
             }

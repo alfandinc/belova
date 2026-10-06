@@ -3,8 +3,14 @@
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
+use App\Models\HRD\EmployeeSchedule;
+use App\Models\HRD\JatahLibur;
+use App\Models\HRD\LiburNasional;
+use App\Models\HRD\PengajuanLibur;
 use App\Models\HRD\Shift;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ShiftController extends Controller
 {
@@ -42,10 +48,33 @@ class ShiftController extends Controller
      */
     public function destroy(Request $request, Shift $shift)
     {
-        $shift->delete();
+        $holidays = LiburNasional::namesByDate();
+
+        // Hari Minggu / libur nasional yang jadi kosong karena jadwalnya ikut terhapus (cascade):
+        // sama seperti mengosongkan jadwal -> ditolak jika sudah dipakai ganti libur, selain itu jatah -1
+        $emptied = EmployeeSchedule::where('shift_id', $shift->id)->get()
+            ->map(fn($s) => [$s->employee_id, Carbon::parse($s->date)->toDateString()])
+            ->unique(fn($x) => $x[0] . '_' . $x[1])
+            ->filter(fn($x) => LiburNasional::isHariGantiLibur($x[1], $holidays)
+                && !EmployeeSchedule::where('employee_id', $x[0])->whereDate('date', $x[1])->where('shift_id', '!=', $shift->id)->exists())
+            ->values();
+
+        foreach ($emptied as [$employeeId, $date]) {
+            if ($error = PengajuanLibur::claimedError($employeeId, $date)) {
+                return response()->json(['success' => false, 'message' => 'Shift tidak bisa dihapus. ' . $error], 422);
+            }
+        }
+
+        DB::transaction(function () use ($shift, $emptied) {
+            foreach ($emptied as [$employeeId]) {
+                JatahLibur::adjustGantiLibur($employeeId, -1);
+            }
+            $shift->delete();
+        });
 
         return response()->json([
             'success' => true,
+            'ganti_libur_removed' => $emptied->count(),
         ]);
     }
 

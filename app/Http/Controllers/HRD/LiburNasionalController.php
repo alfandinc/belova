@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\HRD\EmployeeSchedule;
 use App\Models\HRD\JatahLibur;
 use App\Models\HRD\LiburNasional;
+use App\Models\HRD\PengajuanLibur;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -83,6 +84,10 @@ class LiburNasionalController extends Controller
         $oldDate = $holiday->tanggal->toDateString();
         $newDate = Carbon::parse($data['tanggal'])->toDateString();
 
+        if ($oldDate !== $newDate && ($error = $this->claimedError($oldDate))) {
+            return response()->json(['success' => false, 'message' => 'Tanggal libur tidak bisa dipindah. ' . $error], 422);
+        }
+
         $message = DB::transaction(function () use ($holiday, $data, $oldDate, $newDate) {
             $holiday->update($data);
             if ($oldDate === $newDate) {
@@ -102,6 +107,10 @@ class LiburNasionalController extends Controller
     public function destroy($id)
     {
         $holiday = LiburNasional::findOrFail($id);
+
+        if ($error = $this->claimedError($holiday->tanggal->toDateString())) {
+            return response()->json(['success' => false, 'message' => 'Libur nasional tidak bisa dihapus. ' . $error], 422);
+        }
 
         $affected = DB::transaction(function () use ($holiday) {
             $date = $holiday->tanggal->toDateString();
@@ -129,16 +138,29 @@ class LiburNasionalController extends Controller
         $employeeIds = EmployeeSchedule::whereDate('date', $date)->distinct()->pluck('employee_id');
 
         foreach ($employeeIds as $employeeId) {
-            JatahLibur::firstOrCreate(
-                ['employee_id' => $employeeId],
-                ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
-            );
-            $jatah = JatahLibur::where('employee_id', $employeeId)->lockForUpdate()->first();
-            $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur + $delta);
-            $jatah->save();
+            JatahLibur::adjustGantiLibur($employeeId, $delta);
         }
 
         return $employeeIds->count();
+    }
+
+    /**
+     * A holiday (not on a Sunday) whose date some employee already used as ganti libur pengganti
+     * cannot be removed or moved, otherwise that day off would lose the day it replaces.
+     */
+    private function claimedError(string $date): ?string
+    {
+        if (Carbon::parse($date)->isSunday()) {
+            return null;
+        }
+        $employeeIds = EmployeeSchedule::whereDate('date', $date)->distinct()->pluck('employee_id');
+        foreach ($employeeIds as $employeeId) {
+            if ($error = PengajuanLibur::claimedError($employeeId, $date)) {
+                return $error;
+            }
+        }
+
+        return null;
     }
 
     private function affectedMessage(int $count, int $delta): string

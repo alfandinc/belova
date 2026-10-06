@@ -124,21 +124,7 @@ class PengajuanGantiShiftController extends Controller
             return null;
         }
 
-        $claimed = PengajuanLibur::where('employee_id', $employeeId)
-            ->where('jenis_libur', 'ganti_libur')
-            ->whereNotNull('tanggal_masuk_pengganti')
-            ->where(function ($q) {
-                $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
-            })
-            ->where(function ($q) {
-                $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
-            })
-            ->get()
-            ->pluck('tanggal_masuk_pengganti')
-            ->flatten()
-            ->contains($tanggal);
-
-        return $claimed
+        return PengajuanLibur::claimOf($employeeId, $tanggal)
             ? 'Tanggal ini sudah dipakai sebagai hari masuk pengganti pada pengajuan ganti libur, sehingga tidak bisa digantikan rekan.'
             : null;
     }
