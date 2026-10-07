@@ -869,6 +869,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/pasiens/check-identity-number', [PasienController::class, 'checkIdentityNumber'])->name('erm.pasiens.check-identity-number');
     Route::get('/pasiens/check-duplicate-name-birthdate', [PasienController::class, 'checkDuplicateNameBirthdate'])->name('erm.pasiens.check-duplicate-name-birthdate');
     Route::get('/pasiens/marketplace/check-duplicate', [PasienController::class, 'checkMarketplaceDuplicate'])->name('erm.pasiens.marketplace.check-duplicate');
+    Route::get('/pasiens/duplicates', [App\Http\Controllers\ERM\PasienMergeController::class, 'duplicates'])->name('erm.pasiens.duplicates');
+    Route::post('/pasiens/merge', [App\Http\Controllers\ERM\PasienMergeController::class, 'merge'])->name('erm.pasiens.merge');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');

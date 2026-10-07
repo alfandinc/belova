@@ -80,11 +80,6 @@
     min-width: 170px;
 }
 
-.pasien-filter-item.date-range-filter {
-    flex-basis: 150px;
-    min-width: 150px;
-}
-
 .pasien-filter-item.alamat-filter {
     flex-basis: 220px;
     min-width: 220px;
@@ -114,8 +109,9 @@
     gap: 1rem;
     overflow-x: auto;
     overflow-y: hidden;
-    padding-bottom: 0.35rem;
-    margin-bottom: 1.25rem;
+    /* room for the active-filter ring */
+    padding: 6px 6px 0.5rem;
+    margin-bottom: 1rem;
 }
 
 .pasien-stats-section {
@@ -139,8 +135,10 @@
     gap: 0.75rem;
 }
 
+/* Cards are as wide as their content, so every label stays on one line and all cards share one height */
 .pasien-stats-grid > * {
-    flex: 0 0 132px;
+    flex: 0 0 auto;
+    min-width: 120px;
 }
 
 .pasien-stat-card {
@@ -178,6 +176,38 @@
     letter-spacing: 0.06em;
     opacity: 0.88;
     color: rgba(255, 255, 255, 0.92);
+    white-space: nowrap;
+}
+
+/* Field picker for the Data Belum Lengkap filter */
+.kelengkapan-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+}
+
+.kelengkapan-chip.active {
+    color: #fff;
+    background-color: #d97706;
+    border-color: #d97706;
+}
+
+/* Duplikasi Pasien: blinking warning icon to draw attention */
+@keyframes pasien-warning-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+}
+
+.pasien-stat-blink i {
+    animation: pasien-warning-blink 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pasien-stat-blink i {
+        animation: none;
+    }
 }
 
 .pasien-stat-value {
@@ -185,6 +215,37 @@
     line-height: 1.1;
     font-weight: 700;
     color: #fff;
+}
+
+/* Stat cards are filter buttons (and the Duplikasi Pasien card opens its modal) */
+.pasien-stat-filter,
+.pasien-stat-action {
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
+}
+
+.pasien-stat-filter:hover,
+.pasien-stat-action:hover {
+    transform: translateY(-2px);
+}
+
+.pasien-stat-filter:focus,
+.pasien-stat-action:focus {
+    outline: none;
+}
+
+.pasien-stat-action:focus-visible,
+.pasien-stat-action.active,
+.pasien-stat-filter:focus-visible,
+.pasien-stat-filter.active {
+    box-shadow: 0 0 0 3px var(--pasien-fixed-bg), 0 0 0 5px var(--pasien-fixed-text);
+}
+
+/* When a group has an active filter, dim the other cards in that group */
+.pasien-stats-grid.has-active .pasien-stat-filter:not(.active) {
+    opacity: 0.45;
 }
 
 .pasien-stat-theme-primary { background: linear-gradient(135deg, #2f6df6, #4f8bff); }
@@ -215,11 +276,6 @@
         min-width: 200px;
     }
 
-    .pasien-filter-item.date-range-filter {
-        flex-basis: 205px;
-        min-width: 205px;
-    }
-
     .pasien-filter-actions {
         flex: 0 0 auto;
     }
@@ -229,7 +285,7 @@
     }
 
     .pasien-stats-grid > * {
-        flex-basis: 120px;
+        min-width: 110px;
     }
 }
 
@@ -368,8 +424,8 @@ body > .pasien-action-dropdown-floating {
 }
 </style>
 @include('erm.rawatjalans.partials.modal-daftar-kunjungan')
-@include('erm.partials.modal-info-pasien')
 @include('erm.partials.modal-ic-pendaftaran')
+@include('erm.pasiens.partials.pasien-form-modal')
 
 <!-- Unified Manage Pasien Modal: Status Pasien, Status Akses, Status Review, Merchandise -->
 <div class="modal fade" id="modalManagePasien" tabindex="-1" role="dialog" aria-labelledby="modalManagePasienLabel" aria-hidden="true">
@@ -505,9 +561,9 @@ body > .pasien-action-dropdown-floating {
                                         </ol>
                                     </div><!--end col-->
                                     <div class="col-auto align-self-center">
-                                        <a href="{{ route('erm.pasiens.create') }}" class="btn btn-primary btn-lg">
+                                        <button type="button" id="btnPasienBaru" class="btn btn-primary btn-lg">
                                             <i class="fas fa-plus-square mr-2"></i>Pasien Baru
-                                        </a>
+                                        </button>
                                     </div><!--end col-->  
                                 </div><!--end row-->                                                              
                             </div><!--end page-title-box-->
@@ -521,58 +577,61 @@ body > .pasien-action-dropdown-floating {
             <h4 class="card-title text-white">Daftar Pasien</h4>
         </div> --}}
         <div class="card-body">
+            {{-- Perlu dicek: duplicates (Admin) and incomplete data; status cards double as filter buttons (click again to clear) --}}
             <div class="pasien-stats-board">
                 <div class="pasien-stats-section">
-                    <div class="pasien-stats-group-title">Pasien Baru</div>
-                    <div class="pasien-stats-grid" id="pasien-summary-stats">
-                        <div class="card pasien-stat-card pasien-stat-theme-{{ $stats['total_new']['theme'] }}">
+                    <div class="pasien-stats-group-title">Perlu Dicek</div>
+                    <div class="pasien-stats-grid">
+                        @if(auth()->user()?->hasAnyRole(['Admin']))
+                        <button type="button" id="btnPasienGanda" class="card pasien-stat-card pasien-stat-action pasien-stat-theme-danger" title="Cek & gabungkan pasien yang terdaftar lebih dari sekali">
                             <div class="card-body">
-                                <div class="pasien-stat-icon"><i class="{{ $stats['total_new']['icon'] }}"></i></div>
+                                <div class="pasien-stat-icon pasien-stat-blink"><i class="fas fa-exclamation-triangle"></i></div>
                                 <div>
-                                    <div class="pasien-stat-label">{{ $stats['total_new']['label'] }}</div>
-                                    <div class="pasien-stat-value" data-stat-group="summary" data-stat-key="total_new">{{ number_format($stats['total_new']['count']) }}</div>
+                                    <div class="pasien-stat-label">Duplikasi Pasien</div>
+                                    <div class="pasien-stat-value" id="pasienGandaCount"><i class="fas fa-spinner fa-spin" style="font-size: 12px;"></i></div>
                                 </div>
                             </div>
-                        </div>
+                        </button>
+                        @endif
+                        <button type="button" id="btnDataBelumLengkap" class="card pasien-stat-card pasien-stat-action pasien-stat-theme-orange" aria-pressed="false" title="Tampilkan pasien yang data wajibnya belum lengkap">
+                            <div class="card-body">
+                                <div class="pasien-stat-icon pasien-stat-blink"><i class="fas fa-exclamation-circle"></i></div>
+                                <div>
+                                    <div class="pasien-stat-label">Data Belum Lengkap</div>
+                                    <div class="pasien-stat-value" id="dataBelumLengkapCount">{{ number_format($stats['incomplete']['count']) }}</div>
+                                </div>
+                            </div>
+                        </button>
                     </div>
                 </div>
                 <div class="pasien-stats-section">
                     <div class="pasien-stats-group-title">Status Pasien</div>
-                    <div class="pasien-stats-grid" id="pasien-status-stats">
+                    <div class="pasien-stats-grid" id="pasien-status-stats" data-filter="status_pasien">
                         @foreach($stats['statuses'] as $statusKey => $statusStat)
-                            <div class="card pasien-stat-card pasien-stat-theme-{{ $statusStat['theme'] }}">
+                            <button type="button" class="card pasien-stat-card pasien-stat-filter pasien-stat-theme-{{ $statusStat['theme'] }}" data-value="{{ $statusKey }}" aria-pressed="false" title="Tampilkan pasien {{ $statusStat['label'] }}">
                                 <div class="card-body">
                                     <div class="pasien-stat-icon"><i class="{{ $statusStat['icon'] }}"></i></div>
                                     <div>
                                         <div class="pasien-stat-label">{{ $statusStat['label'] }}</div>
-                                        <div class="pasien-stat-value" data-stat-group="statuses" data-stat-key="{{ $statusKey }}">{{ number_format($statusStat['count']) }}</div>
+                                        <div class="pasien-stat-value">{{ number_format($statusStat['count']) }}</div>
                                     </div>
                                 </div>
-                            </div>
-                        @endforeach
-                    </div>
-                </div>
-                <div class="pasien-stats-section">
-                    <div class="pasien-stats-group-title">Referral</div>
-                    <div class="pasien-stats-grid" id="pasien-referral-stats">
-                        @foreach($stats['referrals'] as $referralKey => $referralStat)
-                            <div class="card pasien-stat-card pasien-stat-theme-{{ $referralStat['theme'] }}">
-                                <div class="card-body">
-                                    <div class="pasien-stat-icon"><i class="{{ $referralStat['icon'] }}"></i></div>
-                                    <div>
-                                        <div class="pasien-stat-label">{{ $referralStat['label'] }}</div>
-                                        <div class="pasien-stat-value" data-stat-group="referrals" data-stat-key="{{ $referralKey }}">{{ number_format($referralStat['count']) }}</div>
-                                    </div>
-                                </div>
-                            </div>
+                            </button>
                         @endforeach
                     </div>
                 </div>
             </div>
+            {{-- Shown while the Data Belum Lengkap filter is on: pick which missing field to show --}}
+            <div id="kelengkapanBar" class="kelengkapan-bar d-none">
+                <span class="small text-muted mr-1"><i class="fas fa-filter mr-1"></i>Data belum lengkap:</span>
+                @foreach($stats['incomplete']['fields'] as $fieldKey => $field)
+                    <button type="button" class="btn btn-sm btn-outline-warning kelengkapan-chip" data-value="{{ $fieldKey }}">
+                        {{ $field['label'] }} <span class="badge badge-light kelengkapan-count">{{ number_format($field['count']) }}</span>
+                    </button>
+                @endforeach
+                <button type="button" class="btn btn-sm btn-link text-muted" id="kelengkapanClear" title="Hapus filter"><i class="fas fa-times"></i></button>
+            </div>
             <div class="pasien-filter-toolbar mb-3">
-                <div class="pasien-filter-item date-range-filter">
-                    <input type="text" id="filter_date_range" class="form-control" placeholder="Tanggal Daftar" value="{{ $defaultStartDate }} - {{ $defaultEndDate }}">
-                </div>
                 <div class="pasien-filter-item">
                     <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
                 </div>
@@ -584,31 +643,6 @@ body > .pasien-action-dropdown-floating {
                 </div>
                 <div class="pasien-filter-item alamat-filter">
                     <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
-                </div>
-                <div class="pasien-filter-item">
-                    <select id="filter_status_pasien" class="form-control">
-                        <option value="">Semua Status Pasien</option>
-                        <option value="Regular">Regular</option>
-                        <option value="VIP">VIP</option>
-                        <option value="Familia">Familia</option>
-                        <option value="Black Card">Black Card</option>
-                        <option value="Red Flag">Red Flag</option>
-                    </select>
-                </div>
-                <div class="pasien-filter-item">
-                    <select id="filter_referral_type" class="form-control">
-                        <option value="">Semua Referral</option>
-                        <option value="walk_in">Walk-in</option>
-                        <option value="pasien">Pasien</option>
-                        <option value="dokter">Dokter</option>
-                        <option value="employee">Karyawan</option>
-                        <option value="social_media">Social Media</option>
-                        <option value="marketplace">Marketplace</option>
-                        <option value="event">Event</option>
-                        <option value="website">Website</option>
-                            <option value="partnership">B2B Partnership</option>
-                        <option value="google_maps">Google Maps</option>
-                    </select>
                 </div>
                 <div class="pasien-filter-actions">
                     <button id="btn-filter" class="btn btn-primary" type="button" title="Cari" aria-label="Cari">
@@ -638,82 +672,49 @@ body > .pasien-action-dropdown-floating {
         </div>
     </div>
 </div>
+@if(auth()->user()?->hasAnyRole(['Admin']))
+    @include('erm.pasiens.partials.pasien-ganda-modal')
+@endif
 @endsection
 
 @section('scripts')
 <script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
+{{-- Before the page script: it defines window.openPasienFormModal used below --}}
+@include('erm.pasiens.partials.pasien-form-script')
 <script>
 window.ERM_STAY_ON_PASIEN_INDEX = true;
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
 
-    const defaultStartDate = '{{ $defaultStartDate }}';
-    const defaultEndDate = '{{ $defaultEndDate }}';
+    // Active filters from the cards: status card, and the Data Belum Lengkap field ('' = off)
+    const statFilters = { status_pasien: '', kelengkapan: '' };
 
     function formatStatNumber(value) {
         return new Intl.NumberFormat('id-ID').format(parseInt(value || 0, 10));
     }
 
-    function getDateRangePayload() {
-        let value = ($('#filter_date_range').val() || '').trim();
-        let parts = value.split(' - ');
-
-        if (parts.length === 2 && parts[0] && parts[1]) {
-            return {
-                start_date: parts[0],
-                end_date: parts[1]
-            };
-        }
-
-        return {
-            start_date: defaultStartDate,
-            end_date: defaultEndDate
-        };
+    function escapeStatHtml(value) {
+        return $('<div>').text(value == null ? '' : String(value)).html();
     }
 
-    function hasPrimarySearchFilters() {
-        return [
-            $('#filter_no_rm').val(),
-            $('#filter_nama').val(),
-            $('#filter_nik').val(),
-            $('#filter_alamat').val()
-        ].some(function(value) {
-            return (value || '').toString().trim() !== '';
-        });
-    }
-
-    function isDefaultDateRangeSelected() {
-        let payload = getDateRangePayload();
-
-        return payload.start_date === defaultStartDate && payload.end_date === defaultEndDate;
-    }
-
-    function getTableDateRangePayload() {
-        if (hasPrimarySearchFilters() && isDefaultDateRangeSelected()) {
-            return {
-                start_date: '',
-                end_date: ''
-            };
-        }
-
-        return getDateRangePayload();
-    }
-
-    function renderStatsCards(targetSelector, items, group) {
+    function renderStatsCards(targetSelector, items) {
         let html = Object.keys(items || {}).map(function(key) {
             let item = items[key] || {};
-            return '<div class="card pasien-stat-card pasien-stat-theme-' + (item.theme || 'primary') + '">' 
+            let label = escapeStatHtml(item.label || '-');
+            return '<button type="button" class="card pasien-stat-card pasien-stat-filter pasien-stat-theme-' + (item.theme || 'primary') + '"'
+                + ' data-value="' + escapeStatHtml(key) + '" aria-pressed="false" title="Tampilkan pasien ' + label + '">'
                 + '<div class="card-body">'
                 + '<div class="pasien-stat-icon"><i class="' + (item.icon || 'fas fa-chart-bar') + '"></i></div>'
                 + '<div>'
-                + '<div class="pasien-stat-label">' + $('<div>').text(item.label || '-').html() + '</div>'
-                + '<div class="pasien-stat-value" data-stat-group="' + group + '" data-stat-key="' + $('<div>').text(key).html() + '">' + formatStatNumber(item.count || 0) + '</div>'
+                + '<div class="pasien-stat-label">' + label + '</div>'
+                + '<div class="pasien-stat-value">' + formatStatNumber(item.count || 0) + '</div>'
                 + '</div>'
                 + '</div>'
-                + '</div>';
+                + '</button>';
         }).join('');
 
         $(targetSelector).html(html);
+        syncStatFilterCards();
     }
 
     function renderPasienStats(stats) {
@@ -721,37 +722,73 @@ $(document).ready(function () {
             return;
         }
 
-        $('[data-stat-group="summary"][data-stat-key="total_new"]').text(formatStatNumber((stats.total_new || {}).count || 0));
-        renderStatsCards('#pasien-status-stats', stats.statuses || {}, 'statuses');
-        renderStatsCards('#pasien-referral-stats', stats.referrals || {}, 'referrals');
+        renderStatsCards('#pasien-status-stats', stats.statuses || {});
+
+        let incomplete = stats.incomplete || {};
+        $('#dataBelumLengkapCount').text(formatStatNumber(incomplete.count || 0));
+        $.each(incomplete.fields || {}, function (key, field) {
+            $('.kelengkapan-chip[data-value="' + key + '"] .kelengkapan-count').text(formatStatNumber(field.count || 0));
+        });
     }
 
     function updatePasienStats() {
-        let payload = getDateRangePayload();
-        payload.stats = 1;
-
         return $.ajax({
             url: "{{ route('erm.pasiens.index') }}",
             type: 'GET',
-            data: payload
+            data: { stats: 1 }
         }).done(function(resp) {
             renderPasienStats(resp);
         });
     }
 
-    $('#filter_date_range').daterangepicker({
-        autoUpdateInput: true,
-        startDate: defaultStartDate,
-        endDate: defaultEndDate,
-        locale: {
-            format: 'YYYY-MM-DD'
-        }
+    // Highlight the active cards and chips; dim the other status cards
+    function syncStatFilterCards() {
+        $('.pasien-stats-grid[data-filter]').each(function () {
+            let active = statFilters[$(this).data('filter')] || '';
+            $(this).toggleClass('has-active', active !== '');
+            $(this).find('.pasien-stat-filter').each(function () {
+                let isActive = active !== '' && String($(this).data('value')) === active;
+                $(this).toggleClass('active', isActive).attr('aria-pressed', isActive ? 'true' : 'false');
+            });
+        });
+
+        let kelengkapan = statFilters.kelengkapan;
+        $('#btnDataBelumLengkap').toggleClass('active', kelengkapan !== '').attr('aria-pressed', kelengkapan !== '' ? 'true' : 'false');
+        $('#kelengkapanBar').toggleClass('d-none', kelengkapan === '');
+        $('.kelengkapan-chip').each(function () {
+            $(this).toggleClass('active', String($(this).data('value')) === kelengkapan);
+        });
+    }
+
+    function setStatFilter(key, value) {
+        statFilters[key] = value;
+        syncStatFilterCards();
+        table.ajax.reload();
+    }
+
+    $(document).on('click', '.pasien-stat-filter', function () {
+        let key = $(this).closest('.pasien-stats-grid').data('filter');
+        let value = String($(this).data('value'));
+        setStatFilter(key, statFilters[key] === value ? '' : value);
+    });
+
+    // Data Belum Lengkap: the card toggles the filter, the chips pick which missing field
+    $('#btnDataBelumLengkap').on('click', function () {
+        setStatFilter('kelengkapan', statFilters.kelengkapan ? '' : 'semua');
+    });
+    $(document).on('click', '.kelengkapan-chip', function () {
+        setStatFilter('kelengkapan', String($(this).data('value')));
+    });
+    $('#kelengkapanClear').on('click', function () {
+        setStatFilter('kelengkapan', '');
     });
 
     function reloadPasienIndex() {
         table.ajax.reload();
-        updatePasienStats();
     }
+
+    // Lets the Duplikasi Pasien modal refresh the counts after a merge
+    window.refreshPasienStats = updatePasienStats;
 
     let table = $('#pasiens-table').DataTable({
         processing: true,
@@ -767,16 +804,12 @@ $(document).ready(function () {
         ajax: {
             url: "{{ route('erm.pasiens.index') }}",
             data: function (d) {
-                let tableDateRange = getTableDateRangePayload();
-
                 d.no_rm = $('#filter_no_rm').val();
                 d.nama = $('#filter_nama').val();
                 d.nik = $('#filter_nik').val();
                 d.alamat = $('#filter_alamat').val();
-                d.status_pasien = $('#filter_status_pasien').val();
-                d.referral_type = $('#filter_referral_type').val();
-                d.start_date = tableDateRange.start_date;
-                d.end_date = tableDateRange.end_date;
+                d.status_pasien = statFilters.status_pasien;
+                d.kelengkapan = statFilters.kelengkapan;
             }
         },
         columns: [
@@ -824,7 +857,12 @@ $(document).ready(function () {
                     var notes = (row.notes || '').toString().trim();
                     var link = '<a href="#" class="open-manage-modal d-inline-flex align-items-center font-weight-bold" data-id="'+ escapeHtml(row.id) +'">'+ escapeHtml(data) + statusIcon +'</a>';
                     var notesHtml = notes ? '<small class="pasien-notes-preview">' + escapeHtml(notes) + '</small>' : '';
-                    return '<div class="d-flex flex-column">'+ link + notesHtml +'</div>';
+                    // While filtering on incomplete data, list what this patient is missing
+                    var missing = statFilters.kelengkapan && Array.isArray(row.missing_fields) ? row.missing_fields : [];
+                    var missingHtml = missing.length
+                        ? '<div class="mt-1">' + missing.map(function (m) { return '<span class="badge badge-warning mr-1">' + escapeHtml(m) + '</span>'; }).join('') + '</div>'
+                        : '';
+                    return '<div class="d-flex flex-column">'+ link + notesHtml + missingHtml +'</div>';
                 }
             },
             {
@@ -1019,14 +1057,13 @@ $(document).ready(function () {
         $('#filter_nama').val('');
         $('#filter_nik').val('');
         $('#filter_alamat').val('');
-        $('#filter_status_pasien').val('');
-        $('#filter_referral_type').val('');
-        $('#filter_date_range').data('daterangepicker').setStartDate(defaultStartDate);
-        $('#filter_date_range').data('daterangepicker').setEndDate(defaultEndDate);
-        $('#filter_date_range').val(defaultStartDate + ' - ' + defaultEndDate);
-        
-        // Reload table with cleared filters
+        statFilters.status_pasien = '';
+        statFilters.kelengkapan = '';
+        syncStatFilterCards();
+
+        // Reload table with cleared filters, and refresh the counts on the cards
         reloadPasienIndex();
+        updatePasienStats();
     });
 
     // Add Enter key functionality to search fields
@@ -1036,17 +1073,6 @@ $(document).ready(function () {
         }
     });
 
-    // Add change event for select dropdowns
-    $('#filter_status_pasien, #filter_referral_type').on('change', function() {
-        reloadPasienIndex();
-    });
-
-    $('#filter_date_range').on('apply.daterangepicker', function(ev, picker) {
-        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-        reloadPasienIndex();
-    });
-
-    updatePasienStats();
 
     // Optional: Add input event for real-time search (search as you type)
     // Uncomment the lines below if you want search-as-you-type functionality
@@ -1058,72 +1084,27 @@ $(document).ready(function () {
         }, 500); // 500ms delay after user stops typing
     });
     */
-let currentPasienId;
-    $(document).on('click', '.btn-info-pasien', function () {
-        let pasienId = $(this).data('id');
-        currentPasienId = pasienId;
-
-        $.ajax({
-            url: "{{ route('erm.pasien.show', '') }}/" + pasienId, // Fetch patient info
-            type: "GET",
-            success: function (response) {
-                const employeeName = response.employee && response.employee.nama ? response.employee.nama : '';
-                const employeeNoInduk = response.employee && response.employee.no_induk ? response.employee.no_induk : '';
-                const employeeLabel = employeeName
-                    ? employeeName + (employeeNoInduk ? ' (' + employeeNoInduk + ')' : '')
-                    : '-';
-
-                // Populate table cells with response data
-                $('#info-no-rm').text(response.id);
-                $('#info-nama').text(response.nama);
-                $('#info-identity-label').text(response.identity_label || 'Identitas');
-                $('#info-identity-value').text(response.identity_number || response.nik || '-');
-                // Build combined address: alamat, desa, kecamatan, kabupaten, provinsi
-                const alamat = response.alamat || '';
-                const villageName = response.village && response.village.name ? response.village.name : '';
-                const districtName = response.village && response.village.district && response.village.district.name ? response.village.district.name : '';
-                const regencyName = response.village && response.village.district && response.village.district.regency && response.village.district.regency.name ? response.village.district.regency.name : '';
-                const provinceName = response.village && response.village.district && response.village.district.regency && response.village.district.regency.province && response.village.district.regency.province.name ? response.village.district.regency.province.name : '';
-
-                // Collect non-empty parts and join with comma
-                const parts = [];
-                if (alamat) parts.push(alamat);
-                if (villageName) parts.push(villageName);
-                if (districtName) parts.push(districtName);
-                if (regencyName) parts.push(regencyName);
-                if (provinceName) parts.push(provinceName);
-
-                const fullAddress = parts.join(', ');
-                $('#info-alamat').text(fullAddress);
-                $('#info-tanggal-lahir').text(response.tanggal_lahir);
-                $('#info-jenis-kelamin').text(response.gender);
-                $('#info-agama').text(response.agama || '-');
-                $('#info-marital-status').text(response.marital_status || '-');
-                $('#info-employee').text(employeeLabel);
-                $('#info-pendidikan').text(response.pendidikan || '-');
-                $('#info-pekerjaan').text(response.pekerjaan || '-');
-                $('#info-golongan-darah').text(response.gol_darah || '-');
-                $('#info-no-hp').text(response.no_hp || '-');
-                $('#info-email').text(response.email || '-');
-                $('#info-instagram').text(response.instagram || '-');
-                // clear any leftover area spans if present
-                $('#info-village').text('');
-                $('#info-district').text('');
-                $('#info-regency').text('');
-                $('#info-province').text('');
-                
-                // Show the modal
-                $('#modalInfoPasien').modal('show');
-            },
-            error: function () {
-                alert("Terjadi kesalahan saat mengambil data pasien.");
-            }
-        });
-    });    $(document).on('click', '#btn-edit-pasien', function() {
-        if (currentPasienId) {
-            window.location.href = "{{ route('erm.pasiens.create') }}?edit_id=" + currentPasienId;
-        }
+    // Pasien Baru and the row's Edit button open the pasien form modal (partials/pasien-form-script)
+    $('#btnPasienBaru').on('click', function () {
+        window.openPasienFormModal(null);
     });
+    $(document).on('click', '.btn-info-pasien', function () {
+        // attr() keeps the RM's leading zeros
+        window.openPasienFormModal(($(this).attr('data-id') || '').toString());
+    });
+
+    // /erm/pasiens?create=1 (navbar "Pasien Baru") and ?edit=RM open the modal straight away
+    (function () {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('create') === '1') {
+            window.openPasienFormModal(null);
+        } else if (params.get('edit')) {
+            window.openPasienFormModal(params.get('edit'));
+        }
+        if (params.has('create') || params.has('edit')) {
+            history.replaceState(null, '', window.location.pathname);
+        }
+    })();
 
     // Open IC modal from index actions
     $(document).on('click', '.btn-open-ic', function() {
@@ -1560,4 +1541,7 @@ let currentPasienId;
         });
     });
 </script>
+@if(auth()->user()?->hasAnyRole(['Admin']))
+    @include('erm.pasiens.partials.pasien-ganda-script')
+@endif
 @endsection

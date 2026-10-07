@@ -173,11 +173,8 @@ class PasienController extends Controller
 
     public function index(Request $request)
     {
-        [$startDate, $endDate] = $this->resolveIndexDateRange($request);
-        $shouldApplyAjaxDateFilter = $request->filled('start_date') || $request->filled('end_date');
-
         if ($request->ajax() && $request->boolean('stats')) {
-            return response()->json($this->getPatientIndexStats($startDate, $endDate));
+            return response()->json($this->getPatientIndexStats());
         }
 
         if ($request->ajax()) {
@@ -199,6 +196,7 @@ class PasienController extends Controller
                     'identity_document',
                     'identity_number',
                     'tanggal_lahir',
+                    'gender',
                     'notes',
                     'alamat',
                     'village_id',
@@ -226,15 +224,31 @@ class PasienController extends Controller
             if ($request->alamat) {
                 $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
             }
+            // Empty status / referral is counted as Regular / walk-in in the stats, so filter the same way
             if ($request->status_pasien) {
-                $pasiens->where('status_pasien', $request->status_pasien);
+                $pasiens->where(function ($q) use ($request) {
+                    $q->where('status_pasien', $request->status_pasien);
+                    if ($request->status_pasien === 'Regular') {
+                        $q->orWhereNull('status_pasien')->orWhere('status_pasien', '');
+                    }
+                });
             }
             if ($request->referral_type) {
-                $pasiens->where('referral_type', $request->referral_type);
+                $pasiens->where(function ($q) use ($request) {
+                    $q->where('referral_type', $request->referral_type);
+                    if ($request->referral_type === Pasien::REFERRAL_TYPE_WALK_IN) {
+                        $q->orWhereNull('referral_type')->orWhere('referral_type', '');
+                    }
+                });
             }
-            if ($shouldApplyAjaxDateFilter) {
-                $pasiens->whereDate('created_at', '>=', $startDate->toDateString())
-                    ->whereDate('created_at', '<=', $endDate->toDateString());
+            // Data belum lengkap: 'semua' = any required field missing, otherwise one field
+            if ($request->kelengkapan) {
+                $conditions = $this->incompleteFieldConditions();
+                if ($request->kelengkapan === 'semua') {
+                    $pasiens->whereRaw('(' . implode(' OR ', array_column($conditions, 'sql')) . ')');
+                } elseif (isset($conditions[$request->kelengkapan])) {
+                    $pasiens->whereRaw($conditions[$request->kelengkapan]['sql']);
+                }
             }
             if ($request->status_akses) {
                 $pasiens->where('status_akses', $request->status_akses);
@@ -312,6 +326,9 @@ class PasienController extends Controller
                 ->addColumn('merchandise', function ($user) {
                     return '<button class="btn btn-sm btn-outline-primary btn-merch-checklist" data-id="' . $user->id . '">Lihat</button>';
                 })
+                ->addColumn('missing_fields', function ($user) {
+                    return $this->missingFieldLabels($user);
+                })
                 ->addColumn('tanggal_lahir_display', function ($user) {
                     if (empty($user->tanggal_lahir)) {
                         return '-';
@@ -349,9 +366,9 @@ class PasienController extends Controller
                             'pasienNama' => $user->nama,
                         ])->render() . '
                         <a href="javascript:void(0);" 
-                            class="btn btn-sm btn-info btn-info-pasien" 
-                            data-id="' . $user->id . '">
-                            <i class="fas fa-info-circle mr-1"></i> Info
+                            class="btn btn-sm btn-info btn-info-pasien"
+                            data-id="' . $user->id . '" title="Edit data pasien">
+                            <i class="fas fa-user-edit mr-1"></i> Edit
                         </a>
                         <span class="ic-action"><button type="button" class="btn btn-sm btn-outline-primary btn-open-ic"
                                title="Isi IC Pendaftaran"
@@ -371,51 +388,33 @@ class PasienController extends Controller
         }
 
         $metodeBayar = MetodeBayar::all();
-        $dokters = Dokter::with('spesialisasi')->get();
+        $dokters = Dokter::with(['spesialisasi', 'user'])->get();
         $kliniks = Klinik::all();
-        $stats = $this->getPatientIndexStats($startDate, $endDate);
-        $defaultStartDate = $startDate->toDateString();
-        $defaultEndDate = $endDate->toDateString();
+        $stats = $this->getPatientIndexStats();
+
+        // Options for the Pasien Baru / Edit Pasien modal
+        $provinces = Province::all();
+        $employees = Employee::active()->orderBy('nama')->get(['id', 'nama', 'no_induk']);
+        $events = MarketingEvent::query()
+            ->orderByRaw("CASE WHEN status = 'aktif' THEN 0 ELSE 1 END")
+            ->orderByDesc('tanggal_mulai')
+            ->orderBy('nama_event')
+            ->get(['id', 'kode_event', 'nama_event', 'status']);
 
         $pasienName = '';
 
-        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks', 'stats', 'defaultStartDate', 'defaultEndDate'));
+        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks', 'stats', 'provinces', 'employees', 'events'));
     }
 
+    /**
+     * The pasien form is a modal on the Data Pasien page now; old links (navbar, ?edit_id=) open it there.
+     */
     public function create(Request $request)
     {
-    $metodeBayar = MetodeBayar::all();
-    $dokters = Dokter::with(['spesialisasi', 'user'])->get();
-    $kliniks = Klinik::all();
-    $provinces = Province::all();
-    $employees = Employee::active()->orderBy('nama')->get(['id', 'nama', 'no_induk']);
-    $events = MarketingEvent::query()
-        ->orderByRaw("CASE WHEN status = 'aktif' THEN 0 ELSE 1 END")
-        ->orderByDesc('tanggal_mulai')
-        ->orderBy('nama_event')
-        ->get(['id', 'kode_event', 'nama_event', 'status']);
-    
-    // Check if we're editing an existing patient
-    $pasien = null;
-    $isEditing = false;
-    
-        if ($request->has('edit_id')) {
-            // eager-load nested area relations so the view can access province/regency/district
-            $pasien = Pasien::with(['village.district.regency.province', 'referralable'])->find($request->edit_id);
-            $isEditing = true;
-        }
-    
-    return view('erm.pasiens.create', compact(
-        'metodeBayar', 
-        'dokters', 
-        'provinces', 
-        'employees',
-        'events',
-        'kliniks', 
-        'pasien', 
-        'isEditing'
-    ));
-}
+        return $request->filled('edit_id')
+            ? redirect()->route('erm.pasiens.index', ['edit' => $request->edit_id])
+            : redirect()->route('erm.pasiens.index', ['create' => 1]);
+    }
 
     public function store(Request $request)
 {
@@ -1089,36 +1088,12 @@ class PasienController extends Controller
         return is_string($phoneNumber) && str_starts_with($phoneNumber, '62');
     }
 
-    private function resolveIndexDateRange(Request $request): array
+    private function getPatientIndexStats(): array
     {
-        $startDate = $request->filled('start_date')
-            ? Carbon::parse($request->start_date)->startOfDay()
-            : now()->startOfMonth()->startOfDay();
-
-        $endDate = $request->filled('end_date')
-            ? Carbon::parse($request->end_date)->endOfDay()
-            : now()->endOfMonth()->endOfDay();
-
-        if ($startDate->gt($endDate)) {
-            [$startDate, $endDate] = [$endDate->copy()->startOfDay(), $startDate->copy()->endOfDay()];
-        }
-
-        return [$startDate, $endDate];
-    }
-
-    private function getPatientIndexStats(Carbon $startDate, Carbon $endDate): array
-    {
-        $baseQuery = Pasien::query()
-            ->whereDate('created_at', '>=', $startDate->toDateString())
-            ->whereDate('created_at', '<=', $endDate->toDateString());
+        $baseQuery = Pasien::query();
 
         $statusCounts = (clone $baseQuery)
             ->selectRaw("COALESCE(NULLIF(status_pasien, ''), 'Regular') as stat_key, COUNT(*) as total")
-            ->groupBy('stat_key')
-            ->pluck('total', 'stat_key');
-
-        $referralCounts = (clone $baseQuery)
-            ->selectRaw("COALESCE(NULLIF(referral_type, ''), 'walk_in') as stat_key, COUNT(*) as total")
             ->groupBy('stat_key')
             ->pluck('total', 'stat_key');
 
@@ -1130,19 +1105,6 @@ class PasienController extends Controller
             'Red Flag' => ['label' => 'Red Flag', 'icon' => 'fas fa-exclamation-triangle', 'theme' => 'danger'],
         ];
 
-        $referralDefinitions = [
-            Pasien::REFERRAL_TYPE_WALK_IN => ['label' => 'Walk-in', 'icon' => 'fas fa-walking', 'theme' => 'primary'],
-            Pasien::REFERRAL_TYPE_PASIEN => ['label' => 'Pasien', 'icon' => 'fas fa-user-friends', 'theme' => 'info'],
-            Pasien::REFERRAL_TYPE_DOKTER => ['label' => 'Dokter', 'icon' => 'fas fa-user-md', 'theme' => 'success'],
-            Pasien::REFERRAL_TYPE_EMPLOYEE => ['label' => 'Karyawan', 'icon' => 'fas fa-id-badge', 'theme' => 'teal'],
-            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => ['label' => 'Social Media', 'icon' => 'fas fa-hashtag', 'theme' => 'rose'],
-            Pasien::REFERRAL_TYPE_MARKETPLACE => ['label' => 'Marketplace', 'icon' => 'fas fa-store', 'theme' => 'orange'],
-            Pasien::REFERRAL_TYPE_EVENT => ['label' => 'Event', 'icon' => 'fas fa-calendar-alt', 'theme' => 'purple'],
-            Pasien::REFERRAL_TYPE_WEBSITE => ['label' => 'Website', 'icon' => 'fas fa-globe', 'theme' => 'cyan'],
-                Pasien::REFERRAL_TYPE_PARTNERSHIP => ['label' => 'B2B Partnership', 'icon' => 'fas fa-handshake', 'theme' => 'slate'],
-            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => ['label' => 'Google Maps', 'icon' => 'fas fa-map-marker-alt', 'theme' => 'danger'],
-        ];
-
         $statuses = [];
         foreach ($statusDefinitions as $key => $definition) {
             $statuses[$key] = $definition + [
@@ -1150,27 +1112,75 @@ class PasienController extends Controller
             ];
         }
 
-        $referrals = [];
-        foreach ($referralDefinitions as $key => $definition) {
-            $referrals[$key] = $definition + [
-                'count' => (int) ($referralCounts[$key] ?? 0),
-            ];
+        return [
+            'statuses' => $statuses,
+            'incomplete' => $this->getIncompleteStats(),
+        ];
+    }
+
+    /**
+     * Fields required on the registration form, with the SQL that finds patients missing them.
+     * Old data stores some empty values as the text 'NULL' or '-', and 1900-01-01 as an unknown birth date.
+     */
+    private function incompleteFieldConditions(): array
+    {
+        return [
+            'identitas' => ['label' => 'No. Identitas', 'sql' => "(identity_number IS NULL OR TRIM(identity_number) IN ('', '-', 'NULL'))"],
+            'tanggal_lahir' => ['label' => 'Tgl Lahir', 'sql' => "(tanggal_lahir IS NULL OR tanggal_lahir < '1901-01-01')"],
+            'gender' => ['label' => 'Jenis Kelamin', 'sql' => "(gender IS NULL OR gender NOT IN ('Laki-laki', 'Perempuan'))"],
+            'alamat' => ['label' => 'Alamat', 'sql' => "(alamat IS NULL OR TRIM(alamat) IN ('', '-', 'NULL'))"],
+            'wilayah' => ['label' => 'Wilayah', 'sql' => '(village_id IS NULL)'],
+            'no_hp' => ['label' => 'No. HP', 'sql' => '(no_hp IS NULL OR CHAR_LENGTH(TRIM(no_hp)) < 9)'],
+        ];
+    }
+
+    private function getIncompleteStats(): array
+    {
+        $conditions = $this->incompleteFieldConditions();
+
+        $selects = ['SUM(' . implode(' OR ', array_column($conditions, 'sql')) . ') as semua'];
+        foreach ($conditions as $key => $condition) {
+            $selects[] = "SUM({$condition['sql']}) as {$key}";
+        }
+        $counts = (array) DB::table('erm_pasiens')->selectRaw(implode(', ', $selects))->first();
+
+        $fields = ['semua' => ['label' => 'Semua', 'count' => (int) ($counts['semua'] ?? 0)]];
+        foreach ($conditions as $key => $condition) {
+            $fields[$key] = ['label' => $condition['label'], 'count' => (int) ($counts[$key] ?? 0)];
         }
 
-        return [
-            'total_new' => [
-                'label' => 'Pasien Baru',
-                'icon' => 'fas fa-user-plus',
-                'theme' => 'primary',
-                'count' => (clone $baseQuery)->count(),
-            ],
-            'statuses' => $statuses,
-            'referrals' => $referrals,
-            'range' => [
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString(),
-            ],
-        ];
+        return ['count' => $fields['semua']['count'], 'fields' => $fields];
+    }
+
+    /**
+     * Labels of the required fields this patient has not filled in.
+     */
+    private function missingFieldLabels(Pasien $pasien): array
+    {
+        $attributes = $pasien->getAttributes();
+        $blank = fn ($value) => $value === null || in_array(trim((string) $value), ['', '-', 'NULL'], true);
+
+        $missing = [];
+        if ($blank($attributes['identity_number'] ?? null)) {
+            $missing[] = 'No. Identitas';
+        }
+        if ($blank($attributes['tanggal_lahir'] ?? null) || substr((string) $attributes['tanggal_lahir'], 0, 10) < '1901-01-01') {
+            $missing[] = 'Tgl Lahir';
+        }
+        if (!in_array($attributes['gender'] ?? null, ['Laki-laki', 'Perempuan'], true)) {
+            $missing[] = 'Jenis Kelamin';
+        }
+        if ($blank($attributes['alamat'] ?? null)) {
+            $missing[] = 'Alamat';
+        }
+        if (empty($attributes['village_id'])) {
+            $missing[] = 'Wilayah';
+        }
+        if ($blank($attributes['no_hp'] ?? null) || strlen(trim((string) $attributes['no_hp'])) < 9) {
+            $missing[] = 'No. HP';
+        }
+
+        return $missing;
     }
 
     private function formatReferralDisplay(Pasien $pasien): string
