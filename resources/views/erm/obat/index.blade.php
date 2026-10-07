@@ -455,6 +455,10 @@
        long lists) and pushes the whole page past the screen. min-width: 0 keeps it at the screen width,
        so only the DataTables scroll body scrolls sideways. */
     .page-wrapper { min-width: 0; }
+    /* Aksi stays pinned to the right while the table scrolls sideways (header and body are separate tables under scrollX) */
+    .dataTables_scrollHead th.col-aksi, #obat-table td.col-aksi { position: sticky; right: 0; z-index: 2; box-shadow: -3px 0 4px -2px rgba(0, 0, 0, .15); }
+    #obat-table td.col-aksi { background-color: #fff; }
+    .theme-dark #obat-table td.col-aksi { background-color: #2c3144; }
     #obat-table tbody tr { cursor: pointer; }
     #obat-table td, #obat-table th { vertical-align: middle; white-space: nowrap; }
     #obat-table td.col-nama { white-space: normal; min-width: 240px; max-width: 360px; }
@@ -824,7 +828,7 @@
                 { data: 'zat_aktif', name: 'zat_aktif', orderable: false, searchable: false, render: listColumn },
                 { data: 'principal', name: 'principal', orderable: false, searchable: false, render: listColumn },
                 { data: 'distributor', name: 'distributor', orderable: false, searchable: false, render: listColumn },
-                { data: null, orderable: false, searchable: false, className: 'text-center', render: renderActions }
+                { data: null, orderable: false, searchable: false, className: 'text-center col-aksi', render: renderActions }
             ]
         });
     }
