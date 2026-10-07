@@ -13,7 +13,7 @@
         <tr>
             <td>{{ $obat->id }}</td>
             <td>{{ $obat->nama }}</td>
-            <td>{{ $obat->stok }}</td>
+            <td>{{ $obat->total_stok }}</td>
             <td></td>
             <td></td>
         </tr>

@@ -36,9 +36,6 @@
                         </div>
                         <div class="col-md-6 text-md-right mt-2 mt-md-0">
                             <div class="btn-group" role="group" aria-label="Actions">
-                                <button type="button" class="btn btn-warning mr-2 d-none" data-toggle="modal" data-target="#modalMigrateStok">
-                                    <i class="fas fa-database"></i> Migrasi Stok Obat
-                                </button>
                                 <button type="button" class="btn btn-success mr-2" data-toggle="modal" data-target="#modalObatBaru">
                                     <i class="fas fa-plus-circle"></i> Mutasi Obat Baru
                                 </button>
@@ -160,79 +157,6 @@
                         <i class="fas fa-times"></i> Tolak
                     </button>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Migrate Stok -->
-<div class="modal fade" id="modalMigrateStok" tabindex="-1" role="dialog" aria-labelledby="modalMigrateStokLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalMigrateStokLabel">Migrasi Stok dari Field Obat ke Gudang</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> 
-                    Fitur ini akan menambahkan stok dari field <strong>stok</strong> di tabel obat ke gudang yang dipilih dengan:
-                    <ul class="mt-2 mb-0">
-                        <li>Batch: MIGRATE-YYYYMMDD-ObatID</li>
-                        <li>Expiration Date: 3 bulan dari sekarang</li>
-                        <li><strong>Field stok obat TIDAK akan direset</strong> (untuk keamanan)</li>
-                        <li>Anda bisa cleanup manual nanti setelah yakin migrasi berhasil</li>
-                    </ul>
-                </div>
-                
-                <div id="migration-preview" class="mb-3" style="display: none;">
-                    <div class="card bg-light">
-                        <div class="card-body">
-                            <h6>Preview Migrasi:</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <strong>Total Obat:</strong> <span id="preview-total-obat">0</span>
-                                </div>
-                                <div class="col-md-6">
-                                    <strong>Total Stok:</strong> <span id="preview-total-stok">0</span>
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <strong>Sample Obat (10 pertama):</strong>
-                                <div id="preview-obat-list"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <form id="form-migrate-stok">
-                    <div class="form-group">
-                        <label for="migrate_gudang_id">Pilih Gudang Tujuan <span class="text-danger">*</span></label>
-                        <select name="gudang_id" id="migrate_gudang_id" class="form-control" required>
-                            <option value="">Pilih Gudang</option>
-                            @foreach($gudangs as $gudang)
-                                <option value="{{ $gudang->id }}">{{ $gudang->nama }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    
-                    <div class="text-center">
-                        <button type="button" class="btn btn-info" id="btn-preview">
-                            <i class="fas fa-eye"></i> Preview Data
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-danger" id="btn-cleanup" style="display: none;">
-                    <i class="fas fa-trash"></i> Cleanup Field Stok
-                </button>
-                <button type="button" class="btn btn-warning" id="btn-migrate" disabled>
-                    <i class="fas fa-database"></i> Migrate Stok
-                </button>
             </div>
         </div>
     </div>
@@ -757,147 +681,6 @@ $(document).ready(function() {
         });
     });
 
-    // ========== MIGRATION STOK FUNCTIONALITY ==========
-    
-    // Preview migration data
-    $('#btn-preview').click(function() {
-        $.ajax({
-            url: "{{ route('erm.mutasi-gudang.migration-preview') }}",
-            type: 'GET',
-            beforeSend: function() {
-                $('#btn-preview').prop('disabled', true).text('Loading...');
-            },
-            success: function(response) {
-                if (response.success) {
-                    $('#preview-total-obat').text(response.data.total_obat);
-                    $('#preview-total-stok').text(response.data.total_stok);
-                    
-                    // Tampilkan info breakdown obat dengan dan tanpa stok
-                    var infoHtml = '<div class="alert alert-info mt-2"><small>';
-                    infoHtml += '<strong>Breakdown:</strong><br>';
-                    infoHtml += '• Obat dengan stok > 0: ' + response.data.obat_with_stock_count + '<br>';
-                    infoHtml += '• Obat dengan stok 0/null: ' + response.data.obat_without_stock_count + '<br>';
-                    infoHtml += '<em>' + response.data.message + '</em>';
-                    infoHtml += '</small></div>';
-                    
-                    var obatListHtml = '<ul class="list-unstyled small mt-1">';
-                    response.data.obat_list_preview.forEach(function(obat) {
-                        var stokDisplay = obat.stok || '0';
-                        obatListHtml += '<li>' + obat.nama + ' - Stok: ' + stokDisplay + ' ' + (obat.satuan || '') + '</li>';
-                    });
-                    if (response.data.total_obat > 10) {
-                        obatListHtml += '<li><em>... dan ' + (response.data.total_obat - 10) + ' obat lainnya</em></li>';
-                    }
-                    obatListHtml += '</ul>';
-                    
-                    $('#preview-obat-list').html(infoHtml + obatListHtml);
-                    $('#migration-preview').show();
-                    
-                    // Selalu enable migrate button karena sekarang migrasi semua obat
-                    $('#btn-migrate').prop('disabled', false);
-                    $('#btn-cleanup').show();
-                } else {
-                    alert('Error: ' + response.message);
-                }
-            },
-            error: function(xhr) {
-                alert('Terjadi kesalahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : 'Unknown error'));
-            },
-            complete: function() {
-                $('#btn-preview').prop('disabled', false).html('<i class="fas fa-eye"></i> Preview Data');
-            }
-        });
-    });
-    
-    // Migrate stok
-    $('#btn-migrate').click(function() {
-        var gudangId = $('#migrate_gudang_id').val();
-        
-        if (!gudangId) {
-            alert('Pilih gudang tujuan terlebih dahulu');
-            return;
-        }
-        
-        if (!confirm('Apakah Anda yakin ingin memindahkan semua stok dari field obat ke gudang yang dipilih?\n\nProses ini akan:\n1. Menambahkan stok ke gudang yang dipilih\n2. TIDAK mereset field stok obat (untuk keamanan)\n3. Membuat batch dengan nama MIGRATE-YYYYMMDD-ObatID\n4. Set expiration date 3 bulan dari sekarang\n\nAnda bisa cleanup field stok nanti secara manual jika diperlukan.')) {
-            return;
-        }
-        
-        $.ajax({
-            url: "{{ route('erm.mutasi-gudang.migrate-stok') }}",
-            type: 'POST',
-            data: {
-                gudang_id: gudangId,
-                _token: $('meta[name="csrf-token"]').attr('content')
-            },
-            beforeSend: function() {
-                $('#btn-migrate').prop('disabled', true).text('Processing...');
-            },
-            success: function(response) {
-                if (response.success) {
-                    alert('Berhasil! ' + response.message);
-                    $('#modalMigrateStok').modal('hide');
-                    
-                    // Reset form and preview
-                    $('#form-migrate-stok')[0].reset();
-                    $('#migration-preview').hide();
-                    $('#btn-migrate').prop('disabled', true);
-                    
-                    // Refresh table if needed
-                    table.draw();
-                } else {
-                    alert('Error: ' + response.message);
-                }
-            },
-            error: function(xhr) {
-                alert('Terjadi kesalahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : 'Unknown error'));
-            },
-            complete: function() {
-                $('#btn-migrate').prop('disabled', false).html('<i class="fas fa-database"></i> Migrate Stok');
-            }
-        });
-    });
-    
-    // Cleanup field stok
-    $('#btn-cleanup').click(function() {
-        if (!confirm('Apakah Anda yakin ingin menghapus semua nilai di field stok obat?\n\nHANYA lakukan ini setelah Anda yakin migrasi stok berhasil!\n\nProses ini akan:\n1. Mereset field stok menjadi 0 untuk obat yang sudah ada stok di gudang\n2. TIDAK dapat di-undo\n\nPastikan backup database sudah dilakukan!')) {
-            return;
-        }
-        
-        $.ajax({
-            url: "{{ route('erm.mutasi-gudang.cleanup-field-stok') }}",
-            type: 'POST',
-            data: {
-                _token: $('meta[name="csrf-token"]').attr('content')
-            },
-            beforeSend: function() {
-                $('#btn-cleanup').prop('disabled', true).text('Processing...');
-            },
-            success: function(response) {
-                if (response.success) {
-                    alert('Berhasil! ' + response.message);
-                    $('#modalMigrateStok').modal('hide');
-                    
-                    // Reset form and preview
-                    $('#form-migrate-stok')[0].reset();
-                    $('#migration-preview').hide();
-                    $('#btn-migrate').prop('disabled', true);
-                    $('#btn-cleanup').hide();
-                    
-                    // Refresh table if needed
-                    table.draw();
-                } else {
-                    alert('Error: ' + response.message);
-                }
-            },
-            error: function(xhr) {
-                alert('Terjadi kesalahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : 'Unknown error'));
-            },
-            complete: function() {
-                $('#btn-cleanup').prop('disabled', false).html('<i class="fas fa-trash"></i> Cleanup Field Stok');
-            }
-        });
-    });
-    
     // ========== OBAT BARU FUNCTIONALITY ==========
     
     // Initialize select2 for obat baru modal
@@ -1159,14 +942,6 @@ $(document).ready(function() {
         $('#gudang_baru_id').val('').trigger('change');
         $('#bulk_mode').prop('checked', false).trigger('change');
         $('#bulk-preview').hide();
-    });
-    
-    // Reset modal when closed
-    $('#modalMigrateStok').on('hidden.bs.modal', function() {
-        $('#form-migrate-stok')[0].reset();
-        $('#migration-preview').hide();
-        $('#btn-migrate').prop('disabled', true);
-        $('#btn-cleanup').hide();
     });
 });
 </script>

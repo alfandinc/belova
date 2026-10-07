@@ -28,7 +28,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
     /**
      * Add a `principal_nama` column to an InvoiceItem query.
      * Resolves obat_id from the billable (ResepFarmasi -> obat_id, Obat -> id),
-     * then collects principal names from master faktur for that obat.
+     * then takes that obat's principal (erm_obat.principal_id, set in Master Obat).
      */
     public static function selectPrincipalNama($query)
     {
@@ -40,10 +40,10 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         return $query
             ->select('finance_invoice_items.*')
             ->selectRaw(
-                "(SELECT GROUP_CONCAT(DISTINCT p.nama ORDER BY p.nama SEPARATOR ', ')
-                    FROM erm_master_faktur mf
-                    JOIN erm_principals p ON p.id = mf.principal_id
-                    WHERE mf.obat_id = ($obatIdSql)) AS principal_nama",
+                "(SELECT p.nama
+                    FROM erm_obat o
+                    JOIN erm_principals p ON p.id = o.principal_id
+                    WHERE o.id = ($obatIdSql)) AS principal_nama",
                 [\App\Models\ERM\ResepFarmasi::class, \App\Models\ERM\Obat::class]
             );
     }

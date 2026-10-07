@@ -2,7 +2,12 @@
 @section('title', 'ERM | E-Resep Farmasi')
 @section('navbar')
     @include('layouts.erm.navbar-farmasi')
-@endsection  
+@endsection
+
+@section('styles')
+    <link rel="stylesheet" href="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/css/fixedColumns.bootstrap4.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/erm/rawatjalans.css') }}?v={{ filemtime(public_path('assets/css/erm/rawatjalans.css')) }}">
+@endsection
 
 @section('content')
 
@@ -40,22 +45,10 @@
     <div class="card">
         <div class="card-body">
             <style>
-            .dataTables_wrapper .status-pasien-icon {
-                width: 20px;
-                height: 20px;
-                display: inline-flex !important;
-                align-items: center;
-                justify-content: center;
-                vertical-align: middle;
-                margin-right: 8px;
-                border-radius: 3px;
-                font-size: 11px;
-                color: #fff;
-            }
-            .dataTables_wrapper .patient-meta { line-height: 1.05; }
-            .dataTables_wrapper .patient-name { font-weight: 700; display:inline-block; }
-            .dataTables_wrapper .patient-rm { font-weight: 400; color:#6c757d; display:inline-block; margin-left:6px; font-size: .95rem; }
-            .dataTables_wrapper .patient-info { color: #6c757d; font-size: .85rem; margin-top: 3px; }
+            /* E-Resep only: align all table cells to the top (rawatjalans.css centers them) */
+            #rawatjalan-table_wrapper table.dataTable td { vertical-align: top !important; }
+            /* Klinik logo next to the resep number (same size as on the Billing page) */
+            #rawatjalan-table_wrapper .klinik-logo { height: 24px; max-width: 60px; object-fit: contain; flex: 0 0 auto; }
             #modalStatistikResep .stat-tile { border: 1px solid #e9ecef; border-left-width: 4px; border-radius: 6px; padding: 12px 14px; height: 100%; }
             #modalStatistikResep .stat-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6c757d; font-weight: 600; }
             #modalStatistikResep .stat-value { font-size: 1.9rem; font-weight: 700; line-height: 1.15; }
@@ -64,11 +57,13 @@
             #modalStatistikResep.is-loading .stat-body { opacity: .45; pointer-events: none; }
             </style>
             <div class="row mb-3">
-                <div class="col-md-3">
-                    <label for="filter_tanggal_range">Filter Tanggal Kunjungan</label>
-                    <input type="text" id="filter_tanggal_range" class="form-control" placeholder="Pilih Rentang Tanggal">
-                    <input type="hidden" id="filter_tanggal_mulai">
-                    <input type="hidden" id="filter_tanggal_selesai">
+                <div class="col-md-2">
+                    <label for="filter_tanggal_mulai">Start Date</label>
+                    <input type="date" id="filter_tanggal_mulai" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label for="filter_tanggal_selesai">End Date</label>
+                    <input type="date" id="filter_tanggal_selesai" class="form-control" />
                 </div>
                 <div class="col-md-3">
                     <label for="filter_dokter">Filter Dokter</label>
@@ -88,7 +83,7 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="filter_status_resep">Status Resep</label>
                     <select id="filter_status_resep" class="form-control select2">
                         <option value="0" selected>Belum Dilayani</option>
@@ -99,11 +94,12 @@
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        <th>Detail resep</th> <!-- Date will be shown under this in the cell -->
-                        <th class="d-none">Tanggal Kunjungan</th>
-                        <th>Detail Pasien</th>
+                        <th>No Resep</th>
+                        <th>Nama Pasien</th>
+                        <th>Informasi Pasien</th>
+                        <th>Alergi</th>
+                        <th>Tanggal Kunjungan</th>
                         <th>Dokter</th>
-                        <th>Metode Bayar</th>
                         <th>Resep</th>
                     </tr>
                 </thead>
@@ -224,45 +220,37 @@
 @endsection
 
 @section('scripts')
+<script src="{{ asset('dastone/vendor/datatable/FixedColumns-4.3.0/js/dataTables.fixedColumns.min.js') }}"></script>
 <script>
 $(document).ready(function () {
-    // Initialize date range picker
-    $('#filter_tanggal_range').daterangepicker({
-        opens: 'left',
-        autoApply: true,
-        locale: {
-            format: 'DD-MM-YYYY',
-            separator: ' s/d ',
-            applyLabel: 'Pilih',
-            cancelLabel: 'Batal',
-            fromLabel: 'Dari',
-            toLabel: 'Sampai',
-            customRangeLabel: 'Custom',
-            weekLabel: 'M',
-            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
-            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
-            firstDay: 1
-        },
-        startDate: moment(),
-        endDate: moment()
-    }, function(start, end, label) {
-        $('#filter_tanggal_mulai').val(start.format('YYYY-MM-DD'));
-        $('#filter_tanggal_selesai').val(end.format('YYYY-MM-DD'));
+    // Default date filter: today (same Start/End Date inputs as the Rawat Jalan page)
+    $('#filter_tanggal_mulai, #filter_tanggal_selesai').val(moment().format('YYYY-MM-DD'));
+    $('#filter_tanggal_mulai, #filter_tanggal_selesai').on('change', function () {
         table.ajax.reload();
         refreshStatistikIfOpen();
     });
-    
-    // Set default value tanggal ke hari ini
-    $('#filter_tanggal_mulai').val(moment().format('YYYY-MM-DD'));
-    $('#filter_tanggal_selesai').val(moment().format('YYYY-MM-DD'));
-    
+
     $('.select2').select2({ width: '100%' });
     $('#filter_status_resep').val('0').trigger('change'); // set default to 0
+
+    @php $spesialisasiColorMap = \App\Models\ERM\Dokter::spesialisasiColorMap(); @endphp
+    // Table layout mirrors the Rawat Jalan page (same columns, icons and styles from rawatjalans.css)
+    var spesialisasiColorMap = {!! json_encode($spesialisasiColorMap) !!};
+    var HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    var BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    function statusIcon(color, icon, title) {
+        return '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width:20px;height:20px;background-color:' + color + ';border-radius:50%;" title="' + title + '"><i class="fas ' + icon + ' text-white" style="font-size:11px;"></i></span>';
+    }
 
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
-        responsive: true,
+        scrollX: true,
+        scrollCollapse: true,
+        autoWidth: false,
+        fixedColumns: { right: 1 },
+        pageLength: 50,
         ajax: {
             url: '{{ route("erm.eresepfarmasi.index") }}',
             data: function(d) {
@@ -270,209 +258,211 @@ $(document).ready(function () {
                 d.tanggal_selesai = $('#filter_tanggal_selesai').val();
                 d.dokter_id = $('#filter_dokter').val();
                 d.klinik_id = $('#filter_klinik').val();
-                d.status_resep = $('#filter_status_resep').val(); // add status_resep
+                d.status_resep = $('#filter_status_resep').val();
             }
         },
-        // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
+        order: [[4, 'asc']], // Tanggal ASC
         columns: [
-            { 
-                data: 'no_resep', 
-                name: 'no_resep', 
-                searchable: true, 
+            {
+                data: 'no_resep',
+                name: 'no_resep',
+                searchable: true,
+                orderable: false,
+                render: function(data, type, row) {
+                    // "Umum - Lunas" as coloured text: metode bayar (green for Umum, blue otherwise) - invoice status
+                    var metode = $.trim(row.metode_bayar || '');
+                    var metodeHtml = metode ? '<span class="' + (metode === 'Umum' ? 'text-success' : 'text-info') + '">' + escapeHtml(metode) + '</span>' : '';
+                    // Invoice status uses the same labels as the Billing page
+                    var invoiceLabel = row.invoice_status || 'Belum Transaksi';
+                    var invoiceColor = {
+                        'Terhapus': '#6c757d',
+                        'Lunas': '#28a745',
+                        'Belum Lunas': '#d39e00', // darker than Billing's #ffc107 so it stays readable as text
+                        'Piutang': '#17a2b8'
+                    }[invoiceLabel] || '#dc3545';
+                    var invoiceHtml = '<span style="color:' + invoiceColor + ';">' + escapeHtml(invoiceLabel) + '</span>';
+                    var subLine = [metodeHtml, invoiceHtml].filter(Boolean).join(' - ');
+                    return '<div class="d-flex flex-column">'
+                        + '<div class="d-flex align-items-center">'
+                        + (row.klinik_logo_url ? '<img src="' + escapeHtml(row.klinik_logo_url) + '" alt="' + escapeHtml(row.nama_klinik || '') + '" title="' + escapeHtml(row.nama_klinik || '') + '" class="klinik-logo mr-2">' : '')
+                        + (data ? '<strong>' + escapeHtml(data) + '</strong>' : '<span class="text-muted">-</span>')
+                        + '</div>'
+                        + (subLine ? '<small class="font-weight-bold mt-1">' + subLine + '</small>' : '')
+                        + '</div>';
+                }
+            },
+            {
+                data: 'nama_pasien',
+                name: 'nama_pasien',
+                searchable: true,
+                orderable: false,
+                render: function(data, type, row) {
+                    var sp = (row.status_pasien || '').toLowerCase();
+                    var sa = (row.status_akses || '').toLowerCase();
+                    var icons = '';
+                    if (sp.includes('vip')) icons += statusIcon('#FFD700', 'fa-crown', 'VIP Member');
+                    else if (sp.includes('familia')) icons += statusIcon('#32CD32', 'fa-users', 'Familia Member');
+                    else if (sp.includes('black')) icons += statusIcon('#2F2F2F', 'fa-credit-card', 'Black Card Member');
+                    else if (sp.includes('red')) icons += statusIcon('#FF0000', 'fa-exclamation-triangle', 'Red Flag');
+                    if (sa.includes('akses cepat') || sa.includes('akses_cepat') || sa.includes('akses-cep')) icons += statusIcon('#007BFF', 'fa-wheelchair', 'Akses Cepat');
+                    if (row.employee_id) icons += statusIcon('#10b981', 'fa-id-badge', 'Employee');
+                    if ((row.status_review || '').toLowerCase() !== 'sudah') icons += statusIcon('#FF0000', 'fa-map-marker-alt', 'Belum Review');
+
+                    var newBadge = parseInt(row.is_first_visit || 0, 10) === 1
+                        ? ' <span class="badge badge-primary blinking ml-1" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
+                        : '';
+                    // sub line: "No RM - notes" (same as the Billing page)
+                    var subLine = [$.trim(row.no_rm || ''), $.trim(row.catatan_pasien || '')]
+                        .filter(function(v) { return v !== ''; })
+                        .map(escapeHtml)
+                        .join(' - ');
+                    return '<div class="d-flex flex-column">'
+                        + '<div class="d-inline-flex align-items-center font-weight-bold"><span class="rawatjalan-patient-name-text">' + escapeHtml(data || '-') + '</span>' + newBadge + icons + '</div>'
+                        + (subLine ? '<small class="pasien-notes-preview">' + subLine + '</small>' : '')
+                        + '</div>';
+                }
+            },
+            {
+                data: null,
+                name: 'tanggal_lahir',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row) {
+                    var birthText = '-', childIcon = '', birthdayIcon = '';
+                    var birth = row.tanggal_lahir ? moment(row.tanggal_lahir, 'YYYY-MM-DD') : null;
+                    if (birth && birth.isValid()) {
+                        var today = moment();
+                        birthText = birth.date() + ' ' + BULAN_ID[birth.month()] + ' ' + birth.year();
+                        if (today.diff(birth, 'years') < 17) childIcon = '<span class="rawatjalan-patient-child-icon" title="Pasien anak"><i class="fas fa-baby-carriage"></i></span>';
+                        if (birth.month() === today.month() && birth.date() === today.date()) birthdayIcon = '<span class="rawatjalan-patient-birthday-icon" title="Ulang tahun hari ini"><i class="fas fa-birthday-cake"></i></span>';
+                    }
+
+                    var areaParts = [row.village_name, row.district_name, row.regency_name, row.province_name].map(function(p) { return $.trim(p || ''); });
+                    var areaComplete = areaParts.every(function(p) { return p.length > 0; });
+
+                    var missing = [];
+                    if (!$.trim(row.identity_number || '')) missing.push('Dokumen Identitas');
+                    if (!$.trim(row.tanggal_lahir || '')) missing.push('Tanggal Lahir');
+                    if (!$.trim(row.gender || '')) missing.push('Gender');
+                    if (!$.trim(row.alamat || '')) missing.push('Alamat');
+                    if (!areaComplete) missing.push('Desa/Kecamatan/Kabupaten/Provinsi');
+                    if (!$.trim(row.telepon_pasien || '')) missing.push('No. HP');
+                    var warningIcon = missing.length
+                        ? '<span class="text-danger blinking" title="' + escapeHtml('Data pasien belum lengkap: ' + missing.join(', ')) + '"><i class="fas fa-exclamation-triangle"></i></span>'
+                        : '';
+
+                    var addressHtml;
+                    if (areaComplete) {
+                        var alamat = areaParts.join(', ');
+                        var shortAlamat = alamat.length > 70 ? alamat.substring(0, 70).trim() + '...' : alamat;
+                        addressHtml = '<small class="rawatjalan-patient-address" title="' + escapeHtml(alamat) + '">' + escapeHtml(shortAlamat) + '</small>';
+                    } else {
+                        addressHtml = '<small class="rawatjalan-patient-address text-danger font-weight-bold">' + ($.trim(row.alamat || '') ? 'Alamat belum lengkap' : 'Alamat belum ditambahkan') + '</small>';
+                    }
+
+                    return '<div class="d-flex flex-column">'
+                        + '<div class="rawatjalan-patient-birth-row"><span class="rawatjalan-patient-birth-text">' + birthText + '</span>' + childIcon + birthdayIcon + warningIcon + '</div>'
+                        + addressHtml
+                        + '</div>';
+                }
+            },
+            {
+                data: 'alergi',
+                name: 'alergi',
+                searchable: false,
+                orderable: false,
+                render: function(data) {
+                    // Server sends the allergen names as an array; show one per line
+                    var items = (Array.isArray(data) ? data : []).map(function(n) { return $.trim(n || ''); }).filter(Boolean);
+                    if (!items.length) return '<span class="text-muted">Tidak ada</span>';
+                    return '<div class="text-danger font-weight-bold" style="white-space:normal;">'
+                        + items.map(function(n) { return '<div>' + escapeHtml(n) + '</div>'; }).join('')
+                        + '</div>';
+                }
+            },
+            {
+                data: 'tanggal_visitation',
+                name: 'erm_visitations.tanggal_visitation',
+                searchable: false,
                 orderable: true,
                 render: function(data, type, row) {
-                    var rawDate = row.tanggal_visitation_formatted || row.tanggal_visitation || '';
-                    if (type === 'display') {
-                        var displayDate = rawDate;
-                        // Only try to parse ISO-like dates; if parsing fails, use server-provided string
-                        var m = moment(rawDate, moment.ISO_8601, true);
-                        if (m.isValid()) {
-                            displayDate = m.format('D MMMM YYYY');
-                        }
-                        return '<div>'+ (data || '') +'<br><small class="text-muted"><strong>'+ displayDate +'</strong></small></div>';
-                    }
-                    if (type === 'sort') {
-                        // For sorting, prefer a machine-friendly ISO date if available
-                        return row.tanggal_visitation_iso || row.tanggal_visitation || data || '';
-                    }
-                    if (type === 'filter') {
-                        return (data || '') + ' ' + (rawDate || '');
-                    }
-                    return data;
+                    if (type !== 'display') return data || '';
+                    var m = moment(data, 'YYYY-MM-DD');
+                    var tanggal = m.isValid()
+                        ? HARI_ID[m.day()] + ', ' + m.date() + ' ' + BULAN_ID[m.month()] + ' ' + m.year()
+                        : escapeHtml(row.tanggal || data || '');
+                    var waktu = row.waktu_kunjungan && row.waktu_kunjungan !== '-' ? ' - ' + String(row.waktu_kunjungan).replace(':', '.') : '';
+
+                    // Jenis kunjungan as small coloured text under the date
+                    var jenis = {
+                        '1': '<small class="font-weight-bold text-primary">Konsultasi</small>',
+                        '2': '<small class="font-weight-bold" style="color:#d39e00;">Beli Produk</small>',
+                        '5': '<small class="font-weight-bold text-dark">Marketplace</small>'
+                    }[String(row.jenis_kunjungan)] || '';
+
+                    return '<div><strong>' + tanggal + '</strong>' + waktu + '</div>' + jenis;
                 }
             },
-            { data: 'tanggal_visitation', name: 'tanggal_visitation', visible: false, searchable: true, orderable: true },
-            { 
-                data: 'nama_pasien', 
-                name: 'nama_pasien', 
-                searchable: true, 
+            {
+                data: 'dokter_nama',
+                name: 'dokter_nama',
+                searchable: false,
                 orderable: false,
                 render: function(data, type, row) {
-                    if (type === 'display') {
-                        var iconHtml = '';
-                        var status = (row.status_pasien || '').toString().trim();
-                        if (status === 'VIP') {
-                            iconHtml += '<span class="status-pasien-icon" style="background-color:#FFD700;" title="VIP Member"><i class="fas fa-crown" style="font-size:11px;color:#fff;"></i></span>';
-                        } else if (status === 'Familia') {
-                            iconHtml += '<span class="status-pasien-icon" style="background-color:#32CD32;" title="Familia Member"><i class="fas fa-users" style="font-size:11px;color:#fff;"></i></span>';
-                        } else if (status === 'Black Card') {
-                            iconHtml += '<span class="status-pasien-icon" style="background-color:#2F2F2F;" title="Black Card Member"><i class="fas fa-credit-card" style="font-size:11px;color:#fff;"></i></span>';
-                        }
-
-                        var noRm = row.no_rm || '';
-                        var umur = row.pasien_umur ? (row.pasien_umur + ' tahun') : '';
-                        var alamat = row.pasien_alamat || '';
-                        var info = '';
-                        if (umur && alamat) info = umur + ' · ' + alamat;
-                        else if (umur) info = umur;
-                        else if (alamat) info = alamat;
-                        var infoHtml = info ? '<small class="text-muted">' + info + '</small>' : '';
-                        var rmHtml = noRm ? ' (' + noRm + ')' : '';
-                        var nameHtml = '<strong>' + (data || '') + '</strong>';
-                        // Build a two-row layout: top row has icon + name, second row is age/address aligned under the name
-                        var topRow = '<div style="display:flex;align-items:flex-start;">' + iconHtml + '<div class="patient-meta" style="margin-left:8px;">' + '<div><span class="patient-name">' + nameHtml + '</span>' + '<span class="patient-rm">' + rmHtml + '</span></div>';
-                        var infoRow = info ? '<div class="patient-info">' + infoHtml + '</div>' : '';
-                        return '<div>' + topRow + infoRow + '</div></div>';
-                    }
-                    if (type === 'filter') {
-                        return (data || '') + ' ' + (row.no_rm || '') + ' ' + (row.pasien_alamat || '');
-                    }
-                    return data;
+                    var spes = row.spesialisasi || '';
+                    var badgeClass = (spes && spesialisasiColorMap[spes]) || 'badge-light text-dark';
+                    var textClass = badgeClass.indexOf('badge-light') !== -1 ? 'text-secondary' : badgeClass.replace(/badge-/g, 'text-');
+                    var spesHtml = spes ? '<div class="mt-1"><small class="font-weight-bold ' + textClass + '">' + escapeHtml(spes) + '</small></div>' : '';
+                    return '<div><strong>' + escapeHtml(data || '-') + '</strong>' + spesHtml + '</div>';
                 }
             },
-            { 
-                data: 'nama_dokter', 
-                searchable: false, 
+            {
+                data: 'dokumen',
+                name: 'dokumen',
+                searchable: false,
                 orderable: false,
                 render: function(data, type, row) {
-                    if (type === 'display') {
-                        var spec = row.spesialisasi || '';
-                        var style = '';
-                        switch ((spec || '').toString().trim()) {
-                            case 'Penyakit Dalam': style = 'background-color:#007bff;color:#fff;'; break; // blue
-                            case 'Saraf': style = 'background-color:#5bc0de;color:#fff;'; break; // light blue
-                            case 'Estetika': style = 'background-color:#ff69b4;color:#fff;'; break; // pink
-                            case 'Gigi': style = 'background-color:#fd7e14;color:#fff;'; break; // orange
-                            case 'Anak': style = 'background-color:#28a745;color:#fff;'; break; // green
-                            case 'Umum': style = 'background-color:#ffc107;color:#212529;'; break; // yellow (dark text)
-                            default: style = 'background-color:#6c757d;color:#fff;';
-                        }
-                        var badge = spec ? '<span class="badge" style="'+ style +'">'+ spec +'</span>' : '';
-                        return '<div>'+ (data || '') +'<br><small>'+ badge +'</small></div>';
-                    }
-                    if (type === 'filter') {
-                        return (data || '') + ' ' + (row.spesialisasi || '');
-                    }
-                    return data;
+                    var time = row.asesmen_selesai && row.asesmen_selesai !== '-'
+                        ? '<div class="text-muted small mt-1">Asesmen selesai ' + String(row.asesmen_selesai).replace(':', '.') + '</div>'
+                        : '';
+                    return '<div>' + (data || '') + time + '</div>';
                 }
-            },
-            { 
-                data: 'metode_bayar', 
-                searchable: false, 
-                orderable: false,
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        var name = data || row.metode_bayar || '';
-                        var cls = 'badge badge-primary';
-                        if ((name || '').toString().trim() === 'Umum') cls = 'badge badge-success';
-
-                        // Jenis kunjungan badge
-                        var jenisVal = (row && (row.jenis_kunjungan !== undefined && row.jenis_kunjungan !== null)) ? row.jenis_kunjungan : (row ? (row.jenis || row.jenis_kunjungan_id || null) : null);
-                        var jenisLabel = '';
-                            var jenisIconHtml = '';
-                            var jenisStyle = '';
-                        var referralType = (row && row.referral_type ? String(row.referral_type) : '').toLowerCase().trim();
-                        var referralDetail = (row && row.referral_detail ? String(row.referral_detail) : '').toLowerCase().trim();
-                        if (jenisVal !== null && jenisVal !== undefined && jenisVal !== '') {
-                            var j = String(jenisVal);
-                            if (j === '1') jenisLabel = 'Konsultasi';
-                            else if (j === '2') jenisLabel = 'Beli Produk';
-                            else if (j === '3') jenisLabel = 'Lab';
-                                else if (j === '5') {
-                                var marketplaceLabelMap = {
-                                    shopee: 'Shopee',
-                                    tiktokshop: 'Tiktokshop',
-                                    tokopedia: 'Tokopedia',
-                                    lazada: 'Lazada'
-                                };
-                                var marketplaceStyleMap = {
-                                    shopee: 'background-color:#f97316;color:#fff;',
-                                    tiktokshop: 'background-color:#111827;color:#fff;',
-                                    tokopedia: 'background-color:#16a34a;color:#fff;',
-                                    lazada: 'background-color:#2563eb;color:#fff;'
-                                };
-
-                                jenisLabel = referralType === 'marketplace'
-                                    ? (marketplaceLabelMap[referralDetail] || (row.referral_detail || 'Marketplace'))
-                                    : 'Marketplace';
-                                jenisIconHtml = '<i class="fas fa-store mr-1"></i>';
-                                jenisStyle = referralType === 'marketplace'
-                                    ? (marketplaceStyleMap[referralDetail] || 'background-color:#d97706;color:#fff;')
-                                    : 'background-color:#d97706;color:#fff;';
-                                }
-                            else jenisLabel = j;
-                        }
-                        if (!jenisLabel && row && row.jenis_kunjungan_text) {
-                            jenisLabel = row.jenis_kunjungan_text;
-                        }
-
-                        var jenisCls = 'badge badge-secondary';
-                        try {
-                            var j2 = String(jenisVal);
-                            if (j2 === '1') jenisCls = 'badge badge-primary';      // Konsultasi
-                            else if (j2 === '2') jenisCls = 'badge badge-warning'; // Beli Produk
-                            else if (j2 === '3') jenisCls = 'badge badge-danger';  // Lab
-                            else if (j2 === '5') jenisCls = 'badge';              // Marketplace
-                        } catch (e) {}
-
-                        var jenisBadgeAttrs = jenisStyle ? ' class="' + jenisCls + '" style="' + jenisStyle + '"' : ' class="' + jenisCls + '"';
-                        var jenisHtml = jenisLabel ? '<div class="mt-1"><span' + jenisBadgeAttrs + '>' + jenisIconHtml + jenisLabel + '</span></div>' : '';
-                        return '<div><span class="'+ cls +'">'+ name +'</span>' + jenisHtml + '</div>';
-                    }
-                    if (type === 'filter') return data || row.metode_bayar || '';
-                    return data;
-                }
-            },
-            { 
-                data: 'dokumen', 
-                searchable: false, 
-                orderable: false,
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        var btn = data || row.dokumen || '';
-                        var time = row.asesmen_selesai || '';
-                        var timeHtml = '';
-                        if (time && time !== '-') {
-                            var displayTime = (time || '').toString().replace(':', '.');
-                            timeHtml = '<div class="text-muted small mt-1">Asesmen selesai pada ' + displayTime + '</div>';
-                        }
-                        return '<div>'+ btn + timeHtml +'</div>';
-                    }
-                    if (type === 'filter') return (data || row.dokumen || '') + ' ' + (row.asesmen_selesai || '');
-                    return data;
-                }
-            },
-            { data: 'status_kunjungan', visible: false, searchable: false } // 🛠️ Sembunyikan
+            }
         ],
         columnDefs: [
-            // Adjusted widths: No Resep, (hidden date), Nama Pasien, Nama Dokter, Metode Bayar, Resep
-            { targets: 0, width: "15%", orderData: [1] },
-            { targets: 1, width: "0%" },
-            { targets: 2, width: "30%" },
-            { targets: 3, width: "35%" },
-            { targets: 4, width: "8%", className: 'text-center' },
-            { targets: 5, width: "12%", className: 'text-center' },
+            { targets: 0, width: "200px" },  // No Resep
+            { targets: 1, width: "280px" },  // Nama Pasien
+            { targets: 2, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
+            { targets: 3, width: "200px" },  // Alergi
+            { targets: 4, width: "260px" },  // Tanggal
+            { targets: 5, width: "220px" },  // Dokter
+            { targets: 6, width: "200px" },  // Resep
         ],
+    });
+
+    table.on('draw.dt', function() {
+        try { table.columns.adjust(); } catch (e) {}
+    });
+    $(window).on('resize', function() {
+        try { table.columns.adjust(); } catch (e) {}
     });
 
     // initial & periodic badge refresh
     refreshOldNotifsBadge();
 
-    // Auto-refresh table every 10 seconds (keep current page)
+    // Auto-refresh table every 10 seconds (keep current page); skipped while the tab is hidden,
+    // a modal is open, or the previous reload is still running
+    var tableReloading = false;
+    table.on('preXhr.dt', function() { tableReloading = true; });
+    table.on('xhr.dt', function() { tableReloading = false; });
     setInterval(function() {
-        try {
-            table.ajax.reload(null, false);
-        } catch (e) {}
+        if (document.visibilityState && document.visibilityState !== 'visible') return;
+
+        if (!tableReloading && $('.modal.show').length === 0) {
+            try {
+                table.ajax.reload(null, false);
+            } catch (e) {}
+        }
 
         try {
             refreshOldNotifsBadge();

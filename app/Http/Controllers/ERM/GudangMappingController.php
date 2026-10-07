@@ -4,7 +4,6 @@ namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\GudangMapping;
-use App\Models\ERM\Gudang;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -36,10 +35,10 @@ class GudangMappingController extends Controller
                     return '<span class="badge badge-secondary">Tidak Aktif</span>';
                 })
                 ->addColumn('aksi', function ($row) {
-                    $editBtn = '<button type="button" class="btn btn-sm btn-warning" onclick="editMapping(' . $row->id . ')">
+                    $editBtn = '<button type="button" class="btn btn-sm btn-warning" onclick="editGudangMapping(' . $row->id . ')">
                                     <i class="fas fa-edit"></i> Edit
                                 </button>';
-                    $deleteBtn = '<button type="button" class="btn btn-sm btn-danger ml-1" onclick="deleteMapping(' . $row->id . ')">
+                    $deleteBtn = '<button type="button" class="btn btn-sm btn-danger ml-1" onclick="deleteGudangMapping(' . $row->id . ')">
                                     <i class="fas fa-trash"></i> Hapus
                                   </button>';
                     
@@ -49,12 +48,8 @@ class GudangMappingController extends Controller
                 ->make(true);
         }
 
-        $gudangs = Gudang::orderBy('nama')->get();
-        $transactionTypes = GudangMapping::getTransactionTypes();
-        $spesialisasis = \App\Models\ERM\Spesialisasi::orderBy('nama')->get();
-        $billingContexts = GudangMapping::getBillingContextOptions();
-
-        return view('erm.gudang-mapping.index', compact('gudangs', 'transactionTypes', 'spesialisasis', 'billingContexts'));
+        // The page itself now lives in the admin panel (Obat & Gudang Mapping)
+        return redirect()->route('admin.obat_gudang_mapping.index');
     }
 
     /**

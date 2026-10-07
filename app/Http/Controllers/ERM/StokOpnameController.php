@@ -898,7 +898,7 @@ class StokOpnameController extends Controller
         }
 
         // Prepare filter lists for the view
-        $kategoriList = Obat::select('kategori')->distinct()->whereNotNull('kategori')->pluck('kategori');
+        $kategoriList = Obat::KATEGORI_LIST;
         $metodeList = DB::table('erm_metode_bayar')->select('id','nama')->get();
 
         // Expiration years available for this gudang
@@ -1156,7 +1156,7 @@ class StokOpnameController extends Controller
                     'erm_stok_opname_items.*',
                     'erm_obat.nama as nama_obat',
                     'erm_obat.hpp as hpp_obat',
-                    'erm_obat.satuan as satuan',
+                    DB::raw("COALESCE(NULLIF(erm_obat.satuan_stok, ''), erm_obat.satuan) as satuan"),
                     'erm_obat.kategori as kategori',
                     DB::raw($batchSub),
                     DB::raw($kartuQueryNoAlias . ' as kartu_temuan_sum'),
@@ -1247,7 +1247,7 @@ class StokOpnameController extends Controller
                 })
                 // Ensure searching by 'satuan' targets the joined `erm_obat.satuan` column
                 ->filterColumn('satuan', function($query, $keyword) {
-                    $query->where('erm_obat.satuan', 'like', "%{$keyword}%");
+                    $query->where(DB::raw("COALESCE(NULLIF(erm_obat.satuan_stok, ''), erm_obat.satuan)"), 'like', "%{$keyword}%");
                 })
                 // Handle search on nearest_exp which is an alias from a subquery
                 ->filterColumn('nearest_exp', function($query, $keyword) use ($gudangId) {
@@ -1316,30 +1316,6 @@ class StokOpnameController extends Controller
         $stokOpname->status = $request->status;
         $stokOpname->save();
         return response()->json(['success' => true, 'status' => $stokOpname->status]);
-    }
-    /**
-     * @deprecated Use updateStokFromOpname instead for proper audit trail
-     * Legacy method - directly updates obat.stok field without StokService
-     */
-    public function saveStokFisik($id)
-    {
-        Log::warning('Using deprecated saveStokFisik method. Use updateStokFromOpname instead for proper kartu stok recording.');
-        
-        $items = StokOpnameItem::where('stok_opname_id', $id)->get();
-        $updated = 0;
-        foreach ($items as $item) {
-            $obat = \App\Models\ERM\Obat::withInactive()->find($item->obat_id);
-            if ($obat) {
-                $obat->stok = $item->stok_fisik;
-                $obat->save();
-                $updated++;
-            }
-        }
-        return response()->json([
-            'success' => true, 
-            'message' => "$updated stok obat berhasil diperbarui.",
-            'warning' => 'Method ini deprecated. Gunakan updateStokFromOpname untuk pencatatan kartu stok yang benar.'
-        ]);
     }
 
     /**

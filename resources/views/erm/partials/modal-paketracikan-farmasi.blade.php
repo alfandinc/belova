@@ -53,9 +53,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Aturan Pakai Default</label>
-                                <select class="form-control select2-aturan-pakai-farmasi" name="aturan_pakai_default" style="width:100%">
-                                    <option value="">Pilih Aturan Pakai</option>
-                                </select>
+                                <input type="text" class="form-control aturan_pakai" name="aturan_pakai_default" placeholder="Ketik aturan pakai">
                             </div>
                             
                             <h6><strong>Obat dalam Paket</strong></h6>
@@ -133,9 +131,7 @@
                 </div>
                 <div class="form-group">
                     <label for="paketAturanPakaiFarmasi">Aturan Pakai <span class="text-danger">*</span></label>
-                    <select class="form-control select2-aturan-pakai-farmasi-modal" id="paketAturanPakaiFarmasi" required style="width:100%">
-                        <option value="">Pilih Aturan Pakai</option>
-                    </select>
+                    <input type="text" class="form-control aturan_pakai" id="paketAturanPakaiFarmasi" placeholder="Ketik aturan pakai" required>
                 </div>
                 <input type="hidden" id="selectedPaketIdFarmasi">
             </div>

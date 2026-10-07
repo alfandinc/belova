@@ -15,21 +15,11 @@ use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Visitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 
 class ObatController extends Controller
 {
-    private function getCsvField(array $data, array $names)
-    {
-        foreach ($names as $name) {
-            if (isset($data[$name])) {
-                return trim((string) $data[$name]);
-            }
-        }
-
-        return null;
-    }
-
     private function normalizeCsvDecimal($value)
     {
         if ($value === null) {
@@ -128,57 +118,121 @@ class ObatController extends Controller
     }
 
     /**
-     * Update the specified Obat in storage.
+     * Fields the master obat form may write. HPP comes from purchases (StokService) and HNA is always
+     * HPP + PPN (Obat model), stok lives in erm_obat_stok_gudang, harga_net / harga_fornas are no longer edited here.
+     */
+    private const EDITABLE_FIELDS = [
+        'nama', 'dosis', 'satuan', 'satuan_stok', 'harga_nonfornas',
+        'kategori', 'is_generik', 'metode_bayar_id', 'status_aktif', 'principal_id',
+    ];
+
+    /**
+     * @param bool $partial true for PUT (only validate fields that are sent)
+     */
+    private function obatRules(bool $partial): array
+    {
+        $req = $partial ? ['sometimes', 'required'] : ['required'];
+
+        return [
+            'nama' => array_merge($req, ['string', 'max:191']),
+            'dosis' => 'nullable|string|max:191',
+            'satuan' => ['nullable', Rule::in(Obat::satuanDosisOptions())],
+            'satuan_stok' => array_merge($req, [Rule::in(Obat::SATUAN_STOK_LIST)]),
+            'kategori' => array_merge($req, [Rule::in(Obat::KATEGORI_LIST)]),
+            'metode_bayar_id' => array_merge($req, ['exists:erm_metode_bayar,id']),
+            'is_generik' => 'sometimes|boolean',
+            'principal_id' => 'nullable|integer|exists:erm_principals,id',
+            'status_aktif' => 'sometimes|in:0,1',
+            'harga_nonfornas' => 'nullable|numeric|min:0',
+            'zataktif_id' => 'nullable|array',
+            'zataktif_id.*' => 'integer|exists:erm_zataktif,id',
+        ];
+    }
+
+    private const OBAT_MESSAGES = [
+        'required' => ':attribute wajib diisi.',
+        'in' => ':attribute tidak valid, pilih dari daftar.',
+        'numeric' => ':attribute harus berupa angka.',
+        'min' => ':attribute tidak boleh negatif.',
+        'max' => ':attribute terlalu panjang (maksimal :max karakter).',
+        'exists' => ':attribute tidak ditemukan.',
+        'boolean' => ':attribute tidak valid.',
+        'array' => ':attribute tidak valid.',
+        'integer' => ':attribute tidak valid.',
+        'string' => ':attribute tidak valid.',
+    ];
+
+    private const OBAT_ATTRIBUTES = [
+        'nama' => 'Nama Obat',
+        'kategori' => 'Kategori',
+        'dosis' => 'Dosis',
+        'is_generik' => 'Jenis',
+        'principal_id' => 'Principal',
+        'status_aktif' => 'Status',
+        'harga_nonfornas' => 'Harga Jual',
+        'metode_bayar_id' => 'Metode Bayar',
+        'satuan' => 'Satuan Dosis',
+        'satuan_stok' => 'Satuan Stok/Jual',
+        'zataktif_id.*' => 'Zat Aktif',
+    ];
+
+    public const FILTER_KOSONG = '__kosong__';
+
+    /**
+     * kategori / metode_bayar_id / satuan_stok filters; FILTER_KOSONG matches rows where the field is not filled.
+     */
+    public function applyMasterFilters($query, Request $request): void
+    {
+        foreach (['kategori', 'metode_bayar_id', 'satuan_stok'] as $field) {
+            $value = $request->input($field);
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if ($value === self::FILTER_KOSONG) {
+                $query->where(function ($q) use ($field) {
+                    $q->whereNull($field)->orWhere($field, '');
+                });
+            } else {
+                $query->where($field, $value);
+            }
+        }
+    }
+
+    private function syncZatAktif(Request $request, Obat $obat): void
+    {
+        // A multi-select with nothing selected sends no field at all, so the master form
+        // sends sync_zataktif=1 to allow clearing. Partial updates (e.g. stok opname) leave it alone.
+        if ($request->has('zataktif_id') || $request->boolean('sync_zataktif')) {
+            $obat->zatAktifs()->sync(array_filter((array) $request->input('zataktif_id', [])));
+        }
+    }
+
+    /**
+     * Update the specified Obat in storage. Only fields present in the request are changed.
      */
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'nama' => 'required|string',
-            'kode_obat' => 'nullable|string',
-            'dosis' => 'nullable|string',
-            'satuan' => 'nullable|string',
-            'kategori' => 'nullable|string',
-            'is_generik' => 'nullable|boolean',
-            'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
-            'harga_net' => 'nullable|numeric',
-            'hna' => 'nullable|numeric',
-            'harga_fornas' => 'nullable|numeric',
-            'harga_nonfornas' => 'nullable|numeric',
-            'stok' => 'nullable|integer|min:0',
-            'hpp' => 'nullable|numeric',
-            'status_aktif' => 'nullable|integer',
-        ]);
+        $request->validate($this->obatRules(true), self::OBAT_MESSAGES, self::OBAT_ATTRIBUTES);
+
+        $obat = Obat::withInactive()->findOrFail($id);
 
         try {
-            $obat = Obat::withInactive()->findOrFail($id);
-            // Build update payload only from provided inputs to avoid overwriting unspecified fields
-            $up = [];
-            $fields = [
-                'nama','kode_obat','dosis','satuan','harga_net','hna','harga_fornas','harga_nonfornas',
-                'stok','kategori','is_generik','metode_bayar_id','status_aktif','hpp'
-            ];
-            foreach ($fields as $f) {
-                if ($request->has($f)) {
-                    // For stok, if not provided use existing; when present allow zero
-                    if ($f === 'stok') {
-                        $up[$f] = $request->input($f) !== null ? $request->input($f) : $obat->stok;
-                    } else {
-                        $up[$f] = $request->input($f);
+            DB::transaction(function () use ($request, $obat) {
+                $up = [];
+                foreach (self::EDITABLE_FIELDS as $f) {
+                    if ($request->has($f)) {
+                        $up[$f] = $f === 'is_generik' ? $request->boolean($f) : $request->input($f);
                     }
                 }
-            }
-            // Only update if there is something to change
-            if (!empty($up)) {
-                $obat->update($up);
-            }
-
-            // Sync zat aktif if provided
-            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
-                $obat->zatAktifs()->sync($request->zataktif_id);
-            }
+                if (!empty($up)) {
+                    $obat->update($up);
+                }
+                $this->syncZatAktif($request, $obat);
+            });
 
             return response()->json(['success' => true, 'message' => 'Obat berhasil diperbarui']);
         } catch (\Exception $e) {
+            report($e);
             return response()->json(['success' => false, 'message' => 'Gagal memperbarui obat: ' . $e->getMessage()], 500);
         }
     }
@@ -254,149 +308,150 @@ class ObatController extends Controller
         }
         return view('erm.obat.monitor_profit');
     }
+    /**
+     * Filters shared by the master obat table and its summary counts.
+     */
+    public function applyIndexFilters($query, Request $request): void
+    {
+        $this->applyMasterFilters($query, $request);
+
+        if ($request->filled('zataktif_id')) {
+            $zatAktifId = $request->zataktif_id;
+            $query->whereHas('zatAktifs', function ($zatQuery) use ($zatAktifId) {
+                $zatQuery->where('erm_zataktif.id', $zatAktifId);
+            });
+        }
+        // Obat supplied by a pemasok / principal ("N obat" link in the Pemasok & Principal modal)
+        if ($request->filled('pemasok_id')) {
+            $ids = PemasokController::obatIdsQuery([(int) $request->pemasok_id])->select('obat_id');
+            $query->whereIn('erm_obat.id', $ids);
+        }
+        if ($request->filled('principal_id')) {
+            $ids = PrincipalController::obatIdsQuery([(int) $request->principal_id])->select('obat_id');
+            $query->whereIn('erm_obat.id', $ids);
+        }
+        if ($request->filled('status_aktif')) {
+            $query->where('status_aktif', $request->status_aktif);
+        }
+        if (in_array((string) $request->input('is_generik'), ['0', '1'], true)) {
+            $query->where('is_generik', (int) $request->is_generik);
+        }
+
+        switch ($request->input('kelengkapan')) {
+            case 'harga_jual':
+                $query->where(fn ($q) => $q->whereNull('harga_nonfornas')->orWhere('harga_nonfornas', '<=', 0));
+                break;
+            case 'hpp':
+                $query->where(fn ($q) => $q->whereNull('hpp')->orWhere('hpp', '<=', 0));
+                break;
+            case 'zat_aktif':
+                $query->whereDoesntHave('zatAktifs');
+                break;
+        }
+    }
+
+    /**
+     * Free-text search: kode, kode lama, nama, zat aktif, principal.
+     */
+    public function applySearch($query, string $term): void
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return;
+        }
+
+        $query->where(function ($subQuery) use ($term) {
+            $subQuery->where('kode_obat', 'LIKE', "%{$term}%")
+                ->orWhere('kode_obat_lama', 'LIKE', "%{$term}%")
+                ->orWhere('nama', 'LIKE', "%{$term}%")
+                ->orWhereHas('zatAktifs', function ($zatQuery) use ($term) {
+                    $zatQuery->where('nama', 'LIKE', "%{$term}%");
+                })
+                ->orWhereHas('principal', function ($principalQuery) use ($term) {
+                    $principalQuery->where('nama', 'LIKE', "%{$term}%");
+                })
+                // principal or distributor (pemasok) on faktur beli
+                ->orWhereExists(function ($q) use ($term) {
+                    $q->selectRaw(1)
+                        ->from('erm_fakturbeli_items as fi')
+                        ->join('erm_fakturbeli as f', 'f.id', '=', 'fi.fakturbeli_id')
+                        ->leftJoin('erm_pemasok as pm', 'pm.id', '=', 'f.pemasok_id')
+                        ->leftJoin('erm_principals as pr', 'pr.id', '=', 'fi.principal_id')
+                        ->whereColumn('fi.obat_id', 'erm_obat.id')
+                        ->where(fn ($w) => $w->where('pm.nama', 'LIKE', "%{$term}%")->orWhere('pr.nama', 'LIKE', "%{$term}%"));
+                });
+        });
+    }
+
+    /**
+     * Counts of active obat with incomplete master data ("Data perlu dilengkapi" chips).
+     */
+    private function incompleteSummary(): array
+    {
+        $kosong = fn ($field) => fn ($q) => $q->whereNull($field)->orWhere($field, '');
+        $nol = fn ($field) => fn ($q) => $q->whereNull($field)->orWhere($field, '<=', 0);
+        $base = fn () => Obat::query(); // global scope = active only
+
+        return [
+            'kategori' => $base()->where($kosong('kategori'))->count(),
+            'metode_bayar' => $base()->where(fn ($q) => $q->whereNull('metode_bayar_id'))->count(),
+            'satuan_stok' => $base()->where($kosong('satuan_stok'))->count(),
+            'harga_jual' => $base()->where($nol('harga_nonfornas'))->count(),
+            'hpp' => $base()->where($nol('hpp'))->count(),
+        ];
+    }
+
     public function index(Request $request)
     {
+        if ($request->ajax() && $request->boolean('summary')) {
+            return response()->json($this->incompleteSummary());
+        }
+
         if ($request->ajax()) {
-            // Log the status filter being used
-            if ($request->filled('status_aktif')) {
-                \Illuminate\Support\Facades\Log::info('Status filter applied:', ['status' => $request->status_aktif]);
-            } else {
-                \Illuminate\Support\Facades\Log::info('No status filter applied, showing all medications');
-            }
+            // stok_total_sum: do not alias as total_stok, the getTotalStokAttribute accessor would
+            // override it and run one SUM query per row.
+            // Distributor = pemasok on faktur beli ('||'-joined, split in addColumn); principal = the obat's own
+            // principal_id (same source as the "Pemasok & Principal" popup).
+            $distributorSql = "SELECT GROUP_CONCAT(DISTINCT pm.nama ORDER BY pm.nama SEPARATOR '||')
+                FROM erm_fakturbeli_items fi
+                JOIN erm_fakturbeli f ON f.id = fi.fakturbeli_id
+                JOIN erm_pemasok pm ON pm.id = f.pemasok_id
+                WHERE fi.obat_id = erm_obat.id";
+            $principalSql = "SELECT pr.nama FROM erm_principals pr WHERE pr.id = erm_obat.principal_id";
 
-            // Simple query without batch/expiration complexity
-            $query = \App\Models\ERM\Obat::withoutGlobalScope('active')
-                ->with(['zatAktifs', 'metodeBayar', 'masterFakturs.principal'])
-                ->withSum('stokGudang as total_stok', 'stok');
+            $query = Obat::withInactive()
+                ->select('erm_obat.*')
+                ->selectSub($distributorSql, 'distributor_list')
+                ->selectSub($principalSql, 'principal_list')
+                ->with(['zatAktifs:erm_zataktif.id,erm_zataktif.nama', 'metodeBayar:id,nama'])
+                ->withSum('stokGudang as stok_total_sum', 'stok');
 
-            // Apply filters if provided
-            if ($request->has('kategori') && !empty($request->kategori)) {
-                $query->where('kategori', $request->kategori);
-            }
-            if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
-                $query->where('metode_bayar_id', $request->metode_bayar_id);
-            }
-            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
-                $zatAktifId = $request->zataktif_id;
-                $query->whereHas('zatAktifs', function ($zatQuery) use ($zatAktifId) {
-                    $zatQuery->where('erm_zataktif.id', $zatAktifId);
-                });
-            }
-            if ($request->filled('status_aktif')) {
-                $query->where('status_aktif', $request->status_aktif);
-            }
-            // Filter by Generik/Paten using is_generik if provided; fall back to has_zat_aktif for compatibility
-            if ($request->has('is_generik') && $request->is_generik !== '') {
-                $flag = (string) $request->is_generik;
-                if ($flag === '1') {
-                    $query->where('is_generik', 1);
-                } elseif ($flag === '0') {
-                    $query->where('is_generik', 0);
-                }
-            } elseif ($request->has('has_zat_aktif') && $request->has_zat_aktif !== '') {
-                $flag = (string) $request->has_zat_aktif;
-                if ($flag === '1') {
-                    $query->whereHas('zatAktifs');
-                } elseif ($flag === '0') {
-                    $query->whereDoesntHave('zatAktifs');
-                }
-            }
+            $this->applyIndexFilters($query, $request);
 
             return DataTables::of($query)
                 ->filter(function ($query) use ($request) {
-                    $searchValue = trim((string) $request->input('search.value', ''));
-
-                    if ($searchValue === '') {
-                        return;
-                    }
-
-                    $query->where(function ($subQuery) use ($searchValue) {
-                        $subQuery->where('kode_obat', 'LIKE', "%{$searchValue}%")
-                            ->orWhere('nama', 'LIKE', "%{$searchValue}%")
-                            ->orWhere('kategori', 'LIKE', "%{$searchValue}%")
-                            ->orWhere('dosis', 'LIKE', "%{$searchValue}%")
-                            ->orWhere('satuan', 'LIKE', "%{$searchValue}%")
-                            ->orWhereHas('metodeBayar', function ($metodeQuery) use ($searchValue) {
-                                $metodeQuery->where('nama', 'LIKE', "%{$searchValue}%");
-                            })
-                            ->orWhereHas('zatAktifs', function ($zatQuery) use ($searchValue) {
-                                $zatQuery->where('nama', 'LIKE', "%{$searchValue}%");
-                            })
-                            ->orWhereHas('masterFakturs.principal', function ($principalQuery) use ($searchValue) {
-                                $principalQuery->where('nama', 'LIKE', "%{$searchValue}%");
-                            });
-                    });
+                    $this->applySearch($query, (string) $request->input('search.value', ''));
                 })
-                ->addColumn('metode_bayar', function ($obat) {
-                    return $obat->metodeBayar ? $obat->metodeBayar->nama : '-';
-                })
-                // Helper flag to indicate whether obat has any zat aktif (legacy)
-                ->addColumn('has_zat_aktif', function ($obat) {
-                    return $obat->zatAktifs && $obat->zatAktifs->count() > 0;
-                })
-                // Expose is_generik so frontend can render Generik/Paten badge
-                ->addColumn('is_generik', function ($obat) {
-                    return $obat->is_generik;
-                })
-                ->addColumn('zat_aktif', function ($obat) {
-                    $zats = [];
-                    foreach ($obat->zatAktifs as $zat) {
-                        $zats[] = '<span class="badge badge-zat-aktif">' . $zat->nama . '</span>';
-                    }
-                    return implode(' ', $zats);
-                })
-                ->addColumn('principal', function ($obat) {
-                    $principalNames = $obat->masterFakturs
-                        ->pluck('principal.nama')
-                        ->filter()
-                        ->unique()
-                        ->values();
-
-                    if ($principalNames->isEmpty()) {
-                        return '-';
-                    }
-
-                    return e($principalNames->implode(', '));
-                })
-                // Add warning icon if dosis or satuan is null
-                ->editColumn('nama', function ($obat) {
-                    $warning = '';
-                    if (empty($obat->dosis) || empty($obat->satuan)) {
-                        $warning = '<span class="text-warning" style="margin-left:5px;" title="Dosis atau satuan belum diisi"><i class="fas fa-exclamation-triangle" style="color:orange;"></i></span>';
-                    }
-                    return e($obat->nama) . $warning;
-                })
-                ->addColumn('status_aktif', function ($obat) {
-                    return $obat->status_aktif;
-                })
-                ->addColumn('total_stok', function ($obat) {
-                    $val = (float) ($obat->total_stok ?? 0);
-
-                    if (abs($val - round($val)) < 0.00001) {
-                        return number_format($val, 0, ',', '.');
-                    }
-
-                    return number_format($val, 2, ',', '.');
-                })
-                ->addColumn('action', function ($obat) {
-                    $editBtn = '<button type="button" class="btn btn-sm btn-primary btn-edit-obat" data-id="' . $obat->id . '"><i class="fas fa-edit"></i></button>';
-                    $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
-                    $action = $editBtn;
-                    // Show delete button only to users with Admin role
-                    $user = Auth::user();
-                    if ($user && $user->hasAnyRole(['Admin'])) {
-                        $action .= ' ' . $deleteBtn;
-                    }
-                    return $action;
-                })
-                ->rawColumns(['zat_aktif', 'action', 'nama'])
-                    ->make(true);
+                // Plain data only; the page renders and escapes everything
+                ->addColumn('metode_bayar', fn ($obat) => optional($obat->metodeBayar)->nama)
+                ->addColumn('zat_aktif', fn ($obat) => $obat->zatAktifs->pluck('nama')->values()->all())
+                ->addColumn('principal', fn ($obat) => $obat->principal_list ? [$obat->principal_list] : [])
+                ->addColumn('distributor', fn ($obat) => $obat->distributor_list ? explode('||', $obat->distributor_list) : [])
+                ->addColumn('stok_total', fn ($obat) => (float) ($obat->stok_total_sum ?? 0))
+                ->removeColumn('zat_aktifs', 'stok_total_sum', 'principal_list', 'distributor_list')
+                // The page escapes every value itself; server-side escaping would double-escape
+                // ("A & B" -> "A &amp; B") and turns arrays into strings.
+                ->escapeColumns([])
+                ->make(true);
         }
 
-        $kategoris = Obat::select('kategori')->distinct()->pluck('kategori');
-        $metodeBayars = MetodeBayar::all();
+        $kategoris = Obat::KATEGORI_LIST;
+        $metodeBayars = MetodeBayar::orderBy('nama')->get(['id', 'nama']);
+        $satuanStokList = Obat::SATUAN_STOK_LIST;
+        $satuanDosisList = Obat::SATUAN_DOSIS_LIST;
+        $canDelete = (bool) optional(Auth::user())->hasAnyRole(['Admin']);
 
-        return view('erm.obat.index', compact('kategoris', 'metodeBayars'));
+        return view('erm.obat.index', compact('kategoris', 'metodeBayars', 'satuanStokList', 'satuanDosisList', 'canDelete'));
     }
 
     public function forecastIndex()
@@ -486,7 +541,7 @@ class ObatController extends Controller
     public function similarObats($id)
     {
         $obat = Obat::withInactive()
-            ->with(['zatAktifs', 'masterFakturs.principal'])
+            ->with(['zatAktifs', 'masterFakturs', 'principal'])
             ->findOrFail($id);
 
         $selectedMasterFaktur = $obat->masterFakturs
@@ -532,20 +587,15 @@ class ObatController extends Controller
             ->all();
 
         $rows = Obat::query()
-            ->with(['zatAktifs', 'masterFakturs.principal'])
+            ->with(['zatAktifs', 'masterFakturs', 'principal:id,nama'])
             ->whereKeyNot($obat->id)
             ->whereHas('zatAktifs', function ($query) use ($zatAktifIds) {
                 $query->whereIn('erm_zataktif.id', $zatAktifIds);
             })
             ->orderBy('nama')
-            ->get(['id', 'nama', 'is_generik', 'harga_nonfornas'])
+            ->get(['id', 'nama', 'is_generik', 'harga_nonfornas', 'principal_id'])
             ->map(function ($similarObat) use ($zatAktifIds, $stockPerObat) {
-                $principalNames = $similarObat->masterFakturs
-                    ->pluck('principal.nama')
-                    ->filter()
-                    ->unique()
-                    ->values()
-                    ->all();
+                $principalNames = $similarObat->principal ? [$similarObat->principal->nama] : [];
 
                 $latestMasterFaktur = $similarObat->masterFakturs
                     ->sortByDesc('id')
@@ -643,16 +693,14 @@ class ObatController extends Controller
             ->pluck('total_stock', 'obat_id');
 
         $obatMeta = Obat::withoutGlobalScope('active')
-            ->with(['masterFakturs.principal'])
+            ->with(['principal:id,nama'])
             ->whereIn('id', $obatIds)
-            ->get(['id', 'is_generik'])
+            ->get(['id', 'is_generik', 'principal_id'])
             ->keyBy('id');
 
         $rows = $rawRows->map(function ($row) use ($obatMeta, $stockPerObat) {
             $obat = $obatMeta->get($row->obat_id);
-            $principalNames = $obat
-                ? $obat->masterFakturs->pluck('principal.nama')->filter()->unique()->values()->all()
-                : [];
+            $principalNames = $obat && $obat->principal ? [$obat->principal->nama] : [];
 
             $isGenerik = $obat ? $obat->is_generik : null;
             $totalStock = (float) ($stockPerObat[$row->obat_id] ?? 0);
@@ -785,9 +833,9 @@ class ObatController extends Controller
             ->pluck('total_outstanding', 'erm_fakturbeli_items.obat_id');
 
         $obats = Obat::query()
-            ->with(['masterFakturs.principal', 'zatAktifs'])
+            ->with(['masterFakturs', 'principal:id,nama', 'zatAktifs'])
             ->orderBy('nama')
-            ->get(['id', 'nama', 'is_generik', 'is_favorite']);
+            ->get(['id', 'nama', 'is_generik', 'is_favorite', 'principal_id']);
 
         $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat, $approvedOutstandingPermintaanPerObat) {
             $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
@@ -802,12 +850,7 @@ class ObatController extends Controller
             $limitStok = ceil($limitStokRaw);
             $qtyPesan = ceil($qtyPesanRaw);
 
-            $principalNames = $obat->masterFakturs
-                ->pluck('principal.nama')
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
+            $principalNames = $obat->principal ? [$obat->principal->nama] : [];
 
             $zatAktifNames = $obat->zatAktifs
                 ->pluck('nama')
@@ -976,166 +1019,142 @@ class ObatController extends Controller
         ]);
     }
 
+    /**
+     * Name for duplicate checks: uppercase, punctuation and spaces removed ("Paracetamol 500mg" == "PARACETAMOL 500 MG").
+     */
+    private function compactNama(string $nama): string
+    {
+        return preg_replace('/[^A-Z0-9]/', '', strtoupper($nama));
+    }
+
+    /**
+     * Same or similar obat names, for the warning shown while typing in the obat form.
+     * GET ?nama=...&exclude_id=... -> { exact: bool, matches: [...] } (max 5, inactive included).
+     */
+    public function checkNama(Request $request)
+    {
+        $nama = trim((string) $request->input('nama', ''));
+        $compact = $this->compactNama($nama);
+        if (strlen($compact) < 3) {
+            return response()->json(['exact' => false, 'matches' => []]);
+        }
+
+        // Candidates: any of the 3 longest words (>= 3 chars) appears in the name
+        $words = collect(preg_split('/[^A-Z0-9]+/', strtoupper($nama)))
+            ->filter(fn ($w) => strlen($w) >= 3)
+            ->sortByDesc(fn ($w) => strlen($w))
+            ->take(3)
+            ->values();
+        if ($words->isEmpty()) {
+            $words = collect([$compact]);
+        }
+
+        $candidates = Obat::withInactive()
+            ->when($request->filled('exclude_id'), fn ($q) => $q->where('id', '!=', $request->exclude_id))
+            ->where(function ($q) use ($words) {
+                foreach ($words as $w) {
+                    $q->orWhere('nama', 'LIKE', "%{$w}%");
+                }
+            })
+            ->limit(300)
+            ->get(['id', 'kode_obat', 'nama', 'kategori', 'status_aktif']);
+
+        $matches = $candidates->map(function ($obat) use ($compact) {
+            $other = $this->compactNama((string) $obat->nama);
+            if ($other === '') {
+                return null;
+            }
+            $exact = $other === $compact;
+            similar_text($compact, $other, $percent);
+            // One name contained in the other ("AMLODIPIN 5" vs "AMLODIPIN 5 MG TAB") also counts as similar
+            $shorter = min(strlen($compact), strlen($other));
+            if (!$exact && $shorter >= 5 && (str_contains($other, $compact) || str_contains($compact, $other))) {
+                $percent = max($percent, 85);
+            }
+            if (!$exact && $percent < 75) {
+                return null;
+            }
+
+            return [
+                'id' => $obat->id,
+                'kode_obat' => $obat->kode_obat,
+                'nama' => $obat->nama,
+                'kategori' => $obat->kategori,
+                'status_aktif' => (int) $obat->status_aktif,
+                'exact' => $exact,
+                'score' => $exact ? 100 : (int) round($percent),
+            ];
+        })->filter()->sortByDesc('score')->take(5)->values();
+
+        return response()->json([
+            'exact' => $matches->contains('exact', true),
+            'matches' => $matches,
+        ]);
+    }
+
     public function create()
     {
-        $obat = new Obat(); // Empty object for create case
-        $zatAktif = ZatAktif::all();
-        $supplier = Supplier::all();
-        $metodeBayars = MetodeBayar::all();
-        $kategoris = ['Antibiotik', 'Analgesik', 'Antipiretik', 'Antihistamin', 'Vitamin', 'Suplemen', 'Lainnya']; // Define your categories
-
-        return view('erm.obat.create', compact('obat', 'zatAktif', 'supplier', 'metodeBayars', 'kategoris'));
+        // Single entry form lives in the master obat modal
+        return redirect()->route('erm.obat.index', ['tambah' => 1]);
     }
 
     public function store(Request $request)
     {
-        // Debug: Log the request parameters
-        \Illuminate\Support\Facades\Log::info('Obat store/update request:', [
-            'has_status_aktif' => $request->has('status_aktif'),
-            'status_aktif_value' => $request->input('status_aktif'),
-            'all_inputs' => $request->all()
-        ]);
-        
-        $request->validate([
-            'nama' => 'required|string',
-            'kode_obat' => 'nullable|string',
-            'dosis' => 'nullable|string',
-            'satuan' => 'nullable|string',
-            'kategori' => 'nullable|string',
-            'is_generik' => 'nullable|boolean',
-            'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
-            'harga_net' => 'nullable|numeric',
-            'hna' => 'nullable|numeric',
-            'harga_fornas' => 'nullable|numeric',
-            'harga_nonfornas' => 'nullable|numeric',
-            'stok' => 'nullable|integer|min:0',
-            'hpp' => 'nullable|numeric',
-        ]);
-
-        DB::beginTransaction();
+        $request->validate($this->obatRules(false), self::OBAT_MESSAGES, self::OBAT_ATTRIBUTES);
 
         try {
-            // Log the ID being used for update
-            \Illuminate\Support\Facades\Log::info('Obat update/create with ID: ' . ($request->id ?? 'null'));
-            
-            // Debug: Log the status_aktif value received
-            \Illuminate\Support\Facades\Log::info('Status aktif received: ' . $request->input('status_aktif'));
-            
-            // The status_aktif value to be used - directly from the request
-            $statusAktif = $request->input('status_aktif', 1); // Default to 1 (active) if not provided
-            
-            \Illuminate\Support\Facades\Log::info('Status aktif processed: ' . $statusAktif);
-            
-            // Check if we're updating an existing record or creating a new one
-            if ($request->filled('id')) {
-                // Update existing record using find + update
-                $obat = Obat::withInactive()->findOrFail($request->id);
-                $obat->update([
-                    'nama' => $request->nama,
-                    'kode_obat' => $request->kode_obat,
-                    'dosis' => $request->dosis,
-                    'satuan' => $request->satuan,
-                    'harga_net' => $request->harga_net,
-                    'hna' => $request->hna,
-                    'harga_fornas' => $request->harga_fornas,
-                    'harga_nonfornas' => $request->harga_nonfornas,
-                    'stok' => $request->stok ?? 0,
-                    'kategori' => $request->kategori,
-                    'is_generik' => $request->boolean('is_generik'),
-                    'metode_bayar_id' => $request->metode_bayar_id,
-                    'status_aktif' => $statusAktif,
-                    'hpp' => $request->hpp,
-                ]);
-            } else {
-                // Create new record
-                $obat = Obat::create([
-                    'nama' => $request->nama,
-                    'kode_obat' => $request->kode_obat,
-                    'dosis' => $request->dosis,
-                    'satuan' => $request->satuan,
-                    'harga_net' => $request->harga_net,
-                    'hna' => $request->hna,
-                    'harga_fornas' => $request->harga_fornas,
-                    'harga_nonfornas' => $request->harga_nonfornas,
-                    'stok' => $request->stok ?? 0,
-                    'kategori' => $request->kategori,
-                    'is_generik' => $request->boolean('is_generik'),
-                    'metode_bayar_id' => $request->metode_bayar_id,
-                    'status_aktif' => $statusAktif,
-                    'hpp' => $request->hpp,
-                ]);
-            }
+            $obat = DB::transaction(function () use ($request) {
+                $data = $request->only(self::EDITABLE_FIELDS);
+                $data['is_generik'] = $request->boolean('is_generik');
+                $data['status_aktif'] = $request->input('status_aktif', 1);
 
-            // Sync zat aktif
-            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
-                $obat->zatAktifs()->sync($request->zataktif_id);
-            }
+                $obat = Obat::create($data);
+                $this->syncZatAktif($request, $obat);
 
-            DB::commit();
+                return $obat;
+            });
 
-            $message = $request->id ? 'Obat berhasil diperbarui' : 'Obat berhasil ditambahkan';
-                if ($request->ajax()) {
-                    return response()->json(['success' => true, 'message' => $message]);
-                }
-            return redirect()->route('erm.obat.index')->with('success', $message);
+            return response()->json(['success' => true, 'message' => 'Obat berhasil ditambahkan', 'id' => $obat->id]);
         } catch (\Exception $e) {
-            DB::rollBack();
-                if ($request->ajax()) {
-                    return response()->json(['success' => false, 'message' => 'Gagal menyimpan obat: ' . $e->getMessage()], 500);
-                }
-            // return redirect()->back()->with('error', 'Gagal menyimpan obat: ' . $e->getMessage());
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan obat: ' . $e->getMessage()], 500);
         }
     }
 
     public function edit($id)
     {
-        $obat = Obat::withInactive()->with('zatAktifs')->findOrFail($id);
-        
-        // Debug: Log the obat status when loading edit form
-        \Illuminate\Support\Facades\Log::info('Obat edit loaded:', [
-            'id' => $obat->id,
-            'name' => $obat->nama,
-            'status_aktif' => $obat->status_aktif
-        ]);
-        
-        // If this is an AJAX request, return JSON data for the modal
-        if (request()->ajax()) {
-            // Also provide stok_gudang (authoritative) and set 'stok' to that value for frontend
-            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-            // Guard: ensure $obat is present and method call is safe
-            $stokGudang = 0;
-            if ($gudangId) {
-                $stokGudang = $obat ? (int) $obat->getStokByGudang($gudangId) : 0;
-            } else {
-                $stokGudang = $obat ? (int) $obat->getTotalStokAttribute() : 0;
-            }
-            return response()->json([
-                'id' => $obat->id,
-                'kode_obat' => $obat->kode_obat,
-                'nama' => $obat->nama,
-                'hpp' => $obat->hpp,
-                'harga_net' => $obat->harga_net,
-                'hna' => $obat->hna,
-                'harga_nonfornas' => $obat->harga_nonfornas,
-                'metode_bayar_id' => $obat->metode_bayar_id,
-                'kategori' => $obat->kategori,
-                'is_generik' => $obat->is_generik,
-                'zataktif_id' => $obat->zatAktifs->pluck('id')->toArray(),
-                'dosis' => $obat->dosis,
-                'satuan' => $obat->satuan,
-                'status_aktif' => $obat->status_aktif,
-                'stok' => $stokGudang,
-                'stok_gudang' => $stokGudang,
-            ]);
+        if (!request()->ajax() && !request()->wantsJson()) {
+            return redirect()->route('erm.obat.index');
         }
-        
-        // For regular requests, return the view (for non-modal edit page)
-        $zatAktif = ZatAktif::all();
-        $supplier = Supplier::all();
-        $metodeBayars = MetodeBayar::all();
-        $kategoris = ['Obat', 'Produk', 'Racikan', 'Antihistamin', 'Lainnya'];
 
-        return view('erm.obat.create', compact('obat', 'zatAktif', 'supplier', 'metodeBayars', 'kategoris'));
+        $obat = Obat::withInactive()->with(['zatAktifs', 'principal:id,nama'])->findOrFail($id);
+
+        // Stock shown to the frontend comes from the resep gudang (or all gudang when unmapped)
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokGudang = $gudangId ? (float) $obat->getStokByGudang($gudangId) : (float) $obat->total_stok;
+
+        return response()->json([
+            'id' => $obat->id,
+            'kode_obat' => $obat->kode_obat,
+            'kode_obat_lama' => $obat->kode_obat_lama,
+            'nama' => $obat->nama,
+            'hpp' => $obat->hpp,
+            'hna' => $obat->hna,
+            'harga_nonfornas' => $obat->harga_nonfornas,
+            'metode_bayar_id' => $obat->metode_bayar_id,
+            'kategori' => $obat->kategori,
+            'is_generik' => $obat->is_generik,
+            'principal_id' => $obat->principal_id,
+            'principal_nama' => optional($obat->principal)->nama,
+            'zataktif_id' => $obat->zatAktifs->pluck('id')->toArray(),
+            'zataktif' => $obat->zatAktifs->map(fn ($z) => ['id' => $z->id, 'nama' => $z->nama])->values(),
+            'dosis' => $obat->dosis,
+            'satuan' => $obat->satuan,
+            'satuan_stok' => $obat->satuan_stok,
+            'status_aktif' => $obat->status_aktif,
+            'stok' => $stokGudang,
+            'stok_gudang' => $stokGudang,
+        ]);
     }
 
     public function search(Request $request)
@@ -1224,6 +1243,7 @@ class ObatController extends Controller
                 'zat_aktif' => $zatAktifNames,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
+                'satuan_stok' => $obat->satuan_stok,
                 // Use gudang stock as the authoritative 'stok' for frontend checks
                 'stok' => $stokGudang,
                 'stok_gudang' => $stokGudang,
@@ -1313,13 +1333,30 @@ class ObatController extends Controller
 
     public function destroy($id)
     {
+        $user = Auth::user();
+        if (!$user || !$user->hasAnyRole(['Admin'])) {
+            return response()->json(['success' => false, 'message' => 'Hanya Admin yang dapat menghapus obat.'], 403);
+        }
+
+        $obat = Obat::withInactive()->findOrFail($id);
+
+        // erm_obat FKs cascade into resep, stok gudang, bundles etc. — never delete a used obat.
+        if ($obat->isUsed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Obat sudah dipakai di transaksi/master lain dan tidak bisa dihapus. Ubah status menjadi Tidak Aktif.',
+            ], 422);
+        }
+
         try {
-            $obat = Obat::withInactive()->findOrFail($id);
-            $obat->zatAktifs()->detach();
-            $obat->delete();
+            DB::transaction(function () use ($obat) {
+                $obat->zatAktifs()->detach();
+                $obat->delete();
+            });
 
             return response()->json(['success' => true, 'message' => 'Obat berhasil dihapus']);
         } catch (\Exception $e) {
+            report($e);
             return response()->json(['success' => false, 'message' => 'Gagal menghapus obat: ' . $e->getMessage()], 500);
         }
     }
@@ -1355,164 +1392,260 @@ class ObatController extends Controller
     }
 
     /**
-     * Export Obat data to Excel
+     * Columns the CSV import can update, keyed by obat field. Header matching ignores case,
+     * spaces and underscores, so the headers written by ObatExport are accepted as-is.
      */
+    private const CSV_COLUMNS = [
+        'nama' => ['label' => 'Nama', 'type' => 'string', 'headers' => ['nama', 'name']],
+        'dosis' => ['label' => 'Dosis', 'type' => 'string', 'headers' => ['dosis']],
+        'satuan' => ['label' => 'Satuan Dosis', 'type' => 'satuan_dosis', 'headers' => ['satuandosis', 'satuan']],
+        'satuan_stok' => ['label' => 'Satuan Stok', 'type' => 'satuan_stok', 'headers' => ['satuanstok', 'satuanstokjual', 'satuanjual']],
+        'is_generik' => ['label' => 'Generik', 'type' => 'boolean', 'headers' => ['generik', 'isgenerik']],
+        'kategori' => ['label' => 'Kategori', 'type' => 'kategori', 'headers' => ['kategori']],
+        'metode_bayar_id' => ['label' => 'Metode Bayar', 'type' => 'metode_bayar', 'headers' => ['metodebayar']],
+        'harga_nonfornas' => ['label' => 'Harga Jual', 'type' => 'decimal', 'headers' => ['hargajual', 'harganonfornas']],
+    ];
+
+    private function normalizeCsvHeader(string $header): string
+    {
+        $header = preg_replace('/^\xEF\xBB\xBF/', '', $header);
+
+        return strtolower(preg_replace('/[\s_\-]+/', '', trim($header)));
+    }
+
+    private function toUtf8(string $value): string
+    {
+        return mb_check_encoding($value, 'UTF-8') ? $value : mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+    }
+
+    /**
+     * Parse an obat CSV into per-row change sets without writing anything.
+     *
+     * @return array{rows: array, ignored_columns: string[], error?: string}
+     */
+    private function parseObatCsv(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return ['rows' => [], 'ignored_columns' => [], 'error' => 'File tidak dapat dibaca.'];
+        }
+
+        // Excel with Indonesian locale saves CSV with ';'
+        $firstLine = (string) fgets($handle);
+        rewind($handle);
+        $counts = [',' => substr_count($firstLine, ','), ';' => substr_count($firstLine, ';'), "\t" => substr_count($firstLine, "\t")];
+        arsort($counts);
+        $delimiter = array_key_first($counts);
+
+        $header = fgetcsv($handle, 0, $delimiter);
+        if (!$header) {
+            fclose($handle);
+            return ['rows' => [], 'ignored_columns' => [], 'error' => 'File kosong.'];
+        }
+        $header = array_map(fn ($h) => $this->normalizeCsvHeader((string) $h), $header);
+
+        $idIndex = array_search('id', $header, true);
+        if ($idIndex === false) {
+            fclose($handle);
+            return ['rows' => [], 'ignored_columns' => [], 'error' => 'Kolom ID tidak ditemukan di header.'];
+        }
+
+        $columnIndex = [];
+        foreach (self::CSV_COLUMNS as $field => $def) {
+            foreach ($def['headers'] as $alias) {
+                $idx = array_search($alias, $header, true);
+                if ($idx !== false) {
+                    $columnIndex[$field] = $idx;
+                    break;
+                }
+            }
+        }
+        $knownHeaders = array_merge(['id'], ...array_column(self::CSV_COLUMNS, 'headers'));
+        $ignored = array_values(array_filter($header, fn ($h) => $h !== '' && !in_array($h, $knownHeaders, true)));
+
+        $metodeByName = MetodeBayar::all()->mapWithKeys(fn ($m) => [strtolower(trim($m->nama)) => $m->id]);
+        $kategoriByName = collect(Obat::KATEGORI_LIST)->mapWithKeys(fn ($k) => [strtolower($k) => $k]);
+
+        $rows = [];
+        $seenIds = [];
+        $line = 1;
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $line++;
+            if ($row === [null] || count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+
+            $errors = [];
+            // Trailing empty cells are common in spreadsheet exports; anything else is a broken row
+            if (count($row) > count($header)) {
+                $extra = array_slice($row, count($header));
+                if (count(array_filter($extra, fn ($v) => trim((string) $v) !== '')) > 0) {
+                    $errors[] = 'Jumlah kolom tidak sesuai header';
+                }
+            }
+            $row = array_pad($row, count($header), '');
+
+            $id = trim((string) $row[$idIndex]);
+            if ($id === '' || !ctype_digit($id)) {
+                $rows[] = ['line' => $line, 'id' => $id, 'found' => false, 'existing' => [], 'new' => [], 'changes' => false, 'errors' => ['ID tidak valid']];
+                continue;
+            }
+            if (isset($seenIds[$id])) {
+                $errors[] = 'ID duplikat (baris ' . $seenIds[$id] . ')';
+            }
+            $seenIds[$id] = $line;
+
+            $obat = Obat::withInactive()->find($id);
+            if (!$obat) {
+                $errors[] = 'ID tidak ditemukan';
+            }
+
+            $new = [];
+            foreach ($columnIndex as $field => $idx) {
+                $raw = trim($this->toUtf8((string) $row[$idx]));
+                if ($raw === '') {
+                    continue; // empty cell = keep existing value
+                }
+                $label = self::CSV_COLUMNS[$field]['label'];
+                switch (self::CSV_COLUMNS[$field]['type']) {
+                    case 'decimal':
+                        $value = $this->normalizeCsvDecimal($raw);
+                        if ($value === null || (float) $value < 0) {
+                            $errors[] = "$label tidak valid: $raw";
+                            continue 2;
+                        }
+                        break;
+                    case 'boolean':
+                        $value = $this->normalizeCsvBoolean($raw);
+                        if ($value === null || !in_array($value, [0, 1], true)) {
+                            $errors[] = "$label harus 1/0 atau Ya/Tidak: $raw";
+                            continue 2;
+                        }
+                        break;
+                    case 'kategori':
+                        $value = $kategoriByName[strtolower($raw)] ?? null;
+                        if ($value === null) {
+                            $errors[] = "Kategori tidak dikenal: $raw";
+                            continue 2;
+                        }
+                        break;
+                    case 'satuan_dosis':
+                    case 'satuan_stok':
+                        $value = Obat::normalizeSatuan($raw);
+                        $allowed = self::CSV_COLUMNS[$field]['type'] === 'satuan_stok'
+                            ? Obat::SATUAN_STOK_LIST
+                            : Obat::satuanDosisOptions();
+                        if (!in_array($value, $allowed, true)) {
+                            $errors[] = "$label tidak dikenal: $raw";
+                            continue 2;
+                        }
+                        break;
+                    case 'metode_bayar':
+                        $value = $metodeByName[strtolower($raw)] ?? null;
+                        if ($value === null) {
+                            $errors[] = "Metode Bayar tidak dikenal: $raw";
+                            continue 2;
+                        }
+                        break;
+                    default:
+                        $value = $raw;
+                }
+                $new[$field] = $value;
+            }
+
+            $existing = [];
+            $changed = [];
+            foreach (array_keys(self::CSV_COLUMNS) as $field) {
+                $existing[$field] = $obat ? $obat->getAttributes()[$field] ?? null : null;
+                if ($obat && array_key_exists($field, $new)
+                    && $this->csvValueChanged($existing[$field], $new[$field], self::CSV_COLUMNS[$field]['type'] === 'decimal')) {
+                    $changed[$field] = $new[$field];
+                }
+            }
+
+            $rows[] = [
+                'line' => $line,
+                'id' => (int) $id,
+                'found' => (bool) $obat,
+                'existing' => $existing,
+                'new' => $new,
+                'changed' => $changed,
+                'changes' => !empty($changed),
+                'errors' => $errors,
+            ];
+        }
+        fclose($handle);
+
+        return ['rows' => $rows, 'ignored_columns' => $ignored];
+    }
+
+    private function csvColumnsMeta(): array
+    {
+        $meta = [];
+        foreach (self::CSV_COLUMNS as $field => $def) {
+            $meta[] = ['key' => $field, 'label' => $def['label'], 'type' => $def['type']];
+        }
+
+        return $meta;
+    }
+
     public function importCsvPreview(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt',
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
         ]);
 
-        $file = $request->file('csv_file');
-        $path = $file->getRealPath();
-
-        $rows = [];
-
-        if (($handle = fopen($path, 'r')) !== false) {
-            $header = null;
-            while (($row = fgetcsv($handle, 0, ',')) !== false) {
-                if (!$header) {
-                    $header = array_map(function ($h) { return trim($h); }, $row);
-                    continue;
-                }
-                if (count($row) === 0) continue;
-                $data = array_combine($header, $row);
-
-                $id = $this->getCsvField($data, ['ID', 'Id', 'id']);
-                if (!$id || !is_numeric($id)) continue;
-
-                $obat = Obat::withInactive()->find($id);
-
-                $existing = [
-                    'nama' => $obat ? $obat->nama : null,
-                    'dosis' => $obat ? $obat->dosis : null,
-                    'satuan' => $obat ? $obat->satuan : null,
-                    'is_generik' => $obat ? $obat->is_generik : null,
-                    'hpp' => $obat ? $obat->hpp : null,
-                    'hna' => $obat ? $obat->hna : null,
-                ];
-
-                $isGenerik = $this->normalizeCsvBoolean($this->getCsvField($data, ['IsGenerik', 'is_generik', 'Is Generik', 'Generik', 'generik']));
-                $new = [
-                    'nama' => $this->getCsvField($data, ['Nama', 'nama', 'NAME', 'Name']),
-                    'dosis' => $this->getCsvField($data, ['Dosis', 'dosis']),
-                    'satuan' => $this->getCsvField($data, ['Satuan', 'satuan']),
-                    'is_generik' => $isGenerik,
-                    'hpp' => $this->normalizeCsvDecimal($this->getCsvField($data, ['HPP', 'hpp'])),
-                    'hna' => $this->normalizeCsvDecimal($this->getCsvField($data, ['HNA', 'hna'])),
-                ];
-
-                $changes = false;
-                if ($obat) {
-                    foreach (['nama', 'dosis', 'satuan'] as $field) {
-                        if ($this->csvValueChanged($existing[$field] ?? null, $new[$field] ?? null)) {
-                            $changes = true;
-                            break;
-                        }
-                    }
-
-                    if (!$changes && $this->csvValueChanged($existing['is_generik'] ?? null, $new['is_generik'] ?? null)) {
-                        $changes = true;
-                    }
-
-                    if (!$changes) {
-                        foreach (['hpp', 'hna'] as $field) {
-                            if ($this->csvValueChanged($existing[$field] ?? null, $new[$field] ?? null, true)) {
-                                $changes = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                $rows[] = [
-                    'id' => (int)$id,
-                    'found' => $obat ? true : false,
-                    'existing' => $existing,
-                    'new' => $new,
-                    'changes' => $changes,
-                ];
-            }
-            fclose($handle);
+        $parsed = $this->parseObatCsv($request->file('csv_file')->getRealPath());
+        if (isset($parsed['error'])) {
+            return response()->json(['message' => $parsed['error']], 422);
         }
 
-        return response()->json(['rows' => $rows]);
+        return response()->json([
+            'rows' => $parsed['rows'],
+            'columns' => $this->csvColumnsMeta(),
+            'ignored_columns' => $parsed['ignored_columns'],
+            'metode_bayar' => MetodeBayar::pluck('nama', 'id'),
+        ]);
     }
 
     public function importCsv(Request $request)
     {
         $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt',
+            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
         ]);
 
-        $file = $request->file('csv_file');
-        $path = $file->getRealPath();
+        $parsed = $this->parseObatCsv($request->file('csv_file')->getRealPath());
+        if (isset($parsed['error'])) {
+            return response()->json(['success' => false, 'message' => $parsed['error']], 422);
+        }
 
         $updated = 0;
-        $notFound = [];
-
-        if (($handle = fopen($path, 'r')) !== false) {
-            $header = null;
-            while (($row = fgetcsv($handle, 0, ',')) !== false) {
-                if (!$header) {
-                    $header = array_map(function ($h) { return trim($h); }, $row);
-                    continue;
-                }
-                if (count($row) === 0) continue;
-                $data = array_combine($header, $row);
-
-                // Normalize possible ID header names
-                $id = null;
-                foreach (['ID', 'Id', 'id'] as $k) {
-                    if (isset($data[$k])) { $id = trim($data[$k]); break; }
-                }
-                if (!$id || !is_numeric($id)) continue;
-
-                try {
-                    $obat = Obat::withInactive()->find($id);
-                    if (!$obat) { $notFound[] = $id; continue; }
-
-                    $up = [];
-                    $nama = $this->getCsvField($data, ['Nama', 'nama', 'NAME', 'Name']);
-                    $dosis = $this->getCsvField($data, ['Dosis', 'dosis']);
-                    $satuan = $this->getCsvField($data, ['Satuan', 'satuan']);
-                    $isGenerik = $this->normalizeCsvBoolean($this->getCsvField($data, ['IsGenerik', 'is_generik', 'Is Generik', 'Generik', 'generik']));
-                    $hpp = $this->normalizeCsvDecimal($this->getCsvField($data, ['HPP', 'hpp']));
-                    $hna = $this->normalizeCsvDecimal($this->getCsvField($data, ['HNA', 'hna']));
-
-                    if ($nama !== null && $nama !== '') $up['nama'] = $nama;
-                    if ($dosis !== null && $dosis !== '') $up['dosis'] = $dosis;
-                    if ($satuan !== null && $satuan !== '') $up['satuan'] = $satuan;
-                    if ($hpp !== null) $up['hpp'] = $hpp;
-                    if ($hna !== null) $up['hna'] = $hna;
-
-                    if ($isGenerik !== null) {
-                        $up['is_generik'] = $isGenerik;
+        $skipped = [];
+        try {
+            DB::transaction(function () use ($parsed, &$updated, &$skipped) {
+                foreach ($parsed['rows'] as $row) {
+                    if (!empty($row['errors'])) {
+                        $skipped[] = 'Baris ' . $row['line'] . ' (ID ' . $row['id'] . '): ' . implode('; ', $row['errors']);
+                        continue;
                     }
-
-                    if (!empty($up)) {
-                        $obat->update($up);
-                        $updated++;
+                    if (!$row['changes']) {
+                        continue;
                     }
-                } catch (\Exception $e) {
-                    // ignore row and continue
-                    continue;
+                    Obat::withInactive()->whereKey($row['id'])->first()->update($row['changed']);
+                    $updated++;
                 }
-            }
-            fclose($handle);
+            });
+        } catch (\Exception $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Import gagal, tidak ada data yang diubah: ' . $e->getMessage()], 500);
         }
 
-        $message = "Import selesai. Diperbarui: {$updated}.";
-        if (!empty($notFound)) {
-            $sample = implode(',', array_slice($notFound, 0, 20));
-            $message .= ' Tidak ditemukan ID: ' . $sample;
+        $message = "Import selesai. Diperbarui: {$updated} obat.";
+        if (!empty($skipped)) {
+            $message .= ' Dilewati: ' . count($skipped) . ' baris.';
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true, 'message' => $message]);
-        }
-
-        return redirect()->back()->with('success', $message);
+        return response()->json(['success' => true, 'message' => $message, 'updated' => $updated, 'skipped' => $skipped]);
     }
 
     /**

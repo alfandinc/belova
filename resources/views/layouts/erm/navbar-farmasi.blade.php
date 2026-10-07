@@ -47,26 +47,10 @@
                                     <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat & BHP</span></a>
                                 </li>
                                 <li>
-                                    <a href="/erm/aturan-pakai"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Master Aturan Pakai</span></a>
-                                </li>
-                                <li>
-                                    <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
-                                </li>
-                                <li>
-                                    <a href="/erm/principal"><i data-feather="users" class="align-self-center menu-icon"></i><span>Master Principal</span></a>
-                                </li>
-                                <li>
-                                    <a href="/erm/gudang"><i data-feather="archive" class="align-self-center menu-icon"></i><span>Master Gudang</span></a>
-                                </li>
-                                <li>
                                 <a href="/erm/masterfaktur"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
                                 </li>
                                 <li>
-                                    <a href="/erm/obat-mapping"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat Mapping</span></a>
-                                </li>
-                                
-                                <li>
-                                    <a href="/erm/gudang-mapping"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Gudang Mapping</span></a>
+                                    <a href="{{ route('erm.paket-racikan.index') }}"><i data-feather="layers" class="align-self-center menu-icon"></i><span>Paket Racikan</span></a>
                                 </li>
                                 
                             </ul>
@@ -81,9 +65,6 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/datapembelian"><i data-feather="bar-chart" class="align-self-center menu-icon"></i><span>Data Pembelian</span></a>
-                            </li>
                             <li>
                                 <a href="/erm/permintaan"><i data-feather="inbox" class="align-self-center menu-icon"></i><span>Permintaan Pembelian</span></a>
                             </li>
@@ -144,7 +125,7 @@
 
                             
                             {{-- <li>
-                                <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
+                                <a href="/erm/obat?tambah=1"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
                             </li> --}}
                             {{-- <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>

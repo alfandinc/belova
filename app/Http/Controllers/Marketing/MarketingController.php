@@ -14,7 +14,6 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\PaketTindakan;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\LabPermintaan;
-use App\Models\ERM\PaketRacikan;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
 use App\Models\Marketing\FollowUp;
@@ -512,47 +511,13 @@ class MarketingController extends Controller
             ->get()
             ->groupBy('visitation_id');
 
-        $activePaketRacikans = PaketRacikan::with('details')
-            ->where('is_active', true)
-            ->get();
-
+        // stored paket of each racikan, or the paket with exactly its isi (ResepFarmasi::paket_racikan_name)
         $racikanPaketNames = [];
         foreach ($resepsByVisitation as $visitationId => $reseps) {
-            $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
-
-            foreach ($racikans as $racikanKe => $items) {
-                $compMap = [];
-                foreach ($items as $item) {
-                    if (!$item->obat_id) {
-                        continue;
-                    }
-
-                    $compMap[$item->obat_id . '|' . $this->normalizeDoseValue($item->dosis)] = true;
-                }
-
-                if (empty($compMap)) {
-                    continue;
-                }
-
-                foreach ($activePaketRacikans as $paket) {
-                    $details = $paket->details;
-                    if (!$details || $details->count() !== count($compMap)) {
-                        continue;
-                    }
-
-                    $allMatch = true;
-                    foreach ($details as $detail) {
-                        $detailKey = ($detail->obat_id ?? '0') . '|' . $this->normalizeDoseValue($detail->dosis);
-                        if (!isset($compMap[$detailKey])) {
-                            $allMatch = false;
-                            break;
-                        }
-                    }
-
-                    if ($allMatch) {
-                        $racikanPaketNames[$visitationId][$racikanKe] = $paket->nama_paket;
-                        break;
-                    }
+            foreach ($reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke') as $racikanKe => $items) {
+                $paketName = $items->first()->paket_racikan_name;
+                if ($paketName) {
+                    $racikanPaketNames[$visitationId][$racikanKe] = $paketName;
                 }
             }
         }
@@ -572,21 +537,6 @@ class MarketingController extends Controller
         ]);
     }
 
-    private function normalizeDoseValue($value)
-    {
-        if ($value === null) {
-            return '';
-        }
-
-        $normalized = trim(strtolower((string) $value));
-        $normalized = str_replace(',', '.', $normalized);
-
-        if (preg_match('/\d+(?:\.\d+)?/', $normalized, $matches)) {
-            return rtrim(rtrim($matches[0], '0'), '.') ?: $matches[0];
-        }
-
-        return $normalized;
-    }
 
     public function patients(Request $request)
     {
@@ -2357,11 +2307,11 @@ class MarketingController extends Controller
         $data = $query->select(
             'finance_invoice_items.billable_id',
             'erm_obat.nama',
-            'erm_obat.stok',
+            DB::raw('(SELECT COALESCE(SUM(sg.stok), 0) FROM erm_obat_stok_gudang sg WHERE sg.obat_id = erm_obat.id) as stok'),
             DB::raw('SUM(finance_invoice_items.quantity) as total_sold'),
             DB::raw('COUNT(*) as transaction_count')
         )
-            ->groupBy('finance_invoice_items.billable_id', 'erm_obat.nama', 'erm_obat.stok')
+            ->groupBy('finance_invoice_items.billable_id', 'erm_obat.id', 'erm_obat.nama')
             ->orderBy('total_sold', 'desc')
             ->limit(15)
             ->get();

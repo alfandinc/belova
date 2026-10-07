@@ -49,7 +49,7 @@
                                 <th>Nama Obat</th>
                                 <th style="width: 120px;">Satuan</th>
                                 <th style="width: 140px;">Stok Total</th>
-                                <th style="width: 180px;">Harga Non Fornas</th>
+                                <th style="width: 180px;">Harga Jual</th>
                             </tr>
                         </thead>
                         <tbody></tbody>

@@ -15,6 +15,7 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
     protected $headingMap = [
         'id' => 'ID',
         'kode_obat' => 'Kode Obat',
+        'kode_obat_lama' => 'Kode Lama',
         'nama' => 'Nama',
         'hpp' => 'HPP',
         'hna' => 'HNA',
@@ -23,12 +24,14 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
         'kategori' => 'Kategori',
         'zat_aktif' => 'Zat Aktif',
         'dosis' => 'Dosis',
-        'satuan' => 'Satuan',
+        'satuan' => 'Satuan Dosis',
+        'satuan_stok' => 'Satuan Stok',
         'is_generik' => 'Generik',
+        'status_aktif' => 'Status',
     ];
     /** @var string[] */
     protected $allowedColumns = [
-        'id','kode_obat','nama','hpp','hna','harga_nonfornas','metode_bayar','kategori','zat_aktif','dosis','satuan','is_generik'
+        'id','kode_obat','kode_obat_lama','nama','hpp','hna','harga_nonfornas','metode_bayar','kategori','zat_aktif','dosis','satuan','satuan_stok','is_generik','status_aktif'
     ];
     public function __construct($request)
     {
@@ -43,16 +46,12 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
     }
     public function collection()
     {
-        // Always export only active medications
-        $query = Obat::where('status_aktif', 1)->with(['metodeBayar', 'zatAktifs']);
+        // Same filters as the master obat table
+        $query = Obat::withInactive()->with(['metodeBayar', 'zatAktifs'])->orderBy('nama');
 
-        // Preserve optional filters if provided (kategori, metode_bayar_id)
-        if ($this->request->has('kategori') && !empty($this->request->kategori)) {
-            $query->where('kategori', $this->request->kategori);
-        }
-        if ($this->request->has('metode_bayar_id') && !empty($this->request->metode_bayar_id)) {
-            $query->where('metode_bayar_id', $this->request->metode_bayar_id);
-        }
+        $controller = app(\App\Http\Controllers\ERM\ObatController::class);
+        $controller->applyIndexFilters($query, $this->request);
+        $controller->applySearch($query, (string) $this->request->input('q', ''));
 
         // Return full models so WithMapping can format the output
         return $query->get();
@@ -85,6 +84,8 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                     $row[] = $obat->id; break;
                 case 'kode_obat':
                     $row[] = $obat->kode_obat; break;
+                case 'kode_obat_lama':
+                    $row[] = $obat->kode_obat_lama; break;
                 case 'nama':
                     $row[] = $obat->nama; break;
                 case 'hpp':
@@ -107,10 +108,14 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                     $row[] = $obat->dosis; break;
                 case 'satuan':
                     $row[] = $obat->satuan; break;
+                case 'satuan_stok':
+                    $row[] = $obat->satuan_stok; break;
                 case 'is_generik':
                     // Ensure we write a visible '0' or '1' string so Excel doesn't render it as empty
                     $raw = $obat->getAttributes()['is_generik'] ?? ($obat->is_generik ?? 0);
                     $row[] = (string) ((int) $raw); break;
+                case 'status_aktif':
+                    $row[] = $obat->status_aktif ? 'Aktif' : 'Tidak Aktif'; break;
                 default:
                     $row[] = '';
             }

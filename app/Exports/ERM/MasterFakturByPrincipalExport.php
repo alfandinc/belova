@@ -6,6 +6,7 @@ use App\Models\ERM\MasterFaktur;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
+/** Master Pembelian rows, optionally for one principal (the obat's principal, set in Master Obat). */
 class MasterFakturByPrincipalExport implements FromCollection, WithHeadings
 {
     public function __construct(protected ?int $principalId = null)
@@ -14,16 +15,16 @@ class MasterFakturByPrincipalExport implements FromCollection, WithHeadings
 
     public function collection()
     {
-        return MasterFaktur::with(['obat', 'pemasok', 'principal'])
+        return MasterFaktur::with(['obat' => fn ($q) => $q->withInactive()->with('principal'), 'pemasok'])
             ->when($this->principalId, function ($query) {
-                $query->where('principal_id', $this->principalId);
+                $query->whereHas('obat', fn ($q) => $q->withInactive()->where('principal_id', $this->principalId));
             })
             ->get()
             ->map(function ($masterFaktur) {
                 return [
                     'obat' => $masterFaktur->obat->nama ?? '-',
                     'pemasok' => $masterFaktur->pemasok->nama ?? '-',
-                    'principal' => $masterFaktur->principal->nama ?? '-',
+                    'principal' => $masterFaktur->obat->principal->nama ?? '-',
                     'harga' => $masterFaktur->harga,
                     'qty_per_box' => $masterFaktur->qty_per_box,
                     'diskon' => $masterFaktur->diskon,

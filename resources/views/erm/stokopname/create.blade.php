@@ -257,7 +257,6 @@
                                 </div>
                                 <div class="input-group-append">
                                     <button type="submit" class="btn btn-primary"><i class="fa fa-upload"></i> Upload Data</button>
-                                    <button type="button" class="btn btn-success ml-2" id="saveStokFisikBtn" style="display: none;"><i class="fa fa-save"></i> Submit Stok (Legacy)</button>
                                 </div>
                             </div>
                         </form>
@@ -290,22 +289,12 @@
                                 <input type="text" class="form-control form-control-sm" id="edit_obat_nama" name="nama" required>
                             </div>
                             <div class="form-group">
-                                <label>Satuan</label>
-                                <select id="edit_obat_satuan" name="satuan" class="form-control form-control-sm">
-                                    <option value="">-- Pilih Satuan --</option>
-                                    <option value="pcs">pcs</option>
-                                    <option value="strip">strip</option>
-                                    <option value="tablet">tablet</option>
-                                    <option value="kapsul">kapsul</option>
-                                    <option value="mL">mL</option>
-                                    <option value="gram">gram</option>
-                                    <option value="mg">mg</option>
-                                    <option value="botol">botol</option>
-                                    <option value="tube">tube</option>
-                                    <option value="sachet">sachet</option>
-                                    <option value="ampul">ampul</option>
-                                    <option value="vial">vial</option>
-                                    <option value="softbag">softbag</option>
+                                <label>Satuan Stok</label>
+                                <select id="edit_obat_satuan" name="satuan_stok" class="form-control form-control-sm">
+                                    <option value="">-- Pilih Satuan Stok --</option>
+                                    @foreach(\App\Models\ERM\Obat::SATUAN_STOK_LIST as $s)
+                                        <option value="{{ $s }}">{{ $s }}</option>
+                                    @endforeach
                                 </select>
                             </div>
                             <div class="form-group">
@@ -1060,50 +1049,6 @@ $(function () {
         $(this).next('.custom-file-label').html(fileName);
     });
 
-    // Save stok fisik to stok obat
-    $('#saveStokFisikBtn').click(function() {
-        Swal.fire({
-            title: 'Yakin ingin mengganti stok obat sesuai stok fisik hasil opname?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Simpan!',
-            cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (result.value) {
-                var btn = $('#saveStokFisikBtn');
-                btn.prop('disabled', true);
-                Swal.fire({
-                    title: 'Menyimpan stok fisik ke stok obat...',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-                $.post("{{ route('erm.stokopname.saveStokFisik', $stokOpname->id) }}", {
-                    _token: '{{ csrf_token() }}'
-                })
-                .done(function(res) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: res.message || 'Stok obat berhasil diperbarui!',
-                        timer: 1800,
-                        showConfirmButton: false
-                    });
-                    table.ajax.reload();
-                })
-                .fail(function(xhr) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal menyimpan stok fisik ke stok obat!',
-                        timer: 1800,
-                        showConfirmButton: false
-                    });
-                })
-                .always(function() {
-                    btn.prop('disabled', false);
-                });
-            }
-        });
-    });
-
     // AJAX for change status
     $('#changeStatusForm').submit(function(e) {
         e.preventDefault();
@@ -1320,25 +1265,8 @@ $(function () {
         $('#edit_obat_id').val(initialId);
         $('#edit_obat_nama').val(rowData && rowData.nama_obat ? rowData.nama_obat : '');
 
-        // Satuan: try to select matching option by value or by text; if not present leave placeholder
-        var preSatuan = rowData && rowData.satuan ? rowData.satuan : '';
-        if (preSatuan) {
-            var $s = $('#edit_obat_satuan');
-            if ($s.find('option[value="'+preSatuan+'"]').length) {
-                $s.val(preSatuan);
-            } else {
-                // try match by option text (case-insensitive)
-                var matched = false;
-                $s.find('option').each(function(){ if ($(this).text().toLowerCase() === String(preSatuan).toLowerCase()) { $s.val($(this).val()); matched = true; return false; } });
-                if (!matched) {
-                    // append unknown satuan as option and select it
-                    $s.append('<option value="'+preSatuan+'">'+preSatuan+'</option>');
-                    $s.val(preSatuan);
-                }
-            }
-        } else {
-            $('#edit_obat_satuan').val('');
-        }
+        // Satuan stok: filled from the server response below (only valid satuan stok values are selectable)
+        $('#edit_obat_satuan').val('');
 
         // Kategori: straightforward (text values)
         if (rowData && (rowData.kategori || rowData.obat_kategori)) $('#edit_obat_kategori').val(rowData.kategori || rowData.obat_kategori);
@@ -1364,15 +1292,8 @@ $(function () {
             .done(function(res) {
                 $('#edit_obat_id').val(res.id || obatId);
                 $('#edit_obat_nama').val(res.nama || $('#edit_obat_nama').val() || '');
-                // Satuan: ensure option exists and select it
-                if (typeof res.satuan !== 'undefined' && res.satuan !== null && String(res.satuan) !== '') {
-                    var sVal = String(res.satuan);
-                    var $s = $('#edit_obat_satuan');
-                    if ($s.find('option[value="'+sVal+'"]').length === 0) {
-                        $s.append('<option value="'+sVal+'">'+sVal+'</option>');
-                    }
-                    $s.val(sVal);
-                }
+                // Satuan stok: leave empty when not set yet so the user has to pick one
+                $('#edit_obat_satuan').val(res.satuan_stok || '');
                 if (typeof res.kategori !== 'undefined' && res.kategori !== null) $('#edit_obat_kategori').val(res.kategori);
                 if (typeof res.metode_bayar_id !== 'undefined' && res.metode_bayar_id !== null) {
                     var mv = res.metode_bayar_id;
@@ -1398,7 +1319,7 @@ $(function () {
         if (!id) { Swal.fire({ icon: 'error', title: 'Invalid obat id', timer: 1200, showConfirmButton: false }); return; }
         var payload = {
             nama: $('#edit_obat_nama').val(),
-            satuan: $('#edit_obat_satuan').val(),
+            satuan_stok: $('#edit_obat_satuan').val(),
             kategori: $('#edit_obat_kategori').val(),
             metode_bayar_id: $('#edit_obat_metode').val(),
             _token: '{{ csrf_token() }}'

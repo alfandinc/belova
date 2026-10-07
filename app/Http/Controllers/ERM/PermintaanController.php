@@ -12,6 +12,7 @@ use App\Models\ERM\MasterFaktur;
 use App\Models\ERM\ObatStokGudang;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Principal;
+use App\Services\ERM\MasterPembelianService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,9 @@ class PermintaanController extends Controller
             'items.*.jumlah_box' => 'required|integer|min:0',
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($request->items, 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg], 422);
+        }
         DB::transaction(function () use ($request, $id) {
             $permintaan = Permintaan::findOrFail($id);
             $permintaan->update([
@@ -52,7 +56,7 @@ class PermintaanController extends Controller
                     'permintaan_id' => $permintaan->id,
                     'obat_id' => $item['obat_id'],
                     'pemasok_id' => $item['pemasok_id'],
-                    'principal_id' => $item['principal_id'] ?? null,
+                    'principal_id' => ($item['principal_id'] ?? null) ?: app(MasterPembelianService::class)->principalFor((int) $item['obat_id']),
                     'jumlah_box' => $item['jumlah_box'],
                     'qty_total' => $item['qty_total'],
                 ]);
@@ -72,7 +76,7 @@ class PermintaanController extends Controller
     public function data(Request $request)
     {
         $total = Permintaan::count();
-            $query = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal', 'items.fakturBeliItems'])
+            $query = Permintaan::with(['items.obat.principal', 'items.pemasok', 'items.principal', 'items.fakturBeliItems'])
                 ->orderByRaw("CASE WHEN status IN ('waiting_approval', 'waiting', 'menunggu') THEN 0 ELSE 1 END")
                 ->orderBy('created_at', 'desc');
         $start = $request->input('start', 0);
@@ -110,8 +114,8 @@ class PermintaanController extends Controller
                     $principalQuery->where('principal_id', $principalFilter)
                         ->orWhere(function ($fallbackQuery) use ($principalFilter) {
                             $fallbackQuery->whereNull('principal_id')
-                                ->whereHas('obat.principals', function ($obatPrincipalQuery) use ($principalFilter) {
-                                    $obatPrincipalQuery->where('erm_principals.id', $principalFilter);
+                                ->whereHas('obat', function ($obatQuery) use ($principalFilter) {
+                                    $obatQuery->withInactive()->where('principal_id', $principalFilter);
                                 });
                         });
                 });
@@ -160,7 +164,7 @@ class PermintaanController extends Controller
             $obatList = $p->items->map(function($item) {
                 $obatName = optional($item->obat)->nama ?? '-';
                 $principalName = optional($item->principal)->nama
-                    ?? optional(optional($item->obat)->principals->first())->nama
+                    ?? optional(optional($item->obat)->principal)->nama
                     ?? null;
                 $jenisObat = optional($item->obat)->is_generik ? 'Generik' : 'Paten';
                 $principalBadge = $principalName
@@ -395,7 +399,9 @@ class PermintaanController extends Controller
             'items.*.jumlah_box' => 'required|integer|min:0',
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
-
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($request->items, 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg], 422);
+        }
 
         DB::transaction(function () use ($request) {
             if ($request->has('id') && $request->id) {
@@ -410,7 +416,7 @@ class PermintaanController extends Controller
                         'permintaan_id' => $permintaan->id,
                         'obat_id' => $item['obat_id'],
                         'pemasok_id' => $item['pemasok_id'],
-                        'principal_id' => $item['principal_id'] ?? null,
+                        'principal_id' => ($item['principal_id'] ?? null) ?: app(MasterPembelianService::class)->principalFor((int) $item['obat_id']),
                         'jumlah_box' => $item['jumlah_box'],
                         'qty_total' => $item['qty_total'],
                     ]);
@@ -430,7 +436,7 @@ class PermintaanController extends Controller
                             'permintaan_id' => $permintaan->id,
                             'obat_id' => $item['obat_id'],
                             'pemasok_id' => $item['pemasok_id'],
-                            'principal_id' => $item['principal_id'] ?? null,
+                            'principal_id' => ($item['principal_id'] ?? null) ?: app(MasterPembelianService::class)->principalFor((int) $item['obat_id']),
                             'jumlah_box' => $item['jumlah_box'],
                             'qty_total' => $item['qty_total'],
                         ]);
@@ -475,14 +481,17 @@ class PermintaanController extends Controller
         if (!$master) {
             return response()->json(['found' => false]);
         }
+        // Principal belongs to the obat (Master Obat), the same for every pemasok
+        $principal = Obat::withInactive()->with('principal:id,nama')->find($request->obat_id)?->principal;
+
         return response()->json([
             'found' => true,
             'harga' => $master->harga,
             'qty_per_box' => $master->qty_per_box,
             'diskon' => $master->diskon,
             'diskon_type' => $master->diskon_type,
-            'principal_id' => $master->principal_id,
-            'principal_nama' => $master->principal ? $master->principal->nama : null,
+            'principal_id' => $principal?->id,
+            'principal_nama' => $principal?->nama,
         ]);
     }
 
@@ -493,10 +502,9 @@ class PermintaanController extends Controller
         ]);
 
         $masters = MasterFaktur::query()
-            ->with(['pemasok:id,nama', 'principal:id,nama'])
+            ->with(['pemasok:id,nama'])
             ->where('obat_id', $request->obat_id)
             ->orderBy('pemasok_id')
-            ->orderBy('principal_id')
             ->get();
 
         $pemasoks = $masters
@@ -512,37 +520,10 @@ class PermintaanController extends Controller
             })
             ->values();
 
-        $principals = $masters
-            ->filter(function ($master) {
-                return $master->principal_id && $master->principal;
-            })
-            ->unique('principal_id')
-            ->map(function ($master) {
-                return [
-                    'id' => $master->principal_id,
-                    'text' => $master->principal->nama,
-                ];
-            })
-            ->values();
-
-        $principalsByPemasok = $masters
-            ->groupBy(function ($master) {
-                return (string) $master->pemasok_id;
-            })
-            ->map(function ($groupedMasters) {
-                return $groupedMasters
-                    ->filter(function ($master) {
-                        return $master->principal_id && $master->principal;
-                    })
-                    ->unique('principal_id')
-                    ->map(function ($master) {
-                        return [
-                            'id' => $master->principal_id,
-                            'text' => $master->principal->nama,
-                        ];
-                    })
-                    ->values();
-            });
+        // The principal is set on the obat (Master Obat), so it is the only option for every pemasok
+        $principal = Obat::withInactive()->with('principal:id,nama')->find($request->obat_id)?->principal;
+        $principals = $principal ? collect([['id' => $principal->id, 'text' => $principal->nama]]) : collect();
+        $principalsByPemasok = $pemasoks->mapWithKeys(fn ($p) => [(string) $p['id'] => $principals]);
 
         return response()->json([
             'pemasoks' => $pemasoks,
@@ -694,7 +675,8 @@ class PermintaanController extends Controller
                             'fakturbeli_id' => $faktur->id,
                             'permintaan_item_id' => $item->id,
                             'obat_id' => $item->obat_id,
-                            'principal_id' => $item->principal_id ?? null,
+                            // Principal saved on the permintaan, otherwise the obat's principal (Master Obat)
+                            'principal_id' => $item->principal_id ?? app(MasterPembelianService::class)->principalFor((int) $item->obat_id),
                             'qty' => 0,
                             'sisa' => $item->qty_total,
                             'harga' => $harga,
@@ -732,12 +714,11 @@ class PermintaanController extends Controller
 
     public function nilaiPembelian($id)
     {
-        $permintaan = Permintaan::with(['items.obat.principals', 'items.pemasok', 'items.principal'])->findOrFail($id);
+        $permintaan = Permintaan::with(['items.obat.principal', 'items.pemasok', 'items.principal'])->findOrFail($id);
         $ppnRate = 11;
 
         $details = collect($permintaan->items)->map(function ($item) use ($ppnRate) {
             $master = MasterFaktur::query()
-                ->with('principal')
                 ->where('obat_id', $item->obat_id)
                 ->where('pemasok_id', $item->pemasok_id)
                 ->first();
@@ -755,8 +736,7 @@ class PermintaanController extends Controller
             $ppnValue = $setelahDiskon * $ppnRate / 100;
             $totalHarga = $setelahDiskon + $ppnValue;
             $principalName = optional($item->principal)->nama
-                ?? optional($master?->principal)->nama
-                ?? optional(optional($item->obat)->principals->first())->nama
+                ?? optional(optional($item->obat)->principal)->nama
                 ?? '-';
             $jenisObat = optional($item->obat)->is_generik ? 'Generik' : 'Paten';
 

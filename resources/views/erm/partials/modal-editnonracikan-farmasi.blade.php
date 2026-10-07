@@ -23,10 +23,7 @@
           </div>
           <div class="form-group">
             <label for="edit-aturan">Aturan Pakai</label>
-            <select id="edit-aturan-select" class="form-control select2-edit-aturan" style="width:100%">
-              <option value=""></option>
-            </select>
-            <input type="hidden" id="edit-aturan" name="aturan_pakai">
+            <input type="text" class="form-control" id="edit-aturan" name="aturan_pakai" required>
           </div>
         </div>
         <div class="modal-footer">

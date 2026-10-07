@@ -62,7 +62,7 @@ class MutasiGudangController extends Controller
                     'id' => $stokGudang->obat->id,
                     'nama' => $stokGudang->obat->nama,
                     'stok' => 0,
-                    'satuan' => $stokGudang->obat->satuan,
+                    'satuan' => $stokGudang->obat->satuan_stok_label,
                 ];
             }
             $grouped[$obatId]['stok'] += $stokGudang->stok;
@@ -468,160 +468,6 @@ class MutasiGudangController extends Controller
     }
 
     /**
-     * Migrate stok from obat.stok field to specific gudang
-     */
-    public function migrateStokToGudang(Request $request)
-    {
-        $request->validate([
-            'gudang_id' => 'required|exists:erm_gudang,id'
-        ]);
-
-        try {
-            DB::beginTransaction();
-            
-            $gudangId = $request->gudang_id;
-            $stokService = app(\App\Services\ERM\StokService::class);
-            $migratedCount = 0;
-            $totalStokMigrated = 0;
-            
-            // Get ALL obat (termasuk yang stok 0 atau null) untuk migrasi yang aman
-            $obatList = Obat::withInactive()
-                ->get();
-            
-            foreach ($obatList as $obat) {
-                // Ambil stok dari field stok, default ke 0 jika null
-                $stokToMigrate = $obat->stok ?? 0;
-                
-                // Generate batch name berdasarkan tanggal sekarang
-                $batchName = 'MIGRATE-' . date('Ymd') . '-' . $obat->id;
-                
-                // Set expiration date 3 bulan dari sekarang
-                $expirationDate = now()->addMonths(3)->format('Y-m-d');
-                
-                // Add stok ke gudang tujuan dengan batch dan ED (bahkan jika stok 0)
-                // Ini memastikan semua obat memiliki record di sistem gudang
-                $stokService->tambahStok(
-                    $obat->id,
-                    $gudangId,
-                    $stokToMigrate,
-                    $batchName,
-                    $expirationDate,
-                    $obat->hpp ?? 0,
-                    null
-                );
-                
-                // TIDAK reset field stok untuk safety - biarkan admin cleanup manual nanti
-                // $obat->update(['stok' => 0]);
-                
-                $migratedCount++;
-                $totalStokMigrated += $stokToMigrate;
-            }
-            
-            DB::commit();
-            
-            return response()->json([
-                'success' => true,
-                'message' => "Berhasil migrasi SEMUA {$migratedCount} obat (dengan total stok aktual {$totalStokMigrated}) ke gudang yang dipilih. Termasuk obat dengan stok 0/null untuk keamanan data."
-            ]);
-            
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal migrasi stok: ' . $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
-     * Manual cleanup field stok menjadi 0 setelah migrasi berhasil
-     */
-    public function cleanupFieldStok(Request $request)
-    {
-        try {
-            DB::beginTransaction();
-            
-            // Get obat yang sudah ada stok di gudang tapi masih ada di field stok
-            $obatToCleanup = Obat::withInactive()
-                ->where('stok', '>', 0)
-                ->whereHas('stokGudang', function($query) {
-                    $query->where('stok', '>', 0);
-                })
-                ->get();
-            
-            $cleanupCount = 0;
-            $totalStokCleaned = 0;
-            
-            foreach ($obatToCleanup as $obat) {
-                $stokLama = $obat->stok;
-                $obat->update(['stok' => 0]);
-                
-                $cleanupCount++;
-                $totalStokCleaned += $stokLama;
-            }
-            
-            DB::commit();
-            
-            return response()->json([
-                'success' => true,
-                'message' => "Berhasil cleanup {$cleanupCount} obat dengan total stok {$totalStokCleaned} direset ke 0"
-            ]);
-            
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal cleanup field stok: ' . $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
-     * Get summary of obat with stok > 0 in field stok for migration preview
-     */
-    public function getMigrationPreview()
-    {
-        try {
-            // Debug: Log current user role
-            Log::info('Migration Preview Request', [
-                'user_id' => Auth::id(),
-                'user_roles' => Auth::user() ? Auth::user()->getRoleNames() : 'Not authenticated'
-            ]);
-            
-            $obatList = Obat::withInactive()
-                ->select('id', 'nama', 'stok', 'satuan')
-                ->get();
-                
-            $totalObat = $obatList->count();
-            $totalStok = $obatList->sum('stok'); // Sum akan mengabaikan null values
-            
-            // Untuk preview, pisahkan obat yang ada stok dan yang tidak ada stok
-            $obatWithStock = $obatList->where('stok', '>', 0);
-            $obatWithoutStock = $obatList->filter(function($obat) {
-                return $obat->stok <= 0 || is_null($obat->stok);
-            });
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'total_obat' => $totalObat,
-                    'total_stok' => $totalStok,
-                    'obat_with_stock_count' => $obatWithStock->count(),
-                    'obat_without_stock_count' => $obatWithoutStock->count(),
-                    'obat_list_preview' => $obatList->take(10), // Show first 10 for preview
-                    'message' => "Akan migrasi SEMUA {$totalObat} obat ke gudang (termasuk yang stok 0/null untuk keamanan)"
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
      * Get obat aktif yang belum memiliki stok di gudang manapun
      */
     public function getObatWithoutStock(Request $request)
@@ -632,7 +478,7 @@ class MutasiGudangController extends Controller
             // Ambil obat aktif yang tidak ada di stok gudang manapun
             $query = Obat::where('status_aktif', 1)
                 ->whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan', 'kode_obat')
+                ->select('id', 'nama', 'satuan', 'satuan_stok', 'kode_obat')
                 ->orderBy('nama');
             
             if ($search) {
@@ -649,7 +495,7 @@ class MutasiGudangController extends Controller
                     'id' => $obat->id,
                     'nama' => $obat->nama,
                     'text' => $obat->nama . ($obat->kode_obat ? ' (' . $obat->kode_obat . ')' : ''),
-                    'satuan' => $obat->satuan
+                    'satuan' => $obat->satuan_stok_label
                 ];
             });
             
@@ -670,7 +516,7 @@ class MutasiGudangController extends Controller
     {
         try {
             $obatList = Obat::whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan', 'kode_obat')
+                ->select('id', 'nama', 'satuan', 'satuan_stok', 'kode_obat')
                 ->orderBy('nama')
                 ->get();
             
@@ -681,7 +527,7 @@ class MutasiGudangController extends Controller
                     'obat_list_preview' => $obatList->take(10)->map(function($obat) {
                         return [
                             'nama' => $obat->nama,
-                            'satuan' => $obat->satuan,
+                            'satuan' => $obat->satuan_stok_label,
                             'kode_obat' => $obat->kode_obat
                         ];
                     }),
@@ -716,7 +562,7 @@ class MutasiGudangController extends Controller
 
             // Get all obat that don't have stock in any gudang
             $obatList = Obat::whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan')
+                ->select('id', 'nama', 'satuan', 'satuan_stok')
                 ->get();
 
             if ($obatList->isEmpty()) {
@@ -751,8 +597,7 @@ class MutasiGudangController extends Controller
                         $batch,
                         $expirationDate,
                         $request->rak,
-                        null, // harga beli - optional
-                        $keterangan
+                        keterangan: $keterangan
                     );
                     
                     $successCount++;
@@ -832,15 +677,14 @@ class MutasiGudangController extends Controller
                 $batch,
                 $expirationDate,
                 $request->rak,
-                null, // harga beli - optional
-                'Stok awal obat baru' . ($request->keterangan ? ' - ' . $request->keterangan : '')
+                keterangan: 'Stok awal obat baru' . ($request->keterangan ? ' - ' . $request->keterangan : '')
             );
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => "Berhasil menambahkan stok awal {$request->jumlah} {$obat->satuan} untuk obat {$obat->nama} di gudang {$gudang->nama}."
+                'message' => "Berhasil menambahkan stok awal {$request->jumlah} {$obat->satuan_stok_label} untuk obat {$obat->nama} di gudang {$gudang->nama}."
             ]);
 
         } catch (\Exception $e) {

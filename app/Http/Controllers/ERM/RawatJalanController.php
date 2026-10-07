@@ -34,6 +34,92 @@ class RawatJalanController extends Controller
 {
     private const REALTIME_NOTIFICATION_MAX_AGE_MINUTES = 15;
 
+    /**
+     * Add referral_patient_name / referral_employee_name / referral_dokter_name / referral_event_name
+     * subqueries to a visitation query (used with referralLabel()).
+     */
+    private static function selectReferralNames($query)
+    {
+        return $query
+            ->selectSub(
+                DB::table('erm_pasiens as rp')
+                    ->select('rp.nama')
+                    ->whereColumn('rp.id', 'erm_visitations.referralable_id')
+                    ->whereRaw("erm_visitations.referralable_type = 'pasien'")
+                    ->limit(1),
+                'referral_patient_name'
+            )
+            ->selectSub(
+                DB::table('hrd_employee as he')
+                    ->select('he.nama')
+                    ->whereColumn('he.id', 'erm_visitations.referralable_id')
+                    ->whereRaw("erm_visitations.referralable_type = 'employee'")
+                    ->limit(1),
+                'referral_employee_name'
+            )
+            ->selectSub(
+                DB::table('erm_dokters as rd')
+                    ->leftJoin('users as ru', 'rd.user_id', '=', 'ru.id')
+                    ->selectRaw("COALESCE(NULLIF(TRIM(ru.name), ''), CONCAT('Dokter ID ', rd.id))")
+                    ->whereColumn('rd.id', 'erm_visitations.referralable_id')
+                    ->whereRaw("erm_visitations.referralable_type = 'dokter'")
+                    ->limit(1),
+                'referral_dokter_name'
+            )
+            ->selectSub(
+                DB::table('marketing_event as me')
+                    ->select('me.nama_event')
+                    ->where(function ($query) {
+                        $query->whereColumn('me.id', 'erm_visitations.referralable_id')
+                            ->whereRaw("erm_visitations.referralable_type = 'marketing_event'");
+                    })
+                    ->orWhere(function ($query) {
+                        $query->whereColumn('me.kode_event', 'erm_visitations.referral_detail')
+                            ->whereRaw("(erm_visitations.referralable_type IS NULL OR erm_visitations.referralable_id IS NULL)");
+                    })
+                    ->limit(1),
+                'referral_event_name'
+            );
+    }
+
+    /**
+     * Human-readable referral label, e.g. "Marketplace: Shopee" or "Pasien: Budi (RM: 123)".
+     */
+    private static function referralLabel($v): string
+    {
+        $referralType = (string) ($v->referral_type ?? Pasien::REFERRAL_TYPE_WALK_IN);
+
+        $typeLabel = match ($referralType) {
+            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
+            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
+            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
+            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
+            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
+            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
+            Pasien::REFERRAL_TYPE_EVENT => 'Event',
+            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
+            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
+            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
+            default => 'Walk-in',
+        };
+
+        $detail = null;
+
+        if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !empty($v->referral_patient_name) && !empty($v->referralable_id)) {
+            $detail = $v->referral_patient_name . ' (RM: ' . $v->referralable_id . ')';
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && !empty($v->referral_employee_name)) {
+            $detail = $v->referral_employee_name;
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_DOKTER && !empty($v->referral_dokter_name)) {
+            $detail = $v->referral_dokter_name;
+        } elseif ($referralType === Pasien::REFERRAL_TYPE_EVENT && (!empty($v->referral_event_name) || !empty($v->referral_detail))) {
+            $detail = $v->referral_event_name ?: $v->referral_detail;
+        } elseif (!empty($v->referral_detail)) {
+            $detail = ucwords(str_replace('_', ' ', (string) $v->referral_detail));
+        }
+
+        return $detail ? $typeLabel . ': ' . $detail : $typeLabel;
+    }
+
     private function normalizeOptionalFilterValue($value): ?string
     {
         if ($value === null) {
@@ -753,45 +839,7 @@ class RawatJalanController extends Controller
                             ->limit(1),
                         'cppt_created_at'
                     )
-                    ->selectSub(
-                        DB::table('erm_pasiens as rp')
-                            ->select('rp.nama')
-                            ->whereColumn('rp.id', 'erm_visitations.referralable_id')
-                            ->whereRaw("erm_visitations.referralable_type = 'pasien'")
-                            ->limit(1),
-                        'referral_patient_name'
-                    )
-                    ->selectSub(
-                        DB::table('hrd_employee as he')
-                            ->select('he.nama')
-                            ->whereColumn('he.id', 'erm_visitations.referralable_id')
-                            ->whereRaw("erm_visitations.referralable_type = 'employee'")
-                            ->limit(1),
-                        'referral_employee_name'
-                    )
-                    ->selectSub(
-                        DB::table('erm_dokters as rd')
-                            ->leftJoin('users as ru', 'rd.user_id', '=', 'ru.id')
-                            ->selectRaw("COALESCE(NULLIF(TRIM(ru.name), ''), CONCAT('Dokter ID ', rd.id))")
-                            ->whereColumn('rd.id', 'erm_visitations.referralable_id')
-                            ->whereRaw("erm_visitations.referralable_type = 'dokter'")
-                            ->limit(1),
-                        'referral_dokter_name'
-                    )
-                    ->selectSub(
-                        DB::table('marketing_event as me')
-                            ->select('me.nama_event')
-                            ->where(function ($query) {
-                                $query->whereColumn('me.id', 'erm_visitations.referralable_id')
-                                    ->whereRaw("erm_visitations.referralable_type = 'marketing_event'");
-                            })
-                            ->orWhere(function ($query) {
-                                $query->whereColumn('me.kode_event', 'erm_visitations.referral_detail')
-                                    ->whereRaw("(erm_visitations.referralable_type IS NULL OR erm_visitations.referralable_id IS NULL)");
-                            })
-                            ->limit(1),
-                        'referral_event_name'
-                    )
+                    ->tap(fn ($q) => self::selectReferralNames($q))
                     ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                     ->leftJoin('erm_metode_bayar as mb', 'erm_visitations.metode_bayar_id', '=', 'mb.id')
                     ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
@@ -919,40 +967,8 @@ class RawatJalanController extends Controller
                     return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
                 })
                 ->addColumn('referral_display', function ($v) {
-                    $referralType = (string) ($v->referral_type ?? Pasien::REFERRAL_TYPE_WALK_IN);
-
-                    $typeLabel = match ($referralType) {
-                        Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
-                        Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
-                        Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
-                        Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
-                        Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
-                        Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
-                        Pasien::REFERRAL_TYPE_EVENT => 'Event',
-                        Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-                            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
-                        Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
-                        default => 'Walk-in',
-                    };
-
-                    $detail = null;
-
-                    if ($referralType === Pasien::REFERRAL_TYPE_PASIEN && !empty($v->referral_patient_name) && !empty($v->referralable_id)) {
-                        $detail = $v->referral_patient_name . ' (RM: ' . $v->referralable_id . ')';
-                    } elseif ($referralType === Pasien::REFERRAL_TYPE_EMPLOYEE && !empty($v->referral_employee_name)) {
-                        $detail = $v->referral_employee_name;
-                    } elseif ($referralType === Pasien::REFERRAL_TYPE_DOKTER && !empty($v->referral_dokter_name)) {
-                        $detail = $v->referral_dokter_name;
-                    } elseif ($referralType === Pasien::REFERRAL_TYPE_EVENT && (!empty($v->referral_event_name) || !empty($v->referral_detail))) {
-                        $detail = $v->referral_event_name ?: $v->referral_detail;
-                    } elseif (!empty($v->referral_detail)) {
-                        $detail = ucwords(str_replace('_', ' ', (string) $v->referral_detail));
-                    }
-
-                    $label = $detail ? $typeLabel . ': ' . $detail : $typeLabel;
-
                     return '<span class="d-inline-flex align-items-center">'
-                        . '<span class="font-weight-bold">' . e($label) . '</span>'
+                        . '<span class="font-weight-bold">' . e(self::referralLabel($v)) . '</span>'
                         . '</span>';
                 })
                 ->addColumn('metode_bayar', function($v) { return $v->metode_bayar_nama ?? '-'; })

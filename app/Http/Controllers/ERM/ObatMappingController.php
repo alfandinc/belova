@@ -24,14 +24,14 @@ class ObatMappingController extends Controller
                     'obat_metode_bayar_name' => $ob ? $ob->nama : '-',
                     'is_active' => $it->is_active ? 'Aktif' : 'Non Aktif',
                     'created_at' => $it->created_at ? $it->created_at->format('Y-m-d H:i') : '',
-                    'aksi' => '<button class="btn btn-sm btn-info" onclick="editMapping(' . $it->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteMapping(' . $it->id . ')">Hapus</button>'
+                    'aksi' => '<button class="btn btn-sm btn-info" onclick="editObatMapping(' . $it->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteObatMapping(' . $it->id . ')">Hapus</button>'
                 ];
             });
             return response()->json(['data' => $data]);
         }
 
-        $metodeBayars = MetodeBayar::all();
-        return view('erm.obat-mapping.index', compact('metodeBayars'));
+        // The page itself now lives in the admin panel (Obat & Gudang Mapping)
+        return redirect()->route('admin.obat_gudang_mapping.index');
     }
 
     public function store(Request $request)

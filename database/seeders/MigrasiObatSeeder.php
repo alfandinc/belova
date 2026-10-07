@@ -36,11 +36,10 @@ class MigrasiObatSeeder extends Seeder
                 'harga_net' => is_numeric($row[4]) ? $row[4] : null,
                 'harga_fornas' => is_numeric($row[5]) ? $row[5] : null,
                 'harga_nonfornas' => is_numeric($row[6]) ? $row[6] : null,
-                'stok' => is_numeric($row[7]) ? $row[7] : 0,
                 'kategori' => $row[8] ?? null,
                 'metode_bayar_id' => is_numeric($row[9]) ? $row[9] : null,
                 'status_aktif' => is_numeric($row[10]) ? $row[10] : 0,
-                'kode_obat' => $row[11] ?? null,
+                'kode_obat_lama' => $row[11] ?? null, // kode_obat is generated per kategori
                 'created_at' => now(),
                 'updated_at' => now(),
             ];

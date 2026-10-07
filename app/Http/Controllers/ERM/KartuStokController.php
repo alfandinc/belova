@@ -817,7 +817,7 @@ class KartuStokController extends Controller
                     $stokSum = $stokSum !== null ? (float)$stokSum : 0.0;
                     $hpp = ($obat && isset($obat->hpp)) ? (float)$obat->hpp : 0.0;
                     $nilai = $stokSum * $hpp;
-                    $satuan = $obat && isset($obat->satuan) ? trim($obat->satuan) : '';
+                    $satuan = $obat ? trim((string) $obat->satuan_stok_label) : '';
                     if ($satuan !== '') {
                         $satuan = function_exists('mb_strtolower') ? mb_strtolower($satuan) : strtolower($satuan);
                     }

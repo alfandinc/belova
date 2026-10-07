@@ -15,7 +15,8 @@ class GudangController extends Controller
      */
     public function index()
     {
-        return view('erm.gudang.index');
+        // Master gudang now lives as a modal on the Manajemen Stok page
+        return redirect()->route('erm.stok-gudang.index');
     }
 
     /**

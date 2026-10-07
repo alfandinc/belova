@@ -98,7 +98,7 @@ class StokGudangController extends Controller {
                 DB::raw("CASE WHEN COALESCE(gt.global_total_stok, 0) <= COALESCE(gt.global_min_stok,0) THEN 'minimum' WHEN COALESCE(gt.global_total_stok, 0) >= COALESCE(gt.global_max_stok,0) AND COALESCE(gt.global_max_stok,0) > 0 THEN 'maksimum' ELSE 'normal' END as status_stok"),
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
-                'o.satuan as obat_satuan',
+                DB::raw("COALESCE(NULLIF(o.satuan_stok, ''), o.satuan) as obat_satuan"),
                 // Use a numeric alias for HPP for reliable calculations
                 DB::raw('COALESCE(o.hpp, 0) as hpp_val'),
                 'g.nama as gudang_nama',
@@ -299,8 +299,8 @@ class StokGudangController extends Controller {
                     $formatted = number_format($item->stok, 2, ',', '.');
                     $unit = '';
                     try {
-                        if ($item->obat && $item->obat->satuan) {
-                            $unitRaw = trim($item->obat->satuan);
+                        if ($item->obat && $item->obat->satuan_stok_label) {
+                            $unitRaw = trim($item->obat->satuan_stok_label);
                             $unit = function_exists('mb_strtolower') ? mb_strtolower($unitRaw) : strtolower($unitRaw);
                         }
                     } catch (\Exception $e) {
@@ -425,7 +425,7 @@ class StokGudangController extends Controller {
             ->where('s.batch', 'like', 'MIGRATE%')
             ->select(
                 's.id', 's.obat_id', 's.batch', 's.stok', 's.expiration_date', 's.updated_at',
-                'o.kode_obat', 'o.nama as nama_obat', 'o.satuan', 'o.kategori',
+                'o.kode_obat', 'o.nama as nama_obat', DB::raw("COALESCE(NULLIF(o.satuan_stok, ''), o.satuan) as satuan"), 'o.kategori',
                 'g.nama as nama_gudang'
             )
             ->orderByDesc('s.stok')
@@ -962,9 +962,9 @@ class StokGudangController extends Controller {
                 DB::raw('MIN(' . $table . '.min_stok) as min_stok'),
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
-                'o.satuan as obat_satuan'
+                DB::raw("COALESCE(NULLIF(o.satuan_stok, ''), o.satuan) as obat_satuan")
             )
-            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan')
+            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan', 'o.satuan_stok')
             ->havingRaw('SUM(' . $table . '.stok) < COALESCE(MIN(' . $table . '.min_stok), 0)');
 
         if ($request->hide_inactive == 1) {
@@ -1104,10 +1104,10 @@ class StokGudangController extends Controller {
                 DB::raw('MIN(' . $table . '.expiration_date) as nearest_exp'),
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
-                'o.satuan as obat_satuan',
+                DB::raw("COALESCE(NULLIF(o.satuan_stok, ''), o.satuan) as obat_satuan"),
                 DB::raw("GROUP_CONCAT(DISTINCT CASE WHEN {$table}.expiration_date IS NOT NULL AND {$table}.expiration_date <= '{$expThreshold}' THEN CONCAT({$table}.id, '||', {$table}.batch, '||', REPLACE(CAST({$table}.stok AS CHAR), '.', ','), '||', DATE_FORMAT({$table}.expiration_date, '%Y-%m-%d'), '||', COALESCE(g.nama, '-'), '||', {$table}.gudang_id) END SEPARATOR ';;') as exp_batches")
             )
-            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan')
+            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan', 'o.satuan_stok')
             ->havingRaw('MIN(' . $table . '.expiration_date) <= ?', [$expThreshold]);
 
         if ($expiredGudangId) {
@@ -1519,7 +1519,7 @@ class StokGudangController extends Controller {
                 $table . '.expiration_date',
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
-                'o.satuan as obat_satuan'
+                DB::raw("COALESCE(NULLIF(o.satuan_stok, ''), o.satuan) as obat_satuan")
             );
 
         if ($request->gudang_id) {

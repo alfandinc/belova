@@ -99,18 +99,15 @@ class StokService {
                 ]);
             }
 
-            // Update HPP di master obat jika ada harga beli baru (hanya untuk pembelian)
-            // Use the price that excludes discounts (`hargaBeliJual`) when available.
-            // Set master `hpp` directly to the new price (no averaging).
-            if ($hargaBeli !== null || $hargaBeliJual !== null) {
-                $obat = Obat::find($obatId);
+            // Update HPP (tanpa PPN) dan HNA (termasuk PPN) di master obat jika ada harga beli baru (hanya pembelian).
+            // Use the price that excludes discounts (`hargaBeliJual`) when available. No averaging.
+            // Zero-price lines (bonus/free goods) never overwrite HPP.
+            $hargaMaster = (float) ($hargaBeliJual ?? $hargaBeli ?? 0);
+            if ($hargaMaster > 0) {
+                $obat = Obat::withInactive()->find($obatId);
                 if ($obat) {
-                    if ($hargaBeliJual !== null) {
-                        $obat->hpp = (float) $hargaBeliJual;
-                    } else {
-                        // Fallback: only hargaBeli provided (may include discount) — set hpp to that value
-                        $obat->hpp = (float) $hargaBeli;
-                    }
+                    $obat->hpp = $hargaMaster;
+                    $obat->hna = Obat::hnaFromHpp((float) $obat->hpp);
                     $obat->save();
                 }
             }

@@ -129,13 +129,8 @@
                         </div>
                         <div class="col-md-4">
                             <label>Aturan Pakai</label>
-                            <div class="input-group mb-1">
-                                <input type="number" min="1" id="frekuensi" class="form-control" placeholder="Frekuensi (misal: 1)">
-                                <span class="input-group-text">x sehari</span>
-                                <input type="text" min="1" id="dosis" class="form-control" placeholder="Dosis (misal: 1)">
-                                <input type="text" id="keterangan_waktu" class="form-control" placeholder="Keterangan waktu (misal: sebelum makan)">
-                            </div>
-                            <input hidden type="text" id="aturan_pakai" class="form-control" placeholder="Aturan Pakai" readonly>
+                            {{-- Free text with "sering dipakai" recommendations (erm.partials.aturan-pakai-builder) --}}
+                            <input type="text" id="aturan_pakai" class="form-control" placeholder="Ketik aturan pakai, mis. 2 X SEHARI 1 TABLET">
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button id="tambah-resep" class="btn btn-primary btn-block">Tambah</button>
@@ -249,7 +244,7 @@
                                         </td>
                                         @php
                                             $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                                            $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : ($resep->obat->stok ?? 0);
+                                            $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : ($resep->obat ? $resep->obat->total_stok : 0);
                                         @endphp
                                         <td style="color: {{ ($stokGudang < 10 ? 'red' : (($stokGudang < 100) ? 'yellow' : 'green')) }};">
                                             {{ (int) $stokGudang }}
@@ -331,6 +326,7 @@
 @endsection
 
 @section('scripts')
+@include('erm.partials.aturan-pakai-builder')
 <script>
     let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
     const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
@@ -428,10 +424,10 @@
         const numericValue = Number(value);
 
         if (!Number.isFinite(numericValue) || numericValue <= 0) {
-            return 'Harga non fornas belum diatur';
+            return 'Harga jual belum diatur';
         }
 
-        return `Harga Non Fornas: Rp ${new Intl.NumberFormat('id-ID').format(numericValue)}`;
+        return `Harga Jual: Rp ${new Intl.NumberFormat('id-ID').format(numericValue)}`;
     }
 
     function escapeObatMarkup(value) {
@@ -452,6 +448,7 @@
                     zat_aktif: item.zat_aktif || '',
                     dosis: item.dosis,
                     satuan: item.satuan,
+                    satuan_stok: item.satuan_stok,
                     stok: item.stok,
                     stok_gudang: item.stok_gudang,
                     harga_nonfornas: item.harga_nonfornas,
@@ -565,6 +562,15 @@
             }
         });
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
+    // The server renumbers a racikan whose number was taken meanwhile; make the card follow it
+    function adoptRacikanKe(card, racikanKe) {
+        racikanKe = parseInt(racikanKe, 10);
+        if (!racikanKe || racikanKe === parseInt(card.data('racikan-ke'), 10)) return;
+        card.attr('data-racikan-ke', racikanKe).data('racikan-ke', racikanKe);
+        const title = card.find('h5 strong').first().contents().filter(function () { return this.nodeType === 3; }).first();
+        if (title.length) title[0].nodeValue = 'Racikan ' + racikanKe + ' ';
+        racikanCount = Math.max(racikanCount, racikanKe);
+    }
     let farmasiObatIds = @json($farmasiObatIds ?? []);
     let farmasiRacikanObatIds = @json($farmasiRacikanObatIds ?? []);
 
@@ -777,7 +783,7 @@
                     // Clear the input fields
                     $('#obat_id').val(null).trigger('change');
                     $('#jumlah').val('');
-                    $('#aturan_pakai').val('');
+                    AturanPakai.get('#aturan_pakai').reset();
                     // Set focus to Nama Obat input after adding
                     setTimeout(function() {
                         $('#obat_id').select2('open');
@@ -1168,6 +1174,7 @@
                     obats: obats
                 },
                 success: function (res) {
+                    adoptRacikanKe(card, res.racikan_ke);
                     alert(res.message);
                     card.find('.tambah-resepracikan').prop('disabled', true).text('Sudah Disimpan');
                     // Disable fields after successful save
@@ -1263,7 +1270,9 @@
             $('#edit-resep-id').val(id);
             $('#edit-jumlah').val(jumlah);
             // $('#edit-diskon').val(diskonValue);
-            $('#edit-aturan').val(aturan);
+            const apEdit = AturanPakai.get('#edit-aturan');
+            apEdit.setValue(aturan);
+            apEdit.setObat(row.data('obat-id'));
             $('#editResepModal').modal('show');
         });
         // STORE EDIT NON RACIKAN
@@ -1450,26 +1459,16 @@
         
         updateTotalPrice(); // 
 
-        // AUTO-GENERATE ATURAN PAKAI TEMPLATE (NON RACIKAN)
-        function updateAturanPakaiTemplate() {
-            const frekuensi = $('#frekuensi').val();
-            const dosis = $('#dosis').val();
-            const keterangan = $('#keterangan_waktu').val();
-            let aturan = '';
-            if (frekuensi && dosis) {
-                aturan = `${frekuensi} x sehari ${dosis}${keterangan ? ' ' + keterangan : ''}`;
-            }
-            $('#aturan_pakai').val(aturan);
-        }
-        $('#frekuensi, #dosis, #keterangan_waktu').on('input', updateAturanPakaiTemplate);
-        // AUTO-FILL ATURAN PAKAI ON TAB (RACIKAN, DYNAMIC)
-        $(document).on('keydown', '.aturan_pakai', function(e) {
-            if (e.key === 'Tab' && !$(this).val()) {
-                e.preventDefault();
-                $(this).val('1 X Sehari 1');
-                this.select();
-            }
+        // ATURAN PAKAI: free text with "sering dipakai" recommendations from resep history
+        const apNonRacikan = AturanPakai.mount('#aturan_pakai');
+        AturanPakai.mount('#edit-aturan');
+        AturanPakai.autoMount('#racikan-container', { racikan: true });
+        AturanPakai.autoMount('#paketRacikanModal', { racikan: true });
+        AturanPakai.autoMount('#gunakanPaketModal', { racikan: true });
+        $('#obat_id').on('select2:select', function (e) {
+            apNonRacikan.setObat(e.params.data.id);
         });
+        $('#obat_id').on('select2:clear', function () { apNonRacikan.setObat(null); });
 
         // PAKET RACIKAN FUNCTIONALITY
         let obatPaketCount = 0;
@@ -1603,14 +1602,6 @@
             if (dt) {
                 setTimeout(function(){ dt.columns.adjust(); }, 0);
             }
-
-            // ensure any prefilled aturan pakai values are present so select2 shows them
-            $('.select2-aturan-pakai').each(function(){
-                const v = $(this).val();
-                if (v && $(this).find('option[value="'+v+'"]').length === 0) {
-                    $(this).append(new Option(v, v, true, true)).trigger('change');
-                }
-            });
         });
 
         // Reset button click handler
@@ -1728,33 +1719,6 @@
             loadPaketRacikanList(term);
         }, 300));
 
-        // Initialize Select2 helper for aturan pakai (shared)
-        function initAturanPakaiSelect2(selector, dropdownParent) {
-            $(selector).select2({
-                width: '100%',
-                placeholder: '-- Pilih Template Aturan Pakai --',
-                allowClear: true,
-                minimumInputLength: 0,
-                ajax: {
-                    url: '{{ route('erm.aturan-pakai.list.active') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function(params) { return { q: params.term }; },
-                    processResults: function(data) {
-                        return { results: (data || []).map(function(item){
-                            if (typeof item === 'string') return { id: item, text: item };
-                            return { id: item.template || item.id || item, text: item.template || item.name || item };
-                        }) };
-                    },
-                    cache: true
-                },
-                templateResult: function(item){ return item && item.text ? $('<div>').text(item.text) : item.text; },
-                templateSelection: function(item){ return item && item.text ? item.text : item.text; },
-                dropdownParent: dropdownParent || undefined,
-                escapeMarkup: function(m){ return m; }
-            });
-        }
-
         // Initialize Select2 for Paket Racikan
         function initializePaketRacikanSelects() {
             // Destroy existing select2 instances first
@@ -1811,10 +1775,6 @@
                 minimumInputLength: 2,
                 dropdownParent: $('#paketRacikanModal')
             });
-
-            // Initialize modal aturan pakai selects for create form and modal confirm
-            initAturanPakaiSelect2('.select2-aturan-pakai', $('#paketRacikanModal'));
-            initAturanPakaiSelect2('#paketAturanPakai', $('#gunakanPaketModal'));
         }
 
         // Add Obat to Paket
@@ -2009,8 +1969,8 @@
                         // Tandai modal agar tidak buka ulang
                         $('#gunakanPaketModal').addClass('reload-after-close');
                         
-                        // Update racikan counter
-                        racikanCount = response.racikan_ke;
+                        // Update racikan counter (never lower it below cards still open on screen)
+                        racikanCount = Math.max(racikanCount, parseInt(response.racikan_ke, 10) || 0);
                         
                         // Dapatkan data paket untuk membuat card
                         // Prefer to read paket data from the copy button itself
@@ -2113,20 +2073,7 @@
                 $('.select2-wadah-paket').val('').trigger('change');
             }
             $('#formPaketRacikan input[name="bungkus_default"]').val(paket.bungkus_default || 10);
-            const aturanVal = paket.aturan_pakai_default || '';
-            const aturanSelect = $('.select2-aturan-pakai');
-            if (aturanSelect.length) {
-                if (!aturanSelect.hasClass('select2-hidden-accessible')) {
-                    initAturanPakaiSelect2('.select2-aturan-pakai', $('#paketRacikanModal'));
-                }
-                if (aturanVal && aturanSelect.find('option[value="'+aturanVal+'"]').length === 0) {
-                    aturanSelect.append(new Option(aturanVal, aturanVal, true, true));
-                }
-                aturanSelect.val(aturanVal).trigger('change');
-            } else {
-                // fallback for legacy input
-                $('#formPaketRacikan input[name="aturan_pakai_default"]').val(aturanVal || '');
-            }
+            $('#formPaketRacikan input[name="aturan_pakai_default"]').val(paket.aturan_pakai_default || '');
 
             // populate obat items
             const container = $('#obatPaketContainer');
@@ -2189,17 +2136,6 @@
                 setTimeout(function() {
                     $('#paketRacikanModal').modal('show');
                 }, 300);
-            }
-        });
-
-        // Ensure aturan pakai select2 in konfirmasi modal is initialized and shows prefilled value
-        $('#gunakanPaketModal').on('shown.bs.modal', function() {
-            if (!$('#paketAturanPakai').hasClass('select2-hidden-accessible')) {
-                initAturanPakaiSelect2('#paketAturanPakai', $('#gunakanPaketModal'));
-            }
-            const v = $('#paketAturanPakai').val();
-            if (v && $('#paketAturanPakai').find('option[value="'+v+'"]').length === 0) {
-                $('#paketAturanPakai').append(new Option(v, v, true, true)).trigger('change');
             }
         });
 

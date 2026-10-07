@@ -83,6 +83,9 @@
                         </ol>
                     </div>
                     <div class="col-auto ml-auto d-flex align-items-center">
+                        <button type="button" class="btn btn-outline-dark mr-2" id="btn-master-gudang" title="Kelola master gudang">
+                            <i class="fas fa-warehouse"></i>&nbsp;Master Gudang
+                        </button>
                         <button type="button" class="btn btn-outline-info mr-2" id="btn-sync-minmax" title="Sync min dan max ke record gudang yang masih kosong">
                             <i class="fas fa-sync-alt"></i>&nbsp;Sync Min/Max
                         </button>
@@ -494,6 +497,60 @@
                             </tr>
                         </thead>
                         <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Master Gudang Modal -->
+<div class="modal fade" id="masterGudangModal" tabindex="-1" role="dialog" aria-labelledby="masterGudangModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="masterGudangModalLabel">Master Gudang</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="gudangForm" class="border rounded p-3 mb-3 bg-light">
+                    <input type="hidden" id="gudang_form_id">
+                    <h6 class="mb-3" id="gudangFormTitle">Tambah Gudang</h6>
+                    <div class="form-row">
+                        <div class="form-group col-md-5">
+                            <label for="gudang_form_nama">Nama Gudang <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="gudang_form_nama" data-field="nama" required maxlength="255">
+                            <div class="invalid-feedback"></div>
+                        </div>
+                        <div class="form-group col-md-7">
+                            <label for="gudang_form_lokasi">Lokasi</label>
+                            <input type="text" class="form-control form-control-sm" id="gudang_form_lokasi" data-field="lokasi" maxlength="255">
+                            <div class="invalid-feedback"></div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-gudang-cancel" style="display:none;">Batal Edit</button>
+                        <button type="submit" class="btn btn-primary btn-sm" id="btn-gudang-save">
+                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                            <i class="fas fa-save"></i> Simpan
+                        </button>
+                    </div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm w-100" id="gudang-table">
+                        <thead>
+                            <tr>
+                                <th>Nama Gudang</th>
+                                <th>Lokasi</th>
+                                <th>Dibuat</th>
+                                <th width="100px">Aksi</th>
+                            </tr>
+                        </thead>
                     </table>
                 </div>
             </div>
@@ -1517,6 +1574,158 @@ $(document).ready(function() {
             loadStokMigrate();
         }).always(function() {
             $btn.prop('disabled', false).text('Simpan');
+        });
+    });
+
+    // ===== Master Gudang (modal) =====
+    var gudangBaseUrl = "{{ url('erm/gudang') }}";
+    var gudangTable = null;
+
+    function resetGudangForm() {
+        $('#gudangForm')[0].reset();
+        $('#gudang_form_id').val('');
+        $('#gudangFormTitle').text('Tambah Gudang');
+        $('#btn-gudang-cancel').hide();
+        $('#gudangForm .form-control').removeClass('is-invalid');
+        $('#gudangForm .invalid-feedback').text('');
+    }
+
+    // Keep the gudang dropdowns on this page in sync with master changes
+    function syncGudangOption(id, nama, removed) {
+        ['#filter_gudang', '#download_gudang'].forEach(function(sel) {
+            var $opt = $(sel).find('option[value="' + id + '"]');
+            if (removed) {
+                $opt.remove();
+            } else if ($opt.length) {
+                $opt.text(nama);
+            } else {
+                $(sel).append($('<option>').val(id).text(nama));
+            }
+        });
+    }
+
+    $('#btn-master-gudang').on('click', function() {
+        resetGudangForm();
+        $('#masterGudangModal').modal('show');
+    });
+
+    $('#masterGudangModal').on('shown.bs.modal', function() {
+        if (gudangTable) {
+            gudangTable.ajax.reload(null, false);
+            gudangTable.columns.adjust();
+            return;
+        }
+        gudangTable = $('#gudang-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: { url: "{{ route('erm.gudang.data') }}", type: 'GET' },
+            columns: [
+                { data: 'nama', name: 'nama' },
+                { data: 'lokasi', name: 'lokasi', defaultContent: '-' },
+                { data: 'created_at', name: 'created_at' },
+                { data: 'action', name: 'action', orderable: false, searchable: false }
+            ],
+            order: [[0, 'asc']],
+            pageLength: 10,
+            language: {
+                processing: 'Memuat data...',
+                lengthMenu: 'Tampilkan _MENU_ data',
+                zeroRecords: 'Tidak ada data yang ditemukan',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                infoEmpty: 'Menampilkan 0 sampai 0 dari 0 data',
+                infoFiltered: '(difilter dari _MAX_ total data)',
+                search: 'Cari:',
+                paginate: { first: 'Pertama', last: 'Terakhir', next: 'Selanjutnya', previous: 'Sebelumnya' }
+            }
+        });
+    });
+
+    $('#btn-gudang-cancel').on('click', resetGudangForm);
+
+    $(document).on('click', '#gudang-table .edit-btn', function() {
+        var id = $(this).data('id');
+        resetGudangForm();
+        $.get(gudangBaseUrl + '/' + id).done(function(response) {
+            if (response.success) {
+                $('#gudang_form_id').val(response.data.id);
+                $('#gudang_form_nama').val(response.data.nama).focus();
+                $('#gudang_form_lokasi').val(response.data.lokasi);
+                $('#gudangFormTitle').text('Edit Gudang');
+                $('#btn-gudang-cancel').show();
+            } else {
+                alert('Gagal memuat data gudang');
+            }
+        }).fail(function() {
+            alert('Terjadi kesalahan saat memuat data');
+        });
+    });
+
+    $(document).on('click', '#gudang-table .delete-btn', function() {
+        var id = $(this).data('id');
+        if (!confirm('Apakah Anda yakin ingin menghapus gudang ini?')) return;
+        $.ajax({
+            url: gudangBaseUrl + '/' + id,
+            type: 'POST',
+            data: { _method: 'DELETE', _token: $('meta[name="csrf-token"]').attr('content') },
+            success: function(response) {
+                alert(response.message);
+                if (response.success) {
+                    if ($('#gudang_form_id').val() == id) resetGudangForm();
+                    syncGudangOption(id, null, true);
+                    gudangTable.ajax.reload(null, false);
+                }
+            },
+            error: function(xhr) {
+                alert((xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat menghapus data');
+            }
+        });
+    });
+
+    $('#gudangForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#gudang_form_id').val();
+        var $btn = $('#btn-gudang-save');
+        var $spinner = $btn.find('.spinner-border');
+        var data = {
+            nama: $('#gudang_form_nama').val(),
+            lokasi: $('#gudang_form_lokasi').val(),
+            _token: $('meta[name="csrf-token"]').attr('content')
+        };
+        if (id) data._method = 'PUT';
+
+        $btn.prop('disabled', true);
+        $spinner.removeClass('d-none');
+        $('#gudangForm .form-control').removeClass('is-invalid');
+        $('#gudangForm .invalid-feedback').text('');
+
+        $.ajax({
+            url: id ? gudangBaseUrl + '/' + id : "{{ route('erm.gudang.store') }}",
+            type: 'POST',
+            data: data,
+            success: function(response) {
+                if (response.success) {
+                    syncGudangOption(response.data.id, response.data.nama, false);
+                    resetGudangForm();
+                    gudangTable.ajax.reload(null, false);
+                } else {
+                    alert(response.message);
+                }
+            },
+            error: function(xhr) {
+                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                    var errors = xhr.responseJSON.errors;
+                    for (var field in errors) {
+                        var $input = $('#gudangForm [data-field="' + field + '"]');
+                        $input.addClass('is-invalid').siblings('.invalid-feedback').text(errors[field][0]);
+                    }
+                } else {
+                    alert((xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat menyimpan data');
+                }
+            },
+            complete: function() {
+                $btn.prop('disabled', false);
+                $spinner.addClass('d-none');
+            }
         });
     });
 </script>

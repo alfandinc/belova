@@ -12,6 +12,7 @@ use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Permintaan;
 use App\Models\ERM\Principal;
+use App\Services\ERM\MasterPembelianService;
 use App\Services\ERM\StokService;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
@@ -23,10 +24,12 @@ use Maatwebsite\Excel\Facades\Excel;
 class FakturBeliController extends Controller
 {
     protected $stokService;
+    protected $masterPembelian;
 
-    public function __construct(StokService $stokService)
+    public function __construct(StokService $stokService, MasterPembelianService $masterPembelian)
     {
         $this->stokService = $stokService;
+        $this->masterPembelian = $masterPembelian;
     }
 
     public function index(Request $request)
@@ -322,6 +325,10 @@ class FakturBeliController extends Controller
             'total' => 'nullable|numeric',
         ]);
 
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
+        }
+
         $buktiPath = null;
         if ($request->hasFile('bukti')) {
             $buktiPath = $request->file('bukti')->store('fakturbeli_bukti', 'public');
@@ -389,6 +396,9 @@ class FakturBeliController extends Controller
             $faktur->items()->create([
                 'permintaan_item_id' => $item['permintaan_item_id'] ?? null,
                 'obat_id' => $item['obat_id'],
+                'principal_id' => $this->masterPembelian->principalForItem(
+                    (int) $item['obat_id'], isset($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null
+                ),
                 'qty' => $qty,
                 'diminta' => $item['diminta'] ?? $qty, // Default to qty if diminta not provided
                 'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
@@ -458,6 +468,10 @@ class FakturBeliController extends Controller
             }
         }
 
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
+        }
+
         $faktur = FakturBeli::findOrFail($id);
 
         $buktiPath = $faktur->bukti;
@@ -484,7 +498,15 @@ class FakturBeliController extends Controller
             'status' => 'diterima', // Update status when editing
         ]);
 
-        // Remove old items and re-add
+        // Remove old items and re-add. The form has no principal field, so keep the principal the old item had
+        // (matched by permintaan item, else by obat); new lines take it from the permintaan / Master Pembelian.
+        $oldPrincipal = [];
+        foreach ($faktur->items()->whereNotNull('principal_id')->get(['permintaan_item_id', 'obat_id', 'principal_id']) as $old) {
+            if ($old->permintaan_item_id) {
+                $oldPrincipal['pi-' . $old->permintaan_item_id] = $old->principal_id;
+            }
+            $oldPrincipal['obat-' . $old->obat_id] = $oldPrincipal['obat-' . $old->obat_id] ?? $old->principal_id;
+        }
         $faktur->items()->delete();
         foreach ($validated['items'] as $item) {
             $qty = $item['qty'] ?? 0;
@@ -498,9 +520,14 @@ class FakturBeliController extends Controller
             $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
             $itemSubtotal = $base - $diskonValue + $taxValue;
 
+            $permintaanItemId = isset($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null;
             $faktur->items()->create([
-                'permintaan_item_id' => $item['permintaan_item_id'] ?? null,
+                'permintaan_item_id' => $permintaanItemId,
                 'obat_id' => $item['obat_id'],
+                'principal_id' => $this->masterPembelian->principalForItem(
+                    (int) $item['obat_id'], $permintaanItemId,
+                    $oldPrincipal['pi-' . $permintaanItemId] ?? $oldPrincipal['obat-' . $item['obat_id']] ?? null
+                ),
                 'qty' => $qty,
                 'diminta' => $item['diminta'] ?? $qty,
                 'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
@@ -630,9 +657,9 @@ class FakturBeliController extends Controller
                     $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
                 }
                 
-                // Calculate HPP (include diskon) dan HPP Jual (exclude diskon)
-                $purchaseCost = $itemSubtotal + $globalTaxPortion; // HPP (dengan diskon)
-                $purchaseCostJual = $base + $taxValue + $globalTaxPortion; // HPP Jual (tanpa diskon)
+                // HPP excludes PPN (item tax + global pajak), same as approveFaktur
+                $purchaseCost = $base - $diskonValue; // HPP (dengan diskon)
+                $purchaseCostJual = $base; // HPP Jual (tanpa diskon) -> master HPP
                 
                 $obat = $item->obat;
                 $oldHpp = $obat->hpp ?? 0;
@@ -753,37 +780,16 @@ class FakturBeliController extends Controller
             }
 
             // Proses item yang diterima (qty > 0)
-            $invoiceSubtotal = 0;
+            // HPP is defined WITHOUT PPN: item tax and global pajak are never part of HPP.
             foreach ($itemsDiterima as $item) {
                 $qty = $item->qty ?? 0;
                 $harga = $item->harga ?? 0;
                 $diskon = $item->diskon ?? 0;
                 $diskonType = $item->diskon_type ?? 'nominal';
-                $tax = $item->tax ?? 0;
-                $taxType = $item->tax_type ?? 'nominal';
                 $base = $qty * $harga;
                 $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-                $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
-                $itemSubtotal = $base - $diskonValue + $taxValue;
-                $invoiceSubtotal += $itemSubtotal;
-            }
-
-            foreach ($itemsDiterima as $item) {
-                $qty = $item->qty ?? 0;
-                $harga = $item->harga ?? 0;
-                $diskon = $item->diskon ?? 0;
-                $diskonType = $item->diskon_type ?? 'nominal';
-                $itemTax = $item->tax ?? 0;
-                $taxType = $item->tax_type ?? 'nominal';
-                $base = $qty * $harga;
-                $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-                $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
-                $itemSubtotal = $base - $diskonValue + $taxValue;
-                $globalPajakValue = $faktur->global_pajak ?? 0;
-                $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
-                $globalPajakItem = $globalPajakValue * $prop;
-                $hppPerUnit = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;
-                $hppJualPerUnit = $qty > 0 ? ($base + $taxValue + $globalPajakItem) / $qty : 0;
+                $hppPerUnit = $qty > 0 ? ($base - $diskonValue) / $qty : 0; // after diskon, excl PPN (fallback only)
+                $hppJualPerUnit = $qty > 0 ? $base / $qty : 0; // before diskon, excl PPN -> master HPP
 
                 // Update stock using StokService
                 $this->stokService->masukViaFaktur(
@@ -794,8 +800,8 @@ class FakturBeliController extends Controller
                     $faktur->no_faktur,
                     $item->batch,
                     $item->expiration_date,
-                    $hppPerUnit, // hargaBeli (include diskon/tax)
-                    $hppJualPerUnit, // hargaBeliJual (exclude diskon/tax)
+                    $hppPerUnit, // hargaBeli (after diskon, excl PPN)
+                    $hppJualPerUnit, // hargaBeliJual (before diskon, excl PPN)
                     $faktur->pemasok->nama ?? null
                 );
             }
@@ -805,6 +811,9 @@ class FakturBeliController extends Controller
                 'status' => 'diapprove',
                 'approved_by' => Auth::id()
             ]);
+
+            // The price paid becomes the Master Pembelian price for the next permintaan
+            $this->masterPembelian->syncFromFaktur($faktur);
 
             // Jika ada sisa item, buat faktur baru untuk delivery berikutnya
             if (count($itemsOutstanding) > 0) {
@@ -833,6 +842,7 @@ class FakturBeliController extends Controller
                     $newFaktur->items()->create([
                         'permintaan_item_id' => $item->permintaan_item_id,
                         'obat_id' => $item->obat_id,
+                        'principal_id' => $item->principal_id,
                         'qty' => 0,
                         'diminta' => $remainingQty,
                         'sisa' => $remainingQty,
@@ -881,6 +891,10 @@ class FakturBeliController extends Controller
             'items.*.diminta' => 'required|integer|min:1',
         ]);
 
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
+        }
+
         $faktur = FakturBeli::create([
             'pemasok_id' => $validated['pemasok_id'],
             'requested_date' => $validated['requested_date'],
@@ -891,6 +905,7 @@ class FakturBeliController extends Controller
         foreach ($validated['items'] as $item) {
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
+                'principal_id' => $this->masterPembelian->principalFor((int) $item['obat_id']),
                 'diminta' => $item['diminta'],
                 'qty' => 0, // Initially, no items received yet
                 'sisa' => 0,
@@ -918,6 +933,10 @@ class FakturBeliController extends Controller
             'items.*.diminta' => 'required|integer|min:1',
         ]);
 
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
+        }
+
         $faktur = FakturBeli::findOrFail($id);
 
         $faktur->update([
@@ -932,6 +951,7 @@ class FakturBeliController extends Controller
         foreach ($validated['items'] as $item) {
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
+                'principal_id' => $this->masterPembelian->principalFor((int) $item['obat_id']),
                 'diminta' => $item['diminta'],
                 'qty' => 0, // Initially, no items received yet
                 'sisa' => 0,
@@ -977,7 +997,7 @@ class FakturBeliController extends Controller
     public function exportItemsExcel(Request $request)
     {
         $items = $this->buildApprovedItemExportQuery($request)
-            ->with(['fakturbeli.pemasok', 'obat.principals', 'principal'])
+            ->with(['fakturbeli.pemasok', 'obat.principal', 'principal'])
             ->get();
 
         if ($request->input('export_type') === 'principal_summary') {
@@ -986,7 +1006,7 @@ class FakturBeliController extends Controller
             foreach ($items as $item) {
                 $principalName = $this->resolvePrincipalNameForItem($item);
                 $obatName = optional($item->obat)->nama ?: '-';
-                $satuan = optional($item->obat)->satuan ?: '';
+                $satuan = optional($item->obat)->satuan_stok_label ?: '';
                 $key = $principalName . '|' . ($item->obat_id ?? 0);
 
                 if (!isset($summaryRows[$key])) {
@@ -1132,21 +1152,11 @@ class FakturBeliController extends Controller
             $principalId = (int) $request->input('principal_id');
 
             $query->where(function ($principalQuery) use ($principalId) {
+                // Principal saved on the item, or for items without one the obat's principal (Master Obat)
                 $principalQuery->where('principal_id', $principalId)
-                    ->orWhereHas('obat.principals', function ($obatPrincipalQuery) use ($principalId) {
-                        $obatPrincipalQuery->where('erm_principals.id', $principalId);
-                    })
-                    ->orWhereExists(function ($masterFakturQuery) use ($principalId) {
-                        $masterFakturQuery->select(DB::raw(1))
-                            ->from('erm_master_faktur')
-                            ->whereColumn('erm_master_faktur.obat_id', 'erm_fakturbeli_items.obat_id')
-                            ->where('erm_master_faktur.principal_id', $principalId)
-                            ->whereExists(function ($fakturQuery) {
-                                $fakturQuery->select(DB::raw(1))
-                                    ->from('erm_fakturbeli')
-                                    ->whereColumn('erm_fakturbeli.id', 'erm_fakturbeli_items.fakturbeli_id')
-                                    ->whereColumn('erm_fakturbeli.pemasok_id', 'erm_master_faktur.pemasok_id');
-                            });
+                    ->orWhere(function ($fallbackQuery) use ($principalId) {
+                        $fallbackQuery->whereNull('principal_id')
+                            ->whereHas('obat', fn ($obatQuery) => $obatQuery->withInactive()->where('principal_id', $principalId));
                     });
             });
         }
@@ -1177,32 +1187,8 @@ class FakturBeliController extends Controller
             return $item->principal->nama ?: 'Tanpa Principal';
         }
 
-        $obatId = $item->obat_id;
-        $pemasokId = optional($item->fakturbeli)->pemasok_id;
-
-        if ($obatId && $pemasokId) {
-            $masterFaktur = \App\Models\ERM\MasterFaktur::where('obat_id', $obatId)
-                ->where('pemasok_id', $pemasokId)
-                ->first();
-
-            if ($masterFaktur && $masterFaktur->principal_id) {
-                $principal = \App\Models\ERM\Principal::find($masterFaktur->principal_id);
-                if ($principal && $principal->nama) {
-                    return $principal->nama;
-                }
-            }
-        }
-
-        if ($item->obat) {
-            $principals = $item->obat->principals ?? collect();
-            $names = $principals->pluck('nama')->filter()->values();
-
-            if ($names->isNotEmpty()) {
-                return $names->implode(', ');
-            }
-        }
-
-        return 'Tanpa Principal';
+        // Item without its own principal: the obat's principal (Master Obat)
+        return optional(optional($item->obat)->principal)->nama ?: 'Tanpa Principal';
     }
 
     private function calculateExportTotalHarga(FakturBeliItem $item): float

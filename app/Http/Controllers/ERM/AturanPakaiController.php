@@ -4,93 +4,81 @@ namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\ERM\AturanPakai;
-use Yajra\DataTables\Facades\DataTables;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AturanPakaiController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Aturan pakai recommendations for the free-text field in the resep form, taken from resep history
+     * (no master needed). Returns two lists, most used first:
+     *  - obat  : used before for this obat (obat_id) or, with racikan=1, in racikan by this user
+     *  - umum  : used in any resep
+     * q filters both (case and spacing insensitive: "2x" matches "2 X"). Texts used only once are left out.
+     */
+    public function suggest(Request $request)
     {
-        if ($request->ajax()) {
-            $query = AturanPakai::orderBy('id', 'desc');
-            return DataTables::of($query)
-                ->addColumn('is_active', function ($it) {
-                    return $it->is_active ? 'Aktif' : 'Non Aktif';
-                })
-                ->addColumn('created_at', function ($it) {
-                    return $it->created_at ? $it->created_at->format('Y-m-d H:i') : '';
-                })
-                ->addColumn('aksi', function ($it) {
-                    return '<button class="btn btn-sm btn-info" onclick="editAturan(' . $it->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteAturan(' . $it->id . ')">Hapus</button>';
-                })
-                ->rawColumns(['aksi'])
-                ->make(true);
+        $q = trim((string) $request->input('q', ''));
+        $racikan = $request->boolean('racikan');
+
+        $grouped = function ($query) use ($q, $racikan) {
+            $query->select('aturan_pakai', DB::raw('COUNT(*) as c'))
+                ->whereNotNull('aturan_pakai')
+                ->where('aturan_pakai', '!=', '');
+            $racikan ? $query->whereNotNull('racikan_ke') : $query->whereNull('racikan_ke');
+            if ($q !== '') {
+                $noSpace = str_replace(' ', '', $q);
+                $query->where(function ($w) use ($q, $noSpace) {
+                    $w->where('aturan_pakai', 'LIKE', "%{$q}%")
+                        ->orWhereRaw("REPLACE(aturan_pakai, ' ', '') LIKE ?", ["%{$noSpace}%"]);
+                });
+            }
+
+            return $query->groupBy('aturan_pakai')->orderByDesc('c')->limit(80)->get();
+        };
+
+        // Case/spacing variants of the same text are counted together; the most used spelling is shown
+        $merge = function ($rows, $limit, array $exclude = []) {
+            return collect($rows)
+                ->map(fn ($r) => ['text' => trim(preg_replace('/\s+/', ' ', (string) $r->aturan_pakai)), 'c' => (int) $r->c])
+                ->filter(fn ($r) => mb_strlen($r['text']) >= 3)
+                ->groupBy(fn ($r) => mb_strtolower(preg_replace('/\s*,\s*/', ', ', $r['text'])))
+                ->reject(fn ($g, $key) => in_array($key, $exclude, true))
+                ->map(fn ($g) => ['text' => $g->sortByDesc('c')->first()['text'], 'count' => $g->sum('c')])
+                ->filter(fn ($r) => $r['count'] >= 2)
+                ->sortByDesc('count')
+                ->take($limit)
+                ->values();
+        };
+        $keyOf = fn ($text) => mb_strtolower(preg_replace('/\s*,\s*/', ', ', $text));
+
+        // Both resep dokter and resep farmasi, so dokter and farmasi pages get each other's history
+        $tables = ['erm_resepdokter', 'erm_resepfarmasi'];
+
+        // Specific: this obat, or this user's racikan
+        $specificRows = collect();
+        if ($racikan) {
+            foreach ($tables as $table) {
+                $specificRows = $specificRows->merge($grouped(DB::table($table)->where('user_id', Auth::id())));
+            }
+        } elseif ($request->filled('obat_id')) {
+            foreach ($tables as $table) {
+                $specificRows = $specificRows->merge($grouped(DB::table($table)->where('obat_id', (int) $request->obat_id)));
+            }
+        }
+        $specific = $merge($specificRows, 5);
+
+        // General: every resep (only searched when typing, or when there is nothing specific)
+        $general = collect();
+        if ($q !== '' || $specific->isEmpty()) {
+            $generalRows = collect();
+            foreach ($tables as $table) {
+                $generalRows = $generalRows->merge($grouped(DB::table($table)));
+            }
+            $exclude = $specific->map(fn ($r) => $keyOf($r['text']))->all();
+            $general = $merge($generalRows, 8, $exclude);
         }
 
-        return view('erm.aturan-pakai.index');
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'template' => 'required|string',
-        ]);
-        $data = $request->only(['template']);
-        $data['is_active'] = $request->has('is_active') ? (bool)$request->is_active : true;
-        $m = AturanPakai::create($data);
-        return response()->json(['success' => true, 'id' => $m->id]);
-    }
-
-    public function show($id)
-    {
-        $m = AturanPakai::findOrFail($id);
-        return response()->json($m);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $request->validate(['template' => 'required|string']);
-        $m = AturanPakai::findOrFail($id);
-        $m->template = $request->template;
-        $m->is_active = $request->has('is_active') ? (bool)$request->is_active : false;
-        $m->save();
-        return response()->json(['success' => true]);
-    }
-
-    public function destroy($id)
-    {
-        $m = AturanPakai::findOrFail($id);
-        $m->delete();
-        return response()->json(['success' => true]);
-    }
-
-    // Public API used by resep pages to fetch active templates
-    public function listActive(Request $request)
-    {
-        $q = (string)$request->get('q', '');
-        $q = trim($q);
-
-        // Allow 1-character searches (UI should not enforce 2-char minimum).
-        // Still avoid returning everything when empty.
-        if ($q === '') {
-            return response()->json([]);
-        }
-
-        // Also support searches that ignore spaces, e.g. search `2x` should match DB value `2 x`.
-        $qNoSpace = preg_replace('/\s+/', '', $q);
-
-        $items = AturanPakai::where('is_active', true)
-            ->where(function ($w) use ($q, $qNoSpace) {
-                $w->where('template', 'like', "%{$q}%");
-
-                if ($qNoSpace !== '') {
-                    $w->orWhereRaw("REPLACE(template, ' ', '') LIKE ?", ["%{$qNoSpace}%"]);
-                }
-            })
-            ->orderBy('id', 'desc')
-            ->limit(50)
-            ->get(['id', 'template']);
-
-        return response()->json($items);
+        return response()->json(['obat' => $specific, 'umum' => $general]);
     }
 }

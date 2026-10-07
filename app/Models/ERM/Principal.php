@@ -19,11 +19,9 @@ class Principal extends Model
         'status_aktif',
     ];
 
-    /**
-     * Obats related to this principal
-     */
+    /** Obat from this principal (erm_obat.principal_id, set in Master Obat). */
     public function obats()
     {
-        return $this->belongsToMany(Obat::class, 'erm_obat_principal', 'principal_id', 'obat_id');
+        return $this->hasMany(Obat::class, 'principal_id');
     }
 }

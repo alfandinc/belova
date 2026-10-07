@@ -19,6 +19,8 @@ class ResepDokter extends Model
         'dosis',
         'bungkus',
         'racikan_ke',
+        'paket_racikan_id',
+        'paket_racikan_nama',
         'aturan_pakai',
         'wadah_id',
 
@@ -31,6 +33,11 @@ class ResepDokter extends Model
     {
         return $this->belongsTo(Obat::class, 'obat_id');
     }
+    public function paketRacikan()
+    {
+        return $this->belongsTo(PaketRacikan::class, 'paket_racikan_id');
+    }
+
     public function wadah()
     {
         return $this->belongsTo(WadahObat::class, 'wadah_id');

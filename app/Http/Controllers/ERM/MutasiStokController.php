@@ -127,11 +127,11 @@ class MutasiStokController extends Controller
                 'erm_obat.id',
                 'erm_obat.nama',
                 'erm_obat.kode_obat',
-                'erm_obat.satuan',
+                DB::raw("COALESCE(NULLIF(erm_obat.satuan_stok, ''), erm_obat.satuan) as satuan"),
                 DB::raw('COALESCE(SUM(osg.stok), 0) as stok_gudang')
             )
             ->where('erm_obat.status_aktif', 1)
-            ->groupBy('erm_obat.id', 'erm_obat.nama', 'erm_obat.kode_obat', 'erm_obat.satuan')
+            ->groupBy('erm_obat.id', 'erm_obat.nama', 'erm_obat.kode_obat', 'erm_obat.satuan', 'erm_obat.satuan_stok')
             ->orderBy('erm_obat.nama')
             ->limit(20);
 
@@ -280,7 +280,7 @@ class MutasiStokController extends Controller
                     'obat_nama' => optional($item->obat)->nama ?: 'Obat #' . $item->obat_id,
                     'jumlah' => rtrim(rtrim(number_format((float) $item->jumlah, 2, '.', ''), '0'), '.'),
                     'jumlah_raw' => (float) $item->jumlah,
-                    'satuan' => optional($item->obat)->satuan,
+                    'satuan' => optional($item->obat)->satuan_stok_label,
                     'keterangan' => $item->keterangan,
                 ];
             })->values(),

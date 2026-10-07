@@ -153,22 +153,8 @@
             </table>
         </div>
         @php
-            $paketName = null;
-            $components = $items->map(function($it){
-                return ($it->obat_id ?? '') . '|' . ($it->dosis ?? '');
-            })->toArray();
-            sort($components);
-            $pakets = \App\Models\ERM\PaketRacikan::with('details')->where('is_active', 1)->get();
-            foreach ($pakets as $p) {
-                $pcomp = $p->details->map(function($d){
-                    return ($d->obat_id ?? '') . '|' . ($d->dosis ?? '');
-                })->toArray();
-                sort($pcomp);
-                if ($components == $pcomp) {
-                    $paketName = $p->nama_paket;
-                    break;
-                }
-            }
+            // stored paket of the racikan, or the paket with exactly this isi (ResepFarmasi::paket_racikan_name)
+            $paketName = $items->first()->paket_racikan_name ?? null;
         @endphp
         <div class="obat-detail">
             <span style="font-size: 12pt; font-weight: bold;">

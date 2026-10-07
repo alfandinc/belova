@@ -4130,10 +4130,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
             
-            // Preload active PaketRacikan with details (for racikan name matching)
-            $activePaketRacikans = PaketRacikan::with(['details' => function($q){ $q->select('id','paket_racikan_id','obat_id','dosis'); }])
-                ->where('is_active', true)
-                ->get(['id','nama_paket','is_active']);
+            $resolvePaketName = PaketRacikan::racikanNameResolver();
 
             // Process racikan groups
             foreach ($racikanGroups as $racikanKey => $racikanItems) {
@@ -4166,39 +4163,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     
                     $description = implode("\n", $formattedObatList);
 
-                    // Determine racikan display name: match to PaketRacikan (obat_id + dosis order-insensitive)
+                    // Racikan display name: the paket stored on the resep rows, otherwise the paket with exactly this isi
                     $racikanDisplayName = 'Obat Racikan';
                     try {
-                        $normalizeDose = function($val) {
-                            if ($val === null) return '';
-                            $s = trim(strtolower((string)$val));
-                            $s = str_replace([','], ['.'], $s);
-                            if (preg_match('/\d+(?:\.\d+)?/', $s, $m)) {
-                                return rtrim(rtrim($m[0], '0'), '.') ?: $m[0];
-                            }
-                            return $s;
-                        };
-                        $compMap = [];
-                        foreach ($racikanItems as $ri) {
-                            $billable = $ri->billable ?? null;
-                            $ob = ($billable && isset($billable->obat)) ? $billable->obat : null;
-                            $dose = $billable ? ($billable->dosis ?? null) : null;
-                            if ($ob && isset($ob->id)) {
-                                $key = $ob->id . '|' . $normalizeDose($dose);
-                                $compMap[$key] = true;
-                            }
-                        }
-                        foreach ($activePaketRacikans as $paket) {
-                            $details = $paket->details;
-                            if (!$details || $details->count() === 0) continue;
-                            if ($details->count() !== count($compMap)) continue;
-                            $allMatch = true;
-                            foreach ($details as $d) {
-                                $dKey = ($d->obat_id ?? '0') . '|' . $normalizeDose($d->dosis ?? '');
-                                if (!isset($compMap[$dKey])) { $allMatch = false; break; }
-                            }
-                            if ($allMatch) { $racikanDisplayName = $paket->nama_paket; break; }
-                        }
+                        $resepRows = collect($racikanItems)->pluck('billable')->filter();
+                        $racikanDisplayName = $resolvePaketName($resepRows) ?: 'Obat Racikan';
                     } catch (\Exception $e) {
                         \Illuminate\Support\Facades\Log::warning('Racikan paket matching (invoice) failed: ' . $e->getMessage());
                     }
