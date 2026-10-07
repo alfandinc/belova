@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
  * Zat aktif master (managed from the Master Obat page).
  * Deleting a zat aktif cascades into erm_kandungan_obat and erm_alergi (patient allergies),
  * so delete is only allowed when it is not used anywhere; duplicates are merged instead.
+ * Every change (add, rename, merge, delete) is Admin only: a zat aktif is shared by many obat and patient allergies.
  */
 class ZatAktifController extends Controller
 {
@@ -107,6 +108,9 @@ class ZatAktifController extends Controller
      */
     public function store(Request $request)
     {
+        if (!$this->isAdmin()) {
+            return response()->json(['message' => 'Hanya Admin yang dapat menambah zat aktif.'], 403);
+        }
         $request->validate(['nama' => 'required|string|max:191'], self::MESSAGES);
         $nama = ZatAktif::cleanNama($request->nama);
 
@@ -128,6 +132,9 @@ class ZatAktifController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!$this->isAdmin()) {
+            return response()->json(['message' => 'Hanya Admin yang dapat mengubah nama zat aktif.'], 403);
+        }
         $zat = ZatAktif::findOrFail($id);
         $request->validate(['nama' => 'required|string|max:191'], self::MESSAGES);
         $nama = ZatAktif::cleanNama($request->nama);
@@ -178,7 +185,10 @@ class ZatAktifController extends Controller
             }
             DB::table('erm_kandungan_obat')->where('zataktif_id', $source->id)->delete();
 
-            // Patient allergies point to the target from now on
+            // Patient allergies point to the target from now on. A patient who already has the target keeps
+            // that row and loses the source one, otherwise they would have the same allergy twice.
+            $pasienWithTarget = DB::table('erm_alergi')->where('zataktif_id', $target->id)->whereNotNull('pasien_id')->pluck('pasien_id');
+            DB::table('erm_alergi')->where('zataktif_id', $source->id)->whereIn('pasien_id', $pasienWithTarget)->delete();
             $alergi = DB::table('erm_alergi')->where('zataktif_id', $source->id)->update(['zataktif_id' => $target->id]);
 
             $source->delete();

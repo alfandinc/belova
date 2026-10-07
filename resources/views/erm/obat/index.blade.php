@@ -292,7 +292,7 @@
                     <h6 class="form-section">Zat Aktif</h6>
                     <div class="form-group mb-0">
                         <select class="form-control" id="zat_aktif_id" name="zataktif_id[]" multiple></select>
-                        <small class="form-text text-muted">Ketik minimal 2 huruf untuk mencari. Belum ada? Tambahkan lewat tombol <em>Kelola Zat Aktif</em>.</small>
+                        <small class="form-text text-muted">Ketik minimal 2 huruf untuk mencari. Belum ada? @if($canDelete) Tambahkan lewat tombol <em>Kelola Zat Aktif</em>. @else Minta Admin menambahkannya. @endif</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -353,7 +353,8 @@
                 <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body">
-                {{-- Tambah --}}
+                {{-- Tambah (Admin only, like rename/merge/delete) --}}
+                @if($canDelete)
                 <form id="formAddZat" class="mb-3" autocomplete="off">
                     <label for="newZatNama" class="small text-muted mb-1">Tambah zat aktif baru</label>
                     <div class="input-group">
@@ -364,6 +365,7 @@
                     </div>
                     <small id="newZatFeedback" class="form-text"></small>
                 </form>
+                @endif
 
                 {{-- Gabungkan (shown when merging) --}}
                 <div id="zatMergePanel" class="alert alert-info d-none">
@@ -1187,15 +1189,15 @@
     }
 
     function renderZatActions(data, type, row) {
-        let html = '<div class="btn-group btn-group-sm">' +
-            '<button type="button" class="btn btn-outline-primary zat-rename" title="Ubah nama"><i class="fas fa-pen"></i></button>';
-        if (CAN_DELETE) {
-            html += '<button type="button" class="btn btn-outline-secondary zat-merge" title="Gabungkan ke zat aktif lain (nama ganda)"><i class="fas fa-code-branch"></i></button>';
-            const used = row.obat_count > 0 || row.alergi_count > 0;
-            html += '<button type="button" class="btn btn-outline-danger zat-delete" ' +
-                (used ? 'disabled title="Masih dipakai, tidak bisa dihapus"' : 'title="Hapus"') + '><i class="fas fa-trash"></i></button>';
-        }
-        return html + '</div>';
+        if (!CAN_DELETE) return '';
+        // Every change to a zat aktif is Admin only (checked again on the server)
+        const used = row.obat_count > 0 || row.alergi_count > 0;
+        return '<div class="btn-group btn-group-sm">' +
+            '<button type="button" class="btn btn-outline-primary zat-rename" title="Ubah nama"><i class="fas fa-pen"></i></button>' +
+            '<button type="button" class="btn btn-outline-secondary zat-merge" title="Gabungkan ke zat aktif lain (nama ganda)"><i class="fas fa-code-branch"></i></button>' +
+            '<button type="button" class="btn btn-outline-danger zat-delete" ' +
+            (used ? 'disabled title="Masih dipakai, tidak bisa dihapus"' : 'title="Hapus"') + '><i class="fas fa-trash"></i></button>' +
+            '</div>';
     }
 
     function initZatTable() {
@@ -1358,8 +1360,13 @@
                 processResults: function (res, params) {
                     const page = params.page || 1;
                     return {
+                        // Usage tells apart duplicates that have exactly the same name
                         results: (res.data || []).filter(function (z) { return z.id !== zatMergeSourceId; })
-                            .map(function (z) { return { id: z.id, text: z.nama }; }),
+                            .map(function (z) {
+                                const usage = [z.obat_count + ' obat'];
+                                if (z.alergi_count > 0) usage.push(z.alergi_count + ' alergi');
+                                return { id: z.id, text: (z.nama || '(kosong)') + ' (' + usage.join(', ') + ')' };
+                            }),
                         pagination: { more: page * 20 < (res.recordsFiltered || 0) }
                     };
                 }
