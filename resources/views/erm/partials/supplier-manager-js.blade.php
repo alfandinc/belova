@@ -258,8 +258,15 @@ window.SupplierManager = window.SupplierManager || (function ($) {
                 processResults: function (res, params) {
                     const page = params.page || 1;
                     return {
+                        // Usage tells apart duplicates that have exactly the same name
                         results: (res.data || []).filter(function (r) { return r.id !== mergeSourceId; })
-                            .map(function (r) { return { id: r.id, text: r.nama }; }),
+                            .map(function (r) {
+                                const u = r.usage || {};
+                                const parts = [];
+                                if (u.obat > 0) parts.push(u.obat + ' obat');
+                                Object.keys(USAGE_LABELS).forEach(function (k) { if (u[k] > 0) parts.push(u[k] + ' ' + USAGE_LABELS[k]); });
+                                return { id: r.id, text: (r.nama || '(kosong)') + ' (' + (parts.length ? parts.join(', ') : 'tidak dipakai') + ')' };
+                            }),
                         pagination: { more: page * 20 < (res.recordsFiltered || 0) }
                     };
                 }

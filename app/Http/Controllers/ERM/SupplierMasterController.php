@@ -260,7 +260,9 @@ abstract class SupplierMasterController extends Controller
         if (static::compareKey($validated['nama']) === '') {
             return response()->json(['message' => 'Nama tidak valid.', 'errors' => ['nama' => ['Nama tidak valid.']]], 422);
         }
-        if ($same = $this->findSameName($validated['nama'], $row->id)) {
+        // Only a real rename is checked, so the contact of an existing duplicate can still be edited
+        $renamed = static::compareKey($validated['nama']) !== static::compareKey($row->nama);
+        if ($renamed && ($same = $this->findSameName($validated['nama'], $row->id))) {
             $msg = "Nama \"{$same->nama}\" sudah dipakai " . strtolower($this->label()) . ' lain. Gunakan Gabungkan jika keduanya sama.';
             return response()->json(['message' => $msg, 'errors' => ['nama' => [$msg]]], 422);
         }
