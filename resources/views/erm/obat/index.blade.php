@@ -451,6 +451,10 @@
 @section('scripts')
 <style>
     .obat-page .filter-bar label { font-weight: 600; }
+    /* Keep wide pages (e.g. 100 rows with long lists) inside the card: only the DataTables scroll body scrolls sideways */
+    .obat-page, .obat-page .card, .obat-page .card-body { min-width: 0; max-width: 100%; }
+    #obat-table_wrapper, #obat-table_wrapper .dataTables_scroll { width: 100%; max-width: 100%; overflow: hidden; }
+    #obat-table_wrapper .dataTables_scrollBody { overflow-x: auto !important; }
     #obat-table tbody tr { cursor: pointer; }
     #obat-table td, #obat-table th { vertical-align: middle; white-space: nowrap; }
     #obat-table td.col-nama { white-space: normal; min-width: 240px; max-width: 360px; }
