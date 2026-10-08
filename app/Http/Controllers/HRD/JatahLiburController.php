@@ -52,20 +52,43 @@ class JatahLiburController extends Controller
      */
     private function saldoTanpaTanggal(int $employeeId, int $saldo, array $holidays): int
     {
+        return $this->rincianGantiLibur($employeeId, $saldo, $holidays)['tanpa_tanggal'];
+    }
+
+    /**
+     * The Sundays / holidays behind the ganti libur balance: unclaimed scheduled days ('tersedia') and
+     * days claimed by requests not yet approved by HRD ('diajukan'), plus the rest without a date.
+     * Scheduled days still ahead are 'terjadwal'.
+     */
+    private function rincianGantiLibur(int $employeeId, int $saldo, array $holidays): array
+    {
         $aktif = PengajuanLibur::gantiLiburAktif($employeeId)->whereNotNull('tanggal_masuk_pengganti')->get();
-        $claimed = $aktif->pluck('tanggal_masuk_pengganti')->flatten()
-            ->map(fn($d) => Carbon::parse($d)->toDateString())->all();
-        $pendingClaimed = $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')
-            ->sum(fn($p) => count((array) $p->tanggal_masuk_pengganti));
+        $toDates = fn($p) => collect((array) $p->tanggal_masuk_pengganti)->map(fn($d) => Carbon::parse($d)->toDateString());
+        $claimed = $aktif->flatMap($toDates)->all();
+        $pendingDates = $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')->flatMap($toDates)->unique();
 
-        $unclaimed = EmployeeSchedule::where('employee_id', $employeeId)
-            ->pluck('date')
-            ->map(fn($d) => Carbon::parse($d)->toDateString())
-            ->unique()
+        $schedules = EmployeeSchedule::with('shift:id,name')->where('employee_id', $employeeId)->get(['date', 'shift_id'])
+            ->keyBy(fn($s) => Carbon::parse($s->date)->toDateString());
+
+        $row = fn(string $date, string $status) => [
+            'date' => $date,
+            'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
+            'keterangan' => $holidays[$date] ?? (Carbon::parse($date)->isSunday() ? 'Hari Minggu' : null),
+            'shift' => optional(optional($schedules->get($date))->shift)->name,
+            'status' => $status,
+        ];
+
+        $tanggal = $schedules->keys()
             ->filter(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true))
-            ->count();
+            ->map(fn($d) => $row($d, $d > Carbon::today()->toDateString() ? 'terjadwal' : 'tersedia'))
+            ->merge($pendingDates->map(fn($d) => $row($d, 'diajukan')))
+            ->sortBy('date')
+            ->values();
 
-        return max(0, $saldo - $unclaimed - $pendingClaimed);
+        return [
+            'tanggal' => $tanggal->all(),
+            'tanpa_tanggal' => max(0, $saldo - $tanggal->count()),
+        ];
     }
 
     /**
@@ -213,8 +236,11 @@ class JatahLiburController extends Controller
     {
         $jatahLibur = JatahLibur::findOrFail($id);
 
+        $rincian = $this->rincianGantiLibur($jatahLibur->employee_id, (int) $jatahLibur->jatah_ganti_libur, LiburNasional::namesByDate());
+
         return response()->json($jatahLibur->toArray() + [
-            'ganti_libur_tanpa_tanggal' => $this->saldoTanpaTanggal($jatahLibur->employee_id, (int) $jatahLibur->jatah_ganti_libur, LiburNasional::namesByDate()),
+            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
+            'ganti_libur_tanggal' => $rincian['tanggal'],
         ]);
     }
 

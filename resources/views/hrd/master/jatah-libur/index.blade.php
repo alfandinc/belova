@@ -105,6 +105,10 @@
                         <input type="number" class="form-control" id="jatah_ganti_libur" name="jatah_ganti_libur" min="0" value="0" required>
                         <div class="invalid-feedback" id="jatah_ganti_libur-error"></div>
                         <span class="badge badge-warning d-none mt-1" id="ganti_libur_tanpa_tanggal"></span>
+                        <div class="d-none mt-2" id="gantiLiburTanggalGroup">
+                            <small class="text-muted d-block mb-1">Ganti libur dari hari masuk:</small>
+                            <ul class="list-group list-group-flush small" id="gantiLiburTanggalList"></ul>
+                        </div>
                     </div>
 
                     <div class="form-group mb-0 d-none" id="hariMasukGroup">
@@ -238,7 +242,25 @@
 
         var gantiLiburAwal = 0; // saved value; each day added above it needs a worked date
 
-        function resetHariMasuk(saldo, tanpaTanggal) {
+        // Sundays / holidays worked that back the current balance
+        function renderGantiLiburTanggal(rows) {
+            rows = rows || [];
+            $('#gantiLiburTanggalList').html($.map(rows, function (r) {
+                var info = [r.keterangan, r.shift ? 'Shift ' + r.shift : null].filter(Boolean).join(' · ');
+                var badge = {
+                    diajukan: '<span class="badge badge-info">Sedang diajukan</span>',
+                    terjadwal: '<span class="badge badge-secondary">Terjadwal</span>'
+                }[r.status] || '<span class="badge badge-success">Tersedia</span>';
+                return '<li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1">'
+                    + '<span>' + $('<div>').text(r.label).html()
+                    + (info ? ' <span class="text-muted">(' + $('<div>').text(info).html() + ')</span>' : '') + '</span>'
+                    + badge + '</li>';
+            }).join(''));
+            $('#gantiLiburTanggalGroup').toggleClass('d-none', rows.length === 0);
+        }
+
+        function resetHariMasuk(saldo, tanpaTanggal, tanggal) {
+            renderGantiLiburTanggal(tanggal);
             gantiLiburAwal = parseInt(saldo, 10) || 0;
             $('#jatah_ganti_libur').val(gantiLiburAwal);
             $('#hariMasukRows').empty();
@@ -479,7 +501,7 @@
                     $('#jatahLiburModalLabel').text('Edit Jatah Libur');
                     $('#jatah_libur_id').val(response.id);
                     $('#jatah_cuti_tahunan').val(response.jatah_cuti_tahunan);
-                    resetHariMasuk(response.jatah_ganti_libur, response.ganti_libur_tanpa_tanggal);
+                    resetHariMasuk(response.jatah_ganti_libur, response.ganti_libur_tanpa_tanggal, response.ganti_libur_tanggal);
                     
                     // Hide employee selection when editing and remove required attribute
                     $('#employee_selection_group').hide();
