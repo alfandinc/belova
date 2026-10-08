@@ -47,47 +47,73 @@ class JatahLiburController extends Controller
     }
 
     /**
-     * Part of the ganti libur balance not backed by any scheduled Sunday / holiday (old manual balance).
-     * Backed = unclaimed scheduled days + days claimed by requests whose balance is not deducted yet.
-     */
-    private function saldoTanpaTanggal(int $employeeId, int $saldo, array $holidays): int
-    {
-        return $this->rincianGantiLibur($employeeId, $saldo, $holidays)['tanpa_tanggal'];
-    }
-
-    /**
-     * The Sundays / holidays behind the ganti libur balance: unclaimed scheduled days ('tersedia') and
-     * days claimed by requests not yet approved by HRD ('diajukan'), plus the rest without a date.
-     * Scheduled days still ahead are 'terjadwal'.
+     * History of every worked Sunday / holiday paired with the ganti libur that used it, newest first.
+     * Status: 'tersedia' / 'terjadwal' (backs the balance, past / ahead), 'diajukan' (claimed, not yet
+     * approved by HRD), 'dipakai' (claimed and deducted), 'lama' (used before days were tracked per request,
+     * see PengajuanLibur::hariMasukBelumDipakai). Ganti libur without a worked date get a row with masuk null.
+     * tanpa_tanggal = part of the balance not backed by any date.
      */
     private function rincianGantiLibur(int $employeeId, int $saldo, array $holidays): array
     {
-        $aktif = PengajuanLibur::gantiLiburAktif($employeeId)->whereNotNull('tanggal_masuk_pengganti')->get();
-        $toDates = fn($p) => collect((array) $p->tanggal_masuk_pengganti)->map(fn($d) => Carbon::parse($d)->toDateString());
-        $claimed = $aktif->flatMap($toDates)->all();
-        $pendingDates = $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')->flatMap($toDates)->unique();
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->translatedFormat('D, j M Y');
+        $today = Carbon::today()->toDateString();
+        $tersedia = PengajuanLibur::hariMasukBelumDipakai($employeeId, $holidays);
 
-        $schedules = EmployeeSchedule::with('shift:id,name')->where('employee_id', $employeeId)->get(['date', 'shift_id'])
-            ->keyBy(fn($s) => Carbon::parse($s->date)->toDateString());
-
-        $row = fn(string $date, string $status) => [
-            'date' => $date,
-            'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
-            'keterangan' => $holidays[$date] ?? (Carbon::parse($date)->isSunday() ? 'Hari Minggu' : null),
-            'shift' => optional(optional($schedules->get($date))->shift)->name,
-            'status' => $status,
+        $aktif = PengajuanLibur::gantiLiburAktif($employeeId)->orderByDesc('tanggal_mulai')->get();
+        $libur = fn($p) => [
+            'pengajuan_id' => $p->id,
+            'jumlah_hari' => (int) $p->total_hari,
+            'libur_mulai' => Carbon::parse($p->tanggal_mulai)->toDateString(),
+            'libur' => $fmt($p->tanggal_mulai) . ($p->total_hari > 1 ? ' – ' . $fmt($p->tanggal_selesai) : ''),
+            'status' => $p->status_hrd === 'disetujui' ? 'dipakai' : 'diajukan',
         ];
+        $claimedBy = [];
+        foreach ($aktif as $p) {
+            foreach ((array) $p->tanggal_masuk_pengganti as $d) {
+                $claimedBy[Carbon::parse($d)->toDateString()] = $p;
+            }
+        }
 
-        $tanggal = $schedules->keys()
-            ->filter(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true))
-            ->map(fn($d) => $row($d, $d > Carbon::today()->toDateString() ? 'terjadwal' : 'tersedia'))
-            ->merge($pendingDates->map(fn($d) => $row($d, 'diajukan')))
-            ->sortBy('date')
+        $shifts = EmployeeSchedule::with('shift:id,name')->where('employee_id', $employeeId)->get(['date', 'shift_id'])
+            ->groupBy(fn($s) => Carbon::parse($s->date)->toDateString())
+            ->filter(fn($items, $date) => LiburNasional::isHariGantiLibur($date, $holidays))
+            ->map(fn($items) => $items->map(fn($s) => $s->shift->name ?? null)->filter()->unique()->implode(', '));
+
+        // Worked days in the schedule plus claimed days whose schedule is gone, so no ganti libur drops out of the history
+        $rows = $shifts->keys()->merge(array_keys($claimedBy))->unique()
+            ->map(function ($date) use ($fmt, $today, $tersedia, $claimedBy, $holidays, $libur, $shifts) {
+                $p = $claimedBy[$date] ?? null;
+                return [
+                    'sort' => $date,
+                    'date' => $date,
+                    'masuk' => $fmt($date),
+                    'keterangan' => $holidays[$date] ?? (Carbon::parse($date)->isSunday() ? 'Hari Minggu' : null),
+                    'shift' => $shifts[$date] ?? null,
+                    // Pairing made before "masuk dulu baru libur" was enforced: worked day on / after the libur
+                    'terbalik' => $p && $date >= Carbon::parse($p->tanggal_mulai)->toDateString(),
+                ] + ($p ? $libur($p) : [
+                    'pengajuan_id' => null,
+                    'libur' => null,
+                    'status' => !in_array($date, $tersedia, true) ? 'lama' : ($date > $today ? 'terjadwal' : 'tersedia'),
+                ]);
+            })
+            ->values()
+            ->merge($aktif->filter(fn($p) => empty($p->tanggal_masuk_pengganti))->map(fn($p) => [
+                'sort' => Carbon::parse($p->tanggal_mulai)->toDateString(),
+                'date' => null,
+                'masuk' => null,
+                'keterangan' => null,
+                'shift' => null,
+            ] + $libur($p)))
+            ->sortByDesc('sort')
             ->values();
 
+        $backed = $rows->whereIn('status', ['tersedia', 'terjadwal'])->count()
+            + $rows->where('status', 'diajukan')->whereNotNull('masuk')->count();
+
         return [
-            'tanggal' => $tanggal->all(),
-            'tanpa_tanggal' => max(0, $saldo - $tanggal->count()),
+            'tanggal' => $rows->all(),
+            'tanpa_tanggal' => max(0, $saldo - $backed),
         ];
     }
 
@@ -106,22 +132,69 @@ class JatahLiburController extends Controller
         $holidays = LiburNasional::namesByDate();
 
         foreach ($rows as $row) {
-            $date = Carbon::parse($row['date'])->toDateString();
-            $label = Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y');
-
-            if (!LiburNasional::isHariGantiLibur($date, $holidays)) {
-                throw ValidationException::withMessages(['hari_masuk' => $label . ' bukan hari Minggu atau libur nasional.']);
-            }
-            if (EmployeeSchedule::where('employee_id', $jatah->employee_id)->whereDate('date', $date)->exists()) {
-                throw ValidationException::withMessages(['hari_masuk' => $label . ' sudah ada di jadwal karyawan (jatahnya sudah dihitung).']);
-            }
-
-            EmployeeSchedule::create([
-                'employee_id' => $jatah->employee_id,
-                'date' => $date,
-                'shift_id' => $row['shift_id'],
-            ]);
+            $this->buatHariMasuk($jatah, $row, $holidays);
         }
+    }
+
+    /**
+     * Put a worked Sunday / holiday (['date', 'shift_id']) into the employee's schedule without touching the
+     * balance; the caller accounts for it. Must run inside a transaction.
+     */
+    private function buatHariMasuk(JatahLibur $jatah, array $row, array $holidays): void
+    {
+        $date = Carbon::parse($row['date'])->toDateString();
+        $label = Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y');
+
+        if (!LiburNasional::isHariGantiLibur($date, $holidays)) {
+            throw ValidationException::withMessages(['hari_masuk' => $label . ' bukan hari Minggu atau libur nasional.']);
+        }
+        if (EmployeeSchedule::where('employee_id', $jatah->employee_id)->whereDate('date', $date)->exists()) {
+            throw ValidationException::withMessages(['hari_masuk' => $label . ' sudah ada di jadwal karyawan (jatahnya sudah dihitung).']);
+        }
+
+        EmployeeSchedule::create([
+            'employee_id' => $jatah->employee_id,
+            'date' => $date,
+            'shift_id' => $row['shift_id'],
+        ]);
+    }
+
+    /**
+     * Give a date to balance that has none ("tanpa tanggal"): the worked Sunday / holiday is added to the
+     * schedule and the balance stays the same, since that day was already counted. Allowed only while the
+     * employee still has undated balance. (Filling the day in the schedule grid instead would add +1 again.)
+     */
+    public function lengkapiHariMasuk(Request $request, $id)
+    {
+        $request->validate([
+            'hari_masuk' => 'required|array|size:1',
+            'hari_masuk.0.date' => 'required|date|before_or_equal:today',
+            'hari_masuk.0.shift_id' => 'required|exists:hrd_shifts,id',
+        ], $this->hariMasukMessages() + [
+            'hari_masuk.0.date.required' => 'Tanggal hari masuk wajib diisi.',
+            'hari_masuk.0.date.before_or_equal' => 'Tanggal hari masuk tidak boleh setelah hari ini.',
+            'hari_masuk.0.shift_id.required' => 'Shift hari masuk wajib dipilih.',
+        ]);
+
+        $jatah = DB::transaction(function () use ($request, $id) {
+            $jatah = JatahLibur::lockForUpdate()->findOrFail($id);
+            $holidays = LiburNasional::namesByDate();
+            if (PengajuanLibur::saldoTanpaTanggal($jatah->employee_id, $holidays) < 1) {
+                throw ValidationException::withMessages(['hari_masuk' => 'Semua saldo ganti libur sudah punya tanggal hari masuk.']);
+            }
+            $this->buatHariMasuk($jatah, $request->input('hari_masuk.0'), $holidays);
+
+            return $jatah;
+        });
+
+        $rincian = $this->rincianGantiLibur($jatah->employee_id, (int) $jatah->jatah_ganti_libur, LiburNasional::namesByDate());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tanggal hari masuk ditambahkan',
+            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
+            'ganti_libur_tanggal' => $rincian['tanggal'],
+        ]);
     }
 
     public function getLeaveCapacity()
@@ -190,7 +263,7 @@ class JatahLiburController extends Controller
             })
             ->editColumn('jatah_ganti_libur', function ($jatah) use (&$holidays) {
                 $holidays ??= LiburNasional::namesByDate();
-                $tanpaTanggal = $this->saldoTanpaTanggal($jatah->employee_id, (int) $jatah->jatah_ganti_libur, $holidays);
+                $tanpaTanggal = PengajuanLibur::saldoTanpaTanggal($jatah->employee_id, $holidays);
 
                 return (int) $jatah->jatah_ganti_libur . ($tanpaTanggal > 0
                     ? ' <span class="badge badge-warning" title="Saldo tanpa hari masuk di jadwal; karyawan tidak bisa memakainya sampai hari masuknya ditambahkan">' . $tanpaTanggal . ' tanpa tanggal</span>'
@@ -268,6 +341,85 @@ class JatahLiburController extends Controller
             'success' => true,
             'message' => 'Jatah libur berhasil diperbarui',
             'data' => $jatahLibur
+        ]);
+    }
+
+    /**
+     * Re-pair a ganti libur with the Sundays / holidays it replaces: swap one of its worked days ('lama' ->
+     * 'baru'), or name all of them for a ganti libur that has none. The balance never changes: the request's
+     * days are already counted, so any worked day not claimed by another request can be chosen, including
+     * 'lama' days (to record history). The days that back the balance are recomputed from the new pairing.
+     */
+    public function updateHariMasuk(Request $request, $id)
+    {
+        $request->validate([
+            'pengajuan_id' => 'required|integer',
+            'lama' => 'nullable|date',
+            'baru' => 'required|array|min:1',
+            'baru.*' => 'required|date|distinct',
+        ], [
+            'baru.*.required' => 'Pilih hari masuk.',
+            'baru.*.distinct' => 'Hari masuk tidak boleh sama.',
+        ]);
+
+        $fail = fn(string $msg) => throw ValidationException::withMessages(['hari_masuk' => $msg]);
+
+        $jatah = DB::transaction(function () use ($request, $id, $fail) {
+            // Locking the balance row serializes every pairing change of this employee
+            $jatah = JatahLibur::lockForUpdate()->findOrFail($id);
+            $pengajuan = PengajuanLibur::gantiLiburAktif($jatah->employee_id)->lockForUpdate()->find($request->pengajuan_id)
+                ?? $fail('Ganti libur tidak ditemukan atau sudah ditolak.');
+
+            $toDate = fn($d) => Carbon::parse($d)->toDateString();
+            $current = collect((array) $pengajuan->tanggal_masuk_pengganti)->map($toDate)->values();
+            $baru = collect($request->input('baru'))->map($toDate)->values();
+
+            if ($current->isEmpty()) {
+                if ($baru->count() !== (int) $pengajuan->total_hari) {
+                    $fail('Ganti libur ini ' . (int) $pengajuan->total_hari . ' hari, pilih tepat ' . (int) $pengajuan->total_hari . ' hari masuk.');
+                }
+                $result = $baru;
+            } else {
+                $lama = $request->filled('lama') ? $toDate($request->input('lama')) : null;
+                if (!$lama || !$current->contains($lama) || $baru->count() !== 1) {
+                    $fail('Hari masuk yang diganti tidak valid, muat ulang data.');
+                }
+                $result = $current->map(fn($d) => $d === $lama ? $baru[0] : $d);
+                if ($result->duplicates()->isNotEmpty()) {
+                    $fail('Tanggal tersebut sudah dipakai ganti libur ini.');
+                }
+            }
+
+            $holidays = LiburNasional::namesByDate();
+            $claimed = PengajuanLibur::claimedHariMasuk($jatah->employee_id, $pengajuan->id);
+            foreach ($result->diff($current) as $date) {
+                $label = Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y');
+                if (!LiburNasional::isHariGantiLibur($date, $holidays)) {
+                    $fail($label . ' bukan hari Minggu / libur nasional.');
+                }
+                if (!PengajuanLibur::hariMasukSebelumLibur($date, $pengajuan->tanggal_mulai)) {
+                    $fail($label . ' belum dikerjakan / tidak sebelum tanggal libur (masuk dulu baru libur).');
+                }
+                if (!EmployeeSchedule::where('employee_id', $jatah->employee_id)->whereDate('date', $date)->exists()) {
+                    $fail($label . ' tidak ada di jadwal karyawan.');
+                }
+                if (in_array($date, $claimed, true)) {
+                    $fail($label . ' sudah dipakai ganti libur lain.');
+                }
+            }
+
+            $pengajuan->update(['tanggal_masuk_pengganti' => $result->sort()->values()->all()]);
+
+            return $jatah;
+        });
+
+        $rincian = $this->rincianGantiLibur($jatah->employee_id, (int) $jatah->jatah_ganti_libur, LiburNasional::namesByDate());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Hari masuk pengganti diperbarui',
+            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
+            'ganti_libur_tanggal' => $rincian['tanggal'],
         ]);
     }
 

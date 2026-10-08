@@ -379,8 +379,9 @@
     // Resolves to the chosen date, '' (saldo lama tanpa tanggal), undefined (sel dilewati) or null (batal semua)
     function pickHariMasuk(td) {
         var emp = td.getAttribute('data-emp'), date = td.getAttribute('data-date');
-        var url = URLS.hariMasuk + '?employee_id=' + encodeURIComponent(emp)
+        var url = URLS.hariMasuk + '?employee_id=' + encodeURIComponent(emp) + '&libur=' + encodeURIComponent(date)
             + (td.getAttribute('data-orig') === 'GL' ? '&exclude_libur=' + encodeURIComponent(date) : '');
+        var today = "{{ now()->toDateString() }}";
         showLoading(true);
         return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
             .then(function (res) { if (!res.ok) throw new Error(); return res.json(); })
@@ -396,10 +397,11 @@
                     if (taken[d.date]) return;
                     options[d.date] = d.label + ' (' + d.keterangan + (d.shift ? ', ' + d.shift : '') + ')';
                 });
-                // Minggu / libur nasional yang baru diisi di grid ini (disimpan bersamaan)
+                // Minggu / libur nasional yang baru diisi di grid ini (disimpan bersamaan); masuk dulu baru libur
                 rowCells.forEach(function (c) {
                     var shifts = c.getAttribute('data-shifts'), d = c.getAttribute('data-date');
-                    if (c.classList.contains('dirty') && shifts && shifts !== 'GL' && isHariGantiLibur(c) && !options[d] && !taken[d]) {
+                    if (c.classList.contains('dirty') && shifts && shifts !== 'GL' && isHariGantiLibur(c) && !options[d] && !taken[d]
+                        && d < date && d <= today) {
                         options[d] = shortDate(d) + ' (belum disimpan)';
                     }
                 });
@@ -408,11 +410,14 @@
                 keys.forEach(function (k) { sorted[k] = options[k]; });
                 var name = employeeName(td);
                 if (!keys.length) {
-                    if (data.saldo < 1) {
-                        return swal.fire({ title: 'Jatah ganti libur habis', text: name + ' tidak punya hari masuk Minggu / libur nasional yang belum dipakai.', icon: 'warning' })
-                            .then(function () { return undefined; });
+                    if (data.saldo < 1 || !(data.tanpa_tanggal > 0)) {
+                        return swal.fire({
+                            title: data.saldo < 1 ? 'Jatah ganti libur habis' : 'Belum ada hari masuk',
+                            text: name + ' belum punya hari masuk Minggu / libur nasional sebelum ' + shortDate(date) + ' yang belum dipakai (masuk dulu baru libur).',
+                            icon: 'warning'
+                        }).then(function () { return undefined; });
                     }
-                    sorted[''] = 'Tanpa tanggal (saldo lama: ' + data.saldo + ' hari)';
+                    sorted[''] = 'Tanpa tanggal (saldo lama: ' + data.tanpa_tanggal + ' hari)';
                 }
                 var current = td.getAttribute('data-gl-masuk') || '';
                 return swal.fire({

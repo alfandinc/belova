@@ -301,6 +301,7 @@ class EmployeeScheduleController extends Controller
 
                 // Hari ganti libur dari HRD: hapus jadwal hari itu, buat PengajuanLibur disetujui, jatah -1
                 foreach ($gantiLiburDays as [$employeeId, $date, $hariMasuk]) {
+                    $this->jatahFor($employeeId); // lock the balance first, so the hari masuk checks below can't race
                     $existing = $this->findGantiLiburHrd($employeeId, $date);
                     $currentHariMasuk = $existing ? collect((array) $existing->tanggal_masuk_pengganti)->first() : null;
                     $currentHariMasuk = $currentHariMasuk ? Carbon::parse($currentHariMasuk)->toDateString() : null;
@@ -310,14 +311,18 @@ class EmployeeScheduleController extends Controller
 
                     $label = Carbon::parse($date)->locale('id')->isoFormat('D MMM');
                     if ($hariMasuk) {
-                        if ($error = $this->hariMasukError($employeeId, $hariMasuk, $liburNasional, $existing?->id)) {
+                        if ($error = $this->hariMasukError($employeeId, $hariMasuk, $date, $liburNasional, $existing?->id)) {
                             $name = Employee::whereKey($employeeId)->value('nama');
                             throw new \DomainException("Ganti libur {$name} ({$label}): {$error}");
                         }
-                    } elseif ($this->oldestUnclaimedHariMasuk($employeeId, $liburNasional)) {
-                        // Hanya jatah dari saldo lama (tanpa tanggal) yang boleh dipakai tanpa memilih hari masuk
+                    } elseif ($this->hariMasukUntukLibur($employeeId, $date, $liburNasional)) {
+                        // Ada hari masuk yang bisa dipakai: wajib dipilih supaya tercatat
                         $name = Employee::whereKey($employeeId)->value('nama');
                         throw new \DomainException("Pilih hari masuk Minggu / libur nasional yang diganti untuk ganti libur {$name} ({$label}).");
+                    } elseif (PengajuanLibur::saldoTanpaTanggal($employeeId, $liburNasional) < 1) {
+                        // Tanpa tanggal hanya boleh dari saldo lama; hari masuk yang belum dikerjakan belum bisa dipakai
+                        $name = Employee::whereKey($employeeId)->value('nama');
+                        throw new \DomainException("Ganti libur {$name} ({$label}): belum ada hari masuk Minggu / libur nasional sebelum tanggal ini (masuk dulu baru libur).");
                     }
 
                     if ($existing) {
@@ -491,22 +496,19 @@ class EmployeeScheduleController extends Controller
         );
     }
 
-    // Hari Minggu / libur nasional terlama yang dijadwalkan masuk dan belum dipakai ganti libur lain
-    private function oldestUnclaimedHariMasuk($employeeId, array $holidays): ?string
+    // Hari masuk yang masih jadi dasar saldo dan sudah dikerjakan sebelum $tanggalLibur (masuk dulu baru libur)
+    private function hariMasukUntukLibur($employeeId, string $tanggalLibur, array $holidays, $excludeId = null): array
     {
-        $claimed = PengajuanLibur::claimedHariMasuk($employeeId);
-
-        return EmployeeSchedule::where('employee_id', $employeeId)
-            ->orderBy('date')
-            ->pluck('date')
-            ->map(fn($d) => Carbon::parse($d)->toDateString())
-            ->unique()
-            ->first(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true));
+        return array_values(array_filter(
+            PengajuanLibur::hariMasukBelumDipakai($employeeId, $holidays, $excludeId),
+            fn($d) => PengajuanLibur::hariMasukSebelumLibur($d, $tanggalLibur)
+        ));
     }
 
     /**
-     * Hari masuk Minggu / libur nasional yang belum dipakai ganti libur lain, untuk dipilih saat menetapkan
-     * ganti libur di jadwal. exclude_libur = tanggal ganti libur yang sedang diubah (klaimnya tetap bisa dipilih).
+     * Hari masuk Minggu / libur nasional yang bisa dipilih saat menetapkan ganti libur di jadwal pada tanggal
+     * `libur`. exclude_libur = tanggal ganti libur yang sedang diubah (klaimnya tetap bisa dipilih).
+     * tanpa_tanggal = saldo lama tanpa hari masuk, satu-satunya yang boleh dipakai tanpa memilih tanggal.
      */
     public function hariMasukTersedia(Request $request)
     {
@@ -515,14 +517,14 @@ class EmployeeScheduleController extends Controller
         $exclude = $request->filled('exclude_libur')
             ? $this->findGantiLiburHrd($employeeId, Carbon::parse($request->query('exclude_libur'))->toDateString())
             : null;
-        $claimed = PengajuanLibur::claimedHariMasuk($employeeId, $exclude?->id);
+        $tersedia = $this->hariMasukUntukLibur($employeeId, $request->query('libur', Carbon::today()->addDay()->toDateString()), $holidays, $exclude?->id);
 
         $dates = EmployeeSchedule::with('shift:id,name')
             ->where('employee_id', $employeeId)
+            ->whereIn('date', $tersedia)
             ->orderBy('date')
             ->get()
             ->groupBy(fn($s) => Carbon::parse($s->date)->toDateString())
-            ->filter(fn($rows, $date) => LiburNasional::isHariGantiLibur($date, $holidays) && !in_array($date, $claimed, true))
             ->map(fn($rows, $date) => [
                 'date' => $date,
                 'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
@@ -533,22 +535,29 @@ class EmployeeScheduleController extends Controller
 
         return response()->json([
             'saldo' => (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur'),
+            'tanpa_tanggal' => PengajuanLibur::saldoTanpaTanggal($employeeId, $holidays),
             'dates' => $dates,
         ]);
     }
 
-    /** Why $hariMasuk cannot be used as the worked day for a ganti libur, or null when it can. */
-    private function hariMasukError($employeeId, string $hariMasuk, array $holidays, $excludeId = null): ?string
+    /** Why $hariMasuk cannot be used as the worked day for a ganti libur on $tanggalLibur, or null when it can. */
+    private function hariMasukError($employeeId, string $hariMasuk, string $tanggalLibur, array $holidays, $excludeId = null): ?string
     {
         $label = Carbon::parse($hariMasuk)->locale('id')->isoFormat('dddd, D MMM YYYY');
         if (!LiburNasional::isHariGantiLibur($hariMasuk, $holidays)) {
             return "{$label} bukan hari Minggu / libur nasional.";
+        }
+        if (!PengajuanLibur::hariMasukSebelumLibur($hariMasuk, $tanggalLibur)) {
+            return "{$label} belum dikerjakan / tidak sebelum tanggal libur (masuk dulu baru libur).";
         }
         if (!EmployeeSchedule::where('employee_id', $employeeId)->whereDate('date', $hariMasuk)->exists()) {
             return "{$label} tidak ada jadwal masuk.";
         }
         if (in_array($hariMasuk, PengajuanLibur::claimedHariMasuk($employeeId, $excludeId), true)) {
             return "{$label} sudah dipakai untuk ganti libur lain.";
+        }
+        if (!in_array($hariMasuk, PengajuanLibur::hariMasukBelumDipakai($employeeId, $holidays, $excludeId), true)) {
+            return "{$label} sudah terpakai (ganti libur sebelum hari masuk dicatat per tanggal).";
         }
 
         return null;

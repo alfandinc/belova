@@ -1617,6 +1617,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::post('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateLeaveCapacity'])->name('leave_capacity.update');
             Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
             Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
+            Route::put('/{id}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateHariMasuk'])->name('hari-masuk.update');
+            Route::post('/{id}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'lengkapiHariMasuk'])->name('hari-masuk.lengkapi');
         });
 
         // Employee Management Routes

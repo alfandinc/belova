@@ -72,6 +72,65 @@ class PengajuanLibur extends Model
     }
 
     /**
+     * Worked Sundays / holidays (Y-m-d, oldest first, scheduled future days included) that still back the
+     * employee's ganti libur balance. Dates were only tracked per request recently, so older requests used
+     * days without naming them: the balance is the truth, and only the newest (saldo − days reserved by
+     * requests not yet deducted) unclaimed days count. Older unclaimed days are treated as already used.
+     * $excludeId: a request being edited, whose claimed days become free again.
+     */
+    public static function hariMasukBelumDipakai($employeeId, ?array $holidays = null, $excludeId = null): array
+    {
+        $holidays ??= LiburNasional::namesByDate();
+        $aktif = static::gantiLiburAktif($employeeId)->get();
+        $excluded = $aktif->firstWhere('id', $excludeId);
+        $aktif = $aktif->reject(fn($p) => $excluded && $p->id === $excluded->id);
+
+        $claimed = $aktif->flatMap(fn($p) => (array) $p->tanggal_masuk_pengganti)
+            ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())->all();
+        // Requests not yet approved by HRD still sit in the saldo; an excluded, already deducted request gives its days back
+        $reserved = (int) $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')->sum('total_hari');
+        $refund = $excluded && $excluded->status_hrd === 'disetujui' ? (int) $excluded->total_hari : 0;
+        $count = max(0, (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur') - $reserved + $refund);
+
+        $unclaimed = EmployeeSchedule::where('employee_id', $employeeId)
+            ->orderBy('date')
+            ->pluck('date')
+            ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())
+            ->unique()
+            ->filter(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true))
+            ->values();
+
+        return $count > 0 ? $unclaimed->slice(-$count)->values()->all() : [];
+    }
+
+    /**
+     * Part of the ganti libur balance not backed by any worked day (old / manual balance): saldo minus the
+     * days backing it and the days claimed by requests whose balance is not deducted yet.
+     */
+    public static function saldoTanpaTanggal($employeeId, ?array $holidays = null): int
+    {
+        $pendingDated = static::gantiLiburAktif($employeeId)
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'disetujui'))
+            ->get()
+            ->sum(fn($p) => count((array) $p->tanggal_masuk_pengganti));
+
+        return max(0, (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur')
+            - count(static::hariMasukBelumDipakai($employeeId, $holidays)) - $pendingDated);
+    }
+
+    /**
+     * Masuk dulu baru libur: the Sunday / holiday must already be worked (not after today) and lie before
+     * the first day of the ganti libur.
+     */
+    public static function hariMasukSebelumLibur($hariMasuk, $tanggalLibur): bool
+    {
+        $hariMasuk = \Carbon\Carbon::parse($hariMasuk)->toDateString();
+
+        return $hariMasuk <= \Carbon\Carbon::today()->toDateString()
+            && $hariMasuk < \Carbon\Carbon::parse($tanggalLibur)->toDateString();
+    }
+
+    /**
      * The active ganti libur request that uses $date (Sunday / holiday worked) as its pengganti, if any.
      */
     public static function claimOf($employeeId, $date): ?self

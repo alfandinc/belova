@@ -100,26 +100,23 @@ class PengajuanLiburController extends Controller
     }
 
     /**
-     * Scheduled Sundays and national holidays (up to today) the employee worked that are not yet claimed
-     * by another non-rejected ganti libur request. Newest first: [date => ['date', 'label', 'shift', 'libur']].
+     * Scheduled Sundays and national holidays (up to today) the employee worked that still back the ganti libur
+     * balance (see PengajuanLibur::hariMasukBelumDipakai). Newest first: [date => ['date', 'label', 'shift', 'libur']].
      */
     private function availableHariMasuk(Employee $employee, $excludeId = null): array
     {
-        $used = PengajuanLibur::claimedHariMasuk($employee->id, $excludeId);
-
-        $holidays = LiburNasional::namesByDate(null, Carbon::today());
+        $holidays = LiburNasional::namesByDate();
+        $tersedia = PengajuanLibur::hariMasukBelumDipakai($employee->id, $holidays, $excludeId);
 
         $available = [];
         EmployeeSchedule::with('shift')
             ->where('employee_id', $employee->id)
+            ->whereIn('date', $tersedia)
             ->whereDate('date', '<=', Carbon::today())
             ->orderByDesc('date')
             ->get()
             ->groupBy(fn($s) => Carbon::parse($s->date)->toDateString())
-            ->each(function ($schedules, $date) use (&$available, $used, $holidays) {
-                if (!LiburNasional::isHariGantiLibur($date, $holidays) || in_array($date, $used, true)) {
-                    return;
-                }
+            ->each(function ($schedules, $date) use (&$available, $holidays) {
                 $available[$date] = [
                     'date' => $date,
                     'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
@@ -320,11 +317,14 @@ class PengajuanLiburController extends Controller
                 return $this->errorResponse($request, 'Pilih tepat ' . $totalHari . ' hari Minggu / libur nasional pengganti, sesuai jumlah hari libur yang diajukan (dipilih ' . count($hariMasuk) . ').');
             }
 
-            $invalid = array_diff($hariMasuk, array_keys($this->availableHariMasuk($employee)));
+            $invalid = array_diff($hariMasuk, array_keys(array_filter(
+                $this->availableHariMasuk($employee),
+                fn($h) => PengajuanLibur::hariMasukSebelumLibur($h['date'], $tanggalMulai)
+            )));
             if ($invalid) {
                 return $this->errorResponse($request, 'Tanggal berikut tidak dapat dipakai: '
                     . implode(', ', array_map(fn($d) => Carbon::parse($d)->translatedFormat('j F Y'), $invalid))
-                    . '. Hanya hari Minggu atau libur nasional yang sudah lewat, ada di jadwal Anda, dan belum dipakai pengajuan ganti libur lain.');
+                    . '. Hanya hari Minggu atau libur nasional yang sudah lewat, sebelum tanggal libur, ada di jadwal Anda, dan belum dipakai pengajuan ganti libur lain.');
             }
         }
 
@@ -378,26 +378,39 @@ class PengajuanLiburController extends Controller
             $tglApproveHrd = now();
         }
 
-        $pengajuan = DB::transaction(function () use ($employee, $request, $totalHari, $managerApproval, $statusHrd, $tglApproveHrd, $hariMasuk) {
-            $pengajuan = PengajuanLibur::create(array_merge([
-                'employee_id' => $employee->id,
-                'jenis_libur' => $request->jenis_libur,
-                'tanggal_masuk_pengganti' => $hariMasuk,
-                'tanggal_mulai' => $request->tanggal_mulai,
-                'tanggal_selesai' => $request->tanggal_selesai,
-                'total_hari' => $totalHari,
-                'alasan' => $request->alasan,
-                'status_hrd' => $statusHrd,
-                'tanggal_persetujuan_hrd' => $tglApproveHrd,
-            ], $managerApproval));
+        try {
+            $pengajuan = DB::transaction(function () use ($employee, $request, $totalHari, $managerApproval, $statusHrd, $tglApproveHrd, $hariMasuk) {
+                if ($hariMasuk) {
+                    // Re-check under the balance lock (same lock as HRD re-pairing) so a worked day is never claimed twice
+                    $employee->ensureJatahLibur();
+                    JatahLibur::where('employee_id', $employee->id)->lockForUpdate()->first();
+                    if (array_diff($hariMasuk, array_keys($this->availableHariMasuk($employee)))) {
+                        throw new \DomainException('Hari masuk yang dipilih baru saja dipakai pengajuan lain. Muat ulang dan pilih lagi.');
+                    }
+                }
 
-            // If HRD auto-approved, deduct jatah immediately
-            if ($statusHrd === 'disetujui') {
-                $this->deductJatah($pengajuan);
-            }
+                $pengajuan = PengajuanLibur::create(array_merge([
+                    'employee_id' => $employee->id,
+                    'jenis_libur' => $request->jenis_libur,
+                    'tanggal_masuk_pengganti' => $hariMasuk,
+                    'tanggal_mulai' => $request->tanggal_mulai,
+                    'tanggal_selesai' => $request->tanggal_selesai,
+                    'total_hari' => $totalHari,
+                    'alasan' => $request->alasan,
+                    'status_hrd' => $statusHrd,
+                    'tanggal_persetujuan_hrd' => $tglApproveHrd,
+                ], $managerApproval));
 
-            return $pengajuan;
-        });
+                // If HRD auto-approved, deduct jatah immediately
+                if ($statusHrd === 'disetujui') {
+                    $this->deductJatah($pengajuan);
+                }
+
+                return $pengajuan;
+            });
+        } catch (\DomainException $e) {
+            return $this->errorResponse($request, $e->getMessage());
+        }
 
         if ($request->ajax()) {
             return response()->json([
