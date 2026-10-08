@@ -65,7 +65,7 @@ class User extends Authenticatable
     }
     public function employee()
     {
-        return $this->hasOne(\App\Models\HRD\Employee::class, 'user_id');
+        return $this->hasOne(\App\Models\HRD\Employee::class, 'user_id')->withInactive();
     }
     
     /**

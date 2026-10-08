@@ -80,9 +80,31 @@ class Employee extends Model
         'instagram' => 'array', // Cast instagram as array for JSON storage
     ];
 
+    /**
+     * Non-aktif employees are hidden everywhere by default; only the karyawan list (which has its own
+     * status filter) and relations from history records (pengajuan, slip gaji, absensi, ...) include them.
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('active', function (Builder $builder) {
+            $builder->whereRaw('LOWER(' . $builder->getModel()->qualifyColumn('status') . ') <> ?', ['tidak aktif']);
+        });
+    }
+
     public function scopeActive(Builder $query): Builder
     {
-        return $query->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
+        return $query->whereRaw('LOWER(' . $query->getModel()->qualifyColumn('status') . ') <> ?', ['tidak aktif']);
+    }
+
+    public function scopeWithInactive(Builder $query): Builder
+    {
+        return $query->withoutGlobalScope('active');
+    }
+
+    /** Route-bound employees (e.g. absensi detail of a past month) resolve even when non-aktif. */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return static::withInactive()->where($field ?? $this->getRouteKeyName(), $value)->first();
     }
 
     public function position()

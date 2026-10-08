@@ -36,7 +36,7 @@ class EmployeeController extends Controller
 {
     if ($request->ajax()) {
         // (debug logging removed)
-        $employees = Employee::with(['user', 'positions.divisions'])
+        $employees = Employee::withInactive()->with(['user', 'positions.divisions'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
         // Filter by status using dropdown:
@@ -164,7 +164,7 @@ class EmployeeController extends Controller
 
             // compute next no_induk for form default
             $prefix = date('y') . date('m');
-            $count = Employee::where('no_induk', 'like', $prefix . '%')->count();
+            $count = Employee::withInactive()->where('no_induk', 'like', $prefix . '%')->count();
             $nextSeq = $count + 1;
             $nextNoInduk = $prefix . str_pad($nextSeq, 3, '0', STR_PAD_LEFT);
 
@@ -278,13 +278,13 @@ class EmployeeController extends Controller
 
     public function show($id)
     {
-            $employee = Employee::with('positions')->findOrFail($id);
+            $employee = Employee::withInactive()->with('positions')->findOrFail($id);
         return view('hrd.employee.show', compact('employee'));
     }
 
         public function edit($id)
         {
-            $employee = Employee::with('positions')->findOrFail($id);
+            $employee = Employee::withInactive()->with('positions')->findOrFail($id);
             $positions = Position::where('is_active', true)->orderBy('name')->get();
             $divisions = Division::where('is_active', true)->orderBy('name')->get();
             $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
@@ -302,7 +302,7 @@ class EmployeeController extends Controller
 
     public function update(Request $request, $id)
     {
-        $employee = Employee::findOrFail($id);
+        $employee = Employee::withInactive()->findOrFail($id);
 
         $data = $request->validate([
             'nama' => 'nullable|string|max:255',
@@ -390,7 +390,7 @@ class EmployeeController extends Controller
 
     public function destroy($id)
     {
-        $employee = Employee::findOrFail($id);
+        $employee = Employee::withInactive()->findOrFail($id);
 
         // Delete associated files
         foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {
@@ -416,7 +416,7 @@ class EmployeeController extends Controller
     public function getDetails($id)
     {
         try {
-            $employee = Employee::with(['positions.divisions', 'village', 'user'])->findOrFail($id);
+            $employee = Employee::withInactive()->with(['positions.divisions', 'village', 'user'])->findOrFail($id);
             
             // Convert document paths to public URLs if they exist
             foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {
@@ -450,7 +450,7 @@ class EmployeeController extends Controller
         $prefix = date('y') . date('m');
 
         // Count existing records that start with this prefix
-        $count = Employee::where('no_induk', 'like', $prefix . '%')->count();
+        $count = Employee::withInactive()->where('no_induk', 'like', $prefix . '%')->count();
 
         $nextSeq = $count + 1;
         $next = $prefix . str_pad($nextSeq, 3, '0', STR_PAD_LEFT);

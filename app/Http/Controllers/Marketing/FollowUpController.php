@@ -199,7 +199,7 @@ class FollowUpController extends Controller
         // Get sales names
         $salesList = [];
         foreach ($topSales as $row) {
-            $sales = \App\Models\HRD\Employee::find($row->sales_id);
+            $sales = \App\Models\HRD\Employee::withInactive()->find($row->sales_id);
             $salesList[] = [
                 'nama' => $sales ? $sales->nama : '-',
                 'jumlah' => $row->jumlah

@@ -162,7 +162,8 @@ class JatahLiburController extends Controller
             'ed.division as division'
         ])
         ->from('hrd_jatah_libur')
-        ->leftJoin('hrd_employee as e', 'hrd_jatah_libur.employee_id', '=', 'e.id')
+        ->join('hrd_employee as e', 'hrd_jatah_libur.employee_id', '=', 'e.id')
+        ->whereRaw('LOWER(e.status) <> ?', ['tidak aktif'])
         ->leftJoinSub($employeeDivisionSubquery, 'ed', function ($join) {
             $join->on('ed.employee_id', '=', 'e.id');
         });

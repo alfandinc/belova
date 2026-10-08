@@ -40,7 +40,7 @@ class PengajuanGantiShift extends Model
 
     public function employee()
     {
-        return $this->belongsTo(Employee::class);
+        return $this->belongsTo(Employee::class)->withInactive();
     }
 
     public function shiftLama()
@@ -55,7 +55,7 @@ class PengajuanGantiShift extends Model
 
     public function targetEmployee()
     {
-        return $this->belongsTo(Employee::class, 'target_employee_id');
+        return $this->belongsTo(Employee::class, 'target_employee_id')->withInactive();
     }
 
     /**

@@ -28,7 +28,7 @@ class KpiAssessment extends Model
 
     public function evaluatorEmployee()
     {
-        return $this->belongsTo(\App\Models\HRD\Employee::class, 'evaluator_employee_id');
+        return $this->belongsTo(\App\Models\HRD\Employee::class, 'evaluator_employee_id')->withInactive();
     }
 
     public function evaluatorPosition()
@@ -38,7 +38,7 @@ class KpiAssessment extends Model
 
     public function evaluateeEmployee()
     {
-        return $this->belongsTo(\App\Models\HRD\Employee::class, 'evaluatee_employee_id');
+        return $this->belongsTo(\App\Models\HRD\Employee::class, 'evaluatee_employee_id')->withInactive();
     }
 
     public function evaluateePosition()

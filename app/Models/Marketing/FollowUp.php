@@ -29,6 +29,6 @@ class FollowUp extends Model
 
     public function sales()
     {
-        return $this->belongsTo(\App\Models\HRD\Employee::class, 'sales_id');
+        return $this->belongsTo(\App\Models\HRD\Employee::class, 'sales_id')->withInactive();
     }
 }

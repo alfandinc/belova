@@ -33,7 +33,7 @@ class FinancePengajuanDanaItem extends Model
 
     public function employee()
     {
-        return $this->belongsTo(\App\Models\HRD\Employee::class, 'employee_id');
+        return $this->belongsTo(\App\Models\HRD\Employee::class, 'employee_id')->withInactive();
     }
 
     public function faktur()

@@ -481,7 +481,7 @@ class FinancePengajuanDanaController extends Controller
     private function employeeDivisionId($employeeId)
     {
         if (!$employeeId) return null;
-        $emp = \App\Models\HRD\Employee::find($employeeId);
+        $emp = \App\Models\HRD\Employee::withInactive()->find($employeeId);
         return $emp && !empty($emp->division_id) ? $emp->division_id : null;
     }
 
