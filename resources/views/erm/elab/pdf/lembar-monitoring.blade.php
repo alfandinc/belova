@@ -237,7 +237,7 @@
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Alamat Pasien</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:normal;">{{ $pasien->alamat }}</td>
+            <td style="white-space:normal;">{{ $pasien->full_alamat }}</td>
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">Diagnosa</td>
             <td style="width:10px; text-align:center;">:</td>

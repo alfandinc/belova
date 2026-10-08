@@ -260,7 +260,7 @@
                                     @endforeach
                                 </optgroup>
                                 <optgroup label="Per unit">
-                                    @foreach($satuanStokList as $s)
+                                    @foreach(array_diff($satuanStokList, $satuanDosisList) as $s)
                                         <option value="{{ $s }}">{{ $s }}</option>
                                     @endforeach
                                 </optgroup>

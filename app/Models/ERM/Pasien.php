@@ -107,6 +107,29 @@ class Pasien extends Model
         return $this->identity_label . ': ' . $identityNumber;
     }
 
+    /**
+     * Alamat + desa, kecamatan, kabupaten, provinsi (skips parts already written in alamat).
+     */
+    public function getFullAlamatAttribute(): string
+    {
+        $alamat = trim((string) ($this->attributes['alamat'] ?? ''), " ,");
+        $alamat = $alamat !== '' ? preg_replace('/\s*,\s*/', ', ', $alamat) : '';
+
+        $village = $this->village;
+        $district = $village?->district;
+        $regency = $district?->regency;
+        $province = $regency?->province;
+
+        $parts = $alamat !== '' ? [$alamat] : [];
+        foreach ([$village?->name, $district?->name, $regency?->name, $province?->name] as $part) {
+            if ($part && ($alamat === '' || stripos($alamat, $part) === false)) {
+                $parts[] = $part;
+            }
+        }
+
+        return $parts ? implode(', ', $parts) : '-';
+    }
+
     public static function marketplaceReferralOptions(): array
     {
         return self::MARKETPLACE_REFERRAL_DETAILS;

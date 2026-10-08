@@ -102,7 +102,7 @@ class Obat extends Model
      */
     public const SATUAN_STOK_LIST = [
         'Tablet', 'Kapsul', 'Kaplet', 'Botol', 'Tube', 'Pot', 'Ampul', 'Vial', 'Sachet', 'Strip',
-        'Pcs', 'Pack', 'Box', 'Softbag', 'Pen', 'Pump',
+        'Pcs', 'Pack', 'Box', 'Softbag', 'Pen', 'Pump', 'g', 'IU',
     ];
 
     /**
@@ -124,7 +124,7 @@ class Obat extends Model
 
     public static function satuanDosisOptions(): array
     {
-        return array_merge(self::SATUAN_DOSIS_LIST, self::SATUAN_STOK_LIST);
+        return array_values(array_unique(array_merge(self::SATUAN_DOSIS_LIST, self::SATUAN_STOK_LIST)));
     }
 
     public static function normalizeSatuan(?string $value): ?string

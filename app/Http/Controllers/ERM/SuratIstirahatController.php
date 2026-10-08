@@ -155,7 +155,7 @@ class SuratIstirahatController extends Controller
             $data = [
                 'nama' => $suratIstirahat->pasien->nama ?? '-',
                 'pekerjaan' => $suratIstirahat->pasien->pekerjaan ?? '-',
-                'alamat' => $suratIstirahat->pasien->alamat ?? '-',
+                'alamat' => $suratIstirahat->pasien->full_alamat ?? '-',
                 'nama_dokter' => $suratIstirahat->dokter->user->name ?? '-',
                 'ttd' => $ttdPath, // Now fully dynamic
                 'tanggal_surat' => Carbon::now()->translatedFormat('d F Y'),
