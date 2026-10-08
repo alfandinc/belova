@@ -51,9 +51,9 @@ class JatahLiburController extends Controller
      * Status: 'tersedia' / 'terjadwal' (backs the balance, past / ahead), 'diajukan' (claimed, not yet
      * approved by HRD), 'dipakai' (claimed and deducted), 'lama' (used before days were tracked per request,
      * see PengajuanLibur::hariMasukBelumDipakai). Ganti libur without a worked date get a row with masuk null.
-     * tanpa_tanggal = part of the balance not backed by any date.
+     * Returned with the balance summary (PengajuanLibur::ringkasanGantiLibur), ready to merge into a JSON response.
      */
-    private function rincianGantiLibur(int $employeeId, int $saldo, array $holidays): array
+    private function rincianGantiLibur(int $employeeId, array $holidays): array
     {
         $fmt = fn($d) => Carbon::parse($d)->locale('id')->translatedFormat('D, j M Y');
         $today = Carbon::today()->toDateString();
@@ -108,12 +108,12 @@ class JatahLiburController extends Controller
             ->sortByDesc('sort')
             ->values();
 
-        $backed = $rows->whereIn('status', ['tersedia', 'terjadwal'])->count()
-            + $rows->where('status', 'diajukan')->whereNotNull('masuk')->count();
+        $ringkasan = PengajuanLibur::ringkasanGantiLibur($employeeId, $holidays);
 
         return [
-            'tanggal' => $rows->all(),
-            'tanpa_tanggal' => max(0, $saldo - $backed),
+            'ganti_libur_tanggal' => $rows->all(),
+            'ganti_libur_tanpa_tanggal' => $ringkasan['tanpa_tanggal'],
+            'ganti_libur_ringkasan' => $ringkasan,
         ];
     }
 
@@ -187,14 +187,10 @@ class JatahLiburController extends Controller
             return $jatah;
         });
 
-        $rincian = $this->rincianGantiLibur($jatah->employee_id, (int) $jatah->jatah_ganti_libur, LiburNasional::namesByDate());
-
         return response()->json([
             'success' => true,
             'message' => 'Tanggal hari masuk ditambahkan',
-            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
-            'ganti_libur_tanggal' => $rincian['tanggal'],
-        ]);
+        ] + $this->rincianGantiLibur($jatah->employee_id, LiburNasional::namesByDate()));
     }
 
     public function getLeaveCapacity()
@@ -263,11 +259,18 @@ class JatahLiburController extends Controller
             })
             ->editColumn('jatah_ganti_libur', function ($jatah) use (&$holidays) {
                 $holidays ??= LiburNasional::namesByDate();
-                $tanpaTanggal = PengajuanLibur::saldoTanpaTanggal($jatah->employee_id, $holidays);
+                $r = PengajuanLibur::ringkasanGantiLibur($jatah->employee_id, $holidays);
 
-                return (int) $jatah->jatah_ganti_libur . ($tanpaTanggal > 0
-                    ? ' <span class="badge badge-warning" title="Saldo tanpa hari masuk di jadwal; karyawan tidak bisa memakainya sampai hari masuknya ditambahkan">' . $tanpaTanggal . ' tanpa tanggal</span>'
-                    : '');
+                // Same breakdown as the edit modal: saldo = bisa dipakai + belum dikerjakan + diajukan + tanpa tanggal
+                $parts = array_filter([
+                    $r['bisa_dipakai'] ? '<span class="text-success">' . $r['bisa_dipakai'] . ' bisa dipakai</span>' : null,
+                    $r['belum_dikerjakan'] ? $r['belum_dikerjakan'] . ' belum dikerjakan' : null,
+                    $r['diajukan'] ? '<span class="text-info">' . $r['diajukan'] . ' diajukan</span>' : null,
+                    $r['tanpa_tanggal'] ? '<span class="badge badge-warning" title="Saldo tanpa hari masuk; lengkapi tanggalnya di Edit">' . $r['tanpa_tanggal'] . ' tanpa tanggal</span>' : null,
+                    !$r['sinkron'] ? '<span class="badge badge-danger" title="Saldo lebih kecil dari hari yang sedang diajukan">Tidak sinkron</span>' : null,
+                ]);
+
+                return '<strong>' . $r['saldo'] . '</strong>' . ($parts ? '<div class="small text-muted">' . implode(' · ', $parts) . '</div>' : '');
             })
             ->addColumn('action', function ($jatah) {
                 return '
@@ -310,12 +313,7 @@ class JatahLiburController extends Controller
     {
         $jatahLibur = JatahLibur::findOrFail($id);
 
-        $rincian = $this->rincianGantiLibur($jatahLibur->employee_id, (int) $jatahLibur->jatah_ganti_libur, LiburNasional::namesByDate());
-
-        return response()->json($jatahLibur->toArray() + [
-            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
-            'ganti_libur_tanggal' => $rincian['tanggal'],
-        ]);
+        return response()->json($jatahLibur->toArray() + $this->rincianGantiLibur($jatahLibur->employee_id, LiburNasional::namesByDate()));
     }
 
     public function update(Request $request, $id)
@@ -328,6 +326,11 @@ class JatahLiburController extends Controller
         $jatahLibur = DB::transaction(function () use ($request, $id) {
             $jatahLibur = JatahLibur::lockForUpdate()->findOrFail($id);
             $tambah = (int) $request->jatah_ganti_libur - (int) $jatahLibur->jatah_ganti_libur;
+            // Requests waiting for HRD are deducted on approval; a lower saldo would leave them uncovered
+            $diajukan = PengajuanLibur::ringkasanGantiLibur($jatahLibur->employee_id)['diajukan'];
+            if ($tambah < 0 && (int) $request->jatah_ganti_libur < $diajukan) {
+                throw ValidationException::withMessages(['jatah_ganti_libur' => 'Jatah ganti libur tidak boleh kurang dari ' . $diajukan . ' hari yang sedang diajukan.']);
+            }
             $this->tambahHariMasuk($jatahLibur, $tambah, $request->input('hari_masuk', []));
             $jatahLibur->update([
                 'jatah_cuti_tahunan' => $request->jatah_cuti_tahunan,
@@ -413,14 +416,10 @@ class JatahLiburController extends Controller
             return $jatah;
         });
 
-        $rincian = $this->rincianGantiLibur($jatah->employee_id, (int) $jatah->jatah_ganti_libur, LiburNasional::namesByDate());
-
         return response()->json([
             'success' => true,
             'message' => 'Hari masuk pengganti diperbarui',
-            'ganti_libur_tanpa_tanggal' => $rincian['tanpa_tanggal'],
-            'ganti_libur_tanggal' => $rincian['tanggal'],
-        ]);
+        ] + $this->rincianGantiLibur($jatah->employee_id, LiburNasional::namesByDate()));
     }
 
     public function getEmployeesWithoutJatahLibur()

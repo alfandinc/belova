@@ -104,10 +104,9 @@
                         <label for="jatah_ganti_libur">Jatah Ganti Libur <span class="text-danger">*</span></label>
                         <input type="number" class="form-control" id="jatah_ganti_libur" name="jatah_ganti_libur" min="0" value="0" required>
                         <div class="invalid-feedback" id="jatah_ganti_libur-error"></div>
-                        <span class="badge badge-warning d-none mt-1" id="ganti_libur_tanpa_tanggal"></span>
-                        <button type="button" class="btn btn-link btn-sm p-0 ml-1 d-none" id="btnLengkapiTanggal">
-                            <i class="fas fa-calendar-plus"></i> Lengkapi tanggal
-                        </button>
+                        <small class="form-text text-muted d-none" id="jatahGantiLiburHint"></small>
+                        <!-- Saldo tersimpan = bisa dipakai + belum dikerjakan + sedang diajukan + tanpa tanggal -->
+                        <div class="border rounded p-2 mt-2 d-none" id="ringkasanGantiLibur"></div>
                         <div class="border rounded p-2 mt-2 d-none" id="lengkapiTanggalForm">
                             <small class="text-muted d-block mb-1">
                                 Hari Minggu / libur nasional yang dikerjakan untuk saldo ini. Ditambahkan ke jadwal karyawan, saldo tidak berubah.
@@ -125,7 +124,7 @@
                         </div>
                         <div class="d-none mt-2" id="gantiLiburTanggalGroup">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <small class="text-muted">Riwayat hari masuk Minggu / libur nasional dan libur penggantinya:</small>
+                                <small class="text-muted">Hari masuk Minggu / libur nasional dan libur penggantinya:</small>
                                 <div class="custom-control custom-checkbox small d-none" id="toggleLamaWrap">
                                     <input type="checkbox" class="custom-control-input" id="toggleLama">
                                     <label class="custom-control-label" for="toggleLama">Tampilkan yang lama (<span id="countLama">0</span>)</label>
@@ -279,49 +278,102 @@
 
         var gantiLiburAwal = 0; // saved value; each day added above it needs a worked date
 
-        // Every Sunday / holiday worked paired with the ganti libur that used it (newest first)
+        // Status per hari masuk. The first three are still in the saldo; the last two are history.
         var GANTI_LIBUR_STATUS = {
-            tersedia: '<span class="badge badge-success">Tersedia</span>',
-            terjadwal: '<span class="badge badge-secondary">Terjadwal</span>',
-            diajukan: '<span class="badge badge-info">Sedang diajukan</span>',
+            tersedia: '<span class="badge badge-success" title="Sudah dikerjakan, belum dipakai libur">Bisa dipakai</span>',
+            terjadwal: '<span class="badge badge-secondary" title="Sudah masuk saldo saat dijadwalkan; bisa dipakai setelah tanggalnya lewat">Belum dikerjakan</span>',
+            diajukan: '<span class="badge badge-info" title="Dipakai pengajuan yang belum disetujui HRD; saldo dipotong saat disetujui">Sedang diajukan</span>',
             dipakai: '<span class="badge badge-dark">Sudah dipakai</span>',
-            lama: '<span class="badge badge-light" title="Dipakai sebelum ganti libur dicatat per tanggal">Terpakai (lama)</span>'
+            lama: '<span class="badge badge-light" title="Dipakai sebelum ganti libur dicatat per tanggal">Dipakai sebelum sistem</span>'
         };
+        var DI_SALDO = { tersedia: true, terjadwal: true, diajukan: true };
 
         var gantiLiburRows = [];
         var esc = function (t) { return $('<div>').text(t || '').html(); };
 
+        function renderRow(r, i) {
+            // Only the pairing of a ganti libur is edited here; worked days come from the schedule
+            var edit = r.pengajuan_id
+                ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-hari-masuk" data-i="' + i + '" title="Ubah hari masuk pengganti"><i class="fas fa-pen"></i></button>'
+                : '';
+            return '<tr data-i="' + i + '" class="' + (r.status === 'lama' ? 'row-lama text-muted' + ($('#toggleLama').is(':checked') ? '' : ' d-none') : '') + '">'
+                + '<td class="hm-cell">' + (r.masuk ? esc(r.masuk) + '<div class="text-muted">' + esc(r.keterangan) + '</div>' : '<span class="text-muted">— (saldo lama)</span>') + '</td>'
+                + '<td>' + (esc(r.shift) || '-') + '</td>'
+                + '<td>' + (r.libur ? esc(r.libur) : '<span class="text-muted">-</span>') + '</td>'
+                + '<td>' + (GANTI_LIBUR_STATUS[r.status] || '')
+                + (r.terbalik ? ' <span class="badge badge-warning" title="Hari masuk tidak sebelum tanggal libur. Ubah ke hari masuk sebelum liburnya.">Masuk setelah libur</span>' : '') + '</td>'
+                + '<td class="text-nowrap act-cell">' + edit + '</td></tr>';
+        }
+
+        function sectionRow(title, note) {
+            return '<tr class="table-active"><td colspan="5"><strong>' + title + '</strong>'
+                + (note ? ' <span class="text-muted">' + note + '</span>' : '') + '</td></tr>';
+        }
+
+        // Two sections: days still in the saldo, then history (already used)
         function renderGantiLiburTanggal(rows) {
             gantiLiburRows = rows = rows || [];
-            var showLama = $('#toggleLama').is(':checked');
-            var lama = rows.filter(function (r) { return r.status === 'lama'; }).length;
-            $('#gantiLiburTanggalList').html($.map(rows, function (r, i) {
-                // Only the pairing of a ganti libur is edited here; worked days come from the schedule
-                var edit = r.pengajuan_id
-                    ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-1 btn-edit-hari-masuk" data-i="' + i + '" title="Ubah hari masuk pengganti"><i class="fas fa-pen"></i></button>'
-                    : '';
-                return '<tr data-i="' + i + '" class="' + (r.status === 'lama' ? 'row-lama text-muted' + (showLama ? '' : ' d-none') : '') + '">'
-                    + '<td class="hm-cell">' + (r.masuk ? esc(r.masuk) + '<div class="text-muted">' + esc(r.keterangan) + '</div>' : '<span class="text-muted">— (saldo lama)</span>') + '</td>'
-                    + '<td>' + (esc(r.shift) || '-') + '</td>'
-                    + '<td>' + (r.libur ? esc(r.libur) : '<span class="text-muted">-</span>') + '</td>'
-                    + '<td>' + (GANTI_LIBUR_STATUS[r.status] || '')
-                    + (r.terbalik ? ' <span class="badge badge-warning" title="Hari masuk tidak sebelum tanggal libur. Ubah ke hari masuk sebelum liburnya.">Masuk setelah libur</span>' : '') + '</td>'
-                    + '<td class="text-nowrap act-cell">' + edit + '</td></tr>';
-            }).join(''));
+            var html = { saldo: '', riwayat: '' }, count = { saldo: 0, riwayat: 0 }, lama = 0;
+            $.each(rows, function (i, r) {
+                var key = DI_SALDO[r.status] ? 'saldo' : 'riwayat';
+                html[key] += renderRow(r, i);
+                count[key]++;
+                if (r.status === 'lama') lama++;
+            });
+            $('#gantiLiburTanggalList').html(
+                sectionRow('Dihitung di saldo (' + count.saldo + ')', count.saldo ? '' : '– tidak ada')
+                + html.saldo
+                + (count.riwayat ? sectionRow('Riwayat sudah dipakai (' + count.riwayat + ')', lama ? '– ' + lama + ' dipakai sebelum sistem disembunyikan, centang "Tampilkan yang lama"' : '') + html.riwayat : '')
+            );
             $('#countLama').text(lama);
             $('#toggleLamaWrap').toggleClass('d-none', lama === 0);
             $('#gantiLiburTanggalGroup').toggleClass('d-none', rows.length === 0);
         }
 
-        function setTanpaTanggal(n) {
-            $('#ganti_libur_tanpa_tanggal').toggleClass('d-none', !(n > 0))
-                .text(n > 0 ? n + ' hari belum punya tanggal masuk' : '');
-            // Only an existing jatah can get dates for its undated balance
-            $('#btnLengkapiTanggal').toggleClass('d-none', !(n > 0 && $('#jatah_libur_id').val()));
+        // saldo (tersimpan) = bisa dipakai + belum dikerjakan + sedang diajukan + tanpa tanggal
+        var ringkasan = null;
+        function renderRingkasan(r) {
+            ringkasan = r || null;
             $('#lengkapiTanggalForm').addClass('d-none');
+            if (!r) { $('#ringkasanGantiLibur').addClass('d-none'); updateJatahHint(); return; }
+            var parts = [
+                [r.bisa_dipakai, 'success', 'bisa dipakai'],
+                [r.belum_dikerjakan, 'secondary', 'belum dikerjakan'],
+                [r.diajukan, 'info', 'sedang diajukan'],
+                [r.tanpa_tanggal, 'warning', 'tanpa tanggal']
+            ].filter(function (p) { return p[0] > 0; });
+            var html = '<div><strong>Saldo tersimpan: ' + r.saldo + ' hari</strong>'
+                + (parts.length ? ' = ' + $.map(parts, function (p) {
+                    return '<span class="badge badge-' + p[1] + '">' + p[0] + ' ' + p[2] + '</span>';
+                }).join(' + ') : '') + '</div>';
+            var notes = [];
+            if (r.belum_dikerjakan > 0) notes.push('<b>Belum dikerjakan</b>: hari Minggu / libur nasional yang sudah dijadwalkan. Saldo bertambah saat dijadwalkan, tapi baru bisa dipakai libur setelah tanggalnya lewat.');
+            if (r.diajukan > 0) notes.push('<b>Sedang diajukan</b>: saldo baru dipotong saat HRD menyetujui.');
+            if (r.tanpa_tanggal > 0) notes.push('<b>Tanpa tanggal</b>: saldo lama yang belum punya hari masuk. '
+                + '<button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="btnLengkapiTanggal"><i class="fas fa-calendar-plus"></i> Lengkapi tanggal</button>');
+            if (!r.sinkron) notes.push('<span class="text-danger"><b>Tidak sinkron:</b> saldo lebih kecil dari hari yang sedang diajukan. Naikkan saldo atau tolak pengajuannya.</span>');
+            $('#ringkasanGantiLibur').html(html + (notes.length ? '<ul class="small text-muted mb-0 mt-1 pl-3"><li>' + notes.join('</li><li>') + '</li></ul>' : ''))
+                .removeClass('d-none');
+            updateJatahHint();
         }
 
-        $('#btnLengkapiTanggal').on('click', function () {
+        // Explain what changing the number does before it is saved
+        function updateJatahHint() {
+            var val = parseInt($('#jatah_ganti_libur').val(), 10) || 0, $hint = $('#jatahGantiLiburHint');
+            if (!ringkasan || val === gantiLiburAwal) { $hint.addClass('d-none'); return; }
+            var text = val > gantiLiburAwal
+                ? 'Saldo naik ' + (val - gantiLiburAwal) + ' hari: isi tanggal hari masuknya di bawah.'
+                : 'Saldo turun ' + (gantiLiburAwal - val) + ' hari: dianggap sudah dipakai (hari masuk terlama yang belum dipakai jadi "Dipakai sebelum sistem").';
+            $hint.text(text).removeClass('d-none');
+        }
+
+        // Response of show / edit pairing / lengkapi tanggal
+        function renderRincian(res) {
+            renderGantiLiburTanggal(res.ganti_libur_tanggal);
+            renderRingkasan(res.ganti_libur_ringkasan);
+        }
+
+        $('#ringkasanGantiLibur').on('click', '#btnLengkapiTanggal', function () {
             $('#lengkapi_date').attr('max', TODAY).val('');
             $('#lengkapi_shift').html(shiftOptions);
             $('#lengkapi_note').attr('class', 'small mt-1').text('');
@@ -355,8 +407,7 @@
                 data: { hari_masuk: [{ date: $('#lengkapi_date').val(), shift_id: $('#lengkapi_shift').val() }] },
                 headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                 success: function (res) {
-                    renderGantiLiburTanggal(res.ganti_libur_tanggal);
-                    setTanpaTanggal(res.ganti_libur_tanpa_tanggal);
+                    renderRincian(res);
                     table.ajax.reload(null, false);
                 },
                 error: function (xhr) {
@@ -423,8 +474,7 @@
                 data: { pengajuan_id: r.pengajuan_id, lama: r.date, baru: baru },
                 headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
                 success: function (res) {
-                    renderGantiLiburTanggal(res.ganti_libur_tanggal);
-                    setTanpaTanggal(res.ganti_libur_tanpa_tanggal);
+                    renderRincian(res);
                     table.ajax.reload(null, false);
                 },
                 error: function (xhr) {
@@ -436,14 +486,14 @@
             });
         });
 
-        function resetHariMasuk(saldo, tanpaTanggal, tanggal) {
+        // res = show() response, or null for a new jatah
+        function resetHariMasuk(saldo, res) {
             $('#toggleLama').prop('checked', false);
-            renderGantiLiburTanggal(tanggal);
             gantiLiburAwal = parseInt(saldo, 10) || 0;
             $('#jatah_ganti_libur').val(gantiLiburAwal);
             $('#hariMasukRows').empty();
             $('#hari_masuk-error').text('');
-            setTanpaTanggal(tanpaTanggal);
+            renderRincian(res || {});
             syncHariMasukRows();
         }
 
@@ -464,7 +514,10 @@
             renumberHariMasuk();
         }
 
-        $('#jatah_ganti_libur').on('input change', syncHariMasukRows);
+        $('#jatah_ganti_libur').on('input change', function () {
+            syncHariMasukRows();
+            updateJatahHint();
+        });
 
         $('#hariMasukRows').on('change', '.hm-date', function () {
             var d = this.value, $note = $(this).closest('.hari-masuk-row').find('.hm-note');
@@ -502,7 +555,7 @@
             
             // Load employees without jatah libur
             loadEmployeesWithoutJatahLibur();
-            resetHariMasuk(0, 0);
+            resetHariMasuk(0, null);
 
             $('.invalid-feedback').text('');
             $('#jatahLiburModal').modal('show');
@@ -678,7 +731,7 @@
                     $('#jatahLiburModalLabel').text('Edit Jatah Libur');
                     $('#jatah_libur_id').val(response.id);
                     $('#jatah_cuti_tahunan').val(response.jatah_cuti_tahunan);
-                    resetHariMasuk(response.jatah_ganti_libur, response.ganti_libur_tanpa_tanggal, response.ganti_libur_tanggal);
+                    resetHariMasuk(response.jatah_ganti_libur, response);
                     
                     // Hide employee selection when editing and remove required attribute
                     $('#employee_selection_group').hide();

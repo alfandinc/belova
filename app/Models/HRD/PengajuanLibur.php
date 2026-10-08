@@ -104,18 +104,35 @@ class PengajuanLibur extends Model
     }
 
     /**
-     * Part of the ganti libur balance not backed by any worked day (old / manual balance): saldo minus the
-     * days backing it and the days claimed by requests whose balance is not deducted yet.
+     * How the ganti libur balance is made up: saldo = bisa_dipakai (worked days, past) + belum_dikerjakan
+     * (scheduled days still ahead, counted when scheduled) + diajukan (requests not yet deducted)
+     * + tanpa_tanggal (old / manual balance without a worked day). sinkron is false only when the saldo is
+     * below the days already requested, so the parts cannot add up.
      */
+    public static function ringkasanGantiLibur($employeeId, ?array $holidays = null): array
+    {
+        $saldo = (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur');
+        $diajukan = (int) static::gantiLiburAktif($employeeId)
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'disetujui'))
+            ->sum('total_hari');
+        $backed = collect(static::hariMasukBelumDipakai($employeeId, $holidays));
+        $today = \Carbon\Carbon::today()->toDateString();
+        $belumDikerjakan = $backed->filter(fn($d) => $d > $today)->count();
+
+        return [
+            'saldo' => $saldo,
+            'bisa_dipakai' => $backed->count() - $belumDikerjakan,
+            'belum_dikerjakan' => $belumDikerjakan,
+            'diajukan' => $diajukan,
+            'tanpa_tanggal' => max(0, $saldo - $diajukan - $backed->count()),
+            'sinkron' => $saldo >= $diajukan,
+        ];
+    }
+
+    /** Part of the ganti libur balance not backed by any worked day (old / manual balance). */
     public static function saldoTanpaTanggal($employeeId, ?array $holidays = null): int
     {
-        $pendingDated = static::gantiLiburAktif($employeeId)
-            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'disetujui'))
-            ->get()
-            ->sum(fn($p) => count((array) $p->tanggal_masuk_pengganti));
-
-        return max(0, (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur')
-            - count(static::hariMasukBelumDipakai($employeeId, $holidays)) - $pendingDated);
+        return static::ringkasanGantiLibur($employeeId, $holidays)['tanpa_tanggal'];
     }
 
     /**
