@@ -6,13 +6,26 @@
 
 @section('content')
 <style>
-    .sched-toolbar { position: sticky; top: 0; z-index: 30; background: #fff; padding: 8px 0; border-bottom: 1px solid #e8ebf3; }
+    .sched-toolbar { position: sticky; top: 0; z-index: 30; background: #fff; padding: 10px 0; border-bottom: 1px solid #e8ebf3; }
     .sched-toolbar .btn { white-space: nowrap; }
+    /* Toolbar rows: left group / right group, every control the same height */
+    .tb-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .tb-group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .tb-title { margin: 0; font-weight: 700; font-size: 18px; }
+    .tb-week { min-width: 190px; }
+    .tb-search { position: relative; }
+    .tb-search .fa-search { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 12px; pointer-events: none; }
+    .tb-search input { width: 200px; padding-left: 28px; }
+    .tb-division { width: 180px; }
+    .sched-toolbar .form-control-sm, .sched-toolbar .btn-sm { height: 31px; }
+    /* Floating, so loading never pushes the table (and the scroll position) around */
+    #ajax-loading { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 1060; margin: 0 !important;
+        background: #fff; padding: 6px 14px; border-radius: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: 13px; }
     .sched-palette { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .sched-palette .pal-chip { border: 0; border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .sched-palette .pal-chip kbd { font-size: 10px; padding: 0 4px; margin-right: 4px; background: rgba(0,0,0,.25); color: #fff; }
     .sched-palette .pal-chip:disabled { opacity: .45; cursor: not-allowed; }
-    .sched-scroll { max-height: calc(100vh - 250px); overflow: auto; border: 1px solid #dee2e6; }
+    .sched-scroll { max-height: calc(100vh - 200px); overflow: auto; border: 1px solid #dee2e6; }
     .sched-table { border-collapse: separate; border-spacing: 0; user-select: none; }
     .sched-table th, .sched-table td { padding: 4px 6px; vertical-align: middle; }
     .sched-table thead th { position: sticky; top: 0; z-index: 3; background: #f8f9fa; text-align: center; cursor: pointer; vertical-align: top !important; font-weight: 700; }
@@ -32,8 +45,9 @@
     td.sc.sel { box-shadow: inset 0 0 0 2px #1e88e5; background: #e3f2fd; }
     td.sc.cursor { box-shadow: inset 0 0 0 3px #0d47a1; }
     td.sc.dirty::after { content: ''; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 9px 9px 0; border-color: transparent #ff9800 transparent transparent; }
-    td.sc-libur { background: #dc3545 !important; color: #fff; font-weight: 700; font-size: 12px; text-align: center; }
-    td.sc-libur.sel { opacity: .8; }
+    /* Cuti / libur: same chip as a shift, so every filled cell looks alike */
+    td.sc-libur { cursor: not-allowed; }
+    .sc-chip.sc-libur-chip { background: #dc3545; color: #fff; text-align: center; }
     .sc-chip { display: block; border-radius: 3px; padding: 1px 6px; font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sc-chip + .sc-chip { margin-top: 2px; }
     .sc-empty { color: #c0c4cc; display: block; text-align: center; }
@@ -49,58 +63,99 @@
     #shift-picker .sp-add { border: 1px solid #ccc; background: #fff; border-radius: 3px; font-size: 11px; padding: 0 5px; line-height: 18px; }
     #shift-picker .sp-add:hover { background: #1e88e5; color: #fff; border-color: #1e88e5; }
     #shift-picker .sp-foot { border-top: 1px solid #eee; padding: 6px 8px; display: flex; justify-content: space-between; }
+    .sched-help { background: #f8f9fc; border: 1px solid #e8ebf3; border-radius: 6px; padding: 8px 10px; color: #555; }
     .sched-help kbd { font-size: 10px; }
     #save-schedule-btn .badge { font-size: 10px; }
+    /* Row 2: selection status, then the shifts that can be applied to it */
+    .sched-palette-row { display: flex; align-items: flex-start; gap: 8px; background: #f8f9fc; border: 1px solid #e8ebf3; border-radius: 6px; padding: 6px 8px; }
+    .sel-info { flex: none; font-size: 12px; padding: 3px 8px; border-radius: 4px; background: #f1f3f5; color: #6c757d; white-space: nowrap; }
+    .sel-info.has-sel { background: #e3f2fd; color: #0d47a1; font-weight: 600; }
+    .sched-palette.no-sel .pal-chip { opacity: .45; }
+    .dirty-mark { display: inline-block; width: 0; height: 0; border-style: solid; border-width: 0 9px 9px 0; border-color: transparent #ff9800 transparent transparent; vertical-align: middle; }
+    .sched-table .sched-emp small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    .sched-table .gl-day { display: block; font-size: 10px; font-weight: 600; color: #e8590c; }
+    .sched-table tfoot td { font-size: 11px; }
 </style>
 
 <div class="container-fluid">
     <div class="sched-toolbar">
-        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
-            <div class="d-flex align-items-center flex-wrap">
-                <h4 class="mb-0 font-weight-bold mr-3">Jadwal Karyawan</h4>
-                <div class="btn-group btn-group-sm mr-2">
-                    <button type="button" class="btn btn-outline-primary" id="prev-week-btn" title="Minggu sebelumnya (Alt+←)">&laquo;</button>
-                    <button type="button" class="btn btn-outline-primary font-weight-bold" id="week-range" title="Pilih tanggal">
-                        {{ $startOfWeek->format('d M Y') }} - {{ $startOfWeek->copy()->addDays(6)->format('d M Y') }}
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" id="next-week-btn" title="Minggu berikutnya (Alt+→)">&raquo;</button>
-                </div>
-                <input type="date" id="week-jump" class="d-none">
-                <button id="this-week-btn" type="button" class="btn btn-outline-success btn-sm mr-2">Minggu Ini</button>
-            </div>
-            <div class="d-flex align-items-center flex-wrap">
-                <input type="search" id="emp-search" class="form-control form-control-sm mr-2" placeholder="Cari karyawan... ( / )" style="width:180px;">
-                <select id="division-filter" class="form-control form-control-sm mr-2" style="width:auto;">
-                    <option value="">Semua Divisi</option>
-                </select>
-                <div class="btn-group btn-group-sm mr-2">
-                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown">
-                        <i class="fa fa-copy"></i> Copy Minggu
-                    </button>
-                    <div class="dropdown-menu dropdown-menu-right">
-                        <a href="#" class="dropdown-item copy-week-option" data-target="this">Copy minggu ini ke Minggu Ini</a>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="next">Copy minggu ini ke Minggu Depan</a>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="following">Copy minggu ini ke minggu setelahnya</a>
-                    </div>
-                </div>
-                <button type="button" id="rekap-libur-btn" class="btn btn-outline-warning btn-sm mr-2" title="Rekap karyawan masuk di hari Minggu / libur nasional">
-                    <i class="fa fa-calendar-check-o"></i> Rekap Minggu/Libur
-                </button>
-                <a href="#" id="print-btn" target="_blank" class="btn btn-outline-secondary btn-sm mr-2"><i class="fa fa-print"></i> Print</a>
-                <button id="undo-btn" type="button" class="btn btn-outline-secondary btn-sm mr-2" disabled title="Undo (Ctrl+Z)"><i class="fa fa-undo"></i></button>
+        {{-- Row 1: title · save --}}
+        <div class="tb-row">
+            <h4 class="tb-title">Jadwal Karyawan</h4>
+            <div class="tb-group">
+                <button id="undo-btn" type="button" class="btn btn-outline-secondary btn-sm" disabled title="Batalkan perubahan terakhir (Ctrl+Z)"><i class="fa fa-undo"></i> Undo</button>
                 <button id="save-schedule-btn" type="button" class="btn btn-primary btn-sm" disabled title="Simpan (Ctrl+S)">
                     <i class="fa fa-save"></i> Simpan <span class="badge badge-light ml-1" id="pending-count">0</span>
                 </button>
             </div>
         </div>
-        <div class="d-flex flex-wrap justify-content-between align-items-center">
-            <div class="sched-palette" id="sched-palette"></div>
-            <a href="#" class="small text-muted" data-toggle="collapse" data-target="#sched-help">Pintasan keyboard</a>
+
+        {{-- Row 2: week navigation · search & filter · more --}}
+        <div class="tb-row mt-2">
+            <div class="tb-group">
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-primary" id="prev-week-btn" title="Minggu sebelumnya (Alt+←)"><i class="fa fa-chevron-left"></i></button>
+                    <button type="button" class="btn btn-outline-primary font-weight-bold tb-week" id="week-range" title="Klik untuk pilih tanggal">
+                        {{ $startOfWeek->locale('id')->isoFormat('D MMM YYYY') }} – {{ $startOfWeek->copy()->addDays(6)->locale('id')->isoFormat('D MMM YYYY') }}
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="next-week-btn" title="Minggu berikutnya (Alt+→)"><i class="fa fa-chevron-right"></i></button>
+                </div>
+                <input type="date" id="week-jump" class="d-none">
+                <button id="this-week-btn" type="button" class="btn btn-outline-secondary btn-sm">Minggu ini</button>
+            </div>
+            <div class="tb-group">
+                <div class="tb-search">
+                    <i class="fa fa-search"></i>
+                    <input type="search" id="emp-search" class="form-control form-control-sm" placeholder="Cari karyawan ( / )">
+                </div>
+                <select id="division-filter" class="form-control form-control-sm tb-division">
+                    <option value="">Semua Divisi</option>
+                </select>
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" title="Copy minggu, rekap, print, kelola shift">
+                        <i class="fa fa-ellipsis-h"></i> Lainnya
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <h6 class="dropdown-header">Copy jadwal minggu yang dibuka ke…</h6>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="this"><i class="fa fa-copy fa-fw mr-1"></i>Minggu ini</a>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="next"><i class="fa fa-copy fa-fw mr-1"></i>Minggu depan</a>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="following"><i class="fa fa-copy fa-fw mr-1"></i>Minggu setelah yang dibuka</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item" id="rekap-libur-btn"><i class="fa fa-calendar-check fa-fw mr-1"></i>Rekap masuk Minggu / libur nasional</a>
+                        <a href="#" class="dropdown-item" id="print-btn" target="_blank"><i class="fa fa-print fa-fw mr-1"></i>Print jadwal</a>
+                        <a href="#" class="dropdown-item" id="open-shift-mgmt"><i class="fa fa-cog fa-fw mr-1"></i>Kelola shift</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="#" class="dropdown-item" data-toggle="collapse" data-target="#sched-help"><i class="fa fa-keyboard fa-fw mr-1"></i>Cara pakai &amp; pintasan</a>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div id="sched-help" class="collapse small text-muted sched-help mt-2">
-            <b>Pilih sel:</b> klik / tarik (drag) untuk blok, <kbd>Shift</kbd>+klik untuk rentang, <kbd>Ctrl</kbd>+klik tambah sel, klik nama karyawan = 1 minggu, klik header hari = 1 kolom.
-            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>G</kbd> = ganti libur (jatah -1, pilih hari masuk yang diganti; G lagi = ubah); <kbd>Del</kbd> kosongkan.
-            &nbsp;<b>Lainnya:</b> <kbd>←↑↓→</kbd> pindah sel, <kbd>Enter</kbd> buka pilihan, <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Ctrl+Z</kbd> undo, <kbd>Ctrl+S</kbd> simpan, <kbd>Esc</kbd> batal pilih.
+
+        {{-- Row 3: what to do now + the shifts to apply --}}
+        <div class="sched-palette-row mt-2">
+            <div class="sel-info" id="sel-info"></div>
+            <div class="sched-palette" id="sched-palette"></div>
+        </div>
+
+        <div id="sched-help" class="collapse small sched-help mt-2">
+            <div class="row">
+                <div class="col-md-4 mb-1">
+                    <b>1. Pilih sel</b><br>
+                    Klik sel, atau tarik (drag) untuk blok. Klik <b>nama karyawan</b> = 1 minggu, klik <b>nama hari</b> = 1 kolom.
+                    <kbd>Shift</kbd>+klik = rentang, <kbd>Ctrl</kbd>+klik = tambah sel. <kbd>←↑↓→</kbd> pindah sel.
+                </div>
+                <div class="col-md-4 mb-1">
+                    <b>2. Isi</b><br>
+                    Klik shift di atas / di popup, atau tekan <kbd>1</kbd>–<kbd>9</kbd>. <kbd>Shift</kbd>+angka atau tombol <b>+2</b> = shift kedua (double shift).
+                    <kbd>G</kbd> = ganti libur (pilih hari Minggu yang diganti; G lagi = ubah). <kbd>Del</kbd> = kosongkan. <kbd>Enter</kbd> = buka popup.
+                </div>
+                <div class="col-md-4 mb-1">
+                    <b>3. Simpan</b><br>
+                    Sel bertanda <span class="dirty-mark"></span> belum disimpan. <kbd>Ctrl+S</kbd> simpan, <kbd>Ctrl+Z</kbd> batalkan,
+                    <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Esc</kbd> batal pilih.
+                    Masuk di hari <span class="text-danger">Minggu / libur nasional</span> = jatah ganti libur +1.
+                </div>
+            </div>
         </div>
     </div>
 
@@ -471,14 +526,27 @@
         });
         table.querySelectorAll('tfoot .sched-count').forEach(function (td) {
             var c = +td.getAttribute('data-col');
-            td.innerHTML = '<b>' + counts[c] + '</b>/' + total + (libur[c] ? ' <span class="text-danger">(' + libur[c] + ' libur)</span>' : '');
+            td.title = counts[c] + ' dari ' + total + ' karyawan masuk' + (libur[c] ? ', ' + libur[c] + ' libur / cuti' : '');
+            td.innerHTML = '<b>' + counts[c] + '</b> masuk' + (libur[c] ? ' · <span class="text-danger">' + libur[c] + ' libur</span>' : '');
         });
     }
 
     // ---------- selection ----------
+    // Tells the user what to do next: select cells first, then pick a shift
+    function updateSelectionInfo() {
+        var n = Array.from(selected).filter(isEditable).length;
+        var info = $id('sel-info');
+        if (!info) return;
+        info.classList.toggle('has-sel', n > 0);
+        info.innerHTML = n
+            ? n + ' sel dipilih <i class="fa fa-arrow-right"></i>'
+            : '<i class="fa fa-hand-pointer"></i> Klik / tarik sel jadwal dulu, lalu pilih shift:';
+        $id('sched-palette').classList.toggle('no-sel', n === 0);
+    }
     function clearSelection() {
         selected.forEach(function (td) { td.classList.remove('sel'); });
         selected.clear();
+        updateSelectionInfo();
     }
     function setCursor(td) {
         if (anchor) anchor.classList.remove('cursor');
@@ -488,6 +556,7 @@
     function select(tds, additive) {
         if (!additive) clearSelection();
         tds.forEach(function (td) { selected.add(td); td.classList.add('sel'); });
+        updateSelectionInfo();
     }
     function visibleRows() {
         return Array.prototype.filter.call(document.querySelectorAll('#sched-table tr.employee-row'), function (tr) {
@@ -519,7 +588,7 @@
     // ---------- picker ----------
     function buildPalette() {
         var el = $id('sched-palette');
-        var html = '<span class="small text-muted mr-1">Shift:</span>';
+        var html = '';
         palette.forEach(function (s, i) {
             var bg = s.color || '#adb5bd';
             html += '<button type="button" class="pal-chip" data-shift-id="' + s.id + '" style="background:' + esc(bg) + ';color:' + contrast(bg) + '" title="' + esc(s.start + '–' + s.end) + ' · Shift+klik = shift kedua">' +
@@ -607,6 +676,7 @@
 
         document.querySelectorAll('#sched-table td.sc:not([data-libur])').forEach(renderCell);
         buildPalette();
+        updateSelectionInfo();
         buildDivisionFilter();
         applyFilters();
         updateWeekNav();
@@ -623,8 +693,8 @@
 
     function updateWeekNav() {
         var ws = weekStart(), we = addDays(ws, 6);
-        var opt = { day: '2-digit', month: 'short', year: 'numeric' };
-        $id('week-range').textContent = parseYmd(ws).toLocaleDateString('id-ID', opt) + ' - ' + parseYmd(we).toLocaleDateString('id-ID', opt);
+        var opt = { day: 'numeric', month: 'short', year: 'numeric' };
+        $id('week-range').textContent = parseYmd(ws).toLocaleDateString('id-ID', opt) + ' – ' + parseYmd(we).toLocaleDateString('id-ID', opt);
         $id('print-btn').href = URLS.print + '?start_date=' + ws;
         $id('week-jump').value = ws;
     }
@@ -647,6 +717,29 @@
         });
     }
 
+    // Keep the user's place when the table is reloaded (other week, shift change): scroll and collapsed divisions
+    function captureView() {
+        var sc = $id('sched-scroll');
+        return {
+            top: sc ? sc.scrollTop : 0,
+            left: sc ? sc.scrollLeft : 0,
+            pageY: window.pageYOffset,
+            collapsed: Array.from(document.querySelectorAll('#sched-table tr.sched-division.collapsed'))
+                .map(function (tr) { return tr.getAttribute('data-division'); })
+        };
+    }
+    function restoreView(v) {
+        if (v.collapsed.length) {
+            document.querySelectorAll('#sched-table tr.sched-division').forEach(function (tr) {
+                if (v.collapsed.indexOf(tr.getAttribute('data-division')) !== -1) tr.classList.add('collapsed');
+            });
+            applyFilters();
+        }
+        var sc = $id('sched-scroll');
+        if (sc) { sc.scrollTop = v.top; sc.scrollLeft = v.left; }
+        window.scrollTo(window.pageXOffset, v.pageY);
+    }
+
     function loadWeek(startDate, skipConfirm) {
         return (skipConfirm ? Promise.resolve(true) : confirmDiscard()).then(function (ok) {
             if (!ok) return;
@@ -654,8 +747,10 @@
             return fetch(URLS.index + '?start_date=' + encodeURIComponent(startDate), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (res) { if (!res.ok) throw new Error(); return res.text(); })
                 .then(function (html) {
+                    var view = captureView();
                     $id('jadwal-wrapper').innerHTML = html;
                     initTable();
+                    restoreView(view);
                 })
                 .catch(function () { showAlert('danger', 'Gagal memuat jadwal'); })
                 .finally(function () { showLoading(false); });
@@ -887,7 +982,7 @@
             e.preventDefault();
             closePicker();
             if (e.ctrlKey || e.metaKey) {
-                if (selected.has(td)) { selected.delete(td); td.classList.remove('sel'); }
+                if (selected.has(td)) { selected.delete(td); td.classList.remove('sel'); updateSelectionInfo(); }
                 else select([td], true);
                 setCursor(td);
                 return;
@@ -1083,7 +1178,14 @@
         $id('week-jump').addEventListener('change', function () {
             if (this.value) loadWeek(mondayOf(parseYmd(this.value)));
         });
-        $id('rekap-libur-btn').addEventListener('click', function () {
+        $id('open-shift-mgmt').addEventListener('click', function (e) {
+            e.preventDefault();
+            $('#shift-mgmt-body').collapse('show');
+            var card = $id('shift-mgmt-toggle');
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        $id('rekap-libur-btn').addEventListener('click', function (e) {
+            e.preventDefault();
             if (!$id('rekap-from').value) {
                 // default: bulan dari minggu yang sedang dibuka
                 var d = parseYmd(weekStart());

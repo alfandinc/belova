@@ -35,7 +35,7 @@
                             <small class="d-block text-danger text-truncate" style="max-width:140px;margin:auto">{{ $holidayName }}</small>
                         @endif
                         @if($hariGantiLibur)
-                            <span class="badge badge-warning d-block mt-1" style="font-size:10px;">+1 Ganti Libur</span>
+                            <span class="gl-day" title="Karyawan yang masuk hari ini mendapat +1 jatah ganti libur">+1 jatah ganti libur</span>
                         @endif
                     </th>
                 @endforeach
@@ -57,7 +57,7 @@
                         <td class="sched-name-col sched-emp" title="Klik untuk memilih satu minggu">
                             {{ $employee->nama }}
                             @if($employee->schedule_position_name)
-                                <small class="d-block text-muted">{{ $employee->schedule_position_name }}</small>
+                                <small class="d-block text-muted" title="{{ $employee->schedule_position_name }}">{{ $employee->schedule_position_name }}</small>
                             @endif
                         </td>
                         @foreach($dates as $i => $date)
@@ -70,7 +70,8 @@
                                     : ($isLibur ? '' : $daySchedules->pluck('shift_id')->filter()->take(2)->implode(','));
                             @endphp
                             @if($isLibur)
-                                <td class="sc sc-libur {{ $date === $today ? 'is-today' : '' }}" data-col="{{ $i }}" data-libur="1">{{ $first->label ?? 'Libur/Cuti' }}</td>
+                                <td class="sc sc-libur {{ $date === $today ? 'is-today' : '' }}" data-col="{{ $i }}" data-libur="1"
+                                    title="{{ $first->label ?? 'Libur/Cuti' }} (dari pengajuan libur, ubah lewat halaman Pengajuan Libur)"><span class="sc-chip sc-libur-chip">{{ $first->label ?? 'Libur/Cuti' }}</span></td>
                             @else
                                 <td class="sc {{ $date === $today ? 'is-today' : '' }}" data-col="{{ $i }}"
                                     data-emp="{{ $employee->id }}" data-date="{{ $date }}"
@@ -84,7 +85,7 @@
         </tbody>
         <tfoot>
             <tr>
-                <td class="sched-name-col text-muted small">Terjadwal</td>
+                <td class="sched-name-col text-muted small">Jumlah masuk / libur</td>
                 @foreach($dates as $i => $date)
                     <td class="sched-count text-center small" data-col="{{ $i }}">-</td>
                 @endforeach
