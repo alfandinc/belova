@@ -5,7 +5,13 @@ namespace App\Http\Controllers\HRD;
 use App\Http\Controllers\Controller;
 use App\Models\HRD\JatahLibur;
 use App\Models\HRD\Employee;
+use App\Models\HRD\EmployeeSchedule;
+use App\Models\HRD\LiburNasional;
+use App\Models\HRD\PengajuanLibur;
+use App\Models\HRD\Shift;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
@@ -15,7 +21,84 @@ class JatahLiburController extends Controller
 {
     public function index()
     {
-        return view('hrd.master.jatah-libur.index');
+        return view('hrd.master.jatah-libur.index', [
+            'shifts' => Shift::where('active', true)->orderBy('start_time')->get(['id', 'name', 'start_time', 'end_time']),
+            'liburNasional' => LiburNasional::namesByDate(null, Carbon::today()),
+        ]);
+    }
+
+    private function hariMasukRules(): array
+    {
+        return [
+            'hari_masuk' => 'nullable|array',
+            'hari_masuk.*.date' => 'required|date|before_or_equal:today|distinct',
+            'hari_masuk.*.shift_id' => 'required|exists:hrd_shifts,id',
+        ];
+    }
+
+    private function hariMasukMessages(): array
+    {
+        return [
+            'hari_masuk.*.date.required' => 'Tanggal hari masuk wajib diisi.',
+            'hari_masuk.*.date.before_or_equal' => 'Tanggal hari masuk tidak boleh setelah hari ini.',
+            'hari_masuk.*.date.distinct' => 'Tanggal hari masuk tidak boleh sama.',
+            'hari_masuk.*.shift_id.required' => 'Shift hari masuk wajib dipilih.',
+        ];
+    }
+
+    /**
+     * Part of the ganti libur balance not backed by any scheduled Sunday / holiday (old manual balance).
+     * Backed = unclaimed scheduled days + days claimed by requests whose balance is not deducted yet.
+     */
+    private function saldoTanpaTanggal(int $employeeId, int $saldo, array $holidays): int
+    {
+        $aktif = PengajuanLibur::gantiLiburAktif($employeeId)->whereNotNull('tanggal_masuk_pengganti')->get();
+        $claimed = $aktif->pluck('tanggal_masuk_pengganti')->flatten()
+            ->map(fn($d) => Carbon::parse($d)->toDateString())->all();
+        $pendingClaimed = $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')
+            ->sum(fn($p) => count((array) $p->tanggal_masuk_pengganti));
+
+        $unclaimed = EmployeeSchedule::where('employee_id', $employeeId)
+            ->pluck('date')
+            ->map(fn($d) => Carbon::parse($d)->toDateString())
+            ->unique()
+            ->filter(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true))
+            ->count();
+
+        return max(0, $saldo - $unclaimed - $pendingClaimed);
+    }
+
+    /**
+     * Manually added jatah ganti libur must name the Sundays / holidays actually worked, one per day added;
+     * those dates are added to the employee's schedule. Must run inside a transaction.
+     */
+    private function tambahHariMasuk(JatahLibur $jatah, int $tambah, array $rows): void
+    {
+        if (count($rows) !== max(0, $tambah)) {
+            throw ValidationException::withMessages(['hari_masuk' => $tambah > 0
+                ? 'Jatah ganti libur bertambah ' . $tambah . ' hari, pilih tepat ' . $tambah . ' tanggal hari masuk (dipilih ' . count($rows) . ').'
+                : 'Tanggal hari masuk hanya diisi saat jatah ganti libur ditambah.']);
+        }
+
+        $holidays = LiburNasional::namesByDate();
+
+        foreach ($rows as $row) {
+            $date = Carbon::parse($row['date'])->toDateString();
+            $label = Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y');
+
+            if (!LiburNasional::isHariGantiLibur($date, $holidays)) {
+                throw ValidationException::withMessages(['hari_masuk' => $label . ' bukan hari Minggu atau libur nasional.']);
+            }
+            if (EmployeeSchedule::where('employee_id', $jatah->employee_id)->whereDate('date', $date)->exists()) {
+                throw ValidationException::withMessages(['hari_masuk' => $label . ' sudah ada di jadwal karyawan (jatahnya sudah dihitung).']);
+            }
+
+            EmployeeSchedule::create([
+                'employee_id' => $jatah->employee_id,
+                'date' => $date,
+                'shift_id' => $row['shift_id'],
+            ]);
+        }
     }
 
     public function getLeaveCapacity()
@@ -81,6 +164,14 @@ class JatahLiburController extends Controller
             ->addColumn('division', function ($jatah) {
                 return $jatah->division ?? 'N/A';
             })
+            ->editColumn('jatah_ganti_libur', function ($jatah) use (&$holidays) {
+                $holidays ??= LiburNasional::namesByDate();
+                $tanpaTanggal = $this->saldoTanpaTanggal($jatah->employee_id, (int) $jatah->jatah_ganti_libur, $holidays);
+
+                return (int) $jatah->jatah_ganti_libur . ($tanpaTanggal > 0
+                    ? ' <span class="badge badge-warning" title="Saldo tanpa hari masuk di jadwal; karyawan tidak bisa memakainya sampai hari masuknya ditambahkan">' . $tanpaTanggal . ' tanpa tanggal</span>'
+                    : '');
+            })
             ->addColumn('action', function ($jatah) {
                 return '
                     <button type="button" class="btn btn-sm btn-info edit-jatah-libur" data-id="'.$jatah->id.'">
@@ -88,23 +179,28 @@ class JatahLiburController extends Controller
                     </button>
                 ';
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['jatah_ganti_libur', 'action'])
             ->make(true);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $request->validate(array_merge([
             'employee_id' => 'required|exists:hrd_employee,id|unique:hrd_jatah_libur,employee_id',
             'jatah_cuti_tahunan' => 'required|integer|min:0',
-            'jatah_ganti_libur' => 'required|integer|min:0'
-        ]);
+            'jatah_ganti_libur' => 'required|integer|min:0',
+        ], $this->hariMasukRules()), $this->hariMasukMessages());
 
-        $jatahLibur = JatahLibur::create([
-            'employee_id' => $request->employee_id,
-            'jatah_cuti_tahunan' => $request->jatah_cuti_tahunan,
-            'jatah_ganti_libur' => $request->jatah_ganti_libur
-        ]);
+        $jatahLibur = DB::transaction(function () use ($request) {
+            $jatahLibur = JatahLibur::create([
+                'employee_id' => $request->employee_id,
+                'jatah_cuti_tahunan' => $request->jatah_cuti_tahunan,
+                'jatah_ganti_libur' => $request->jatah_ganti_libur,
+            ]);
+            $this->tambahHariMasuk($jatahLibur, (int) $request->jatah_ganti_libur, $request->input('hari_masuk', []));
+
+            return $jatahLibur->fresh();
+        });
 
         return response()->json([
             'success' => true,
@@ -116,22 +212,30 @@ class JatahLiburController extends Controller
     public function show($id)
     {
         $jatahLibur = JatahLibur::findOrFail($id);
-        return response()->json($jatahLibur);
+
+        return response()->json($jatahLibur->toArray() + [
+            'ganti_libur_tanpa_tanggal' => $this->saldoTanpaTanggal($jatahLibur->employee_id, (int) $jatahLibur->jatah_ganti_libur, LiburNasional::namesByDate()),
+        ]);
     }
 
     public function update(Request $request, $id)
     {
-        $jatahLibur = JatahLibur::findOrFail($id);
-
-        $request->validate([
+        $request->validate(array_merge([
             'jatah_cuti_tahunan' => 'required|integer|min:0',
-            'jatah_ganti_libur' => 'required|integer|min:0'
-        ]);
+            'jatah_ganti_libur' => 'required|integer|min:0',
+        ], $this->hariMasukRules()), $this->hariMasukMessages());
 
-        $jatahLibur->update([
-            'jatah_cuti_tahunan' => $request->jatah_cuti_tahunan,
-            'jatah_ganti_libur' => $request->jatah_ganti_libur
-        ]);
+        $jatahLibur = DB::transaction(function () use ($request, $id) {
+            $jatahLibur = JatahLibur::lockForUpdate()->findOrFail($id);
+            $tambah = (int) $request->jatah_ganti_libur - (int) $jatahLibur->jatah_ganti_libur;
+            $this->tambahHariMasuk($jatahLibur, $tambah, $request->input('hari_masuk', []));
+            $jatahLibur->update([
+                'jatah_cuti_tahunan' => $request->jatah_cuti_tahunan,
+                'jatah_ganti_libur' => $request->jatah_ganti_libur,
+            ]);
+
+            return $jatahLibur->fresh();
+        });
 
         return response()->json([
             'success' => true,

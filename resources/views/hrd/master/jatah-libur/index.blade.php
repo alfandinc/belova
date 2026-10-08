@@ -104,6 +104,14 @@
                         <label for="jatah_ganti_libur">Jatah Ganti Libur <span class="text-danger">*</span></label>
                         <input type="number" class="form-control" id="jatah_ganti_libur" name="jatah_ganti_libur" min="0" value="0" required>
                         <div class="invalid-feedback" id="jatah_ganti_libur-error"></div>
+                        <span class="badge badge-warning d-none mt-1" id="ganti_libur_tanpa_tanggal"></span>
+                    </div>
+
+                    <div class="form-group mb-0 d-none" id="hariMasukGroup">
+                        <label>Hari Masuk Minggu / Libur Nasional <span class="text-danger">*</span></label>
+                        <div id="hariMasukRows"></div>
+                        <div class="invalid-feedback d-block" id="hari_masuk-error"></div>
+                        <small class="form-text text-muted">Satu tanggal untuk tiap hari jatah yang ditambahkan. Tanggal otomatis ditambahkan ke jadwal karyawan dengan shift yang dipilih.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -214,6 +222,65 @@
             });
         });
 
+        // ===================== Hari masuk (Minggu / libur nasional) =====================
+        var TODAY = "{{ now()->toDateString() }}";
+        var liburNasional = @json($liburNasional);
+        var shiftOptions = '<option value="">Pilih Shift</option>' + $.map(@json($shifts), function (s) {
+            return '<option value="' + s.id + '">' + $('<div>').text(s.name + ' (' + String(s.start_time).substr(0, 5) + '–' + String(s.end_time).substr(0, 5) + ')').html() + '</option>';
+        }).join('');
+
+        function renumberHariMasuk() {
+            $('#hariMasukRows .hari-masuk-row').each(function (i) {
+                $(this).find('.hm-date').attr('name', 'hari_masuk[' + i + '][date]');
+                $(this).find('.hm-shift').attr('name', 'hari_masuk[' + i + '][shift_id]');
+            });
+        }
+
+        var gantiLiburAwal = 0; // saved value; each day added above it needs a worked date
+
+        function resetHariMasuk(saldo, tanpaTanggal) {
+            gantiLiburAwal = parseInt(saldo, 10) || 0;
+            $('#jatah_ganti_libur').val(gantiLiburAwal);
+            $('#hariMasukRows').empty();
+            $('#hari_masuk-error').text('');
+            $('#ganti_libur_tanpa_tanggal').toggleClass('d-none', !(tanpaTanggal > 0))
+                .text(tanpaTanggal > 0 ? tanpaTanggal + ' hari belum punya tanggal masuk' : '');
+            syncHariMasukRows();
+        }
+
+        // One date + shift row per day added; rows already filled in are kept
+        function syncHariMasukRows() {
+            var need = Math.max(0, (parseInt($('#jatah_ganti_libur').val(), 10) || 0) - gantiLiburAwal);
+            var $rows = $('#hariMasukRows .hari-masuk-row');
+            $rows.slice(need).remove();
+            for (var i = $rows.length; i < need; i++) {
+                $('#hariMasukRows').append(
+                    '<div class="form-row hari-masuk-row mb-2">'
+                    + '<div class="col-6"><input type="date" class="form-control form-control-sm hm-date" max="' + TODAY + '" required></div>'
+                    + '<div class="col-6"><select class="form-control form-control-sm hm-shift" required>' + shiftOptions + '</select></div>'
+                    + '<div class="col-12 small hm-note"></div></div>'
+                );
+            }
+            $('#hariMasukGroup').toggleClass('d-none', need === 0);
+            renumberHariMasuk();
+        }
+
+        $('#jatah_ganti_libur').on('input change', syncHariMasukRows);
+
+        $('#hariMasukRows').on('change', '.hm-date', function () {
+            var d = this.value, $note = $(this).closest('.hari-masuk-row').find('.hm-note');
+            if (!d) { $note.text(''); return; }
+            if (d > TODAY) {
+                $note.attr('class', 'col-12 small hm-note text-danger').text('Tanggal tidak boleh setelah hari ini.');
+            } else if (liburNasional[d]) {
+                $note.attr('class', 'col-12 small hm-note text-success').text('Libur nasional: ' + liburNasional[d]);
+            } else if (new Date(d + 'T00:00:00').getDay() === 0) {
+                $note.attr('class', 'col-12 small hm-note text-success').text('Hari Minggu');
+            } else {
+                $note.attr('class', 'col-12 small hm-note text-danger').text('Bukan hari Minggu / libur nasional.');
+            }
+        });
+
         // Initialize select2 for employee dropdown
         $('#employee_id').select2({
             dropdownParent: $('#jatahLiburModal'),
@@ -236,7 +303,8 @@
             
             // Load employees without jatah libur
             loadEmployeesWithoutJatahLibur();
-            
+            resetHariMasuk(0, 0);
+
             $('.invalid-feedback').text('');
             $('#jatahLiburModal').modal('show');
         });
@@ -373,10 +441,16 @@
                     $('#saveJatahLibur').attr('disabled', false).html('Simpan');
                     if (xhr.status === 422) {
                         var errors = xhr.responseJSON.errors;
+                        var hariMasukErrors = [];
                         $.each(errors, function(key, value) {
+                            if (key.indexOf('hari_masuk') === 0) {
+                                if ($.inArray(value[0], hariMasukErrors) === -1) hariMasukErrors.push(value[0]);
+                                return;
+                            }
                             $('#' + key).addClass('is-invalid');
                             $('#' + key + '-error').text(value[0]);
                         });
+                        $('#hari_masuk-error').text(hariMasukErrors.join(' '));
                     } else if (xhr.status === 500) {
                         Swal.fire({
                             title: 'Error!',
@@ -405,7 +479,7 @@
                     $('#jatahLiburModalLabel').text('Edit Jatah Libur');
                     $('#jatah_libur_id').val(response.id);
                     $('#jatah_cuti_tahunan').val(response.jatah_cuti_tahunan);
-                    $('#jatah_ganti_libur').val(response.jatah_ganti_libur);
+                    resetHariMasuk(response.jatah_ganti_libur, response.ganti_libur_tanpa_tanggal);
                     
                     // Hide employee selection when editing and remove required attribute
                     $('#employee_selection_group').hide();
