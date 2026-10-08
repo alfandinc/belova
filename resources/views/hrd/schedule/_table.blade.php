@@ -74,7 +74,8 @@
                             @else
                                 <td class="sc {{ $date === $today ? 'is-today' : '' }}" data-col="{{ $i }}"
                                     data-emp="{{ $employee->id }}" data-date="{{ $date }}"
-                                    data-shifts="{{ $ids }}" data-orig="{{ $ids }}"></td>
+                                    data-shifts="{{ $ids }}" data-orig="{{ $ids }}"
+                                    @if($ids === 'GL') data-gl-masuk="{{ $first->hari_masuk }}" data-gl-orig="{{ $first->hari_masuk }}" @endif></td>
                             @endif
                         @endforeach
                     </tr>

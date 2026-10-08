@@ -99,7 +99,7 @@
         </div>
         <div id="sched-help" class="collapse small text-muted sched-help mt-2">
             <b>Pilih sel:</b> klik / tarik (drag) untuk blok, <kbd>Shift</kbd>+klik untuk rentang, <kbd>Ctrl</kbd>+klik tambah sel, klik nama karyawan = 1 minggu, klik header hari = 1 kolom.
-            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>G</kbd> = ganti libur (jatah -1); <kbd>Del</kbd> kosongkan.
+            &nbsp;<b>Isi:</b> klik shift di palet/popup atau tekan <kbd>1</kbd>–<kbd>9</kbd>; <kbd>Shift</kbd>+angka = tambah sebagai shift kedua (double shift); <kbd>G</kbd> = ganti libur (jatah -1, pilih hari masuk yang diganti; G lagi = ubah); <kbd>Del</kbd> kosongkan.
             &nbsp;<b>Lainnya:</b> <kbd>←↑↓→</kbd> pindah sel, <kbd>Enter</kbd> buka pilihan, <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Ctrl+Z</kbd> undo, <kbd>Ctrl+S</kbd> simpan, <kbd>Esc</kbd> batal pilih.
         </div>
     </div>
@@ -214,6 +214,7 @@
         copyWeek: "{{ route('hrd.schedule.copy_week') }}",
         print: "{{ route('hrd.schedule.print') }}",
         rekapLibur: "{{ route('hrd.schedule.rekap_hari_libur') }}",
+        hariMasuk: "{{ route('hrd.schedule.hari_masuk_tersedia') }}",
         shiftStore: "{{ route('hrd.master.shift.store') }}",
         shiftUpdate: "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}",
         shiftDestroy: "{{ route('hrd.master.shift.destroy', ['shift' => '__ID__']) }}"
@@ -267,13 +268,23 @@
     // ---------- cell state ----------
     function getIds(td) { var v = td.getAttribute('data-shifts'); return v ? v.split(',') : []; }
     function isEditable(td) { return td && td.classList.contains('sc') && !td.hasAttribute('data-libur'); }
+    // Ganti libur cells also carry the Sunday / holiday worked that they replace (data-gl-masuk)
+    function isDirty(td) {
+        var shifts = td.getAttribute('data-shifts') || '';
+        return shifts !== (td.getAttribute('data-orig') || '')
+            || (shifts === 'GL' && (td.getAttribute('data-gl-masuk') || '') !== (td.getAttribute('data-gl-orig') || ''));
+    }
+    var HARI = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    var BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    function shortDate(s) { var d = parseYmd(s); return HARI[d.getDay()] + ' ' + d.getDate() + ' ' + BULAN[d.getMonth()]; }
 
     function renderCell(td) {
         var ids = getIds(td);
         if (!ids.length) { td.innerHTML = '<span class="sc-empty">–</span>'; td.title = ''; return; }
         if (ids[0] === 'GL') {
-            td.innerHTML = '<span class="sc-chip sc-gl">Ganti Libur</span>';
-            td.title = 'Ganti libur (jatah ganti libur -1)';
+            var masuk = td.getAttribute('data-gl-masuk');
+            td.innerHTML = '<span class="sc-chip sc-gl">Ganti Libur' + (masuk ? '<small class="d-block">' + esc(shortDate(masuk)) + '</small>' : '') + '</span>';
+            td.title = 'Ganti libur (jatah ganti libur -1)' + (masuk ? '\nMengganti masuk ' + shortDate(masuk) : '\nTanpa tanggal masuk (saldo lama)') + '\nTekan G lagi untuk mengganti hari masuk';
             return;
         }
         var html = '', titles = [];
@@ -288,16 +299,20 @@
         td.title = titles.join('\n');
     }
 
-    function setIds(td, ids, batch) {
+    // glMasuk: for ganti libur, the Sunday / holiday worked it replaces ('' = saldo lama tanpa tanggal)
+    function setIds(td, ids, batch, glMasuk) {
         if (!isEditable(td)) return;
         ids = ids.filter(function (v, i, a) { return v && a.indexOf(v) === i; }).slice(0, 2);
         if (ids.indexOf('GL') !== -1) ids = ['GL']; // ganti libur tidak digabung dengan shift
         var before = td.getAttribute('data-shifts') || '';
+        var beforeMasuk = td.getAttribute('data-gl-masuk') || '';
         var after = ids.join(',');
-        if (before === after) return;
-        if (batch) batch.push({ td: td, before: before });
+        var afterMasuk = after === 'GL' ? (glMasuk !== undefined ? glMasuk : beforeMasuk) : '';
+        if (before === after && beforeMasuk === afterMasuk) return;
+        if (batch) batch.push({ td: td, before: before, beforeMasuk: beforeMasuk });
         td.setAttribute('data-shifts', after);
-        td.classList.toggle('dirty', after !== (td.getAttribute('data-orig') || ''));
+        td.setAttribute('data-gl-masuk', afterMasuk);
+        td.classList.toggle('dirty', isDirty(td));
         renderCell(td);
     }
 
@@ -326,13 +341,92 @@
     }
     function clearShift() { applyToSelection(function () { return []; }); }
     // Tandai hari ganti libur (jatah -1 saat disimpan). Tidak berlaku di hari Minggu / libur nasional.
+    // Tiap sel meminta hari masuk Minggu / libur nasional yang diganti; G lagi di sel GL = ganti pilihan.
+    var pickingGantiLibur = false;
     function setGantiLibur() {
-        var skipped = 0;
-        applyToSelection(function (ids, td) {
-            if (isHariGantiLibur(td)) { skipped++; return ids; }
-            return ['GL'];
+        if (pickingGantiLibur) return;
+        var targets = [], skipped = 0;
+        selected.forEach(function (td) {
+            if (!isEditable(td)) return;
+            if (isHariGantiLibur(td)) { skipped++; return; }
+            targets.push(td);
         });
         if (skipped) showAlert('info', skipped + ' sel hari Minggu/libur nasional dilewati');
+        if (!targets.length) return;
+
+        var batch = [];
+        pickingGantiLibur = true;
+        targets.reduce(function (chain, td) {
+            return chain.then(function (stop) {
+                if (stop) return true;
+                return pickHariMasuk(td).then(function (masuk) {
+                    if (masuk === null) return true; // batal: sel sisanya tidak diproses
+                    if (masuk !== undefined) setIds(td, ['GL'], batch, masuk);
+                    return false;
+                });
+            });
+        }, Promise.resolve(false)).finally(function () {
+            pickingGantiLibur = false;
+            commitBatch(batch);
+        });
+    }
+
+    function employeeName(td) {
+        var cell = td.parentNode.querySelector('.sched-emp');
+        return cell ? cell.childNodes[0].textContent.trim() : '';
+    }
+
+    // Resolves to the chosen date, '' (saldo lama tanpa tanggal), undefined (sel dilewati) or null (batal semua)
+    function pickHariMasuk(td) {
+        var emp = td.getAttribute('data-emp'), date = td.getAttribute('data-date');
+        var url = URLS.hariMasuk + '?employee_id=' + encodeURIComponent(emp)
+            + (td.getAttribute('data-orig') === 'GL' ? '&exclude_libur=' + encodeURIComponent(date) : '');
+        showLoading(true);
+        return fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' } })
+            .then(function (res) { if (!res.ok) throw new Error(); return res.json(); })
+            .finally(function () { showLoading(false); })
+            .then(function (data) {
+                var options = {}, taken = {}, rowCells = document.querySelectorAll('#sched-table td.sc[data-emp="' + emp + '"]');
+                rowCells.forEach(function (c) {
+                    // Dipakai sel ganti libur lain di grid, atau Minggu yang dikosongkan tapi belum disimpan
+                    if (c !== td && c.getAttribute('data-shifts') === 'GL' && c.getAttribute('data-gl-masuk')) taken[c.getAttribute('data-gl-masuk')] = true;
+                    if (c.classList.contains('dirty') && !c.getAttribute('data-shifts') && isHariGantiLibur(c)) taken[c.getAttribute('data-date')] = true;
+                });
+                (data.dates || []).forEach(function (d) {
+                    if (taken[d.date]) return;
+                    options[d.date] = d.label + ' (' + d.keterangan + (d.shift ? ', ' + d.shift : '') + ')';
+                });
+                // Minggu / libur nasional yang baru diisi di grid ini (disimpan bersamaan)
+                rowCells.forEach(function (c) {
+                    var shifts = c.getAttribute('data-shifts'), d = c.getAttribute('data-date');
+                    if (c.classList.contains('dirty') && shifts && shifts !== 'GL' && isHariGantiLibur(c) && !options[d] && !taken[d]) {
+                        options[d] = shortDate(d) + ' (belum disimpan)';
+                    }
+                });
+                var keys = Object.keys(options).sort();
+                var sorted = {};
+                keys.forEach(function (k) { sorted[k] = options[k]; });
+                var name = employeeName(td);
+                if (!keys.length) {
+                    if (data.saldo < 1) {
+                        return swal.fire({ title: 'Jatah ganti libur habis', text: name + ' tidak punya hari masuk Minggu / libur nasional yang belum dipakai.', icon: 'warning' })
+                            .then(function () { return undefined; });
+                    }
+                    sorted[''] = 'Tanpa tanggal (saldo lama: ' + data.saldo + ' hari)';
+                }
+                var current = td.getAttribute('data-gl-masuk') || '';
+                return swal.fire({
+                    title: 'Ganti libur ' + name,
+                    html: 'Libur pada <b>' + esc(shortDate(date)) + '</b>.<br>Pilih hari masuk Minggu / libur nasional yang diganti:',
+                    input: 'select',
+                    inputOptions: sorted,
+                    inputValue: sorted.hasOwnProperty(current) ? current : keys[0] || '',
+                    showCancelButton: true,
+                    confirmButtonText: 'Pilih',
+                    cancelButtonText: 'Batal'
+                }).then(function (r) { return r.dismiss ? null : (r.value || ''); });
+            })
+            .catch(function () { showAlert('danger', 'Gagal memuat hari masuk ' + employeeName(td)); return null; });
     }
     function isHariGantiLibur(td) {
         var th = document.querySelector('#sched-table th.sched-day-head[data-col="' + td.getAttribute('data-col') + '"]');
@@ -345,7 +439,8 @@
         batch.reverse().forEach(function (c) {
             if (!document.body.contains(c.td)) return;
             c.td.setAttribute('data-shifts', c.before);
-            c.td.classList.toggle('dirty', c.before !== (c.td.getAttribute('data-orig') || ''));
+            c.td.setAttribute('data-gl-masuk', c.beforeMasuk || '');
+            c.td.classList.toggle('dirty', isDirty(c.td));
             renderCell(c.td);
         });
         refreshStatus();
@@ -570,7 +665,9 @@
         var payload = {};
         dirty.forEach(function (td) {
             var emp = td.getAttribute('data-emp');
-            (payload[emp] = payload[emp] || {})[td.getAttribute('data-date')] = getIds(td);
+            var ids = getIds(td);
+            if (ids[0] === 'GL') ids = ['GL', td.getAttribute('data-gl-masuk') || ''];
+            (payload[emp] = payload[emp] || {})[td.getAttribute('data-date')] = ids;
         });
         saving = true;
         var btn = $id('save-schedule-btn');
@@ -586,6 +683,7 @@
                 if (!data || !data.success) throw new Error((data && data.message) || '');
                 dirty.forEach(function (td) {
                     td.setAttribute('data-orig', td.getAttribute('data-shifts') || '');
+                    td.setAttribute('data-gl-orig', td.getAttribute('data-gl-masuk') || '');
                     td.classList.remove('dirty');
                 });
                 undoStack = [];
@@ -660,7 +758,8 @@
             var row = [];
             for (var c = b.c1; c <= b.c2; c++) {
                 var td = cellAt(b.rows[r], c);
-                row.push(td && selected.has(td) && isEditable(td) ? getIds(td) : null);
+                // Ganti libur is not copied: each one needs its own hari masuk (set it with G)
+                row.push(td && selected.has(td) && isEditable(td) && getIds(td)[0] !== 'GL' ? getIds(td) : null);
             }
             clipboard.push(row);
         }
@@ -672,8 +771,9 @@
         if (!b) return;
         var batch = [];
         if (clipboard.length === 1 && clipboard[0].length === 1) {
-            // single cell -> fill whole selection
-            var ids = clipboard[0][0] || [];
+            // single cell -> fill whole selection (a copied ganti libur cell is null: nothing to paste)
+            if (clipboard[0][0] === null) return;
+            var ids = clipboard[0][0];
             selected.forEach(function (td) { setIds(td, ids.slice(), batch); });
         } else {
             // block -> paste starting at top-left of selection

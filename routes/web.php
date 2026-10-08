@@ -1503,6 +1503,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::post('schedule/copy-week', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'copyWeek'])->name('hrd.schedule.copy_week');
     Route::post('schedule/delete', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'delete'])->name('hrd.schedule.delete');
     Route::get('schedule/rekap-hari-libur', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'rekapHariLibur'])->name('hrd.schedule.rekap_hari_libur');
+    Route::get('schedule/hari-masuk-tersedia', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'hariMasukTersedia'])->name('hrd.schedule.hari_masuk_tersedia');
         Route::post('/dokter-schedule/update-jam/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateJam']);
     // Jadwal Dokter
     Route::get('dokter-schedule', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'index'])->name('hrd.dokter-schedule.index');
