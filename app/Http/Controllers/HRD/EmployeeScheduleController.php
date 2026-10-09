@@ -598,11 +598,13 @@ class EmployeeScheduleController extends Controller
         $nama = Employee::whereKey($employeeId)->value('nama');
 
         if ($request->query('jenis') === 'ganti_libur') {
-            $rincian = PengajuanLibur::rincianGantiLibur($employeeId, LiburNasional::namesByDate());
+            $holidays = LiburNasional::namesByDate();
+            $rincian = PengajuanLibur::rincianGantiLibur($employeeId, $holidays);
             return response()->json([
                 'nama' => $nama,
                 'saldo' => $rincian['ganti_libur_ringkasan']['saldo'],
                 'mulai' => Carbon::parse(LiburNasional::gantiLiburMulai())->locale('id')->translatedFormat('j F Y'),
+                'hari_kosong' => self::canEdit() ? $this->hariKerjaKosong($employeeId, $holidays) : [],
             ] + $rincian);
         }
 
@@ -624,6 +626,50 @@ class EmployeeScheduleController extends Controller
                 ])
                 ->values(),
         ]);
+    }
+
+    /**
+     * Past weekdays (Mon–Sat, not a national holiday, from gantiLiburMulai) without schedule and without any
+     * leave request, in weeks where the employee is scheduled at least 3 days. Older HRD practice recorded a ganti
+     * libur by just emptying that day, so these are candidates to record as ganti libur (newest first).
+     */
+    private function hariKerjaKosong(int $employeeId, array $holidays): array
+    {
+        $from = Carbon::parse(LiburNasional::gantiLiburMulai());
+        $to = Carbon::yesterday();
+        if ($from > $to) {
+            return [];
+        }
+
+        $scheduled = EmployeeSchedule::where('employee_id', $employeeId)
+            ->whereBetween('date', [$from->copy()->startOfWeek()->toDateString(), $to->copy()->endOfWeek()->toDateString()])
+            ->pluck('date')->map(fn($d) => Carbon::parse($d)->toDateString())->unique()->flip();
+        $leaves = PengajuanLibur::where('employee_id', $employeeId)
+            ->where(fn($q) => $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak'))
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak'))
+            ->whereDate('tanggal_mulai', '<=', $to)->whereDate('tanggal_selesai', '>=', $from)
+            ->get(['tanggal_mulai', 'tanggal_selesai']);
+
+        $out = [];
+        for ($d = $from->copy(); $d <= $to; $d->addDay()) {
+            $date = $d->toDateString();
+            if ($d->isSunday() || isset($holidays[$date]) || isset($scheduled[$date])) {
+                continue;
+            }
+            if ($leaves->contains(fn($p) => $d->betweenIncluded(Carbon::parse($p->tanggal_mulai)->startOfDay(), Carbon::parse($p->tanggal_selesai)->startOfDay()))) {
+                continue;
+            }
+            // A normally scheduled week (3+ working days), so an empty day there stands out
+            $daysInWeek = 0;
+            for ($w = $d->copy()->startOfWeek(); $w <= $d->copy()->endOfWeek(); $w->addDay()) {
+                $daysInWeek += isset($scheduled[$w->toDateString()]) ? 1 : 0;
+            }
+            if ($daysInWeek >= 3) {
+                $out[] = ['date' => $date, 'label' => $d->locale('id')->translatedFormat('D, j M Y')];
+            }
+        }
+
+        return array_reverse($out);
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\HRD\Employee;
 use App\Models\HRD\EmployeeSchedule;
 use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanLibur;
+use App\Models\HRD\ScheduleLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -42,6 +43,113 @@ class JatahLiburController extends Controller
             'message' => 'Kuota libur harian berhasil diperbarui',
             'capacity' => HrdConfig::getLeaveDailyCapacity(),
         ]);
+    }
+
+    /**
+     * Ganti libur recorded without a worked day (older data) still leave every worked Sunday / holiday counted
+     * as "bisa dipakai". Pair each of them, oldest libur first, with the oldest free worked days before its libur
+     * (masuk dulu baru libur), so the days it used drop out of the balance. employee_id = one employee, or empty
+     * for everyone. Requests without enough free days are left as they are and reported.
+     */
+    public function pasangkanOtomatis(Request $request)
+    {
+        $request->validate(['employee_id' => 'nullable|integer|exists:hrd_employee,id']);
+        $employeeId = $request->input('employee_id');
+        $mulai = LiburNasional::gantiLiburMulai();
+        $holidays = LiburNasional::namesByDate();
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->isoFormat('D MMM YYYY');
+
+        $result = DB::transaction(function () use ($employeeId, $mulai, $holidays, $fmt) {
+            $requests = PengajuanLibur::gantiLiburAktif($employeeId)
+                ->whereDate('tanggal_mulai', '>=', $mulai)
+                ->orderBy('tanggal_mulai')
+                ->lockForUpdate()
+                ->get()
+                ->filter(fn($p) => empty($p->tanggal_masuk_pengganti));
+
+            $paired = 0;
+            $gagal = [];
+            foreach ($requests as $p) {
+                $free = array_values(array_filter(
+                    PengajuanLibur::hariMasukBelumDipakai($p->employee_id, $holidays),
+                    fn($d) => PengajuanLibur::hariMasukSebelumLibur($d, $p->tanggal_mulai)
+                ));
+                $need = (int) $p->total_hari;
+                if (count($free) < $need) {
+                    $gagal[] = (Employee::whereKey($p->employee_id)->value('nama') ?? '#' . $p->employee_id)
+                        . ' (libur ' . $fmt($p->tanggal_mulai) . ')';
+                    continue;
+                }
+                $days = array_slice($free, 0, $need);
+                $p->update(['tanggal_masuk_pengganti' => $days]);
+                foreach ($days as $d) {
+                    ScheduleLog::record($p->employee_id, $d, null, 'Dipakai ganti libur ' . $fmt($p->tanggal_mulai), 'ganti_libur');
+                }
+                $paired++;
+            }
+
+            return ['paired' => $paired, 'gagal' => $gagal];
+        });
+
+        return response()->json(['success' => true] + $result);
+    }
+
+    /**
+     * Record a past weekday that HRD once emptied in the schedule as the ganti libur it was, paired with the
+     * worked Sunday / holiday it used ($id = employee id). Same record as marking the cell G in the grid.
+     */
+    public function jadikanGantiLibur(Request $request, $id)
+    {
+        $request->validate([
+            'libur' => 'required|date_format:Y-m-d|before:today',
+            'hari_masuk' => 'required|date_format:Y-m-d',
+        ]);
+        Employee::findOrFail($id);
+        $libur = $request->input('libur');
+        $hariMasuk = $request->input('hari_masuk');
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->translatedFormat('l, j F Y');
+        $fail = fn(string $msg) => throw ValidationException::withMessages(['libur' => $msg]);
+
+        DB::transaction(function () use ($id, $libur, $hariMasuk, $fmt, $fail) {
+            JatahLibur::lockForUpdate()->firstOrCreate(['employee_id' => $id], ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]);
+            $holidays = LiburNasional::namesByDate();
+
+            if (LiburNasional::isHariGantiLibur($libur, $holidays) || Carbon::parse($libur)->isSunday()) {
+                $fail($fmt($libur) . ' adalah hari Minggu / libur nasional.');
+            }
+            if (EmployeeSchedule::where('employee_id', $id)->whereDate('date', $libur)->exists()) {
+                $fail($fmt($libur) . ' masih ada jadwal masuk.');
+            }
+            $adaLibur = PengajuanLibur::where('employee_id', $id)
+                ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak'))
+                ->where(fn($q) => $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak'))
+                ->whereDate('tanggal_mulai', '<=', $libur)->whereDate('tanggal_selesai', '>=', $libur)
+                ->exists();
+            if ($adaLibur) {
+                $fail($fmt($libur) . ' sudah tercatat sebagai libur / cuti.');
+            }
+            if (!PengajuanLibur::hariMasukSebelumLibur($hariMasuk, $libur)
+                || !in_array($hariMasuk, PengajuanLibur::hariMasukBelumDipakai($id, $holidays), true)) {
+                $fail($fmt($hariMasuk) . ' tidak bisa dipakai: harus hari masuk Minggu / libur nasional yang belum dipakai dan sebelum ' . $fmt($libur) . '.');
+            }
+
+            PengajuanLibur::create([
+                'employee_id' => $id,
+                'jenis_libur' => 'ganti_libur',
+                'tanggal_masuk_pengganti' => [$hariMasuk],
+                'tanggal_mulai' => $libur,
+                'tanggal_selesai' => $libur,
+                'alasan' => EmployeeScheduleController::GANTI_LIBUR_HRD,
+                'status_manager' => 'disetujui',
+                'tanggal_persetujuan_manager' => now(),
+                'status_hrd' => 'disetujui',
+                'notes_hrd' => 'Dicatat ulang dari jadwal lama oleh ' . (auth()->user()->name ?? 'HRD'),
+                'tanggal_persetujuan_hrd' => now(),
+            ]);
+            ScheduleLog::record($id, $libur, null, ScheduleLog::stateOf($id, $libur), 'ganti_libur');
+        });
+
+        return response()->json(['success' => true]);
     }
 
     /** Set the remaining jatah cuti tahunan of an employee ($id = employee id). */

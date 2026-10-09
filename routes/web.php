@@ -1613,7 +1613,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::post('/reset-annual', [App\Http\Controllers\HRD\JatahLiburController::class, 'resetAnnualLeave'])->name('reset_annual');
             Route::get('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'getLeaveCapacity'])->name('leave_capacity.get');
             Route::post('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateLeaveCapacity'])->name('leave_capacity.update');
-            Route::put('/{employee}/cuti', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateCuti'])->name('cuti.update');
+            Route::post('/pasangkan-otomatis', [App\Http\Controllers\HRD\JatahLiburController::class, 'pasangkanOtomatis'])->name('pasangkan_otomatis');
+            Route::post('/{employee}/jadikan-ganti-libur', [App\Http\Controllers\HRD\JatahLiburController::class, 'jadikanGantiLibur'])->name('jadikan_ganti_libur');
+            Route::put('/{employee}/cuti',[App\Http\Controllers\HRD\JatahLiburController::class, 'updateCuti'])->name('cuti.update');
             Route::put('/{employee}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateHariMasuk'])->name('hari-masuk.update');
         });
 
