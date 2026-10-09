@@ -99,6 +99,15 @@
     .riwayat-table { font-size: 13px; text-align: left; margin-bottom: 0; }
     .riwayat-table th { font-size: 12px; white-space: nowrap; }
     .riwayat-wrap { max-height: 55vh; overflow-y: auto; }
+    /* Ganti libur matcher: worked Sundays (left) ↔ weekdays off (right) */
+    .gl-match { border: 1px solid #e3e7ef; border-radius: 6px; padding: 10px; background: #fafbfd; }
+    .gl-col-title { font-size: 12px; font-weight: 700; color: #495057; margin-bottom: 4px; }
+    .gl-list { max-height: 260px; overflow-y: auto; border: 1px solid #e3e7ef; border-radius: 4px; background: #fff; }
+    .gl-item { display: block; margin: 0; padding: 6px 8px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f1f3f7; }
+    .gl-item:last-child { border-bottom: 0; }
+    .gl-item:hover { background: #f3f7ff; }
+    .gl-item input { margin-right: 6px; }
+    .gl-item:has(input:checked) { background: #e3eeff; font-weight: 600; }
 </style>
 
 <div class="container-fluid{{ $canEdit ? '' : ' sched-readonly' }}">
@@ -695,57 +704,68 @@
             : '<p class="text-muted mb-0">Belum ada pengajuan cuti.</p>');
     }
 
+    // Ganti libur modal, kept simple: what can still be used, a two-column matcher for HRD (worked Sunday ↔
+    // weekday off), and the pairs already matched.
     function riwayatGantiLiburHtml(data) {
         var r = data.ganti_libur_ringkasan || {};
+        var tersedia = riwayat.rows.filter(function (x) { return x.status === 'tersedia'; }).slice().reverse(); // oldest first
+        var terjadwal = riwayat.rows.filter(function (x) { return x.status === 'terjadwal'; });
+        var tanpaTanggal = riwayat.rows.filter(function (x) { return !x.date && x.pengajuan_id; });
+        var dipakai = riwayat.rows.filter(function (x) { return x.date && x.pengajuan_id; });
+        var kosong = (data.hari_kosong || []).slice().reverse();
+
         var html = '<p class="mb-1">Bisa dipakai: <b>' + data.saldo + ' hari</b>'
             + (r.terjadwal ? ' · ' + r.terjadwal + ' terjadwal (belum dikerjakan)' : '')
             + (r.diajukan ? ' · ' + r.diajukan + ' diajukan' : '') + '</p>'
-            + '<p class="small text-muted mb-2">Hari masuk Minggu / libur nasional dihitung mulai ' + esc(data.mulai) + '.'
-            + (CAN_MANAGE_JATAH ? ' Hari masuk yang tidak tercatat: isi shift di hari Minggu / libur nasional tersebut di jadwal.' : '') + '</p>';
-        // Ganti libur without a worked day: the days they used are still counted as "bisa dipakai"
-        var tanpaTanggal = riwayat.rows.filter(function (x) { return !x.date && x.pengajuan_id; }).length;
-        if (tanpaTanggal && CAN_MANAGE_JATAH) {
-            html += '<div class="alert alert-warning py-2 d-flex align-items-center flex-wrap" id="rw-tanpa-tanggal">'
-                + '<span class="mr-2"><b>' + tanpaTanggal + ' ganti libur tanpa tanggal masuk.</b> Hari masuk yang dipakainya masih terhitung "bisa dipakai".</span>'
-                + '<button type="button" class="btn btn-sm btn-warning rw-pasangkan"><i class="fa fa-link"></i> Pasangkan otomatis</button>'
-                + '<div class="w-100 small text-muted mt-1">Tiap ganti libur dipasangkan dengan hari masuk terlama yang belum dipakai sebelum tanggal liburnya. Bisa diubah lagi lewat tombol pensil.</div>'
-                + '<div class="w-100 small text-danger rw-error"></div></div>';
+            + '<p class="small text-muted mb-3">Dihitung mulai ' + esc(data.mulai) + '.</p>';
+
+        if (CAN_MANAGE_JATAH) {
+            var masukItems = tersedia.map(function (x) {
+                return '<label class="gl-item"><input type="radio" name="gl-masuk" value="' + x.date + '"> '
+                    + esc(x.masuk) + (x.keterangan && x.keterangan !== 'Hari Minggu' ? ' <small class="text-muted">' + esc(x.keterangan) + '</small>' : '') + '</label>';
+            }).join('');
+            var liburItems = kosong.map(function (k) {
+                return '<label class="gl-item"><input type="radio" name="gl-libur" value="kosong:' + k.date + '" data-date="' + k.date + '"> '
+                    + esc(k.label) + ' <small class="text-muted">tanpa jadwal</small></label>';
+            }).concat(tanpaTanggal.map(function (x) {
+                return '<label class="gl-item"><input type="radio" name="gl-libur" value="gl:' + x.pengajuan_id + '" data-date="' + x.libur_mulai + '"> '
+                    + esc(x.libur) + ' <small class="text-muted">ganti libur tanpa tanggal masuk</small></label>';
+            })).join('');
+            html += '<div class="gl-match mb-3">'
+                + '<div class="small text-muted mb-2">Pilih hari masuk di kiri dan hari liburnya di kanan, lalu klik <b>Cocokkan</b>. Hari masuk yang sudah dicocokkan tidak dihitung lagi.</div>'
+                + '<div class="row">'
+                + '<div class="col-6"><div class="gl-col-title">Masuk hari Minggu / libur nasional</div><div class="gl-list">'
+                + (masukItems || '<div class="text-muted small p-2">Tidak ada yang belum dipakai.</div>') + '</div></div>'
+                + '<div class="col-6"><div class="gl-col-title">Hari kerja tanpa jadwal</div><div class="gl-list">'
+                + (liburItems || '<div class="text-muted small p-2">Tidak ada.</div>') + '</div></div>'
+                + '</div>'
+                + '<div class="d-flex align-items-center mt-2"><button type="button" class="btn btn-primary btn-sm rw-cocokkan" disabled><i class="fa fa-link"></i> Cocokkan</button>'
+                + '<span class="small ml-2 rw-match-info"></span></div></div>';
+        } else if (tersedia.length) {
+            html += '<div class="mb-3"><div class="gl-col-title">Bisa dipakai</div>'
+                + tersedia.map(function (x) { return '<span class="badge badge-success mr-1 mb-1">' + esc(x.masuk) + '</span>'; }).join('') + '</div>';
         }
-        // Weekdays HRD once emptied instead of recording a ganti libur: record them so the Sunday they used drops out
-        var kosong = data.hari_kosong || [];
-        if (kosong.length && CAN_MANAGE_JATAH) {
-            html += '<details class="alert alert-info py-2 mb-2" id="rw-kosong"' + (tanpaTanggal ? '' : ' open') + '>'
-                + '<summary><b>' + kosong.length + ' hari kerja kosong</b> (tanpa jadwal &amp; tanpa libur). Jika itu ganti libur lama, catat di sini agar hari Minggu yang dipakai tidak terhitung lagi.</summary>'
-                + '<table class="table table-sm mb-0 mt-2 bg-white riwayat-table"><tbody>'
-                + kosong.map(function (k) {
-                    var free = riwayat.rows.filter(function (x) { return x.status === 'tersedia' && x.date < k.date; });
-                    return '<tr data-date="' + k.date + '"><td class="text-nowrap align-middle">' + esc(k.label) + '</td><td>'
-                        + (free.length
-                            ? '<select class="form-control form-control-sm rw-kosong-select">' + free.map(function (x) {
-                                return '<option value="' + x.date + '">Masuk ' + esc(x.masuk + (x.keterangan ? ' – ' + x.keterangan : '')) + '</option>';
-                            }).join('') + '</select>'
-                            : '<span class="small text-muted">Tidak ada hari masuk yang belum dipakai sebelum tanggal ini</span>')
-                        + '<div class="small text-danger rw-error"></div></td>'
-                        + '<td class="text-nowrap align-middle">' + (free.length ? '<button type="button" class="btn btn-sm btn-primary py-0 rw-jadikan-gl">Jadikan ganti libur</button>' : '') + '</td></tr>';
-                }).join('') + '</tbody></table></details>';
+
+        if (terjadwal.length) {
+            html += '<div class="mb-3"><div class="gl-col-title">Terjadwal (bisa dipakai setelah dikerjakan)</div>'
+                + terjadwal.map(function (x) { return '<span class="badge badge-info mr-1 mb-1">' + esc(x.masuk) + '</span>'; }).join('') + '</div>';
         }
-        return html + (riwayat.rows.length
-            ? '<div class="riwayat-wrap"><table class="table table-sm table-bordered riwayat-table"><thead><tr><th>Tanggal masuk</th><th>Shift</th><th>Libur pengganti</th><th>Status</th>'
+
+        html += '<div class="gl-col-title">Sudah dicocokkan</div>';
+        html += dipakai.length
+            ? '<div class="riwayat-wrap"><table class="table table-sm table-bordered riwayat-table mb-0"><thead><tr><th>Masuk</th><th>Libur pengganti</th><th>Status</th>'
                 + (CAN_MANAGE_JATAH ? '<th></th>' : '') + '</tr></thead><tbody>'
-                + riwayat.rows.map(function (x, i) {
-                    return '<tr data-i="' + i + '"><td class="rw-masuk">' + (x.masuk ? esc(x.masuk) + (x.keterangan ? '<div class="small text-muted">' + esc(x.keterangan) + '</div>' : '') : '<span class="text-muted">tanpa tanggal</span>') + '</td>'
-                        + '<td>' + esc(x.shift || '-') + '</td>'
-                        + '<td>' + (x.libur ? esc(x.libur) + (x.jumlah_hari > 1 ? ' (' + x.jumlah_hari + ' hari)' : '') : '-')
+                + dipakai.map(function (x) {
+                    var i = riwayat.rows.indexOf(x);
+                    return '<tr data-i="' + i + '"><td class="rw-masuk">' + esc(x.masuk) + '</td>'
+                        + '<td>' + esc(x.libur) + (x.jumlah_hari > 1 ? ' (' + x.jumlah_hari + ' hari)' : '')
                         + (x.terbalik ? '<div class="small text-danger">libur sebelum hari masuk</div>' : '') + '</td>'
                         + '<td>' + riwayatBadge(x.status) + '</td>'
-                        + (CAN_MANAGE_JATAH ? '<td class="text-nowrap rw-act">' + (x.pengajuan_id
-                            ? (x.date
-                                ? '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 rw-edit-masuk" title="Ubah hari masuk yang diganti libur ini"><i class="fa fa-pen"></i></button>'
-                                : '<button type="button" class="btn btn-sm btn-outline-warning py-0 px-1 rw-edit-masuk" title="Pilih hari masuk yang dipakai libur ini"><i class="fa fa-link"></i> Pasangkan</button>')
-                            : '') + '</td>' : '')
+                        + (CAN_MANAGE_JATAH ? '<td class="text-nowrap rw-act"><button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 rw-edit-masuk" title="Ganti hari masuknya"><i class="fa fa-pen"></i></button></td>' : '')
                         + '</tr>';
                 }).join('') + '</tbody></table></div>'
-            : '<p class="text-muted mb-0">Belum ada hari masuk Minggu / libur nasional.</p>');
+            : '<p class="text-muted small mb-0">Belum ada.</p>';
+        return html;
     }
 
     // Inline edits inside the riwayat modal (HRD / Admin)
@@ -804,25 +824,34 @@
             .catch(function (err) { $btn.prop('disabled', false); $tr.find('.rw-error').text(err.message); });
     });
 
-    $(document).on('click', '#riwayatModal .rw-pasangkan', function () {
+    // Matcher: enable "Cocokkan" once both sides are picked; the worked day must come before the day off
+    $(document).on('change', '#riwayatModal input[name="gl-masuk"], #riwayatModal input[name="gl-libur"]', function () {
+        var masuk = $('#riwayatModal input[name="gl-masuk"]:checked').val();
+        var $libur = $('#riwayatModal input[name="gl-libur"]:checked');
+        var $info = $('#riwayatModal .rw-match-info').removeClass('text-danger').text('');
+        var ok = !!(masuk && $libur.length);
+        if (ok && masuk >= $libur.data('date')) {
+            ok = false;
+            $info.addClass('text-danger').text('Hari masuk harus sebelum hari liburnya.');
+        } else if (ok) {
+            $info.text(shortDate(masuk) + ' → libur ' + shortDate($libur.data('date')));
+        }
+        $('#riwayatModal .rw-cocokkan').prop('disabled', !ok);
+    });
+    $(document).on('click', '#riwayatModal .rw-cocokkan', function () {
         var $btn = $(this).prop('disabled', true), r = riwayat;
-        jatahRequest(URLS.pasangkan, 'POST', { employee_id: r.emp })
-            .then(function (res) {
-                if (res.gagal.length) showAlert('danger', 'Tidak cukup hari masuk sebelum: ' + res.gagal.join(', '));
-                else showAlert('success', res.paired + ' ganti libur dipasangkan');
+        var masuk = $('#riwayatModal input[name="gl-masuk"]:checked').val();
+        var libur = $('#riwayatModal input[name="gl-libur"]:checked').val() || '';
+        var req = libur.indexOf('gl:') === 0
+            // a ganti libur already recorded without a worked day: just name the day
+            ? jatahRequest(URLS.hariMasukUpdate.replace('__ID__', r.emp), 'PUT', { pengajuan_id: libur.slice(3), lama: null, baru: [masuk] })
+            // a weekday HRD once emptied: record it as the ganti libur it was
+            : jatahRequest(URLS.jadikanGl.replace('__ID__', r.emp), 'POST', { libur: libur.slice(7), hari_masuk: masuk });
+        req.then(function () {
+                showAlert('success', 'Dicocokkan: masuk ' + shortDate(masuk));
                 return showRiwayatJatah(r.emp, r.jenis, r.nama);
             })
-            .catch(function (err) { $btn.prop('disabled', false); $('#rw-tanpa-tanggal .rw-error').text(err.message); });
-    });
-
-    $(document).on('click', '#riwayatModal .rw-jadikan-gl', function () {
-        var $btn = $(this).prop('disabled', true), $tr = $btn.closest('tr'), r = riwayat;
-        jatahRequest(URLS.jadikanGl.replace('__ID__', r.emp), 'POST', { libur: $tr.data('date'), hari_masuk: $tr.find('.rw-kosong-select').val() })
-            .then(function () {
-                showAlert('success', 'Ganti libur ' + shortDate($tr.data('date')) + ' dicatat');
-                return showRiwayatJatah(r.emp, r.jenis, r.nama).then(function () { $('#rw-kosong').attr('open', true); });
-            })
-            .catch(function (err) { $btn.prop('disabled', false); $tr.find('.rw-error').text(err.message); });
+            .catch(function (err) { $btn.prop('disabled', false); $('#riwayatModal .rw-match-info').addClass('text-danger').text(err.message); });
     });
 
     // Same for every employee at once (confirmation → swal)
