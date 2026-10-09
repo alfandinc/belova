@@ -73,6 +73,20 @@
     .sel-info { flex: none; font-size: 12px; padding: 3px 8px; border-radius: 4px; background: #f1f3f5; color: #6c757d; white-space: nowrap; }
     .sel-info.has-sel { background: #e3f2fd; color: #0d47a1; font-weight: 600; }
     .sched-palette.no-sel .pal-chip { opacity: .45; }
+    /* Palette can be collapsed (remembered per browser); the shift picker still opens on the selected cells */
+    .sched-palette { flex: 1 1 auto; min-width: 0; }
+    .pal-toggle { flex: none; margin-left: auto; padding: 2px 8px; line-height: 1; }
+    .pal-toggle i { transition: transform .15s; }
+    .sched-palette-row.collapsed .sched-palette { display: none; }
+    .sched-palette-row.collapsed .pal-toggle i { transform: rotate(180deg); }
+    @media (max-width: 767.98px) {
+        .sched-toolbar { position: static; }
+        .sched-palette-row { flex-wrap: wrap; align-items: center; }
+        .sel-info { white-space: normal; flex: 1 1 auto; }
+        /* One swipeable row of shifts instead of many wrapped lines */
+        .sched-palette { order: 3; flex: 0 0 100%; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+        .sched-palette .pal-chip { flex: none; }
+    }
     /* Read-only grid (roles other than Hrd / Admin): hide the editing tools */
     .sched-readonly #undo-btn, .sched-readonly #save-schedule-btn, .sched-readonly .sched-palette-row,
     .sched-readonly .edit-only, .sched-readonly #sched-help { display: none !important; }
@@ -177,9 +191,12 @@
         </div>
 
         {{-- Row 3: what to do now + the shifts to apply --}}
-        <div class="sched-palette-row mt-2">
+        <div class="sched-palette-row mt-2" id="palette-row">
             <div class="sel-info" id="sel-info"></div>
             <div class="sched-palette" id="sched-palette"></div>
+            <button type="button" class="btn btn-sm btn-light pal-toggle" id="palette-toggle" title="Sembunyikan / tampilkan daftar shift" aria-expanded="true">
+                <i class="fa fa-chevron-up"></i>
+            </button>
         </div>
 
         <div id="sched-help" class="collapse small sched-help mt-2">
@@ -1131,6 +1148,18 @@
     }
 
     // ---------- table init (after every load) ----------
+    // The grid scrolls inside its own box (its header row / name column are sticky there), so the box is sized to
+    // end at the bottom of the screen: scrolling then moves the rows, not the page, and the header stays visible.
+    // Desktop: from where the box starts. Phone (toolbar not sticky): a full screen once the toolbar is scrolled away.
+    function fitGridHeight() {
+        var sc = $id('sched-scroll');
+        if (!sc) return;
+        var h = window.innerWidth < 768
+            ? window.innerHeight - 16
+            : window.innerHeight - (sc.getBoundingClientRect().top + window.pageYOffset) - 16;
+        sc.style.maxHeight = Math.max(320, Math.floor(h)) + 'px';
+    }
+
     function initTable() {
         var dataEl = $id('shift-data');
         var shifts = dataEl ? JSON.parse(dataEl.textContent) : [];
@@ -1152,6 +1181,7 @@
         updateWeekNav();
         initShiftDataTable();
         refreshStatus();
+        fitGridHeight();
 
         try {
             if (localStorage.getItem('sched.shiftMgmtOpen') === '1') $('#shift-mgmt-body').addClass('show');
@@ -1446,8 +1476,32 @@
     }
 
     // ---------- events ----------
+    // Collapsible shift palette: choice remembered per browser; collapsed by default on phones
+    function setPaletteCollapsed(collapsed, remember) {
+        var row = $id('palette-row');
+        if (!row) return;
+        row.classList.toggle('collapsed', collapsed);
+        $id('palette-toggle').setAttribute('aria-expanded', String(!collapsed));
+        if (remember) {
+            try { localStorage.setItem('sched-palette-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initTable();
+
+        var stored = null;
+        try { stored = localStorage.getItem('sched-palette-collapsed'); } catch (e) {}
+        setPaletteCollapsed(stored !== null ? stored === '1' : window.innerWidth < 768, false);
+        $id('palette-toggle').addEventListener('click', function () {
+            setPaletteCollapsed(!$id('palette-row').classList.contains('collapsed'), true);
+            fitGridHeight();
+        });
+        // Toolbar height changes (window size, help panel) move where the grid starts
+        var fitTimer;
+        window.addEventListener('resize', function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitGridHeight, 100); });
+        $('#sched-help').on('shown.bs.collapse hidden.bs.collapse', fitGridHeight);
+        fitGridHeight();
 
         var wrapper = $id('jadwal-wrapper');
 
