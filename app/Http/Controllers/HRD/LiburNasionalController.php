@@ -4,7 +4,6 @@ namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
 use App\Models\HRD\EmployeeSchedule;
-use App\Models\HRD\JatahLibur;
 use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanLibur;
 use Carbon\Carbon;
@@ -62,7 +61,7 @@ class LiburNasionalController extends Controller
         $affected = DB::transaction(function () use ($data) {
             $holiday = LiburNasional::create($data);
 
-            return $this->adjustGantiLibur($holiday->tanggal->toDateString(), +1);
+            return $this->scheduledCount($holiday->tanggal->toDateString());
         });
 
         return response()->json([
@@ -94,9 +93,9 @@ class LiburNasionalController extends Controller
                 return 'Libur nasional diperbarui.';
             }
 
-            // Moved to another date: undo the old date's balance, apply the new one
-            $removed = $this->adjustGantiLibur($oldDate, -1);
-            $added = $this->adjustGantiLibur($newDate, +1);
+            // Moved to another date: employees scheduled on the old date lose it, on the new date gain it
+            $removed = $this->scheduledCount($oldDate);
+            $added = $this->scheduledCount($newDate);
 
             return 'Libur nasional diperbarui.' . $this->affectedMessage($removed, -1) . $this->affectedMessage($added, +1);
         });
@@ -116,7 +115,7 @@ class LiburNasionalController extends Controller
             $date = $holiday->tanggal->toDateString();
             $holiday->delete();
 
-            return $this->adjustGantiLibur($date, -1);
+            return $this->scheduledCount($date);
         });
 
         return response()->json([
@@ -126,22 +125,16 @@ class LiburNasionalController extends Controller
     }
 
     /**
-     * +1 / -1 jatah ganti libur for every employee scheduled on $date. Sundays are skipped:
-     * they already earn ganti libur regardless of the holiday list. Returns the number of employees changed.
+     * Employees scheduled on $date, whose ganti libur balance (counted from the schedule) gains or loses this
+     * day. Sundays and days before gantiLiburMulai() are skipped: the holiday list changes nothing for them.
      */
-    private function adjustGantiLibur(string $date, int $delta): int
+    private function scheduledCount(string $date): int
     {
-        if (Carbon::parse($date)->isSunday()) {
+        if (Carbon::parse($date)->isSunday() || $date < LiburNasional::gantiLiburMulai()) {
             return 0;
         }
 
-        $employeeIds = EmployeeSchedule::whereDate('date', $date)->distinct()->pluck('employee_id');
-
-        foreach ($employeeIds as $employeeId) {
-            JatahLibur::adjustGantiLibur($employeeId, $delta);
-        }
-
-        return $employeeIds->count();
+        return EmployeeSchedule::whereDate('date', $date)->distinct()->count('employee_id');
     }
 
     /**
@@ -169,6 +162,6 @@ class LiburNasionalController extends Controller
             return '';
         }
 
-        return ' Jatah ganti libur ' . ($delta > 0 ? '+1' : '-1') . ' untuk ' . $count . ' karyawan yang terjadwal pada tanggal tersebut.';
+        return ' Saldo ganti libur ' . ($delta > 0 ? 'bertambah' : 'berkurang') . ' 1 hari untuk ' . $count . ' karyawan yang terjadwal pada tanggal tersebut.';
     }
 }

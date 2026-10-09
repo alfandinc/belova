@@ -583,6 +583,8 @@
         .menu-sub { font-size:12px; opacity:0.85; margin-top:4px; }
 
         .menu-badge { font-size:12px; padding:4px 8px; border-radius:999px; background: rgba(0,0,0,0.2); }
+        .menu-tile .jv-unread { position: absolute; top: 8px; right: 8px; font-size: 11px; }
+        .jv-perubahan .alert { font-size: 13px; }
 
         .menu-label { position: static; bottom: auto; }
 
@@ -1219,6 +1221,8 @@
                     </div>
                     <div class="menu-title">Jadwal</div>
                     <div class="menu-sub">Cetak & Download</div>
+                    @php $jadwalUnread = Auth::check() ? Auth::user()->unreadNotifications()->where('type', \App\Notifications\JadwalBerubahNotification::class)->count() : 0; @endphp
+                    @if($jadwalUnread)<span class="badge badge-danger jv-unread" title="Jadwal Anda diubah">{{ $jadwalUnread }} perubahan</span>@endif
                 </a>
                 
                 <!-- Events module: marketing event list, patients per event, event billing -->
@@ -1365,6 +1369,7 @@
                                         @endif
                                         <input type="search" class="form-control form-control-sm jv-search" placeholder="{{ $jvPlaceholder }}">
                                     </div>
+                                    @if($jvKey === 'karyawan')<div class="jv-perubahan"></div>@endif
                                     <div class="jv-body"><div class="jv-empty">Memuat jadwal...</div></div>
                                 </div>
                                 @endforeach
@@ -1923,6 +1928,20 @@
                 }).join('');
             }
 
+            // "Jadwal Anda diubah" notifications (sent when HRD changes the viewer's schedule)
+            function renderPerubahan(rows) {
+                var $box = $('.jv-perubahan');
+                if (!rows.length) { $box.empty(); return; }
+                $box.html('<div class="alert alert-warning py-2 mb-2"><b><i class="fas fa-bell mr-1"></i>Jadwal Anda diubah</b>'
+                    + '<ul class="mb-1 pl-3">' + rows.map(function (r) {
+                        return '<li>' + esc(r.pesan) + ' <small class="text-muted">(' + esc(r.oleh) + ', ' + esc(r.waktu) + ')</small></li>';
+                    }).join('') + '</ul><button type="button" class="btn btn-sm btn-outline-dark jv-baca">Oke, sudah dibaca</button></div>');
+            }
+            $(document).on('click', '.jv-baca', function () {
+                $.ajax({ url: "{{ route('hrd.schedule.baca_perubahan') }}", method: 'POST', headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') } })
+                    .done(function () { $('.jv-perubahan').empty(); $('.jv-unread').remove(); });
+            });
+
             function createViewer(key) {
                 var $pane = $('[data-jv-pane="' + key + '"]');
                 var state = { start: mondayOf(new Date()), day: null, mode: null, data: null };
@@ -1934,6 +1953,7 @@
                     $.getJSON(key === 'dokter' ? URL_DOKTER : URL_KARYAWAN, params)
                         .done(function (data) {
                             state.data = data;
+                            if (key === 'karyawan') renderPerubahan(data.perubahan || []);
                             var today = data.dates.filter(function (d) { return d.today; })[0];
                             if (!state.day || !data.dates.some(function (d) { return d.date === state.day; })) {
                                 state.day = today ? today.date : data.dates[0].date;

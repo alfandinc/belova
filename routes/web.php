@@ -1499,11 +1499,14 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
      // ...existing code...
     Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
     Route::get('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'index'])->name('hrd.schedule.index');
-    Route::post('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'store'])->name('hrd.schedule.store');
-    Route::post('schedule/copy-week', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'copyWeek'])->name('hrd.schedule.copy_week');
-    Route::post('schedule/delete', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'delete'])->name('hrd.schedule.delete');
-    Route::get('schedule/rekap-hari-libur', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'rekapHariLibur'])->name('hrd.schedule.rekap_hari_libur');
-    Route::get('schedule/hari-masuk-tersedia', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'hariMasukTersedia'])->name('hrd.schedule.hari_masuk_tersedia');
+    Route::post('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'store'])->name('hrd.schedule.store')->middleware('role:Hrd|Admin');
+    Route::post('schedule/copy-week', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'copyWeek'])->name('hrd.schedule.copy_week')->middleware('role:Hrd|Admin');
+    Route::post('schedule/delete', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'delete'])->name('hrd.schedule.delete')->middleware('role:Hrd|Admin');
+    Route::get('schedule/rekap-hari-libur', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'rekapHariLibur'])->name('hrd.schedule.rekap_hari_libur')->middleware('role:Hrd|Admin');
+    Route::get('schedule/hari-masuk-tersedia', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'hariMasukTersedia'])->name('hrd.schedule.hari_masuk_tersedia')->middleware('role:Hrd|Admin');
+    Route::get('schedule/riwayat-jatah', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'riwayatJatah'])->name('hrd.schedule.riwayat_jatah');
+    Route::post('schedule/perubahan/baca', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'bacaPerubahan'])->name('hrd.schedule.baca_perubahan');
+    Route::get('schedule/logs',[\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'scheduleLogs'])->name('hrd.schedule.logs')->middleware('role:Hrd|Admin');
         Route::post('/dokter-schedule/update-jam/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateJam']);
     // Jadwal Dokter
     Route::get('dokter-schedule', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'index'])->name('hrd.dokter-schedule.index');
@@ -1569,7 +1572,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         Route::put('gantishift/{id}/target-approval', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'targetEmployeeApproval'])->name('hrd.gantishift.target-approval');
 
         // Shift Management (used from Jadwal Karyawan page)
-        Route::prefix('master/shift')->name('hrd.master.shift.')->group(function () {
+        Route::prefix('master/shift')->name('hrd.master.shift.')->middleware('role:Hrd|Admin')->group(function () {
             Route::post('/', [\App\Http\Controllers\HRD\ShiftController::class, 'store'])->name('store');
             Route::put('/{shift}', [\App\Http\Controllers\HRD\ShiftController::class, 'update'])->name('update');
             Route::delete('/{shift}', [\App\Http\Controllers\HRD\ShiftController::class, 'destroy'])->name('destroy');
@@ -1605,20 +1608,13 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::delete('/{id}', [App\Http\Controllers\HRD\LiburNasionalController::class, 'destroy'])->name('destroy');
         });
 
-        // Jatah Libur Management
-        Route::prefix('master/jatah-libur')->name('hrd.master.jatah-libur.')->group(function () {
-            Route::get('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'index'])->name('index');
-            Route::get('/data', [App\Http\Controllers\HRD\JatahLiburController::class, 'getData'])->name('data');
-            Route::get('/employees-without-jatah-libur', [App\Http\Controllers\HRD\JatahLiburController::class, 'getEmployeesWithoutJatahLibur'])->name('employees-without-jatah-libur');
+        // Jatah Libur: HRD actions used from the schedule page (saldo & riwayat are shown there)
+        Route::prefix('master/jatah-libur')->name('hrd.master.jatah-libur.')->middleware('role:Hrd|Admin')->group(function () {
             Route::post('/reset-annual', [App\Http\Controllers\HRD\JatahLiburController::class, 'resetAnnualLeave'])->name('reset_annual');
-            Route::post('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'store'])->name('store');
-            // Leave capacity settings (must be registered before /{id}, otherwise "leave-capacity" is captured as an id)
             Route::get('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'getLeaveCapacity'])->name('leave_capacity.get');
             Route::post('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateLeaveCapacity'])->name('leave_capacity.update');
-            Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
-            Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
-            Route::put('/{id}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateHariMasuk'])->name('hari-masuk.update');
-            Route::post('/{id}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'lengkapiHariMasuk'])->name('hari-masuk.lengkapi');
+            Route::put('/{employee}/cuti', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateCuti'])->name('cuti.update');
+            Route::put('/{employee}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateHariMasuk'])->name('hari-masuk.update');
         });
 
         // Employee Management Routes

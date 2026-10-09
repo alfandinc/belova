@@ -426,14 +426,22 @@ class PengajuanLiburController extends Controller
 
     /**
      * Deduct the request's days from the employee's balance. Must run inside a transaction.
+     * Ganti libur has no stored balance: its claimed worked days are what it uses, so only check they exist.
      *
      * @throws \DomainException when the balance is insufficient
      */
     private function deductJatah(PengajuanLibur $pengajuan): void
     {
+        if ($pengajuan->jenis_libur === 'ganti_libur') {
+            if (count((array) $pengajuan->tanggal_masuk_pengganti) < (int) $pengajuan->total_hari) {
+                throw new \DomainException('Ganti libur ini belum menyebut hari masuk Minggu / libur nasional untuk setiap hari liburnya. Tolak dan minta karyawan mengajukan ulang.');
+            }
+            return;
+        }
+
         $pengajuan->employee->ensureJatahLibur();
         $jatah = JatahLibur::where('employee_id', $pengajuan->employee_id)->lockForUpdate()->firstOrFail();
-        $column = $pengajuan->jenis_libur == 'cuti_tahunan' ? 'jatah_cuti_tahunan' : 'jatah_ganti_libur';
+        $column = 'jatah_cuti_tahunan';
 
         if ((int) $jatah->{$column} < (int) $pengajuan->total_hari) {
             throw new \DomainException('Saldo ' . (self::JENIS_LABEL[$pengajuan->jenis_libur] ?? 'libur')

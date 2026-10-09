@@ -11,6 +11,7 @@ use App\Models\HRD\PositionDivision;
 use App\Models\HRD\JatahLibur;
 use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanLibur;
+use App\Models\HRD\ScheduleLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,12 @@ class EmployeeScheduleController extends Controller
 {
     // Penanda PengajuanLibur yang dibuat HRD langsung dari grid jadwal (nilai sel "GL")
     public const GANTI_LIBUR_HRD = 'Ganti libur ditetapkan HRD dari jadwal';
+
+    // Sama dengan middleware role:Hrd|Admin di route tulis jadwal / shift / jatah
+    public static function canEdit(): bool
+    {
+        return (bool) Auth::user()?->hasAnyRole(['Hrd', 'Admin']);
+    }
 
     /**
      * Delete a schedule entry for an employee and date
@@ -33,8 +40,11 @@ class EmployeeScheduleController extends Controller
         }
 
         $date = Carbon::parse($date)->toDateString();
+        $touched = [$employeeId . '_' . $date => [$employeeId, $date]];
+        $changed = [];
         try {
-            $deleted = DB::transaction(function () use ($employeeId, $date, $scheduleId) {
+            $deleted = DB::transaction(function () use ($employeeId, $date, $scheduleId, $touched, &$changed) {
+                $before = [$employeeId . '_' . $date => ScheduleLog::stateOf($employeeId, $date)];
                 $query = EmployeeSchedule::where('employee_id', $employeeId)->whereDate('date', $date);
                 $before = (clone $query)->count();
 
@@ -44,13 +54,13 @@ class EmployeeScheduleController extends Controller
                 }
                 $deleted = $query->delete();
 
-                // Hari Minggu / libur nasional jadi kosong: sama seperti simpan jadwal (cek klaim, jatah -1)
-                if ($deleted && $deleted === $before && LiburNasional::isHariGantiLibur($date)) {
-                    if ($error = PengajuanLibur::claimedError($employeeId, $date)) {
-                        throw new \DomainException('Jadwal tidak bisa dihapus. ' . $error);
-                    }
-                    JatahLibur::adjustGantiLibur($employeeId, -1);
+                // Hari Minggu / libur nasional jadi kosong: sama seperti simpan jadwal (tidak boleh jika sudah dipakai ganti libur)
+                if ($deleted && $deleted === $before && LiburNasional::isHariGantiLibur($date)
+                    && ($error = PengajuanLibur::claimedError($employeeId, $date))) {
+                    throw new \DomainException('Jadwal tidak bisa dihapus. ' . $error);
                 }
+
+                $changed = $this->logChanges($touched, $before, 'hapus');
 
                 return $deleted;
             });
@@ -59,6 +69,7 @@ class EmployeeScheduleController extends Controller
                 ? response()->json(['success' => false, 'message' => $e->getMessage()], 422)
                 : redirect()->back()->with('error', $e->getMessage());
         }
+        $this->notifyEmployees($changed);
 
         if ($request->ajax()) {
             return response()->json(['success' => $deleted > 0]);
@@ -85,6 +96,12 @@ class EmployeeScheduleController extends Controller
             'allShifts' => $allShifts,
             'schedules' => $schedules,
             'startOfWeek' => $startOfWeek,
+            'jatah' => $this->jatahSummary(collect($employeesByDivision)->flatten(1)->pluck('id')->all()),
+            // Editing the schedule, shifts and leave balances (routes with role:Hrd|Admin); others get a read-only grid
+            'canEdit' => self::canEdit(),
+            'pendingLibur' => $this->pendingLiburMap($dates),
+            // Baseline for the conflict check on save (see conflictError)
+            'loadedAt' => now()->toDateTimeString(),
         ];
         if ($request->ajax()) {
             return view('hrd.schedule._table', $viewData)->render();
@@ -141,6 +158,60 @@ class EmployeeScheduleController extends Controller
         }
 
         return $schedules;
+    }
+
+    /**
+     * Pengajuan libur / cuti yang belum disetujui atasan (dan belum ditolak) di minggu ini: "employeeId_Y-m-d" =>
+     * label. Ditandai di grid supaya HRD tidak menjadwalkan orang yang sedang mengajukan libur di hari itu.
+     */
+    private function pendingLiburMap($dates): array
+    {
+        $map = [];
+        $pending = PengajuanLibur::where(fn($q) => $q->whereNull('status_manager')->orWhere('status_manager', 'menunggu'))
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak'))
+            ->whereDate('tanggal_mulai', '<=', $dates->last())
+            ->whereDate('tanggal_selesai', '>=', $dates->first())
+            ->get();
+        foreach ($pending as $p) {
+            $label = $p->jenis_libur === 'cuti_tahunan' ? 'Cuti diajukan' : 'Libur diajukan';
+            foreach ($dates as $date) {
+                if (Carbon::parse($date)->betweenIncluded(Carbon::parse($p->tanggal_mulai)->startOfDay(), Carbon::parse($p->tanggal_selesai)->startOfDay())) {
+                    $map[$p->employee_id . '_' . $date] = $label;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Saldo cuti tahunan & ganti libur per karyawan untuk kolom rekap di grid jadwal.
+     * Ganti libur dihitung dari jadwal (PengajuanLibur::ringkasanGantiLibur).
+     * employee_id => ['cuti' => int, 'cuti_diajukan' => int, 'gl' => ringkasan]
+     */
+    private function jatahSummary(array $employeeIds): array
+    {
+        $cuti = JatahLibur::whereIn('employee_id', $employeeIds)->pluck('jatah_cuti_tahunan', 'employee_id');
+        // Cuti yang masih menunggu persetujuan (belum dipotong dari saldo)
+        $cutiDiajukan = PengajuanLibur::whereIn('employee_id', $employeeIds)
+            ->where('jenis_libur', 'cuti_tahunan')
+            ->where(fn($q) => $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak'))
+            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', 'menunggu'))
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(total_hari) as total')
+            ->pluck('total', 'employee_id');
+        $gl = PengajuanLibur::ringkasanGantiLiburBatch($employeeIds);
+
+        $out = [];
+        foreach ($employeeIds as $id) {
+            $out[$id] = [
+                'cuti' => (int) ($cuti[$id] ?? 0),
+                'cuti_diajukan' => (int) ($cutiDiajukan[$id] ?? 0),
+                'gl' => $gl[$id],
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -206,7 +277,25 @@ class EmployeeScheduleController extends Controller
             ])->values(),
             'divisions' => $divisions,
             'me' => optional(Auth::user()?->employee)->id,
+            // Unread "jadwal Anda diubah" notifications of the viewer (JadwalBerubahNotification)
+            'perubahan' => Auth::user()
+                ? Auth::user()->unreadNotifications()->where('type', \App\Notifications\JadwalBerubahNotification::class)
+                    ->latest()->limit(20)->get()
+                    ->map(fn($n) => [
+                        'waktu' => $n->created_at->locale('id')->isoFormat('D MMM HH:mm'),
+                        'oleh' => $n->data['sender'] ?? 'HRD',
+                        'pesan' => $n->data['message'] ?? '',
+                    ])->values()
+                : [],
         ]);
+    }
+
+    /** Mark the viewer's "jadwal Anda diubah" notifications as read (dismissed on the main menu schedule). */
+    public function bacaPerubahan()
+    {
+        Auth::user()?->unreadNotifications()->where('type', \App\Notifications\JadwalBerubahNotification::class)->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
     }
 
     // Store/update schedule for a week
@@ -219,7 +308,7 @@ class EmployeeScheduleController extends Controller
         $liburNasional = LiburNasional::namesByDate(); // loaded once, checked per date below
 
         // Sel bernilai ["GL", "Y-m-d"] = hari ganti libur yang ditetapkan HRD + hari masuk Minggu / libur nasional
-        // yang diganti. Diproses setelah jadwal biasa supaya +1 dari kerja hari Minggu di simpanan yang sama sudah masuk saldo.
+        // yang diganti. Diproses setelah jadwal biasa supaya hari Minggu yang diisi di simpanan yang sama sudah ada di jadwal.
         $regular = [];
         $gantiLiburDays = [];
         foreach ($data as $employeeId => $days) {
@@ -233,8 +322,28 @@ class EmployeeScheduleController extends Controller
             }
         }
 
+        // Every day this save touches: checked for conflicts, logged and notified (before -> after)
+        $touched = [];
+        foreach ($regular as $employeeId => $days) {
+            foreach (array_keys($days) as $date) {
+                $touched[$employeeId . '_' . Carbon::parse($date)->toDateString()] = [$employeeId, Carbon::parse($date)->toDateString()];
+            }
+        }
+        foreach ($gantiLiburDays as [$employeeId, $date]) {
+            $touched[$employeeId . '_' . $date] = [$employeeId, $date];
+        }
+        $changed = [];
+
         try {
-            DB::transaction(function () use ($regular, $gantiLiburDays, &$gantiLibur, $liburNasional) {
+            DB::transaction(function () use ($regular, $gantiLiburDays, &$gantiLibur, $liburNasional, $touched, &$changed, $request) {
+                if ($error = $this->conflictError($touched, $request->input('loaded_at'))) {
+                    throw new \DomainException($error);
+                }
+                $before = [];
+                foreach ($touched as $key => [$employeeId, $date]) {
+                    $before[$key] = ScheduleLog::stateOf($employeeId, $date);
+                }
+
                 foreach ($gantiLiburDays as [$employeeId, $date]) {
                     if (LiburNasional::isHariGantiLibur($date, $liburNasional)) {
                         $name = Employee::whereKey($employeeId)->value('nama');
@@ -242,7 +351,7 @@ class EmployeeScheduleController extends Controller
                     }
                 }
 
-                // Sebelumnya ganti libur dari HRD -> batalkan & kembalikan jatah. Dilakukan lebih dulu supaya
+                // Sebelumnya ganti libur dari HRD -> batalkan (hari masuknya bebas lagi). Dilakukan lebih dulu supaya
                 // hari Minggu yang dipakainya sudah bebas saat dicek di bawah (simpanan yang sama).
                 foreach ($regular as $employeeId => $days) {
                     foreach (array_keys($days) as $date) {
@@ -281,27 +390,19 @@ class EmployeeScheduleController extends Controller
                             ]);
                         }
 
-                        // Hari Minggu / libur nasional: jadwal baru = +1 jatah ganti libur, jadwal dihapus = -1
+                        // Hari Minggu / libur nasional: catat untuk notifikasi (saldo ganti libur dihitung dari jadwal)
                         if (LiburNasional::isHariGantiLibur($normalizedDate, $liburNasional)) {
                             $isEmpty = count($shiftIds) === 0;
                             if ($wasEmpty !== $isEmpty) {
-                                $jatah = $this->jatahFor($employeeId);
-                                if ($wasEmpty) {
-                                    $jatah->increment('jatah_ganti_libur');
-                                    $gantiLibur[$employeeId]['added'][] = $normalizedDate;
-                                } else {
-                                    $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur - 1);
-                                    $jatah->save();
-                                    $gantiLibur[$employeeId]['removed'][] = $normalizedDate;
-                                }
+                                $gantiLibur[$employeeId][$wasEmpty ? 'added' : 'removed'][] = $normalizedDate;
                             }
                         }
                     }
                 }
 
-                // Hari ganti libur dari HRD: hapus jadwal hari itu, buat PengajuanLibur disetujui, jatah -1
+                // Hari ganti libur dari HRD: hapus jadwal hari itu, buat PengajuanLibur disetujui yang memakai hari masuknya
                 foreach ($gantiLiburDays as [$employeeId, $date, $hariMasuk]) {
-                    $this->jatahFor($employeeId); // lock the balance first, so the hari masuk checks below can't race
+                    $this->jatahFor($employeeId); // lock per employee, so the hari masuk checks below can't race
                     $existing = $this->findGantiLiburHrd($employeeId, $date);
                     $currentHariMasuk = $existing ? collect((array) $existing->tanggal_masuk_pengganti)->first() : null;
                     $currentHariMasuk = $currentHariMasuk ? Carbon::parse($currentHariMasuk)->toDateString() : null;
@@ -310,19 +411,12 @@ class EmployeeScheduleController extends Controller
                     }
 
                     $label = Carbon::parse($date)->locale('id')->isoFormat('D MMM');
-                    if ($hariMasuk) {
-                        if ($error = $this->hariMasukError($employeeId, $hariMasuk, $date, $liburNasional, $existing?->id)) {
-                            $name = Employee::whereKey($employeeId)->value('nama');
-                            throw new \DomainException("Ganti libur {$name} ({$label}): {$error}");
-                        }
-                    } elseif ($this->hariMasukUntukLibur($employeeId, $date, $liburNasional)) {
-                        // Ada hari masuk yang bisa dipakai: wajib dipilih supaya tercatat
-                        $name = Employee::whereKey($employeeId)->value('nama');
+                    $name = Employee::whereKey($employeeId)->value('nama');
+                    if (!$hariMasuk) {
                         throw new \DomainException("Pilih hari masuk Minggu / libur nasional yang diganti untuk ganti libur {$name} ({$label}).");
-                    } elseif (PengajuanLibur::saldoTanpaTanggal($employeeId, $liburNasional) < 1) {
-                        // Tanpa tanggal hanya boleh dari saldo lama; hari masuk yang belum dikerjakan belum bisa dipakai
-                        $name = Employee::whereKey($employeeId)->value('nama');
-                        throw new \DomainException("Ganti libur {$name} ({$label}): belum ada hari masuk Minggu / libur nasional sebelum tanggal ini (masuk dulu baru libur).");
+                    }
+                    if ($error = $this->hariMasukError($employeeId, $hariMasuk, $date, $liburNasional, $existing?->id)) {
+                        throw new \DomainException("Ganti libur {$name} ({$label}): {$error}");
                     }
 
                     if ($existing) {
@@ -330,18 +424,11 @@ class EmployeeScheduleController extends Controller
                         continue;
                     }
 
-                    $jatah = $this->jatahFor($employeeId);
-                    if ((int) $jatah->jatah_ganti_libur < 1) {
-                        $name = Employee::whereKey($employeeId)->value('nama');
-                        throw new \DomainException("Jatah ganti libur {$name} tidak cukup (sisa " . (int) $jatah->jatah_ganti_libur . ').');
-                    }
-
                     EmployeeSchedule::where('employee_id', $employeeId)->where('date', $date)->delete();
                     PengajuanLibur::create([
                         'employee_id' => $employeeId,
                         'jenis_libur' => 'ganti_libur',
-                        // Hari Minggu / libur nasional yang diganti; null jika jatah berasal dari saldo manual
-                        'tanggal_masuk_pengganti' => $hariMasuk ? [$hariMasuk] : null,
+                        'tanggal_masuk_pengganti' => [$hariMasuk], // hari Minggu / libur nasional yang diganti
                         'tanggal_mulai' => $date,
                         'tanggal_selesai' => $date,
                         'alasan' => self::GANTI_LIBUR_HRD,
@@ -351,20 +438,22 @@ class EmployeeScheduleController extends Controller
                         'notes_hrd' => 'Ditetapkan oleh ' . (Auth::user()->name ?? 'HRD'),
                         'tanggal_persetujuan_hrd' => now(),
                     ]);
-                    $jatah->decrement('jatah_ganti_libur');
                     $gantiLibur[$employeeId]['used'][] = $date;
                 }
+
+                $changed = $this->logChanges($touched, $before, 'jadwal');
             });
         } catch (\DomainException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
+        $this->notifyEmployees($changed);
 
         if ($request->ajax()) {
             // Ringkasan per karyawan untuk notifikasi
             $summary = [];
             if ($gantiLibur) {
                 $names = Employee::whereIn('id', array_keys($gantiLibur))->pluck('nama', 'id');
-                $saldo = JatahLibur::whereIn('employee_id', array_keys($gantiLibur))->pluck('jatah_ganti_libur', 'employee_id');
+                $liburNasional = LiburNasional::namesByDate();
                 $fmt = fn($dates) => array_map(fn($d) => Carbon::parse($d)->locale('id')->isoFormat('ddd D MMM'), $dates ?? []);
                 foreach ($gantiLibur as $employeeId => $changes) {
                     $summary[] = [
@@ -373,11 +462,12 @@ class EmployeeScheduleController extends Controller
                         'removed' => $fmt($changes['removed'] ?? []),
                         'used' => $fmt($changes['used'] ?? []),
                         'refunded' => $fmt($changes['refunded'] ?? []),
-                        'saldo' => (int) ($saldo[$employeeId] ?? 0),
+                        'saldo' => PengajuanLibur::saldoGantiLibur($employeeId, $liburNasional),
                     ];
                 }
             }
-            return response()->json(['success' => true, 'ganti_libur' => $summary]);
+            // New baseline for the next conflict check of this page
+            return response()->json(['success' => true, 'ganti_libur' => $summary, 'loaded_at' => now()->toDateTimeString()]);
         }
         return redirect()->route('hrd.schedule.index')->with('success', 'Jadwal berhasil disimpan');
     }
@@ -397,7 +487,7 @@ class EmployeeScheduleController extends Controller
         $holidays = LiburNasional::namesByDate($from, $to);
 
         $rows = EmployeeSchedule::with(['shift', 'employee:id,nama'])
-            ->whereBetween('date', [$from, $to])
+            ->whereBetween('date', [max($from, LiburNasional::gantiLiburMulai()), $to])
             ->where(fn($q) => $q->whereRaw('DAYOFWEEK(date) = 1')->orWhereIn('date', array_keys($holidays)))
             ->orderBy('date')
             ->get()
@@ -467,15 +557,15 @@ class EmployeeScheduleController extends Controller
             $addPair($p->employee_id, $p->employee->nama ?? null, $mulai, ['masuk' => null, 'libur' => $liburInfo($p)]);
         }
 
-        $saldo = JatahLibur::whereIn('employee_id', array_keys($employees))->pluck('jatah_ganti_libur', 'employee_id');
+        $saldoGl = PengajuanLibur::ringkasanGantiLiburBatch(array_keys($employees));
         $employees = collect($employees)
-            ->map(function ($e) use ($saldo) {
+            ->map(function ($e) use ($saldoGl) {
                 usort($e['pairs'], fn($a, $b) => strcmp($a['sort'], $b['sort']));
                 $masuk = collect($e['pairs'])->filter(fn($x) => $x['masuk']);
                 return $e + [
                     'total_masuk' => $masuk->count(),
                     'belum_dipakai' => $masuk->filter(fn($x) => !$x['libur'])->count(),
-                    'saldo' => (int) ($saldo[$e['id']] ?? 0),
+                    'saldo' => $saldoGl[$e['id']]['saldo'],
                 ];
             })
             ->sortBy(fn($e) => strtolower($e['nama']))
@@ -488,6 +578,141 @@ class EmployeeScheduleController extends Controller
         ]);
     }
 
+    /**
+     * Riwayat untuk popup saat angka Cuti / Ganti Libur di grid diklik. jenis=cuti: semua pengajuan cuti
+     * tahunan (terbaru dulu). jenis=ganti_libur: tiap hari masuk Minggu / libur nasional + libur penggantinya
+     * (PengajuanLibur::rincianGantiLibur).
+     */
+    public function riwayatJatah(Request $request)
+    {
+        $request->validate([
+            'employee_id' => 'required|integer|exists:hrd_employee,id',
+            'jenis' => 'required|in:cuti,ganti_libur',
+        ]);
+        $employeeId = (int) $request->query('employee_id');
+        // Leave history is personal: HRD / management, or the employee themself
+        if (!self::canEdit() && !Auth::user()?->hasAnyRole(['Manager', 'Head Manager', 'Ceo'])
+            && optional(Auth::user()?->employee)->id !== $employeeId) {
+            return response()->json(['message' => 'Anda tidak berhak melihat riwayat karyawan ini.'], 403);
+        }
+        $nama = Employee::whereKey($employeeId)->value('nama');
+
+        if ($request->query('jenis') === 'ganti_libur') {
+            $rincian = PengajuanLibur::rincianGantiLibur($employeeId, LiburNasional::namesByDate());
+            return response()->json([
+                'nama' => $nama,
+                'saldo' => $rincian['ganti_libur_ringkasan']['saldo'],
+                'mulai' => Carbon::parse(LiburNasional::gantiLiburMulai())->locale('id')->translatedFormat('j F Y'),
+            ] + $rincian);
+        }
+
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->translatedFormat('D, j M Y');
+
+        return response()->json([
+            'nama' => $nama,
+            'saldo' => (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_cuti_tahunan'),
+            'cuti' => PengajuanLibur::where('employee_id', $employeeId)
+                ->where('jenis_libur', 'cuti_tahunan')
+                ->orderByDesc('tanggal_mulai')
+                ->get()
+                ->map(fn($p) => [
+                    'tanggal' => $fmt($p->tanggal_mulai) . ($p->total_hari > 1 ? ' – ' . $fmt($p->tanggal_selesai) : ''),
+                    'jumlah_hari' => (int) $p->total_hari,
+                    'alasan' => $p->alasan,
+                    'status' => $p->status_manager === 'ditolak' || $p->status_hrd === 'ditolak' ? 'ditolak'
+                        : ($p->status_hrd === 'disetujui' ? 'disetujui' : 'menunggu'),
+                ])
+                ->values(),
+        ]);
+    }
+
+    /**
+     * Someone else saved one of these days after this page was loaded ($loadedAt, from the page / last save):
+     * saving now would silently overwrite their change. Uses the audit log as the change history.
+     */
+    private function conflictError(array $touched, ?string $loadedAt): ?string
+    {
+        if (!$touched || !$loadedAt) {
+            return null;
+        }
+        $keys = array_keys($touched);
+        $hit = ScheduleLog::with(['employee:id,nama', 'user:id,name'])
+            ->where('created_at', '>', Carbon::parse($loadedAt))
+            ->whereIn('employee_id', array_unique(array_column($touched, 0)))
+            ->whereIn('date', array_unique(array_column($touched, 1)))
+            ->latest('id')
+            ->get()
+            ->first(fn($log) => in_array($log->employee_id . '_' . $log->date->toDateString(), $keys, true));
+        if (!$hit) {
+            return null;
+        }
+
+        return 'Jadwal ' . ($hit->employee->nama ?? '-') . ' tanggal ' . $hit->date->locale('id')->isoFormat('D MMM')
+            . ' sudah diubah oleh ' . ($hit->user->name ?? 'pengguna lain') . ' pukul ' . $hit->created_at->format('H:i')
+            . ' setelah halaman ini dibuka. Muat ulang minggu ini (Minggu ini / ganti minggu) lalu ulangi perubahan Anda.';
+    }
+
+    /**
+     * Log every touched day whose state changed ($before from ScheduleLog::stateOf). Returns
+     * [employee_id => [[date, sebelum, sesudah], ...]] for notifyEmployees. Must run inside the transaction.
+     */
+    private function logChanges(array $touched, array $before, string $aksi): array
+    {
+        $changed = [];
+        foreach ($touched as $key => [$employeeId, $date]) {
+            $after = ScheduleLog::stateOf($employeeId, $date);
+            if ($after === ($before[$key] ?? null)) {
+                continue;
+            }
+            $isGl = str_starts_with((string) $after, 'Ganti libur') || str_starts_with((string) ($before[$key] ?? ''), 'Ganti libur');
+            ScheduleLog::record($employeeId, $date, $before[$key] ?? null, $after, $isGl && $aksi === 'jadwal' ? 'ganti_libur' : $aksi);
+            $changed[$employeeId][] = [$date, $before[$key] ?? null, $after];
+        }
+
+        return $changed;
+    }
+
+    /** Tell each employee (their user account) which of their days changed; not the person who made the change. */
+    private function notifyEmployees(array $changed): void
+    {
+        if (!$changed) {
+            return;
+        }
+        $employees = Employee::with('user')->whereIn('id', array_keys($changed))->get()->keyBy('id');
+        foreach ($changed as $employeeId => $days) {
+            $user = $employees[$employeeId]->user ?? null;
+            if ($user && $user->id !== Auth::id()) {
+                try {
+                    $user->notify(new \App\Notifications\JadwalBerubahNotification($days));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Notifikasi jadwal gagal: ' . $e->getMessage());
+                }
+            }
+        }
+    }
+
+    /** Audit log of the opened week (newest first), for the "Riwayat perubahan" popup. */
+    public function scheduleLogs(Request $request)
+    {
+        $start = Carbon::parse($request->query('start_date', now()))->startOfWeek();
+        $fmt = fn($d) => Carbon::parse($d)->locale('id')->isoFormat('ddd, D MMM');
+
+        return response()->json(ScheduleLog::with(['employee:id,nama', 'user:id,name'])
+            ->whereBetween('date', [$start->toDateString(), $start->copy()->addDays(6)->toDateString()])
+            ->latest('id')
+            ->limit(300)
+            ->get()
+            ->map(fn($log) => [
+                'waktu' => $log->created_at->locale('id')->isoFormat('D MMM HH:mm'),
+                'oleh' => $log->user->name ?? '-',
+                'karyawan' => $log->employee->nama ?? ('#' . $log->employee_id),
+                'tanggal' => $fmt($log->date),
+                'aksi' => ScheduleLog::AKSI_LABEL[$log->aksi] ?? $log->aksi,
+                'sebelum' => $log->sebelum,
+                'sesudah' => $log->sesudah,
+            ]));
+    }
+
     private function jatahFor($employeeId): JatahLibur
     {
         return JatahLibur::lockForUpdate()->firstOrCreate(
@@ -496,7 +721,7 @@ class EmployeeScheduleController extends Controller
         );
     }
 
-    // Hari masuk yang masih jadi dasar saldo dan sudah dikerjakan sebelum $tanggalLibur (masuk dulu baru libur)
+    // Hari masuk yang belum dipakai dan sudah dikerjakan sebelum $tanggalLibur (masuk dulu baru libur)
     private function hariMasukUntukLibur($employeeId, string $tanggalLibur, array $holidays, $excludeId = null): array
     {
         return array_values(array_filter(
@@ -508,7 +733,6 @@ class EmployeeScheduleController extends Controller
     /**
      * Hari masuk Minggu / libur nasional yang bisa dipilih saat menetapkan ganti libur di jadwal pada tanggal
      * `libur`. exclude_libur = tanggal ganti libur yang sedang diubah (klaimnya tetap bisa dipilih).
-     * tanpa_tanggal = saldo lama tanpa hari masuk, satu-satunya yang boleh dipakai tanpa memilih tanggal.
      */
     public function hariMasukTersedia(Request $request)
     {
@@ -534,8 +758,7 @@ class EmployeeScheduleController extends Controller
             ->values();
 
         return response()->json([
-            'saldo' => (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur'),
-            'tanpa_tanggal' => PengajuanLibur::saldoTanpaTanggal($employeeId, $holidays),
+            'saldo' => PengajuanLibur::saldoGantiLibur($employeeId, $holidays),
             'dates' => $dates,
         ]);
     }
@@ -544,6 +767,9 @@ class EmployeeScheduleController extends Controller
     private function hariMasukError($employeeId, string $hariMasuk, string $tanggalLibur, array $holidays, $excludeId = null): ?string
     {
         $label = Carbon::parse($hariMasuk)->locale('id')->isoFormat('dddd, D MMM YYYY');
+        if ($hariMasuk < LiburNasional::gantiLiburMulai()) {
+            return "{$label} sebelum " . Carbon::parse(LiburNasional::gantiLiburMulai())->locale('id')->isoFormat('D MMM YYYY') . ' (data lama tidak dihitung).';
+        }
         if (!LiburNasional::isHariGantiLibur($hariMasuk, $holidays)) {
             return "{$label} bukan hari Minggu / libur nasional.";
         }
@@ -555,9 +781,6 @@ class EmployeeScheduleController extends Controller
         }
         if (in_array($hariMasuk, PengajuanLibur::claimedHariMasuk($employeeId, $excludeId), true)) {
             return "{$label} sudah dipakai untuk ganti libur lain.";
-        }
-        if (!in_array($hariMasuk, PengajuanLibur::hariMasukBelumDipakai($employeeId, $holidays, $excludeId), true)) {
-            return "{$label} sudah terpakai (ganti libur sebelum hari masuk dicatat per tanggal).";
         }
 
         return null;
@@ -572,7 +795,7 @@ class EmployeeScheduleController extends Controller
             ->first();
     }
 
-    // Batalkan ganti libur yang ditetapkan HRD di tanggal ini dan kembalikan jatahnya
+    // Batalkan ganti libur yang ditetapkan HRD di tanggal ini; hari masuknya otomatis bisa dipakai lagi
     private function cancelGantiLiburHrd($employeeId, string $date): bool
     {
         $pengajuan = $this->findGantiLiburHrd($employeeId, $date);
@@ -580,7 +803,6 @@ class EmployeeScheduleController extends Controller
             return false;
         }
         $pengajuan->delete();
-        $this->jatahFor($employeeId)->increment('jatah_ganti_libur');
         return true;
     }
 
@@ -659,6 +881,7 @@ class EmployeeScheduleController extends Controller
 
         $inserted = 0;
         $gantiLiburAdded = 0;
+        $copyTouched = $copyBefore = [];
         $holidays = LiburNasional::namesByDate($targetDates->first(), $targetDates->last());
         DB::beginTransaction();
         try {
@@ -682,6 +905,8 @@ class EmployeeScheduleController extends Controller
                     }
                 }
                 $wasEmpty = !EmployeeSchedule::where('employee_id', $empId)->where('date', $tgtDate)->exists();
+                $copyTouched[$empId . '_' . $tgtDate] = [$empId, $tgtDate];
+                $copyBefore[$empId . '_' . $tgtDate] = ScheduleLog::stateOf($empId, $tgtDate);
                 if ($overwrite) {
                     EmployeeSchedule::where('employee_id', $empId)
                         ->where('date', $tgtDate)
@@ -698,18 +923,19 @@ class EmployeeScheduleController extends Controller
                     $inserted++;
                 }
 
-                // Hari Minggu / libur nasional yang sebelumnya kosong: +1 jatah ganti libur (sama seperti simpan jadwal)
+                // Hari Minggu / libur nasional yang sebelumnya kosong: hari masuk baru untuk ganti libur (info saja)
                 if ($wasEmpty && $shiftIds && LiburNasional::isHariGantiLibur($tgtDate, $holidays)) {
-                    JatahLibur::adjustGantiLibur($empId, +1);
                     $gantiLiburAdded++;
                 }
             }
 
+            $changed = $this->logChanges($copyTouched, $copyBefore, 'copy_minggu');
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
             throw $e;
         }
+        $this->notifyEmployees($changed);
 
         return response()->json([
             'success' => true,

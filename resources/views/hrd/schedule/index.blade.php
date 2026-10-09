@@ -41,6 +41,8 @@
     .sched-division.collapsed .sched-caret { transform: rotate(-90deg); }
     .sched-caret { transition: transform .15s; font-size: 11px; width: 12px; }
     td.sc { min-width: 110px; height: 34px; cursor: cell; position: relative; }
+    td.sc[data-pending] { box-shadow: inset 0 0 0 2px #ffb74d; }
+    td.sc[data-pending]::before { content: attr(data-pending); position: absolute; left: 3px; bottom: 0; font-size: 9px; line-height: 1.1; color: #e65100; pointer-events: none; }
     td.sc.is-today { background: #f5faff; }
     td.sc.sel { box-shadow: inset 0 0 0 2px #1e88e5; background: #e3f2fd; }
     td.sc.cursor { box-shadow: inset 0 0 0 3px #0d47a1; }
@@ -71,13 +73,35 @@
     .sel-info { flex: none; font-size: 12px; padding: 3px 8px; border-radius: 4px; background: #f1f3f5; color: #6c757d; white-space: nowrap; }
     .sel-info.has-sel { background: #e3f2fd; color: #0d47a1; font-weight: 600; }
     .sched-palette.no-sel .pal-chip { opacity: .45; }
+    /* Read-only grid (roles other than Hrd / Admin): hide the editing tools */
+    .sched-readonly #undo-btn, .sched-readonly #save-schedule-btn, .sched-readonly .sched-palette-row,
+    .sched-readonly .edit-only, .sched-readonly #sched-help { display: none !important; }
+    .sched-readonly .sched-table td.sc { cursor: default; }
     .dirty-mark { display: inline-block; width: 0; height: 0; border-style: solid; border-width: 0 9px 9px 0; border-color: transparent #ff9800 transparent transparent; vertical-align: middle; }
     .sched-table .sched-emp small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    .sched-table .gl-day { display: block; font-size: 10px; font-weight: 600; color: #e8590c; }
-    .sched-table tfoot td { font-size: 11px; }
+    .sched-table .gl-day { display: block; font-size: 11px; font-weight: 600; color: #e8590c; margin-top: 2px; }
+    /* Readable sizes: day header, shift hours, footer counts */
+    .sched-table thead th .day-name { font-size: 14px; }
+    .sched-table thead th .day-date { display: block; font-size: 13px; font-weight: 600; color: #495057; }
+    .sched-table thead th.is-weekend .day-date { color: #dc3545; }
+    .sched-table thead th.is-today .day-date { color: #0d47a1; }
+    .sc-chip .sc-time { display: block; font-size: 11px; font-weight: 500; opacity: .85; line-height: 1.3; }
+    .sched-table tfoot td { font-size: 13px; }
+    /* Leave balance columns (cuti / ganti libur) */
+    .sched-table .sched-jatah-col { width: 70px; min-width: 70px; text-align: center; font-size: 12px; background: #fcfcfd; }
+    .sched-table thead th.sched-jatah-col { cursor: default; line-height: 1.2; }
+    /* Karyawan / Cuti / Ganti Libur headers: same size as the day names, centered in the tall header row */
+    .sched-table thead th.sched-name-col, .sched-table thead th.sched-jatah-col { vertical-align: middle !important; font-size: 14px; color: #212529; }
+    .sched-table .jatah-num { display: block; font-size: 16px; font-weight: 700; line-height: 1.2; }
+    .sched-table .jatah-sub { display: block; font-size: 10px; line-height: 1.2; white-space: nowrap; }
+    .sched-table td.jatah-btn { cursor: pointer; }
+    .sched-table td.jatah-btn:hover { background: #eef4ff; }
+    .riwayat-table { font-size: 13px; text-align: left; margin-bottom: 0; }
+    .riwayat-table th { font-size: 12px; white-space: nowrap; }
+    .riwayat-wrap { max-height: 55vh; overflow-y: auto; }
 </style>
 
-<div class="container-fluid">
+<div class="container-fluid{{ $canEdit ? '' : ' sched-readonly' }}">
     <div class="sched-toolbar">
         {{-- Row 1: title · save --}}
         <div class="tb-row">
@@ -116,16 +140,27 @@
                         <i class="fa fa-ellipsis-h"></i> Lainnya
                     </button>
                     <div class="dropdown-menu dropdown-menu-right">
-                        <h6 class="dropdown-header">Copy jadwal minggu yang dibuka ke…</h6>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="this"><i class="fa fa-copy fa-fw mr-1"></i>Minggu ini</a>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="next"><i class="fa fa-copy fa-fw mr-1"></i>Minggu depan</a>
-                        <a href="#" class="dropdown-item copy-week-option" data-target="following"><i class="fa fa-copy fa-fw mr-1"></i>Minggu setelah yang dibuka</a>
-                        <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item" id="rekap-libur-btn"><i class="fa fa-calendar-check fa-fw mr-1"></i>Rekap masuk Minggu / libur nasional</a>
+                        <div class="edit-only">
+                            <h6 class="dropdown-header">Copy jadwal minggu yang dibuka ke…</h6>
+                            <a href="#" class="dropdown-item copy-week-option" data-target="this"><i class="fa fa-copy fa-fw mr-1"></i>Minggu ini</a>
+                            <a href="#" class="dropdown-item copy-week-option" data-target="next"><i class="fa fa-copy fa-fw mr-1"></i>Minggu depan</a>
+                            <a href="#" class="dropdown-item copy-week-option" data-target="following"><i class="fa fa-copy fa-fw mr-1"></i>Minggu setelah yang dibuka</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" id="rekap-libur-btn"><i class="fa fa-calendar-check fa-fw mr-1"></i>Rekap masuk Minggu / libur nasional</a>
+                            <a href="#" class="dropdown-item" id="audit-log-btn"><i class="fa fa-history fa-fw mr-1"></i>Riwayat perubahan minggu ini</a>
+                        </div>
                         <a href="#" class="dropdown-item" id="print-btn" target="_blank"><i class="fa fa-print fa-fw mr-1"></i>Print jadwal</a>
-                        <a href="#" class="dropdown-item" id="open-shift-mgmt"><i class="fa fa-cog fa-fw mr-1"></i>Kelola shift</a>
+                        <a href="#" class="dropdown-item edit-only" id="open-shift-mgmt"><i class="fa fa-cog fa-fw mr-1"></i>Kelola shift</a>
+                        @if($canEdit)
                         <div class="dropdown-divider"></div>
-                        <a href="#" class="dropdown-item" data-toggle="collapse" data-target="#sched-help"><i class="fa fa-keyboard fa-fw mr-1"></i>Cara pakai &amp; pintasan</a>
+                        <h6 class="dropdown-header">Cuti &amp; libur</h6>
+                        <a href="#" class="dropdown-item" id="leave-capacity-btn"><i class="fa fa-users fa-fw mr-1"></i>Kuota libur harian</a>
+                        <a href="#" class="dropdown-item" id="reset-annual-btn"><i class="fa fa-undo fa-fw mr-1"></i>Reset cuti tahunan</a>
+                        @endif
+                        <div class="edit-only">
+                            <div class="dropdown-divider"></div>
+                            <a href="#" class="dropdown-item" data-toggle="collapse" data-target="#sched-help"><i class="fa fa-keyboard fa-fw mr-1"></i>Cara pakai &amp; pintasan</a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -153,7 +188,7 @@
                     <b>3. Simpan</b><br>
                     Sel bertanda <span class="dirty-mark"></span> belum disimpan. <kbd>Ctrl+S</kbd> simpan, <kbd>Ctrl+Z</kbd> batalkan,
                     <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Esc</kbd> batal pilih.
-                    Masuk di hari <span class="text-danger">Minggu / libur nasional</span> = jatah ganti libur +1.
+                    Masuk di hari <span class="text-danger">Minggu / libur nasional</span> = 1 hari ganti libur (bisa dipakai setelah dikerjakan).
                 </div>
             </div>
         </div>
@@ -163,7 +198,7 @@
         <div class="spinner-border spinner-border-sm text-primary" role="status"></div> Memuat...
     </div>
     <div id="jadwal-wrapper" class="mt-2">
-        @include('hrd.schedule._table', ['dates' => $dates, 'employeesByDivision' => $employeesByDivision, 'shifts' => $shifts, 'allShifts' => $allShifts, 'schedules' => $schedules, 'startOfWeek' => $startOfWeek])
+        @include('hrd.schedule._table', ['dates' => $dates, 'employeesByDivision' => $employeesByDivision, 'shifts' => $shifts, 'allShifts' => $allShifts, 'schedules' => $schedules, 'startOfWeek' => $startOfWeek, 'jatah' => $jatah])
     </div>
 
     <!-- Shift picker popup (shared) -->
@@ -201,10 +236,79 @@
                             <button type="button" id="rekap-load" class="btn btn-primary btn-sm"><i class="fa fa-search"></i> Tampilkan</button>
                         </div>
                     </div>
-                    <div class="small text-muted mb-2">Tiap hari masuk Minggu / libur nasional = +1 jatah ganti libur, dipasangkan dengan tanggal libur penggantinya.</div>
+                    <div class="small text-muted mb-2">Tiap hari masuk Minggu / libur nasional = 1 hari ganti libur, dipasangkan dengan tanggal libur penggantinya.</div>
                     <div id="rekap-body" style="max-height:60vh;overflow:auto;"></div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    {{-- Pilih hari masuk Minggu / libur nasional yang diganti oleh sel Ganti Libur (G) --}}
+    <div class="modal fade" id="hariMasukModal" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="static">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="hm-title">Ganti libur</h5>
+                    <button type="button" class="close hm-cancel" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2" id="hm-info"></p>
+                    <label for="hm-select" class="small mb-1">Hari masuk Minggu / libur nasional yang diganti</label>
+                    <select id="hm-select" class="form-control"></select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary hm-cancel">Batal</button>
+                    <button type="button" class="btn btn-primary" id="hm-ok">Pilih</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Riwayat cuti / ganti libur (klik angka di kolom Cuti / Ganti Libur) --}}
+    <div class="modal fade" id="riwayatModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="riwayat-title">Riwayat</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body" id="riwayat-body"></div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Riwayat perubahan jadwal minggu yang dibuka (audit log) --}}
+    <div class="modal fade" id="auditModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-xl" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Riwayat perubahan minggu ini</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body" id="audit-body"></div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Kuota libur harian --}}
+    <div class="modal fade" id="kuotaModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-sm" role="document">
+            <form class="modal-content" id="kuota-form">
+                <div class="modal-header">
+                    <h5 class="modal-title">Kuota libur harian</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <label for="kuota-input">Maksimal karyawan libur per hari</label>
+                    <input type="number" id="kuota-input" class="form-control" min="1" max="100" required>
+                    <small class="form-text text-muted">Jika tercapai, karyawan lain tidak bisa mengajukan libur di tanggal tersebut.</small>
+                    <div class="invalid-feedback d-block" id="kuota-error"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary" id="kuota-save">Simpan</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -248,6 +352,11 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="form-group mb-0">
+                            <label for="shift-min-staff">Minimal orang per hari</label>
+                            <input type="number" class="form-control" id="shift-min-staff" min="0" max="100" placeholder="0 = tanpa minimum">
+                            <small class="form-text text-muted">Hari dengan orang di shift ini kurang dari angka ini diberi tanda merah di baris bawah jadwal.</small>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -270,11 +379,21 @@
         print: "{{ route('hrd.schedule.print') }}",
         rekapLibur: "{{ route('hrd.schedule.rekap_hari_libur') }}",
         hariMasuk: "{{ route('hrd.schedule.hari_masuk_tersedia') }}",
+        riwayatJatah: "{{ route('hrd.schedule.riwayat_jatah') }}",
+        @if($canEdit)
+        leaveCapacity: "{{ route('hrd.master.jatah-libur.leave_capacity.get') }}",
+        leaveCapacityUpdate: "{{ route('hrd.master.jatah-libur.leave_capacity.update') }}",
+        resetAnnual: "{{ route('hrd.master.jatah-libur.reset_annual') }}",
+        logs: "{{ route('hrd.schedule.logs') }}",
+        cutiUpdate: "{{ route('hrd.master.jatah-libur.cuti.update', ['employee' => '__ID__']) }}",
+        hariMasukUpdate: "{{ route('hrd.master.jatah-libur.hari-masuk.update', ['employee' => '__ID__']) }}",
+        @endif
         shiftStore: "{{ route('hrd.master.shift.store') }}",
         shiftUpdate: "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}",
         shiftDestroy: "{{ route('hrd.master.shift.destroy', ['shift' => '__ID__']) }}"
     };
     var CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    var CAN_EDIT = @json($canEdit); // Hrd / Admin; other roles get a read-only grid
 
     var shiftMap = {};       // id -> shift
     var palette = [];        // active shifts, sorted by start time (index = number key - 1)
@@ -322,7 +441,7 @@
 
     // ---------- cell state ----------
     function getIds(td) { var v = td.getAttribute('data-shifts'); return v ? v.split(',') : []; }
-    function isEditable(td) { return td && td.classList.contains('sc') && !td.hasAttribute('data-libur'); }
+    function isEditable(td) { return CAN_EDIT && td && td.classList.contains('sc') && !td.hasAttribute('data-libur'); }
     // Ganti libur cells also carry the Sunday / holiday worked that they replace (data-gl-masuk)
     function isDirty(td) {
         var shifts = td.getAttribute('data-shifts') || '';
@@ -333,13 +452,19 @@
     var BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
     function shortDate(s) { var d = parseYmd(s); return HARI[d.getDay()] + ' ' + d.getDate() + ' ' + BULAN[d.getMonth()]; }
 
+    // Cells with a leave request still waiting for approval keep a note (see pendingLiburMap)
     function renderCell(td) {
+        renderCellContent(td);
+        var pending = td.getAttribute('data-pending');
+        if (pending) td.title = pending + ' (menunggu persetujuan)' + (td.title ? '\n' + td.title : '');
+    }
+    function renderCellContent(td) {
         var ids = getIds(td);
         if (!ids.length) { td.innerHTML = '<span class="sc-empty">–</span>'; td.title = ''; return; }
         if (ids[0] === 'GL') {
             var masuk = td.getAttribute('data-gl-masuk');
             td.innerHTML = '<span class="sc-chip sc-gl">Ganti Libur' + (masuk ? '<small class="d-block">' + esc(shortDate(masuk)) + '</small>' : '') + '</span>';
-            td.title = 'Ganti libur (jatah ganti libur -1)' + (masuk ? '\nMengganti masuk ' + shortDate(masuk) : '\nTanpa tanggal masuk (saldo lama)') + '\nTekan G lagi untuk mengganti hari masuk';
+            td.title = 'Ganti libur' + (masuk ? '\nMengganti masuk ' + shortDate(masuk) : '') + '\nTekan G lagi untuk mengganti hari masuk';
             return;
         }
         var html = '', titles = [];
@@ -347,14 +472,15 @@
             var s = shiftMap[id];
             if (!s) { html += '<span class="sc-chip" style="background:#ccc">#' + esc(id) + '</span>'; return; }
             var bg = s.color || '#adb5bd';
-            html += '<span class="sc-chip" style="background:' + esc(bg) + ';color:' + contrast(bg) + '">' + esc(s.name) + '</span>';
+            html += '<span class="sc-chip" style="background:' + esc(bg) + ';color:' + contrast(bg) + '">' + esc(s.name)
+                + '<span class="sc-time">' + esc(s.start) + '–' + esc(s.end) + '</span></span>';
             titles.push(s.name + ' (' + s.start + '–' + s.end + ')' + (s.active ? '' : ' [tidak aktif]'));
         });
         td.innerHTML = html;
         td.title = titles.join('\n');
     }
 
-    // glMasuk: for ganti libur, the Sunday / holiday worked it replaces ('' = saldo lama tanpa tanggal)
+    // glMasuk: for ganti libur, the Sunday / holiday worked it replaces
     function setIds(td, ids, batch, glMasuk) {
         if (!isEditable(td)) return;
         ids = ids.filter(function (v, i, a) { return v && a.indexOf(v) === i; }).slice(0, 2);
@@ -431,7 +557,7 @@
         return cell ? cell.childNodes[0].textContent.trim() : '';
     }
 
-    // Resolves to the chosen date, '' (saldo lama tanpa tanggal), undefined (sel dilewati) or null (batal semua)
+    // Resolves to the chosen date, undefined (sel dilewati) or null (batal semua)
     function pickHariMasuk(td) {
         var emp = td.getAttribute('data-emp'), date = td.getAttribute('data-date');
         var url = URLS.hariMasuk + '?employee_id=' + encodeURIComponent(emp) + '&libur=' + encodeURIComponent(date)
@@ -465,29 +591,251 @@
                 keys.forEach(function (k) { sorted[k] = options[k]; });
                 var name = employeeName(td);
                 if (!keys.length) {
-                    if (data.saldo < 1 || !(data.tanpa_tanggal > 0)) {
-                        return swal.fire({
-                            title: data.saldo < 1 ? 'Jatah ganti libur habis' : 'Belum ada hari masuk',
-                            text: name + ' belum punya hari masuk Minggu / libur nasional sebelum ' + shortDate(date) + ' yang belum dipakai (masuk dulu baru libur).',
-                            icon: 'warning'
-                        }).then(function () { return undefined; });
-                    }
-                    sorted[''] = 'Tanpa tanggal (saldo lama: ' + data.tanpa_tanggal + ' hari)';
+                    return swal.fire({
+                        title: 'Belum ada hari masuk',
+                        text: name + ' belum punya hari masuk Minggu / libur nasional sebelum ' + shortDate(date) + ' yang belum dipakai (masuk dulu baru libur).',
+                        icon: 'warning'
+                    }).then(function () { return undefined; });
                 }
                 var current = td.getAttribute('data-gl-masuk') || '';
-                return swal.fire({
-                    title: 'Ganti libur ' + name,
-                    html: 'Libur pada <b>' + esc(shortDate(date)) + '</b>.<br>Pilih hari masuk Minggu / libur nasional yang diganti:',
-                    input: 'select',
-                    inputOptions: sorted,
-                    inputValue: sorted.hasOwnProperty(current) ? current : keys[0] || '',
-                    showCancelButton: true,
-                    confirmButtonText: 'Pilih',
-                    cancelButtonText: 'Batal'
-                }).then(function (r) { return r.dismiss ? null : (r.value || ''); });
+                return chooseHariMasuk('Ganti libur ' + name, 'Libur pada <b>' + esc(shortDate(date)) + '</b>.', sorted,
+                    sorted.hasOwnProperty(current) ? current : keys[0]);
             })
             .catch(function () { showAlert('danger', 'Gagal memuat hari masuk ' + employeeName(td)); return null; });
     }
+
+    // Modal with a select of worked days; resolves to the chosen date, or null when cancelled. Resolves only
+    // once the modal is fully hidden, so the next cell's modal (several cells marked G at once) can open.
+    function chooseHariMasuk(title, infoHtml, options, selected) {
+        return new Promise(function (resolve) {
+            var $m = $('#hariMasukModal'), result = null;
+            var finish = function (val) { result = val; $m.modal('hide'); };
+            $('#hm-title').text(title);
+            $('#hm-info').html(infoHtml);
+            $('#hm-select').html(Object.keys(options).map(function (k) {
+                return '<option value="' + esc(k) + '"' + (k === selected ? ' selected' : '') + '>' + esc(options[k]) + '</option>';
+            }).join(''));
+            $m.off('.hm')
+                .on('click.hm', '#hm-ok', function () { finish($('#hm-select').val()); })
+                .on('click.hm', '.hm-cancel', function () { finish(null); })
+                .on('hidden.bs.modal.hm', function () { $m.off('.hm'); resolve(result); })
+                .on('shown.bs.modal.hm', function () { $('#hm-select').trigger('focus'); })
+                .on('keydown.hm', function (e) { if (e.key === 'Enter') { e.preventDefault(); finish($('#hm-select').val()); } })
+                .modal('show');
+        });
+    }
+
+    // Modal riwayat saat angka Cuti / Ganti Libur diklik. HRD / Admin juga bisa mengubah jatah cuti dan
+    // pasangan hari masuk ganti libur langsung di modal ini (inline, tanpa modal bertumpuk).
+    var CAN_MANAGE_JATAH = CAN_EDIT;
+    var RIWAYAT_STATUS = {
+        disetujui: ['success', 'Disetujui'], menunggu: ['warning', 'Menunggu'], ditolak: ['danger', 'Ditolak'],
+        tersedia: ['success', 'Bisa dipakai'], terjadwal: ['info', 'Terjadwal (belum dikerjakan)'],
+        diajukan: ['warning', 'Diajukan'], dipakai: ['secondary', 'Sudah dipakai']
+    };
+    var riwayat = null; // { emp, jenis, nama, saldo, rows } of the open modal
+    function riwayatBadge(status) {
+        var s = RIWAYAT_STATUS[status] || ['light', status || '-'];
+        return '<span class="badge badge-' + s[0] + '">' + esc(s[1]) + '</span>';
+    }
+    // JSON request for the HRD actions; rejects with the server's (validation) message
+    function jatahRequest(url, method, body) {
+        return fetch(url, {
+            method: method,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+            body: body ? JSON.stringify(body) : undefined
+        }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+                if (res.ok) return data;
+                var errors = data.errors || {};
+                var first = Object.keys(errors).map(function (k) { return errors[k][0]; })[0];
+                throw new Error(first || data.message || data.error || 'Gagal menyimpan');
+            });
+        });
+    }
+    // Update the number in the grid without reloading it (unsaved schedule edits stay)
+    function setJatahCell(emp, jenis, saldo) {
+        var num = document.querySelector('#sched-table td.jatah-btn[data-emp="' + emp + '"][data-jenis="' + jenis + '"] .jatah-num');
+        if (!num) return;
+        num.textContent = saldo;
+        num.classList.toggle('text-muted', !(saldo > 0));
+    }
+
+    function showRiwayatJatah(emp, jenis, nama) {
+        var url = URLS.riwayatJatah + '?employee_id=' + encodeURIComponent(emp) + '&jenis=' + encodeURIComponent(jenis);
+        var $modal = $('#riwayatModal');
+        if (!$modal.hasClass('show')) {
+            $('#riwayat-title').text((jenis === 'cuti' ? 'Riwayat Cuti ' : 'Riwayat Ganti Libur ') + nama);
+            $('#riwayat-body').html('<div class="text-muted text-center p-3"><span class="spinner-border spinner-border-sm mr-1"></span> Memuat...</div>');
+            $modal.modal('show');
+        }
+        return jatahRequest(url, 'GET')
+            .then(function (data) {
+                riwayat = { emp: emp, jenis: jenis, nama: data.nama || nama, saldo: data.saldo, rows: data.ganti_libur_tanggal || [] };
+                setJatahCell(emp, jenis, data.saldo);
+                $('#riwayat-title').text((jenis === 'cuti' ? 'Riwayat Cuti ' : 'Riwayat Ganti Libur ') + riwayat.nama);
+                $('#riwayat-body').html(jenis === 'cuti' ? riwayatCutiHtml(data) : riwayatGantiLiburHtml(data));
+            })
+            .catch(function (err) { $('#riwayat-body').html('<div class="text-danger p-3">' + esc(err.message || 'Gagal memuat riwayat') + '</div>'); });
+    }
+
+    function riwayatCutiHtml(data) {
+        var html = '<div class="d-flex align-items-center flex-wrap mb-2" id="rw-cuti-line">'
+            + '<span>Sisa cuti tahunan: <b>' + data.saldo + ' hari</b></span>'
+            + (CAN_MANAGE_JATAH ? '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 ml-2 rw-edit-cuti"><i class="fa fa-pen"></i> Ubah</button>' : '')
+            + '</div>';
+        return html + (data.cuti.length
+            ? '<div class="riwayat-wrap"><table class="table table-sm table-bordered riwayat-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Alasan</th><th>Status</th></tr></thead><tbody>'
+                + data.cuti.map(function (c) {
+                    return '<tr><td>' + esc(c.tanggal) + '</td><td class="text-center">' + c.jumlah_hari + '</td><td>' + esc(c.alasan) + '</td><td>' + riwayatBadge(c.status) + '</td></tr>';
+                }).join('') + '</tbody></table></div>'
+            : '<p class="text-muted mb-0">Belum ada pengajuan cuti.</p>');
+    }
+
+    function riwayatGantiLiburHtml(data) {
+        var r = data.ganti_libur_ringkasan || {};
+        var html = '<p class="mb-1">Bisa dipakai: <b>' + data.saldo + ' hari</b>'
+            + (r.terjadwal ? ' · ' + r.terjadwal + ' terjadwal (belum dikerjakan)' : '')
+            + (r.diajukan ? ' · ' + r.diajukan + ' diajukan' : '') + '</p>'
+            + '<p class="small text-muted mb-2">Hari masuk Minggu / libur nasional dihitung mulai ' + esc(data.mulai) + '.'
+            + (CAN_MANAGE_JATAH ? ' Hari masuk yang tidak tercatat: isi shift di hari Minggu / libur nasional tersebut di jadwal.' : '') + '</p>';
+        return html + (riwayat.rows.length
+            ? '<div class="riwayat-wrap"><table class="table table-sm table-bordered riwayat-table"><thead><tr><th>Tanggal masuk</th><th>Shift</th><th>Libur pengganti</th><th>Status</th>'
+                + (CAN_MANAGE_JATAH ? '<th></th>' : '') + '</tr></thead><tbody>'
+                + riwayat.rows.map(function (x, i) {
+                    return '<tr data-i="' + i + '"><td class="rw-masuk">' + (x.masuk ? esc(x.masuk) + (x.keterangan ? '<div class="small text-muted">' + esc(x.keterangan) + '</div>' : '') : '<span class="text-muted">tanpa tanggal</span>') + '</td>'
+                        + '<td>' + esc(x.shift || '-') + '</td>'
+                        + '<td>' + (x.libur ? esc(x.libur) + (x.jumlah_hari > 1 ? ' (' + x.jumlah_hari + ' hari)' : '') : '-')
+                        + (x.terbalik ? '<div class="small text-danger">libur sebelum hari masuk</div>' : '') + '</td>'
+                        + '<td>' + riwayatBadge(x.status) + '</td>'
+                        + (CAN_MANAGE_JATAH ? '<td class="text-nowrap rw-act">' + (x.pengajuan_id
+                            ? '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-1 rw-edit-masuk" title="Ubah hari masuk yang diganti libur ini"><i class="fa fa-pen"></i></button>'
+                            : '') + '</td>' : '')
+                        + '</tr>';
+                }).join('') + '</tbody></table></div>'
+            : '<p class="text-muted mb-0">Belum ada hari masuk Minggu / libur nasional.</p>');
+    }
+
+    // Inline edits inside the riwayat modal (HRD / Admin)
+    $(document).on('click', '#riwayatModal .rw-edit-cuti', function () {
+        $('#rw-cuti-line').html('<label class="mb-0 mr-2" for="rw-cuti-input">Sisa cuti tahunan</label>'
+            + '<input type="number" id="rw-cuti-input" class="form-control form-control-sm mr-2" style="width:90px" min="0" max="365" value="' + riwayat.saldo + '"> hari'
+            + '<button type="button" class="btn btn-sm btn-primary ml-2 rw-save-cuti">Simpan</button>'
+            + '<button type="button" class="btn btn-sm btn-light ml-1 rw-cancel">Batal</button>'
+            + '<div class="w-100 small text-danger rw-error"></div>');
+        $('#rw-cuti-input').trigger('focus').trigger('select');
+    });
+    $(document).on('click', '#riwayatModal .rw-save-cuti', function () {
+        var $btn = $(this).prop('disabled', true), r = riwayat;
+        jatahRequest(URLS.cutiUpdate.replace('__ID__', r.emp), 'PUT', { jatah_cuti_tahunan: $('#rw-cuti-input').val() })
+            .then(function (res) {
+                showAlert('success', 'Jatah cuti ' + r.nama + ' menjadi ' + res.saldo + ' hari');
+                return showRiwayatJatah(r.emp, r.jenis, r.nama);
+            })
+            .catch(function (err) { $btn.prop('disabled', false); $('#rw-cuti-line .rw-error').text(err.message); });
+    });
+    $(document).on('keydown', '#rw-cuti-input', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); $('#riwayatModal .rw-save-cuti').trigger('click'); }
+    });
+    $(document).on('click', '#riwayatModal .rw-cancel', function () {
+        showRiwayatJatah(riwayat.emp, riwayat.jenis, riwayat.nama);
+    });
+
+    $(document).on('click', '#riwayatModal .rw-edit-masuk', function () {
+        var $tr = $(this).closest('tr'), row = riwayat.rows[$tr.data('i')];
+        var today = "{{ now()->toDateString() }}";
+        if (!row.date && row.jumlah_hari > 1) {
+            $tr.find('.rw-masuk').append('<div class="small text-danger">Ganti libur ' + row.jumlah_hari + ' hari tanpa tanggal masuk: tolak dan minta karyawan mengajukan ulang.</div>');
+            return;
+        }
+        // Masuk dulu baru libur: free days already worked and before the libur's first day
+        var options = riwayat.rows.filter(function (x) {
+            return x.date && !x.pengajuan_id && x.date <= today && x.date < row.libur_mulai;
+        });
+        if (!options.length) {
+            $tr.find('.rw-masuk').append('<div class="small text-danger">Tidak ada hari masuk lain yang belum dipakai sebelum ' + esc(row.libur) + '.</div>');
+            return;
+        }
+        $tr.find('.rw-masuk').html('<select class="form-control form-control-sm rw-masuk-select">' + options.map(function (x) {
+            return '<option value="' + x.date + '">' + esc(x.masuk + (x.keterangan ? ' – ' + x.keterangan : '')) + '</option>';
+        }).join('') + '</select><div class="small text-danger rw-error"></div>');
+        $tr.find('.rw-act').html('<button type="button" class="btn btn-sm btn-success py-0 px-1 rw-save-masuk" title="Simpan"><i class="fa fa-check"></i></button> '
+            + '<button type="button" class="btn btn-sm btn-light py-0 px-1 rw-cancel" title="Batal"><i class="fa fa-times"></i></button>');
+    });
+    $(document).on('click', '#riwayatModal .rw-save-masuk', function () {
+        var $btn = $(this).prop('disabled', true), $tr = $btn.closest('tr'), r = riwayat, row = r.rows[$tr.data('i')];
+        jatahRequest(URLS.hariMasukUpdate.replace('__ID__', r.emp), 'PUT', { pengajuan_id: row.pengajuan_id, lama: row.date, baru: [$tr.find('.rw-masuk-select').val()] })
+            .then(function () {
+                showAlert('success', 'Hari masuk pengganti diperbarui');
+                return showRiwayatJatah(r.emp, r.jenis, r.nama);
+            })
+            .catch(function (err) { $btn.prop('disabled', false); $tr.find('.rw-error').text(err.message); });
+    });
+
+    function leaveCapacity() {
+        $('#kuota-error').text('');
+        showLoading(true);
+        jatahRequest(URLS.leaveCapacity, 'GET')
+            .finally(function () { showLoading(false); })
+            .then(function (data) {
+                $('#kuota-input').val(data.capacity || 2);
+                $('#kuotaModal').modal('show');
+            })
+            .catch(function (err) { showAlert('danger', err.message || 'Gagal memuat kuota libur'); });
+    }
+    $(document).on('shown.bs.modal', '#kuotaModal', function () { $('#kuota-input').trigger('focus').trigger('select'); });
+    $(document).on('submit', '#kuota-form', function (e) {
+        e.preventDefault();
+        var $btn = $('#kuota-save').prop('disabled', true);
+        jatahRequest(URLS.leaveCapacityUpdate, 'POST', { capacity: $('#kuota-input').val() })
+            .then(function (res) {
+                $('#kuotaModal').modal('hide');
+                showAlert('success', 'Kuota libur harian: ' + res.capacity + ' orang');
+            })
+            .catch(function (err) { $('#kuota-error').text(err.message); })
+            .finally(function () { $btn.prop('disabled', false); });
+    });
+
+    // Reset is a confirmation, so it stays a swal
+    function resetAnnual() {
+        swal.fire({
+            title: 'Reset cuti tahunan',
+            text: 'Jatah cuti tahunan semua karyawan aktif diset 12 (masa kerja ≥ 1 tahun) atau 0. Lanjutkan?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Reset',
+            cancelButtonText: 'Batal',
+            showLoaderOnConfirm: true,
+            preConfirm: function () {
+                return jatahRequest(URLS.resetAnnual, 'POST')
+                    .catch(function (err) { swal.showValidationMessage(err.message); });
+            }
+        }).then(function (res) {
+            if (!res.value) return;
+            showAlert('success', 'Cuti tahunan direset: ' + res.value.set_12 + ' karyawan 12 hari, ' + res.value.set_0 + ' karyawan 0 hari');
+            loadWeek(weekStart()); // asks first if there are unsaved schedule edits
+        });
+    }
+
+    // Audit log of the opened week: who changed which day, from what to what
+    function showAuditLog() {
+        $('#audit-body').html('<div class="text-muted text-center p-3"><span class="spinner-border spinner-border-sm mr-1"></span> Memuat...</div>');
+        $('#auditModal').modal('show');
+        jatahRequest(URLS.logs + '?start_date=' + encodeURIComponent(weekStart()), 'GET')
+            .then(function (rows) {
+                $('#audit-body').html(rows.length
+                    ? '<div class="riwayat-wrap"><table class="table table-sm table-bordered riwayat-table"><thead><tr><th>Waktu</th><th>Oleh</th><th>Karyawan</th><th>Tanggal</th><th>Perubahan</th></tr></thead><tbody>'
+                        + rows.map(function (r) {
+                            return '<tr><td class="text-nowrap">' + esc(r.waktu) + '</td><td>' + esc(r.oleh) + '</td><td>' + esc(r.karyawan) + '</td>'
+                                + '<td class="text-nowrap">' + esc(r.tanggal) + '</td>'
+                                + '<td><span class="text-muted">' + esc(r.sebelum || 'Kosong') + '</span> → <b>' + esc(r.sesudah || 'Kosong') + '</b>'
+                                + '<div class="small text-muted">' + esc(r.aksi) + '</div></td></tr>';
+                        }).join('') + '</tbody></table></div>'
+                    : '<p class="text-muted mb-0">Belum ada perubahan tercatat untuk minggu ini.</p>');
+            })
+            .catch(function (err) { $('#audit-body').html('<div class="text-danger p-3">' + esc(err.message || 'Gagal memuat riwayat perubahan') + '</div>'); });
+    }
+
     function isHariGantiLibur(td) {
         var th = document.querySelector('#sched-table th.sched-day-head[data-col="' + td.getAttribute('data-col') + '"]');
         return th && th.hasAttribute('data-hari-ganti-libur');
@@ -519,15 +867,26 @@
         if (!table) return;
         var total = table.getAttribute('data-total');
         var counts = [0, 0, 0, 0, 0, 0, 0], libur = [0, 0, 0, 0, 0, 0, 0];
+        var perShift = [{}, {}, {}, {}, {}, {}, {}]; // column -> shift id -> people
         table.querySelectorAll('tbody td.sc').forEach(function (td) {
             var c = +td.getAttribute('data-col');
             if (td.hasAttribute('data-libur') || td.getAttribute('data-shifts') === 'GL') libur[c]++;
-            else if (td.getAttribute('data-shifts')) counts[c]++;
+            else if (td.getAttribute('data-shifts')) {
+                counts[c]++;
+                getIds(td).forEach(function (id) { perShift[c][id] = (perShift[c][id] || 0) + 1; });
+            }
         });
+        // Shifts with a minimum (Kelola shift → Minimal orang per hari) that this day does not reach
+        var minShifts = Object.keys(shiftMap).map(function (id) { return shiftMap[id]; })
+            .filter(function (s) { return s.active && s.min > 0; });
         table.querySelectorAll('tfoot .sched-count').forEach(function (td) {
             var c = +td.getAttribute('data-col');
-            td.title = counts[c] + ' dari ' + total + ' karyawan masuk' + (libur[c] ? ', ' + libur[c] + ' libur / cuti' : '');
-            td.innerHTML = '<b>' + counts[c] + '</b> masuk' + (libur[c] ? ' · <span class="text-danger">' + libur[c] + ' libur</span>' : '');
+            var kurang = minShifts.filter(function (s) { return (perShift[c][String(s.id)] || 0) < s.min; })
+                .map(function (s) { return s.name + ' ' + (perShift[c][String(s.id)] || 0) + '/' + s.min; });
+            td.title = counts[c] + ' dari ' + total + ' karyawan masuk' + (libur[c] ? ', ' + libur[c] + ' libur / cuti' : '')
+                + (kurang.length ? '\nKurang orang: ' + kurang.join(', ') : '');
+            td.innerHTML = '<b>' + counts[c] + '</b> masuk' + (libur[c] ? ' · <span class="text-danger">' + libur[c] + ' libur</span>' : '')
+                + (kurang.length ? '<div class="text-danger font-weight-bold"><i class="fa fa-exclamation-triangle"></i> Kurang: ' + esc(kurang.join(', ')) + '</div>' : '');
         });
     }
 
@@ -740,13 +1099,16 @@
         window.scrollTo(window.pageXOffset, v.pageY);
     }
 
+    var loadSeq = 0; // only the latest load may replace the table
     function loadWeek(startDate, skipConfirm) {
         return (skipConfirm ? Promise.resolve(true) : confirmDiscard()).then(function (ok) {
             if (!ok) return;
+            var seq = ++loadSeq;
             showLoading(true);
             return fetch(URLS.index + '?start_date=' + encodeURIComponent(startDate), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(function (res) { if (!res.ok) throw new Error(); return res.text(); })
                 .then(function (html) {
+                    if (seq !== loadSeq) return;
                     var view = captureView();
                     $id('jadwal-wrapper').innerHTML = html;
                     initTable();
@@ -776,7 +1138,7 @@
         return fetch(URLS.store, {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
-            body: JSON.stringify({ schedule: payload })
+            body: JSON.stringify({ schedule: payload, loaded_at: ($id('loaded-at') || {}).value || '' })
         })
             .then(function (res) { return res.json(); })
             .then(function (data) {
@@ -787,7 +1149,10 @@
                     td.classList.remove('dirty');
                 });
                 undoStack = [];
+                if (data.loaded_at && $id('loaded-at')) $id('loaded-at').value = data.loaded_at;
                 showSaveResult(dirty.length, data.ganti_libur || []);
+                // Ganti libur balance changed: refresh the Cuti / Ganti Libur columns (scroll position is kept)
+                if ((data.ganti_libur || []).length) loadWeek(weekStart(), true);
                 return true;
             })
             .catch(function (err) { showAlert('danger', (err && err.message) || 'Gagal menyimpan jadwal'); return false; })
@@ -799,15 +1164,15 @@
         if (gantiLibur.length) {
             var rows = gantiLibur.map(function (g) {
                 var change = '';
-                if (g.added.length) change += '<div class="text-success font-weight-bold">+' + g.added.length + ' <small class="text-muted font-weight-normal">(kerja ' + esc(g.added.join(', ')) + ')</small></div>';
-                if (g.removed.length) change += '<div class="text-danger font-weight-bold">-' + g.removed.length + ' <small class="text-muted font-weight-normal">(jadwal ' + esc(g.removed.join(', ')) + ' dihapus)</small></div>';
-                if (g.used.length) change += '<div class="text-danger font-weight-bold">-' + g.used.length + ' <small class="text-muted font-weight-normal">(libur ' + esc(g.used.join(', ')) + ')</small></div>';
-                if (g.refunded.length) change += '<div class="text-success font-weight-bold">+' + g.refunded.length + ' <small class="text-muted font-weight-normal">(ganti libur ' + esc(g.refunded.join(', ')) + ' dibatalkan)</small></div>';
+                if (g.added.length) change += '<div class="text-success">Hari masuk: ' + esc(g.added.join(', ')) + '</div>';
+                if (g.removed.length) change += '<div class="text-danger">Hari masuk dihapus: ' + esc(g.removed.join(', ')) + '</div>';
+                if (g.used.length) change += '<div class="text-danger">Ganti libur: ' + esc(g.used.join(', ')) + '</div>';
+                if (g.refunded.length) change += '<div class="text-success">Ganti libur dibatalkan: ' + esc(g.refunded.join(', ')) + '</div>';
                 return '<tr><td class="text-left">' + esc(g.nama) + '</td><td class="text-left">' + change + '</td><td class="text-center font-weight-bold">' + g.saldo + '</td></tr>';
             }).join('');
-            html += '<div class="mt-3 mb-1 font-weight-bold text-left">Perubahan Jatah Ganti Libur</div>' +
+            html += '<div class="mt-3 mb-1 font-weight-bold text-left">Perubahan Ganti Libur</div>' +
                 '<table class="table table-sm table-bordered mb-0" style="font-size:13px">' +
-                '<thead class="thead-light"><tr><th class="text-left">Karyawan</th><th class="text-left">Perubahan</th><th class="text-center">Saldo</th></tr></thead>' +
+                '<thead class="thead-light"><tr><th class="text-left">Karyawan</th><th class="text-left">Perubahan</th><th class="text-center">Saldo bisa dipakai</th></tr></thead>' +
                 '<tbody>' + rows + '</tbody></table>';
         }
         swal.fire({ title: 'Berhasil!', html: html, icon: 'success', confirmButtonText: 'OK', width: gantiLibur.length ? 600 : undefined });
@@ -838,7 +1203,7 @@
                     .then(function (data) {
                         if (data && data.success) {
                             showAlert('success', 'Berhasil copy' + (data.inserted ? ' (+' + data.inserted + ' shift)' : '') +
-                                (data.ganti_libur_added ? '. Jatah ganti libur +1 untuk ' + data.ganti_libur_added + ' hari Minggu/libur nasional.' : ''));
+                                (data.ganti_libur_added ? '. ' + data.ganti_libur_added + ' hari masuk Minggu/libur nasional baru (dihitung ke ganti libur setelah dikerjakan).' : ''));
                             return loadWeek(targetStart, true);
                         }
                         showAlert('danger', (data && data.message) || 'Gagal copy jadwal');
@@ -911,7 +1276,7 @@
                 var masuk = p.masuk
                     ? '<b>' + esc(p.masuk.label) + '</b> <span class="badge ' + (p.masuk.is_holiday ? 'badge-danger' : 'badge-warning') + '">' + esc(p.masuk.keterangan) + '</span>' +
                       (p.masuk.shifts.length ? '<div class="small text-muted">' + esc(p.masuk.shifts.join(', ')) + '</div>' : '')
-                    : '<span class="text-muted font-italic">Tanpa tanggal masuk (saldo lama)</span>';
+                    : '<span class="text-muted font-italic">Tanpa tanggal masuk (data lama)</span>';
                 var libur = p.libur
                     ? '<b>' + esc(p.libur.label) + '</b><div class="small text-muted">' + esc(p.libur.sumber) + '</div>'
                     : '<span class="badge badge-success">Belum dipakai</span>';
@@ -960,6 +1325,7 @@
         modal.find('#shift-end').val(shift.end || '');
         modal.find('#shift-active').val(typeof shift.active !== 'undefined' ? String(shift.active) : '1');
         modal.find('#shift-color').val(shift.color || '#007bff');
+        modal.find('#shift-min-staff').val(shift.min && shift.min !== '0' ? shift.min : '');
         modal.modal('show');
     }
 
@@ -1014,6 +1380,11 @@
 
         // Header / row / division clicks
         wrapper.addEventListener('click', function (e) {
+            var jatahTd = e.target.closest('td.jatah-btn');
+            if (jatahTd) {
+                showRiwayatJatah(jatahTd.getAttribute('data-emp'), jatahTd.getAttribute('data-jenis'), jatahTd.getAttribute('data-nama'));
+                return;
+            }
             var th = e.target.closest('th.sched-day-head');
             if (th) {
                 var col = th.getAttribute('data-col');
@@ -1049,7 +1420,8 @@
                     start: edit.getAttribute('data-shift-start'),
                     end: edit.getAttribute('data-shift-end'),
                     active: edit.getAttribute('data-shift-active') || '1',
-                    color: edit.getAttribute('data-shift-color') || '#007bff'
+                    color: edit.getAttribute('data-shift-color') || '#007bff',
+                    min: edit.getAttribute('data-shift-min') || ''
                 });
                 return;
             }
@@ -1071,7 +1443,7 @@
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
                             if (!data || !data.success) throw new Error((data && data.message) || '');
-                            showAlert('success', 'Shift berhasil dihapus' + (data.ganti_libur_removed ? '. Jatah ganti libur -1 untuk ' + data.ganti_libur_removed + ' hari Minggu/libur nasional yang jadi kosong.' : ''));
+                            showAlert('success', 'Shift berhasil dihapus' + (data.ganti_libur_removed ? '. ' + data.ganti_libur_removed + ' hari masuk Minggu/libur nasional ikut terhapus.' : ''));
                             return reloadAfterShiftChange();
                         })
                         .catch(function (err) { showAlert('danger', (err && err.message) || 'Gagal menghapus shift'); })
@@ -1178,6 +1550,11 @@
         $id('week-jump').addEventListener('change', function () {
             if (this.value) loadWeek(mondayOf(parseYmd(this.value)));
         });
+        if (CAN_MANAGE_JATAH) {
+            $id('leave-capacity-btn').addEventListener('click', function (e) { e.preventDefault(); leaveCapacity(); });
+            $id('reset-annual-btn').addEventListener('click', function (e) { e.preventDefault(); resetAnnual(); });
+            $id('audit-log-btn').addEventListener('click', function (e) { e.preventDefault(); showAuditLog(); });
+        }
         $id('open-shift-mgmt').addEventListener('click', function (e) {
             e.preventDefault();
             $('#shift-mgmt-body').collapse('show');
@@ -1227,7 +1604,8 @@
                 start_time: $id('shift-start').value.trim(),
                 end_time: $id('shift-end').value.trim(),
                 active: $id('shift-active').value,
-                color: $id('shift-color').value
+                color: $id('shift-color').value,
+                min_staff: parseInt($id('shift-min-staff').value, 10) || 0
             };
             if (!body.name || !body.start_time || !body.end_time) { showAlert('danger', 'Semua field shift wajib diisi'); return; }
             var isEdit = currentShiftMode === 'edit' && id;

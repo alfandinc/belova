@@ -273,7 +273,6 @@
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.index') }}"><i class="ti-control-record"></i>Data Pegawai</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.index') }}"><i class="ti-control-record"></i>Data Dokter</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.division.index') }}"><i class="ti-control-record"></i>Data Divisi &amp; Jabatan</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.jatah-libur.index') }}"><i class="ti-control-record"></i>Kuota Libur</a></li>
                     @if(Auth::user()->hasAnyRole('Hrd','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.libur-nasional.index') }}"><i class="ti-control-record"></i>Libur Nasional</a></li>
                     @endif

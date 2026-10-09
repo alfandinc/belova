@@ -72,67 +72,76 @@ class PengajuanLibur extends Model
     }
 
     /**
-     * Worked Sundays / holidays (Y-m-d, oldest first, scheduled future days included) that still back the
-     * employee's ganti libur balance. Dates were only tracked per request recently, so older requests used
-     * days without naming them: the balance is the truth, and only the newest (saldo − days reserved by
-     * requests not yet deducted) unclaimed days count. Older unclaimed days are treated as already used.
+     * Worked Sundays / holidays (Y-m-d, oldest first, scheduled future days included) not yet claimed by an
+     * active ganti libur. This list IS the balance: jatah ganti libur is counted from the schedule, never stored.
+     * Only days from LiburNasional::gantiLiburMulai() count (see isHariGantiLibur).
      * $excludeId: a request being edited, whose claimed days become free again.
      */
     public static function hariMasukBelumDipakai($employeeId, ?array $holidays = null, $excludeId = null): array
     {
         $holidays ??= LiburNasional::namesByDate();
-        $aktif = static::gantiLiburAktif($employeeId)->get();
-        $excluded = $aktif->firstWhere('id', $excludeId);
-        $aktif = $aktif->reject(fn($p) => $excluded && $p->id === $excluded->id);
+        $claimed = static::claimedHariMasuk($employeeId, $excludeId);
 
-        $claimed = $aktif->flatMap(fn($p) => (array) $p->tanggal_masuk_pengganti)
-            ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())->all();
-        // Requests not yet approved by HRD still sit in the saldo; an excluded, already deducted request gives its days back
-        $reserved = (int) $aktif->filter(fn($p) => $p->status_hrd !== 'disetujui')->sum('total_hari');
-        $refund = $excluded && $excluded->status_hrd === 'disetujui' ? (int) $excluded->total_hari : 0;
-        $count = max(0, (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur') - $reserved + $refund);
-
-        $unclaimed = EmployeeSchedule::where('employee_id', $employeeId)
+        return EmployeeSchedule::where('employee_id', $employeeId)
+            ->whereDate('date', '>=', LiburNasional::gantiLiburMulai())
             ->orderBy('date')
             ->pluck('date')
             ->map(fn($d) => \Carbon\Carbon::parse($d)->toDateString())
             ->unique()
             ->filter(fn($d) => LiburNasional::isHariGantiLibur($d, $holidays) && !in_array($d, $claimed, true))
-            ->values();
-
-        return $count > 0 ? $unclaimed->slice(-$count)->values()->all() : [];
+            ->values()
+            ->all();
     }
 
     /**
-     * How the ganti libur balance is made up: saldo = bisa_dipakai (worked days, past) + belum_dikerjakan
-     * (scheduled days still ahead, counted when scheduled) + diajukan (requests not yet deducted)
-     * + tanpa_tanggal (old / manual balance without a worked day). sinkron is false only when the saldo is
-     * below the days already requested, so the parts cannot add up.
+     * Ganti libur balance, counted from the schedule: saldo = worked Sundays / holidays (up to today) not yet
+     * claimed, terjadwal = scheduled ones still ahead (usable once worked), diajukan = days claimed by
+     * requests still waiting for approval (already out of saldo).
      */
     public static function ringkasanGantiLibur($employeeId, ?array $holidays = null): array
     {
-        $saldo = (int) JatahLibur::where('employee_id', $employeeId)->value('jatah_ganti_libur');
-        $diajukan = (int) static::gantiLiburAktif($employeeId)
-            ->where(fn($q) => $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'disetujui'))
-            ->sum('total_hari');
-        $backed = collect(static::hariMasukBelumDipakai($employeeId, $holidays));
-        $today = \Carbon\Carbon::today()->toDateString();
-        $belumDikerjakan = $backed->filter(fn($d) => $d > $today)->count();
-
-        return [
-            'saldo' => $saldo,
-            'bisa_dipakai' => $backed->count() - $belumDikerjakan,
-            'belum_dikerjakan' => $belumDikerjakan,
-            'diajukan' => $diajukan,
-            'tanpa_tanggal' => max(0, $saldo - $diajukan - $backed->count()),
-            'sinkron' => $saldo >= $diajukan,
-        ];
+        return static::ringkasanGantiLiburBatch([$employeeId], $holidays)[$employeeId];
     }
 
-    /** Part of the ganti libur balance not backed by any worked day (old / manual balance). */
-    public static function saldoTanpaTanggal($employeeId, ?array $holidays = null): int
+    /**
+     * ringkasanGantiLibur for many employees in two queries (schedule grid): [employee_id => ringkasan].
+     * Same rule as hariMasukBelumDipakai.
+     */
+    public static function ringkasanGantiLiburBatch(array $employeeIds, ?array $holidays = null): array
     {
-        return static::ringkasanGantiLibur($employeeId, $holidays)['tanpa_tanggal'];
+        $holidays ??= LiburNasional::namesByDate();
+        $today = \Carbon\Carbon::today()->toDateString();
+        $toDate = fn($d) => \Carbon\Carbon::parse($d)->toDateString();
+
+        $aktif = static::gantiLiburAktif($employeeIds)->get()->groupBy('employee_id');
+        $worked = EmployeeSchedule::whereIn('employee_id', $employeeIds)
+            ->whereDate('date', '>=', LiburNasional::gantiLiburMulai())
+            ->get(['employee_id', 'date'])
+            ->map(fn($s) => [$s->employee_id, $toDate($s->date)])
+            ->filter(fn($x) => LiburNasional::isHariGantiLibur($x[1], $holidays))
+            ->groupBy(fn($x) => $x[0]);
+
+        $out = [];
+        foreach ($employeeIds as $id) {
+            $requests = $aktif[$id] ?? collect();
+            $claimed = $requests->flatMap(fn($p) => (array) $p->tanggal_masuk_pengganti)->map($toDate)->all();
+            $belumDipakai = collect($worked[$id] ?? [])->pluck(1)->unique()
+                ->reject(fn($d) => in_array($d, $claimed, true));
+
+            $out[$id] = [
+                'saldo' => $belumDipakai->filter(fn($d) => $d <= $today)->count(),
+                'terjadwal' => $belumDipakai->filter(fn($d) => $d > $today)->count(),
+                'diajukan' => (int) $requests->filter(fn($p) => $p->status_hrd !== 'disetujui')
+                    ->sum(fn($p) => count((array) $p->tanggal_masuk_pengganti)),
+            ];
+        }
+
+        return $out;
+    }
+
+    public static function saldoGantiLibur($employeeId, ?array $holidays = null): int
+    {
+        return static::ringkasanGantiLibur($employeeId, $holidays)['saldo'];
     }
 
     /**
@@ -176,6 +185,78 @@ class PengajuanLibur extends Model
         return "Hari masuk {$nama} tanggal " . $fmt($date) . ' sudah dipakai ganti libur tanggal ' . $fmt($claim->tanggal_mulai)
             . ($claim->total_hari > 1 ? ' – ' . $fmt($claim->tanggal_selesai) : '')
             . '. Batalkan / tolak ganti libur tersebut terlebih dahulu.';
+    }
+
+    /**
+     * History of every worked Sunday / holiday (from LiburNasional::gantiLiburMulai()) paired with the ganti
+     * libur that used it, newest first. Status: 'tersedia' / 'terjadwal' (counts in the balance, past / ahead),
+     * 'diajukan' (claimed, waiting for approval), 'dipakai' (claimed and approved). Ganti libur without a
+     * worked date (from before dates were recorded) get a row with masuk null.
+     * Returned with the balance summary (ringkasanGantiLibur), ready to merge into a JSON response.
+     */
+    public static function rincianGantiLibur(int $employeeId, array $holidays): array
+    {
+        $fmt = fn($d) => \Carbon\Carbon::parse($d)->locale('id')->translatedFormat('D, j M Y');
+        $today = \Carbon\Carbon::today()->toDateString();
+        $mulai = LiburNasional::gantiLiburMulai();
+
+        $aktif = static::gantiLiburAktif($employeeId)->orderByDesc('tanggal_mulai')->get();
+        $libur = fn($p) => [
+            'pengajuan_id' => $p->id,
+            'jumlah_hari' => (int) $p->total_hari,
+            'libur_mulai' => \Carbon\Carbon::parse($p->tanggal_mulai)->toDateString(),
+            'libur' => $fmt($p->tanggal_mulai) . ($p->total_hari > 1 ? ' – ' . $fmt($p->tanggal_selesai) : ''),
+            'status' => $p->status_hrd === 'disetujui' ? 'dipakai' : 'diajukan',
+        ];
+        $claimedBy = [];
+        foreach ($aktif as $p) {
+            foreach ((array) $p->tanggal_masuk_pengganti as $d) {
+                if (($d = \Carbon\Carbon::parse($d)->toDateString()) >= $mulai) {
+                    $claimedBy[$d] = $p;
+                }
+            }
+        }
+
+        $shifts = EmployeeSchedule::with('shift:id,name')->where('employee_id', $employeeId)
+            ->whereDate('date', '>=', $mulai)->get(['date', 'shift_id'])
+            ->groupBy(fn($s) => \Carbon\Carbon::parse($s->date)->toDateString())
+            ->filter(fn($items, $date) => LiburNasional::isHariGantiLibur($date, $holidays))
+            ->map(fn($items) => $items->map(fn($s) => $s->shift->name ?? null)->filter()->unique()->implode(', '));
+
+        // Worked days in the schedule plus claimed days whose schedule is gone, so no ganti libur drops out of the history
+        $rows = $shifts->keys()->merge(array_keys($claimedBy))->unique()
+            ->map(function ($date) use ($fmt, $today, $claimedBy, $holidays, $libur, $shifts) {
+                $p = $claimedBy[$date] ?? null;
+                return [
+                    'sort' => $date,
+                    'date' => $date,
+                    'masuk' => $fmt($date),
+                    'keterangan' => $holidays[$date] ?? (\Carbon\Carbon::parse($date)->isSunday() ? 'Hari Minggu' : null),
+                    'shift' => $shifts[$date] ?? null,
+                    // Pairing made before "masuk dulu baru libur" was enforced: worked day on / after the libur
+                    'terbalik' => $p && $date >= \Carbon\Carbon::parse($p->tanggal_mulai)->toDateString(),
+                ] + ($p ? $libur($p) : [
+                    'pengajuan_id' => null,
+                    'libur' => null,
+                    'status' => $date > $today ? 'terjadwal' : 'tersedia',
+                ]);
+            })
+            ->values()
+            ->merge($aktif->filter(fn($p) => empty($p->tanggal_masuk_pengganti)
+                && \Carbon\Carbon::parse($p->tanggal_mulai)->toDateString() >= $mulai)->map(fn($p) => [
+                'sort' => \Carbon\Carbon::parse($p->tanggal_mulai)->toDateString(),
+                'date' => null,
+                'masuk' => null,
+                'keterangan' => null,
+                'shift' => null,
+            ] + $libur($p)))
+            ->sortByDesc('sort')
+            ->values();
+
+        return [
+            'ganti_libur_tanggal' => $rows->all(),
+            'ganti_libur_ringkasan' => static::ringkasanGantiLibur($employeeId, $holidays),
+        ];
     }
 
     /**

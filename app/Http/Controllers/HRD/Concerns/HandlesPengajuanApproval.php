@@ -320,20 +320,25 @@ trait HandlesPengajuanApproval
             ->groupBy('jenis_libur')
             ->pluck('total', 'jenis_libur');
 
-        $labels = ['cuti_tahunan' => 'Cuti Tahunan', 'ganti_libur' => 'Ganti Libur'];
-        $summary = [];
-        foreach (['cuti_tahunan' => 'jatah_cuti_tahunan', 'ganti_libur' => 'jatah_ganti_libur'] as $jenis => $column) {
-            $saldo = (int) $jatah->{$column};
-            $reserved = (int) ($pending[$jenis] ?? 0);
-            $summary[$jenis] = [
-                'label' => $labels[$jenis],
+        $saldo = (int) $jatah->jatah_cuti_tahunan;
+        $reserved = (int) ($pending['cuti_tahunan'] ?? 0);
+        // Ganti libur is counted from the schedule: pending requests already claimed their worked days
+        $gl = PengajuanLibur::ringkasanGantiLibur($employee->id);
+
+        return [
+            'cuti_tahunan' => [
+                'label' => 'Cuti Tahunan',
                 'saldo' => $saldo,
                 'pending' => $reserved,
                 'tersedia' => max(0, $saldo - $reserved),
-            ];
-        }
-
-        return $summary;
+            ],
+            'ganti_libur' => [
+                'label' => 'Ganti Libur',
+                'saldo' => $gl['saldo'] + $gl['diajukan'],
+                'pending' => $gl['diajukan'],
+                'tersedia' => $gl['saldo'],
+            ],
+        ];
     }
 
     /**

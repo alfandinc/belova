@@ -7,10 +7,10 @@ use App\Http\Controllers\HRD\Concerns\HandlesPengajuanApproval;
 use App\Http\Controllers\HRD\Concerns\ResolvesDirectManagerApprovals;
 use App\Models\HRD\Employee;
 use App\Models\HRD\EmployeeSchedule;
-use App\Models\HRD\JatahLibur;
 use App\Models\HRD\LiburNasional;
 use App\Models\HRD\PengajuanGantiShift;
 use App\Models\HRD\PengajuanLibur;
+use App\Models\HRD\ScheduleLog;
 use App\Models\HRD\Shift;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -104,14 +104,6 @@ class PengajuanGantiShiftController extends Controller
         }
 
         return '<span class="badge badge-secondary">Menunggu Persetujuan</span><div class="small text-muted mt-1">Menunggu Atasan</div>';
-    }
-
-    private function lockedJatah($employeeId): JatahLibur
-    {
-        return JatahLibur::lockForUpdate()->firstOrCreate(
-            ['employee_id' => $employeeId],
-            ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
-        );
     }
 
     /**
@@ -476,8 +468,19 @@ class PengajuanGantiShiftController extends Controller
                     return 'Pengajuan ditolak.';
                 }
 
-                // Rolls back the approval too if the schedule cannot be applied
-                return $this->applySchedule($pengajuan);
+                // Rolls back the approval too if the schedule cannot be applied; both days go to the audit log
+                $tanggal = $pengajuan->tanggal_shift->toDateString();
+                $people = array_filter([$pengajuan->employee_id, $pengajuan->target_employee_id]);
+                $before = [];
+                foreach ($people as $employeeId) {
+                    $before[$employeeId] = ScheduleLog::stateOf($employeeId, $tanggal);
+                }
+                $message = $this->applySchedule($pengajuan);
+                foreach ($people as $employeeId) {
+                    ScheduleLog::record($employeeId, $tanggal, $before[$employeeId], ScheduleLog::stateOf($employeeId, $tanggal), 'ganti_shift');
+                }
+
+                return $message;
             });
         } catch (\DomainException $e) {
             return $this->errorResponse($request, $e->getMessage());
@@ -516,19 +519,10 @@ class PengajuanGantiShiftController extends Controller
             // The colleague takes over my shift row; I am off unless I still have a second shift
             $mine->update(['employee_id' => $p->target_employee_id]);
 
-            // Sunday / national holiday: same rule as the schedule screen (start working +1, stop working -1)
-            $jatahNote = '';
-            if (LiburNasional::isHariGantiLibur($tanggal)) {
-                $this->lockedJatah($p->target_employee_id)->increment('jatah_ganti_libur');
-                $jatahNote = ' ' . ($p->targetEmployee->nama ?? 'Rekan') . ' mendapat +1 jatah ganti libur';
-                if ($myShiftCount === 1) {
-                    $jatah = $this->lockedJatah($p->employee_id);
-                    $jatah->jatah_ganti_libur = max(0, (int) $jatah->jatah_ganti_libur - 1);
-                    $jatah->save();
-                    $jatahNote .= ', jatah ganti libur ' . ($p->employee->nama ?? '-') . ' -1';
-                }
-                $jatahNote .= '.';
-            }
+            // Sunday / national holiday: the ganti libur balance follows the schedule, so it moves to the colleague by itself
+            $jatahNote = LiburNasional::isHariGantiLibur($tanggal)
+                ? ' Hari masuk ini sekarang dihitung untuk ganti libur ' . ($p->targetEmployee->nama ?? 'rekan') . '.'
+                : '';
 
             Log::info('Ganti shift: digantikan rekan applied', ['pengajuan_id' => $p->id, 'date' => $tanggal,
                 'employee_id' => $p->employee_id, 'target_employee_id' => $p->target_employee_id, 'shift_id' => $p->shift_lama_id]);
@@ -573,11 +567,6 @@ class PengajuanGantiShiftController extends Controller
                 throw new \DomainException($changed . ' (karyawan sekarang sudah memiliki jadwal di tanggal ini).');
             }
             EmployeeSchedule::create(['employee_id' => $p->employee_id, 'shift_id' => $p->shift_baru_id, 'date' => $tanggal]);
-
-            // Newly working a Sunday / national holiday earns ganti libur, same rule as the schedule screen
-            if (LiburNasional::isHariGantiLibur($tanggal)) {
-                $this->lockedJatah($p->employee_id)->increment('jatah_ganti_libur');
-            }
         }
 
         Log::info('Ganti shift: schedule updated', ['pengajuan_id' => $p->id, 'date' => $tanggal,
