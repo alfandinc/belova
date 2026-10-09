@@ -41,7 +41,9 @@
                     </div>
                     <div class="form-group col-md-6">
                         <label>NIK</label>
-                        <input type="text" name="nik" class="form-control" value="{{ old('nik', $employee->nik) }}">
+                        {{-- Read-only: identity data is maintained by HRD (no name attribute, so it is never submitted) --}}
+                        <input type="text" class="form-control" value="{{ $employee->nik }}" readonly>
+                        <small class="form-text text-muted">Hubungi HRD untuk mengubah NIK.</small>
                     </div>
                 </div>
                 <div class="form-row">
@@ -89,7 +91,15 @@
                     </div>
                     <div class="form-group col-md-12">
                         <label>Instagram</label>
-                        <input type="text" name="instagram" class="form-control" value="{{ old('instagram', $employee->instagram) }}" placeholder="Instagram username">
+                        @php
+                            // Stored as a list (array cast); older rows hold a JSON string
+                            $instagram = $employee->instagram;
+                            if (is_string($instagram)) {
+                                $instagram = json_decode($instagram, true) ?? [$instagram];
+                            }
+                        @endphp
+                        <input type="text" name="instagram" class="form-control" value="{{ old('instagram', implode(', ', array_filter((array) $instagram))) }}" placeholder="username1, username2">
+                        <small class="form-text text-muted">Pisahkan dengan koma jika lebih dari satu akun.</small>
                     </div>
                    
                 </div>

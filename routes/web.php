@@ -235,7 +235,7 @@ Route::middleware(['auth'])->group(function () {
     });
     // AJAX: generate next employee `no_induk` in YYMMXXX format
     Route::get('hrd/employee/next-no-induk', [App\Http\Controllers\HRD\EmployeeController::class, 'nextNoInduk'])
-        ->name('hrd.employee.nextNoInduk');
+        ->name('hrd.employee.nextNoInduk')->middleware('role:Hrd|Admin');
     // Memorandum routes moved to Workdoc section
     // AJAX: Pending approvals filtered by date range (no reload)
     Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
@@ -1619,16 +1619,26 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
             Route::put('/{employee}/hari-masuk', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateHariMasuk'])->name('hari-masuk.update');
         });
 
-        // Employee Management Routes
-        // Add these routes if they're missing
-        Route::get('/employee', [EmployeeController::class, 'index'])->name('hrd.employee.index');
-        Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
-        Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
-        Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show');
-        Route::get('/employee/{id}/get-details', [EmployeeController::class, 'getDetails'])->name('hrd.employee.get-details');
-        Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
-        Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
-        Route::delete('/employee/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
+        // Employee Management Routes: Ceo / Head Manager may view (same audience as the "Data Pegawai" menu),
+        // only Hrd / Admin may change data
+        Route::middleware('role:Hrd|Admin|Ceo|Head Manager')->group(function () {
+            Route::get('/employee', [EmployeeController::class, 'index'])->name('hrd.employee.index');
+            Route::get('/employee/export', [EmployeeController::class, 'export'])->name('hrd.employee.export');
+            Route::get('/employee/{id}/get-details', [EmployeeController::class, 'getDetails'])->name('hrd.employee.get-details');
+            Route::get('/employee/{id}/logs', [EmployeeController::class, 'logs'])->name('hrd.employee.logs');
+            Route::get('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'index'])->name('hrd.employee.contracts.index');
+        });
+        Route::middleware('role:Hrd|Admin')->group(function () {
+            Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
+            Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
+            Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
+            Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
+            Route::get('/employee/users-search', [EmployeeController::class, 'searchUsers'])->name('hrd.employee.users-search');
+            // No delete: employees are referenced by absensi, slip gaji, jadwal, ...; status Tidak Aktif instead
+            Route::post('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'store'])->name('hrd.employee.contracts.store');
+            Route::post('/employee/{employeeId}/contracts/{contractId}/terminate', [EmployeeContractController::class, 'terminate'])->name('hrd.employee.contracts.terminate');
+        });
+        Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show'); // redirect to the list
 
         // Dokter Management (HRD access, full CRUD)
         Route::get('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'index'])->name('hrd.dokters.index');
@@ -1647,15 +1657,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
 
         Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
 
-        // Employee Contract Routes
-        Route::get('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'index'])->name('hrd.employee.contracts.index');
-        Route::get('/employee/{employeeId}/contracts/create', [EmployeeContractController::class, 'create'])->name('hrd.employee.contracts.create');
-        Route::post('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'store'])->name('hrd.employee.contracts.store');
-        Route::get('/employee/{employeeId}/contracts/{contractId}', [EmployeeContractController::class, 'show'])->name('hrd.employee.contracts.show');
-        Route::post('/employee/{employeeId}/contracts/{contractId}/terminate', [EmployeeContractController::class, 'terminate'])->name('hrd.employee.contracts.terminate');
-        // AJAX routes for modals
-        Route::get('/employee/{employeeId}/contracts/modal/create', [EmployeeContractController::class, 'getCreateModal'])->name('hrd.employee.contracts.modal.create');
-        Route::get('/employee/{employeeId}/contracts/{contractId}/modal', [EmployeeContractController::class, 'getShowModal'])->name('hrd.employee.contracts.modal.show');
         
         // Division routes (for managers)
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
@@ -2129,7 +2130,7 @@ Route::post('/erm/riwayat-tindakan/{id}/obat', [App\Http\Controllers\ERM\Tindaka
 // AJAX: Get ruangan by gedung for filter (move to RuanganController for consistency)
 Route::get('/inventory/ruangan/by-gedung/{gedungId}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung']);
 
-Route::get('/api/hrd/employees', [App\Http\Controllers\HRD\EmployeeController::class, 'searchForSelect2']);
+Route::get('/api/hrd/employees', [App\Http\Controllers\HRD\EmployeeController::class, 'searchForSelect2'])->middleware('auth');
 
 // Select2 AJAX for pemasok
 

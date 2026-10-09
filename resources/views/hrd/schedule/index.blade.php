@@ -180,6 +180,7 @@
                         <a href="#" class="dropdown-item" id="leave-capacity-btn"><i class="fa fa-users fa-fw mr-1"></i>Kuota libur harian</a>
                         <a href="#" class="dropdown-item" id="reset-annual-btn"><i class="fa fa-undo fa-fw mr-1"></i>Reset cuti tahunan</a>
                         <a href="#" class="dropdown-item" id="pasangkan-all-btn"><i class="fa fa-link fa-fw mr-1"></i>Pasangkan ganti libur tanpa tanggal</a>
+                        <a href="#" class="dropdown-item" id="libur-nasional-btn"><i class="fa fa-calendar-day fa-fw mr-1"></i>Libur nasional</a>
                         @endif
                         <div class="edit-only">
                             <div class="dropdown-divider"></div>
@@ -339,6 +340,66 @@
         </div>
     </div>
 
+    @if($canEdit)
+    {{-- Master libur nasional: masuk pada tanggal ini = +1 ganti libur, sama seperti hari Minggu --}}
+    <div class="modal fade" id="liburNasionalModal" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Libur Nasional</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Pilih tahun">
+                            <button type="button" class="btn btn-light border" id="ln-prev-year" title="Tahun sebelumnya"><i class="fa fa-chevron-left"></i></button>
+                            <button type="button" class="btn btn-light border font-weight-bold" id="ln-year" disabled></button>
+                            <button type="button" class="btn btn-light border" id="ln-next-year" title="Tahun berikutnya"><i class="fa fa-chevron-right"></i></button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" id="ln-add"><i class="fa fa-plus-circle mr-1"></i>Tambah Libur</button>
+                    </div>
+                    <form id="ln-form" class="border rounded p-2 mb-2 bg-light" style="display:none;" novalidate>
+                        <input type="hidden" id="ln-id">
+                        <div class="small font-weight-bold mb-1" id="ln-form-title">Tambah Libur Nasional</div>
+                        <div class="form-row align-items-start">
+                            <div class="col-sm-4 mb-1">
+                                <input type="date" class="form-control form-control-sm" id="ln-tanggal" required>
+                            </div>
+                            <div class="col-sm mb-1">
+                                <input type="text" class="form-control form-control-sm" id="ln-nama" maxlength="150" required placeholder="Nama libur, contoh: Hari Kemerdekaan RI">
+                            </div>
+                            <div class="col-sm-auto mb-1 text-nowrap">
+                                <button type="button" class="btn btn-sm btn-light border" id="ln-cancel">Batal</button>
+                                <button type="submit" class="btn btn-sm btn-primary" id="ln-save">Simpan</button>
+                            </div>
+                        </div>
+                        <div class="small text-danger" id="ln-error"></div>
+                    </form>
+                    <div class="table-responsive" style="max-height:55vh;overflow-y:auto;">
+                        <table class="table table-sm table-bordered table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:50px;">No</th>
+                                    <th>Tanggal</th>
+                                    <th>Nama Libur</th>
+                                    <th>Karyawan Terjadwal</th>
+                                    <th style="width:90px;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ln-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        <i class="fa fa-info-circle mr-1"></i>Karyawan yang terjadwal masuk pada libur nasional mendapat +1 jatah ganti libur, sama seperti hari Minggu.
+                        Menambah, memindah, atau menghapus libur nasional otomatis menyesuaikan jatah karyawan yang sudah terjadwal pada tanggal tersebut.
+                        Libur yang jatuh pada hari Minggu tidak dihitung dua kali.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Shift Management Modal -->
     <div class="modal fade" id="shiftModal" tabindex="-1" role="dialog" aria-labelledby="shiftModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
@@ -412,6 +473,7 @@
         leaveCapacityUpdate: "{{ route('hrd.master.jatah-libur.leave_capacity.update') }}",
         resetAnnual: "{{ route('hrd.master.jatah-libur.reset_annual') }}",
         pasangkan: "{{ route('hrd.master.jatah-libur.pasangkan_otomatis') }}",
+        liburNasional: "{{ route('hrd.master.libur-nasional.index') }}",
         jadikanGl: "{{ route('hrd.master.jatah-libur.jadikan_ganti_libur', ['employee' => '__ID__']) }}",
         logs: "{{ route('hrd.schedule.logs') }}",
         cutiUpdate: "{{ route('hrd.master.jatah-libur.cuti.update', ['employee' => '__ID__']) }}",
@@ -922,6 +984,103 @@
             })
             .catch(function (err) { $('#kuota-error').text(err.message); })
             .finally(function () { $btn.prop('disabled', false); });
+    });
+
+    // ---------- libur nasional ----------
+    // Holidays change the day headers and ganti libur balances, so the grid reloads when the modal closes
+    var ln = { tahun: new Date().getFullYear(), rows: [], changed: false };
+    function lnLoad() {
+        $('#ln-year').text(ln.tahun);
+        var $body = $('#ln-body').html('<tr><td colspan="5" class="text-center text-muted"><i class="fa fa-spinner fa-spin mr-1"></i>Memuat...</td></tr>');
+        jatahRequest(URLS.liburNasional + '?tahun=' + ln.tahun, 'GET')
+            .then(function (res) {
+                ln.rows = (res && res.data) || [];
+                if (!ln.rows.length) {
+                    $body.html('<tr><td colspan="5" class="text-center text-muted">Belum ada libur nasional untuk tahun ' + ln.tahun + '.</td></tr>');
+                    return;
+                }
+                $body.html(ln.rows.map(function (r, i) {
+                    var terjadwal = r.is_sunday
+                        ? '<span class="text-muted small">Hari Minggu (sudah dihitung)</span>'
+                        : (r.terjadwal ? r.terjadwal + ' karyawan' : '<span class="text-muted">-</span>');
+                    return '<tr>'
+                        + '<td>' + (i + 1) + '</td>'
+                        + '<td>' + esc(r.hari) + ', ' + esc(r.tanggal_label) + '</td>'
+                        + '<td>' + esc(r.nama) + '</td>'
+                        + '<td>' + terjadwal + '</td>'
+                        + '<td class="text-nowrap"><div class="btn-group btn-group-sm">'
+                        + '<button type="button" class="btn btn-warning ln-edit" data-id="' + r.id + '" title="Ubah"><i class="fa fa-edit"></i></button>'
+                        + '<button type="button" class="btn btn-danger ln-delete" data-id="' + r.id + '" title="Hapus"><i class="fa fa-trash"></i></button>'
+                        + '</div></td></tr>';
+                }).join(''));
+            })
+            .catch(function (err) {
+                $body.html('<tr><td colspan="5" class="text-center text-danger">Gagal memuat data.</td></tr>');
+                showAlert('danger', err.message || 'Gagal memuat libur nasional');
+            });
+    }
+    function lnFind(id) { return ln.rows.filter(function (r) { return r.id === id; })[0]; }
+    function lnShowForm(r) {
+        $('#ln-id').val(r ? r.id : '');
+        $('#ln-tanggal').val(r ? r.tanggal : '');
+        $('#ln-nama').val(r ? r.nama : '');
+        $('#ln-error').text('');
+        $('#ln-form-title').text(r ? 'Ubah Libur Nasional' : 'Tambah Libur Nasional');
+        $('#ln-form').slideDown(150, function () { $('#ln-tanggal').trigger('focus'); });
+    }
+    function lnHideForm() { $('#ln-form').slideUp(150); }
+    function liburNasional() {
+        ln.tahun = parseYmd(weekStart()).getFullYear();
+        ln.changed = false;
+        $('#ln-form').hide();
+        $('#liburNasionalModal').modal('show');
+        lnLoad();
+    }
+    $(document).on('click', '#ln-prev-year', function () { ln.tahun--; lnLoad(); });
+    $(document).on('click', '#ln-next-year', function () { ln.tahun++; lnLoad(); });
+    $(document).on('click', '#ln-add', function () { lnShowForm(null); });
+    $(document).on('click', '#ln-cancel', lnHideForm);
+    $(document).on('click', '.ln-edit', function () {
+        var r = lnFind($(this).data('id'));
+        if (r) lnShowForm(r);
+    });
+    $(document).on('submit', '#ln-form', function (e) {
+        e.preventDefault();
+        var id = $('#ln-id').val(), tanggal = $('#ln-tanggal').val(), nama = $.trim($('#ln-nama').val());
+        if (!tanggal || !nama) { $('#ln-error').text('Tanggal dan nama libur wajib diisi.'); return; }
+        $('#ln-error').text('');
+        var $btn = $('#ln-save').prop('disabled', true);
+        jatahRequest(id ? URLS.liburNasional + '/' + id : URLS.liburNasional, id ? 'PUT' : 'POST', { tanggal: tanggal, nama: nama })
+            .then(function (res) {
+                ln.changed = true;
+                lnHideForm();
+                showAlert('success', res.message);
+                ln.tahun = parseInt(tanggal.substr(0, 4), 10) || ln.tahun; // jump to the saved date's year
+                lnLoad();
+            })
+            .catch(function (err) { $('#ln-error').text(err.message); })
+            .finally(function () { $btn.prop('disabled', false); });
+    });
+    $(document).on('click', '.ln-delete', function () {
+        var r = lnFind($(this).data('id'));
+        if (!r) return;
+        var impact = (!r.is_sunday && r.terjadwal)
+            ? '<br><br>Jatah ganti libur <b>' + r.terjadwal + ' karyawan</b> yang terjadwal pada tanggal ini akan dikurangi 1.'
+            : '';
+        swal.fire({
+            icon: 'warning',
+            title: 'Hapus libur nasional?',
+            html: esc(r.nama) + ' (' + esc(r.tanggal_label) + ')' + impact,
+            showCancelButton: true, confirmButtonText: 'Hapus', cancelButtonText: 'Batal', confirmButtonColor: '#d33', reverseButtons: true
+        }).then(function (result) {
+            if (!result.value) return;
+            jatahRequest(URLS.liburNasional + '/' + r.id, 'DELETE')
+                .then(function (res) { ln.changed = true; showAlert('success', res.message); lnLoad(); })
+                .catch(function (err) { showAlert('danger', err.message); });
+        });
+    });
+    $(document).on('hidden.bs.modal', '#liburNasionalModal', function () {
+        if (ln.changed) { ln.changed = false; loadWeek(weekStart()); }
     });
 
     // Reset is a confirmation, so it stays a swal
@@ -1719,6 +1878,7 @@
             $id('leave-capacity-btn').addEventListener('click', function (e) { e.preventDefault(); leaveCapacity(); });
             $id('reset-annual-btn').addEventListener('click', function (e) { e.preventDefault(); resetAnnual(); });
             $id('pasangkan-all-btn').addEventListener('click', function (e) { e.preventDefault(); pasangkanSemua(); });
+            $id('libur-nasional-btn').addEventListener('click', function (e) { e.preventDefault(); liburNasional(); });
             $id('audit-log-btn').addEventListener('click', function (e) { e.preventDefault(); showAuditLog(); });
         }
         $id('open-shift-mgmt').addEventListener('click', function (e) {

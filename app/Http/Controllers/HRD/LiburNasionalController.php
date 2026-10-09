@@ -46,7 +46,8 @@ class LiburNasionalController extends Controller
             ]);
         }
 
-        return view('hrd.master.libur-nasional.index', compact('tahun'));
+        // Managed from a modal on the schedule page (Jadwal Karyawan > Lainnya > Libur nasional)
+        return redirect()->route('hrd.schedule.index');
     }
 
     public function store(Request $request)

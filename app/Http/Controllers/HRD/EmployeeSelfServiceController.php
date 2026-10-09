@@ -87,16 +87,20 @@ public function updateProfile(Request $request)
         'village_id' => 'nullable|exists:area_villages,id',
         'no_hp' => 'nullable|string',
         'no_darurat' => 'nullable|string|max:50', // Emergency contact number
-        'nik' => 'nullable|string',
-        'tanggal_masuk' => 'nullable|date',
+        // nik / tanggal_masuk are left out on purpose: maintained by HRD (tanggal masuk sets jatah cuti)
         'photo' => 'nullable|image',
         'doc_cv' => 'nullable|file|max:10240',
         'doc_ktp' => 'nullable|file|max:10240',
         'doc_kontrak' => 'nullable|file|max:10240',
         'doc_pendukung' => 'nullable|file|max:10240',
         'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
-        'instagram' => 'nullable|string|max:100',
+        'instagram' => 'nullable|string|max:255',
     ]);
+
+    // Comma-separated accounts -> list (the model casts instagram to an array)
+    if (array_key_exists('instagram', $data)) {
+        $data['instagram'] = array_values(array_filter(array_map(fn($i) => ltrim(trim($i), '@'), explode(',', (string) $data['instagram'])), 'strlen'));
+    }
 
     // Handle photo upload
     if ($request->hasFile('photo')) {
