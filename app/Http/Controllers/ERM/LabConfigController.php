@@ -17,7 +17,7 @@ class LabConfigController extends Controller
 
     public function listDokters()
     {
-        $dokters = Dokter::with('user','spesialisasi')
+        $dokters = Dokter::active()->with('user','spesialisasi')
             ->whereHas('spesialisasi', function($q){ $q->where('nama','Laboratorium'); })
             ->get()
             ->map(function($d){

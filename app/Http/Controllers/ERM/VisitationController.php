@@ -291,10 +291,15 @@ class VisitationController extends Controller
         // $count = Dokter::where('klinik_id', $klinikId)->count();
         // \Log::info("Number of doctors found: " . $count);
 
-        $dokters = Dokter::where('klinik_id', $klinikId)
-            ->orWhereHas('kliniks', function ($query) use ($klinikId) {
-                $query->where('erm_klinik.id', $klinikId);
+        // Dokter aktif only; ?include= keeps the dokter already chosen on a kunjungan being edited
+        $includeId = (int) request('include');
+        $dokters = Dokter::where(function ($q) use ($klinikId) {
+                $q->where('klinik_id', $klinikId)
+                    ->orWhereHas('kliniks', function ($query) use ($klinikId) {
+                        $query->where('erm_klinik.id', $klinikId);
+                    });
             })
+            ->where(fn ($q) => $q->where('is_active', true)->when($includeId, fn ($q) => $q->orWhere('erm_dokters.id', $includeId)))
             ->with([
                 'spesialisasi',
                 'user',

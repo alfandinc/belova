@@ -25,6 +25,44 @@ class PrSlipGajiController extends Controller
         return $normalized !== '' ? $normalized : 'draft';
     }
 
+    // Session key + lifetime for the My Payroll password verification
+    const SLIP_VERIFIED_SESSION_KEY = 'slip_gaji_verified_until';
+    const SLIP_VERIFIED_MINUTES = 15;
+
+    public static function isSlipAccessVerified()
+    {
+        $until = (int) session(self::SLIP_VERIFIED_SESSION_KEY, 0);
+        return $until > time();
+    }
+
+    // Recalculate total_pendapatan / total_potongan / total_gaji from the slip's own fields
+    protected function recalculateSlipTotals(PrSlipGaji $slip)
+    {
+        $sumTambahan = is_array($slip->pendapatan_tambahan)
+            ? array_sum(array_map('floatval', array_column($slip->pendapatan_tambahan, 'amount')))
+            : 0;
+
+        $slip->total_pendapatan = (
+            floatval($slip->gaji_pokok ?? 0)
+            + floatval($slip->tunjangan_jabatan ?? 0)
+            + floatval($slip->tunjangan_masa_kerja ?? 0)
+            + floatval($slip->uang_makan ?? 0)
+            + floatval($slip->uang_lembur ?? 0)
+            + floatval($slip->jasa_medis ?? 0)
+            + floatval($slip->uang_kpi ?? 0)
+        ) + $sumTambahan;
+
+        $slip->total_potongan = (
+            floatval($slip->potongan_pinjaman ?? 0)
+            + floatval($slip->potongan_bpjs_kesehatan ?? 0)
+            + floatval($slip->potongan_jamsostek ?? 0)
+            + floatval($slip->potongan_penalty ?? 0)
+            + floatval($slip->potongan_lain ?? 0)
+        );
+
+        $slip->total_gaji = $slip->total_pendapatan - $slip->total_potongan;
+    }
+
     protected function isCeoSlipApprover($user)
     {
         return $user
@@ -46,6 +84,13 @@ class PrSlipGajiController extends Controller
             && $user->hasAnyRole(['Hrd', 'Admin']);
     }
 
+    protected function canUnpaySlip($user)
+    {
+        return $user
+            && method_exists($user, 'hasRole')
+            && $user->hasRole('Admin');
+    }
+
     protected function validateSlipStatusTransition($user, $currentStatus, $nextStatus)
     {
         $current = $this->normalizeSlipStatus($currentStatus);
@@ -60,6 +105,10 @@ class PrSlipGajiController extends Controller
         }
 
         if ($current === 'paid') {
+            // Admin "Unpaid": back to Draft (e.g. marked Paid by mistake); it must be submitted & approved again
+            if ($next === 'draft' && $this->canUnpaySlip($user)) {
+                return null;
+            }
             return 'Slip sudah Paid dan tidak bisa diubah statusnya.';
         }
 
@@ -121,20 +170,25 @@ class PrSlipGajiController extends Controller
             }
         }
 
-        if (!$employee) {
-            return response()->json([
-                'success' => false,
-                'type' => 'error',
-                'title' => 'Error',
-                'message' => 'Data karyawan tidak ditemukan.'
-            ]);
-        }
-
-        // After successful password verification, always redirect user to their slip history page
+        // After successful password verification, redirect to the user's own slip history:
+        // employees -> slip karyawan, dokter users (no employee record) -> slip dokter.
+        // url may be null when the user is neither; the client can still use its own redirect (e.g. "Gaji Dokter" for HRD).
         if ($request->isMethod('post')) {
+            session([self::SLIP_VERIFIED_SESSION_KEY => now()->addMinutes(self::SLIP_VERIFIED_MINUTES)->timestamp]);
+
+            $url = null;
+            if ($employee) {
+                $url = route('hrd.payroll.slip_gaji.history');
+            } elseif ($user && \App\Models\ERM\Dokter::where('user_id', $user->id)->exists()) {
+                $url = route('hrd.payroll.slip_gaji_dokter.my');
+            }
+
             return response()->json([
                 'success' => true,
-                'url' => route('hrd.payroll.slip_gaji.history')
+                'url' => $url,
+                'type' => 'error',
+                'title' => 'Error',
+                'message' => $url ? null : 'Data karyawan / dokter untuk akun ini tidak ditemukan.',
             ]);
         }
 
@@ -147,13 +201,17 @@ class PrSlipGajiController extends Controller
     }
 
     // New method to handle PDF download after verification
-    public function downloadSlip($id)
+    public function downloadSlip(Request $request, $id)
     {
         $user = Auth::user();
         $employee = $user ? $user->employee : null;
-        
+
         if (!$employee) {
             abort(403);
+        }
+
+        if (!$this->isSlipAccessVerified()) {
+            return redirect()->route('hrd.payroll.slip_gaji.history');
         }
 
         $slip = PrSlipGaji::where('id', $id)
@@ -169,10 +227,12 @@ class PrSlipGajiController extends Controller
         
         $mpdf = new \Mpdf\Mpdf(['format' => 'A4-L', 'margin_top' => 5, 'margin_bottom' => 5]);
         $mpdf->WriteHTML($html);
-        
-        $filename = 'slip-gaji-' . $employee->nama . '-' . $slip->bulan . '.pdf';
-        return response($mpdf->Output($filename, 'I'))
-               ->header('Content-Type', 'application/pdf');
+
+        $filename = 'slip-gaji-' . preg_replace('/[^A-Za-z0-9_\-]+/', '-', (string) $employee->nama) . '-' . $slip->bulan . '.pdf';
+        $disposition = $request->boolean('download') ? 'attachment' : 'inline';
+        return response($mpdf->Output($filename, 'S'))
+               ->header('Content-Type', 'application/pdf')
+               ->header('Content-Disposition', $disposition . '; filename="' . $filename . '"');
     }
 
     /**
@@ -394,6 +454,7 @@ class PrSlipGajiController extends Controller
             'benefit_jkm',
             'total_benefit',
             'pendapatan_tambahan',
+            'pendapatan_tambahan_present',
         ];
 
         $payloadKeys = array_values(array_intersect(
@@ -418,8 +479,9 @@ class PrSlipGajiController extends Controller
 
         $isKpiOnlyUpdate = count($nonStatusKeys) === 1 && in_array('kpi_poin', $nonStatusKeys, true);
 
-        // Safety: paid slips are read-only, except KPI poin for HRD/Admin
-        if ($currentStatus === 'paid' && !$isKpiOnlyUpdate) {
+        // Safety: paid slips are read-only, except KPI poin for HRD/Admin.
+        // A status-only request (Admin "Unpaid") is checked by validateSlipStatusTransition below.
+        if ($currentStatus === 'paid' && !$isKpiOnlyUpdate && !empty($nonStatusKeys)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Slip dengan status Paid tidak bisa diedit.'
@@ -511,6 +573,9 @@ class PrSlipGajiController extends Controller
             ]);
             $file = $request->file('jasmed_file');
             $path = $file->store('jasmed_files', 'public');
+            if ($slip->jasmed_file && $slip->jasmed_file !== $path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($slip->jasmed_file);
+            }
             $slip->jasmed_file = $path;
         }
 
@@ -529,8 +594,10 @@ class PrSlipGajiController extends Controller
                 }
             }
         }
-        if ($tambahan) {
-            $slip->pendapatan_tambahan = $tambahan;
+        // Replace the list whenever the client sent it (an empty list clears it).
+        // Forms that may submit zero rows add a hidden `pendapatan_tambahan_present` flag.
+        if ($request->has('pendapatan_tambahan') || $request->boolean('pendapatan_tambahan_present')) {
+            $slip->pendapatan_tambahan = $tambahan ?: null;
         }
 
         // If total_jam_lembur was changed but uang_lembur was not explicitly provided, recompute uang lembur.
@@ -607,6 +674,13 @@ class PrSlipGajiController extends Controller
      */
     public function sync(Request $request)
     {
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk sync slip gaji.'
+            ], 403);
+        }
+
         $request->validate([
             'bulan' => 'required|string',
         ]);
@@ -649,7 +723,8 @@ class PrSlipGajiController extends Controller
         $skippedPaid = 0;
 
         foreach ($slips as $slip) {
-            if (($slip->status_gaji ?? 'draft') === 'paid') {
+            // Only Draft/Rejected slips are editable; Submitted/Approved/Paid amounts must stay as reviewed
+            if (!in_array($this->normalizeSlipStatus($slip->status_gaji), ['draft', 'rejected'], true)) {
                 $skippedPaid++;
                 continue;
             }
@@ -780,7 +855,7 @@ class PrSlipGajiController extends Controller
             'success' => true,
             'updated' => $updated,
             'skipped_paid' => $skippedPaid,
-            'message' => "Sync selesai. Updated: {$updated}, Skipped paid: {$skippedPaid}.",
+            'message' => "Sync selesai. Updated: {$updated}, Dilewati (submitted/approved/paid): {$skippedPaid}.",
         ]);
     }
     // Return omset input fields for all available penghasil omset
@@ -841,6 +916,17 @@ class PrSlipGajiController extends Controller
     public function storeAll(Request $request)
 
     {
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin untuk membuat slip gaji.'
+            ], 403);
+        }
+
+        $created = 0;
+        $refreshed = 0;
+        $skippedLocked = 0;
+
         // Validate required inputs for creating slips
         $request->validate([
             'bulan' => 'required|string',
@@ -1053,29 +1139,25 @@ class PrSlipGajiController extends Controller
             // Store slip gaji for each employee, without uang_kpi
             $totalBenefit = ($benefitBpjsKesehatan ?? 0) + ($benefitJht ?? 0) + ($benefitJkk ?? 0) + ($benefitJkm ?? 0);
 
-            $totalPendapatan = (
-                floatval($gajiPokok)
-                + floatval($tunjanganJabatan)
-                + floatval($tunjanganMasaKerja)
-                + floatval($uangMakan)
-                + floatval($uangLembur)
-                // jasa_medis, uang_kpi, pendapatan_tambahan are not set in generation flow
-            );
+            $slip = PrSlipGaji::firstOrNew([
+                'employee_id' => $employee->id,
+                'bulan' => $bulan
+            ]);
 
-            $totalPotongan = (
-                floatval($potonganBpjsKesehatan ?? 0)
-                + floatval($potonganJamsostek ?? 0)
-            );
+            // Never touch slips that are already Submitted / Approved / Paid
+            if ($slip->exists && !in_array($this->normalizeSlipStatus($slip->status_gaji), ['draft', 'rejected'], true)) {
+                $skippedLocked++;
+                continue;
+            }
 
-            $totalGaji = $totalPendapatan - $totalPotongan;
+            if (!$slip->exists) {
+                $slip->status_gaji = 'draft';
+                $created++;
+            } else {
+                $refreshed++;
+            }
 
-            PrSlipGaji::updateOrCreate(
-                [
-                    'employee_id' => $employee->id,
-                    'bulan' => $bulan
-                ],
-                [
-                    'status_gaji' => 'draft',
+            $slip->fill([
                     'total_hari_scheduled' => $totalHariScheduled,
                     'total_hari_masuk' => $totalHariMasuk,
                     'gaji_pokok' => $gajiPokok,
@@ -1091,9 +1173,6 @@ class PrSlipGajiController extends Controller
                     'total_benefit' => $totalBenefit,
                     'potongan_bpjs_kesehatan' => $potonganBpjsKesehatan,
                     'potongan_jamsostek' => $potonganJamsostek,
-                    'total_pendapatan' => $totalPendapatan,
-                    'total_potongan' => $totalPotongan,
-                    'total_gaji' => $totalGaji,
                     'total_jam_lembur' => $totalJamLembur,
                     'uang_lembur' => $uangLembur,
                     'poin_penilaian' => 0,
@@ -1101,10 +1180,21 @@ class PrSlipGajiController extends Controller
                     'poin_marketing' => $initialPoinMedsos,
                     'poin_medsos' => $initialPoinMedsos,
                     'kpi_poin' => $kpiPoin
-                ]
-            );
+            ]);
+
+            // Totals include fields HRD may already have filled on an existing draft
+            // (jasa medis, uang KPI, pendapatan tambahan, other potongan).
+            $this->recalculateSlipTotals($slip);
+            $slip->save();
         }
-        return response()->json(['success' => true, 'total_omset' => number_format($totalOmset, 2)]);
+        return response()->json([
+            'success' => true,
+            'total_omset' => number_format($totalOmset, 2),
+            'created' => $created,
+            'refreshed' => $refreshed,
+            'skipped_locked' => $skippedLocked,
+            'message' => "Slip dibuat: {$created}, diperbarui (draft/rejected): {$refreshed}, dilewati (submitted/approved/paid): {$skippedLocked}.",
+        ]);
 
         // Parse year and month from 'bulan' (format: YYYY-MM)
         $year = substr($bulan, 0, 4);
@@ -1174,6 +1264,30 @@ class PrSlipGajiController extends Controller
 
     public function data(Request $request)
     {
+        $query = $this->buildSlipListQuery($request);
+        return $this->slipDataTable($query);
+    }
+
+    /**
+     * Export the slip list (same filters as the table) to Excel.
+     */
+    public function export(Request $request)
+    {
+        $query = $this->buildSlipListQuery($request);
+        $rows = $query->orderBy('e.nama')->get();
+        $bulan = $rows->first()->bulan ?? ($request->get('bulan') ?: date('Y-m'));
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\SlipGajiExport($rows),
+            'slip-gaji-karyawan-' . $bulan . '.xlsx'
+        );
+    }
+
+    /**
+     * Slip list query filtered by bulan / status / division (shared by data() and export()).
+     */
+    protected function buildSlipListQuery(Request $request)
+    {
         $bulan = $request->get('bulan') ?: date('Y-m');
         $rawStatus = trim((string) $request->get('status', ''));
         $status = $rawStatus !== '' ? $this->normalizeSlipStatus($rawStatus) : '';
@@ -1233,6 +1347,11 @@ class PrSlipGajiController extends Controller
                     ->where('p_filter.division_id', intval($divisionId));
             });
         }
+        return $query;
+    }
+
+    protected function slipDataTable($query)
+    {
         return datatables()->of($query)
             ->addColumn('id', function($row) {
                 return $row->id;
@@ -1334,6 +1453,16 @@ class PrSlipGajiController extends Controller
                     . '<button class="btn btn-primary btn-sm btn-print">Print</button>';
             })
             ->rawColumns(['action'])
+            // Total over all rows matching the filters/search (not just the current page)
+            ->withQuery('total_beban', function ($filteredQuery) {
+                // Eloquent builder would swallow cloneWithout(); work on the base query builder
+                $base = $filteredQuery instanceof \Illuminate\Database\Eloquent\Builder
+                    ? $filteredQuery->toBase()
+                    : $filteredQuery;
+                return (float) $base
+                    ->cloneWithout(['orders', 'limit', 'offset'])
+                    ->sum('pr_slip_gaji.total_gaji');
+            })
             ->make(true);
     }
 
@@ -1347,8 +1476,9 @@ class PrSlipGajiController extends Controller
 
         $user = Auth::user();
         $employee = $user ? $user->employee : null;
+        $verified = $this->isSlipAccessVerified();
 
-        if ($employee) {
+        if ($employee && $verified) {
             $bulans = PrSlipGaji::where('employee_id', $employee->id)
                 ->where('status_gaji', 'paid')
                 ->pluck('bulan');
@@ -1362,6 +1492,12 @@ class PrSlipGajiController extends Controller
                 }
             }
 
+            // Default to the latest year that actually has a slip (avoids an empty table in January etc.)
+            $slipYears = array_slice($years, 1);
+            if (!empty($slipYears) && !in_array($currentYear, $slipYears, true)) {
+                $currentYear = max($slipYears);
+            }
+
             $years = array_values(array_unique($years));
             rsort($years);
         }
@@ -1369,6 +1505,8 @@ class PrSlipGajiController extends Controller
         return view('hrd.payroll.slip_gaji.history', [
             'years' => $years,
             'currentYear' => $currentYear,
+            'verified' => $verified,
+            'hasEmployee' => (bool) $employee,
         ]);
     }
 
@@ -1382,6 +1520,12 @@ class PrSlipGajiController extends Controller
 
         if (!$employee) {
             return datatables()->of(collect([]))->make(true);
+        }
+
+        if (!$this->isSlipAccessVerified()) {
+            return response()->json([
+                'message' => 'Sesi verifikasi slip gaji sudah habis. Silakan verifikasi password lagi.'
+            ], 403);
         }
 
         $year = $request->input('year');
@@ -1439,7 +1583,9 @@ class PrSlipGajiController extends Controller
                     'bulan_label' => $label,
                     'kpi_poin' => floatval($slip->kpi_poin ?? 0),
                     'total_hari_masuk' => intval($slip->total_hari_masuk ?? 0),
-                    'total_gaji' => number_format($slip->total_gaji ?? 0, 2),
+                    'total_pendapatan' => 'Rp ' . number_format($slip->total_pendapatan ?? 0, 2, ',', '.'),
+                    'total_potongan' => 'Rp ' . number_format($slip->total_potongan ?? 0, 2, ',', '.'),
+                    'total_gaji' => 'Rp ' . number_format($slip->total_gaji ?? 0, 2, ',', '.'),
                     'total_gaji_raw' => floatval($slip->total_gaji ?? 0),
                     'status' => (string) ($slip->status_gaji ?? ''),
                 ];
@@ -1469,8 +1615,11 @@ class PrSlipGajiController extends Controller
 
         // Add action HTML
         $rows = $rows->map(function ($row) {
-            $printUrl = url('hrd/payroll/slip-gaji/print/' . $row['id']);
-            $row['action'] = '<a href="' . $printUrl . '" class="btn btn-sm btn-primary" target="_blank">Lihat Slip Gaji</a>';
+            // download route checks ownership + Paid status (the admin print route does not)
+            $viewUrl = route('hrd.payroll.slip_gaji.download', $row['id']);
+            $downloadUrl = route('hrd.payroll.slip_gaji.download', ['id' => $row['id'], 'download' => 1]);
+            $row['action'] = '<a href="' . e($viewUrl) . '" class="btn btn-sm btn-primary mr-1" target="_blank">Lihat Slip Gaji</a>'
+                . '<a href="' . e($downloadUrl) . '" class="btn btn-sm btn-outline-secondary" title="Download PDF"><i class="fa fa-download"></i> Download</a>';
             return $row;
         });
 

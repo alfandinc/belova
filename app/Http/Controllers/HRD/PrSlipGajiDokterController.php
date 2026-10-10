@@ -3,67 +3,181 @@ namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use App\Models\HRD\PrSlipGajiDokter;
 use App\Models\ERM\Dokter;
 
 class PrSlipGajiDokterController extends Controller
 {
+    const NUMERIC_FIELDS = [
+        'jasa_konsultasi', 'jasa_tindakan', 'tunjangan_jabatan', 'overtime', 'uang_duduk',
+        'peresepan_obat', 'rujuk_lab', 'pembuatan_konten', 'bagi_hasil', 'potongan_lain',
+    ];
+
+    const STATUSES = ['draft', 'submitted', 'approved', 'rejected', 'paid'];
+
+    // ---------- roles & status flow (mirrors slip gaji karyawan) ----------
+
+    protected function isPayrollOperator($user)
+    {
+        return $user && $user->hasAnyRole(['Hrd', 'Admin', 'Manager']);
+    }
+
+    protected function isCeo($user)
+    {
+        return $user && $user->hasAnyRole(['Ceo', 'CEO']);
+    }
+
+    protected function isAdmin($user)
+    {
+        return $user && $user->hasRole('Admin');
+    }
+
+    protected function normalizeStatus($status)
+    {
+        $s = strtolower(trim((string) $status));
+        return in_array($s, self::STATUSES, true) ? $s : 'draft';
+    }
+
+    protected function isEditable(PrSlipGajiDokter $slip)
+    {
+        return in_array($this->normalizeStatus($slip->status_gaji), ['draft', 'rejected'], true);
+    }
+
+    /**
+     * Status transitions the user may perform from $current.
+     * HRD: draft/rejected -> submitted, approved -> paid. CEO: submitted -> approved/rejected.
+     * Admin: paid -> draft ("Unpaid", e.g. marked Paid by mistake; it must be submitted & approved again).
+     * A user with several roles gets the union.
+     */
+    protected function allowedTransitions($user, $current)
+    {
+        $current = $this->normalizeStatus($current);
+        $allowed = [];
+        if ($this->isPayrollOperator($user)) {
+            if (in_array($current, ['draft', 'rejected'], true)) $allowed[] = 'submitted';
+            if ($current === 'approved') $allowed[] = 'paid';
+        }
+        if ($this->isCeo($user) && $current === 'submitted') {
+            $allowed[] = 'approved';
+            $allowed[] = 'rejected';
+        }
+        if ($this->isAdmin($user) && $current === 'paid') {
+            $allowed[] = 'draft';
+        }
+        return $allowed;
+    }
+
     public function index(Request $request)
     {
         $bulan = $request->get('bulan') ?? date('Y-m');
-        $dokters = Dokter::orderBy('id')->get();
-        return view('hrd.payroll.slip_gaji_dokter.index', compact('dokters', 'bulan'));
+        $dokters = Dokter::with('user')->orderBy('id')->get();
+        $user = Auth::user();
+        $isCeoView = $this->isCeo($user);
+        $canManage = $this->isPayrollOperator($user);
+        $isAdmin = $this->isAdmin($user);
+        return view('hrd.payroll.slip_gaji_dokter.index', compact('dokters', 'bulan', 'isCeoView', 'canManage', 'isAdmin'));
+    }
+
+    protected function filteredQuery(Request $request)
+    {
+        $bulan = $request->get('bulan');
+        $status = strtolower(trim((string) $request->get('status', '')));
+        // eager load dokter.user so we can display dokter's user name in the table
+        $query = PrSlipGajiDokter::with(['dokter.user'])->orderBy('id', 'desc');
+        if ($bulan) {
+            $query->where('bulan', $bulan);
+        }
+        if (in_array($status, self::STATUSES, true)) {
+            $query->where('status_gaji', $status);
+        }
+        return $query;
     }
 
     public function data(Request $request)
     {
-        $bulan = $request->get('bulan');
-    // eager load dokter.user so we can display dokter's user name in the table
-    $query = PrSlipGajiDokter::with(['dokter.user'])->orderBy('id', 'desc');
-        if ($bulan) {
-            $query->where('bulan', $bulan);
+        $user = Auth::user();
+        $rows = $this->filteredQuery($request)->get();
+
+        // last month's total per dokter (for the CEO comparison)
+        $prevTotals = collect();
+        if ($request->get('bulan') && preg_match('/^\d{4}-\d{2}$/', $request->get('bulan'))) {
+            $prevBulan = \Carbon\Carbon::createFromFormat('Y-m-d', $request->get('bulan') . '-01')->subMonth()->format('Y-m');
+            $prevTotals = PrSlipGajiDokter::where('bulan', $prevBulan)
+                ->whereIn('dokter_id', $rows->pluck('dokter_id')->filter()->unique())
+                ->pluck('total_gaji', 'dokter_id');
         }
-        $rows = $query->get();
-        return response()->json(['data' => $rows]);
+
+        $rows->each(function ($row) use ($user, $prevTotals) {
+            $row->status_gaji = $this->normalizeStatus($row->status_gaji);
+            $row->setAttribute('allowed_transitions', $this->allowedTransitions($user, $row->status_gaji));
+            $row->setAttribute('editable', $this->isEditable($row) && $this->isPayrollOperator($user));
+            $row->setAttribute('last_month_total_gaji', $prevTotals->has($row->dokter_id) ? (float) $prevTotals[$row->dokter_id] : null);
+        });
+
+        return response()->json([
+            'data' => $rows,
+            'total_beban' => (float) $rows->sum('total_gaji'),
+        ]);
     }
 
-    public function store(Request $request)
+    public function export(Request $request)
     {
-        // validate basic fields first
-        $validated = $request->validate([
-            'dokter_id' => 'nullable|integer',
-            'bulan' => 'required|string',
+        $rows = $this->filteredQuery($request)->get()->sortBy(function ($s) {
+            return optional(optional($s->dokter)->user)->name;
+        })->values();
+        $bulan = $request->get('bulan') ?: 'semua';
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\SlipGajiDokterExport($rows),
+            'slip-gaji-dokter-' . $bulan . '.xlsx'
+        );
+    }
+
+    /**
+     * Validation shared by store & update.
+     */
+    protected function validateSlip(Request $request)
+    {
+        $rules = [
+            'dokter_id' => 'required|integer|exists:erm_dokters,id',
+            'bulan' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'jasmed_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
-            'status_gaji' => 'nullable|string',
             'pot_pajak' => 'nullable|numeric',
             'pendapatan_tambahan' => 'nullable|array',
-            'pendapatan_tambahan.*.label' => 'nullable|string',
+            'pendapatan_tambahan.*.label' => 'nullable|string|max:255',
             'pendapatan_tambahan.*.amount' => 'nullable',
-        ]);
-
-        // Gather all numeric inputs explicitly to avoid missing keys
-        $numericFields = [
-            'jasa_konsultasi','jasa_tindakan','tunjangan_jabatan','overtime','uang_duduk',
-            'peresepan_obat','rujuk_lab','pembuatan_konten','bagi_hasil','potongan_lain'
         ];
-
-        $data = $validated;
-        foreach ($numericFields as $f) {
-            // Accept values from request; if missing or not numeric, default to 0
-            $val = $request->input($f);
-            if ($val === null || $val === '') {
-                $data[$f] = 0;
-            } else {
-                // normalize thousand separators and cast to float
-                $val = is_string($val) ? str_replace([',', ' '], ['', ''], $val) : $val;
-                $data[$f] = is_numeric($val) ? (float) $val : 0;
-            }
+        foreach (self::NUMERIC_FIELDS as $f) {
+            $rules[$f] = 'nullable|numeric';
         }
 
-        // process pendapatan_tambahan array (label + amount)
+        return $request->validate($rules, [
+            'dokter_id.required' => 'Dokter wajib dipilih.',
+            'dokter_id.exists' => 'Dokter tidak ditemukan.',
+            'bulan.regex' => 'Format bulan harus YYYY-MM.',
+            'jasmed_file.mimes' => 'Lampiran harus berupa PDF, JPG, atau PNG.',
+        ]);
+    }
+
+    /**
+     * One slip per dokter per bulan.
+     */
+    protected function duplicateSlipExists($dokterId, $bulan, $ignoreId = null)
+    {
+        return PrSlipGajiDokter::where('dokter_id', $dokterId)
+            ->where('bulan', $bulan)
+            ->when($ignoreId, function ($q) use ($ignoreId) {
+                $q->where('id', '!=', $ignoreId);
+            })
+            ->exists();
+    }
+
+    protected function parseTambahan(Request $request)
+    {
         $tambahan = [];
-        $tambahanTotal = 0;
-        if ($request->has('pendapatan_tambahan') && is_array($request->input('pendapatan_tambahan'))) {
+        if (is_array($request->input('pendapatan_tambahan'))) {
             foreach ($request->input('pendapatan_tambahan') as $item) {
                 $label = isset($item['label']) ? trim($item['label']) : null;
                 $amt = isset($item['amount']) ? $item['amount'] : 0;
@@ -71,35 +185,75 @@ class PrSlipGajiDokterController extends Controller
                 $amt = is_numeric($amt) ? (float) $amt : 0;
                 if ($label && $amt != 0) {
                     $tambahan[] = ['label' => $label, 'amount' => $amt];
-                    $tambahanTotal += $amt;
                 }
             }
         }
-        $data['pendapatan_tambahan'] = $tambahan ?: null;
+        return $tambahan;
+    }
 
-        // calculate totals
-        $basePendapatan = ($data['jasa_konsultasi'] + $data['jasa_tindakan'] + ($data['tunjangan_jabatan'] ?? 0) + ($data['overtime'] ?? 0) + $data['uang_duduk'] + $data['peresepan_obat'] + $data['rujuk_lab'] + $data['pembuatan_konten']);
-        $data['total_pendapatan'] = $basePendapatan + $tambahanTotal;
-        // pot_pajak is 2.5% of (base pendapatan (EXCLUDING pendapatan_tambahan) - bagi_hasil)
-        $computedBase = max(0, $basePendapatan - ($data['bagi_hasil'] ?? 0));
-        $computedPot = round($computedBase * 0.025, 2);
-        // allow manual override from request if provided (editable pot_pajak input)
-        if (isset($validated['pot_pajak']) && $validated['pot_pajak'] !== null && $validated['pot_pajak'] !== '') {
-            $data['pot_pajak'] = (float) $validated['pot_pajak'];
+    /**
+     * Fill numeric fields, pendapatan tambahan and totals on the slip.
+     * pot_pajak = 2.5% of (base pendapatan EXCLUDING pendapatan_tambahan - bagi_hasil), unless overridden.
+     */
+    protected function fillAmounts(PrSlipGajiDokter $slip, Request $request)
+    {
+        foreach (self::NUMERIC_FIELDS as $f) {
+            $val = $request->input($f);
+            $slip->{$f} = ($val === null || $val === '' || !is_numeric($val)) ? 0 : (float) $val;
+        }
+
+        $tambahan = $this->parseTambahan($request);
+        // The create/edit form always posts the full list, so an empty list clears it
+        $slip->pendapatan_tambahan = $tambahan ?: null;
+        $tambahanTotal = array_sum(array_column($tambahan, 'amount'));
+
+        $basePendapatan = $slip->jasa_konsultasi + $slip->jasa_tindakan + $slip->tunjangan_jabatan
+            + $slip->overtime + $slip->uang_duduk + $slip->peresepan_obat + $slip->rujuk_lab + $slip->pembuatan_konten;
+        $slip->total_pendapatan = $basePendapatan + $tambahanTotal;
+
+        $potPajak = $request->input('pot_pajak');
+        if ($potPajak !== null && $potPajak !== '' && is_numeric($potPajak)) {
+            $slip->pot_pajak = (float) $potPajak;
         } else {
-            $data['pot_pajak'] = $computedPot;
+            $slip->pot_pajak = round(max(0, $basePendapatan - $slip->bagi_hasil) * 0.025, 2);
         }
-        $data['total_potongan'] = ($data['pot_pajak'] + ($data['bagi_hasil'] ?? 0) + ($data['potongan_lain'] ?? 0));
-        $data['total_gaji'] = $data['total_pendapatan'] - $data['total_potongan'];
 
-        // handle jasmed_file upload if present
+        $slip->total_potongan = $slip->pot_pajak + $slip->bagi_hasil + $slip->potongan_lain;
+        $slip->total_gaji = $slip->total_pendapatan - $slip->total_potongan;
+    }
+
+    protected function forbidden($message)
+    {
+        return response()->json(['success' => false, 'message' => $message], 403);
+    }
+
+    public function store(Request $request)
+    {
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return $this->forbidden('Anda tidak memiliki izin untuk membuat slip gaji dokter.');
+        }
+
+        $validated = $this->validateSlip($request);
+
+        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['bulan'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Slip gaji untuk dokter ini pada bulan tersebut sudah ada. Silakan edit slip yang sudah ada.'
+            ], 422);
+        }
+
+        $slip = new PrSlipGajiDokter();
+        $slip->dokter_id = $validated['dokter_id'];
+        $slip->bulan = $validated['bulan'];
+        // new slips always start as Draft; status changes go through changeStatus()
+        $slip->status_gaji = 'draft';
+        $this->fillAmounts($slip, $request);
+
         if ($request->hasFile('jasmed_file')) {
-            $file = $request->file('jasmed_file');
-            $path = $file->store('jasmed_files', 'public');
-            $data['jasmed_file'] = $path;
+            $slip->jasmed_file = $request->file('jasmed_file')->store('jasmed_files', 'public');
         }
 
-        $slip = PrSlipGajiDokter::create($data);
+        $slip->save();
         return response()->json(['success' => true, 'data' => $slip]);
     }
 
@@ -128,73 +282,218 @@ class PrSlipGajiDokterController extends Controller
     public function update(Request $request, $id)
     {
         $slip = PrSlipGajiDokter::findOrFail($id);
-        $data = $request->only([
-            'jasa_konsultasi', 'jasa_tindakan', 'tunjangan_jabatan', 'overtime', 'uang_duduk', 'peresepan_obat', 'rujuk_lab', 'pembuatan_konten', 'bagi_hasil', 'potongan_lain', 'pot_pajak', 'status_gaji', 'bulan', 'dokter_id'
-        ]);
 
-        // accept jasmed_file on update as well
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return $this->forbidden('Anda tidak memiliki izin untuk mengubah slip gaji dokter.');
+        }
+        if (!$this->isEditable($slip)) {
+            return $this->forbidden('Hanya slip dengan status Draft atau Rejected yang bisa diedit.');
+        }
+
+        $validated = $this->validateSlip($request);
+
+        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['bulan'], $slip->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Slip gaji untuk dokter ini pada bulan tersebut sudah ada.'
+            ], 422);
+        }
+
+        $slip->dokter_id = $validated['dokter_id'];
+        $slip->bulan = $validated['bulan'];
+        $this->fillAmounts($slip, $request);
+
         if ($request->hasFile('jasmed_file')) {
-            $file = $request->file('jasmed_file');
-            $path = $file->store('jasmed_files', 'public');
-            $data['jasmed_file'] = $path;
-            // delete old file if exists
-            if ($slip->jasmed_file && file_exists(storage_path('app/public/' . $slip->jasmed_file))) {
-                @unlink(storage_path('app/public/' . $slip->jasmed_file));
+            $oldFile = $slip->jasmed_file;
+            $slip->jasmed_file = $request->file('jasmed_file')->store('jasmed_files', 'public');
+            if ($oldFile) {
+                Storage::disk('public')->delete($oldFile);
             }
         }
-
-        // accept pendapatan_tambahan on update as well
-        $tambahan = [];
-        $tambahanTotal = 0;
-        if ($request->has('pendapatan_tambahan') && is_array($request->input('pendapatan_tambahan'))) {
-            foreach ($request->input('pendapatan_tambahan') as $item) {
-                $label = isset($item['label']) ? trim($item['label']) : null;
-                $amt = isset($item['amount']) ? $item['amount'] : 0;
-                $amt = is_string($amt) ? str_replace([',', ' '], ['', ''], $amt) : $amt;
-                $amt = is_numeric($amt) ? (float) $amt : 0;
-                if ($label && $amt != 0) {
-                    $tambahan[] = ['label' => $label, 'amount' => $amt];
-                    $tambahanTotal += $amt;
-                }
-            }
-        }
-        if ($tambahan) $data['pendapatan_tambahan'] = $tambahan;
-
-        foreach ($data as $k => $v) {
-            if ($v !== null) $slip->{$k} = $v;
-        }
-
-    // recalc
-    // Recalculate totals: include pendapatan_tambahan in total_pendapatan; bagi_hasil is a deduction
-    $existingTambahan = is_array($slip->pendapatan_tambahan) ? array_column($slip->pendapatan_tambahan, 'amount') : [];
-    $sumTambahan = array_sum($existingTambahan);
-    $basePendapatan = ($slip->jasa_konsultasi + $slip->jasa_tindakan + ($slip->tunjangan_jabatan ?? 0) + ($slip->overtime ?? 0) + $slip->uang_duduk + ($slip->peresepan_obat ?? 0) + ($slip->rujuk_lab ?? 0) + ($slip->pembuatan_konten ?? 0));
-    $slip->total_pendapatan = $basePendapatan + $sumTambahan;
-    $computedBase = max(0, $basePendapatan - ($slip->bagi_hasil ?? 0));
-    $computedPot = round($computedBase * 0.025, 2);
-    // if pot_pajak was provided in the update payload, honor it; otherwise recompute
-    if (isset($data['pot_pajak']) && $data['pot_pajak'] !== null && $data['pot_pajak'] !== '') {
-        $slip->pot_pajak = (float) $data['pot_pajak'];
-    } else {
-        $slip->pot_pajak = $computedPot;
-    }
-    $slip->total_potongan = ($slip->pot_pajak + ($slip->bagi_hasil ?? 0) + ($slip->potongan_lain ?? 0));
-    $slip->total_gaji = $slip->total_pendapatan - $slip->total_potongan;
 
         $slip->save();
         return response()->json(['success' => true, 'data' => $slip]);
     }
 
+    public function changeStatus(Request $request, $id)
+    {
+        $slip = PrSlipGajiDokter::findOrFail($id);
+        $next = strtolower(trim((string) $request->input('status_gaji')));
+        $current = $this->normalizeStatus($slip->status_gaji);
+
+        if (!in_array($next, $this->allowedTransitions(Auth::user(), $current), true)) {
+            return $this->forbidden('Perubahan status dari ' . ucfirst($current) . ' ke ' . ucfirst($next ?: '-') . ' tidak diizinkan.');
+        }
+
+        $slip->status_gaji = $next;
+        $slip->save();
+        return response()->json(['success' => true, 'status' => $next]);
+    }
+
+    /**
+     * Submit every Draft/Rejected slip of a month to the CEO.
+     */
+    public function bulkSubmit(Request $request)
+    {
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return $this->forbidden('Anda tidak memiliki izin untuk submit slip gaji dokter.');
+        }
+        $request->validate(['bulan' => ['required', 'regex:/^\d{4}-\d{2}$/']]);
+
+        $count = PrSlipGajiDokter::where('bulan', $request->input('bulan'))
+            ->whereIn('status_gaji', ['draft', 'rejected'])
+            ->update(['status_gaji' => 'submitted', 'updated_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'updated' => $count,
+            'message' => $count ? "{$count} slip berhasil disubmit ke CEO." : 'Tidak ada slip Draft/Rejected di bulan ini.',
+        ]);
+    }
+
     public function destroy($id)
     {
         $slip = PrSlipGajiDokter::findOrFail($id);
+
+        if (!$this->isPayrollOperator(Auth::user())) {
+            return $this->forbidden('Anda tidak memiliki izin untuk menghapus slip gaji dokter.');
+        }
+        if (!$this->isEditable($slip)) {
+            return $this->forbidden('Hanya slip dengan status Draft atau Rejected yang bisa dihapus.');
+        }
+
+        if ($slip->jasmed_file) {
+            Storage::disk('public')->delete($slip->jasmed_file);
+        }
         $slip->delete();
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Serve the lampiran through the authenticated route (role-restricted by the route group).
+     */
+    public function serveJasmed($id)
+    {
+        $slip = PrSlipGajiDokter::findOrFail($id);
+        if (!$slip->jasmed_file || !Storage::disk('public')->exists($slip->jasmed_file)) {
+            abort(404);
+        }
+        $fullPath = Storage::disk('public')->path($slip->jasmed_file);
+        $mime = @mime_content_type($fullPath) ?: 'application/octet-stream';
+        return response()->file($fullPath, ['Content-Type' => $mime]);
+    }
+
+    // ---------- Dokter's own slips ("My Payroll" for dokter users) ----------
+
+    protected function currentDokter()
+    {
+        $user = Auth::user();
+        return $user ? Dokter::where('user_id', $user->id)->first() : null;
+    }
+
+    public function myHistoryPage()
+    {
+        $dokter = $this->currentDokter();
+        $verified = PrSlipGajiController::isSlipAccessVerified();
+
+        $years = [date('Y')];
+        $currentYear = date('Y');
+        if ($dokter && $verified) {
+            $slipYears = PrSlipGajiDokter::where('dokter_id', $dokter->id)
+                ->where('status_gaji', 'paid')
+                ->pluck('bulan')
+                ->map(fn($b) => substr((string) $b, 0, 4))
+                ->filter(fn($y) => preg_match('/^\d{4}$/', $y))
+                ->unique()->values()->all();
+            // default to the latest year that actually has a slip
+            if (!empty($slipYears) && !in_array($currentYear, $slipYears, true)) {
+                $currentYear = max($slipYears);
+            }
+            $years = array_values(array_unique(array_merge($years, $slipYears)));
+            rsort($years);
+        }
+
+        return view('hrd.payroll.slip_gaji_dokter.my_history', [
+            'hasDokter' => (bool) $dokter,
+            'verified' => $verified,
+            'years' => $years,
+            'currentYear' => $currentYear,
+        ]);
+    }
+
+    public function myHistoryData(Request $request)
+    {
+        $dokter = $this->currentDokter();
+        if (!$dokter) {
+            return response()->json(['data' => []]);
+        }
+        if (!PrSlipGajiController::isSlipAccessVerified()) {
+            return response()->json(['message' => 'Sesi verifikasi slip gaji sudah habis. Silakan verifikasi password lagi.'], 403);
+        }
+
+        $year = (string) $request->input('year');
+        $query = PrSlipGajiDokter::where('dokter_id', $dokter->id)->where('status_gaji', 'paid');
+        if (preg_match('/^\d{4}$/', $year)) {
+            $query->where('bulan', 'like', $year . '-%');
+        }
+
+        $months = [1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        $rows = $query->orderBy('bulan', 'desc')->get()->values();
+
+        $data = $rows->map(function ($s, $i) use ($rows, $months) {
+            $m = (int) substr((string) $s->bulan, 5, 2);
+            $prev = $rows->get($i + 1);
+            $trend = null;
+            if ($prev) {
+                $trend = $s->total_gaji > $prev->total_gaji ? 'up' : ($s->total_gaji < $prev->total_gaji ? 'down' : 'same');
+            }
+            return [
+                'id' => $s->id,
+                'bulan' => $s->bulan,
+                'bulan_label' => ($months[$m] ?? $s->bulan) . ' ' . substr((string) $s->bulan, 0, 4),
+                'total_pendapatan' => (float) $s->total_pendapatan,
+                'total_potongan' => (float) $s->total_potongan,
+                'total_gaji' => (float) $s->total_gaji,
+                'total_gaji_trend' => $trend,
+                'view_url' => route('hrd.payroll.slip_gaji_dokter.my.download', $s->id),
+                'download_url' => route('hrd.payroll.slip_gaji_dokter.my.download', ['id' => $s->id, 'download' => 1]),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function myDownload(Request $request, $id)
+    {
+        $dokter = $this->currentDokter();
+        if (!$dokter) {
+            abort(403);
+        }
+        if (!PrSlipGajiController::isSlipAccessVerified()) {
+            return redirect()->route('hrd.payroll.slip_gaji_dokter.my');
+        }
+
+        $slip = PrSlipGajiDokter::with('dokter.user')
+            ->where('id', $id)
+            ->where('dokter_id', $dokter->id)
+            ->where('status_gaji', 'paid')
+            ->firstOrFail();
+
+        return $this->renderSlipPdf($slip, $request->boolean('download') ? 'attachment' : 'inline');
+    }
+
     public function print($id)
     {
-        $slip = PrSlipGajiDokter::with('dokter')->findOrFail($id);
+        $slip = PrSlipGajiDokter::with('dokter.user')->findOrFail($id);
+        return $this->renderSlipPdf($slip);
+    }
+
+    /**
+     * Render the slip (plus its lampiran) as a PDF response.
+     * $disposition: 'inline' to view in the browser, 'attachment' to download.
+     */
+    protected function renderSlipPdf(PrSlipGajiDokter $slip, $disposition = 'inline')
+    {
         // provide terbilang helper closure like employee controller does
         $terbilang = function($angka) {
             $raw = '';
@@ -229,7 +528,9 @@ class PrSlipGajiDokterController extends Controller
                 if (file_exists($possible)) $attachmentPath = $possible;
             }
 
-            $filename = 'slip-gaji-dokter-' . ($slip->dokter && $slip->dokter->user ? $slip->dokter->user->name : 'dokter') . '-' . $slip->bulan . '.pdf';
+            $dokterName = $slip->dokter && $slip->dokter->user ? $slip->dokter->user->name : 'dokter';
+            // names contain dots/commas ("dr. X, Sp.PD") -> keep the header filename safe
+            $filename = 'slip-gaji-dokter-' . trim(preg_replace('/[^A-Za-z0-9_\-]+/', '-', $dokterName), '-') . '-' . $slip->bulan . '.pdf';
 
             if ($attachmentPath) {
                 $mime = @mime_content_type($attachmentPath) ?: 'application/octet-stream';
@@ -246,7 +547,7 @@ class PrSlipGajiDokterController extends Controller
                     $pdfString = $mpdf->Output($filename, 'S');
                     return response($pdfString, 200, [
                         'Content-Type' => 'application/pdf',
-                        'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                        'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
                         'Content-Length' => strlen($pdfString),
                     ]);
                 }
@@ -281,7 +582,7 @@ class PrSlipGajiDokterController extends Controller
                     @unlink($tmpMain);
                     return response($output, 200, [
                         'Content-Type' => 'application/pdf',
-                        'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                        'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
                         'Content-Length' => strlen($output),
                     ]);
                 }
@@ -291,7 +592,7 @@ class PrSlipGajiDokterController extends Controller
             $pdfString = $mpdf->Output($filename, 'S');
             return response($pdfString, 200, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . $filename . '"',
+                'Content-Disposition' => $disposition . '; filename="' . $filename . '"',
                 'Content-Length' => strlen($pdfString),
             ]);
         }

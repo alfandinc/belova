@@ -1640,13 +1640,18 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
         });
         Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show'); // redirect to the list
 
-        // Dokter Management (HRD access, full CRUD)
-        Route::get('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'index'])->name('hrd.dokters.index');
-        Route::get('/dokters/create', [\App\Http\Controllers\ERM\DokterController::class, 'create'])->name('hrd.dokters.create');
-        Route::get('/dokters/{id}/edit', [\App\Http\Controllers\ERM\DokterController::class, 'edit'])->name('hrd.dokters.edit');
-        Route::post('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'store'])->name('hrd.dokters.store');
-        Route::put('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'update'])->name('hrd.dokters.update');
-        Route::delete('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'destroy'])->name('hrd.dokters.destroy');
+        // Dokter Management: same access as Data Karyawan (Ceo / Head Manager view only)
+        Route::middleware('role:Hrd|Admin|Ceo|Head Manager')->group(function () {
+            Route::get('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'index'])->name('hrd.dokters.index');
+            Route::get('/dokters/export', [\App\Http\Controllers\ERM\DokterController::class, 'export'])->name('hrd.dokters.export');
+        });
+        Route::middleware('role:Hrd|Admin')->group(function () {
+            Route::get('/dokters/create', [\App\Http\Controllers\ERM\DokterController::class, 'create'])->name('hrd.dokters.create');
+            Route::get('/dokters/{id}/edit', [\App\Http\Controllers\ERM\DokterController::class, 'edit'])->name('hrd.dokters.edit');
+            Route::post('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'store'])->name('hrd.dokters.store');
+            Route::post('/dokters/{id}/status', [\App\Http\Controllers\ERM\DokterController::class, 'updateStatus'])->name('hrd.dokters.status');
+            Route::delete('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'destroy'])->name('hrd.dokters.destroy');
+        });
 
         // Employee Self Service Routes
 
@@ -2216,8 +2221,8 @@ Route::get('hrd/payroll/slip-gaji/history/data', [App\Http\Controllers\HRD\PrSli
     ->middleware(['auth'])
     ->name('hrd.payroll.slip_gaji.history.data');
 
-// Payroll Slip Gaji Routes
-Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manager|Head Manager|Hrd|Admin|Ceo'])->group(function () {
+// Payroll Slip Gaji Routes (admin only; employees use my-slip / history / download above)
+Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Manager|Head Manager|Hrd|Admin|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'index'])->name('hrd.payroll.slip_gaji.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'data'])->name('hrd.payroll.slip_gaji.data');
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
@@ -2227,38 +2232,53 @@ Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manag
         ->middleware(['role:Hrd|Admin|Manager|Head Manager|Ceo'])
         ->name('hrd.payroll.slip_gaji.bulk_status');
     Route::post('/sync', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'sync'])->name('hrd.payroll.slip_gaji.sync');
+    Route::get('/export', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'export'])->name('hrd.payroll.slip_gaji.export');
     Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'print']);
 });
 
-// Omset Bulanan AJAX for Slip Gaji
-Route::get('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getOmsetInputs']);
-Route::post('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'store']);
-Route::get('hrd/payroll/slip-gaji/omset-bulanan-total', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getTotal']);
-Route::post('hrd/payroll/slip-gaji/store-all', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'storeAll']);
+// Omset Bulanan, Buat Slip, KPI tools for Slip Gaji (payroll operators only)
+Route::middleware(['auth', 'role:Hrd|Admin|Manager'])->group(function () {
+    Route::get('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getOmsetInputs']);
+    Route::post('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'storeOmsetBulanan']);
+    Route::get('hrd/payroll/slip-gaji/omset-bulanan-total', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getTotal']);
+    Route::post('hrd/payroll/slip-gaji/store-all', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'storeAll']);
 
-// KPI summary route
-Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);
-// Generate Uang KPI for all employees in selected month
-Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
+    // KPI summary route
+    Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);
+    // Generate Uang KPI for all employees in selected month
+    Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
+    // KPI simulation preview route for HRD
+    Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
+});
 // Public (auth) endpoint for Farmasi clients to poll finance notifications
 Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');
 // Finance notifications endpoints (used by Finance UI to show old notifications)
 Route::get('/finance/notifications/old', [\App\Http\Controllers\ERM\NotificationController::class, 'oldNotifications'])->middleware('auth')->name('finance.notifications.old');
 Route::post('/finance/notifications/{id}/mark-read', [\App\Http\Controllers\ERM\NotificationController::class, 'markAsRead'])->middleware('auth')->name('finance.notifications.markread');
-// KPI simulation preview route for HRD
-Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
+// Dokter's own slip history (password-verified via my-slip; must be registered before the /{id} admin routes)
+Route::prefix('hrd/payroll/slip-gaji-dokter/my')->middleware(['auth'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'myHistoryPage'])->name('hrd.payroll.slip_gaji_dokter.my');
+    Route::get('/data', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'myHistoryData'])->name('hrd.payroll.slip_gaji_dokter.my.data');
+    Route::get('/download/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'myDownload'])->whereNumber('id')->name('hrd.payroll.slip_gaji_dokter.my.download');
+});
 
 // Payroll Slip Gaji Dokter (standalone slips for Dokter)
 Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Admin|Manager|Head Manager|Ceo'])->group(function () {
     Route::get('/', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'index'])->name('hrd.payroll.slip_gaji_dokter.index');
     Route::get('/data', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'data'])->name('hrd.payroll.slip_gaji_dokter.data');
+    Route::get('/export', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'export'])->name('hrd.payroll.slip_gaji_dokter.export');
     Route::post('/store', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'store'])->name('hrd.payroll.slip_gaji_dokter.store');
-    Route::get('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'show'])->name('hrd.payroll.slip_gaji_dokter.show');
+    // Approval flow: draft/rejected -> submitted (HRD), submitted -> approved/rejected (CEO), approved -> paid (HRD), paid -> draft (Admin "Unpaid")
+    Route::post('/status/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'changeStatus'])->whereNumber('id')->name('hrd.payroll.slip_gaji_dokter.status');
+    Route::post('/bulk-submit', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'bulkSubmit'])->name('hrd.payroll.slip_gaji_dokter.bulk_submit');
+    Route::get('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'show'])->whereNumber('id')->name('hrd.payroll.slip_gaji_dokter.show');
     Route::post('/update/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'update'])->name('hrd.payroll.slip_gaji_dokter.update');
-    Route::delete('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'destroy'])->name('hrd.payroll.slip_gaji_dokter.destroy');
+    Route::delete('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'destroy'])->whereNumber('id')->name('hrd.payroll.slip_gaji_dokter.destroy');
     Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'print'])->name('hrd.payroll.slip_gaji_dokter.print');
     // AJAX: get dokter info (klinik) to adjust form fields in create/edit modal
     Route::get('/dokter/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'dokterInfo']);
+    // Serve lampiran (jasmed) through auth instead of a public /storage link
+    Route::get('/jasmed/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'serveJasmed'])->name('hrd.payroll.slip_gaji_dokter.jasmed');
 });
 
 // Obat KFA mapping (index + AJAX endpoints)

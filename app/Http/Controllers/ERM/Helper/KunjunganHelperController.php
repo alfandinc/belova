@@ -16,7 +16,7 @@ class KunjunganHelperController extends Controller
         $visitation = Visitation::findOrFail($visitationId);
         $pasienName = $visitation->pasien->nama;
         $metodeBayar = MetodeBayar::all(); // ambil semua data metode bayar
-        $dokters = Dokter::with('spesialisasi')->get(); // ambil semua dokter
+        $dokters = Dokter::active()->with('spesialisasi')->get(); // dokter aktif
         $kliniks = Klinik::all();
 
         // dd($pasienName, $metodeBayar, $dokters);

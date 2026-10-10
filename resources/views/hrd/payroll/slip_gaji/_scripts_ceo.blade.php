@@ -17,17 +17,19 @@ $(function() {
         return value === 'diapprove' ? 'approved' : value;
     }
 
-    function updateTotalBebanGaji(api) {
-        var total = 0;
-
-        api.rows({ search: 'applied' }).every(function() {
-            var row = this.data() || {};
-            var amount = parseFloat(row.total_gaji);
-            total += isNaN(amount) ? 0 : amount;
-        });
-
-        $('#slipTotalBeban').text(formatRupiah(total));
+    function escapeHtml(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
+
+    // Server returns total_beban for every row matching the filters (not only the current page)
+    $('#slipGajiTable').on('xhr.dt', function(e, settings, json) {
+        $('#slipTotalBeban').text(formatRupiah(json && json.total_beban !== undefined ? json.total_beban : 0));
+    });
 
     function renderSalaryTrend(currentValue, previousValue) {
         var current = parseFloat(currentValue);
@@ -78,11 +80,6 @@ $(function() {
                 $toolbar.empty().append($holder.children());
                 $holder.remove();
             }
-
-            updateTotalBebanGaji(api);
-        },
-        drawCallback: function() {
-            updateTotalBebanGaji(this.api());
         },
         columns: [
             { data: 'id', name: 'pr_slip_gaji.id', visible: false },
@@ -91,8 +88,8 @@ $(function() {
                 name: 'e.nama',
                 render: function(data, type, row) {
                     if (type === 'display') {
-                        var division = row.division_name ? '<div class="text-muted small">' + row.division_name + '</div>' : '';
-                        return '<div><strong>' + (data || '-') + '</strong>' + division + '</div>';
+                        var division = row.division_name ? '<div class="text-muted small">' + escapeHtml(row.division_name) + '</div>' : '';
+                        return '<div><strong>' + escapeHtml(data || '-') + '</strong>' + division + '</div>';
                     }
 
                     return data;

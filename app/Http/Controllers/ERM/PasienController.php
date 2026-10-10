@@ -388,7 +388,8 @@ class PasienController extends Controller
         }
 
         $metodeBayar = MetodeBayar::all();
-        $dokters = Dokter::with(['spesialisasi', 'user'])->get();
+        // Referral picker: dokter aktif; a saved dokter nonaktif is added back by the form script
+        $dokters = Dokter::active()->with(['spesialisasi', 'user'])->get();
         $kliniks = Klinik::all();
         $stats = $this->getPatientIndexStats();
 
@@ -701,6 +702,10 @@ class PasienController extends Controller
     {
         // eager-load full area hierarchy so AJAX consumers can display names
         $pasien = Pasien::with(['village.district.regency.province', 'employee', 'referralable'])->findOrFail($id);
+        // The form shows a referral dokter by name, also when it is no longer in the picker (nonaktif)
+        if ($pasien->referralable instanceof Dokter) {
+            $pasien->referralable->loadMissing('user:id,name');
+        }
 
         return response()->json($pasien);
     }

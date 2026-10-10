@@ -271,7 +271,15 @@
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Kepegawaian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.index') }}"><i class="ti-control-record"></i>Data Pegawai</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.index') }}"><i class="ti-control-record"></i>Data Dokter</a></li>
+                    @php
+                        // Dokter aktif whose SIP or STR has ended or ends within 30 days
+                        $dokterIzinAlert = \App\Http\Controllers\ERM\DokterController::izinAlertCount();
+                    @endphp
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.index') }}"><i class="ti-control-record"></i>Data Dokter
+                        @if($dokterIzinAlert)
+                            <span class="badge badge-pill badge-danger ml-1" title="{{ $dokterIzinAlert }} dokter dengan SIP / STR habis atau segera habis (≤ 30 hari)">{{ $dokterIzinAlert }}</span>
+                        @endif
+                    </a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.division.index') }}"><i class="ti-control-record"></i>Data Divisi &amp; Jabatan</a></li>
                 </ul>
             </li>
@@ -290,7 +298,9 @@
                             <li class="nav-item"><a class="nav-link" href="#" onclick="checkGajiDokter(event)"><i class="ti-control-record"></i>Gaji Dokter</a></li>
                             @endif
 
+                            @if(Auth::check() && (Auth::user()->employee || \App\Models\ERM\Dokter::where('user_id', Auth::id())->exists()))
                             <li class="nav-item"><a class="nav-link" href="#" onclick="checkSlipGaji(event)"><i class="ti-control-record"></i>My Payroll</a></li>
+                            @endif
                         </ul>
                     </li>
             
@@ -441,9 +451,15 @@ function verifyPasswordAndGetSlip() {
                     // reset for next time
                     window.nextRedirect = null;
                     window.location.href = redirect;
-                } else {
-                    // Default: redirect to URL returned by server
+                } else if (response.url) {
+                    // Default: redirect to URL returned by server (slip karyawan or slip dokter)
                     window.location.href = response.url;
+                } else {
+                    Swal.fire({
+                        icon: response.type || 'error',
+                        title: response.title || 'Error',
+                        text: response.message || 'Data slip gaji tidak ditemukan.'
+                    });
                 }
             }
 

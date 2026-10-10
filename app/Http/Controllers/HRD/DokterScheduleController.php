@@ -69,7 +69,10 @@ class DokterScheduleController extends Controller
         // Shift default per dokter (ambil yang terbaru)
         $shiftByDokter = ShiftDokter::orderByDesc('id')->get()->unique('dokter_id')->keyBy('dokter_id');
 
-        $dokters = Dokter::with(['user', 'klinik'])->get()
+        // Dokter nonaktif still show in the weeks before they stopped (their old jadwal)
+        $dokters = Dokter::with(['user', 'klinik'])
+            ->where(fn ($q) => $q->where('is_active', true)->orWhere('nonaktif_tanggal', '>=', $startOfWeek->toDateString()))
+            ->get()
             ->map(function ($d) use ($shiftByDokter) {
                 $shift = $shiftByDokter[$d->id] ?? null;
                 $d->schedule_name = $d->user->name ?? ('Dokter #' . $d->id);

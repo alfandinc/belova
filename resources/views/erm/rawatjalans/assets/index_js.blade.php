@@ -1825,7 +1825,8 @@ function loadEditAntrianDokters(klinikId, selectedDokterId) {
 
     return $.ajax({
         url: '/get-dokters/' + encodeURIComponent(klinikId),
-        type: 'GET'
+        type: 'GET',
+        data: selectedDokterId ? { include: selectedDokterId } : {} // keep the current dokter even when nonaktif
     }).done(function (data) {
         $dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
 

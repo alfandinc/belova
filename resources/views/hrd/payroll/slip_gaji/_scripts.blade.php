@@ -211,24 +211,34 @@ $(function() {
             return ['paid'];
         }
 
+        // Admin "Unpaid": Paid -> Draft (must be submitted & approved again)
+        if (normalized === 'paid' && canUnpaySlip) {
+            return ['draft'];
+        }
+
         return [];
     }
 
-    function updateTotalBebanGaji(api) {
-        var $el = $('#slipTotalBeban');
-        if (!$el.length) return;
+    var canUnpaySlip = @json(
+        auth()->check()
+        && method_exists(auth()->user(), 'hasRole')
+        && auth()->user()->hasRole('Admin')
+    );
 
-        var sum = 0;
-        try {
-            api.rows({ search: 'applied' }).every(function() {
-                var row = this.data() || {};
-                sum += parseToNumber(row.total_gaji);
-            });
-        } catch (err) {
-            sum = 0;
-        }
-        $el.text(formatRupiah(sum));
+    function escapeHtml(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
+
+    // Server returns total_beban for every row matching the filters (not only the current page)
+    $('#slipGajiTable').on('xhr.dt', function(e, settings, json) {
+        var total = json && json.total_beban !== undefined ? json.total_beban : 0;
+        $('#slipTotalBeban').text(formatRupiah(total));
+    });
 
     // Submit form edit slip gaji (detail modal)
     $(document).on('click', '#btnSimpanSlipGaji', function() {
@@ -312,7 +322,6 @@ $(function() {
             bindSwipeScroll(api);
 
             api.columns.adjust();
-            updateTotalBebanGaji(api);
         },
         drawCallback: function() {
             // Re-apply on redraw (safety for column sizing / header rebuild)
@@ -328,7 +337,6 @@ $(function() {
             updateBulkStatusUi();
 
             api.columns.adjust();
-            updateTotalBebanGaji(api);
 
             bindSwipeScroll(api);
             applyMoneyInputFormatting(api.table().container());
@@ -348,8 +356,8 @@ $(function() {
                 name: 'e.nama',
                 render: function(data, type, row) {
                     if (type === 'display') {
-                        var nama = data || '';
-                        var divName = (row && row.division_name) ? row.division_name : '';
+                        var nama = escapeHtml(data || '');
+                        var divName = (row && row.division_name) ? escapeHtml(row.division_name) : '';
                         var divHtml = divName ? ('<div class="text-muted small">' + divName + '</div>') : '';
                         return '<div><strong>' + nama + '</strong>' + divHtml + '</div>';
                     }
@@ -519,11 +527,12 @@ $(function() {
                     var primaryActionHtml = '';
 
                     if (nextStatus) {
-                        var actionTitle = nextStatus === 'submitted' ? 'Submit Slip' : getStatusLabel(nextStatus);
+                        var actionTitle = nextStatus === 'submitted' ? 'Submit Slip' : (nextStatus === 'draft' ? 'Unpaid (kembali ke Draft)' : getStatusLabel(nextStatus));
                         var actionContent = nextStatus === 'submitted'
                             ? '<i class="fa fa-paper-plane mr-1"></i>Submit'
-                            : '<i class="fas fa-coins mr-1"></i>Pay';
-                        primaryActionHtml = '<button type="button" class="btn btn-sm btn-success mr-2 action-set-status" data-id="' + row.id + '" data-status="' + nextStatus + '" title="' + actionTitle + '" aria-label="' + actionTitle + '">' + actionContent + '</button>';
+                            : (nextStatus === 'draft' ? '<i class="fa fa-undo mr-1"></i>Unpaid' : '<i class="fas fa-coins mr-1"></i>Pay');
+                        var actionClass = nextStatus === 'draft' ? 'btn-outline-danger' : 'btn-success';
+                        primaryActionHtml = '<button type="button" class="btn btn-sm ' + actionClass + ' mr-2 action-set-status" data-id="' + row.id + '" data-status="' + nextStatus + '" title="' + actionTitle + '" aria-label="' + actionTitle + '">' + actionContent + '</button>';
                     }
 
                     var dropdownHtml = '' +
@@ -999,12 +1008,12 @@ $(function() {
         try {
             rowData = table.row($(this).closest('tr')).data();
         } catch (err) {}
-        if (rowData && normalizeStatus(rowData.status) === 'paid') {
+        var id = $(this).data('id');
+        var status = $(this).data('status');
+        if (rowData && normalizeStatus(rowData.status) === 'paid' && !(status === 'draft' && canUnpaySlip)) {
             Swal.fire('Info', 'Slip dengan status Paid tidak bisa diubah.', 'info');
             return;
         }
-        var id = $(this).data('id');
-        var status = $(this).data('status');
         if (!id || !status) {
             return;
         }
@@ -1024,6 +1033,9 @@ $(function() {
             confirmText = 'Slip gaji yang sudah disubmit tidak bisa dibatalkan.';
         } else if (nextStatus === 'paid') {
             confirmText = 'Ubah status slip gaji menjadi Paid? Setelah Paid, slip tidak bisa diedit lagi.';
+        } else if (nextStatus === 'draft') {
+            confirmTitle = 'Unpaid Slip Gaji ' + employeeName + '?';
+            confirmText = 'Status Paid dibatalkan dan slip kembali ke Draft. Slip harus disubmit & di-approve CEO lagi, dan hilang dari My Payroll karyawan sampai Paid lagi.';
         }
 
         Swal.fire({
@@ -1288,7 +1300,7 @@ $(function() {
 
         Swal.fire({
             title: 'Sync Slip Gaji?',
-            text: 'Ini akan update Hari Masuk, Uang Makan, Tunjangan Masa Kerja, Lembur, dan total dari data terbaru (skip slip yang sudah Paid).',
+            text: 'Ini akan update Hari Masuk, Uang Makan, Tunjangan Masa Kerja, Lembur, dan total dari data terbaru (hanya slip Draft/Rejected; Submitted, Approved, dan Paid dilewati).',
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Ya, Sync',

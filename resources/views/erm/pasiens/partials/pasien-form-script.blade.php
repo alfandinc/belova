@@ -546,6 +546,16 @@ $(function () {
     }
 
     // Fill the form with a patient from erm.pasien.show
+    // The pickers list only karyawan / dokter aktif: a saved referral to one who left is added back,
+    // otherwise the field stays empty and the pasien cannot be saved without changing its referral
+    function selectReferral(selector, id, missingLabel) {
+        const $select = $(selector), value = String(id);
+        if (!$select.find('option').filter(function () { return this.value === value; }).length) {
+            $select.append(new Option(missingLabel, value));
+        }
+        $select.val(value).trigger('change.select2');
+    }
+
     function fillForm(p) {
         const raw = function (v) { return v == null || v === 'NULL' ? '' : String(v); };
 
@@ -579,9 +589,11 @@ $(function () {
             const label = p.referralable && p.referralable.nama ? p.referralable.nama + ' (RM: ' + p.referralable_id + ')' : 'RM: ' + p.referralable_id;
             $('#referral_target_pasien_id').append(new Option(label, p.referralable_id, true, true)).trigger('change.select2');
         } else if (referralType === 'employee' && p.referralable_id) {
-            $('#referral_employee_id').val(String(p.referralable_id)).trigger('change.select2');
+            const ref = p.referralable || {};
+            selectReferral('#referral_employee_id', p.referralable_id, (ref.nama || 'Karyawan ID ' + p.referralable_id) + ' (nonaktif)');
         } else if (referralType === 'dokter' && p.referralable_id) {
-            $('#referral_dokter_id').val(String(p.referralable_id)).trigger('change.select2');
+            const ref = p.referralable || {};
+            selectReferral('#referral_dokter_id', p.referralable_id, ((ref.user && ref.user.name) || 'Dokter ID ' + p.referralable_id) + ' (nonaktif)');
         } else if (referralType === 'event' && p.referralable_id) {
             $('#referral_event_id').val(String(p.referralable_id)).trigger('change.select2');
         }

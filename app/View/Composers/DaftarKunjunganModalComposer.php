@@ -46,7 +46,8 @@ class DaftarKunjunganModalComposer
         });
 
         $dokters = Cache::remember('erm_referral_dokters', 300, function () {
-            return Dokter::with(['user:id,name', 'spesialisasi:id,nama'])->get()->sortBy(function ($dokter) {
+            // Only for choosing a new referral: a saved one is shown as text, so dokter nonaktif can go
+            return Dokter::active()->with(['user:id,name', 'spesialisasi:id,nama'])->get()->sortBy(function ($dokter) {
                 return strtolower((string) ($dokter->user->name ?? ''));
             })->values();
         });

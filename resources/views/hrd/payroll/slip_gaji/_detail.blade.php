@@ -52,6 +52,8 @@
 
 <form id="formEditSlipGaji" enctype="multipart/form-data">
     <input type="hidden" name="id" id="slip_gaji_id" value="{{ $slip->id }}">
+    <!-- lets the server clear pendapatan tambahan when every row was removed -->
+    <input type="hidden" name="pendapatan_tambahan_present" value="1">
 <div class="row">
     <div class="col-md-6">
         <table class="table table-bordered">
@@ -127,13 +129,16 @@ $(function() {
         var idx = tambahanIndex++;
         var $row = $(
             '<div class="input-group mb-2 pendapatan-tambahan-row" data-idx="'+idx+'">'
-            + '<input type="text" class="form-control mr-2 pendapatan-tambahan-label" name="pendapatan_tambahan['+idx+'][label]" placeholder="Komponen (contoh: attending event)" value="'+(label?label:'')+'">'
-            + '<input type="number" step="0.01" class="form-control pendapatan-tambahan-amount" name="pendapatan_tambahan['+idx+'][amount]" placeholder="0.00" value="'+(amount?amount:'')+'">'
+            + '<input type="text" class="form-control mr-2 pendapatan-tambahan-label" name="pendapatan_tambahan['+idx+'][label]" placeholder="Komponen (contoh: attending event)">'
+            + '<input type="number" step="0.01" class="form-control pendapatan-tambahan-amount" name="pendapatan_tambahan['+idx+'][amount]" placeholder="0.00">'
             + '<div class="input-group-append">'
                 + '<button class="btn btn-danger btn-remove-pendapatan" type="button">&times;</button>'
             + '</div>'
             + '</div>'
         );
+        // set values via .val() so labels containing quotes/HTML can't break the markup
+        $row.find('.pendapatan-tambahan-label').val(label ? label : '');
+        $row.find('.pendapatan-tambahan-amount').val(amount ? amount : '');
         $('#pendapatanTambahanContainer').append($row);
         // bind remove
         $row.find('.btn-remove-pendapatan').on('click', function() {

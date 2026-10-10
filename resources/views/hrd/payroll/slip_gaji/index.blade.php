@@ -148,6 +148,7 @@
                 <option value="paid">Paid</option>
             </select>
         @endunless
+        <button class="btn btn-outline-success btn-sm mr-2" id="btnExportSlipGaji" title="Export sesuai filter"><i class="fa fa-file-excel"></i> Export</button>
         @unless($isCeoSlipView)
             <button class="btn btn-info btn-sm mr-2" id="btnSyncSlipGaji">Sync</button>
             <select id="bulkStatus" class="form-control form-control-sm mr-2" style="width:170px;">
@@ -238,4 +239,15 @@
     @include('hrd.payroll.slip_gaji._scripts')
     @include('hrd.payroll.slip_gaji.buat._scripts')
 @endif
+<script>
+    // Export the list with the current filters (bulan / status / division) to Excel
+    $(document).on('click', '#btnExportSlipGaji', function() {
+        var params = $.param({
+            bulan: $('#filterBulan').val(),
+            status: @json($isCeoSlipView) ? 'submitted' : ($('#filterStatus').val() || ''),
+            division_id: $('#filterDivision').val() || ''
+        });
+        window.location.href = '{{ route('hrd.payroll.slip_gaji.export') }}?' + params;
+    });
+</script>
 @endsection

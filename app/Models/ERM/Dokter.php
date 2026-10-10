@@ -23,7 +23,23 @@ class Dokter extends Model
         'status',
         'str',
         'due_date_str',
+        'is_active',
+        'nonaktif_tanggal',
+        'nonaktif_keterangan',
     ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
+    /**
+     * Dokter for new data (pickers). Not a global scope: kunjungan, resep, slip gaji, ... of a
+     * dokter nonaktif must still load their dokter.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where($this->qualifyColumn('is_active'), true);
+    }
 
     /**
      * Spesialisasi name => badge class, shared by the Rawat Jalan and Billing tables so a
