@@ -767,12 +767,13 @@ class EmployeeScheduleController extends Controller
         );
     }
 
-    // Hari masuk yang belum dipakai dan sudah dikerjakan sebelum $tanggalLibur (masuk dulu baru libur)
+    // Hari masuk yang belum dipakai sebelum $tanggalLibur (masuk dulu baru libur). HRD boleh memakai hari Minggu /
+    // libur nasional yang baru terjadwal (mis. Sabtu ini menjadwalkan ganti libur minggu depan untuk masuk besok).
     private function hariMasukUntukLibur($employeeId, string $tanggalLibur, array $holidays, $excludeId = null): array
     {
         return array_values(array_filter(
             PengajuanLibur::hariMasukBelumDipakai($employeeId, $holidays, $excludeId),
-            fn($d) => PengajuanLibur::hariMasukSebelumLibur($d, $tanggalLibur)
+            fn($d) => PengajuanLibur::hariMasukSebelumLibur($d, $tanggalLibur, true)
         ));
     }
 
@@ -800,6 +801,7 @@ class EmployeeScheduleController extends Controller
                 'label' => Carbon::parse($date)->locale('id')->translatedFormat('l, j F Y'),
                 'keterangan' => $holidays[$date] ?? 'Hari Minggu',
                 'shift' => $rows->map(fn($s) => $s->shift->name ?? null)->filter()->unique()->implode(', '),
+                'terjadwal' => $date > Carbon::today()->toDateString(), // belum dikerjakan
             ])
             ->values();
 
@@ -819,8 +821,8 @@ class EmployeeScheduleController extends Controller
         if (!LiburNasional::isHariGantiLibur($hariMasuk, $holidays)) {
             return "{$label} bukan hari Minggu / libur nasional.";
         }
-        if (!PengajuanLibur::hariMasukSebelumLibur($hariMasuk, $tanggalLibur)) {
-            return "{$label} belum dikerjakan / tidak sebelum tanggal libur (masuk dulu baru libur).";
+        if (!PengajuanLibur::hariMasukSebelumLibur($hariMasuk, $tanggalLibur, true)) {
+            return "{$label} tidak sebelum tanggal libur (masuk dulu baru libur).";
         }
         if (!EmployeeSchedule::where('employee_id', $employeeId)->whereDate('date', $hariMasuk)->exists()) {
             return "{$label} tidak ada jadwal masuk.";

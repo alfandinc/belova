@@ -147,12 +147,14 @@ class PengajuanLibur extends Model
     /**
      * Masuk dulu baru libur: the Sunday / holiday must already be worked (not after today) and lie before
      * the first day of the ganti libur.
+     * $bolehTerjadwal: HRD planning from the schedule grid may also pair a Sunday / holiday that is only
+     * scheduled (not worked yet), as long as it still comes before the libur.
      */
-    public static function hariMasukSebelumLibur($hariMasuk, $tanggalLibur): bool
+    public static function hariMasukSebelumLibur($hariMasuk, $tanggalLibur, bool $bolehTerjadwal = false): bool
     {
         $hariMasuk = \Carbon\Carbon::parse($hariMasuk)->toDateString();
 
-        return $hariMasuk <= \Carbon\Carbon::today()->toDateString()
+        return ($bolehTerjadwal || $hariMasuk <= \Carbon\Carbon::today()->toDateString())
             && $hariMasuk < \Carbon\Carbon::parse($tanggalLibur)->toDateString();
     }
 

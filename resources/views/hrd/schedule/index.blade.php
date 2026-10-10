@@ -216,7 +216,8 @@
                     <b>3. Simpan</b><br>
                     Sel bertanda <span class="dirty-mark"></span> belum disimpan. <kbd>Ctrl+S</kbd> simpan, <kbd>Ctrl+Z</kbd> batalkan,
                     <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> copy-paste blok, <kbd>Esc</kbd> batal pilih.
-                    Masuk di hari <span class="text-danger">Minggu / libur nasional</span> = 1 hari ganti libur (bisa dipakai setelah dikerjakan).
+                    Masuk di hari <span class="text-danger">Minggu / libur nasional</span> = 1 hari ganti libur. Dengan <kbd>G</kbd> ganti libur
+                    bisa langsung dijadwalkan setelah hari Minggu yang terjadwal masuk, walau belum dikerjakan.
                 </div>
             </div>
         </div>
@@ -667,14 +668,16 @@
                 });
                 (data.dates || []).forEach(function (d) {
                     if (taken[d.date]) return;
-                    options[d.date] = d.label + ' (' + d.keterangan + (d.shift ? ', ' + d.shift : '') + ')';
+                    options[d.date] = d.label + ' (' + d.keterangan + (d.shift ? ', ' + d.shift : '') + ')'
+                        + (d.terjadwal ? ' – terjadwal, belum dikerjakan' : '');
                 });
-                // Minggu / libur nasional yang baru diisi di grid ini (disimpan bersamaan); masuk dulu baru libur
+                // Minggu / libur nasional yang baru diisi di grid ini (disimpan bersamaan); masuk dulu baru libur.
+                // Boleh yang belum dikerjakan: HRD bisa menjadwalkan masuk Minggu besok + ganti liburnya minggu depan sekaligus.
                 rowCells.forEach(function (c) {
                     var shifts = c.getAttribute('data-shifts'), d = c.getAttribute('data-date');
                     if (c.classList.contains('dirty') && shifts && shifts !== 'GL' && isHariGantiLibur(c) && !options[d] && !taken[d]
-                        && d < date && d <= today) {
-                        options[d] = shortDate(d) + ' (belum disimpan)';
+                        && d < date) {
+                        options[d] = shortDate(d) + ' (belum disimpan' + (d > today ? ', belum dikerjakan' : '') + ')';
                     }
                 });
                 var keys = Object.keys(options).sort();
@@ -684,7 +687,7 @@
                 if (!keys.length) {
                     return swal.fire({
                         title: 'Belum ada hari masuk',
-                        text: name + ' belum punya hari masuk Minggu / libur nasional sebelum ' + shortDate(date) + ' yang belum dipakai (masuk dulu baru libur).',
+                        text: name + ' belum punya hari masuk / jadwal masuk Minggu / libur nasional sebelum ' + shortDate(date) + ' yang belum dipakai (masuk dulu baru libur).',
                         icon: 'warning'
                     }).then(function () { return undefined; });
                 }
