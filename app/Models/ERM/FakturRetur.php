@@ -10,7 +10,12 @@ class FakturRetur extends Model
     use HasFactory;
     protected $table = 'erm_fakturretur';
     protected $fillable = [
-        'fakturbeli_id', 'pemasok_id', 'no_retur', 'tanggal_retur', 'notes', 'status', 'approved_by'
+        'fakturbeli_id', 'pemasok_id', 'no_retur', 'tanggal_retur', 'notes', 'status', 'approved_by',
+        'approved_at', 'rejected_reason',
+    ];
+
+    protected $casts = [
+        'approved_at' => 'datetime',
     ];
 
     public function fakturbeli()

@@ -2144,6 +2144,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         if (!empty($allObatIds) && !empty($allGudangIds)) {
                             $rows = ObatStokGudang::query()
                                 ->select(['obat_id', 'gudang_id', DB::raw('SUM(stok) as total')])
+                                ->layakPakai()
                                 ->whereIn('obat_id', $allObatIds)
                                 ->whereIn('gudang_id', $allGudangIds)
                                 ->groupBy('obat_id', 'gudang_id')
@@ -3177,14 +3178,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         if ($selectedGudangId) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
                                 ->where('gudang_id', $selectedGudangId)
-                                ->sum('stok');
+                                ->layakPakai()->sum('stok');
                         } else {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
-                                ->sum('stok');
+                                ->layakPakai()->sum('stok');
                         }
 
                         if ($qty > $currentStock) {
-                            $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                            $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia (belum kadaluarsa): {$currentStock}";
                         }
                     }
                 } else if (
@@ -3211,14 +3212,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         if ($selectedGudangId) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                 ->where('gudang_id', $selectedGudangId)
-                                ->sum('stok');
+                                ->layakPakai()->sum('stok');
                         } else {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                ->sum('stok');
+                                ->layakPakai()->sum('stok');
                         }
 
                         if ($qty > $currentStock) {
-                            $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                            $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia (belum kadaluarsa): {$currentStock}";
                         }
                     }
                 }
@@ -3240,10 +3241,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 if ($resolvedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->where('gudang_id', $resolvedGudangId)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 } else {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 }
 
                                 if ($qty > $currentStock) {
@@ -3252,7 +3253,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                         $gudangName = optional(\App\Models\ERM\Gudang::find($resolvedGudangId))->nama;
                                     }
                                     $suffix = $gudangName ? " di gudang {$gudangName}" : "";
-                                    $stockErrors[] = "Stok {$obat->nama} (kode tindakan){$suffix} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                                    $stockErrors[] = "Stok {$obat->nama} (kode tindakan){$suffix} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia (belum kadaluarsa): {$currentStock}";
                                 }
 
                                 $kodeTindakanObats[] = [
@@ -3305,22 +3306,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if ($selectedGudangId) {
                                 $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                     ->where('gudang_id', $selectedGudangId)
-                                    ->sum('stok');
+                                    ->layakPakai()->sum('stok');
                             } else {
                                 $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
                                 if ($mappedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->where('gudang_id', $mappedGudangId)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 } else {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 }
                             }
 
                             if ($required > $currentStock) {
                                 $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
-                                $stockErrors[] = "Stok {$obat->nama} untuk lab ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia: {$currentStock}";
+                                $stockErrors[] = "Stok {$obat->nama} untuk lab ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia (belum kadaluarsa): {$currentStock}";
                             }
 
                             $labRequiredObats[] = [
@@ -3363,23 +3364,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if ($selectedGudangId) {
                                 $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                     ->where('gudang_id', $selectedGudangId)
-                                    ->sum('stok');
+                                    ->layakPakai()->sum('stok');
                             } else {
                                 $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
                                 if ($mappedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->where('gudang_id', $mappedGudangId)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 } else {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->sum('stok');
+                                        ->layakPakai()->sum('stok');
                                 }
                             }
 
                             if ($required > $currentStock) {
                                 $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
                                 $packageName = optional(LabPaket::find($item->billable_id))->nama ?? 'Paket Lab';
-                                $stockErrors[] = "Stok {$obat->nama} untuk {$packageName} ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia: {$currentStock}";
+                                $stockErrors[] = "Stok {$obat->nama} untuk {$packageName} ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia (belum kadaluarsa): {$currentStock}";
                             }
 
                             $labRequiredObats[] = [
@@ -6017,14 +6018,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     private function reduceGudangStock($obatId, $qty, $gudangId = null, $invoiceId = null, $invoiceNumber = null)
     {
-        // Default gudang ID jika tidak dispesifikasikan
+        // Callers resolve the gudang via getGudangForItem(); never fall back to an arbitrary gudang here
         if (!$gudangId) {
-            $defaultGudang = \App\Models\ERM\Gudang::first();
-            $gudangId = $defaultGudang ? $defaultGudang->id : null;
-        }
-
-        if (!$gudangId) {
-            Log::error("Tidak ada gudang yang tersedia untuk pengurangan stok obat ID: " . $obatId);
+            Log::error("Gudang tidak diketahui untuk pengurangan stok obat ID: " . $obatId);
             return false;
         }
 
@@ -6032,11 +6028,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $stokService = new StokService();
 
         try {
-            // Ambil stok dari gudang berdasarkan FIFO (tanggal expired terlama)
+            // FEFO: ED terdekat dulu. Batch yang sudah lewat ED tidak pernah dijual (ada di gudang expired / karantina).
             $stokList = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId)
                 ->where('stok', '>', 0)
-                ->orderBy('expiration_date', 'asc')
+                ->layakPakai()
+                ->urutFefo()
                 ->get();
 
             $remainingQty = $qty;
@@ -6097,14 +6094,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
     }
 
-    /**
-     * Legacy method kept for backwards compatibility
-     * Now delegates to reduceGudangStock
-     */
-    private function reduceFakturStock($obatId, $qty)
-    {
-        return $this->reduceGudangStock($obatId, $qty);
-    }
 
     /**
      * Get gudang ID for specific item based on frontend selection or mapping
@@ -6167,8 +6156,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             return $defaultGudangId->gudang_id ?? ($defaultGudangId);
         }
 
-        // 4) Last resort: use first available gudang
+        // 4) Last resort: use first available gudang. Logged so a missing gudang mapping gets noticed
         $defaultGudang = \App\Models\ERM\Gudang::first();
+        Log::warning('Gudang mapping tidak ditemukan, memakai gudang pertama', [
+            'obat_id' => $obatId,
+            'transaction_type' => $transactionType,
+            'gudang_id' => optional($defaultGudang)->id,
+        ]);
         return $defaultGudang ? $defaultGudang->id : null;
     }
 
@@ -6193,49 +6187,27 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     private function returnToGudangStock($obatId, $qty, $gudangId = null, $invoiceId = null, $invoiceNumber = null)
     {
         if (!$gudangId) {
-            $defaultGudang = Gudang::first();
-            $gudangId = $defaultGudang ? $defaultGudang->id : null;
-        }
-
-        if (!$gudangId) {
-            Log::error("Tidak ada gudang yang tersedia untuk pengembalian stok obat ID: " . $obatId);
+            Log::error("Gudang tidak diketahui untuk pengembalian stok obat ID: " . $obatId);
             return false;
         }
 
-        // Gunakan StokService untuk penambahan stok
-        $stokService = new StokService();
-
         try {
-            // Get the most recent batch for return reference
-            $lastBatch = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)
-                ->where('gudang_id', $gudangId)
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            $batchName = $lastBatch ? $lastBatch->batch : 'RETURN-' . date('YmdHis');
-            $expDate = $lastBatch ? $lastBatch->expiration_date : now()->addYears(1);
-
-            // Tambah stok menggunakan StokService dengan referensi invoice
+            // Back to the batch(es) this invoice took the stok from; $gudangId is the fallback without history
             $keterangan = $invoiceNumber ? "Pengembalian stok dari Invoice: {$invoiceNumber}" : "Pengembalian stok";
-            $stokService->tambahStok(
-                $obatId, 
-                $gudangId, 
-                $qty, 
-                $batchName, 
-                $expDate,
-                null, // rak
-                null, // lokasi
-                null, // hargaBeli
-                null, // hargaBeliJual
-                'invoice_return', // refType
-                $invoiceId, // refId
-                $keterangan // keterangan
+            app(StokService::class)->kembalikanStokInvoice(
+                $obatId,
+                $qty,
+                $invoiceId,
+                $gudangId,
+                'invoice_return',
+                $invoiceId,
+                $keterangan
             );
 
-            Log::info("Stok dikembalikan ke gudang menggunakan StokService", [
+            Log::info("Stok dikembalikan ke batch asal", [
                 'obat_id' => $obatId,
                 'gudang_id' => $gudangId,
-                'batch' => $batchName,
+                'invoice_id' => $invoiceId,
                 'qty_returned' => $qty
             ]);
 

@@ -1,6 +1,6 @@
 @extends('layouts.admin.app')
 
-@section('title', 'Obat & Gudang Mapping')
+@section('title', 'Master Gudang & Mapping')
 
 @section('navbar')
     @include('layouts.admin.navbar')
@@ -10,20 +10,52 @@
 <div class="container-fluid">
     <div class="card shadow-sm">
         <div class="card-body">
-            <h3 class="card-title mb-3">Obat & Gudang Mapping</h3>
+            <h3 class="card-title mb-3">Master Gudang & Mapping</h3>
 
             <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item">
-                    <a class="nav-link active" data-toggle="tab" href="#tab-obat-mapping" role="tab">Obat Mapping</a>
+                    <a class="nav-link active" data-toggle="tab" href="#tab-master-gudang" role="tab">Master Gudang</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" data-toggle="tab" href="#tab-gudang-mapping" role="tab">Gudang Mapping</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#tab-obat-mapping" role="tab">Obat Mapping</a>
+                </li>
             </ul>
 
             <div class="tab-content">
+                <!-- Master Gudang -->
+                <div class="tab-pane fade show active" id="tab-master-gudang" role="tabpanel">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="alert alert-info mb-0 mr-3">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Gudang yang sudah pernah dipakai (stok, kartu stok, faktur, mutasi, opname, mapping) tidak bisa dihapus agar riwayatnya tetap utuh.
+                            Fungsi gudang (resep, gudang expired, dll.) diatur di tab <strong>Gudang Mapping</strong>.
+                        </div>
+                        <button type="button" id="addGudangBtn" class="btn btn-primary btn-sm text-nowrap">
+                            <i class="fas fa-plus mr-1"></i> Tambah Gudang
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="masterGudangTable" class="table table-bordered table-striped" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Nama Gudang</th>
+                                    <th>Lokasi</th>
+                                    <th>Dipakai Untuk</th>
+                                    <th class="text-right">Jenis Obat Berstok</th>
+                                    <th>Dibuat</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <!-- Obat Mapping -->
-                <div class="tab-pane fade show active" id="tab-obat-mapping" role="tabpanel">
+                <div class="tab-pane fade" id="tab-obat-mapping" role="tabpanel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <p class="text-muted mb-0">Visitation metode bayar → Obat metode bayar</p>
                         <button type="button" id="addObatMappingBtn" class="btn btn-primary btn-sm">
@@ -75,6 +107,39 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Master Gudang Modal -->
+<div class="modal fade" id="gudangModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tambah Gudang</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="gudangForm">
+                <div class="modal-body">
+                    <input type="hidden" id="gudangId">
+                    <div class="form-group">
+                        <label for="g_nama">Nama Gudang <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="g_nama" required maxlength="255">
+                    </div>
+                    <div class="form-group mb-0">
+                        <label for="g_lokasi">Lokasi</label>
+                        <input type="text" class="form-control" id="g_lokasi" maxlength="255">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save mr-1"></i> Simpan
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -245,6 +310,111 @@ $(document).ready(function() {
         $.fn.dataTable.tables({ visible: true, api: true }).columns.adjust();
     });
 
+    // ===== Master Gudang =====
+    const gudangUrl = '{{ url("/erm/gudang") }}';
+    const masterGudangTable = $('#masterGudangTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: { url: '{{ route("erm.gudang.data") }}', type: 'GET' },
+        columns: [
+            { data: 'nama', name: 'nama' },
+            { data: 'lokasi', name: 'lokasi' },
+            { data: 'mapping', name: 'mapping', orderable: false, searchable: false },
+            { data: 'jumlah_obat', name: 'jumlah_obat', orderable: false, searchable: false, className: 'text-right' },
+            { data: 'created_at', name: 'created_at' },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        order: [[0, 'asc']],
+        language: dtLanguage
+    });
+
+    // Keep the gudang dropdown in the mapping form in sync with the master list
+    function syncGudangOption(id, nama, removed) {
+        const $select = $('#gm_gudang_id');
+        const $opt = $select.find('option[value="' + id + '"]');
+        if (removed) {
+            $opt.remove();
+        } else if ($opt.length) {
+            $opt.text(nama);
+        } else {
+            $select.append($('<option>').val(id).text(nama));
+        }
+    }
+
+    $('#addGudangBtn').on('click', function() {
+        $('#gudangForm')[0].reset();
+        $('#gudangId').val('');
+        $('#gudangModal .modal-title').text('Tambah Gudang');
+        $('#gudangModal').modal('show');
+    });
+
+    $('#masterGudangTable').on('click', '.edit-btn', function() {
+        const id = $(this).data('id');
+        $.get(gudangUrl + '/' + id, function(response) {
+            if (!response.success) {
+                Swal.fire('Error', 'Gagal memuat data gudang', 'error');
+                return;
+            }
+            $('#gudangId').val(response.data.id);
+            $('#g_nama').val(response.data.nama);
+            $('#g_lokasi').val(response.data.lokasi);
+            $('#gudangModal .modal-title').text('Edit Gudang');
+            $('#gudangModal').modal('show');
+        });
+    });
+
+    $('#masterGudangTable').on('click', '.delete-btn', function() {
+        const id = $(this).data('id');
+        Swal.fire({
+            title: 'Konfirmasi Hapus',
+            text: 'Hapus gudang ini? Hanya gudang yang belum pernah dipakai yang bisa dihapus.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (!result.value) return;
+            $.ajax({
+                url: gudangUrl + '/' + id,
+                type: 'DELETE',
+                data: { _token: csrf },
+                success: function(response) {
+                    syncGudangOption(id, null, true);
+                    masterGudangTable.ajax.reload(null, false);
+                    Swal.fire('Berhasil!', response.message, 'success');
+                },
+                error: function(xhr) {
+                    Swal.fire('Tidak bisa dihapus', errorMessage(xhr, '<br>'), 'error');
+                }
+            });
+        });
+    });
+
+    $('#gudangForm').on('submit', function(e) {
+        e.preventDefault();
+        const id = $('#gudangId').val();
+        $.ajax({
+            url: id ? gudangUrl + '/' + id : '{{ route("erm.gudang.store") }}',
+            type: id ? 'PUT' : 'POST',
+            data: {
+                nama: $('#g_nama').val(),
+                lokasi: $('#g_lokasi').val(),
+                _token: csrf
+            },
+            success: function(response) {
+                $('#gudangModal').modal('hide');
+                syncGudangOption(response.data.id, response.data.nama, false);
+                masterGudangTable.ajax.reload(null, false);
+                gudangTable.ajax.reload(null, false);
+                Swal.fire('Berhasil!', response.message, 'success');
+            },
+            error: function(xhr) {
+                Swal.fire('Error!', errorMessage(xhr, '<br>'), 'error');
+            }
+        });
+    });
+
     // ===== Obat Mapping =====
     const obatTable = $('#obatMappingTable').DataTable({
         ajax: { url: '{{ route("erm.obat-mapping.index") }}', dataSrc: 'data' },
@@ -404,6 +574,7 @@ $(document).ready(function() {
                     if (response.success) {
                         Swal.fire('Berhasil!', response.message, 'success');
                         gudangTable.ajax.reload();
+                        masterGudangTable.ajax.reload(null, false);
                     }
                 },
                 error: function(xhr) {
@@ -434,6 +605,7 @@ $(document).ready(function() {
                     $('#gudangMappingModal').modal('hide');
                     Swal.fire('Berhasil!', response.message, 'success');
                     gudangTable.ajax.reload();
+                    masterGudangTable.ajax.reload(null, false);
                 }
             },
             error: function(xhr) {

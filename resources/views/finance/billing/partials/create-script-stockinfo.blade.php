@@ -26,6 +26,8 @@ function loadStockTotal(obatId, gudangId) {
             const data = resp.data || [];
             let total = 0;
             data.forEach(function(d) {
+                // Expired batches cannot be sold; the server-side stock check skips them too
+                if (d.is_expired) return;
                 if (typeof d.stok !== 'undefined') {
                     total += parseFloat(d.stok) || 0;
                 } else if (d.stok_display) {

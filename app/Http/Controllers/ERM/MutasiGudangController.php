@@ -5,24 +5,52 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\MutasiGudang;
+use App\Models\ERM\MutasiGudangItem;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
+use App\Models\ERM\ObatStokGudang;
+use App\Services\ERM\GudangExpiredService;
+use App\Services\ERM\StokService;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
+/**
+ * Transfer Antar Gudang: a request (pending) moves stok only when approved, batch by batch (FEFO,
+ * usable batches only). Stok enters the system through Faktur Pembelian, Obat Hibah or
+ * Penyesuaian Stok; never from here.
+ */
 class MutasiGudangController extends Controller
 {
-    private function canAccessMutasiGudangActions($user): bool
+    // Roles that see the menu may also approve or reject; the requester may approve their own request
+    private const APPROVER_ROLES = ['Admin', 'Farmasi', 'Beautician', 'Lab'];
+
+    // Inactive obat keep their name on old transfers (the Obat model hides them by default)
+    private function relations(): array
     {
-        return $user
-            && method_exists($user, 'hasAnyRole')
-            && $user->hasAnyRole(['Admin', 'Farmasi', 'farmasi', 'Beautician', 'beautician']);
+        $withInactive = function ($q) {
+            $q->withoutGlobalScope('active');
+        };
+
+        return [
+            'items.obat' => $withInactive,
+            'obat' => $withInactive,
+            'gudangAsal',
+            'gudangTujuan',
+            'requestedBy',
+            'approvedBy',
+            'rejectedBy',
+        ];
+    }
+
+    private function canDecide($user = null): bool
+    {
+        $user = $user ?: Auth::user();
+        return $user && $user->hasAnyRole(self::APPROVER_ROLES);
     }
 
     /**
-     * Get obat yang tersedia di gudang asal beserta stoknya
+     * Obat with usable stok in the gudang asal, stok summed over batches
      */
     public function getObatGudang(Request $request)
     {
@@ -32,30 +60,26 @@ class MutasiGudangController extends Controller
             return response()->json(['results' => []]);
         }
 
-        $query = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
+        // Only batches that are still usable can be moved; expired stok goes through the gudang expired
+        $query = ObatStokGudang::where('gudang_id', $gudangId)
             ->where('stok', '>', 0)
-            ->whereHas('obat', function($q) {
+            ->layakPakai()
+            ->whereHas('obat', function ($q) use ($search) {
                 $q->where('status_aktif', 1);
-            })
-            ->with('obat');
-        if ($search) {
-            $query->whereHas('obat', function($q) use ($search) {
-                $q->where('status_aktif', 1)
-                    ->where(function ($sub) use ($search) {
+                if ($search) {
+                    $q->where(function ($sub) use ($search) {
                         $sub->where('nama', 'like', "%$search%")
                             ->orWhere('kode_obat', 'like', "%$search%");
                     });
-            });
-        }
-        $stokList = $query->get();
+                }
+            })
+            ->with('obat');
 
-        // Group by obat_id, sum stok
         $grouped = [];
-        foreach ($stokList as $stokGudang) {
-            if (!$stokGudang->obat || (int) ($stokGudang->obat->status_aktif ?? 0) !== 1) {
+        foreach ($query->get() as $stokGudang) {
+            if (!$stokGudang->obat) {
                 continue;
             }
-
             $obatId = $stokGudang->obat_id;
             if (!isset($grouped[$obatId])) {
                 $grouped[$obatId] = [
@@ -65,97 +89,143 @@ class MutasiGudangController extends Controller
                     'satuan' => $stokGudang->obat->satuan_stok_label,
                 ];
             }
-            $grouped[$obatId]['stok'] += $stokGudang->stok;
+            $grouped[$obatId]['stok'] += (float) $stokGudang->stok;
         }
 
-        $results = array_values($grouped);
+        $results = collect($grouped)->sortBy('nama')->values()->map(function ($row) {
+            $row['stok'] = round($row['stok'], 2);
+            return $row;
+        });
+
         return response()->json(['results' => $results]);
     }
+
     public function index()
     {
         $gudangs = Gudang::orderBy('nama')->get();
-        return view('erm.mutasi-gudang.index', compact('gudangs'));
+        // The gudang expired is neither a source nor a destination of a transfer
+        $expiredGudangId = app(GudangExpiredService::class)->gudangId();
+        $gudangTransfer = $gudangs->reject(function ($g) use ($expiredGudangId) {
+            return $expiredGudangId && (int) $g->id === (int) $expiredGudangId;
+        })->values();
+
+        return view('erm.mutasi-gudang.index', compact('gudangs', 'gudangTransfer'));
     }
 
     public function data(Request $request)
     {
-        $query = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy']);
+        // Gudang and period filters; the status tab is applied on top so the tab counts follow them
+        $filtered = function ($q) use ($request) {
+            if ($request->gudang_id) {
+                $gudangId = $request->gudang_id;
+                $q->where(function ($sub) use ($gudangId) {
+                    $sub->where('gudang_asal_id', $gudangId)->orWhere('gudang_tujuan_id', $gudangId);
+                });
+            }
+            if ($request->start) {
+                $q->where('erm_mutasi_gudang.created_at', '>=', \Carbon\Carbon::parse($request->start)->startOfDay());
+            }
+            if ($request->end) {
+                $q->where('erm_mutasi_gudang.created_at', '<=', \Carbon\Carbon::parse($request->end)->endOfDay());
+            }
+        };
 
-        if ($request->gudang_id) {
-            $gudangId = $request->gudang_id;
-            $query->where(function($q) use ($gudangId) {
-                $q->where('gudang_asal_id', $gudangId)
-                  ->orWhere('gudang_tujuan_id', $gudangId);
+        $counts = MutasiGudang::query()->where($filtered)
+            ->select('status', DB::raw('COUNT(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $withInactive = function ($q) {
+            $q->withoutGlobalScope('active')->select('id', 'nama');
+        };
+        $userName = function ($q) {
+            $q->select('id', 'name');
+        };
+
+        // Only what the table shows: no full models, items or obat records in the payload
+        $query = MutasiGudang::query()
+            ->select('erm_mutasi_gudang.id', 'nomor_mutasi', 'gudang_asal_id', 'gudang_tujuan_id', 'obat_id', 'status',
+                'requested_by', 'approved_by', 'approved_at', 'rejected_by', 'rejected_at', 'erm_mutasi_gudang.created_at')
+            ->with([
+                'items' => function ($q) {
+                    $q->select('id', 'mutasi_id', 'obat_id');
+                },
+                'items.obat' => $withInactive,
+                'obat' => $withInactive,
+                'gudangAsal:id,nama',
+                'gudangTujuan:id,nama',
+                'requestedBy' => $userName,
+                'approvedBy' => $userName,
+                'rejectedBy' => $userName,
+            ])
+            ->where($filtered)
+            ->when(in_array($request->status, ['pending', 'approved', 'rejected'], true), function ($q) use ($request) {
+                $q->where('status', $request->status);
             });
-        }
-
-        if ($request->status) {
-            $query->where('status', $request->status);
-        }
 
         return DataTables::of($query)
             ->addColumn('tanggal', function ($mutasi) {
                 return $mutasi->created_at->format('d/m/Y H:i');
             })
-            ->addColumn('nama_obat', function ($mutasi) {
-                // Build a comma-separated list of obat names (limit to first 3)
-                if ($mutasi->items && $mutasi->items->count() > 0) {
-                    $names = $mutasi->items->map(function($it) {
+            ->addColumn('obat', function ($mutasi) {
+                $names = $mutasi->items->count()
+                    ? $mutasi->items->map(function ($it) {
                         return $it->obat ? $it->obat->nama : ('Obat ID ' . $it->obat_id);
-                    })->filter()->values()->all();
+                    })->all()
+                    : [$mutasi->obat ? $mutasi->obat->nama : '-'];
 
-                    if (count($names) <= 3) {
-                        return implode(', ', $names);
-                    }
-                    $first = array_slice($names, 0, 3);
-                    $remaining = count($names) - 3;
-                    return implode(', ', $first) . " ... +{$remaining} more";
-                }
-
-                // Fallback to single obat
-                return $mutasi->obat ? $mutasi->obat->nama : '-';
+                return ['nama' => array_slice($names, 0, 3), 'lainnya' => max(0, count($names) - 3), 'jumlah_item' => count($names)];
+            })
+            // Search the obat names of the items (and of legacy single-obat rows)
+            ->filterColumn('obat', function ($query, $keyword) {
+                $query->where(function ($q) use ($keyword) {
+                    $q->whereHas('items.obat', function ($o) use ($keyword) {
+                        $o->withoutGlobalScopes()->where('nama', 'like', "%{$keyword}%");
+                    })->orWhereHas('obat', function ($o) use ($keyword) {
+                        $o->withoutGlobalScopes()->where('nama', 'like', "%{$keyword}%");
+                    });
+                });
+            })
+            ->filterColumn('nomor_mutasi', function ($query, $keyword) {
+                $query->where('erm_mutasi_gudang.nomor_mutasi', 'like', "%{$keyword}%");
             })
             ->addColumn('gudang_asal', function ($mutasi) {
-                return $mutasi->gudangAsal->nama;
+                return optional($mutasi->gudangAsal)->nama;
             })
             ->addColumn('gudang_tujuan', function ($mutasi) {
-                return $mutasi->gudangTujuan->nama;
+                return optional($mutasi->gudangTujuan)->nama;
             })
-            ->addColumn('requested_by', function ($mutasi) {
-                return $mutasi->requestedBy->name;
+            ->addColumn('peminta', function ($mutasi) {
+                return optional($mutasi->requestedBy)->name;
             })
-            ->addColumn('approved_by', function ($mutasi) {
-                return $mutasi->approvedBy ? $mutasi->approvedBy->name : '-';
-            })
-            ->addColumn('status_label', function ($mutasi) {
-                $labels = [
-                    'pending' => '<span class="badge bg-warning">Pending</span>',
-                    'approved' => '<span class="badge bg-success">Disetujui</span>',
-                    'rejected' => '<span class="badge bg-danger">Ditolak</span>'
-                ];
-                return $labels[$mutasi->status];
-            })
-            ->addColumn('action', function ($mutasi) {
-                $user = auth()->user();
-                $canApprove = $this->canAccessMutasiGudangActions($user);
-
-                $printUrl = route('erm.mutasi-gudang.print', $mutasi->id);
-
-                $buttons = '<div class="btn-group" role="group" aria-label="Aksi">';
-                $buttons .= '<button type="button" class="btn btn-info btn-sm btn-detail" data-id="'.$mutasi->id.'" title="Detail"><i class="fas fa-eye"></i></button>';
-
-                if ($mutasi->status === 'pending' && $canApprove) {
-                    $buttons .= '<button type="button" class="btn btn-success btn-sm btn-approve" data-id="'.$mutasi->id.'" title="Setujui"><i class="fas fa-check"></i></button>';
-                    $buttons .= '<button type="button" class="btn btn-danger btn-sm btn-reject" data-id="'.$mutasi->id.'" title="Tolak"><i class="fas fa-times"></i></button>';
+            ->addColumn('diputuskan', function ($mutasi) {
+                if ($mutasi->status === 'rejected') {
+                    return ['nama' => optional($mutasi->rejectedBy)->name, 'waktu' => optional($mutasi->rejected_at)->format('d/m/Y H:i')];
                 }
-
-                $buttons .= '<a href="'.$printUrl.'" class="btn btn-secondary btn-sm" target="_blank" title="Cetak"><i class="fas fa-print"></i></a>';
-                $buttons .= '</div>';
-
-                return $buttons;
+                if ($mutasi->status === 'approved') {
+                    return ['nama' => optional($mutasi->approvedBy)->name, 'waktu' => optional($mutasi->approved_at)->format('d/m/Y H:i')];
+                }
+                return null;
             })
-            ->rawColumns(['status_label', 'action'])
+            ->orderColumn('tanggal', 'erm_mutasi_gudang.created_at $1')
+            ->only(['id', 'nomor_mutasi', 'status', 'tanggal', 'obat', 'gudang_asal', 'gudang_tujuan', 'peminta', 'diputuskan'])
+            ->with('counts', [
+                'all' => (int) $counts->sum(),
+                'pending' => (int) ($counts['pending'] ?? 0),
+                'approved' => (int) ($counts['approved'] ?? 0),
+                'rejected' => (int) ($counts['rejected'] ?? 0),
+            ])
             ->make(true);
+    }
+
+    private function statusBadge(?string $status): string
+    {
+        $labels = [
+            'pending' => '<span class="badge badge-warning">Menunggu approval</span>',
+            'approved' => '<span class="badge badge-success">Disetujui</span>',
+            'rejected' => '<span class="badge badge-danger">Ditolak</span>',
+        ];
+        return $labels[$status] ?? '<span class="badge badge-light">' . e($status) . '</span>';
     }
 
     /**
@@ -163,131 +233,145 @@ class MutasiGudangController extends Controller
      */
     public function print($id)
     {
-        $mutasi = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy'])
+        $mutasi = MutasiGudang::with($this->relations())
             ->findOrFail($id);
 
-        // Prepare stock before/after per item
-        $items = $mutasi->items;
-        foreach ($items as $item) {
-            $stokAsalNow = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
-                ->where('gudang_id', $mutasi->gudang_asal_id)
-                ->sum('stok');
-
-            $stokTujuanNow = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
-                ->where('gudang_id', $mutasi->gudang_tujuan_id)
-                ->sum('stok');
-
+        foreach ($mutasi->items as $item) {
             if ($mutasi->status === 'approved') {
-                // If already approved, the current values reflect post-mutation state
-                $item->stok_asal_setelah = $stokAsalNow;
-                $item->stok_asal_sebelum = $stokAsalNow + $item->jumlah;
-
-                $item->stok_tujuan_setelah = $stokTujuanNow;
-                $item->stok_tujuan_sebelum = max(0, $stokTujuanNow - $item->jumlah);
-            } else {
-                // Pending/rejected: show current as 'sebelum' and predicted 'setelah'
-                $item->stok_asal_sebelum = $stokAsalNow;
-                $item->stok_asal_setelah = max(0, $stokAsalNow - $item->jumlah);
-
-                $item->stok_tujuan_sebelum = $stokTujuanNow;
-                $item->stok_tujuan_setelah = $stokTujuanNow + $item->jumlah;
+                // Stok right after this transfer, from the kartu stok rows it wrote
+                [$item->stok_asal_sebelum, $item->stok_asal_setelah] = $this->stokSekitarMutasi($mutasi, $item->obat_id, $mutasi->gudang_asal_id);
+                [$item->stok_tujuan_sebelum, $item->stok_tujuan_setelah] = $this->stokSekitarMutasi($mutasi, $item->obat_id, $mutasi->gudang_tujuan_id);
+            } elseif ($mutasi->status === 'pending') {
+                // Current usable stok and the expected result
+                $asal = (float) ObatStokGudang::where('obat_id', $item->obat_id)->where('gudang_id', $mutasi->gudang_asal_id)->layakPakai()->sum('stok');
+                $tujuan = (float) ObatStokGudang::where('obat_id', $item->obat_id)->where('gudang_id', $mutasi->gudang_tujuan_id)->sum('stok');
+                $item->stok_asal_sebelum = $asal;
+                $item->stok_asal_setelah = $asal - (float) $item->jumlah;
+                $item->stok_tujuan_sebelum = $tujuan;
+                $item->stok_tujuan_setelah = $tujuan + (float) $item->jumlah;
             }
+            // Rejected: no stok moved, nothing to show
         }
 
-        $pdf = \PDF::loadView('erm.mutasi-gudang.print', compact('mutasi'))
+        $alasanTolak = $mutasi->status === 'rejected' ? $mutasi->rejected_reason : null;
+
+        $pdf = \PDF::loadView('erm.mutasi-gudang.print', compact('mutasi', 'alasanTolak'))
             ->setPaper('a4', 'landscape');
 
-        $filename = 'mutasi-' . ($mutasi->nomor_mutasi ?: $mutasi->id) . '.pdf';
-        return $pdf->stream($filename);
+        return $pdf->stream('mutasi-' . ($mutasi->nomor_mutasi ?: $mutasi->id) . '.pdf');
+    }
+
+    /**
+     * [before, after] stok of an obat in a gudang around an approved transfer: current stok minus every
+     * movement written after this transfer's last kartu stok row. Null when the transfer has no rows.
+     */
+    private function stokSekitarMutasi(MutasiGudang $mutasi, int $obatId, int $gudangId): array
+    {
+        $rows = DB::table('erm_kartu_stok')
+            ->where('ref_type', 'mutasi_gudang')
+            ->where('ref_id', $mutasi->id)
+            ->where('obat_id', $obatId)
+            ->where('gudang_id', $gudangId)
+            ->get(['id', 'tipe', 'qty']);
+        if ($rows->isEmpty()) {
+            return [null, null];
+        }
+
+        $signed = "CASE WHEN tipe = 'masuk' THEN qty WHEN tipe = 'keluar' THEN -qty ELSE 0 END";
+        $now = (float) ObatStokGudang::where('obat_id', $obatId)->where('gudang_id', $gudangId)->sum('stok');
+        $later = (float) DB::table('erm_kartu_stok')
+            ->where('obat_id', $obatId)
+            ->where('gudang_id', $gudangId)
+            ->where('id', '>', $rows->max('id'))
+            ->sum(DB::raw($signed));
+
+        $after = $now - $later;
+        $moved = $rows->sum(function ($r) {
+            return $r->tipe === 'masuk' ? (float) $r->qty : ($r->tipe === 'keluar' ? -(float) $r->qty : 0.0);
+        });
+
+        return [$after - $moved, $after];
     }
 
     public function store(Request $request)
     {
-        if ($request->has('items')) {
-            $items = collect($request->input('items', []))
-                ->map(function ($item) {
-                    if (array_key_exists('jumlah', $item)) {
-                        $item['jumlah'] = str_replace(',', '.', (string) $item['jumlah']);
-                    }
-
-                    return $item;
-                })
-                ->toArray();
-
-            $request->merge(['items' => $items]);
+        if (!$this->canDecide()) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk membuat transfer antar gudang.'], 403);
         }
 
-        if ($request->filled('jumlah')) {
-            $request->merge([
-                'jumlah' => str_replace(',', '.', (string) $request->input('jumlah')),
-            ]);
-        }
+        $items = collect($request->input('items', []))->map(function ($item) {
+            if (is_array($item) && array_key_exists('jumlah', $item)) {
+                $item['jumlah'] = str_replace(',', '.', (string) $item['jumlah']);
+            }
+            return $item;
+        })->toArray();
+        $request->merge(['items' => $items]);
 
-        // Support multiple items: items = [{obat_id, jumlah, keterangan}, ...]
-        $rules = [
+        $request->validate([
             'gudang_asal_id' => 'required|exists:erm_gudang,id',
             'gudang_tujuan_id' => 'required|exists:erm_gudang,id|different:gudang_asal_id',
-        ];
-
-        if ($request->has('items')) {
-            $rules['items'] = 'required|array|min:1';
-            $rules['items.*.obat_id'] = 'required|exists:erm_obat,id';
-            $rules['items.*.jumlah'] = 'required|numeric|min:0.01';
-            $rules['items.*.keterangan'] = 'nullable|string|max:255';
-        } else {
-            $rules['obat_id'] = 'required|exists:erm_obat,id';
-            $rules['jumlah'] = 'required|numeric|min:0.01';
-        }
-
-        $request->validate($rules);
+            'items' => 'required|array|min:1',
+            'items.*.obat_id' => 'required|exists:erm_obat,id',
+            'items.*.jumlah' => 'required|numeric|min:0.01',
+            'items.*.keterangan' => 'nullable|string|max:255',
+        ], [
+            'gudang_tujuan_id.different' => 'Gudang tujuan tidak boleh sama dengan gudang asal.',
+            'items.required' => 'Tambahkan minimal satu obat.',
+            'items.*.jumlah.min' => 'Jumlah setiap obat harus lebih dari 0.',
+        ]);
 
         try {
+            // Begin first: the catch below rolls back, and must only undo this method's own transaction
             DB::beginTransaction();
 
-            // If multiple items, validate stok per item (only check total available in gudang)
-            $items = [];
-            if ($request->has('items')) {
-                $items = $request->items;
-                // Validate stock per obat in gudang asal
-                foreach ($items as $it) {
-                    $stok = \App\Models\ERM\ObatStokGudang::where('obat_id', $it['obat_id'])
-                        ->where('gudang_id', $request->gudang_asal_id)
-                        ->sum('stok');
-                    if ($stok < $it['jumlah']) {
-                        throw new \Exception("Stok tidak mencukupi untuk obat ID {$it['obat_id']}");
-                    }
-                }
-            } else {
-                // Single item fallback
-                $items = [[
-                    'obat_id' => $request->obat_id,
-                    'jumlah' => $request->jumlah,
-                    'keterangan' => $request->keterangan ?? null
-                ]];
+            // Stok in the gudang expired may only leave through Retur Pembelian or Pemusnahan,
+            // and usable stok must not be sent there
+            $expiredService = app(GudangExpiredService::class);
+            $expiredService->assertBukanGudangExpired($request->gudang_asal_id, 'dimutasi ke gudang lain');
+            if ($expiredService->isGudangExpired($request->gudang_tujuan_id)) {
+                throw new \Exception('Gudang ED tidak bisa menjadi tujuan transfer. Pindahkan batch kadaluarsa lewat Manajemen Stok (Pindah ke Gudang ED).');
             }
 
-            // Create mutasi
-            // If multiple items provided, do NOT populate parent obat_id/jumlah — keep those fields null
-            $mutasiData = [
-                'nomor_mutasi' => 'MUT-' . date('YmdHis'),
+            // One line per obat: the same obat entered twice is summed before the stok check
+            $merged = [];
+            foreach ($request->items as $it) {
+                $obatId = (int) $it['obat_id'];
+                if (!isset($merged[$obatId])) {
+                    $merged[$obatId] = ['obat_id' => $obatId, 'jumlah' => 0.0, 'keterangan' => []];
+                }
+                $merged[$obatId]['jumlah'] += (float) $it['jumlah'];
+                if (!empty($it['keterangan'])) {
+                    $merged[$obatId]['keterangan'][] = trim($it['keterangan']);
+                }
+            }
+
+            // Expired batches are never moved
+            foreach ($merged as $it) {
+                $stok = (float) ObatStokGudang::where('obat_id', $it['obat_id'])
+                    ->where('gudang_id', $request->gudang_asal_id)
+                    ->layakPakai()
+                    ->sum('stok');
+                if (round($stok, 4) < round($it['jumlah'], 4)) {
+                    $nama = optional(Obat::withInactive()->find($it['obat_id']))->nama ?? "ID {$it['obat_id']}";
+                    throw new \Exception("Stok {$nama} di gudang asal tidak mencukupi (tersedia " . $this->fmt($stok) . ', diminta ' . $this->fmt($it['jumlah']) . ').');
+                }
+            }
+
+            $mutasi = MutasiGudang::create([
+                'nomor_mutasi' => $this->nomorMutasi(),
                 'gudang_asal_id' => $request->gudang_asal_id,
                 'gudang_tujuan_id' => $request->gudang_tujuan_id,
-                'keterangan' => $request->keterangan ?? null,
+                'keterangan' => $request->keterangan ?: null,
                 'status' => 'pending',
-                'requested_by' => Auth::id()
-            ];
+                'requested_by' => Auth::id(),
+            ]);
 
-            // If only one item, you may optionally set parent obat_id/jumlah; but to respect user's request
-            // we keep parent fields null when items array is supplied.
-            $mutasi = MutasiGudang::create($mutasiData);
-
-            // Create related items
-            foreach ($items as $it) {
-                \App\Models\ERM\MutasiGudangItem::create([
+            foreach ($merged as $it) {
+                MutasiGudangItem::create([
                     'mutasi_id' => $mutasi->id,
                     'obat_id' => $it['obat_id'],
-                    'jumlah' => (float) $it['jumlah'],
-                    'keterangan' => $it['keterangan'] ?? null
+                    'jumlah' => $it['jumlah'],
+                    'keterangan' => $it['keterangan'] ? mb_substr(implode('; ', array_unique($it['keterangan'])), 0, 255) : null,
                 ]);
             }
 
@@ -295,92 +379,137 @@ class MutasiGudangController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Mutasi berhasil dibuat'
+                'message' => "Transfer {$mutasi->nomor_mutasi} dibuat dan menunggu approval. Stok belum berpindah.",
+                'id' => $mutasi->id,
+                'nomor_mutasi' => $mutasi->nomor_mutasi,
             ]);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 422);
         }
     }
 
+    // MUT-YmdHis-NN; the column is unique, so a number taken in the same second gets another suffix
+    private function nomorMutasi(): string
+    {
+        $base = 'MUT-' . date('YmdHis');
+        for ($i = 0; $i < 20; $i++) {
+            $nomor = $base . '-' . str_pad((string) random_int(1, 99), 2, '0', STR_PAD_LEFT);
+            if (!MutasiGudang::where('nomor_mutasi', $nomor)->exists()) {
+                return $nomor;
+            }
+        }
+        return $base . '-' . uniqid();
+    }
+
+    private function fmt($value): string
+    {
+        return rtrim(rtrim(number_format((float) $value, 2, ',', '.'), '0'), ',');
+    }
+
     public function show($id)
     {
-        $mutasi = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy'])
+        $mutasi = MutasiGudang::with($this->relations())
             ->findOrFail($id);
-        
-        $html = view('erm.mutasi-gudang._detail', compact('mutasi'))->render();
-        $user = Auth::user();
-        $canApprove = $this->canAccessMutasiGudangActions($user);
+
+        $items = $mutasi->items->count() ? $mutasi->items : collect([(object) ['obat' => $mutasi->obat, 'obat_id' => $mutasi->obat_id, 'jumlah' => $mutasi->jumlah, 'keterangan' => null]]);
+
+        // Pending: usable stok in the gudang asal now, so the approver sees what will fail
+        $stokTersedia = null;
+        if ($mutasi->status === 'pending') {
+            $stokTersedia = ObatStokGudang::where('gudang_id', $mutasi->gudang_asal_id)
+                ->whereIn('obat_id', $items->pluck('obat_id')->filter()->all())
+                ->layakPakai()
+                ->select('obat_id', DB::raw('SUM(stok) as stok'))
+                ->groupBy('obat_id')
+                ->pluck('stok', 'obat_id')
+                ->map(function ($v) {
+                    return (float) $v;
+                });
+        }
+        $kurang = $stokTersedia ? $items->filter(function ($it) use ($stokTersedia) {
+            return round((float) ($stokTersedia[$it->obat_id] ?? 0), 4) < round((float) $it->jumlah, 4);
+        })->count() : 0;
+
+        $alasanTolak = $mutasi->status === 'rejected' ? $mutasi->rejected_reason : null;
+        $statusBadge = $this->statusBadge($mutasi->status);
+        $html = view('erm.mutasi-gudang._detail', compact('mutasi', 'items', 'alasanTolak', 'statusBadge', 'stokTersedia', 'kurang'))->render();
 
         return response()->json([
             'html' => $html,
             'status' => $mutasi->status,
-            'can_approve' => ($mutasi->status === 'pending' && $canApprove)
+            'nomor_mutasi' => $mutasi->nomor_mutasi,
+            'gudang_asal' => optional($mutasi->gudangAsal)->nama,
+            'gudang_tujuan' => optional($mutasi->gudangTujuan)->nama,
+            'items' => $items->map(function ($it) {
+                return [
+                    'nama' => $it->obat->nama ?? ('Obat ID ' . $it->obat_id),
+                    'jumlah' => $this->fmt($it->jumlah),
+                    'satuan' => $it->obat->satuan_stok_label ?? '',
+                ];
+            })->values(),
+            'stok_kurang' => $kurang,
+            'can_approve' => $mutasi->status === 'pending' && $this->canDecide(),
         ]);
     }
 
     public function approve($id)
     {
-        $user = Auth::user();
-        $allowed = $this->canAccessMutasiGudangActions($user);
-        if (!$allowed) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 403);
+        if (!$this->canDecide()) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menyetujui transfer.'], 403);
         }
 
         try {
             DB::beginTransaction();
 
-            $mutasi = MutasiGudang::findOrFail($id);
+            // Locked so a double click / two approvers cannot move the stok twice
+            $mutasi = MutasiGudang::lockForUpdate()->findOrFail($id);
             if ($mutasi->status !== 'pending') {
-                throw new \Exception('Mutasi sudah diproses');
+                throw new \Exception('Transfer ini sudah diproses.');
             }
 
+            // Re-checked at approval: requests created before these rules may still involve the gudang expired
+            $expiredService = app(GudangExpiredService::class);
+            $expiredService->assertBukanGudangExpired($mutasi->gudang_asal_id, 'dimutasi ke gudang lain');
+            if ($expiredService->isGudangExpired($mutasi->gudang_tujuan_id)) {
+                throw new \Exception('Gudang ED tidak bisa menjadi tujuan transfer. Tolak transfer ini dan pindahkan batch kadaluarsa lewat Manajemen Stok.');
+            }
 
-            // Pakai StokService untuk mutasi stok per batch (FIFO)
-            $stokService = app(\App\Services\ERM\StokService::class);
+            $stokService = app(StokService::class);
+            $gudangAsal = $mutasi->gudangAsal->nama;
+            $gudangTujuan = $mutasi->gudangTujuan->nama;
 
-            // Jika ada items terkait, proses per item
             $items = $mutasi->items()->get();
             if ($items->isEmpty()) {
-                // Fallback to legacy single-item behavior
-                $items = collect([
-                    (object) [
-                        'obat_id' => $mutasi->obat_id,
-                        'jumlah' => $mutasi->jumlah,
-                        'keterangan' => $mutasi->keterangan
-                    ]
-                ]);
+                // Legacy single-item transfer
+                $items = collect([(object) ['obat_id' => $mutasi->obat_id, 'jumlah' => $mutasi->jumlah]]);
             }
 
             foreach ($items as $item) {
-                $stokGudangList = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                // FEFO over usable batches only; expired batches stay put until moved to the gudang expired
+                $stokGudangList = ObatStokGudang::where('obat_id', $item->obat_id)
                     ->where('gudang_id', $mutasi->gudang_asal_id)
                     ->where('stok', '>', 0)
-                    ->orderBy('expiration_date', 'asc')
-                    ->orderBy('batch', 'asc')
+                    ->layakPakai()
+                    ->urutFefo()
+                    ->lockForUpdate()
                     ->get();
 
-                $jumlahMutasi = $item->jumlah;
-                $stokTersedia = $stokGudangList->sum('stok');
-                if ($stokTersedia < $jumlahMutasi) {
-                    throw new \Exception("Stok tidak mencukupi untuk obat ID {$item->obat_id}");
+                $jumlahMutasi = (float) $item->jumlah;
+                $stokTersedia = (float) $stokGudangList->sum('stok');
+                if (round($stokTersedia, 4) < round($jumlahMutasi, 4)) {
+                    $namaObat = optional(Obat::withInactive()->find($item->obat_id))->nama ?? "ID {$item->obat_id}";
+                    throw new \Exception("Stok layak pakai {$namaObat} di {$gudangAsal} tidak mencukupi (tersedia " . $this->fmt($stokTersedia) . ', diminta ' . $this->fmt($jumlahMutasi) . ').');
                 }
 
                 foreach ($stokGudangList as $stokGudang) {
                     if ($jumlahMutasi <= 0) break;
-                    $ambil = min($stokGudang->stok, $jumlahMutasi);
+                    $ambil = min((float) $stokGudang->stok, $jumlahMutasi);
 
-                    // Get gudang names for better keterangan
-                    $gudangAsal = $mutasi->gudangAsal->nama;
-                    $gudangTujuan = $mutasi->gudangTujuan->nama;
-
-                    // Mutasi stok per batch, batch dan exp date ikut dipindahkan dengan referensi lengkap
+                    // Batch and ED move along with the stok
                     $stokService->kurangiStok(
                         $item->obat_id,
                         $mutasi->gudang_asal_id,
@@ -410,288 +539,64 @@ class MutasiGudangController extends Controller
                 }
             }
 
-            // Update status mutasi
             $mutasi->update([
                 'status' => 'approved',
                 'approved_by' => Auth::id(),
-                'approved_at' => now()
+                'approved_at' => now(),
             ]);
 
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => 'Mutasi berhasil disetujui'
+                'message' => "Transfer {$mutasi->nomor_mutasi} disetujui. Stok sudah berpindah ke {$gudangTujuan}.",
             ]);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 422);
         }
     }
 
-    public function reject($id)
+    public function reject(Request $request, $id)
     {
-        $user = Auth::user();
-        $allowed = $this->canAccessMutasiGudangActions($user);
-        if (!$allowed) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized'
-            ], 403);
+        if (!$this->canDecide()) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menolak transfer.'], 403);
         }
 
+        $request->validate(
+            ['reason' => 'required|string|max:200'],
+            ['reason.required' => 'Alasan penolakan wajib diisi.']
+        );
+
         try {
-            $mutasi = MutasiGudang::findOrFail($id);
-            
-            if ($mutasi->status !== 'pending') {
-                throw new \Exception('Mutasi sudah diproses');
-            }
+            // Locked like approve(): a transfer being approved cannot be marked rejected at the same time
+            $nomor = DB::transaction(function () use ($id, $request) {
+                $mutasi = MutasiGudang::lockForUpdate()->findOrFail($id);
 
-            $mutasi->update([
-                'status' => 'rejected',
-                'approved_by' => Auth::id(),
-                'approved_at' => now()
-            ]);
+                if ($mutasi->status !== 'pending') {
+                    throw new \Exception('Transfer ini sudah diproses.');
+                }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Mutasi berhasil ditolak'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
-        }
-    }
+                $mutasi->update([
+                    'status' => 'rejected',
+                    'rejected_by' => Auth::id(),
+                    'rejected_at' => now(),
+                    'rejected_reason' => trim($request->reason),
+                ]);
 
-    /**
-     * Get obat aktif yang belum memiliki stok di gudang manapun
-     */
-    public function getObatWithoutStock(Request $request)
-    {
-        $search = $request->get('q');
-        
-        try {
-            // Ambil obat aktif yang tidak ada di stok gudang manapun
-            $query = Obat::where('status_aktif', 1)
-                ->whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan', 'satuan_stok', 'kode_obat')
-                ->orderBy('nama');
-            
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('nama', 'like', "%$search%")
-                        ->orWhere('kode_obat', 'like', "%$search%");
-                });
-            }
-            
-            $obatList = $query->get();
-            
-            $results = $obatList->map(function($obat) {
-                return [
-                    'id' => $obat->id,
-                    'nama' => $obat->nama,
-                    'text' => $obat->nama . ($obat->kode_obat ? ' (' . $obat->kode_obat . ')' : ''),
-                    'satuan' => $obat->satuan_stok_label
-                ];
+                return $mutasi->nomor_mutasi;
             });
-            
-            return response()->json(['results' => $results]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'results' => [],
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /**
-     * Get preview of all obat without stock for bulk operation
-     */
-    public function getBulkObatPreview(Request $request)
-    {
-        try {
-            $obatList = Obat::whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan', 'satuan_stok', 'kode_obat')
-                ->orderBy('nama')
-                ->get();
-            
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'total_obat' => $obatList->count(),
-                    'obat_list_preview' => $obatList->take(10)->map(function($obat) {
-                        return [
-                            'nama' => $obat->nama,
-                            'satuan' => $obat->satuan_stok_label,
-                            'kode_obat' => $obat->kode_obat
-                        ];
-                    }),
-                    'message' => "Akan menambahkan {$obatList->count()} obat ke gudang yang dipilih"
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
-     * Store bulk obat baru - add all obat without stock to target gudang
-     */
-    public function storeBulkObatBaru(Request $request)
-    {
-        $request->validate([
-            'gudang_id' => 'required|exists:erm_gudang,id',
-            'jumlah' => 'required|numeric|min:0.01',
-            'batch' => 'nullable|string|max:100',
-            'expiration_date' => 'nullable|date|after:today',
-            'rak' => 'nullable|string|max:50',
-            'keterangan' => 'nullable|string|max:255'
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // Get all obat that don't have stock in any gudang
-            $obatList = Obat::whereDoesntHave('stokGudang')
-                ->select('id', 'nama', 'satuan', 'satuan_stok')
-                ->get();
-
-            if ($obatList->isEmpty()) {
-                throw new \Exception('Tidak ada obat yang perlu ditambahkan stoknya.');
-            }
-
-            $gudang = Gudang::findOrFail($request->gudang_id);
-            $stokService = app(\App\Services\ERM\StokService::class);
-            
-            $batchPrefix = $request->batch ?: 'BULK-' . date('Ymd');
-            $expirationDate = $request->expiration_date ? $request->expiration_date : null;
-            $keterangan = 'Bulk stok awal' . ($request->keterangan ? ' - ' . $request->keterangan : '');
-            
-            $successCount = 0;
-            $errors = [];
-
-            foreach ($obatList as $obat) {
-                try {
-                    // Double-check this obat doesn't have stock (race condition safety)
-                    $existingStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)->exists();
-                    if ($existingStock) {
-                        $errors[] = "Obat {$obat->nama} sudah memiliki stok, dilewati";
-                        continue;
-                    }
-
-                    $batch = $batchPrefix . '-' . $obat->id;
-                    
-                    $stokService->tambahStok(
-                        $obat->id,
-                        $request->gudang_id, 
-                        (float) $request->jumlah,  // Cast to float to prevent string multiplication error
-                        $batch,
-                        $expirationDate,
-                        $request->rak,
-                        keterangan: $keterangan
-                    );
-                    
-                    $successCount++;
-                    
-                } catch (\Exception $e) {
-                    $errors[] = "Error untuk obat {$obat->nama}: " . $e->getMessage();
-                }
-            }
-
-            DB::commit();
-
-            $message = "Berhasil menambahkan stok awal untuk {$successCount} obat ke gudang {$gudang->nama} dengan jumlah {$request->jumlah} per obat.";
-            
-            if (!empty($errors)) {
-                $message .= "\n\nCatatan:\n- " . implode("\n- ", array_slice($errors, 0, 5)); // Show max 5 errors
-                if (count($errors) > 5) {
-                    $message .= "\n- Dan " . (count($errors) - 5) . " error lainnya...";
-                }
-            }
 
             return response()->json([
                 'success' => true,
-                'message' => $message,
-                'details' => [
-                    'total_processed' => $obatList->count(),
-                    'success_count' => $successCount,
-                    'error_count' => count($errors)
-                ]
+                'message' => "Transfer {$nomor} ditolak. Stok tidak berubah.",
             ]);
-
         } catch (\Exception $e) {
-            DB::rollback();
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
-     * Tambah stok baru untuk obat yang belum ada di gudang
-     */
-    public function storeObatBaru(Request $request)
-    {
-        $request->validate([
-            'obat_id' => 'required|exists:erm_obat,id',
-            'gudang_id' => 'required|exists:erm_gudang,id',
-            'jumlah' => 'required|numeric|min:0.01',
-            'batch' => 'nullable|string|max:100',
-            'expiration_date' => 'nullable|date|after:today',
-            'rak' => 'nullable|string|max:50',
-            'keterangan' => 'nullable|string|max:255'
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            // Cek apakah obat sudah ada stok di gudang manapun
-            $existingStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $request->obat_id)->exists();
-            if ($existingStock) {
-                throw new \Exception('Obat ini sudah memiliki stok di gudang. Gunakan fitur mutasi biasa.');
-            }
-
-            $obat = Obat::findOrFail($request->obat_id);
-            $gudang = Gudang::findOrFail($request->gudang_id);
-
-            // Gunakan StokService untuk menambah stok
-            $stokService = app(\App\Services\ERM\StokService::class);
-            
-            $batch = $request->batch ?: 'INITIAL-' . date('Ymd') . '-' . $request->obat_id;
-            $expirationDate = $request->expiration_date ? $request->expiration_date : null;
-
-            $stokService->tambahStok(
-                $request->obat_id,
-                $request->gudang_id, 
-                (float) $request->jumlah,  // Cast to float to prevent string multiplication error
-                $batch,
-                $expirationDate,
-                $request->rak,
-                keterangan: 'Stok awal obat baru' . ($request->keterangan ? ' - ' . $request->keterangan : '')
-            );
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => "Berhasil menambahkan stok awal {$request->jumlah} {$obat->satuan_stok_label} untuk obat {$obat->nama} di gudang {$gudang->nama}."
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollback();
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 422);
         }
     }

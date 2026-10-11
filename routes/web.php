@@ -345,10 +345,6 @@ Route::middleware(['auth'])->group(function () {
         ->name('rnd.masters.destroy');
 });
 
-// AJAX: delete (zero-out) all stok records for an obat in a gudang (requires auth + role)
-Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObatFromGudang'])
-    ->middleware(['auth','role:Admin|Farmasi|Beautician'])
-    ->name('erm.stok-gudang.delete');
 
 
 
@@ -640,11 +636,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
         Route::post('/send-notif-dokter', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToDokter'])->middleware('auth');
             // ...existing ERM routes...
-        Route::get('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'index'])->name('erm.fakturretur.index');
-        Route::get('fakturretur/create', [\App\Http\Controllers\ERM\FakturReturController::class, 'create'])->name('erm.fakturretur.create');
-        Route::post('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'store'])->name('erm.fakturretur.store');
-        Route::get('fakturretur/{id}', [\App\Http\Controllers\ERM\FakturReturController::class, 'show'])->name('erm.fakturretur.show');
-        Route::post('fakturretur/{id}/approve', [\App\Http\Controllers\ERM\FakturReturController::class, 'approve'])->name('erm.fakturretur.approve');
+        Route::get('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'index'])->name('erm.fakturretur.index')->middleware('role:Admin|Farmasi');
+        Route::get('fakturretur/faktur-options', [\App\Http\Controllers\ERM\FakturReturController::class, 'fakturOptions'])->name('erm.fakturretur.faktur-options')->middleware('role:Admin|Farmasi');
+        Route::get('fakturretur/create', [\App\Http\Controllers\ERM\FakturReturController::class, 'create'])->name('erm.fakturretur.create')->middleware('role:Admin|Farmasi');
+        Route::post('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'store'])->name('erm.fakturretur.store')->middleware('role:Admin|Farmasi');
+        Route::get('fakturretur/{id}', [\App\Http\Controllers\ERM\FakturReturController::class, 'show'])->name('erm.fakturretur.show')->middleware('role:Admin|Farmasi');
+        Route::post('fakturretur/{id}/approve', [\App\Http\Controllers\ERM\FakturReturController::class, 'approve'])->name('erm.fakturretur.approve')->middleware('role:Admin|Farmasi');
+        Route::post('fakturretur/{id}/reject', [\App\Http\Controllers\ERM\FakturReturController::class, 'reject'])->name('erm.fakturretur.reject')->middleware('role:Admin|Farmasi');
     
 
     // AJAX endpoint for nilai stok gudang & keseluruhan
@@ -652,7 +650,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Export stok gudang to Excel
     Route::get('/stok-gudang/export', [\App\Http\Controllers\ERM\StokGudangController::class, 'exportToExcel'])->name('erm.stok-gudang.export');
     // Export FakturBeli items to CSV/Excel-compatible file
-    Route::get('/fakturbeli/items/export', [\App\Http\Controllers\ERM\FakturBeliController::class, 'exportItemsExcel'])->name('erm.fakturbeli.items.export');
+    Route::get('/fakturbeli/items/export', [\App\Http\Controllers\ERM\FakturBeliController::class, 'exportItemsExcel'])->name('erm.fakturbeli.items.export')->middleware('role:Admin|Farmasi');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
     Route::post('/notif-mark-read', [App\Http\Controllers\ERM\RawatJalanController::class, 'markNotifRead'])->middleware('auth')->name('erm.rawatjalans.notification-mark-read');
     Route::post('/notif-mark-all-read', [App\Http\Controllers\ERM\RawatJalanController::class, 'markAllNotifRead'])->middleware('auth')->name('erm.rawatjalans.notification-mark-all-read');
@@ -691,31 +689,36 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/low-stock/count', [StokGudangController::class, 'getLowStockCount'])->name('erm.stok-gudang.low-stock.count');
         Route::get('/expiring', [StokGudangController::class, 'getExpiringData'])->name('erm.stok-gudang.expiring');
         Route::get('/expiring/count', [StokGudangController::class, 'getExpiringCount'])->name('erm.stok-gudang.expiring.count');
-        Route::post('/expiring/move-to-expired', [StokGudangController::class, 'moveBatchToExpiredGudang'])->name('erm.stok-gudang.expiring.move');
-        Route::post('/expired-follow-up', [StokGudangController::class, 'storeExpiredFollowUp'])->name('erm.stok-gudang.expired-follow-up');
+        // Karantina & tindak lanjut stok expired: farmasi / admin only
+        Route::middleware('role:Admin|Farmasi')->group(function () {
+            Route::post('/expiring/move-to-expired', [StokGudangController::class, 'moveBatchToExpiredGudang'])->name('erm.stok-gudang.expiring.move');
+            Route::post('/expiring/move-all-to-expired', [StokGudangController::class, 'moveAllExpiredToGudangExpired'])->name('erm.stok-gudang.expiring.move-all');
+            Route::post('/expired-follow-up', [StokGudangController::class, 'storeExpiredFollowUp'])->name('erm.stok-gudang.expired-follow-up');
+        });
+        Route::get('/expired-follow-up/riwayat', [StokGudangController::class, 'riwayatTindakLanjut'])->name('erm.stok-gudang.expired-follow-up.riwayat');
+        Route::get('/berita-acara/{nomor}', [StokGudangController::class, 'beritaAcara'])->name('erm.stok-gudang.berita-acara');
         Route::get('/expiring/batches', [StokGudangController::class, 'getExpiringBatches'])->name('erm.stok-gudang.expiring.batches');
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
-        Route::post('/update-batch-stok', [StokGudangController::class, 'updateBatchStok'])->name('erm.stok-gudang.update-batch-stok');
-        Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
-        Route::get('/stok-migrate', [StokGudangController::class, 'stokMigrate'])->name('erm.stok-gudang.stok-migrate');
-        Route::post('/update-batch-name', [StokGudangController::class, 'updateBatchName'])->name('erm.stok-gudang.update-batch-name');
-        Route::post('/update-minmax', [StokGudangController::class, 'updateMinMax'])->name('erm.stok-gudang.update-minmax');
-        Route::post('/sync-missing-minmax', [StokGudangController::class, 'syncMissingMinMax'])->name('erm.stok-gudang.sync-missing-minmax');
+        // Batch master data (ED, batch name) corrections: stock-managing roles. Quantities change only via Mutasi Stok
+        Route::middleware('role:Admin|Farmasi|Beautician|Lab')->group(function () {
+            Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
+        });
+        Route::get('/audit', [StokGudangController::class, 'auditData'])->name('erm.stok-gudang.audit');
+        Route::post('/update-batch-name', [StokGudangController::class, 'updateBatchName'])
+            ->middleware('role:Admin|Farmasi|Beautician|Lab')
+            ->name('erm.stok-gudang.update-batch-name');
+        Route::get('/summary', [StokGudangController::class, 'getSummary'])->name('erm.stok-gudang.summary');
     });
     
     // Mutasi Gudang Routes
-    Route::prefix('mutasi-gudang')->group(function () {
+    // Transfer Antar Gudang: same roles as the menu; stok enters only via faktur, hibah or penyesuaian
+    Route::prefix('mutasi-gudang')->middleware('role:Admin|Farmasi|Beautician|Lab')->group(function () {
     Route::get('/', [MutasiGudangController::class, 'index'])->name('erm.mutasi-gudang.index');
     Route::get('/data', [MutasiGudangController::class, 'data'])->name('erm.mutasi-gudang.data');
     Route::post('/', [MutasiGudangController::class, 'store'])->name('erm.mutasi-gudang.store');
     // Route baru: get data obat sesuai stok di gudang asal
     Route::get('/obat', [MutasiGudangController::class, 'getObatGudang'])->name('erm.mutasi-gudang.obat');
     
-    // Obat Baru routes - untuk menambah obat yang belum ada stok di gudang manapun
-    Route::get('/obat-without-stock', [MutasiGudangController::class, 'getObatWithoutStock'])->name('erm.mutasi-gudang.obat-without-stock');
-    Route::get('/bulk-obat-preview', [MutasiGudangController::class, 'getBulkObatPreview'])->name('erm.mutasi-gudang.bulk-obat-preview');
-    Route::post('/obat-baru', [MutasiGudangController::class, 'storeObatBaru'])->name('erm.mutasi-gudang.store-obat-baru');
-    Route::post('/bulk-obat-baru', [MutasiGudangController::class, 'storeBulkObatBaru'])->name('erm.mutasi-gudang.store-bulk-obat-baru');
     // Cetak/print mutasi (PDF)
     Route::get('/{id}/print', [MutasiGudangController::class, 'print'])->name('erm.mutasi-gudang.print');
     
@@ -725,13 +728,17 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
     });
 
-    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician')->group(function () {
+    // Mutasi Stok = stock adjustment document; masuk is further limited to Admin/Farmasi in the controller
+    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician|Lab')->group(function () {
         Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
         Route::get('/data', [MutasiStokController::class, 'data'])->name('erm.mutasi-stok.data');
         Route::get('/obat', [MutasiStokController::class, 'getObatGudang'])->name('erm.mutasi-stok.obat');
+        Route::get('/batches', [MutasiStokController::class, 'batches'])->name('erm.mutasi-stok.batches');
         Route::post('/', [MutasiStokController::class, 'store'])->name('erm.mutasi-stok.store');
         Route::get('/{id}/print', [MutasiStokController::class, 'print'])->name('erm.mutasi-stok.print');
         Route::post('/{id}/cancel', [MutasiStokController::class, 'cancel'])->name('erm.mutasi-stok.cancel');
+        Route::post('/{id}/approve', [MutasiStokController::class, 'approve'])->name('erm.mutasi-stok.approve');
+        Route::post('/{id}/reject', [MutasiStokController::class, 'reject'])->name('erm.mutasi-stok.reject');
         Route::get('/{id}', [MutasiStokController::class, 'show'])->name('erm.mutasi-stok.show');
     });
 
@@ -739,10 +746,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::prefix('gudang')->group(function () {
         Route::get('/', [GudangController::class, 'index'])->name('erm.gudang.index');
         Route::get('/data', [GudangController::class, 'data'])->name('erm.gudang.data');
-        Route::post('/', [GudangController::class, 'store'])->name('erm.gudang.store');
         Route::get('/{gudang}', [GudangController::class, 'show'])->name('erm.gudang.show');
-        Route::put('/{gudang}', [GudangController::class, 'update'])->name('erm.gudang.update');
-        Route::delete('/{gudang}', [GudangController::class, 'destroy'])->name('erm.gudang.destroy');
+        // Master gudang is managed from the admin panel only
+        Route::middleware('role:Admin')->group(function () {
+            Route::post('/', [GudangController::class, 'store'])->name('erm.gudang.store');
+            Route::put('/{gudang}', [GudangController::class, 'update'])->name('erm.gudang.update');
+            Route::delete('/{gudang}', [GudangController::class, 'destroy'])->name('erm.gudang.destroy');
+        });
     });
 
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');
@@ -752,23 +762,30 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat-masuk/data', [App\Http\Controllers\ERM\ObatMasukController::class, 'data'])->name('erm.obatmasuk.data');
     // Mutasi Obat Masuk
     Route::get('/obat-masuk', [App\Http\Controllers\ERM\ObatMasukController::class, 'index'])->name('erm.obatmasuk.index');
-    // Update harga jual (nonfornas) via AJAX
-    Route::post('/obat/{id}/update-harga', [App\Http\Controllers\ERM\ObatController::class, 'updateHargaJual'])->name('erm.obat.update-harga');
     // Add PUT/PATCH route for updating Obat
     Route::put('/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'update'])->name('erm.obat.update');
     Route::patch('/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'update']);
     // Export Obat data to Excel
     Route::get('/obat/export-excel', [App\Http\Controllers\ERM\ObatController::class, 'exportExcel'])->name('erm.obat.export-excel');
-    // Monitor Profit
-    Route::get('/monitor-profit', [App\Http\Controllers\ERM\ObatController::class, 'monitorProfit'])->name('erm.monitor-profit');
+    // Harga jual obat: margin per obat and price changes with approval (Farmasi/Admin propose, Admin/Finance approve)
+    Route::redirect('/monitor-profit', '/erm/harga-jual');
+    Route::prefix('harga-jual')->middleware('role:Admin|Farmasi|Finance')->group(function () {
+        Route::get('/', [App\Http\Controllers\ERM\HargaJualController::class, 'index'])->name('erm.harga-jual.index');
+        Route::get('/data', [App\Http\Controllers\ERM\HargaJualController::class, 'data'])->name('erm.harga-jual.data');
+        Route::get('/pengajuan', [App\Http\Controllers\ERM\HargaJualController::class, 'pengajuanData'])->name('erm.harga-jual.pengajuan');
+        Route::get('/obat/{obat}/riwayat', [App\Http\Controllers\ERM\HargaJualController::class, 'riwayat'])->name('erm.harga-jual.riwayat');
+        Route::post('/pengajuan', [App\Http\Controllers\ERM\HargaJualController::class, 'store'])->middleware('role:Admin|Farmasi')->name('erm.harga-jual.store');
+        Route::post('/pengajuan/{id}/batal', [App\Http\Controllers\ERM\HargaJualController::class, 'batal'])->middleware('role:Admin|Farmasi')->name('erm.harga-jual.batal');
+        Route::post('/pengajuan/approve', [App\Http\Controllers\ERM\HargaJualController::class, 'approve'])->middleware('role:Admin|Finance')->name('erm.harga-jual.approve');
+        Route::post('/pengajuan/{id}/reject', [App\Http\Controllers\ERM\HargaJualController::class, 'reject'])->middleware('role:Admin|Finance')->name('erm.harga-jual.reject');
+    });
         // Inline update stok fisik for hasil stok opname
-        Route::post('stokopname-item/{id}/update-stok-fisik', [App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFisik'])->name('erm.stokopnameitem.update-stok-fisik');
-        Route::post('stokopname-item/{id}/submit-temuan', [App\Http\Controllers\ERM\StokOpnameController::class, 'submitTemuan'])->name('erm.stokopnameitem.submit-temuan');
+        Route::post('stokopname-item/{id}/update-stok-fisik', [App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFisik'])->middleware('role:Admin|Farmasi|Beautician|Lab')->name('erm.stokopnameitem.update-stok-fisik');
         Route::get('stokopname-item/{id}/temuan-history', [App\Http\Controllers\ERM\StokOpnameController::class, 'getTemuanHistory'])->name('erm.stokopnameitem.temuan-history');
         // Record-only temuan entries (added from modal)
-        Route::post('stokopname-item/{id}/add-temuan-record', [App\Http\Controllers\ERM\StokOpnameController::class, 'addTemuanRecord'])->name('erm.stokopnameitem.add-temuan-record');
+        Route::post('stokopname-item/{id}/add-temuan-record', [App\Http\Controllers\ERM\StokOpnameController::class, 'addTemuanRecord'])->middleware('role:Admin|Farmasi|Beautician|Lab')->name('erm.stokopnameitem.add-temuan-record');
     // AJAX endpoints for select2 (controller)
-    Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
+    Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat'])->middleware('role:Admin|Farmasi|Beautician|Lab');
     // Zat Aktif AJAX endpoints (moved to controller)
     Route::get('ajax/zataktif', [App\Http\Controllers\ERM\ZatAktifController::class, 'index']);
     Route::post('ajax/zataktif', [App\Http\Controllers\ERM\ZatAktifController::class, 'store']);
@@ -777,8 +794,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::delete('ajax/zataktif/{id}', [App\Http\Controllers\ERM\ZatAktifController::class, 'destroy']);
     // Single obat details for AJAX (used by various JS fallbacks)
     Route::get('ajax/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'edit']);
-    Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok']);
-    Route::get('ajax/principal', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPrincipal']);
+    Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok'])->middleware('role:Admin|Farmasi|Beautician|Lab');
+    Route::get('ajax/principal', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPrincipal'])->middleware('role:Admin|Farmasi|Beautician|Lab');
 
         // Kartu Stok
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
@@ -817,46 +834,57 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // Master Pemasok AJAX CRUD (managed from the Pemasok & Principal modal on Master Obat)
     Route::get('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'index']);
-    Route::post('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'store']);
-    Route::put('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'update']);
-    Route::delete('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'destroy']);
-    Route::post('pemasok/{id}/merge', [App\Http\Controllers\ERM\PemasokController::class, 'merge']);
+    Route::post('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'store'])->middleware('role:Admin|Farmasi');
+    Route::put('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'update'])->middleware('role:Admin|Farmasi');
+    Route::delete('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'destroy'])->middleware('role:Admin|Farmasi');
+    Route::post('pemasok/{id}/merge', [App\Http\Controllers\ERM\PemasokController::class, 'merge'])->middleware('role:Admin|Farmasi');
 
     // Export to Excel
     Route::get('pemasok/export-excel', [App\Http\Controllers\ERM\PemasokController::class, 'exportExcel']);
 
     // Master Principal AJAX CRUD (mirror pemasok)
     Route::get('principal', [App\Http\Controllers\ERM\PrincipalController::class, 'index']);
-    Route::post('principal', [App\Http\Controllers\ERM\PrincipalController::class, 'store']);
-    Route::put('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'update']);
-    Route::delete('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'destroy']);
-    Route::post('principal/{id}/merge', [App\Http\Controllers\ERM\PrincipalController::class, 'merge']);
+    Route::post('principal', [App\Http\Controllers\ERM\PrincipalController::class, 'store'])->middleware('role:Admin|Farmasi');
+    Route::put('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'update'])->middleware('role:Admin|Farmasi');
+    Route::delete('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'destroy'])->middleware('role:Admin|Farmasi');
+    Route::post('principal/{id}/merge', [App\Http\Controllers\ERM\PrincipalController::class, 'merge'])->middleware('role:Admin|Farmasi');
 
     // Export to Excel
     Route::get('principal/export-excel', [App\Http\Controllers\ERM\PrincipalController::class, 'exportExcel']);
 
    
-    Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data');
-    Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur');
-    Route::get('permintaan/obat-options', [App\Http\Controllers\ERM\PermintaanController::class, 'getObatOptions'])->name('erm.permintaan.obat-options');
-    Route::get('permintaan/forecast-preview', [App\Http\Controllers\ERM\PermintaanController::class, 'forecastPreview'])->name('erm.permintaan.forecast-preview');
-    Route::get('permintaan/{id}/nilai-pembelian', [App\Http\Controllers\ERM\PermintaanController::class, 'nilaiPembelian'])->name('erm.permintaan.nilai-pembelian');
-    Route::get('permintaan/{id}/print', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPermintaan'])->name('erm.permintaan.print');
-        Route::get('permintaan/{id}/print-surat-pemesanan', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPemesanan'])->name('erm.permintaan.print-surat-pemesanan');
-    Route::resource('permintaan', App\Http\Controllers\ERM\PermintaanController::class)->names('erm.permintaan');
-    Route::post('permintaan/{id}/approve', [App\Http\Controllers\ERM\PermintaanController::class, 'approve'])->name('erm.permintaan.approve');
-    Route::post('permintaan/{id}/reject', [App\Http\Controllers\ERM\PermintaanController::class, 'reject'])->name('erm.permintaan.reject');
-    Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur');
-    Route::get('masterfaktur-data', [App\Http\Controllers\ERM\MasterFakturController::class, 'data'])->name('erm.masterfaktur.data');
-    Route::get('masterfaktur-bandingkan', [App\Http\Controllers\ERM\MasterFakturController::class, 'bandingkan'])->name('erm.masterfaktur.bandingkan');
+    // Laporan Pembelian: purchases per principal / pemasok / obat in a period
+    Route::middleware('role:Admin|Farmasi')->group(function () {
+        Route::get('laporan-pembelian', [App\Http\Controllers\ERM\LaporanPembelianController::class, 'index'])->name('erm.laporan-pembelian.index');
+        Route::get('laporan-pembelian/data', [App\Http\Controllers\ERM\LaporanPembelianController::class, 'data'])->name('erm.laporan-pembelian.data');
+        Route::get('laporan-pembelian/detail', [App\Http\Controllers\ERM\LaporanPembelianController::class, 'detail'])->name('erm.laporan-pembelian.detail');
+        Route::get('laporan-pembelian/export-detail', [App\Http\Controllers\ERM\LaporanPembelianController::class, 'exportDetail'])->name('erm.laporan-pembelian.export-detail');
+        Route::get('laporan-pembelian/export', [App\Http\Controllers\ERM\LaporanPembelianController::class, 'export'])->name('erm.laporan-pembelian.export');
+    });
+    Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/obat-options', [App\Http\Controllers\ERM\PermintaanController::class, 'getObatOptions'])->name('erm.permintaan.obat-options')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/forecast-preview', [App\Http\Controllers\ERM\PermintaanController::class, 'forecastPreview'])->name('erm.permintaan.forecast-preview')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/obat-info', [App\Http\Controllers\ERM\PermintaanController::class, 'obatInfo'])->name('erm.permintaan.obat-info')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/saran-forecast', [App\Http\Controllers\ERM\PermintaanController::class, 'saranForecast'])->name('erm.permintaan.saran-forecast')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/{id}/form-data', [App\Http\Controllers\ERM\PermintaanController::class, 'formData'])->name('erm.permintaan.form-data')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/{id}/nilai-pembelian', [App\Http\Controllers\ERM\PermintaanController::class, 'nilaiPembelian'])->name('erm.permintaan.nilai-pembelian')->middleware('role:Admin|Farmasi');
+    Route::get('permintaan/{id}/print', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPermintaan'])->name('erm.permintaan.print')->middleware('role:Admin|Farmasi');
+        Route::get('permintaan/{id}/print-surat-pemesanan', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPemesanan'])->name('erm.permintaan.print-surat-pemesanan')->middleware('role:Admin|Farmasi');
+    Route::resource('permintaan', App\Http\Controllers\ERM\PermintaanController::class)->names('erm.permintaan')->middleware('role:Admin|Farmasi');
+    Route::post('permintaan/{id}/approve', [App\Http\Controllers\ERM\PermintaanController::class, 'approve'])->name('erm.permintaan.approve')->middleware('role:Admin|Farmasi');
+    Route::post('permintaan/{id}/reject', [App\Http\Controllers\ERM\PermintaanController::class, 'reject'])->name('erm.permintaan.reject')->middleware('role:Admin|Farmasi');
+    Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur')->middleware('role:Admin|Farmasi');
+    Route::get('masterfaktur-data', [App\Http\Controllers\ERM\MasterFakturController::class, 'data'])->name('erm.masterfaktur.data')->middleware('role:Admin|Farmasi');
+    Route::get('masterfaktur-bandingkan', [App\Http\Controllers\ERM\MasterFakturController::class, 'bandingkan'])->name('erm.masterfaktur.bandingkan')->middleware('role:Admin|Farmasi');
     // Input penawaran vendor (many obat from one pemasok at once)
-    Route::get('masterfaktur-penawaran/info', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranInfo'])->name('erm.masterfaktur.penawaran.info');
-    Route::post('masterfaktur-penawaran/match', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranMatch'])->name('erm.masterfaktur.penawaran.match');
-    Route::post('masterfaktur-penawaran/save', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranSave'])->name('erm.masterfaktur.penawaran.save');
-    Route::get('masterfaktur/export-excel', [App\Http\Controllers\ERM\MasterFakturController::class, 'exportExcel'])->name('erm.masterfaktur.export-excel');
+    Route::get('masterfaktur-penawaran/info', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranInfo'])->name('erm.masterfaktur.penawaran.info')->middleware('role:Admin|Farmasi');
+    Route::post('masterfaktur-penawaran/match', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranMatch'])->name('erm.masterfaktur.penawaran.match')->middleware('role:Admin|Farmasi');
+    Route::post('masterfaktur-penawaran/save', [App\Http\Controllers\ERM\MasterFakturController::class, 'penawaranSave'])->name('erm.masterfaktur.penawaran.save')->middleware('role:Admin|Farmasi');
+    Route::get('masterfaktur/export-excel', [App\Http\Controllers\ERM\MasterFakturController::class, 'exportExcel'])->name('erm.masterfaktur.export-excel')->middleware('role:Admin|Farmasi');
 
     // AJAX form for create/edit modal
-    Route::get('masterfaktur/form/{id?}', [App\Http\Controllers\ERM\MasterFakturController::class, 'form'])->name('erm.masterfaktur.form');
+    Route::get('masterfaktur/form/{id?}', [App\Http\Controllers\ERM\MasterFakturController::class, 'form'])->name('erm.masterfaktur.form')->middleware('role:Admin|Farmasi');
 
     // Obat Keluar
     Route::get('/obat-keluar', [ObatKeluarController::class, 'index'])->name('erm.obatkeluar.index');
@@ -1115,6 +1143,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat/check-nama', [ObatController::class, 'checkNama'])->name('erm.obat.check-nama');
     Route::get('/obat/{id}/similar', [ObatController::class, 'similarObats'])->name('erm.obat.similar');
     Route::patch('/obat/{id}/toggle-favorite', [ObatController::class, 'toggleFavorite'])->name('erm.obat.toggle-favorite');
+    Route::patch('/obat/{id}/toggle-wajib-stok', [ObatController::class, 'toggleWajibStok'])
+        ->middleware('role:Admin|Farmasi')
+        ->name('erm.obat.toggle-wajib-stok');
+    Route::patch('/obat/{id}/stop-pengadaan', [ObatController::class, 'setStopPengadaan'])
+        ->middleware('role:Admin|Farmasi')
+        ->name('erm.obat.stop-pengadaan');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
     Route::get('/obat/{id}/forecast', [ObatController::class, 'forecast'])->name('erm.obat.forecast');
@@ -1150,32 +1184,29 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     
     // Faktur Pembelian
-    Route::get('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'index'])->name('erm.fakturbeli.index');
+    Route::get('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'index'])->name('erm.fakturbeli.index')->middleware('role:Admin|Farmasi');
     Route::get('/fakturpembelian/select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'select2'])->name('erm.fakturbeli.select2');
-    Route::get('/fakturpembelian/cari-by-no-permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'cariByNoPermintaan']);
-    Route::get('/fakturpembelian/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'create'])->name('erm.fakturbeli.create');
-    Route::post('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'store'])->name('erm.fakturbeli.store');
-    Route::get('/fakturpembelian/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'edit'])->name('erm.fakturbeli.edit');
-    Route::post('/fakturpembelian/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'update'])->name('erm.fakturbeli.update');
-    Route::delete('/fakturpembelian/{id}', [\App\Http\Controllers\ERM\FakturBeliController::class, 'destroy'])->name('erm.fakturbeli.destroy');
+    Route::get('/fakturpembelian/cari-by-no-permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'cariByNoPermintaan'])->middleware('role:Admin|Farmasi');
+    Route::get('/fakturpembelian/form-data', [\App\Http\Controllers\ERM\FakturBeliController::class, 'formData'])->name('erm.fakturbeli.form-data')->middleware('role:Admin|Farmasi');
+    Route::get('/fakturpembelian/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'create'])->name('erm.fakturbeli.create')->middleware('role:Admin|Farmasi');
+    Route::post('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'store'])->name('erm.fakturbeli.store')->middleware('role:Admin|Farmasi');
+    Route::get('/fakturpembelian/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'edit'])->name('erm.fakturbeli.edit')->middleware('role:Admin|Farmasi');
+    Route::post('/fakturpembelian/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'update'])->name('erm.fakturbeli.update')->middleware('role:Admin|Farmasi');
+    Route::delete('/fakturpembelian/{id}', [\App\Http\Controllers\ERM\FakturBeliController::class, 'destroy'])->name('erm.fakturbeli.destroy')->middleware('role:Admin|Farmasi');
 
     // Obat Hibah
-    Route::get('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'index'])->name('erm.obat-hibah.index');
-    Route::get('/obat-hibah/create', [\App\Http\Controllers\ERM\ObatHibahController::class, 'create'])->name('erm.obat-hibah.create');
-    Route::post('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'store'])->name('erm.obat-hibah.store');
-    Route::post('/obat-hibah/{id}/approve', [\App\Http\Controllers\ERM\ObatHibahController::class, 'approve'])->name('erm.obat-hibah.approve');
+    Route::get('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'index'])->name('erm.obat-hibah.index')->middleware('role:Admin|Farmasi|Beautician|Lab');
+    Route::get('/obat-hibah/create', [\App\Http\Controllers\ERM\ObatHibahController::class, 'create'])->name('erm.obat-hibah.create')->middleware('role:Admin|Farmasi|Beautician|Lab');
+    Route::post('/obat-hibah', [\App\Http\Controllers\ERM\ObatHibahController::class, 'store'])->name('erm.obat-hibah.store')->middleware('role:Admin|Farmasi|Beautician|Lab');
+    Route::post('/obat-hibah/{id}/approve', [\App\Http\Controllers\ERM\ObatHibahController::class, 'approve'])->name('erm.obat-hibah.approve')->middleware('role:Admin|Farmasi');
+    Route::post('/obat-hibah/{id}/reject', [\App\Http\Controllers\ERM\ObatHibahController::class, 'reject'])->name('erm.obat-hibah.reject')->middleware('role:Admin|Farmasi');
     
-    // Permintaan Pembelian (New routes)
-    Route::get('/fakturpembelian/permintaan/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'createPermintaan'])->name('erm.fakturbeli.createPermintaan');
-    Route::post('/fakturpembelian/permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'storePermintaan'])->name('erm.fakturbeli.storePermintaan');
-    Route::get('/fakturpembelian/permintaan/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'editPermintaan'])->name('erm.fakturbeli.editPermintaan');
-    Route::post('/fakturpembelian/permintaan/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'updatePermintaan'])->name('erm.fakturbeli.updatePermintaan');
-    Route::get('/fakturpembelian/{id}/complete', [\App\Http\Controllers\ERM\FakturBeliController::class, 'completeFaktur'])->name('erm.fakturbeli.completeFaktur');
-    Route::post('/fakturpembelian/{id}/approve', [\App\Http\Controllers\ERM\FakturBeliController::class, 'approveFaktur'])->name('erm.fakturbeli.approveFaktur');
-    Route::get('/fakturpembelian/{id}/debug-hpp', [\App\Http\Controllers\ERM\FakturBeliController::class, 'debugHpp'])->name('erm.fakturbeli.debugHpp');
+    Route::post('/fakturpembelian/{id}/approve', [\App\Http\Controllers\ERM\FakturBeliController::class, 'approveFaktur'])->middleware('role:Admin|Farmasi')->name('erm.fakturbeli.approveFaktur');
+    Route::get('/fakturpembelian/{id}/approve-preview', [\App\Http\Controllers\ERM\FakturBeliController::class, 'approvePreview'])->middleware('role:Admin|Farmasi')->name('erm.fakturbeli.approve-preview');
 
     // Stok Opname Routes
-    Route::prefix('/stokopname')->middleware('auth')->group(function () {
+    // Stok opname changes stok: stock-managing roles only (not every role of the surrounding group)
+    Route::prefix('/stokopname')->middleware(['auth', 'role:Admin|Farmasi|Beautician|Lab'])->group(function () {
     Route::get('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'index'])->name('erm.stokopname.index');
     Route::post('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'store'])->name('erm.stokopname.store');
     Route::get('/{id}/create', [\App\Http\Controllers\ERM\StokOpnameController::class, 'create'])->name('erm.stokopname.create');
@@ -2140,11 +2171,11 @@ Route::get('/api/hrd/employees', [App\Http\Controllers\HRD\EmployeeController::c
 // Select2 AJAX for pemasok
 
 // Select2 AJAX for pemasok
-Route::get('/get-pemasok-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getPemasokSelect2'])->name('get-pemasok-select2');
+Route::get('/get-pemasok-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getPemasokSelect2'])->name('get-pemasok-select2')->middleware(['auth', 'role:Admin|Farmasi']);
 // Select2 AJAX for obat
-Route::get('/get-obat-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getObatSelect2'])->name('get-obat-select2');
+Route::get('/get-obat-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getObatSelect2'])->name('get-obat-select2')->middleware(['auth', 'role:Admin|Farmasi']);
 // Select2 AJAX for gudang
-Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getGudangSelect2'])->name('get-gudang-select2');
+Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getGudangSelect2'])->name('get-gudang-select2')->middleware(['auth', 'role:Admin|Farmasi']);
     // AJAX spesialisasi select2
     Route::get('/erm/spesialisasi-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'spesialisasiSelect2'])->name('erm.spesialisasi.select2');
     // AJAX division select2 (unit penyebab)
@@ -2290,11 +2321,11 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 });
 
 // Process temuan record (apply to stok gudang)
-Route::post('/erm/stokopname-temuan/{id}/process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanRecord'])->middleware('auth');
+Route::post('/erm/stokopname-temuan/{id}/process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanRecord'])->middleware(['auth', 'role:Admin|Farmasi|Beautician|Lab']);
 // Bulk process temuan records
-Route::post('/erm/stokopname-temuan/bulk-process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanBulk'])->middleware('auth');
+Route::post('/erm/stokopname-temuan/bulk-process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanBulk'])->middleware(['auth', 'role:Admin|Farmasi|Beautician|Lab']);
 // Delete temuan record
-Route::post('/erm/stokopname-temuan/{id}/delete', [\App\Http\Controllers\ERM\StokOpnameController::class, 'deleteTemuanRecord'])->middleware('auth');
+Route::post('/erm/stokopname-temuan/{id}/delete', [\App\Http\Controllers\ERM\StokOpnameController::class, 'deleteTemuanRecord'])->middleware(['auth', 'role:Admin|Farmasi|Beautician|Lab']);
 
 // Obat Mapping UI (Farmasi/Admin)
 Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {

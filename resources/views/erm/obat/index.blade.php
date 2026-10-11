@@ -24,15 +24,8 @@
             <button type="button" class="btn btn-primary mr-2 btn-tambah-obat"><i class="fas fa-plus mr-1"></i> Tambah Obat</button>
             <button type="button" class="btn btn-outline-info mr-2 btn-zat-aktif"><i class="fas fa-pills mr-1"></i> Kelola Zat Aktif</button>
             <button type="button" class="btn btn-outline-info mr-2 btn-supplier"><i class="fas fa-industry mr-1"></i> Kelola Principal</button>
-            <div class="btn-group">
-                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fas fa-file-excel mr-1"></i> Export / Import
-                </button>
-                <div class="dropdown-menu dropdown-menu-right">
-                    <a class="dropdown-item" href="#" id="btnExportExcel"><i class="fas fa-file-download mr-2"></i> Export Excel (sesuai filter)</a>
-                    <a class="dropdown-item" href="#" data-toggle="modal" data-target="#importCsvModal"><i class="fas fa-file-upload mr-2"></i> Import CSV (update massal)</a>
-                </div>
-            </div>
+            <button type="button" class="btn btn-outline-success mr-2" id="btnExportExcel" title="Export Excel sesuai filter"><i class="fas fa-file-download mr-1"></i> Export Excel</button>
+            <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#importCsvModal" title="Import CSV untuk update massal"><i class="fas fa-file-upload mr-1"></i> Import CSV</button>
         </div>
     </div>
 
@@ -211,6 +204,7 @@
                                 <option value="1">Aktif</option>
                                 <option value="0">Tidak Aktif</option>
                             </select>
+                            <small id="statusPaketHint" class="form-text text-danger d-none"></small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -286,6 +280,7 @@
                             <label for="harga_nonfornas">Harga Jual</label>
                             <input type="text" class="form-control numeric-input" id="harga_nonfornas" name="harga_nonfornas" inputmode="decimal">
                             <small class="form-text" id="harga_jual_hint">&nbsp;</small>
+                            <small class="form-text d-none" id="harga_jual_locked">Perubahan harga jual perlu approval: <a href="#" id="harga_jual_ajukan" target="_blank">ajukan di halaman Harga Jual</a>.</small>
                         </div>
                     </div>
 
@@ -431,8 +426,8 @@
                 <div class="modal-body">
                     <ol class="small text-muted pl-3">
                         <li>Export Excel, ubah datanya, lalu simpan sebagai <strong>CSV</strong> (pemisah <strong>,</strong> atau <strong>;</strong>). Kolom <strong>ID</strong> wajib ada.</li>
-                        <li>Kolom yang bisa diubah: Nama, Dosis, Satuan Dosis, Satuan Stok, Generik (1/0, Ya/Tidak), Kategori, Metode Bayar (nama), HNA, Harga Jual. Sel kosong = tidak diubah.</li>
-                        <li>Kolom lain (HPP, Kode Obat, Zat Aktif, Status) diabaikan. Klik <strong>Preview</strong>, cek perubahannya, lalu <strong>Import</strong>.</li>
+                        <li>Kolom yang bisa diubah: Nama, Dosis, Satuan Dosis, Satuan Stok, Generik (1/0, Ya/Tidak), Kategori, Metode Bayar (nama). Sel kosong = tidak diubah.</li>
+                        <li>Kolom lain (HPP, HNA, Harga Jual, Kode Obat, Zat Aktif, Status) diabaikan. Harga jual diubah lewat halaman <strong>Harga Jual Obat</strong> (dengan approval). Klik <strong>Preview</strong>, cek perubahannya, lalu <strong>Import</strong>.</li>
                     </ol>
                     <div class="form-group">
                         <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" class="form-control-file" required>
@@ -865,12 +860,20 @@
 
     function updateHargaJualHint() {
         const hpp = parseFloat($('#hpp_display').data('raw')) || 0;
+        const hna = parseFloat($('#hna').data('raw')) || hpp * (1 + {{ \App\Models\ERM\Obat::PPN_PERCENT }} / 100);
         const jual = parseFloat(normalizeNumericInput($('#harga_nonfornas').val())) || 0;
         const $hint = $('#harga_jual_hint').removeClass('text-danger text-success text-muted');
-        if (!hpp || !jual) { $hint.addClass('text-muted').html('&nbsp;'); return; }
-        const markup = ((jual - hpp) / hpp) * 100;
-        $hint.addClass(markup < 0 ? 'text-danger' : 'text-success')
-            .text((markup < 0 ? 'Di bawah HPP: ' : 'Markup dari HPP: ') + markup.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%');
+        if (!hna || !jual) { $hint.addClass('text-muted').html('&nbsp;'); return; }
+        const margin = ((jual - hna) / hna) * 100;
+        $hint.addClass(margin < 0 ? 'text-danger' : 'text-success')
+            .text((margin < 0 ? 'Rugi, di bawah HNA: ' : 'Margin dari HNA: ') + margin.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%');
+    }
+
+    // Harga jual of an existing obat changes only through an approved pengajuan
+    function setHargaJualLocked(obatId) {
+        $('#harga_nonfornas').prop('readonly', !!obatId).toggleClass('bg-light', !!obatId);
+        $('#harga_jual_locked').toggleClass('d-none', !obatId);
+        $('#harga_jual_ajukan').attr('href', obatId ? '{{ url('/erm/harga-jual') }}?ajukan=' + obatId : '#');
     }
 
     function resetForm() {
@@ -884,6 +887,8 @@
         $('#obat_id').val('');
         $('#kode_obat').val('');
         $('#hpp_display').val('-').data('raw', 0);
+        $('#hna').data('raw', 0);
+        setHargaJualLocked(null);
         $('.modal-select').val('').trigger('change.select2');
         $('#zat_aktif_id').empty().trigger('change');
         $('#principal_id').empty().trigger('change.select2');
@@ -891,6 +896,8 @@
         $('#principalBaruNama').val('');
         $('#is_generik').val('0');
         $('#status_aktif').val('1');
+        paketRacikan = { list: [], wasActive: false };
+        updateStatusPaketHint();
         setSatuanStokHint(false);
         updateKekuatanPreview();
         updateHargaJualHint();
@@ -912,7 +919,8 @@
                 $('#kode_obat').val(data.kode_obat || '');
                 $('#nama').val(data.nama);
                 $('#hpp_display').val(formatRupiah(data.hpp)).data('raw', data.hpp || 0);
-                $('#hna').val(data.hna !== null ? formatRupiah(data.hna) : '');
+                $('#hna').val(data.hna !== null ? formatRupiah(data.hna) : '').data('raw', data.hna || 0);
+                setHargaJualLocked(data.id);
                 $('#harga_nonfornas').val(data.harga_nonfornas !== null ? formatRupiah(data.harga_nonfornas) : '');
                 $('#kategori').val(data.kategori || '').trigger('change.select2');
                 $('#metode_bayar_id').val(data.metode_bayar_id || '').trigger('change.select2');
@@ -924,6 +932,8 @@
                 $('#is_generik').val(data.is_generik ? '1' : '0');
                 if (data.principal_id) $('#principal_id').append(new Option(data.principal_nama, data.principal_id, true, true)).trigger('change.select2');
                 $('#status_aktif').val(String(data.status_aktif === null || data.status_aktif === undefined ? 1 : data.status_aktif));
+                paketRacikan = { list: data.paket_racikan || [], wasActive: String($('#status_aktif').val()) === '1' };
+                updateStatusPaketHint();
                 const $zat = $('#zat_aktif_id');
                 (data.zataktif || []).forEach(function (z) { $zat.append(new Option(z.nama, z.id, true, true)); });
                 $zat.trigger('change');
@@ -1023,6 +1033,33 @@
             '<ul class="mb-0 pl-3 mt-1">' + items + '</ul></div>');
     }
 
+    // Deactivating an obat used in active paket racikan: warn under the status field and confirm on save
+    var paketRacikan = { list: [], wasActive: false }; // var: resetForm may run before this line
+
+    function deactivatesPaket() {
+        return paketRacikan.wasActive && paketRacikan.list.length > 0 && $('#status_aktif').val() === '0';
+    }
+
+    function updateStatusPaketHint() {
+        const $hint = $('#statusPaketHint');
+        if (!deactivatesPaket()) { $hint.addClass('d-none').empty(); return; }
+        $hint.removeClass('d-none').text('Obat ini dipakai di ' + paketRacikan.list.length + ' paket racikan aktif.');
+    }
+
+    $(document).on('change', '#status_aktif', updateStatusPaketHint);
+
+    function confirmNonaktifPaket() {
+        if (!deactivatesPaket()) return Promise.resolve(true);
+        const names = paketRacikan.list.slice(0, 10).map(function (n) { return '<li>' + escapeHtml(n) + '</li>'; }).join('')
+            + (paketRacikan.list.length > 10 ? '<li>... dan ' + (paketRacikan.list.length - 10) + ' paket lain</li>' : '');
+        const html = 'Obat ini dipakai di paket racikan aktif berikut:'
+            + '<ul class="text-left small mt-2 mb-2">' + names + '</ul>'
+            + '<div class="small text-muted">Paket tetap ada, tetapi obat ini akan tertandai nonaktif di paket tersebut. Periksa atau ganti obatnya di menu Paket Racikan.</div>';
+        if (typeof Swal === 'undefined') return Promise.resolve(confirm('Obat ini dipakai di ' + paketRacikan.list.length + ' paket racikan aktif. Tetap nonaktifkan?'));
+        return Swal.fire({ icon: 'warning', title: 'Nonaktifkan obat?', html: html, showCancelButton: true, confirmButtonText: 'Ya, nonaktifkan', cancelButtonText: 'Batal', confirmButtonColor: '#dc3545', reverseButtons: true, focusCancel: true })
+            .then(function (r) { return !!(r.value || r.isConfirmed); });
+    }
+
     function submitForm(e) {
         e.preventDefault();
         const form = this;
@@ -1033,6 +1070,8 @@
         Promise.resolve(checkNama()).then(function (res) {
             if (!res || !res.exact) return true;
             return confirmDialog('Nama obat sudah ada', 'Obat dengan nama yang sama sudah terdaftar. Tetap simpan?');
+        }).then(function (ok) {
+            return ok ? confirmNonaktifPaket() : false;
         }).then(function (ok) {
             if (!ok) { $btn.prop('disabled', false); return; }
             saveObat(form, $btn);

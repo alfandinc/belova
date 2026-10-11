@@ -11,8 +11,18 @@ class FakturBeli extends Model
     protected $table = 'erm_fakturbeli';
     protected $fillable = [
         'permintaan_id', 'pemasok_id', 'no_faktur', 'no_permintaan', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
-        'subtotal', 'global_diskon', 'global_pajak', 'total', 'status', 'approved_by', 'replaced_fakturbeli_id', 'source_retur_id'
+        'subtotal', 'global_diskon', 'global_pajak', 'total', 'status', 'approved_by', 'replaced_fakturbeli_id', 'source_retur_id',
+        'approved_at', 'created_by',
     ];
+
+    protected $casts = [
+        'approved_at' => 'datetime',
+    ];
+
+    public function approver()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
 
     public function permintaan()
     {

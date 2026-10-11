@@ -490,35 +490,17 @@ class ReturPembelianController extends Controller
         // Resolve target gudang via GudangMapping for 'retur_pembelian'
         // Fallback to gudang_id = 1 when no mapping configured
         $gudangId = GudangMapping::getDefaultGudangId('retur_pembelian') ?? 1;
-        
-        // Try to find the original batch that was used when this item was sold
-        // Look for the original "keluar" transaction in kartu_stok for this invoice
-        $originalBatch = DB::table('erm_kartu_stok')
-            ->where('obat_id', $obatId)
-            ->where('gudang_id', $gudangId)
-            ->where('tipe', 'keluar')
-            ->where('ref_type', 'App\\Models\\Finance\\Invoice')
-            ->where('ref_id', $retur->invoice_id)
-            ->orderBy('created_at', 'desc')
-            ->value('batch');
-        
-        // If we can't find the original batch, use the most recent available batch
-        if (!$originalBatch) {
-            $originalBatch = DB::table('erm_obat_stok_gudang')
-                ->where('obat_id', $obatId)
-                ->where('gudang_id', $gudangId)
-                ->where('stok', '>', 0)
-                ->orderBy('created_at', 'desc')
-                ->value('batch');
-        }
-        
-        $this->stokService->returPembelianViaTransaksi(
+
+        // Back to the gudang + batch the invoice took the stok from (billing records ref_type
+        // 'invoice_penjualan'); the retur gudang mapping is only the fallback without sale history
+        $this->stokService->kembalikanStokInvoice(
             $obatId,
-            $gudangId,
             $quantity,
+            $retur->invoice_id,
+            $gudangId,
+            'retur_pembelian',
             $retur->id,
-            $retur->retur_number,
-            $originalBatch // Pass the original or most recent batch
+            "Retur Pembelian - {$retur->retur_number}"
         );
     }
 

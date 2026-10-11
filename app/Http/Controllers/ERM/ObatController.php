@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
-use App\Models\ERM\KartuStok;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatMapping;
 use App\Models\ERM\Supplier;
@@ -220,6 +219,10 @@ class ObatController extends Controller
             DB::transaction(function () use ($request, $obat) {
                 $up = [];
                 foreach (self::EDITABLE_FIELDS as $f) {
+                    // Harga jual of an existing obat changes only through an approved pengajuan (Harga Jual page)
+                    if ($f === 'harga_nonfornas') {
+                        continue;
+                    }
                     if ($request->has($f)) {
                         $up[$f] = $f === 'is_generik' ? $request->boolean($f) : $request->input($f);
                     }
@@ -235,78 +238,6 @@ class ObatController extends Controller
             report($e);
             return response()->json(['success' => false, 'message' => 'Gagal memperbarui obat: ' . $e->getMessage()], 500);
         }
-    }
-    /**
-     * Update harga_nonfornas (harga jual) via AJAX.
-     */
-    public function updateHargaJual(Request $request, $id)
-    {
-        $request->validate([
-            'harga_nonfornas' => 'required|numeric|min:0',
-        ]);
-        try {
-            $obat = Obat::withInactive()->findOrFail($id);
-            $obat->harga_nonfornas = $request->harga_nonfornas;
-            $obat->save();
-            return response()->json(['success' => true, 'message' => 'Harga jual berhasil diperbarui']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memperbarui harga jual: ' . $e->getMessage()], 500);
-        }
-    }
-    /**
-     * Display the Monitor Profit page with DataTable.
-     */
-    public function monitorProfit(Request $request)
-    {
-        if ($request->ajax()) {
-            $PPN = 11;
-            // Use default global scope (only active obat) so monitor profit shows active items only
-            $obats = Obat::select(['id', 'kode_obat', 'nama', 'hpp', 'harga_nonfornas'])
-                // profit_percent_value: profit sebelum PPN
-                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas / (1 + '.$PPN.'/100)) - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value')
-                // profit_percent_setelah_ppn: profit setelah PPN
-                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas - hpp) / hpp) * 100) ELSE NULL END) as profit_percent_setelah_ppn');
-            $defaultProfit = 30; // Default profit percent
-            return DataTables::of($obats)
-                ->addColumn('profit_percent', function ($obat) {
-                    if (isset($obat->profit_percent_value)) {
-                        $percent = $obat->profit_percent_value;
-                        $text = number_format($percent, 2) . '%';
-                        if ($percent < 30) {
-                            $text .= ' <span class="text-warning blink-warning" title="Profit di bawah 30%"><i class="fas fa-exclamation-triangle"></i></span>';
-                        }
-                        return $text;
-                    }
-                    return '-';
-                })
-                ->addColumn('profit_percent_setelah_ppn', function ($obat) {
-                    if (isset($obat->profit_percent_setelah_ppn)) {
-                        return number_format($obat->profit_percent_setelah_ppn, 2) . '%';
-                    }
-                    return '-';
-                })
-                ->addColumn('saran_harga_jual', function ($obat) use ($PPN, $defaultProfit) {
-                    $hpp = floatval($obat->hpp);
-                    $profitPercent = $defaultProfit;
-                    // Calculate suggested selling price WITHOUT PPN
-                    $saran = $hpp * ((100 + $profitPercent) / 100);
-                    return $hpp > 0 ? number_format($saran, 0) : '-';
-                })
-                ->orderColumn('profit_percent', 'profit_percent_value $1')
-                ->editColumn('hpp', function ($obat) {
-                    return number_format($obat->hpp, 0);
-                })
-                ->editColumn('harga_nonfornas', function ($obat) {
-                    return number_format($obat->harga_nonfornas, 0);
-                })
-                ->addColumn('aksi', function ($obat) {
-                    $btn = '<button type="button" class="btn btn-sm btn-warning btn-edit-harga" data-id="'.$obat->id.'" data-nama="'.e($obat->nama).'" data-harga="'.$obat->harga_nonfornas.'"><i class="fas fa-edit"></i> Edit</button>';
-                    return $btn;
-                })
-                ->rawColumns(['aksi', 'profit_percent'])
-                ->make(true);
-        }
-        return view('erm.obat.monitor_profit');
     }
     /**
      * Filters shared by the master obat table and its summary counts.
@@ -472,6 +403,59 @@ class ObatController extends Controller
         ]);
     }
 
+    /**
+     * Wajib Ada: forecast always keeps this obat in stock, even with little or no demand.
+     */
+    public function toggleWajibStok($id)
+    {
+        $obat = Obat::withInactive()->findOrFail($id);
+        if (! $obat->wajib_stok && $obat->stop_pengadaan) {
+            return response()->json(['success' => false, 'message' => 'Obat ini Stop Pengadaan. Batalkan dulu Stop Pengadaan-nya sebelum menandai Wajib Ada.'], 422);
+        }
+        $obat->wajib_stok = ! $obat->wajib_stok;
+        $obat->save();
+        \App\Services\ERM\ForecastService::forgetComputed();
+
+        return response()->json([
+            'success' => true,
+            'id' => $obat->id,
+            'wajib_stok' => (bool) $obat->wajib_stok,
+        ]);
+    }
+
+    /**
+     * Stop Pengadaan: the obat is no longer purchased (forecast stops suggesting orders),
+     * but stays active so the remaining stock can still be sold.
+     */
+    public function setStopPengadaan(Request $request, $id)
+    {
+        $data = $request->validate([
+            'aktif' => 'required|boolean',
+            'alasan' => 'required_if:aktif,1|nullable|string|max:500',
+        ], [
+            'alasan.required_if' => 'Alasan stop pengadaan wajib diisi.',
+        ]);
+
+        $obat = Obat::withInactive()->findOrFail($id);
+        $aktif = (bool) $data['aktif'];
+        $obat->stop_pengadaan = $aktif;
+        $obat->stop_pengadaan_alasan = $aktif ? trim($data['alasan']) : null;
+        $obat->stop_pengadaan_at = $aktif ? now() : null;
+        $obat->stop_pengadaan_by = $aktif ? auth()->id() : null;
+        if ($aktif) {
+            // An obat that is no longer purchased cannot be kept in stock
+            $obat->wajib_stok = false;
+        }
+        $obat->save();
+        \App\Services\ERM\ForecastService::forgetComputed();
+
+        return response()->json([
+            'success' => true,
+            'message' => $aktif ? $obat->nama . ' ditandai Stop Pengadaan.' : 'Stop Pengadaan ' . $obat->nama . ' dibatalkan.',
+            'stop_pengadaan' => $aktif,
+        ]);
+    }
+
     private function resolveForecastKeluarPeriod(string $period): array
     {
         $today = Carbon::today();
@@ -573,6 +557,8 @@ class ObatController extends Controller
                 'diskon' => $selectedMasterFaktur ? $selectedDiskon : null,
                 'diskon_type' => $selectedMasterFaktur ? $selectedDiskonType : null,
                 'setelah_diskon' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
+                'harga_beli' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
+                'harga_jual' => $obat->harga_nonfornas !== null ? (float) $obat->harga_nonfornas : null,
                 'shared_zat_aktif' => [],
                 'rows' => [],
                 'message' => 'Obat ini belum memiliki zat aktif.',
@@ -625,6 +611,8 @@ class ObatController extends Controller
                     'diskon' => $latestMasterFaktur ? $diskon : null,
                     'diskon_type' => $latestMasterFaktur ? $diskonType : null,
                     'setelah_diskon' => $latestMasterFaktur ? $setelahDiskon : null,
+                    'harga_beli' => $latestMasterFaktur ? $setelahDiskon : null,
+                    'harga_jual' => $similarObat->harga_nonfornas !== null ? (float) $similarObat->harga_nonfornas : null,
                     'matched_zat_aktif' => $matchedZatAktif,
                 ];
             })
@@ -639,6 +627,8 @@ class ObatController extends Controller
             'diskon' => $selectedMasterFaktur ? $selectedDiskon : null,
             'diskon_type' => $selectedMasterFaktur ? $selectedDiskonType : null,
             'setelah_diskon' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
+            'harga_beli' => $selectedMasterFaktur ? $selectedSetelahDiskon : null,
+            'harga_jual' => $obat->harga_nonfornas !== null ? (float) $obat->harga_nonfornas : null,
             'shared_zat_aktif' => $sharedZatAktif,
             'rows' => $rows,
         ]);
@@ -789,67 +779,17 @@ class ObatController extends Controller
 
     public function forecastAll(Request $request)
     {
-        $periodMonths = (int) $request->input('period_months', 3);
-        $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
-
-        $pengadaanFrequency = (string) $request->input('pengadaan_frequency', 'monthly');
-        $frequencyDivisors = [
-            'monthly' => 1,
-            'weekly' => 4,
-            'twice_weekly' => 8,
-        ];
-        $divisor = $frequencyDivisors[$pengadaanFrequency] ?? $frequencyDivisors['monthly'];
-
-        // Use previous full months (exclude current month).
-        // Example: if today is July, and periodMonths=3 => use Apr 1 - Jun 30
-        $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
-        $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
-
-        $keluarPerObat = KartuStok::query()
-            ->select('obat_id', DB::raw('SUM(qty) as total_keluar'))
-            ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice_penjualan')
-            ->whereBetween('tanggal', [$periodStart, $periodEnd])
-            ->groupBy('obat_id')
-            ->pluck('total_keluar', 'obat_id');
-
-        $stockPerObat = \App\Models\ERM\ObatStokGudang::query()
-            ->whereHas('gudang', function ($query) {
-                $query->where('nama', '!=', 'Gudang ED');
-            })
-            ->select('obat_id', DB::raw('SUM(stok) as total_stock'))
-            ->groupBy('obat_id')
-            ->pluck('total_stock', 'obat_id');
-
-        $approvedOutstandingPermintaanPerObat = \App\Models\ERM\FakturBeliItem::query()
-            ->join('erm_fakturbeli', 'erm_fakturbeli.id', '=', 'erm_fakturbeli_items.fakturbeli_id')
-            ->whereNotNull('erm_fakturbeli.permintaan_id')
-            ->whereIn('erm_fakturbeli.status', ['diminta', 'diterima'])
-            ->select(
-                'erm_fakturbeli_items.obat_id',
-                DB::raw('SUM(CASE WHEN COALESCE(erm_fakturbeli_items.sisa, 0) > 0 THEN COALESCE(erm_fakturbeli_items.sisa, 0) ELSE GREATEST(COALESCE(erm_fakturbeli_items.diminta, 0) - COALESCE(erm_fakturbeli_items.qty, 0), 0) END) as total_outstanding')
-            )
-            ->groupBy('erm_fakturbeli_items.obat_id')
-            ->pluck('total_outstanding', 'erm_fakturbeli_items.obat_id');
+        $forecastService = app(\App\Services\ERM\ForecastService::class);
+        $params = $forecastService->normalizeParams($request->all());
+        $bundle = $forecastService->planBundle($params);
+        $forecastPerObat = $forecastService->computeAll($params);
 
         $obats = Obat::query()
-            ->with(['masterFakturs', 'principal:id,nama', 'zatAktifs'])
+            ->with(['masterFakturs', 'principal:id,nama', 'zatAktifs', 'stopPengadaanOleh:id,name'])
             ->orderBy('nama')
-            ->get(['id', 'nama', 'is_generik', 'is_favorite', 'principal_id']);
+            ->get(['id', 'nama', 'is_generik', 'is_favorite', 'principal_id', 'stop_pengadaan_alasan', 'stop_pengadaan_at', 'stop_pengadaan_by']);
 
-        $rows = $obats->map(function ($obat) use ($periodMonths, $divisor, $keluarPerObat, $stockPerObat, $approvedOutstandingPermintaanPerObat) {
-            $totalStock = (float) ($stockPerObat[$obat->id] ?? 0);
-            $approvedOutstandingPermintaan = (float) ($approvedOutstandingPermintaanPerObat[$obat->id] ?? 0);
-            $totalStockWithApprovedPermintaan = $totalStock + $approvedOutstandingPermintaan;
-            $obatKeluar = (float) ($keluarPerObat[$obat->id] ?? 0);
-            $averageMonthlyKeluarRaw = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
-            $limitStokRaw = $averageMonthlyKeluarRaw / $divisor;
-            $qtyPesanRaw = $limitStokRaw * 3;
-
-            $averageMonthlyKeluar = ceil($averageMonthlyKeluarRaw);
-            $limitStok = ceil($limitStokRaw);
-            $qtyPesan = ceil($qtyPesanRaw);
-
+        $rows = $obats->map(function ($obat) use ($forecastPerObat) {
             $principalNames = $obat->principal ? [$obat->principal->nama] : [];
 
             $zatAktifNames = $obat->zatAktifs
@@ -863,10 +803,14 @@ class ObatController extends Controller
                 ->sortByDesc('id')
                 ->first();
 
-            $qtyPerBox = $latestMasterFaktur ? (float) ($latestMasterFaktur->qty_per_box ?? 0) : 0;
-            $jumlahPesanBox = $qtyPerBox > 0 ? ceil($qtyPesan / $qtyPerBox) : null;
+            // Cheapest Master Pembelian price after discount, for the value of the suggested order
+            $hargaSatuan = $obat->masterFakturs
+                ->map(fn ($m) => $this->calculateMasterFakturNetPrice((float) $m->harga, (float) $m->diskon, (string) $m->diskon_type))
+                ->filter(fn ($h) => $h > 0)
+                ->min();
+            $metrics = $forecastPerObat[$obat->id] ?? [];
 
-            return [
+            return array_merge([
                 'obat_id' => $obat->id,
                 'obat_nama' => $obat->nama,
                 'is_generik' => $obat->is_generik,
@@ -877,24 +821,27 @@ class ObatController extends Controller
                 ], $zatAktifNames)))),
                 'is_favorite' => (bool) $obat->is_favorite,
                 'master_faktur_notes' => $latestMasterFaktur?->notes,
-                'total_stock' => round($totalStock, 2),
-                'approved_outstanding_permintaan' => round($approvedOutstandingPermintaan, 2),
-                'total_stock_with_approved_permintaan' => round($totalStockWithApprovedPermintaan, 2),
-                'obat_keluar' => round($obatKeluar, 2),
-                'average_monthly_keluar' => $averageMonthlyKeluar,
-                'limit_stok' => $limitStok,
-                'qty_pesan' => $qtyPesan,
-                'isi_per_box' => $qtyPerBox > 0 ? round($qtyPerBox, 2) : null,
-                'jumlah_pesan_box' => $jumlahPesanBox,
-            ];
+                'stop_pengadaan_alasan' => $obat->stop_pengadaan_alasan,
+                'stop_pengadaan_info' => $obat->stop_pengadaan_at ? $obat->stop_pengadaan_at->format('d/m/Y') . ($obat->stopPengadaanOleh ? ' oleh ' . $obat->stopPengadaanOleh->name : '') : null,
+                'harga_satuan' => $hargaSatuan !== null ? round($hargaSatuan, 2) : null,
+                'estimasi_nilai' => $hargaSatuan !== null ? round($hargaSatuan * (float) ($metrics['qty_pesan'] ?? 0), 2) : null,
+            ], $metrics);
         })->values();
 
+        $byStatus = $rows->groupBy('status');
+        $perluPesan = $rows->whereIn('status', ['kritis', 'pesan']);
+
         return response()->json([
-            'period_months' => $periodMonths,
-            'pengadaan_frequency' => $pengadaanFrequency,
-            'formula_label' => '1/' . $divisor . ' x rata-rata keluar ' . $periodMonths . ' bulan',
-            'period_start' => $periodStart->format('Y-m-d'),
-            'period_end' => $periodEnd->format('Y-m-d'),
+            'counts' => $byStatus->map->count(),
+            'estimasi_perlu_pesan' => round((float) $perluPesan->sum('estimasi_nilai'), 2),
+            'perlu_pesan_tanpa_harga' => $perluPesan->whereNull('harga_satuan')->count(),
+            'period_months' => $params['period_months'],
+            'pengadaan_frequency' => $params['pengadaan_frequency'],
+            'lead_time_days' => $params['lead_time_days'],
+            'service_level' => $params['service_level'],
+            'formula_label' => $forecastService->formulaLabel($params),
+            'period_start' => $bundle['period_start'],
+            'period_end' => $bundle['period_end'],
             'rows' => $rows,
         ]);
     }
@@ -909,32 +856,34 @@ class ObatController extends Controller
         $headings = [
             'Nama Obat',
             'Total Stok',
+            'Pending Belum Datang',
             'Total Stok + Pending',
-            'Pending Approved Belum Terpenuhi',
-            'Obat Keluar',
+            'Obat Keluar (Periode)',
             'Rata-rata Keluar / Bulan',
-            'Kuota',
-            'Limit Stok',
+            'Std Deviasi / Bulan',
+            'Safety Stock',
+            'Titik Pesan',
+            'Stok Maks',
             'Qty Pesan',
             'Isi per Box',
             'Jumlah Pesan Box',
+            'Stok Cukup (Hari)',
+            'Status',
+            'Lead Time (Hari)',
+            'Sumber Lead Time',
+            'Peringatan',
+            'Kebutuhan Pasien Kontrol',
+            'Jumlah Pasien Kontrol',
         ];
 
+        $columnCount = count($headings);
         $exportArray = collect($validated['rows'])
-            ->map(function ($row) {
-                return [
-                    $row[0] ?? '',
-                    $row[1] ?? 0,
-                    $row[2] ?? 0,
-                    $row[3] ?? 0,
-                    $row[4] ?? 0,
-                    $row[5] ?? 0,
-                    $row[6] ?? 0,
-                    $row[7] ?? 0,
-                    $row[8] ?? 0,
-                    $row[9] ?? '',
-                    $row[10] ?? '',
-                ];
+            ->map(function ($row) use ($columnCount) {
+                $values = [];
+                for ($i = 0; $i < $columnCount; $i++) {
+                    $values[] = $row[$i] ?? '';
+                }
+                return $values;
             })
             ->values()
             ->all();
@@ -965,58 +914,24 @@ class ObatController extends Controller
 
     public function forecast(Request $request, $id)
     {
-        $periodMonths = (int) $request->input('period_months', 3);
-        $periodMonths = in_array($periodMonths, [1, 3, 6, 12], true) ? $periodMonths : 3;
-
-        $pengadaanFrequency = (string) $request->input('pengadaan_frequency', 'monthly');
-        $frequencyDivisors = [
-            'monthly' => 1,
-            'weekly' => 4,
-            'twice_weekly' => 8,
-        ];
-        $divisor = $frequencyDivisors[$pengadaanFrequency] ?? $frequencyDivisors['monthly'];
+        $forecastService = app(\App\Services\ERM\ForecastService::class);
+        $params = $forecastService->normalizeParams($request->all());
+        $bundle = $forecastService->planBundle($params);
 
         $obat = Obat::withInactive()->findOrFail($id);
+        $metrics = $forecastService->computeAll($params, [$obat->id])[$obat->id] ?? [];
 
-        // Use previous full months (exclude current month). See comment above.
-        $periodEnd = Carbon::now()->startOfMonth()->subDay()->endOfDay();
-        $periodStart = (clone $periodEnd)->subMonthsNoOverflow($periodMonths - 1)->startOfMonth()->startOfDay();
-
-        $totalStock = (float) $obat->stokGudang()
-            ->whereHas('gudang', function ($query) {
-                $query->where('nama', '!=', 'Gudang ED');
-            })
-            ->sum('stok');
-
-        $obatKeluar = (float) KartuStok::query()
-            ->where('obat_id', $obat->id)
-            ->where('tipe', 'keluar')
-            ->where('ref_type', 'invoice_penjualan')
-            ->whereBetween('tanggal', [$periodStart, $periodEnd])
-            ->sum('qty');
-
-        $averageMonthlyKeluarRaw = $periodMonths > 0 ? ($obatKeluar / $periodMonths) : 0;
-        $limitStokRaw = $averageMonthlyKeluarRaw / $divisor;
-        $qtyPesanRaw = $limitStokRaw * 3;
-
-        $averageMonthlyKeluar = ceil($averageMonthlyKeluarRaw);
-        $limitStok = ceil($limitStokRaw);
-        $qtyPesan = ceil($qtyPesanRaw);
-
-        return response()->json([
+        return response()->json(array_merge([
             'obat_id' => $obat->id,
             'obat_nama' => $obat->nama,
-            'period_months' => $periodMonths,
-            'pengadaan_frequency' => $pengadaanFrequency,
-            'total_stock' => round($totalStock, 2),
-            'obat_keluar' => round($obatKeluar, 2),
-            'average_monthly_keluar' => $averageMonthlyKeluar,
-            'limit_stok' => $limitStok,
-            'qty_pesan' => $qtyPesan,
-            'formula_label' => '1/' . $divisor . ' x rata-rata keluar ' . $periodMonths . ' bulan',
-            'period_start' => $periodStart->format('Y-m-d'),
-            'period_end' => $periodEnd->format('Y-m-d'),
-        ]);
+            'period_months' => $params['period_months'],
+            'pengadaan_frequency' => $params['pengadaan_frequency'],
+            'lead_time_days' => $params['lead_time_days'],
+            'service_level' => $params['service_level'],
+            'formula_label' => $forecastService->formulaLabel($params),
+            'period_start' => $bundle['period_start'],
+            'period_end' => $bundle['period_end'],
+        ], $metrics));
     }
 
     /**
@@ -1154,6 +1069,14 @@ class ObatController extends Controller
             'status_aktif' => $obat->status_aktif,
             'stok' => $stokGudang,
             'stok_gudang' => $stokGudang,
+            // Active paket racikan using this obat: the form warns before the obat is deactivated
+            'paket_racikan' => DB::table('erm_paket_racikan_detail as d')
+                ->join('erm_paket_racikan as p', 'p.id', '=', 'd.paket_racikan_id')
+                ->where('d.obat_id', $obat->id)
+                ->where('p.is_active', 1)
+                ->distinct()
+                ->orderBy('p.nama_paket')
+                ->pluck('p.nama_paket'),
         ]);
     }
 
@@ -1403,7 +1326,6 @@ class ObatController extends Controller
         'is_generik' => ['label' => 'Generik', 'type' => 'boolean', 'headers' => ['generik', 'isgenerik']],
         'kategori' => ['label' => 'Kategori', 'type' => 'kategori', 'headers' => ['kategori']],
         'metode_bayar_id' => ['label' => 'Metode Bayar', 'type' => 'metode_bayar', 'headers' => ['metodebayar']],
-        'harga_nonfornas' => ['label' => 'Harga Jual', 'type' => 'decimal', 'headers' => ['hargajual', 'harganonfornas']],
     ];
 
     private function normalizeCsvHeader(string $header): string

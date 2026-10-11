@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Mutasi Gudang - {{ $mutasi->nomor_mutasi }}</title>
+    <title>Transfer Antar Gudang - {{ $mutasi->nomor_mutasi }}</title>
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 12px; }
         .header { text-align: center; margin-bottom: 10px }
@@ -16,8 +16,8 @@
 </head>
 <body>
     <div class="header">
-        <h3>Mutasi Gudang</h3>
-        <div>No Mutasi: <strong>{{ $mutasi->nomor_mutasi }}</strong></div>
+        <h3>Transfer Antar Gudang</h3>
+        <div>No Transfer: <strong>{{ $mutasi->nomor_mutasi }}</strong></div>
     </div>
 
     <table class="meta small" style="border: none; margin-bottom: 6px;">
@@ -29,8 +29,9 @@
             </td>
             <td style="border: none; width: 50%">
                 <strong>Gudang Tujuan:</strong> {{ $mutasi->gudangTujuan->nama ?? '-' }}<br>
-                <strong>Disetujui Oleh:</strong> {{ $mutasi->approvedBy->name ?? '-' }}<br>
-                <strong>Status:</strong> {{ ucfirst($mutasi->status) }}
+                <strong>{{ $mutasi->status === 'rejected' ? 'Ditolak Oleh' : 'Disetujui Oleh' }}:</strong> {{ $mutasi->status === 'rejected' ? ($mutasi->rejectedBy->name ?? '-') : ($mutasi->status === 'approved' ? ($mutasi->approvedBy->name ?? '-') : '-') }}<br>
+                <strong>Status:</strong> {{ ['pending' => 'Menunggu approval', 'approved' => 'Disetujui', 'rejected' => 'Ditolak'][$mutasi->status] ?? ucfirst($mutasi->status) }}
+                @if($alasanTolak)<br><strong>Alasan ditolak:</strong> {{ $alasanTolak }}@endif
             </td>
         </tr>
     </table>
@@ -40,8 +41,7 @@
             <tr>
                 <th style="width:6%;">#</th>
                 <th>Nama Obat</th>
-                <th style="width:8%;">Jumlah Diminta</th>
-                <th style="width:8%;">Jumlah Disetujui</th>
+                <th style="width:10%;">Jumlah</th>
                 <th style="width:20%;">Keterangan</th>
                 <th style="width:10%;">Stok Asal (Sebelum)</th>
                 <th style="width:10%;">Stok Asal (Setelah)</th>
@@ -54,20 +54,19 @@
                 <tr>
                     <td style="text-align:center">{{ $i + 1 }}</td>
                     <td>{{ $item->obat->nama ?? ('Obat ID ' . $item->obat_id) }}</td>
-                    <td style="text-align:right">{{ $item->jumlah }}</td>
-                    <td style="text-align:right">{{ $item->jumlah }}</td>
+                    <td style="text-align:right">{{ rtrim(rtrim(number_format((float) $item->jumlah, 2, ',', '.'), '0'), ',') }} {{ $item->obat->satuan_stok_label ?? '' }}</td>
                     <td>{{ $item->keterangan ?? '-' }}</td>
-                    <td style="text-align:right">{{ number_format($item->stok_asal_sebelum ?? 0, 2, ',', '.') }}</td>
-                    <td style="text-align:right">{{ number_format($item->stok_asal_setelah ?? 0, 2, ',', '.') }}</td>
-                    <td style="text-align:right">{{ number_format($item->stok_tujuan_sebelum ?? 0, 2, ',', '.') }}</td>
-                    <td style="text-align:right">{{ number_format($item->stok_tujuan_setelah ?? 0, 2, ',', '.') }}</td>
+                    <td style="text-align:right">{{ $item->stok_asal_sebelum === null ? '-' : number_format($item->stok_asal_sebelum, 2, ',', '.') }}</td>
+                    <td style="text-align:right">{{ $item->stok_asal_setelah === null ? '-' : number_format($item->stok_asal_setelah, 2, ',', '.') }}</td>
+                    <td style="text-align:right">{{ $item->stok_tujuan_sebelum === null ? '-' : number_format($item->stok_tujuan_sebelum, 2, ',', '.') }}</td>
+                    <td style="text-align:right">{{ $item->stok_tujuan_setelah === null ? '-' : number_format($item->stok_tujuan_setelah, 2, ',', '.') }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
 
     <div style="margin-top: 20px;">
-        <strong>Keterangan Mutasi:</strong>
+        <strong>Keterangan:</strong>
         <div style="min-height:40px">{{ $mutasi->keterangan ?? '-' }}</div>
     </div>
 
@@ -78,9 +77,9 @@
             <div><strong>{{ $mutasi->requestedBy->name ?? '-' }}</strong></div>
         </div>
         <div style="text-align:center">
-            <div>Disetujui oleh</div>
+            <div>{{ $mutasi->status === 'rejected' ? 'Ditolak oleh' : 'Disetujui oleh' }}</div>
             <div style="height:60px"></div>
-            <div><strong>{{ $mutasi->approvedBy->name ?? '-' }}</strong></div>
+            <div><strong>{{ $mutasi->status === 'rejected' ? ($mutasi->rejectedBy->name ?? '-') : ($mutasi->status === 'approved' ? ($mutasi->approvedBy->name ?? '-') : '-') }}</strong></div>
         </div>
     </div>
 </body>

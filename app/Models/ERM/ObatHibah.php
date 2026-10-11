@@ -21,7 +21,15 @@ class ObatHibah extends Model
         'created_by',
         'approved_by',
         'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'rejected_reason',
     ];
+
+    public function rejecter()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'rejected_by');
+    }
 
     public function items()
     {

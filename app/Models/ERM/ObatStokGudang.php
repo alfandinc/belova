@@ -16,8 +16,6 @@ class ObatStokGudang extends Model
         'obat_id',
         'gudang_id',
         'stok',
-        'min_stok',
-        'max_stok',
         'batch',
         'expiration_date',
         'rak',
@@ -27,8 +25,6 @@ class ObatStokGudang extends Model
     protected $casts = [
         'expiration_date' => 'date',
         'stok' => 'decimal:2',
-        'min_stok' => 'decimal:2',
-        'max_stok' => 'decimal:2'
     ];
 
     // Relasi ke Obat (termasuk yang tidak aktif)
@@ -77,16 +73,60 @@ class ObatStokGudang extends Model
                     ->whereDate('expiration_date', '<', now());
     }
 
-    // Scope untuk mencari stok dibawah minimum
-    public function scopeBelowMinimum($query)
+    // Stok migrasi dari sistem lama: batch "MIGRATE-*" dengan ED sementara (bukan ED asli).
+    // ED-nya belum diketahui, jadi batch ini tidak pernah dianggap expired sampai dilengkapi di layar Stok MIGRATE.
+    public const MIGRASI_BATCH_PREFIX = 'MIGRATE';
+
+    public function isMigrasi(): bool
     {
-        return $query->whereRaw('stok < min_stok');
+        return $this->batch !== null && str_starts_with($this->batch, self::MIGRASI_BATCH_PREFIX);
     }
 
-    // Scope untuk mencari stok diatas maksimum
-    public function scopeAboveMaximum($query)
+    // Batch yang boleh keluar ke pasien atau dimutasi: belum lewat ED.
+    // Batch tanpa ED dan batch migrasi (ED belum diketahui) dianggap layak.
+    // Dipakai bersama oleh billing, mutasi gudang, mutasi stok, dan tampilan ketersediaan stok.
+    public function scopeLayakPakai($query)
     {
-        return $query->whereRaw('stok > max_stok');
+        $table = $this->getTable();
+
+        return $query->where(function ($q) use ($table) {
+            $q->whereNull($table . '.expiration_date')
+                ->orWhereDate($table . '.expiration_date', '>=', now()->toDateString())
+                ->orWhere($table . '.batch', 'like', self::MIGRASI_BATCH_PREFIX . '%');
+        });
+    }
+
+    // Hanya batch dengan ED asli (bukan migrasi); dipakai untuk daftar akan expired / karantina
+    public function scopeEdTerverifikasi($query)
+    {
+        $table = $this->getTable();
+
+        return $query->whereNotNull($table . '.expiration_date')
+            ->where(function ($q) use ($table) {
+                $q->whereNull($table . '.batch')
+                    ->orWhere($table . '.batch', 'not like', self::MIGRASI_BATCH_PREFIX . '%');
+            });
+    }
+
+    // Urutan pengambilan stok: batch migrasi dulu (stok fisik tertua), lalu FEFO (ED terdekat dulu),
+    // batch tanpa ED paling akhir
+    public function scopeUrutFefo($query)
+    {
+        $table = $this->getTable();
+
+        return $query->orderByRaw(
+                "CASE WHEN {$table}.batch LIKE '" . self::MIGRASI_BATCH_PREFIX . "%' THEN 0"
+                . " WHEN {$table}.expiration_date IS NULL THEN 2 ELSE 1 END"
+            )
+            ->orderBy($table . '.expiration_date')
+            ->orderBy($table . '.batch');
+    }
+
+    public function isExpired(): bool
+    {
+        return !$this->isMigrasi()
+            && $this->expiration_date !== null
+            && $this->expiration_date->lt(now()->startOfDay());
     }
 
     // Method untuk menambah stok

@@ -398,7 +398,9 @@ class EresepController extends Controller
             // Get obat IDs list
             $obatIds = $obats->pluck('id')->toArray();
             // Aggregate stok per obat for the target gudang in one query
+            // Expired batches cannot be dispensed, so they do not count as available
             $stokRows = \App\Models\ERM\ObatStokGudang::selectRaw('obat_id, SUM(stok) as stok_sum')
+                ->layakPakai()
                 ->whereIn('obat_id', $obatIds)
                 ->where('gudang_id', $gudangIdForResep)
                 ->groupBy('obat_id')

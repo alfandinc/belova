@@ -4,7 +4,6 @@ namespace App\Services\ERM;
 
 use App\Models\ERM\ObatStokGudang;
 use App\Models\ERM\Obat;
-use App\Models\ERM\Gudang;
 use App\Models\ERM\KartuStok;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -18,20 +17,19 @@ class StokService {
      */
     public function getNilaiStokGudang($gudangId)
     {
-        return ObatStokGudang::where('gudang_id', $gudangId)
-            ->whereHas('obat', function($q) {
-                $q->where('status_aktif', 1);
-            })
-            ->with('obat')
-            ->get()
-            ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation
-                $hpp = 0;
-                if ($item->obat) {
-                    $hpp = $item->obat->hpp ?? 0;
-                }
-                return ((float)($item->stok ?? 0)) * (float)$hpp;
-            });
+        return $this->nilaiStokQuery()->where('s.gudang_id', $gudangId)->value('nilai') ?? 0;
+    }
+
+    /**
+     * SUM(stok × master HPP) over active obat, computed in SQL instead of loading every stok row.
+     */
+    private function nilaiStokQuery()
+    {
+        return DB::table('erm_obat_stok_gudang as s')
+            ->join('erm_obat as o', 'o.id', '=', 's.obat_id')
+            ->whereNull('s.deleted_at')
+            ->where('o.status_aktif', 1)
+            ->selectRaw('COALESCE(SUM(s.stok * COALESCE(o.hpp, 0)), 0) as nilai');
     }
 
     /**
@@ -40,19 +38,7 @@ class StokService {
      */
     public function getNilaiStokKeseluruhan()
     {
-        return ObatStokGudang::whereHas('obat', function($q) {
-                $q->where('status_aktif', 1);
-            })
-            ->with('obat')
-            ->get()
-            ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation
-                $hpp = 0;
-                if ($item->obat) {
-                    $hpp = $item->obat->hpp ?? 0;
-                }
-                return ((float)($item->stok ?? 0)) * (float)$hpp;
-            });
+        return $this->nilaiStokQuery()->value('nilai') ?? 0;
     }
     /**
      * Menambah stok obat ke gudang tertentu
@@ -73,14 +59,29 @@ class StokService {
         return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $expDate, $rak, $lokasi, $hargaBeli, $hargaBeliJual, $refType, $refId, $keterangan, $tanggal) {
             // Ensure numeric values are properly cast
             $jumlah = (float) $jumlah;
+            if ($jumlah <= 0) {
+                throw new \InvalidArgumentException('Jumlah stok masuk harus lebih dari 0.');
+            }
             $hargaBeli = $hargaBeli !== null ? (float) $hargaBeli : null;
             $hargaBeliJual = $hargaBeliJual !== null ? (float) $hargaBeliJual : null;
             
-            $stok = ObatStokGudang::where('obat_id', $obatId)
+            // Include soft-deleted rows: the unique key (obat_id, gudang_id, batch) also covers them,
+            // so creating a new row for a previously deleted batch would fail.
+            $stok = ObatStokGudang::withTrashed()
+                ->where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId)
                 ->where('batch', $batch)
                 ->lockForUpdate()
                 ->first();
+
+            if ($stok && $stok->trashed()) {
+                // A deleted row counts as empty; never revive its old quantity
+                $stok->restore();
+                $stok->stok = 0;
+                if ($expDate) {
+                    $stok->expiration_date = Carbon::parse($expDate);
+                }
+            }
 
             if ($stok) {
                 // Use precise float arithmetic and assign directly to avoid implicit integer casting
@@ -160,17 +161,19 @@ class StokService {
                 // ignore logging errors
             }
 
-            $query = ObatStokGudang::where('obat_id', $obatId)
-                ->where('gudang_id', $gudangId);
-
-            if ($batch) {
-                $query->where('batch', $batch);
+            if ((float) $jumlah <= 0) {
+                throw new \InvalidArgumentException('Jumlah stok keluar harus lebih dari 0.');
             }
 
-            // Lock the stock row for update to avoid race conditions when modifying stok
-            $stok = $query->lockForUpdate()->first();
+            // Always the exact batch row: a NULL batch means the row without a batch name,
+            // never "any row" (that used to take a random batch of the obat)
+            $stok = ObatStokGudang::where('obat_id', $obatId)
+                ->where('gudang_id', $gudangId)
+                ->where('batch', $batch)
+                ->lockForUpdate()
+                ->first();
 
-            if (!$stok || (float)$stok->stok < (float)$jumlah) {
+            if (!$stok || round((float) $stok->stok, 4) < round((float) $jumlah, 4)) {
                 throw new \Exception('Stok tidak mencukupi');
             }
 
@@ -196,186 +199,11 @@ class StokService {
         });
     }
 
-    /**
-     * Cek ketersediaan stok
-     *
-     * @param int $obatId
-     * @param int $gudangId
-     * @param float $jumlah
-     * @param string|null $batch
-     * @return bool
-     */
-    public function cekStok($obatId, $gudangId, $jumlah, $batch = null)
-    {
-        $query = ObatStokGudang::where('obat_id', $obatId)
-            ->where('gudang_id', $gudangId);
 
-        if ($batch) {
-            $query->where('batch', $batch);
-        }
 
-        $stok = $query->first();
 
-        return $stok && $stok->stok >= $jumlah;
-    }
 
-    /**
-     * Mendapatkan total stok obat dari semua gudang
-     *
-     * @param int $obatId
-     * @return float
-     */
-    public function getTotalStok($obatId)
-    {
-        return ObatStokGudang::where('obat_id', $obatId)->sum('stok');
-    }
 
-    /**
-     * Mendapatkan stok per gudang
-     *
-     * @param int $obatId
-     * @return \Illuminate\Support\Collection
-     */
-    public function getStokPerGudang($obatId)
-    {
-        return ObatStokGudang::with('gudang')
-            ->where('obat_id', $obatId)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'gudang_id' => $item->gudang_id,
-                    'nama_gudang' => $item->gudang->nama,
-                    'stok' => $item->stok,
-                    'batch' => $item->batch,
-                    'expired' => $item->expiration_date,
-                    'lokasi' => $item->lokasi
-                ];
-            });
-    }
-
-    /**
-     * Mutasi stok antar gudang
-     *
-     * @param int $obatId
-     * @param int $fromGudangId
-     * @param int $toGudangId
-     * @param float $jumlah
-     * @param string|null $batch
-     * @param int|null $mutasiId ID transaksi mutasi
-     * @return bool
-     * @throws \Exception
-     */
-    public function mutasiStok($obatId, $fromGudangId, $toGudangId, $jumlah, $batch = null, $mutasiId = null)
-    {
-        return DB::transaction(function () use ($obatId, $fromGudangId, $toGudangId, $jumlah, $batch, $mutasiId) {
-            // Get gudang names for better description
-            $fromGudang = Gudang::find($fromGudangId);
-            $toGudang = Gudang::find($toGudangId);
-            
-            $fromGudangName = $fromGudang ? $fromGudang->nama : "Gudang {$fromGudangId}";
-            $toGudangName = $toGudang ? $toGudang->nama : "Gudang {$toGudangId}";
-
-            // Kurangi stok dari gudang asal dengan referensi mutasi
-            $this->kurangiStok(
-                $obatId, 
-                $fromGudangId, 
-                $jumlah, 
-                $batch,
-                'mutasi_gudang',
-                $mutasiId,
-                "Mutasi ke {$toGudangName}"
-            );
-
-            // Tambah stok ke gudang tujuan dengan referensi mutasi
-            $this->tambahStok(
-                $obatId, 
-                $toGudangId, 
-                $jumlah, 
-                $batch,
-                null, // expDate
-                null, // rak
-                null, // lokasi  
-                null, // hargaBeli
-                null, // hargaBeliJual
-                'mutasi_gudang',
-                $mutasiId,
-                "Mutasi dari {$fromGudangName}"
-            );
-
-            return true;
-        });
-    }
-
-    /**
-     * Update stok fisik (untuk stok opname)
-     *
-     * @param int $obatId
-     * @param int $gudangId
-     * @param float $stokFisik
-     * @param string|null $batch
-     * @param int|null $stokOpnameId ID transaksi stok opname
-     * @return ObatStokGudang
-     */
-    public function updateStokFisik($obatId, $gudangId, $stokFisik, $batch = null, $stokOpnameId = null)
-    {
-        return DB::transaction(function () use ($obatId, $gudangId, $stokFisik, $batch, $stokOpnameId) {
-            $stok = ObatStokGudang::where('obat_id', $obatId)
-                ->where('gudang_id', $gudangId)
-                ->where('batch', $batch)
-                ->first();
-
-            if ($stok) {
-                $selisih = $stokFisik - $stok->stok;
-                $stok->stok = $stokFisik;
-                $stok->save();
-
-                // Catat di kartu stok dengan referensi stok opname
-                $this->catatKartuStok(
-                    $obatId, 
-                    $gudangId, 
-                    $selisih >= 0 ? 'masuk' : 'keluar',
-                    abs($selisih),
-                    $batch,
-                    'Adjustment stok opname',
-                    'stok_opname',
-                    $stokOpnameId
-                );
-            }
-
-            return $stok;
-        });
-    }
-
-    /**
-     * Mendapatkan stok yang akan expire dalam x hari
-     *
-     * @param int $days
-     * @return \Illuminate\Support\Collection
-     */
-    public function getStokAkanExpire($days = 30)
-    {
-        $date = Carbon::now()->addDays($days);
-        
-        return ObatStokGudang::with(['obat', 'gudang'])
-            ->whereNotNull('expiration_date')
-            ->whereDate('expiration_date', '<=', $date)
-            ->whereDate('expiration_date', '>=', Carbon::now())
-            ->where('stok', '>', 0)
-            ->get();
-    }
-
-    /**
-     * Mendapatkan stok dibawah minimum
-     *
-     * @return \Illuminate\Support\Collection
-     */
-    public function getStokMinimum()
-    {
-        return ObatStokGudang::with(['obat', 'gudang'])
-            ->whereRaw('stok < min_stok')
-            ->where('stok', '>=', 0)
-            ->get();
-    }
 
     /**
      * Mencatat perubahan stok di kartu stok
@@ -499,92 +327,90 @@ class StokService {
     }
 
     /**
-     * Khusus untuk obat keluar via invoice penjualan
+     * Return sold stok to the gudang and batch it was taken from, read from the invoice's kartu stok
+     * (latest deductions first). Quantity without sale history goes to the newest usable batch of
+     * the fallback gudang.
      *
-     * @param int $obatId
-     * @param int $gudangId
-     * @param float $jumlah
-     * @param int $invoiceId
-     * @param string $invoiceNumber
-     * @param string|null $batch
-     * @return bool
+     * @param string $refType kartu stok ref_type of the return (invoice_return, retur_pembelian)
      */
-    public function keluarViaInvoice($obatId, $gudangId, $jumlah, $invoiceId, $invoiceNumber, $batch = null)
+    public function kembalikanStokInvoice($obatId, $qty, $invoiceId, $fallbackGudangId, $refType, $refId, $keterangan)
     {
-        return $this->kurangiStok(
-            $obatId, 
-            $gudangId, 
-            $jumlah, 
-            $batch,
-            'invoice_penjualan', 
-            $invoiceId,
-            "Penjualan via Invoice: {$invoiceNumber}"
-        );
-    }
+        return DB::transaction(function () use ($obatId, $qty, $invoiceId, $fallbackGudangId, $refType, $refId, $keterangan) {
+            $remaining = round((float) $qty, 4);
+            if ($remaining <= 0) {
+                throw new \InvalidArgumentException('Jumlah stok yang dikembalikan harus lebih dari 0.');
+            }
 
-    /**
-     * Khusus untuk mutasi dengan ID transaksi mutasi
-     *
-     * @param int $obatId
-     * @param int $fromGudangId
-     * @param int $toGudangId
-     * @param float $jumlah
-     * @param int $mutasiId
-     * @param string $noMutasi
-     * @param string|null $batch
-     * @return bool
-     */
-    public function mutasiViaTransaksi($obatId, $fromGudangId, $toGudangId, $jumlah, $mutasiId, $noMutasi, $batch = null)
-    {
-        return $this->mutasiStok($obatId, $fromGudangId, $toGudangId, $jumlah, $batch, $mutasiId);
-    }
+            $sold = KartuStok::where('obat_id', $obatId)
+                ->where('ref_type', 'invoice_penjualan')
+                ->where('ref_id', $invoiceId)
+                ->where('tipe', 'keluar')
+                ->select('gudang_id', 'batch', DB::raw('SUM(qty) as qty'), DB::raw('MAX(id) as last_id'))
+                ->groupBy('gudang_id', 'batch')
+                ->orderByDesc('last_id')
+                ->get();
 
-    /**
-     * Khusus untuk stok opname dengan ID transaksi
-     *
-     * @param int $obatId
-     * @param int $gudangId
-     * @param float $stokFisik
-     * @param int $stokOpnameId
-     * @param string $noStokOpname
-     * @param string|null $batch
-     * @return ObatStokGudang
-     */
-    public function stokOpnameViaTransaksi($obatId, $gudangId, $stokFisik, $stokOpnameId, $noStokOpname, $batch = null)
-    {
-        return $this->updateStokFisik($obatId, $gudangId, $stokFisik, $batch, $stokOpnameId);
-    }
+            // Earlier billing-edit returns of this invoice: never give back more than was taken per batch
+            $returned = KartuStok::where('obat_id', $obatId)
+                ->where('ref_type', 'invoice_return')
+                ->where('ref_id', $invoiceId)
+                ->where('tipe', 'masuk')
+                ->select('gudang_id', 'batch', DB::raw('SUM(qty) as qty'))
+                ->groupBy('gudang_id', 'batch')
+                ->get()
+                ->keyBy(function ($r) {
+                    return $r->gudang_id . '|' . $r->batch;
+                });
 
-    /**
-     * Khusus untuk retur pembelian - menambah stok kembali
-     *
-     * @param int $obatId
-     * @param int $gudangId
-     * @param float $jumlah
-     * @param int $returId
-     * @param string $noRetur
-     * @param string|null $batch
-     * @param float|null $hargaBeli
-     * @param float|null $hargaBeliJual
-     * @return ObatStokGudang
-     */
-    public function returPembelianViaTransaksi($obatId, $gudangId, $jumlah, $returId, $noRetur, $batch = null, $hargaBeli = null, $hargaBeliJual = null)
-    {
-        $keterangan = "Retur Pembelian - {$noRetur}";
-        
-        return $this->tambahStok(
-            $obatId,
-            $gudangId,
-            $jumlah,
-            $batch,
-            null, // expDate
-            null, // rak
-            null, // lokasi
-            $hargaBeli,
-            $hargaBeliJual,
-            'retur_pembelian', // refType
-            $returId, // refId
-            $keterangan
-        );
+            foreach ($sold as $row) {
+                if ($remaining <= 0) {
+                    break;
+                }
+                $alreadyReturned = (float) optional($returned->get($row->gudang_id . '|' . $row->batch))->qty;
+                $part = min($remaining, round((float) $row->qty - $alreadyReturned, 4));
+                if ($part <= 0) {
+                    continue;
+                }
+
+                $expDate = ObatStokGudang::withTrashed()
+                    ->where('obat_id', $obatId)
+                    ->where('gudang_id', $row->gudang_id)
+                    ->where('batch', $row->batch)
+                    ->value('expiration_date');
+
+                $this->tambahStok($obatId, $row->gudang_id, $part, $row->batch, $expDate, null, null, null, null, $refType, $refId, $keterangan);
+                $remaining = round($remaining - $part, 4);
+            }
+
+            if ($remaining > 0) {
+                if (!$fallbackGudangId) {
+                    throw new \RuntimeException('Gudang pengembalian stok tidak diketahui.');
+                }
+                // No sale history (e.g. sold before kartu stok existed): newest usable batch of the fallback gudang
+                $batchRow = ObatStokGudang::where('obat_id', $obatId)
+                    ->where('gudang_id', $fallbackGudangId)
+                    ->layakPakai()
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->first();
+
+                $this->tambahStok(
+                    $obatId,
+                    $fallbackGudangId,
+                    $remaining,
+                    $batchRow ? $batchRow->batch : 'RETURN-' . date('YmdHis'),
+                    $batchRow ? $batchRow->expiration_date : null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $refType,
+                    $refId,
+                    $keterangan
+                );
+            }
+
+            return true;
+        });
     }
 }

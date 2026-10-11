@@ -7,27 +7,24 @@
 <div class="container-fluid">
     <!-- Page-Title -->
     <style>
-        /* Fix table layout and column widths so long names wrap into multiple lines */
-        #stok-table { table-layout: fixed !important; width: 100% !important; }
-        #stok-table th, #stok-table td { overflow: hidden; }
-        /* Clickable headers: pointer cursor for sortable feel */
-        #stok-table th { cursor: pointer; }
-        /* Column widths (adjust proportions) */
-        #stok-table th:nth-child(1), #stok-table td:nth-child(1) { width: 50%; white-space: normal; word-break: break-word; }
-        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 10%; white-space: nowrap; text-align: right; }
-        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
-        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
-        /* Keep actions grouped on a single line */
-        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 14%; white-space: nowrap; text-align: center; overflow: visible; }
-        /* Ensure button itself doesn't wrap and displays correctly */
-        #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
+        /* Main table: long names wrap; the Responsive extension folds HPP / Nilai Stok on narrow screens */
+        #stok-table { width: 100% !important; }
         #stok-table td { vertical-align: middle; }
-        /* Emphasize main columns: Nama Obat link and Stok value */
-        #stok-table td:nth-child(1) a { font-weight: 700; }
-        #stok-table td:nth-child(2) { font-weight: 700; }
-        /* Ensure buttons don't force expansion, but allow obat name links to wrap */
-        #stok-table .btn { white-space: nowrap; }
-        #stok-table td:nth-child(2) a { white-space: normal; display: inline-block; max-width:100%; overflow-wrap: anywhere; word-wrap: break-word; }
+        #stok-table td.col-nama { white-space: normal; word-break: break-word; }
+        #stok-table td.col-nama a { font-weight: 700; }
+        #stok-table td.col-stok { text-align: right; white-space: nowrap; }
+        #stok-table td.col-stok .badge { white-space: normal; }
+        #stok-table td.col-angka { text-align: right; white-space: nowrap; }
+        #stok-table td.col-aksi { text-align: center; white-space: nowrap; }
+        #stok-table tbody tr.row-selected > td { background-color: rgba(0, 123, 255, .08) !important; }
+        /* Kartu stok stays in view while scrolling the table (desktop) */
+        @media (min-width: 768px) {
+            .kartu-stok-sticky { position: sticky; top: 80px; }
+            .kartu-stok-sticky .card-body { max-height: calc(100vh - 160px); overflow-y: auto; }
+        }
+        /* Header buttons wrap instead of overflowing on small screens */
+        .page-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .page-actions .btn { margin: 0 !important; }
         /* Compact filter styles */
         .compact-filters .form-group { margin-bottom: 6px; }
         .compact-filters label { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
@@ -36,7 +33,7 @@
         .compact-filters .form-check-label { font-size: 13px; font-weight:700; }
         .compact-filters .form-text { font-size: 11px; margin-top: 2px; }
         /* Notification badge on top-right of button */
-        #btn-low-stock, #btn-expiring { position: relative; }
+        #btn-low-stock, #btn-audit { position: relative; }
         .notification-badge {
             position: absolute;
             top: -6px;
@@ -69,6 +66,9 @@
         #stok-table .action-buttons .btn {
             min-width: 32px;
         }
+        .summary-card[data-status-filter], .summary-card[data-open] { cursor: pointer; transition: box-shadow .15s; }
+        .summary-card[data-status-filter]:hover, .summary-card[data-open]:hover { box-shadow: 0 0 0 2px rgba(0,123,255,.35); }
+        #lowstock-table td { vertical-align: middle; }
     </style>
 
     <div class="row">
@@ -82,24 +82,70 @@
                             <li class="breadcrumb-item active">Manajemen Stok</li>
                         </ol>
                     </div>
-                    <div class="col-auto ml-auto d-flex align-items-center">
-                        <button type="button" class="btn btn-outline-dark mr-2" id="btn-master-gudang" title="Kelola master gudang">
-                            <i class="fas fa-warehouse"></i>&nbsp;Master Gudang
-                        </button>
-                        <button type="button" class="btn btn-outline-info mr-2" id="btn-sync-minmax" title="Sync min dan max ke record gudang yang masih kosong">
-                            <i class="fas fa-sync-alt"></i>&nbsp;Sync Min/Max
-                        </button>
-                        <button type="button" class="btn btn-primary mr-2" id="btn-low-stock" title="Tampilkan obat dengan stok di bawah minimum">
-                            <i class="fas fa-exclamation-triangle"></i>&nbsp;Stok Habis
+                    <div class="col-12 col-md-auto ml-auto page-actions align-items-center mt-2 mt-md-0">
+                        <a href="{{ route('erm.obat.forecast.index') }}" class="btn btn-outline-primary mr-2" title="Forecast pembelian: titik pesan, stok maks, dan saran qty pesan per box">
+                            <i class="fas fa-chart-line"></i>&nbsp;Forecast
+                        </a>
+                        <button type="button" class="btn btn-primary mr-2" id="btn-low-stock" title="Obat yang stok + pending-nya sudah di bawah titik pesan (menurut forecast)">
+                            <i class="fas fa-shopping-cart"></i>&nbsp;Perlu Dipesan
                             <span id="low-stock-count" class="notification-badge" style="display:none;">0</span>
                         </button>
-                        <button type="button" class="btn btn-warning mr-2" id="btn-expiring" title="Tampilkan obat yang kadaluarsa dalam 6 bulan">
-                            <i class="fas fa-hourglass-half"></i>&nbsp;Stok Expired
-                            <span id="expiring-count" class="notification-badge" style="display:none;">0</span>
+                        <button type="button" class="btn btn-outline-secondary" id="btn-audit" title="Batch dengan data mencurigakan: ED default/kosong, batch tidak resmi, tidak cocok dengan kartu stok, dll">
+                            <i class="fas fa-search"></i>&nbsp;Data Perlu Dicek
+                            <span id="audit-count" class="notification-badge" style="display:none;">0</span>
                         </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnStokMigrate" title="Lengkapi ED dan stok batch hasil migrasi stok lama">
-                            <i class="fas fa-box-open"></i>&nbsp;Stok MIGRATE
-                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ringkasan -->
+    <div class="row stok-summary">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card h-100 mb-0 summary-card" data-status-filter="perlu_dipesan" title="Klik untuk menampilkan obat yang perlu dipesan">
+                <div class="card-body d-flex align-items-center">
+                    <div class="mr-3"><i class="fas fa-shopping-cart fa-2x text-warning"></i></div>
+                    <div>
+                        <div class="text-muted small">Perlu Dipesan</div>
+                        <div class="h4 mb-0 font-weight-bold" id="summary-perlu-pesan">-</div>
+                        <div class="small"><span class="text-danger" id="summary-kritis">-</span> kritis · <span id="summary-menunggu">-</span> menunggu barang</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card h-100 mb-0 summary-card" data-open="expiring" title="Klik untuk melihat batch yang akan / sudah expired">
+                <div class="card-body d-flex align-items-center">
+                    <div class="mr-3"><i class="fas fa-hourglass-half fa-2x text-danger"></i></div>
+                    <div>
+                        <div class="text-muted small">Expired & Akan Expired (gudang aktif)</div>
+                        <div class="h4 mb-0 font-weight-bold" id="summary-sudah-expired">-</div>
+                        <div class="small"><span id="summary-expired-30">-</span> dalam 30 hari · <span id="summary-akan-expired">-</span> obat dalam 6 bulan</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card h-100 mb-0 summary-card" data-status-filter="tidak_bergerak" title="Klik untuk menampilkan stok yang tidak bergerak">
+                <div class="card-body d-flex align-items-center">
+                    <div class="mr-3"><i class="fas fa-pause-circle fa-2x text-secondary"></i></div>
+                    <div>
+                        <div class="text-muted small">Stok Tidak Bergerak (3 bln)</div>
+                        <div class="h4 mb-0 font-weight-bold" id="summary-nilai-tidak-bergerak">-</div>
+                        <div class="small"><span id="summary-tidak-bergerak">-</span> obat · <span id="summary-overstock">-</span> overstock</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card h-100 mb-0">
+                <div class="card-body d-flex align-items-center">
+                    <div class="mr-3"><i class="fas fa-coins fa-2x text-success"></i></div>
+                    <div>
+                        <div class="text-muted small">Nilai Stok Gudang Terpilih</div>
+                        <div class="h4 mb-0 font-weight-bold" id="nilai-stok-gudang">Rp 0</div>
+                        <div class="small">Keseluruhan: <span id="nilai-stok-keseluruhan">Rp 0</span></div>
                     </div>
                 </div>
             </div>
@@ -110,34 +156,48 @@
         <div class="col-md-7">
             <div class="card">
                 <div class="card-header">
-                    <div class="row align-items-center mb-3">
+                    <div class="row align-items-center mb-2">
                         <div class="col">
                             <h4 class="card-title">Data Stok Obat per Gudang</h4>
                         </div>
                     </div>
-                    <!-- Filter Row (compact) -->
-                    <div class="row compact-filters">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_gudang">Pilih Gudang</label>
+                    <!-- Filters: what to show on row 1, how to narrow it on row 2 -->
+                    <div class="compact-filters">
+                        <div class="form-row">
+                            <div class="col-sm-5 form-group">
+                                <label for="filter_gudang">Gudang</label>
                                 <select class="form-control form-control-sm" id="filter_gudang">
                                     @foreach($gudangs as $gudang)
-                                        <option value="{{ $gudang->id }}" {{ $gudang->id === $defaultGudang->id ? 'selected' : '' }}>
+                                        <option value="{{ $gudang->id }}" {{ $defaultGudang && $gudang->id === $defaultGudang->id ? 'selected' : '' }}>
                                             {{ $gudang->nama }}
                                         </option>
                                     @endforeach
                                 </select>
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
+                            <div class="col-sm-7 form-group">
                                 <label for="search_obat">Cari Obat</label>
-                                <input type="text" class="form-control form-control-sm" id="search_obat" placeholder="Ketik nama obat atau kode...">
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
+                                    <input type="search" class="form-control" id="search_obat" placeholder="Nama obat atau kode..." autocomplete="off">
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filter_kategori">Filter Kategori</label>
+                        <div class="form-row align-items-end">
+                            <div class="col-6 col-sm-4 form-group">
+                                <label for="filter_status_stok">Status Stok</label>
+                                <select class="form-control form-control-sm" id="filter_status_stok">
+                                    <option value="">Semua</option>
+                                    <option value="perlu_dipesan">Perlu Dipesan</option>
+                                    <option value="kritis">Kritis</option>
+                                    <option value="menunggu">Menunggu Barang</option>
+                                    <option value="aman">Aman</option>
+                                    <option value="overstock">Overstock</option>
+                                    <option value="tidak_bergerak">Tidak Bergerak</option>
+                                    <option value="stop_pengadaan">Stop Pengadaan</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-sm-4 form-group">
+                                <label for="filter_kategori">Kategori</label>
                                 <select class="form-control form-control-sm" id="filter_kategori">
                                     <option value="">Semua Kategori</option>
                                     @foreach($kategoris as $kategori)
@@ -145,55 +205,45 @@
                                     @endforeach
                                 </select>
                             </div>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end justify-content-end">
-                            <div class="form-group mb-0 d-flex align-items-center">
-                                <!-- Hidden checkbox remains for existing JS listeners; toggle via icon button -->
-                                <input type="checkbox" id="hide_inactive_obat" checked style="display:none;" />
-                                <button type="button" id="btn-toggle-hide-inactive" class="btn btn-outline-primary btn-sm mr-2" data-toggle="tooltip" title="">
-                                    <i class="fas fa-eye"></i>
+                            <div class="col-12 col-sm-4 form-group d-flex justify-content-sm-end">
+                                <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="btn-reset-filter" title="Kosongkan pencarian dan filter">
+                                    <i class="fas fa-undo"></i> Reset
                                 </button>
-                                <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-filter">
-                                        <i class="fas fa-undo"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-success btn-sm ml-2" id="btn-download-stok">
-                                        <i class="fas fa-download"></i>
-                                    </button>
-                                </div>
+                                <button type="button" class="btn btn-success btn-sm" id="btn-download-stok" title="Download data stok ke Excel">
+                                    <i class="fas fa-file-excel"></i> Export
+                                </button>
                             </div>
+                        </div>
+                        <div class="custom-control custom-switch">
+                            <!-- Checked = obat nonaktif disembunyikan (default) -->
+                            <input type="checkbox" class="custom-control-input" id="hide_inactive_obat" checked>
+                            <label class="custom-control-label small" for="hide_inactive_obat">Sembunyikan obat nonaktif</label>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped table-hover dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;" id="stok-table">
-                            <thead>
-                                <tr>
-                                    <th>Nama Obat</th>
-                                    <th>Stok</th>
-                                    <th>HPP</th>
-                                    <th>Nilai Stok</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
+                    <table class="table table-bordered table-striped table-hover" style="width: 100%;" id="stok-table">
+                        <thead>
+                            <tr>
+                                <th>Nama Obat</th>
+                                <th class="text-right" title="Stok di gudang terpilih. Badge = status forecast untuk total stok semua gudang">Stok</th>
+                                <th class="text-right">HPP</th>
+                                <th class="text-right">Nilai Stok</th>
+                                <th class="text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                    </table>
                 </div>
             </div>
         </div>
 
         <div class="col-md-5">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Detail Kartu Stok</h4>
+            <div class="card kartu-stok-sticky" id="kartu-stok-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Detail Kartu Stok</h4>
+                    <button type="button" class="btn btn-sm btn-link text-muted p-0" id="btn-close-kartu-stok" style="display:none;" title="Tutup kartu stok"><i class="fas fa-times"></i></button>
                 </div>
-                <div class="card-body" id="kartu-stok-panel">
-                    <div class="text-center text-muted py-5">
-                        <i class="fas fa-info-circle fa-2x mb-2"></i>
-                        <div>Pilih sebuah obat dari daftar di kiri untuk melihat kartu stok detail di sini.</div>
-                    </div>
-                </div>
+                <div class="card-body" id="kartu-stok-panel"></div>
             </div>
         </div>
     </div>
@@ -272,7 +322,7 @@
                 <div class="modal-dialog modal-xl" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="lowStockLabel">Obat dengan Stok di Bawah Minimum</h5>
+                            <h5 class="modal-title" id="lowStockLabel">Obat Perlu Dipesan <small class="text-muted">(menurut forecast, stok + pending ≤ titik pesan)</small></h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
@@ -283,8 +333,11 @@
                                     <thead>
                                         <tr>
                                             <th>Nama Obat</th>
-                                            <th>Stok</th>
-                                            <th>Min Stok</th>
+                                            <th>Status</th>
+                                            <th class="text-right" title="Stok semua gudang kecuali gudang expired">Stok</th>
+                                            <th class="text-right" title="Pesanan yang belum datang">Pending</th>
+                                            <th class="text-right">Titik Pesan</th>
+                                            <th class="text-right">Saran Pesan</th>
                                             <th>Detail Stok per Gudang</th>
                                         </tr>
                                     </thead>
@@ -292,6 +345,8 @@
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <a href="{{ route('erm.obat.forecast.index') }}" class="btn btn-outline-primary mr-auto"><i class="fas fa-chart-line"></i> Buka Forecast Lengkap</a>
+                            <a href="{{ route('erm.permintaan.index', ['baru' => 1]) }}" class="btn btn-success"><i class="fas fa-file-invoice"></i> Buat Permintaan Pembelian</a>
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         </div>
                     </div>
@@ -303,12 +358,18 @@
                 <div class="modal-dialog modal-xl" role="document">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="expiringLabel">Obat dengan Expiration kurang dari 6 bulan</h5>
+                            <h5 class="modal-title" id="expiringLabel">Batch Kadaluarsa dalam 6 Bulan / Sudah Lewat ED <small class="text-muted">(gudang aktif)</small></h5>
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                 <span aria-hidden="true">&times;</span>
                             </button>
                         </div>
                         <div class="modal-body">
+                            <div class="alert alert-light border small mb-3">
+                                <i class="fas fa-info-circle"></i>
+                                Batch yang sudah lewat ED tidak bisa dijual atau dimutasi. Pindahkan ke gudang expired per batch atau sekaligus lewat tombol di bawah.
+                                Batch migrasi (<strong>MIGRATE-*</strong>) tidak tampil di sini karena ED-nya belum diketahui; lengkapi dulu lewat <strong>Data Perlu Dicek</strong>.
+                                Dari gudang expired, stok hanya keluar lewat <strong>Retur ke Supplier</strong> atau <strong>Pemusnahan</strong> (dengan Berita Acara).
+                            </div>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-striped" id="expiring-table" style="width:100%">
                                     <thead>
@@ -325,69 +386,46 @@
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary mr-auto" id="btn-riwayat-tindak-lanjut"><i class="fas fa-history"></i> Riwayat Retur / Pemusnahan</button>
+                            @hasanyrole('Admin|Farmasi')
+                            <button type="button" class="btn btn-danger" id="btn-move-all-expired" title="Pindahkan semua batch yang sudah lewat ED dari semua gudang aktif ke gudang expired"><i class="fas fa-dolly"></i> Pindahkan Semua yang Sudah Expired</button>
+                            @endhasanyrole
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-<!-- Nilai Stok Gudang & Keseluruhan -->
-<div class="row mt-3">
-    <div class="col-md-6">
-        <div class="card shadow-sm border-left-primary">
-            <div class="card-body d-flex align-items-center">
-                <div class="mr-3">
-                    <i class="fas fa-warehouse fa-2x text-primary"></i>
-                </div>
-                <div>
-                    <div class="text-muted small">Nilai Stok Gudang Terpilih</div>
-                    <div class="h4 mb-0 font-weight-bold" id="nilai-stok-gudang">Rp 0</div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card shadow-sm border-left-success">
-            <div class="card-body d-flex align-items-center">
-                <div class="mr-3">
-                    <i class="fas fa-coins fa-2x text-success"></i>
-                </div>
-                <div>
-                    <div class="text-muted small">Nilai Stok Keseluruhan</div>
-                    <div class="h4 mb-0 font-weight-bold" id="nilai-stok-keseluruhan">Rp 0</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal for Edit Min/Max -->
-<div class="modal fade" id="editMinMaxModal" tabindex="-1" role="dialog" aria-labelledby="editMinMaxLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<!-- Modal Riwayat Tindak Lanjut Expired -->
+<div class="modal fade" id="riwayatTindakLanjutModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editMinMaxLabel">Edit Min / Max Stok Total</h5>
+                <h5 class="modal-title">Riwayat Retur / Pemusnahan Stok Expired</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="form-edit-minmax">
-                    <input type="hidden" id="minmax_obat_id" name="obat_id" />
-                    <div class="form-group">
-                        <label for="min_stok">Min Stok</label>
-                        <input type="number" step="1" min="0" class="form-control" id="min_stok" name="min_stok" />
-                    </div>
-                    <div class="form-group">
-                        <label for="max_stok">Max Stok</label>
-                        <input type="number" step="1" min="0" class="form-control" id="max_stok" name="max_stok" />
-                    </div>
-                </form>
-                <small class="text-muted d-block mb-2">Pengaturan ini berlaku untuk total stok obat di semua gudang, bukan per gudang.</small>
-                <div id="minmaxAlert"></div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped table-sm" id="riwayat-tindak-lanjut-table" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Nomor Dokumen</th>
+                                <th>Jenis</th>
+                                <th>Tanggal</th>
+                                <th>Obat</th>
+                                <th class="text-right">Batch</th>
+                                <th class="text-right">Jumlah</th>
+                                <th>Status</th>
+                                <th>Petugas</th>
+                                <th>Dokumen</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary" id="save-minmax-btn"><i class="fas fa-save"></i> Simpan</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -410,9 +448,6 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-success" id="btn-save-batch-changes" style="display: none;">
-                    <i class="fas fa-save"></i> Simpan Perubahan
-                </button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -436,21 +471,53 @@
                         <div class="small text-muted">Obat</div>
                         <div class="font-weight-bold" id="expired_follow_up_obat_nama">-</div>
                     </div>
-                    <div class="form-group">
-                        <label for="expired_follow_up_action">Tindak Lanjut</label>
-                        <select class="form-control" id="expired_follow_up_action" name="tindak_lanjut" required>
-                            <option value="">-- Pilih Tindak Lanjut --</option>
-                            <option value="diretur">Diretur</option>
-                            <option value="dimusnahkan">Dimusnahkan</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group col-md-7">
+                            <label for="expired_follow_up_action">Tindak Lanjut <span class="text-danger">*</span></label>
+                            <select class="form-control" id="expired_follow_up_action" name="tindak_lanjut" required>
+                                <option value="">-- Pilih Tindak Lanjut --</option>
+                                <option value="diretur">Retur ke Supplier</option>
+                                <option value="dimusnahkan">Pemusnahan</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-5">
+                            <label for="expired_follow_up_tanggal">Tanggal <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="expired_follow_up_tanggal" name="tanggal" required>
+                        </div>
+                    </div>
+                    <div class="alert alert-info small py-2 follow-up-help" data-action="diretur" style="display:none;">
+                        Sistem membuat <strong>Retur ke Supplier</strong> (status diajukan) untuk faktur asal setiap batch.
+                        Stok baru keluar dari gudang expired setelah retur di-approve di menu Retur ke Supplier. Batch yang tidak ditemukan fakturnya tidak bisa diretur, jadi pilih Pemusnahan untuk batch tersebut.
+                    </div>
+                    <div class="follow-up-musnah" style="display:none;">
+                        <div class="form-group">
+                            <label for="expired_follow_up_metode">Metode Pemusnahan <span class="text-danger">*</span></label>
+                            <select class="form-control" id="expired_follow_up_metode" name="metode">
+                                <option value="">-- Pilih Metode --</option>
+                                @foreach ($metodePemusnahan as $metode)
+                                    <option value="{{ $metode }}">{{ $metode }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="expired_follow_up_saksi_1">Saksi 1 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="expired_follow_up_saksi_1" name="saksi_1" maxlength="150" placeholder="Nama saksi">
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="expired_follow_up_saksi_2">Saksi 2 <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="expired_follow_up_saksi_2" name="saksi_2" maxlength="150" placeholder="Nama saksi">
+                            </div>
+                        </div>
+                        <div class="alert alert-info small py-2">
+                            Semua batch obat ini di gudang expired dikeluarkan dan dicatat di <strong>Berita Acara Pemusnahan</strong> yang bisa dicetak dan ditandatangani.
+                        </div>
                     </div>
                     <div class="form-group mb-0">
-                        <label for="expired_follow_up_notes">Notes</label>
-                        <textarea class="form-control" id="expired_follow_up_notes" name="notes" rows="4" placeholder="Isi catatan tindak lanjut expired..." required></textarea>
-                        <small class="form-text text-muted">Semua batch aktif untuk obat ini di gudang expired akan dicatat dan stoknya dikeluarkan dari gudang expired.</small>
+                        <label for="expired_follow_up_notes">Keterangan</label>
+                        <textarea class="form-control" id="expired_follow_up_notes" name="notes" rows="3" maxlength="2000" placeholder="Opsional"></textarea>
                     </div>
                 </form>
-                <div id="expiredFollowUpAlert" class="mt-3"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-primary" id="save-expired-follow-up-btn"><i class="fas fa-save"></i> Simpan</button>
@@ -460,40 +527,68 @@
     </div>
 </div>
 
-<!-- Modal: Stok batch MIGRATE -->
-<div class="modal fade" id="stokMigrateModal" tabindex="-1" role="dialog" aria-labelledby="stokMigrateModalLabel" aria-hidden="true">
+<!-- Modal: preview dokumen referensi kartu stok -->
+<div class="modal fade" id="refPreviewModal" tabindex="-1" role="dialog" aria-labelledby="refPreviewTitle" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="stokMigrateModalLabel">Stok Batch MIGRATE</h5>
+                <h5 class="modal-title" id="refPreviewTitle">Dokumen</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0" id="refPreviewContent" style="min-height:300px;"></div>
+            <div class="modal-footer">
+                <a href="#" target="_blank" class="btn btn-outline-secondary mr-auto" id="refPreviewOpen"><i class="fas fa-external-link-alt"></i> Buka di tab baru</a>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Data Perlu Dicek (batch dengan data mencurigakan) -->
+<div class="modal fade" id="auditModal" tabindex="-1" role="dialog" aria-labelledby="auditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="auditModalLabel"><i class="fas fa-search"></i> Data Stok Perlu Dicek</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-2">
-                    Batch <strong>MIGRATE-*</strong> berasal dari migrasi stok lama dan ED-nya masih tanggal sementara.
-                    Ganti nama batch dengan nomor batch asli, lalu isi ED dan stok sesuai hasil cek fisik. Batch yang sudah diganti namanya tidak muncul lagi di daftar ini.
-                    Perubahan stok wajib diberi keterangan dan tercatat di kartu stok.
+                    Batch yang datanya terlihat tidak wajar, misalnya ED default/kosong, nomor batch buatan sistem, batch yang tidak ada di dokumen masuk, atau stok yang tidak cocok dengan kartu stok.
+                    Perbaiki <strong>nomor batch dan ED</strong> langsung di tabel (sesuai fisik barang). Untuk <strong>jumlah</strong>, gunakan Penyesuaian Stok atau Stok Opname.
                 </p>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="migrateIncludeEmpty">
-                        <label class="custom-control-label" for="migrateIncludeEmpty">Tampilkan juga yang stoknya 0</label>
+                <div class="d-flex flex-wrap align-items-center mb-2" id="audit-chips"></div>
+                <div class="form-row align-items-end mb-2">
+                    <div class="col-md-4 mb-2">
+                        <select class="form-control form-control-sm" id="audit_gudang">
+                            <option value="">Semua Gudang</option>
+                            @foreach($gudangs as $gudang)
+                                <option value="{{ $gudang->id }}">{{ $gudang->nama }}</option>
+                            @endforeach
+                        </select>
                     </div>
-                    <span class="badge badge-warning" id="migrateCountBadge"></span>
+                    <div class="col-md-5 mb-2">
+                        <input type="search" class="form-control form-control-sm" id="audit_search" placeholder="Cari nama obat atau batch...">
+                    </div>
+                    <div class="col-md-3 mb-2 text-md-right">
+                        <span class="small text-muted" id="audit-info"></span>
+                    </div>
                 </div>
                 <div class="table-responsive">
-                    <table class="table table-sm table-bordered table-hover mb-0" id="stokMigrateTable">
+                    <table class="table table-sm table-bordered table-hover mb-0" id="auditTable">
                         <thead class="thead-light">
                             <tr>
                                 <th>Obat</th>
                                 <th>Gudang</th>
-                                <th style="width:200px">Batch</th>
+                                <th style="width:190px">Batch</th>
                                 <th style="width:150px">ED</th>
-                                <th style="width:130px" class="text-right">Stok</th>
-                                <th style="width:200px">Keterangan</th>
-                                <th style="width:80px"></th>
+                                <th style="width:110px" class="text-right">Stok</th>
+                                <th>Temuan</th>
+                                <th style="width:150px"></th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -501,285 +596,254 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary mr-auto" id="btn-audit-refresh"><i class="fas fa-sync-alt"></i> Muat ulang</button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Master Gudang Modal -->
-<div class="modal fade" id="masterGudangModal" tabindex="-1" role="dialog" aria-labelledby="masterGudangModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="masterGudangModalLabel">Master Gudang</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="gudangForm" class="border rounded p-3 mb-3 bg-light">
-                    <input type="hidden" id="gudang_form_id">
-                    <h6 class="mb-3" id="gudangFormTitle">Tambah Gudang</h6>
-                    <div class="form-row">
-                        <div class="form-group col-md-5">
-                            <label for="gudang_form_nama">Nama Gudang <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-sm" id="gudang_form_nama" data-field="nama" required maxlength="255">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="form-group col-md-7">
-                            <label for="gudang_form_lokasi">Lokasi</label>
-                            <input type="text" class="form-control form-control-sm" id="gudang_form_lokasi" data-field="lokasi" maxlength="255">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <button type="button" class="btn btn-secondary btn-sm" id="btn-gudang-cancel" style="display:none;">Batal Edit</button>
-                        <button type="submit" class="btn btn-primary btn-sm" id="btn-gudang-save">
-                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
-                            <i class="fas fa-save"></i> Simpan
-                        </button>
-                    </div>
-                </form>
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover table-sm w-100" id="gudang-table">
-                        <thead>
-                            <tr>
-                                <th>Nama Gudang</th>
-                                <th>Lokasi</th>
-                                <th>Dibuat</th>
-                                <th width="100px">Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
 @section('scripts')
+<style>
+    /* Above stacked Bootstrap modals (their z-index is raised per level) */
+    .swal2-container { z-index: 2000 !important; }
+</style>
 <script type="text/javascript">
+// SweetAlert2 (v9) helpers shared by every script on this page
+window.StokUi = {
+    success: function(message, title) {
+        return Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: title || message,
+            text: title ? message : undefined,
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true
+        });
+    },
+    error: function(message, title) {
+        return Swal.fire({ icon: 'error', title: title || 'Gagal', text: message || 'Terjadi kesalahan.' });
+    },
+    warning: function(message, title) {
+        return Swal.fire({ icon: 'warning', title: title || 'Periksa kembali', html: message });
+    },
+    // Resolves to true only when the user confirmed
+    confirm: function(options) {
+        return Swal.fire({
+            icon: options.icon || 'warning',
+            title: options.title || 'Lanjutkan?',
+            html: options.html,
+            text: options.text,
+            showCancelButton: true,
+            confirmButtonText: options.confirmText || 'Ya, lanjutkan',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: options.danger ? '#d33' : '#3085d6',
+            cancelButtonColor: '#6c757d',
+            reverseButtons: true,
+            focusCancel: !!options.danger
+        }).then(function(result) { return !!result.value; });
+    },
+    // Message from a failed $.ajax call (validation errors, JSON message or a fallback)
+    xhrMessage: function(xhr, fallback) {
+        var json = xhr && xhr.responseJSON;
+        if (json && json.errors) {
+            return Object.keys(json.errors).map(function(k) { return json.errors[k][0]; }).join('\n');
+        }
+        return (json && json.message) || fallback || 'Terjadi kesalahan.';
+    }
+};
+
 $(document).ready(function() {
-    // Initialize select2
-    $('.select2').select2();
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).replace(/[&<>"']/g, function(s) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s];
+        });
+    }
+
+    var GUDANG_STORAGE_KEY = 'stokGudang.gudangId';
+
+    // Remember the last gudang per browser (per-viewer convenience only)
+    try {
+        var savedGudang = window.localStorage.getItem(GUDANG_STORAGE_KEY);
+        if (savedGudang && $('#filter_gudang option[value="' + savedGudang + '"]').length) {
+            $('#filter_gudang').val(savedGudang);
+        }
+    } catch (e) {}
+
+    var KARTU_STOK_EMPTY = '<div class="text-center text-muted py-5">'
+        + '<i class="fas fa-book-open fa-2x mb-2"></i>'
+        + '<div>Klik tombol <i class="fas fa-book-open"></i> pada daftar obat untuk melihat kartu stok di sini.</div>'
+        + '</div>';
+    function resetKartuStokPanel() {
+        $('#kartu-stok-panel').html(KARTU_STOK_EMPTY);
+        $('#btn-close-kartu-stok').hide();
+        $('#stok-table tbody tr').removeClass('row-selected');
+    }
+    resetKartuStokPanel();
+    $('#btn-close-kartu-stok').on('click', resetKartuStokPanel);
 
     // Initialize DataTable
     var table = $('#stok-table').DataTable({
         processing: true,
         serverSide: true,
-        searching: false, // Disable built-in search
+        searching: false, // filters above the table are sent to the server
         autoWidth: false,
         ajax: {
             url: '{{ route("erm.stok-gudang.data") }}',
             data: function(d) {
                 d.gudang_id = $('#filter_gudang').val();
                 d.search_obat = $('#search_obat').val();
-                    d.kategori = $('#filter_kategori').val();
+                d.kategori = $('#filter_kategori').val();
+                d.status_stok = $('#filter_status_stok').val();
                 d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
             }
         },
         columns: [
-            { data: 'nama_obat', name: 'nama_obat', searchable: false },
-            { data: 'total_stok', name: 'total_stok', searchable: false },
-            { data: 'hpp', name: 'hpp', searchable: false, orderable: true },
-            { data: 'nilai_stok', name: 'nilai_stok', searchable: false, orderable: true },
-            { data: 'actions', name: 'actions', orderable: false, searchable: false }
+            { data: 'nama_obat', name: 'nama_obat', searchable: false, className: 'col-nama', responsivePriority: 1 },
+            { data: 'total_stok', name: 'total_stok', searchable: false, className: 'col-stok', responsivePriority: 2, width: '22%' },
+            { data: 'hpp', name: 'hpp', searchable: false, className: 'col-angka', responsivePriority: 5, width: '12%' },
+            { data: 'nilai_stok', name: 'nilai_stok', searchable: false, className: 'col-angka', responsivePriority: 4, width: '14%' },
+            { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'col-aksi', responsivePriority: 3, width: '110px' }
         ],
         order: [[0, 'asc']],
         pageLength: 25,
+        lengthMenu: [10, 25, 50, 100],
         responsive: true,
-        drawCallback: function(settings) {
-            // Re-initialize tooltips after table redraw
-            $('[data-toggle="tooltip"]').tooltip();
-            feather.replace();
+        language: {
+            processing: '<i class="fas fa-spinner fa-spin"></i> Memuat...',
+            lengthMenu: 'Tampilkan _MENU_ obat',
+            zeroRecords: 'Tidak ada obat yang cocok dengan filter.',
+            emptyTable: 'Belum ada stok di gudang ini.',
+            info: 'Menampilkan _START_–_END_ dari _TOTAL_ obat',
+            infoEmpty: 'Tidak ada data',
+            paginate: { previous: '‹', next: '›' }
+        },
+        drawCallback: function() {
+            // Tooltips only inside the table; dispose first so they do not pile up on every redraw
+            var $tips = $('#stok-table [data-toggle="tooltip"]');
+            try { $tips.tooltip('dispose'); } catch (e) {}
+            $tips.tooltip();
         }
     });
 
+    // One request refreshes every number in the header (cards + button badges).
+    // Several actions call these helpers right after each other, so the call is debounced.
+    var summaryTimer = null;
+    function refreshSummary() {
+        clearTimeout(summaryTimer);
+        summaryTimer = setTimeout(loadSummary, 150);
+    }
+    var updateNilaiStok = refreshSummary;
+    var updateLowStockCount = refreshSummary;
+    var updateExpiringCount = refreshSummary;
+    var updateSummary = refreshSummary;
 
-    // Reload table and update nilai stok when warehouse filter changes
-    $('#filter_gudang').change(function() {
+    function formatRupiah(value) {
+        return 'Rp ' + Number(value || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 });
+    }
+
+    function setBadge($badge, count) {
+        count = parseInt(count || 0, 10);
+        if (count > 0) {
+            $badge.text(count > 99 ? '99+' : String(count)).show();
+        } else {
+            $badge.hide();
+        }
+    }
+
+    function loadSummary() {
+        $.get('{{ route("erm.stok-gudang.summary") }}', {
+            gudang_id: $('#filter_gudang').val(),
+            hide_inactive: $('#hide_inactive_obat').is(':checked') ? 1 : 0,
+            months: 6
+        }).done(function(res) {
+            $('#summary-perlu-pesan').text(Number(res.perlu_pesan || 0).toLocaleString('id-ID') + ' obat');
+            $('#summary-kritis').text(Number(res.kritis || 0).toLocaleString('id-ID'));
+            $('#summary-menunggu').text(Number(res.menunggu || 0).toLocaleString('id-ID'));
+            $('#summary-sudah-expired').text(Number(res.sudah_expired || 0).toLocaleString('id-ID') + ' batch');
+            $('#summary-expired-30').text(Number(res.expired_30_hari || 0).toLocaleString('id-ID'));
+            $('#summary-nilai-tidak-bergerak').text(formatRupiah(res.nilai_tidak_bergerak));
+            $('#summary-tidak-bergerak').text(Number(res.tidak_bergerak || 0).toLocaleString('id-ID'));
+            $('#summary-overstock').text(Number(res.overstock || 0).toLocaleString('id-ID'));
+            $('#nilai-stok-gudang').text(formatRupiah(res.nilai_gudang));
+            $('#nilai-stok-keseluruhan').text(formatRupiah(res.nilai_keseluruhan));
+
+            setBadge($('#low-stock-count'), res.perlu_pesan);
+            $('#btn-low-stock').toggleClass('btn-primary', res.perlu_pesan > 0).toggleClass('btn-outline-secondary', !(res.perlu_pesan > 0));
+            $('#summary-akan-expired').text(Number(res.akan_expired || 0).toLocaleString('id-ID'));
+            setBadge($('#audit-count'), res.data_perlu_dicek);
+            $('#btn-audit').toggleClass('btn-outline-danger', res.data_perlu_dicek > 0).toggleClass('btn-outline-secondary', !(res.data_perlu_dicek > 0));
+        });
+    }
+    loadSummary();
+
+    $('#filter_gudang').on('change', function() {
+        try { window.localStorage.setItem(GUDANG_STORAGE_KEY, $(this).val()); } catch (e) {}
+        // The kartu stok on screen belongs to the previous gudang
+        resetKartuStokPanel();
         table.ajax.reload();
-        updateNilaiStok();
-        updateLowStockCount();
+        refreshSummary();
     });
 
-    // Initial load of nilai stok
-    updateNilaiStok();
-    // Initial load of low-stock count
-    updateLowStockCount();
-    // Initial load of expiring count
-    updateExpiringCount();
-
-    function updateNilaiStok() {
-        var gudangId = $('#filter_gudang').val();
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.nilai-stok") }}',
-            type: 'GET',
-            data: { gudang_id: gudangId },
-            success: function(response) {
-                $('#nilai-stok-gudang').text('Rp ' + numberFormat(response.nilai_gudang));
-                $('#nilai-stok-keseluruhan').text('Rp ' + numberFormat(response.nilai_keseluruhan));
-            },
-            error: function() {
-                $('#nilai-stok-gudang').text('Rp 0');
-                $('#nilai-stok-keseluruhan').text('Rp 0');
-            }
-        });
-    }
-
-    function numberFormat(x) {
-        if (x === null || x === undefined || x === '') return '0.00';
-        var n = parseFloat(x);
-        if (isNaN(n)) return '0.00';
-        return n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-    }
-
-    // Update low-stock count badge
-    function updateLowStockCount() {
-        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.low-stock.count") }}',
-            type: 'GET',
-            data: { hide_inactive: hideInactive },
-            success: function(res) {
-                var count = res && res.count ? parseInt(res.count) : 0;
-                if (count > 0) {
-                    var display = count > 99 ? '99+' : String(count);
-                    $('#low-stock-count').text(display).show();
-                    $('#btn-low-stock').addClass('btn-primary').removeClass('btn-secondary');
-                } else {
-                    $('#low-stock-count').hide();
-                    $('#btn-low-stock').removeClass('btn-primary').addClass('btn-outline-secondary');
-                }
-            },
-            error: function() {
-                $('#low-stock-count').hide();
-            }
-        });
-    }
-
-    // Update expiring count badge
-    function updateExpiringCount() {
-        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.expiring.count") }}',
-            type: 'GET',
-            data: { hide_inactive: hideInactive, months: 6 },
-            success: function(res) {
-                var count = res && res.count ? parseInt(res.count) : 0;
-                if (count > 0) {
-                    var display = count > 99 ? '99+' : String(count);
-                    $('#expiring-count').text(display).show();
-                } else {
-                    $('#expiring-count').hide();
-                }
-            },
-            error: function() {
-                $('#expiring-count').hide();
-            }
-        });
-    }
-
-    // Search obat with delay
+    // Search as you type (debounced); 'input' also catches paste and the clear (x) button
     var searchTimeout;
-    $('#search_obat').on('keyup', function() {
+    $('#search_obat').on('input', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(function() {
             table.ajax.reload();
-        }, 500); // 500ms delay
+        }, 350);
     });
 
-    $('#btn-sync-minmax').on('click', function() {
-        var btn = $(this);
-        if (!confirm('Sync min/max ke semua record gudang yang masih kosong?')) {
-            return;
-        }
-
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>&nbsp;Syncing...');
-
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.sync-missing-minmax") }}',
-            type: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}'
-            },
-            success: function(response) {
-                var message = response.message || 'Sync min/max selesai.';
-                message += '\nObat tersinkron: ' + (response.synced_obat_count || 0);
-                message += '\nBaris tersinkron: ' + (response.synced_row_count || 0);
-                alert(message);
-                table.ajax.reload(null, false);
-                updateLowStockCount();
-            },
-            error: function(xhr) {
-                var message = 'Gagal sync min/max.';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                alert(message);
-            },
-            complete: function() {
-                btn.prop('disabled', false).html('<i class="fas fa-sync-alt"></i>&nbsp;Sync Min/Max');
-            }
-        });
-    });
-
-    // Kategori filter: reload table when changed (server-side filter applied)
-    $('#filter_kategori').change(function() {
+    // Kategori / status filter: reload table when changed (server-side filter applied)
+    $('#filter_kategori, #filter_status_stok').on('change', function() {
         table.ajax.reload();
     });
 
-    // Reload table when checkbox filter changes
-    $('#hide_inactive_obat').change(function() {
+    $('#hide_inactive_obat').on('change', function() {
         table.ajax.reload();
-        updateLowStockCount();
+        refreshSummary();
     });
 
-    // Toggle hidden checkbox when icon button is clicked and update icon/tooltip
-    function updateHideIcon() {
-        var checked = $('#hide_inactive_obat').is(':checked');
-        var btn = $('#btn-toggle-hide-inactive');
-        // If checked => we are HIDING inactive obat, so show eye-slash (means hidden)
-        if (checked) {
-            btn.find('i').removeClass('fa-eye').addClass('fa-eye-slash');
-            btn.attr('title', 'Tampilkan obat yang tidak aktif');
-            btn.removeClass('btn-outline-primary').addClass('btn-outline-secondary');
-        } else {
-            // Not checked => inactive are visible, show regular eye icon
-            btn.find('i').removeClass('fa-eye-slash').addClass('fa-eye');
-            btn.attr('title', 'Sembunyikan obat yang tidak aktif');
-            btn.removeClass('btn-outline-secondary').addClass('btn-outline-primary');
-        }
-        // Re-init tooltip
-        try { btn.tooltip('dispose'); } catch(e) {}
-        btn.tooltip();
-    }
-
-    $('#btn-toggle-hide-inactive').on('click', function() {
-        var cb = $('#hide_inactive_obat');
-        cb.prop('checked', !cb.is(':checked'));
-        cb.trigger('change');
-        updateHideIcon();
+    // Summary cards act as shortcuts
+    $('.summary-card[data-status-filter]').on('click', function() {
+        $('#filter_status_stok').val($(this).data('status-filter')).trigger('change');
+        $('html, body').animate({ scrollTop: $('#stok-table').offset().top - 120 }, 200);
+    });
+    $('.summary-card[data-open="expiring"]').on('click', function() {
+        openExpiringModal();
     });
 
-    // Initialize icon state
-    updateHideIcon();
-
-    // Reset filter button
-    $('#btn-reset-filter').click(function() {
+    $('#btn-reset-filter').on('click', function() {
         $('#search_obat').val('');
         $('#filter_kategori').val('');
-        $('#hide_inactive_obat').prop('checked', true); // Reset to default (checked)
+        $('#filter_status_stok').val('');
+        $('#hide_inactive_obat').prop('checked', true);
         table.ajax.reload();
+        refreshSummary();
     });
 
-    
-
+    // Bootstrap 4 drops body.modal-open when a stacked modal (batch details over Perlu Dipesan / Akan Expired)
+    // closes, which breaks scrolling of the modal still open underneath
+    $(document).on('hidden.bs.modal', '.modal', function() {
+        if ($('.modal.show').length) {
+            $('body').addClass('modal-open');
+        }
+    });
+    $(document).on('show.bs.modal', '.modal', function() {
+        var openCount = $('.modal.show').length;
+        if (openCount) {
+            $(this).css('z-index', 1050 + openCount * 20);
+            setTimeout(function() {
+                $('.modal-backdrop').not('.modal-stack').last().css('z-index', 1049 + openCount * 20).addClass('modal-stack');
+            }, 0);
+        }
+    });
 
         function renderBatchDetailsTable(response, showAll) {
             var allItems = Array.isArray(response.data) ? response.data : [];
@@ -789,43 +853,32 @@ $(document).ready(function() {
             var itemsToShow = showAll ? allItems : positiveItems.slice(0, 5);
             var hiddenCount = allItems.length - itemsToShow.length;
 
+            var showGudang = !!response.all_gudang;
+            var colCount = showGudang ? 5 : 4;
+
             var tableHtml = '<div class="table-responsive">';
             tableHtml += '<table class="table table-bordered" id="batch-table">';
             tableHtml += '<thead>';
             tableHtml += '<tr>';
-            tableHtml += '<th width="20%">Batch</th>';
-            tableHtml += '<th width="20%">Stok</th>';
-            tableHtml += '<th width="20%">Tanggal Expired</th>';
-            tableHtml += '<th width="20%">Status</th>';
-            tableHtml += '<th width="20%">Aksi</th>';
+            if (showGudang) tableHtml += '<th>Gudang</th>';
+            tableHtml += '<th>Batch</th>';
+            tableHtml += '<th>Stok</th>';
+            tableHtml += '<th>Tanggal Expired</th>';
+            tableHtml += '<th>Status</th>';
             tableHtml += '</tr>';
             tableHtml += '</thead>';
             tableHtml += '<tbody>';
 
             if (itemsToShow.length === 0) {
-                tableHtml += '<tr><td colspan="5" class="text-center text-muted py-4">Tidak ada batch dengan stok lebih dari 0 pada tampilan ringkas.</td></tr>';
+                tableHtml += '<tr><td colspan="' + colCount + '" class="text-center text-muted py-4">Tidak ada batch dengan stok lebih dari 0 pada tampilan ringkas.</td></tr>';
             } else {
                 itemsToShow.forEach(function(item) {
                     tableHtml += '<tr data-id="' + item.id + '">';
-                    tableHtml += '<td>' + (item.batch === null ? 'null' : item.batch) + '</td>';
-                    tableHtml += '<td>';
-                    tableHtml += '<span class="stok-display">' + item.stok_display + '</span>';
-                    tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="0.01" min="0">';
-                    tableHtml += '<input type="text" class="form-control form-control-sm mt-2 keterangan-input" placeholder="Keterangan (wajib saat edit)" style="display:none;">';
-                    tableHtml += '</td>';
+                    if (showGudang) tableHtml += '<td>' + escapeHtml(item.gudang) + '</td>';
+                    tableHtml += '<td>' + (item.batch === null ? '<span class="text-muted">-</span>' : escapeHtml(item.batch)) + '</td>';
+                    tableHtml += '<td><span class="stok-display">' + item.stok_display + '</span></td>';
                     tableHtml += '<td>' + item.expiration_date + '</td>';
                     tableHtml += '<td>' + item.status + '</td>';
-                    tableHtml += '<td>';
-                    tableHtml += '<button class="btn btn-sm btn-primary btn-edit-stok" data-id="' + item.id + '">';
-                    tableHtml += '<i class="fas fa-edit"></i> Edit';
-                    tableHtml += '</button>';
-                    tableHtml += '<button class="btn btn-sm btn-success btn-save-stok" data-id="' + item.id + '" style="display:none;">';
-                    tableHtml += '<i class="fas fa-check"></i> Simpan';
-                    tableHtml += '</button>';
-                    tableHtml += '<button class="btn btn-sm btn-secondary btn-cancel-stok" data-id="' + item.id + '" style="display:none; margin-left: 5px;">';
-                    tableHtml += '<i class="fas fa-times"></i> Batal';
-                    tableHtml += '</button>';
-                    tableHtml += '</td>';
                     tableHtml += '</tr>';
                 });
             }
@@ -844,30 +897,42 @@ $(document).ready(function() {
                 tableHtml += '</div>';
             }
 
-            tableHtml += '<div class="alert alert-info">';
-            tableHtml += '<i class="fas fa-info-circle"></i> Klik tombol "Edit" untuk mengubah stok batch. Perubahan akan dicatat di kartu stok.';
-            tableHtml += '</div>';
+            tableHtml += '<div class="small text-muted"><i class="fas fa-info-circle"></i> Tampilan ini hanya untuk melihat. Perubahan jumlah stok dilakukan di menu <strong>Penyesuaian Stok</strong> atau <strong>Stok Opname</strong>; nomor batch / ED yang salah diperbaiki lewat <strong>Data Perlu Dicek</strong>.</div>';
 
             $('#batchDetailsContent').html(tableHtml);
-
-            $('#batchDetailsContent').find('tr').each(function() {
-                var row = $(this);
-                var stokDisplayEl = row.find('.stok-display');
-                var stokInputEl = row.find('.stok-input');
-                if (stokDisplayEl.length && stokInputEl.length) {
-                    var displayed = stokDisplayEl.text().trim();
-                    var numeric = displayed.replace(/\./g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
-                    var floatVal = 0.0;
-                    if (numeric !== '') {
-                        floatVal = parseFloat(numeric);
-                        if (isNaN(floatVal)) floatVal = 0.0;
-                    }
-                    floatVal = Math.round(floatVal * 100) / 100;
-                    stokInputEl.val(floatVal);
-                    stokDisplayEl.text(floatVal.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
-                }
-            });
+            $('#batchDetailsModal').data('show-all', !!showAll);
         }
+
+    // Kartu stok references open their document (invoice, faktur, transfer, penyesuaian, retur) in a preview
+    $(document).on('click', '#kartu-stok-panel .btn-ref-preview', function(e) {
+        e.preventDefault();
+        var url = $(this).data('preview-url');
+        var mode = $(this).data('preview-mode');
+        if (!url) return;
+        var title = $.trim($(this).find('strong').first().text()) || 'Dokumen';
+        var $content = $('#refPreviewContent');
+        $('#refPreviewTitle').text(title);
+        $('#refPreviewOpen').attr('href', url).toggle(mode !== 'html');
+        $content.html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><div class="mt-2">Memuat dokumen...</div></div>');
+        $('#refPreviewModal').modal('show');
+        if (mode === 'html') {
+            $.get(url).done(function(html) {
+                $content.html('<div class="p-3">' + html + '</div>');
+            }).fail(function(xhr) {
+                $content.html('<div class="text-danger text-center py-5">' + escapeHtml(StokUi.xhrMessage(xhr, 'Dokumen tidak dapat dimuat.')) + '</div>');
+            });
+            return;
+        }
+        var iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.width = '100%';
+        iframe.style.height = '75vh';
+        iframe.style.border = '0';
+        $content.empty().append(iframe);
+    });
+    $('#refPreviewModal').on('hidden.bs.modal', function() {
+        $('#refPreviewContent').empty(); // stop the iframe
+    });
 
     // Handle batch details button click
     $(document).on('click', '.show-batch-details', function() {
@@ -882,15 +947,15 @@ $(document).ready(function() {
                 gudang_id: gudangId
             },
             success: function(response) {
+                response.obat_id = obatId;
+                response.gudang_id = gudangId;
                 $('#batchDetailsTitle').text('Detail Batch - ' + response.obat + ' (' + response.gudang + ')');
                 $('#batchDetailsModal').data('batch-response', response);
                 renderBatchDetailsTable(response, false);
-
-                $('#btn-save-batch-changes').hide();
                 $('#batchDetailsModal').modal('show');
             },
-            error: function() {
-                alert('Terjadi kesalahan saat mengambil data batch');
+            error: function(xhr) {
+                StokUi.error(StokUi.xhrMessage(xhr, 'Terjadi kesalahan saat mengambil data batch'));
             }
         });
     });
@@ -915,8 +980,16 @@ $(document).ready(function() {
         var obatId = $(this).data('obat-id');
         var gudangId = $(this).data('gudang-id');
 
-        // Optional: show loading state
+        // Mark the row whose kartu stok is shown
+        $('#stok-table tbody tr').removeClass('row-selected');
+        $(this).closest('tr').addClass('row-selected');
+        $('#btn-close-kartu-stok').show();
+
         $('#kartu-stok-panel').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><div>Memuat kartu stok...</div></div>');
+        // On phones the panel sits below the table: bring it into view
+        if (window.innerWidth < 768) {
+            $('html, body').animate({ scrollTop: $('#kartu-stok-card').offset().top - 70 }, 200);
+        }
 
         $.ajax({
             url: '{{ route("erm.kartustok.detail") }}',
@@ -928,9 +1001,9 @@ $(document).ready(function() {
             },
             success: function(response) {
                 $('#kartu-stok-panel').html(response);
-                // Re-initialize any tooltips or icons inside the loaded HTML
-                $('[data-toggle="tooltip"]').tooltip();
-                feather.replace();
+                // Re-initialize tooltips / icons inside the loaded HTML only
+                $('#kartu-stok-panel [data-toggle="tooltip"]').tooltip();
+                if (window.feather) feather.replace();
             },
             error: function() {
                 $('#kartu-stok-panel').html('<div class="text-danger">Gagal memuat kartu stok.</div>');
@@ -938,79 +1011,84 @@ $(document).ready(function() {
         });
     });
 
-    // Handle delete stok button click
-    $(document).on('click', '.btn-delete-stok', function(e) {
-        e.preventDefault();
-        var btn = $(this);
-        var obatId = btn.data('obat-id');
-        var gudangId = btn.data('gudang-id');
+    function todayIso() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
 
-        if (!confirm('Yakin ingin mengosongkan semua stok untuk obat ini di gudang terpilih? Tindakan ini tidak dapat dibatalkan.')) return;
-
-        btn.prop('disabled', true).text('Menghapus...');
-
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.delete") }}',
-            type: 'POST',
-            data: {
-                _token: '{{ csrf_token() }}',
-                obat_id: obatId,
-                gudang_id: gudangId
-            },
-            success: function(res) {
-                if (res.success) {
-                    alert(res.message || 'Stok berhasil dikosongkan');
-                    table.ajax.reload();
-                    updateNilaiStok();
-                } else {
-                    alert(res.message || 'Gagal mengosongkan stok');
-                }
-            },
-            error: function(xhr) {
-                var msg = 'Terjadi kesalahan saat menghapus stok';
-                try { if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message; } catch(e){}
-                alert(msg);
-            },
-            complete: function() {
-                // Restore icon-only trash button
-                btn.prop('disabled', false).html('<i class="fas fa-trash"></i>');
-            }
-        });
-    });
+    function toggleFollowUpFields() {
+        var action = $('#expired_follow_up_action').val();
+        $('.follow-up-musnah').toggle(action === 'dimusnahkan');
+        $('.follow-up-help[data-action="diretur"]').toggle(action === 'diretur');
+    }
+    $('#expired_follow_up_action').on('change', toggleFollowUpFields);
 
     $(document).on('click', '.btn-expired-follow-up', function() {
         var button = $(this);
+        $('#expired-follow-up-form')[0].reset();
         $('#expired_follow_up_obat_id').val(button.data('obat-id'));
         $('#expired_follow_up_gudang_id').val(button.data('gudang-id'));
         $('#expired_follow_up_obat_nama').text(button.data('obat-nama') || '-');
-        $('#expired_follow_up_action').val('');
-        $('#expired_follow_up_notes').val('');
-        $('#expiredFollowUpAlert').html('');
+        $('#expired_follow_up_tanggal').val(todayIso());
+        $('#save-expired-follow-up-btn').prop('disabled', false).show();
+        toggleFollowUpFields();
         $('#expiredFollowUpModal').modal('show');
     });
 
     $('#save-expired-follow-up-btn').on('click', function() {
         var btn = $(this);
         var action = $('#expired_follow_up_action').val();
-        var notes = ($('#expired_follow_up_notes').val() || '').trim();
         var data = {
             _token: '{{ csrf_token() }}',
             obat_id: $('#expired_follow_up_obat_id').val(),
             gudang_id: $('#expired_follow_up_gudang_id').val(),
             tindak_lanjut: action,
-            notes: notes
+            tanggal: $('#expired_follow_up_tanggal').val(),
+            notes: ($('#expired_follow_up_notes').val() || '').trim()
         };
 
-        if (!action) {
-            $('#expiredFollowUpAlert').html('<div class="alert alert-danger">Pilih tindak lanjut terlebih dahulu.</div>');
+        var errors = [];
+        if (!action) errors.push('Pilih tindak lanjut.');
+        if (!data.tanggal) errors.push('Tanggal wajib diisi.');
+        if (action === 'dimusnahkan') {
+            data.metode = $('#expired_follow_up_metode').val();
+            data.saksi_1 = ($('#expired_follow_up_saksi_1').val() || '').trim();
+            data.saksi_2 = ($('#expired_follow_up_saksi_2').val() || '').trim();
+            if (!data.metode) errors.push('Pilih metode pemusnahan.');
+            if (!data.saksi_1 || !data.saksi_2) errors.push('Isi nama kedua saksi.');
+            if (data.saksi_1 && data.saksi_1.toLowerCase() === data.saksi_2.toLowerCase()) errors.push('Saksi 1 dan Saksi 2 harus orang yang berbeda.');
+        }
+        if (errors.length) {
+            StokUi.warning(errors.map(escapeHtml).join('<br>'));
             return;
         }
 
-        if (!notes) {
-            $('#expiredFollowUpAlert').html('<div class="alert alert-danger">Notes wajib diisi.</div>');
-            return;
-        }
+        var obatNama = escapeHtml($('#expired_follow_up_obat_nama').text());
+        var confirmOptions = action === 'dimusnahkan'
+            ? {
+                title: 'Musnahkan stok expired?',
+                html: 'Semua batch <strong>' + obatNama + '</strong> di gudang expired dikeluarkan dan dicatat di <strong>Berita Acara Pemusnahan</strong>.'
+                    + '<div class="text-left small mt-3">Tanggal: ' + escapeHtml(data.tanggal)
+                    + '<br>Metode: ' + escapeHtml(data.metode)
+                    + '<br>Saksi: ' + escapeHtml(data.saksi_1) + ' &amp; ' + escapeHtml(data.saksi_2) + '</div>'
+                    + '<div class="text-danger small mt-2">Tindakan ini tidak dapat dibatalkan.</div>',
+                confirmText: 'Ya, musnahkan',
+                danger: true
+            }
+            : {
+                title: 'Ajukan retur ke supplier?',
+                html: 'Retur ke Supplier diajukan untuk semua batch <strong>' + obatNama + '</strong> di gudang expired.'
+                    + '<div class="small mt-2">Stok baru keluar setelah retur di-approve di menu Retur ke Supplier.</div>',
+                confirmText: 'Ya, ajukan retur'
+            };
 
+        StokUi.confirm(confirmOptions).then(function(ok) {
+            if (!ok) return;
+            submitFollowUp(btn, data);
+        });
+    });
+
+    function submitFollowUp(btn, data) {
         btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
 
         $.ajax({
@@ -1018,219 +1096,109 @@ $(document).ready(function() {
             type: 'POST',
             data: data,
             success: function(response) {
-                $('#expiredFollowUpAlert').html('<div class="alert alert-success">' + (response.message || 'Tindak lanjut berhasil disimpan.') + '</div>');
+                $('#expiredFollowUpModal').modal('hide');
                 table.ajax.reload(null, false);
-                updateNilaiStok();
-                updateLowStockCount();
-                updateExpiringCount();
-                setTimeout(function() {
-                    $('#expiredFollowUpModal').modal('hide');
-                }, 800);
-            },
-            error: function(xhr) {
-                var message = 'Gagal menyimpan tindak lanjut expired.';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                $('#expiredFollowUpAlert').html('<div class="alert alert-danger">' + message + '</div>');
-            },
-            complete: function() {
-                btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
-            }
-        });
-    });
+                refreshSummary();
 
-    // Handle edit stok button
-    $(document).on('click', '.btn-edit-stok', function() {
-        var row = $(this).closest('tr');
-        var stokDisplay = row.find('.stok-display');
-        var stokInput = row.find('.stok-input');
-        var keteranganInput = row.find('.keterangan-input');
-        var btnEdit = row.find('.btn-edit-stok');
-        var btnSave = row.find('.btn-save-stok');
-        var btnCancel = row.find('.btn-cancel-stok');
-        
-        // Store original value for cancel
-        stokInput.data('original-value', stokInput.val());
-        
-        // Switch to edit mode
-        stokDisplay.hide();
-        stokInput.show().focus();
-        keteranganInput.show();
-        btnEdit.hide();
-        btnSave.show();
-        btnCancel.show();
-        
-        $('#btn-save-batch-changes').show();
-    });
-
-    // Handle cancel edit
-    $(document).on('click', '.btn-cancel-stok', function() {
-        var row = $(this).closest('tr');
-        var stokDisplay = row.find('.stok-display');
-        var stokInput = row.find('.stok-input');
-        var keteranganInput = row.find('.keterangan-input');
-        var btnEdit = row.find('.btn-edit-stok');
-        var btnSave = row.find('.btn-save-stok');
-        var btnCancel = row.find('.btn-cancel-stok');
-        
-        // Restore original value
-        stokInput.val(stokInput.data('original-value'));
-        keteranganInput.val('');
-        
-        // Switch back to display mode
-        stokDisplay.show();
-        stokInput.hide();
-        keteranganInput.hide();
-        btnEdit.show();
-        btnSave.hide();
-        btnCancel.hide();
-        
-        // Hide save button if no more edits
-        if ($('.btn-save-stok:visible').length === 0) {
-            $('#btn-save-batch-changes').hide();
-        }
-    });
-
-    // Handle save individual stok
-    $(document).on('click', '.btn-save-stok', function() {
-        var button = $(this);
-        var row = button.closest('tr');
-        var id = button.data('id');
-        var stokBaruRaw = row.find('.stok-input').val();
-        var keteranganVal = row.find('.keterangan-input').val() || '';
-        // Parse as float and round to 2 decimals
-        var stokBaru = parseFloat(Number(stokBaruRaw || 0));
-        if (isNaN(stokBaru)) stokBaru = 0;
-        stokBaru = Math.round(stokBaru * 100) / 100;
-
-        if (isNaN(stokBaru) || stokBaru < 0) {
-            alert('Stok tidak boleh negatif');
-            return;
-        }
-
-        // Check whether stok actually changed; if so require keterangan
-        var originalVal = parseFloat(Number(row.find('.stok-input').data('original-value') || 0));
-        var selisih = Math.round((stokBaru - originalVal) * 100) / 100;
-        if (selisih !== 0 && keteranganVal.trim() === '') {
-            alert('Keterangan wajib diisi jika ada perubahan stok');
-            return;
-        }
-
-        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
-
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.update-batch-stok") }}',
-            type: 'POST',
-            data: {
-                keterangan: keteranganVal,
-                _token: '{{ csrf_token() }}',
-                id: id,
-                stok: stokBaru
-            },
-            success: function(response) {
-                if (response.success) {
-                    var stokDisplay = row.find('.stok-display');
-                    var stokInput = row.find('.stok-input');
-                    var btnEdit = row.find('.btn-edit-stok');
-                    var btnSave = row.find('.btn-save-stok');
-                    var btnCancel = row.find('.btn-cancel-stok');
-                    
-                    // Update display with decimal formatting (2 decimals)
-                    var stokFormatted = Number(stokBaru).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-                    stokDisplay.text(stokFormatted);
-                    stokInput.val(stokBaru);
-                    
-                    // Switch back to display mode
-                    stokDisplay.show();
-                    stokInput.hide();
-                    btnEdit.show();
-                    btnSave.hide();
-                    btnCancel.hide();
-                    
-                    // Show success message
-                    var alertHtml = '<div class="alert alert-success alert-dismissible fade show" role="alert">';
-                    alertHtml += '<i class="fas fa-check-circle"></i> ' + response.message;
-                    alertHtml += '<button type="button" class="close" data-dismiss="alert" aria-label="Close">';
-                    alertHtml += '<span aria-hidden="true">&times;</span>';
-                    alertHtml += '</button>';
-                    alertHtml += '</div>';
-                    $('#batchDetailsContent').prepend(alertHtml);
-                    
-                    // Auto remove alert after 3 seconds
-                    setTimeout(function() {
-                        $('.alert-success').fadeOut();
-                    }, 3000);
-                    
-                    // Reload main table
-                    table.ajax.reload(null, false);
-                    
-                    // Hide save button if no more edits
-                    if ($('.btn-save-stok:visible').length === 0) {
-                        $('#btn-save-batch-changes').hide();
+                // The print / retur link is opened from a click, so pop-up blockers allow it
+                var link = response.print_url
+                    ? { url: response.print_url, text: '<i class="fas fa-print"></i> Cetak Berita Acara', newTab: true }
+                    : (response.retur_url ? { url: response.retur_url, text: 'Buka Retur ke Supplier', newTab: false } : null);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Tersimpan',
+                    text: response.message || 'Tindak lanjut berhasil disimpan.',
+                    showCancelButton: !!link,
+                    confirmButtonText: link ? link.text : 'OK',
+                    cancelButtonText: 'Tutup'
+                }).then(function(result) {
+                    if (link && result.value) {
+                        if (link.newTab) window.open(link.url, '_blank');
+                        else window.location.href = link.url;
                     }
-                } else {
-                    alert('Gagal menyimpan: ' + response.message);
-                }
-            },
-            error: function() {
-                alert('Terjadi kesalahan saat menyimpan');
-            },
-            complete: function() {
-                button.prop('disabled', false).html('<i class="fas fa-check"></i> Simpan');
-            }
-        });
-    });
-
-    // Handle Edit Min/Max button click (from main table)
-    $(document).on('click', '.btn-edit-minmax', function() {
-        var obatId = $(this).data('obat-id');
-        var minVal = $(this).data('min');
-        var maxVal = $(this).data('max');
-
-        $('#minmax_obat_id').val(obatId);
-        $('#min_stok').val(minVal !== undefined ? minVal : '');
-        $('#max_stok').val(maxVal !== undefined ? maxVal : '');
-        $('#minmaxAlert').html('');
-        $('#editMinMaxModal').modal('show');
-    });
-
-    // Submit min/max update
-    $('#save-minmax-btn').click(function() {
-        var btn = $(this);
-        var form = $('#form-edit-minmax');
-        var data = {
-            _token: '{{ csrf_token() }}',
-            obat_id: $('#minmax_obat_id').val(),
-            min_stok: $('#min_stok').val(),
-            max_stok: $('#max_stok').val()
-        };
-
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
-
-        $.ajax({
-            url: '{{ route("erm.stok-gudang.update-minmax") }}',
-            type: 'POST',
-            data: data,
-            success: function(response) {
-                if (response.success) {
-                    $('#minmaxAlert').html('<div class="alert alert-success">' + response.message + '</div>');
-                    table.ajax.reload(null, false);
-                    setTimeout(function() {
-                        $('#editMinMaxModal').modal('hide');
-                    }, 800);
-                } else {
-                    $('#minmaxAlert').html('<div class="alert alert-danger">' + (response.message || 'Gagal menyimpan') + '</div>');
-                }
+                });
             },
             error: function(xhr) {
-                var msg = 'Terjadi kesalahan saat menyimpan';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                $('#minmaxAlert').html('<div class="alert alert-danger">' + msg + '</div>');
+                StokUi.error(StokUi.xhrMessage(xhr, 'Gagal menyimpan tindak lanjut expired.'));
             },
             complete: function() {
                 btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
             }
+        });
+    }
+
+    // Karantina: move every expired batch out of the active gudang at once
+    $('#btn-move-all-expired').on('click', function() {
+        var btn = $(this);
+        StokUi.confirm({
+            title: 'Pindahkan semua batch expired?',
+            html: 'Semua batch yang <strong>sudah lewat ED</strong> di gudang aktif dipindahkan ke gudang expired dan tidak bisa dijual lagi.'
+                + '<div class="small mt-2">Batch migrasi (MIGRATE-*) tidak ikut dipindah.</div>',
+            confirmText: 'Ya, pindahkan semua',
+            danger: true
+        }).then(function(ok) {
+            if (!ok) return;
+
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memindahkan...');
+            $.post('{{ route("erm.stok-gudang.expiring.move-all") }}', { _token: '{{ csrf_token() }}' })
+                .done(function(res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Selesai', text: res.message });
+                    } else {
+                        Swal.fire({ icon: 'warning', title: 'Sebagian gagal', text: res.message });
+                    }
+                })
+                .fail(function(xhr) {
+                    StokUi.error(StokUi.xhrMessage(xhr, 'Gagal memindahkan batch expired.'));
+                })
+                .always(function() {
+                    btn.prop('disabled', false).html('<i class="fas fa-dolly"></i> Pindahkan Semua yang Sudah Expired');
+                    if ($.fn.DataTable.isDataTable('#expiring-table')) {
+                        $('#expiring-table').DataTable().ajax.reload(null, false);
+                    }
+                    table.ajax.reload(null, false);
+                    refreshSummary();
+                });
+        });
+    });
+
+    // Riwayat retur / pemusnahan
+    var riwayatTable = null;
+    $('#btn-riwayat-tindak-lanjut').on('click', function() {
+        $('#riwayatTindakLanjutModal').modal('show');
+        if (riwayatTable) {
+            riwayatTable.ajax.reload();
+            return;
+        }
+        riwayatTable = $('#riwayat-tindak-lanjut-table').DataTable({
+            ajax: { url: '{{ route("erm.stok-gudang.expired-follow-up.riwayat") }}', dataSrc: 'data' },
+            order: [],
+            pageLength: 25,
+            columns: [
+                { data: 'nomor_dokumen', render: function(d) { return d ? escapeHtml(d) : '<span class="text-muted">(data lama)</span>'; } },
+                { data: 'jenis', render: function(d) { return '<span class="badge ' + (d === 'Pemusnahan' ? 'badge-danger' : 'badge-warning') + '">' + escapeHtml(d) + '</span>'; } },
+                { data: 'tanggal' },
+                { data: 'obat', render: function(d) { return escapeHtml(d); } },
+                { data: 'jumlah_batch', className: 'text-right' },
+                { data: 'jumlah', className: 'text-right', render: function(d) { return Number(d || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 }); } },
+                {
+                    data: 'status_label',
+                    render: function(d, type, row) {
+                        var cls = row.status === 'selesai' ? 'badge-success' : (row.status === 'menunggu_retur' ? 'badge-warning' : 'badge-secondary');
+                        return '<span class="badge ' + cls + '">' + escapeHtml(d) + '</span>';
+                    }
+                },
+                { data: 'petugas', render: function(d) { return escapeHtml(d || '-'); } },
+                {
+                    data: 'print_url', orderable: false,
+                    render: function(d, type, row) {
+                        if (d) return '<a href="' + d + '" target="_blank" class="btn btn-sm btn-outline-success"><i class="fas fa-print"></i> Berita Acara</a>';
+                        if (row.jenis === 'Retur') return '<a href="{{ route("erm.fakturretur.index") }}" class="btn btn-sm btn-outline-primary">Retur ke Supplier</a>';
+                        return '-';
+                    }
+                }
+            ],
+            language: { emptyTable: 'Belum ada riwayat tindak lanjut.', search: 'Cari:' }
         });
     });
 
@@ -1301,47 +1269,94 @@ $(document).ready(function() {
         $('#downloadStokModal').modal('hide');
     });
 
-    // Low-stock modal & DataTable (Stok < Min Stok)
+    // "Perlu Dipesan" modal: obat at or below the forecast reorder point (client-side table, list is short)
+    function fmtQty(value) {
+        var n = Number(value || 0);
+        return n.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
     var lowTable = null;
     $('#btn-low-stock').on('click', function() {
         $('#lowStockModal').modal('show');
 
-        if ($.fn.DataTable.isDataTable('#lowstock-table')) {
-            $('#lowstock-table').DataTable().ajax.reload();
+        if (lowTable) {
+            lowTable.ajax.reload();
             return;
         }
 
         lowTable = $('#lowstock-table').DataTable({
-            processing: true,
-            serverSide: true,
             ajax: {
                 url: '{{ route("erm.stok-gudang.low-stock") }}',
-                data: function(d) {
-                    d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
-                }
+                dataSrc: 'data'
             },
             columns: [
-                { data: 'nama_obat', name: 'nama_obat', orderable: false },
-                { data: 'total_stok', name: 'total_stok', orderable: false },
-                { data: 'min_stok', name: 'min_stok', orderable: false },
-                { data: 'detail_stok_gudang', name: 'detail_stok_gudang', orderable: false, searchable: false }
+                {
+                    data: 'obat_nama',
+                    render: function(data, type, row) {
+                        if (type !== 'display') return (row.obat_nama || '') + ' ' + (row.obat_kode || '');
+                        var html = '<a href="#" class="show-batch-details font-weight-bold" data-obat-id="' + row.obat_id + '" data-gudang-id="">' + escapeHtml(row.obat_nama) + '</a>'
+                            + '<div class="text-muted small">' + escapeHtml(row.obat_kode || '-') + '</div>';
+                        if (row.wajib_stok) html += '<span class="badge badge-danger"><i class="fas fa-shield-alt"></i> Wajib Ada</span>';
+                        return html;
+                    }
+                },
+                {
+                    data: 'status_rank',
+                    render: function(data, type, row) {
+                        if (type !== 'display') return data;
+                        var cover = row.days_of_cover !== null && row.days_of_cover !== undefined
+                            ? '<div class="small text-muted">cukup ' + fmtQty(Math.floor(row.days_of_cover)) + ' hari</div>' : '';
+                        return '<span class="badge ' + row.status_badge + '">' + escapeHtml(row.status_label) + '</span>' + cover;
+                    }
+                },
+                { data: 'total_stock', className: 'text-right', render: function(d, type, row) { return type === 'display' ? fmtQty(d) + ' ' + escapeHtml((row.satuan || '').toLowerCase()) : d; } },
+                { data: 'approved_outstanding_permintaan', className: 'text-right', render: function(d, type) { return type === 'display' ? fmtQty(d) : d; } },
+                {
+                    data: 'reorder_point', className: 'text-right',
+                    render: function(d, type, row) {
+                        if (type !== 'display') return d;
+                        return fmtQty(d) + '<div class="small text-muted">maks ' + fmtQty(row.max_stock) + '</div>';
+                    }
+                },
+                {
+                    data: 'qty_pesan', className: 'text-right',
+                    render: function(d, type, row) {
+                        if (type !== 'display') return d;
+                        if (!Number(d)) return '<span class="text-muted">-</span>';
+                        var box = row.jumlah_pesan_box ? '<div class="small">' + fmtQty(row.jumlah_pesan_box) + ' box × ' + fmtQty(row.isi_per_box) + '</div>' : '<div class="small text-warning">isi box ?</div>';
+                        return '<strong>' + fmtQty(d) + '</strong>' + box;
+                    }
+                },
+                {
+                    data: 'detail_gudang', orderable: false,
+                    render: function(d, type) {
+                        if (type !== 'display') return '';
+                        if (!d || !d.length) return '<span class="text-muted">-</span>';
+                        return '<div class="small">' + d.map(function(g) {
+                            return '<div><strong>' + escapeHtml(g.gudang) + ':</strong> ' + fmtQty(g.stok) + '</div>';
+                        }).join('') + '</div>';
+                    }
+                }
             ],
-            order: [[0, 'asc']],
+            order: [],
             pageLength: 25,
-            responsive: true,
+            language: {
+                emptyTable: 'Tidak ada obat yang perlu dipesan saat ini.',
+                search: 'Cari:'
+            },
             drawCallback: function() {
-                $('[data-toggle="tooltip"]').tooltip();
+                $('#lowstock-table [data-toggle="tooltip"]').tooltip();
             }
         });
-        // update count after low table draws
-        lowTable.on('draw', function() {
+        // update count after low table loads
+        lowTable.on('xhr', function() {
             updateLowStockCount();
         });
     });
 
     // Expiring modal & DataTable (expiration within 6 months)
     var expTable = null;
-    $('#btn-expiring').on('click', function() {
+    function openExpiringModal() {
         $('#expiringModal').modal('show');
 
         if ($.fn.DataTable.isDataTable('#expiring-table')) {
@@ -1371,13 +1386,13 @@ $(document).ready(function() {
             pageLength: 25,
             responsive: true,
             drawCallback: function() {
-                $('[data-toggle="tooltip"]').tooltip();
+                $('#expiring-table [data-toggle="tooltip"]').tooltip();
             }
         });
         expTable.on('draw', function() {
             updateExpiringCount();
         });
-    });
+    }
 
     // If filters change, refresh low-stock table if visible
     $('#filter_gudang, #hide_inactive_obat').on('change', function() {
@@ -1395,14 +1410,24 @@ $(document).ready(function() {
         var targetGudangName = button.data('target-gudang-name') || 'Gudang Expired';
 
         if (!stokId) {
-            alert('ID stok batch tidak ditemukan.');
+            StokUi.error('ID stok batch tidak ditemukan.');
             return;
         }
 
-        if (!confirm('Pindahkan batch ini ke ' + targetGudangName + '?')) {
-            return;
-        }
+        StokUi.confirm({
+            title: 'Pindahkan ke ' + escapeHtml(targetGudangName) + '?',
+            html: '<strong>' + escapeHtml(button.data('obat') || '') + '</strong><br>'
+                + 'Batch <strong>' + escapeHtml(button.data('batch') || '-') + '</strong> dari ' + escapeHtml(button.data('gudang') || '-')
+                + '<div class="small mt-2">Seluruh stok batch ini dipindahkan dan tidak bisa dijual atau dimutasi lagi.</div>',
+            confirmText: 'Ya, pindahkan',
+            danger: true
+        }).then(function(ok) {
+            if (!ok) return;
+            moveBatchToExpired(button, stokId);
+        });
+    });
 
+    function moveBatchToExpired(button, stokId) {
         button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Pindah...');
 
         $.ajax({
@@ -1414,319 +1439,224 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if (response.success) {
-                    alert(response.message || 'Batch berhasil dipindahkan ke gudang expired.');
+                    StokUi.success(response.message || 'Batch berhasil dipindahkan ke gudang expired.');
                     if ($.fn.DataTable.isDataTable('#expiring-table')) {
                         $('#expiring-table').DataTable().ajax.reload(null, false);
                     }
                     table.ajax.reload(null, false);
-                    updateNilaiStok();
-                    updateLowStockCount();
-                    updateExpiringCount();
+                    refreshSummary();
                 } else {
-                    alert(response.message || 'Gagal memindahkan batch.');
+                    StokUi.error(response.message || 'Gagal memindahkan batch.');
                 }
             },
             error: function(xhr) {
-                var message = 'Gagal memindahkan batch ke gudang expired.';
-                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                alert(message);
+                StokUi.error(StokUi.xhrMessage(xhr, 'Gagal memindahkan batch ke gudang expired.'));
             },
             complete: function() {
                 button.prop('disabled', false).html('<i class="fas fa-exchange-alt"></i> Pindah');
             }
         });
-    });
+    }
 });
 </script>
 
 <script>
-    // Stok batch MIGRATE: lihat dan lengkapi ED / stok hasil migrasi
-    function migrateEscape(value) {
+// Data Perlu Dicek: batches with suspicious data; batch number and ED are fixed inline, quantities via Penyesuaian Stok
+$(function() {
+    var AUDIT_URL = '{{ route('erm.stok-gudang.audit') }}';
+    var PENYESUAIAN_URL = '{{ route("erm.mutasi-stok.index") }}';
+    var BATCH_NULL = @json(\App\Http\Controllers\ERM\MutasiStokController::BATCH_NULL);
+    var CAN_EDIT = @json($canMutasi);
+    var CAN_MASUK = @json($canMasuk);
+    var ED_PLACEHOLDER = @json(config('stok.audit.ed_placeholder', []));
+    var TOKEN = '{{ csrf_token() }}';
+    var SEVERITY_CLASS = { tinggi: 'badge-danger', sedang: 'badge-warning', rendah: 'badge-secondary' };
+
+    var state = { rows: [], issues: {}, ringkasan: {}, issue: '' };
+
+    function esc(value) {
         if (value === null || value === undefined) return '';
         return String(value).replace(/[&<>"']/g, function(s) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s];
         });
     }
 
-    function loadStokMigrate() {
-        var $tbody = $('#stokMigrateTable tbody');
-        $tbody.html('<tr><td colspan="7" class="text-center text-muted">Memuat...</td></tr>');
-        $.get('{{ route('erm.stok-gudang.stok-migrate') }}', {
-            include_empty: $('#migrateIncludeEmpty').is(':checked') ? 1 : 0
-        }).done(function(res) {
-            var rows = res.data || [];
-            $('#migrateCountBadge').text(res.total_with_stock + ' batch masih berisi stok');
-            if (!rows.length) {
-                $tbody.html('<tr><td colspan="7" class="text-center text-muted">Tidak ada batch MIGRATE.</td></tr>');
-                return;
+    function num(n) {
+        return Number(n || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+    }
+
+    function renderChips() {
+        var html = '<button type="button" class="btn btn-sm mr-1 mb-1 audit-chip ' + (state.issue === '' ? 'btn-dark' : 'btn-outline-dark') + '" data-issue="">Semua <span class="badge badge-light">' + (state.ringkasan.total || 0) + '</span></button>';
+        Object.keys(state.issues).forEach(function(code) {
+            var count = state.ringkasan[code] || 0;
+            if (!count) return;
+            var meta = state.issues[code];
+            var active = state.issue === code;
+            html += '<button type="button" class="btn btn-sm mr-1 mb-1 audit-chip ' + (active ? 'btn-dark' : 'btn-outline-secondary') + '" data-issue="' + code + '" title="' + esc(meta.info) + '">'
+                + esc(meta.label) + ' <span class="badge ' + (SEVERITY_CLASS[meta.severity] || 'badge-light') + '">' + count + '</span></button>';
+        });
+        $('#audit-chips').html(html);
+    }
+
+    // Quantity fixes go to a Penyesuaian Stok document pre-filled with this batch
+    function koreksiLink(r) {
+        if (!CAN_EDIT) return '';
+        if (r.stok < 0 && !CAN_MASUK) return '';
+        var params = {
+            gudang_id: r.gudang_id,
+            obat_id: r.obat_id,
+            batch: r.batch === null || r.batch === '' ? BATCH_NULL : r.batch,
+            jenis: r.stok < 0 ? 'masuk' : 'keluar',
+            alasan: 'Koreksi hitung'
+        };
+        return '<a class="btn btn-sm btn-outline-secondary" href="' + PENYESUAIAN_URL + '?' + $.param(params) + '" title="Koreksi jumlah: buat dokumen Penyesuaian Stok untuk batch ini"><i class="fas fa-balance-scale"></i></a>';
+    }
+
+    function renderRows() {
+        var $tbody = $('#auditTable tbody');
+        var q = $.trim($('#audit_search').val()).toLowerCase();
+        var rows = state.rows.filter(function(r) {
+            if (!q) return true;
+            return (r.nama_obat || '').toLowerCase().indexOf(q) !== -1
+                || String(r.batch || '').toLowerCase().indexOf(q) !== -1
+                || String(r.kode_obat || '').toLowerCase().indexOf(q) !== -1;
+        });
+        $('#audit-info').text(rows.length + ' batch ditampilkan');
+
+        if (!rows.length) {
+            $tbody.html('<tr><td colspan="7" class="text-center text-muted py-4">' + (state.rows.length
+                ? 'Tidak ada yang cocok dengan pencarian.'
+                : '<i class="fas fa-check-circle text-success fa-2x d-block mb-2"></i>Tidak ada data stok yang perlu dicek.') + '</td></tr>');
+            return;
+        }
+
+        var html = '';
+        rows.forEach(function(r) {
+            var badges = r.issues.map(function(code) {
+                var meta = state.issues[code] || { label: code, severity: 'sedang', info: '' };
+                return '<span class="badge ' + (SEVERITY_CLASS[meta.severity] || 'badge-light') + ' mr-1 mb-1" title="' + esc(meta.info) + '" data-toggle="tooltip">' + esc(meta.label) + '</span>';
+            }).join('');
+            if (r.issues.indexOf('tidak_cocok_kartu') !== -1) {
+                badges += '<div class="small text-muted">Saldo kartu stok: ' + (r.saldo_kartu === null ? 'tidak ada riwayat' : num(r.saldo_kartu)) + '</div>';
             }
-            var html = '';
-            rows.forEach(function(r) {
-                var ed = r.expiration_date ? String(r.expiration_date).substring(0, 10) : '';
-                var stok = parseFloat(r.stok) || 0;
-                html += '<tr data-id="' + r.id + '" data-batch="' + migrateEscape(r.batch) + '" data-ed="' + migrateEscape(ed) + '" data-stok="' + stok + '">'
-                    + '<td>' + migrateEscape(r.nama_obat)
-                    + '<br><small class="text-muted">' + migrateEscape(r.kode_obat || '-') + ' · ' + migrateEscape(r.satuan || '-') + ' · ' + migrateEscape(r.kategori || '-') + '</small></td>'
-                    + '<td>' + migrateEscape(r.nama_gudang || '-') + '</td>'
-                    + '<td><input type="text" class="form-control form-control-sm migrate-batch" maxlength="255" value="' + migrateEscape(r.batch) + '"></td>'
-                    + '<td><input type="date" class="form-control form-control-sm migrate-ed" value="' + migrateEscape(ed) + '"></td>'
-                    + '<td><input type="number" class="form-control form-control-sm text-right migrate-stok" min="0" step="any" value="' + stok + '"></td>'
-                    + '<td><input type="text" class="form-control form-control-sm migrate-ket" placeholder="Wajib jika stok diubah"></td>'
-                    + '<td><button type="button" class="btn btn-sm btn-primary btn-save-migrate">Simpan</button></td>'
-                    + '</tr>';
-            });
-            $tbody.html(html);
-        }).fail(function() {
-            $tbody.html('<tr><td colspan="7" class="text-center text-danger">Gagal memuat data.</td></tr>');
+            html += '<tr data-id="' + r.id + '" data-batch="' + esc(r.batch || '') + '" data-ed="' + esc(r.expiration_date || '') + '">'
+                + '<td>' + esc(r.nama_obat) + '<br><small class="text-muted">' + esc(r.kode_obat || '-') + ' · ' + esc(r.satuan || '-') + '</small></td>'
+                + '<td>' + esc(r.nama_gudang || '-') + '</td>'
+                + '<td>' + (CAN_EDIT ? '<input type="text" class="form-control form-control-sm audit-batch" maxlength="255" value="' + esc(r.batch || '') + '" placeholder="Nomor batch">' : esc(r.batch || '-')) + '</td>'
+                + '<td>' + (CAN_EDIT ? '<input type="date" class="form-control form-control-sm audit-ed" value="' + esc(r.expiration_date || '') + '">' : esc(r.expiration_date || '-')) + '</td>'
+                + '<td class="text-right' + (r.stok < 0 ? ' text-danger font-weight-bold' : '') + '">' + num(r.stok) + '</td>'
+                + '<td>' + badges + '</td>'
+                + '<td class="text-nowrap text-right">'
+                    + (CAN_EDIT ? '<button type="button" class="btn btn-sm btn-primary btn-audit-save mr-1" title="Simpan nomor batch & ED"><i class="fas fa-save"></i> Simpan</button>' : '')
+                    + koreksiLink(r)
+                + '</td>'
+                + '</tr>';
+        });
+        $tbody.html(html);
+        $tbody.find('[data-toggle="tooltip"]').tooltip();
+    }
+
+    function loadAudit() {
+        $('#auditTable tbody').html('<tr><td colspan="7" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin"></i> Memeriksa data stok...</td></tr>');
+        $.get(AUDIT_URL, { gudang_id: $('#audit_gudang').val(), issue: state.issue }).done(function(res) {
+            state.rows = res.data || [];
+            state.issues = res.issues || {};
+            state.ringkasan = res.ringkasan || {};
+            renderChips();
+            renderRows();
+            // Header badge counts every gudang
+            if (!$('#audit_gudang').val()) {
+                var total = state.ringkasan.total || 0;
+                $('#audit-count').text(total > 99 ? '99+' : String(total)).toggle(total > 0);
+                $('#btn-audit').toggleClass('btn-outline-danger', total > 0).toggleClass('btn-outline-secondary', total === 0);
+            }
+        }).fail(function(xhr) {
+            $('#auditTable tbody').html('<tr><td colspan="7" class="text-center text-danger py-4">Gagal memuat data.</td></tr>');
+            StokUi.error(StokUi.xhrMessage(xhr, 'Gagal memeriksa data stok.'));
         });
     }
 
-    $(document).on('click', '#btnStokMigrate', function(e) {
-        e.preventDefault();
-        $('#stokMigrateModal').modal('show');
-        loadStokMigrate();
+    $('#btn-audit').on('click', function() {
+        $('#auditModal').modal('show');
+        loadAudit();
+    });
+    $('#btn-audit-refresh').on('click', loadAudit);
+    $('#audit_gudang').on('change', loadAudit);
+    $(document).on('click', '.audit-chip', function() {
+        state.issue = $(this).data('issue') || '';
+        loadAudit();
+    });
+    var auditSearchTimer;
+    $('#audit_search').on('input', function() {
+        clearTimeout(auditSearchTimer);
+        auditSearchTimer = setTimeout(renderRows, 200);
     });
 
-    $(document).on('change', '#migrateIncludeEmpty', loadStokMigrate);
-
-    $(document).on('click', '.btn-save-migrate', function() {
+    // Batch master data only (number + ED); the stok quantity is not touched
+    $(document).on('click', '.btn-audit-save', function() {
         var $btn = $(this);
         var $tr = $btn.closest('tr');
         var id = $tr.data('id');
-        var oldBatch = String($tr.data('batch') || '');
-        var newBatch = $.trim($tr.find('.migrate-batch').val());
-        var oldEd = String($tr.data('ed') || '');
-        var oldStok = parseFloat($tr.data('stok')) || 0;
-        var newEd = $tr.find('.migrate-ed').val();
-        var newStokRaw = $tr.find('.migrate-stok').val();
-        var newStok = parseFloat(newStokRaw);
-        var ket = $.trim($tr.find('.migrate-ket').val());
-        var token = '{{ csrf_token() }}';
-
-        if (newStokRaw === '' || isNaN(newStok) || newStok < 0) {
-            alert('Stok harus angka 0 atau lebih.');
-            return;
-        }
+        var oldBatch = String($tr.attr('data-batch') || '');
+        var newBatch = $.trim($tr.find('.audit-batch').val());
+        var oldEd = String($tr.attr('data-ed') || '');
+        var newEd = $tr.find('.audit-ed').val();
 
         if (!newBatch) {
-            alert('Nama batch wajib diisi.');
-            $tr.find('.migrate-batch').focus();
+            StokUi.warning('Nomor batch wajib diisi sesuai yang tertera di kemasan.');
             return;
         }
-
         var batchChanged = newBatch !== oldBatch;
         var edChanged = newEd !== oldEd;
-        var stokChanged = Math.abs(newStok - oldStok) > 0.00001;
-
-        if (!batchChanged && !edChanged && !stokChanged) {
-            alert('Tidak ada perubahan.');
+        if (!batchChanged && !edChanged) {
+            StokUi.warning('Ubah nomor batch atau ED terlebih dahulu.', 'Tidak ada perubahan');
             return;
         }
-        if (stokChanged && !ket) {
-            alert('Keterangan wajib diisi saat mengubah stok.');
-            $tr.find('.migrate-ket').focus();
+        if (!newEd || ED_PLACEHOLDER.indexOf(newEd) !== -1) {
+            StokUi.warning('Isi ED asli sesuai kemasan. ED kosong atau tanggal default membuat batch ini tetap ditandai.');
             return;
         }
 
-        var requests = [];
-        // Rename first: if the new batch name is rejected (duplicate), nothing else is saved
-        if (batchChanged) {
-            requests.push(function() {
-                return $.post('{{ route('erm.stok-gudang.update-batch-name') }}', { _token: token, id: id, batch: newBatch });
+        var changes = [];
+        if (batchChanged) changes.push('Batch: ' + esc(oldBatch || '(kosong)') + ' &rarr; <strong>' + esc(newBatch) + '</strong>');
+        if (edChanged) changes.push('ED: ' + esc(oldEd || '(kosong)') + ' &rarr; <strong>' + esc(newEd) + '</strong>');
+
+        StokUi.confirm({
+            title: 'Simpan data batch?',
+            html: '<div class="text-left">' + changes.join('<br>') + '</div>'
+                + '<div class="small text-muted mt-2">Jumlah stok tidak berubah.' + (batchChanged ? ' Riwayat kartu stok batch lama ikut memakai nomor batch baru.' : '') + '</div>',
+            confirmText: 'Ya, simpan'
+        }).then(function(ok) {
+            if (!ok) return;
+            var requests = [];
+            // Rename first: if the new batch number is rejected (duplicate), the ED is not saved either
+            if (batchChanged) {
+                requests.push(function() {
+                    return $.post('{{ route('erm.stok-gudang.update-batch-name') }}', { _token: TOKEN, id: id, batch: newBatch });
+                });
+            }
+            if (edChanged) {
+                requests.push(function() {
+                    return $.post('{{ route('erm.stok-gudang.update-batch-exp') }}', { _token: TOKEN, id: id, expiration_date: newEd });
+                });
+            }
+            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+            requests.reduce(function(chain, next) {
+                return chain.then(next);
+            }, $.Deferred().resolve().promise()).done(function() {
+                StokUi.success('Data batch disimpan.');
+                loadAudit();
+                if ($.fn.DataTable.isDataTable('#stok-table')) {
+                    $('#stok-table').DataTable().ajax.reload(null, false);
+                }
+            }).fail(function(xhr) {
+                StokUi.error(StokUi.xhrMessage(xhr, 'Gagal menyimpan data batch.'));
+                loadAudit();
+            }).always(function() {
+                $btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
             });
-        }
-        if (edChanged) {
-            requests.push(function() {
-                return $.post('{{ route('erm.stok-gudang.update-batch-exp') }}', { _token: token, id: id, expiration_date: newEd });
-            });
-        }
-        if (stokChanged) {
-            requests.push(function() {
-                return $.post('{{ route('erm.stok-gudang.update-batch-stok') }}', { _token: token, id: id, stok: newStok, keterangan: ket });
-            });
-        }
-
-        $btn.prop('disabled', true).text('Menyimpan...');
-        // Run sequentially so a failure stops the remaining save
-        requests.reduce(function(chain, next) {
-            return chain.then(next);
-        }, $.Deferred().resolve().promise()).done(function() {
-            $tr.data('batch', newBatch).attr('data-batch', newBatch);
-            $tr.data('ed', newEd).attr('data-ed', newEd);
-            $tr.data('stok', newStok).attr('data-stok', newStok);
-            $tr.find('.migrate-ket').val('');
-            $tr.addClass('table-success');
-            setTimeout(function() {
-                $tr.removeClass('table-success');
-                // Renamed batches are no longer MIGRATE, so refresh the list to drop them
-                if (batchChanged && newBatch.indexOf('MIGRATE') !== 0) {
-                    loadStokMigrate();
-                }
-            }, 1500);
-            if ($.fn.DataTable.isDataTable('#stok-table')) {
-                $('#stok-table').DataTable().ajax.reload(null, false);
-            }
-        }).fail(function(xhr) {
-            var msg = (xhr.responseJSON && xhr.responseJSON.message) || xhr.statusText || 'Gagal menyimpan';
-            alert(msg);
-            loadStokMigrate();
-        }).always(function() {
-            $btn.prop('disabled', false).text('Simpan');
         });
     });
-
-    // ===== Master Gudang (modal) =====
-    var gudangBaseUrl = "{{ url('erm/gudang') }}";
-    var gudangTable = null;
-
-    function resetGudangForm() {
-        $('#gudangForm')[0].reset();
-        $('#gudang_form_id').val('');
-        $('#gudangFormTitle').text('Tambah Gudang');
-        $('#btn-gudang-cancel').hide();
-        $('#gudangForm .form-control').removeClass('is-invalid');
-        $('#gudangForm .invalid-feedback').text('');
-    }
-
-    // Keep the gudang dropdowns on this page in sync with master changes
-    function syncGudangOption(id, nama, removed) {
-        ['#filter_gudang', '#download_gudang'].forEach(function(sel) {
-            var $opt = $(sel).find('option[value="' + id + '"]');
-            if (removed) {
-                $opt.remove();
-            } else if ($opt.length) {
-                $opt.text(nama);
-            } else {
-                $(sel).append($('<option>').val(id).text(nama));
-            }
-        });
-    }
-
-    $('#btn-master-gudang').on('click', function() {
-        resetGudangForm();
-        $('#masterGudangModal').modal('show');
-    });
-
-    $('#masterGudangModal').on('shown.bs.modal', function() {
-        if (gudangTable) {
-            gudangTable.ajax.reload(null, false);
-            gudangTable.columns.adjust();
-            return;
-        }
-        gudangTable = $('#gudang-table').DataTable({
-            processing: true,
-            serverSide: true,
-            ajax: { url: "{{ route('erm.gudang.data') }}", type: 'GET' },
-            columns: [
-                { data: 'nama', name: 'nama' },
-                { data: 'lokasi', name: 'lokasi', defaultContent: '-' },
-                { data: 'created_at', name: 'created_at' },
-                { data: 'action', name: 'action', orderable: false, searchable: false }
-            ],
-            order: [[0, 'asc']],
-            pageLength: 10,
-            language: {
-                processing: 'Memuat data...',
-                lengthMenu: 'Tampilkan _MENU_ data',
-                zeroRecords: 'Tidak ada data yang ditemukan',
-                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
-                infoEmpty: 'Menampilkan 0 sampai 0 dari 0 data',
-                infoFiltered: '(difilter dari _MAX_ total data)',
-                search: 'Cari:',
-                paginate: { first: 'Pertama', last: 'Terakhir', next: 'Selanjutnya', previous: 'Sebelumnya' }
-            }
-        });
-    });
-
-    $('#btn-gudang-cancel').on('click', resetGudangForm);
-
-    $(document).on('click', '#gudang-table .edit-btn', function() {
-        var id = $(this).data('id');
-        resetGudangForm();
-        $.get(gudangBaseUrl + '/' + id).done(function(response) {
-            if (response.success) {
-                $('#gudang_form_id').val(response.data.id);
-                $('#gudang_form_nama').val(response.data.nama).focus();
-                $('#gudang_form_lokasi').val(response.data.lokasi);
-                $('#gudangFormTitle').text('Edit Gudang');
-                $('#btn-gudang-cancel').show();
-            } else {
-                alert('Gagal memuat data gudang');
-            }
-        }).fail(function() {
-            alert('Terjadi kesalahan saat memuat data');
-        });
-    });
-
-    $(document).on('click', '#gudang-table .delete-btn', function() {
-        var id = $(this).data('id');
-        if (!confirm('Apakah Anda yakin ingin menghapus gudang ini?')) return;
-        $.ajax({
-            url: gudangBaseUrl + '/' + id,
-            type: 'POST',
-            data: { _method: 'DELETE', _token: $('meta[name="csrf-token"]').attr('content') },
-            success: function(response) {
-                alert(response.message);
-                if (response.success) {
-                    if ($('#gudang_form_id').val() == id) resetGudangForm();
-                    syncGudangOption(id, null, true);
-                    gudangTable.ajax.reload(null, false);
-                }
-            },
-            error: function(xhr) {
-                alert((xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat menghapus data');
-            }
-        });
-    });
-
-    $('#gudangForm').on('submit', function(e) {
-        e.preventDefault();
-        var id = $('#gudang_form_id').val();
-        var $btn = $('#btn-gudang-save');
-        var $spinner = $btn.find('.spinner-border');
-        var data = {
-            nama: $('#gudang_form_nama').val(),
-            lokasi: $('#gudang_form_lokasi').val(),
-            _token: $('meta[name="csrf-token"]').attr('content')
-        };
-        if (id) data._method = 'PUT';
-
-        $btn.prop('disabled', true);
-        $spinner.removeClass('d-none');
-        $('#gudangForm .form-control').removeClass('is-invalid');
-        $('#gudangForm .invalid-feedback').text('');
-
-        $.ajax({
-            url: id ? gudangBaseUrl + '/' + id : "{{ route('erm.gudang.store') }}",
-            type: 'POST',
-            data: data,
-            success: function(response) {
-                if (response.success) {
-                    syncGudangOption(response.data.id, response.data.nama, false);
-                    resetGudangForm();
-                    gudangTable.ajax.reload(null, false);
-                } else {
-                    alert(response.message);
-                }
-            },
-            error: function(xhr) {
-                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
-                    var errors = xhr.responseJSON.errors;
-                    for (var field in errors) {
-                        var $input = $('#gudangForm [data-field="' + field + '"]');
-                        $input.addClass('is-invalid').siblings('.invalid-feedback').text(errors[field][0]);
-                    }
-                } else {
-                    alert((xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan saat menyimpan data');
-                }
-            },
-            complete: function() {
-                $btn.prop('disabled', false);
-                $spinner.addClass('d-none');
-            }
-        });
-    });
+});
 </script>
 @endsection

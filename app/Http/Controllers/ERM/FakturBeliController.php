@@ -32,161 +32,115 @@ class FakturBeliController extends Controller
         $this->masterPembelian = $masterPembelian;
     }
 
+    private const STATUS_LABEL = [
+        'diminta' => 'Diminta',
+        'diterima' => 'Diterima',
+        'diapprove' => 'Disetujui',
+        'diretur_sebagian' => 'Diretur sebagian',
+        'diretur' => 'Diretur',
+    ];
+
     public function index(Request $request)
     {
         if ($request->ajax()) {
             $isAdmin = Auth::check() && Auth::user()->hasAnyRole(['Admin']);
-            $data = FakturBeli::with([
-                'pemasok',
-                'items.obat',
-                'returs',
-                'replacementInvoices',
-                'replacedFaktur',
-                'sourceRetur',
-            ])->select('erm_fakturbeli.*');
-            // Filter by received_date range if provided
-            if ($request->filled('tanggal_terima_range')) {
-                $range = explode(' - ', $request->input('tanggal_terima_range'));
-                if (count($range) === 2) {
-                    $start = $range[0];
-                    $end = $range[1];
-                    $data = $data->whereDate('received_date', '>=', $start)
-                                 ->whereDate('received_date', '<=', $end);
-                }
-            }
-            // Filter by status if provided
-            if ($request->filled('status')) {
-                $data = $data->where('status', $request->input('status'));
-            }
-            // Hide diretur if requested
-            if ($request->input('hide_diretur') == 1) {
-                $data = $data->where('status', '!=', 'diretur');
-            }
-            // Hide faktur that are still not approved after 7 days
-            if ($request->input('hide_unapproved_over_7_days') == 1) {
-                $cutoffDate = Carbon::now()->subDays(7)->toDateString();
-                $data = $data->where(function ($query) use ($cutoffDate) {
-                    $query->where('status', 'diapprove')
-                        ->orWhere(function ($pendingQuery) use ($cutoffDate) {
-                            $pendingQuery->where('status', '!=', 'diapprove')
-                                ->whereDate(DB::raw('COALESCE(received_date, requested_date, created_at)'), '>=', $cutoffDate);
-                        });
-                });
-            }
-            // Filter by nama obat
-            if ($request->filled('search_nama_obat')) {
-                $searchNamaObat = $request->input('search_nama_obat');
-                $data = $data->whereHas('items.obat', function($q) use ($searchNamaObat) {
-                    $q->where('nama', 'like', "%$searchNamaObat%");
-                });
-            }
-            // Filter by no_faktur
-            if ($request->filled('search_no_faktur')) {
-                $searchNo = $request->input('search_no_faktur');
-                $data = $data->where('no_faktur', 'like', "%$searchNo%");
-            }
-            // Filter by pemasok
-            if ($request->filled('search_pemasok')) {
-                $searchPemasok = $request->input('search_pemasok');
-                $data = $data->whereHas('pemasok', function($q) use ($searchPemasok) {
-                    $q->where('nama', 'like', "%$searchPemasok%");
-                });
-            }
-            return DataTables::of($data)
-                ->addColumn('pemasok', function($row) {
-                    return $row->pemasok ? $row->pemasok->nama : '-';
-                })
-                ->addColumn('nama_obat', function($row) {
-                    if (!$row->relationLoaded('items')) return '-';
-                    $list = $row->items->map(function($item) {
-                        return $item->obat ? $item->obat->nama : '';
-                    })->filter()->toArray();
-                    return implode(', ', $list) ?: '-';
-                })
-                ->addColumn('due_date', function($row) {
-                    return $row->due_date ?? '-';
-                })
-                ->addColumn('total', function($row) {
-                    return $row->total ?? 0;
-                })
-                ->addColumn('approved_by_user_name', function($row) {
-                    if (isset($row->approved_by) && $row->approved_by) {
-                        $user = \App\Models\User::query()->find($row->approved_by);
-                        return $user ? $user->name : null;
-                    }
-                    return null;
-                })
-                ->addColumn('replaced_faktur_no', function ($row) {
-                    return optional($row->replacedFaktur)->no_faktur;
-                })
-                ->addColumn('source_retur_no', function ($row) {
-                    return optional($row->sourceRetur)->no_retur;
-                })
-                ->addColumn('replacement_invoice_nos', function ($row) {
-                    if (!$row->relationLoaded('replacementInvoices')) {
-                        return [];
-                    }
 
-                    return $row->replacementInvoices
-                        ->pluck('no_faktur')
-                        ->filter()
-                        ->values()
-                        ->all();
+            // Period and search; the status tab is applied on top so the tab counts follow them
+            $filtered = function ($query) use ($request) {
+                if ($request->filled('tanggal_terima_range')) {
+                    $range = explode(' - ', $request->input('tanggal_terima_range'));
+                    if (count($range) === 2) {
+                        $query->whereDate(DB::raw('COALESCE(received_date, requested_date, DATE(created_at))'), '>=', $range[0])
+                            ->whereDate(DB::raw('COALESCE(received_date, requested_date, DATE(created_at))'), '<=', $range[1]);
+                    }
+                }
+                if ($request->filled('q')) {
+                    $q = trim($request->input('q'));
+                    $query->where(function ($sub) use ($q) {
+                        $sub->where('no_faktur', 'like', "%{$q}%")
+                            ->orWhere('no_permintaan', 'like', "%{$q}%")
+                            ->orWhereHas('pemasok', fn ($p) => $p->where('nama', 'like', "%{$q}%"))
+                            ->orWhereHas('items.obat', fn ($o) => $o->withInactive()->where('nama', 'like', "%{$q}%"));
+                    });
+                }
+                if ($request->input('jatuh_tempo') === '1') {
+                    $query->whereIn('status', ['diapprove', 'diretur_sebagian'])
+                        ->whereNotNull('due_date')
+                        ->whereDate('due_date', '<=', now()->addDays(7));
+                }
+            };
+
+            $counts = FakturBeli::query()->where($filtered)
+                ->select('status', DB::raw('COUNT(*) as total'))
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            $data = FakturBeli::with([
+                'pemasok:id,nama',
+                'items' => fn ($q) => $q->select('id', 'fakturbeli_id', 'obat_id'),
+                'items.obat' => fn ($q) => $q->withInactive()->select('id', 'nama'),
+                'returs:id,fakturbeli_id,no_retur,status',
+                'replacementInvoices:id,replaced_fakturbeli_id,no_faktur',
+                'replacedFaktur:id,no_faktur',
+                'sourceRetur:id,no_retur',
+                'approver:id,name',
+            ])
+                ->select('erm_fakturbeli.*')
+                ->where($filtered)
+                ->when(array_key_exists((string) $request->input('status'), self::STATUS_LABEL), fn ($q) => $q->where('status', $request->input('status')));
+
+            return DataTables::of($data)
+                ->addColumn('pemasok', fn ($row) => optional($row->pemasok)->nama ?? '-')
+                ->addColumn('nama_obat', function ($row) {
+                    $names = $row->items->map(fn ($item) => optional($item->obat)->nama)->filter()->values();
+                    return $names->count() > 3
+                        ? $names->take(3)->implode(', ') . ' +' . ($names->count() - 3) . ' lainnya'
+                        : ($names->implode(', ') ?: '-');
                 })
-                ->addColumn('latest_retur_no', function ($row) {
-                    if (!$row->relationLoaded('returs')) {
+                ->addColumn('jumlah_item', fn ($row) => $row->items->count())
+                ->addColumn('status_label', fn ($row) => self::STATUS_LABEL[$row->status] ?? $row->status)
+                ->addColumn('approved_by_user_name', fn ($row) => optional($row->approver)->name)
+                ->addColumn('approved_at_label', fn ($row) => optional($row->approved_at)->format('d/m/Y H:i'))
+                // Days until due (negative = overdue) for unpaid tracking
+                ->addColumn('jatuh_tempo_hari', function ($row) {
+                    if (!$row->due_date || !in_array($row->status, ['diapprove', 'diretur_sebagian'], true)) {
                         return null;
                     }
-
-                    return optional($row->returs->sortByDesc('id')->first())->no_retur;
+                    return (int) now()->startOfDay()->diffInDays(Carbon::parse($row->due_date)->startOfDay(), false);
                 })
-                ->addColumn('action', function($row) use ($isAdmin) {
-                    $actionBtn = '';
-                    $latestRetur = $row->relationLoaded('returs')
-                        ? $row->returs->sortByDesc('id')->first()
-                        : null;
-                    $hasReplacementInvoice = $row->relationLoaded('replacementInvoices')
-                        ? $row->replacementInvoices->isNotEmpty()
-                        : false;
-
-                    if ($row->status === 'diapprove') {
-                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/print" target="_blank" class="btn btn-secondary btn-sm mb-1 mr-1"><i class="fa fa-print"></i> Print</a>';
-                    }
-
-                    // Edit button with contextual label based on status
-                    if ($row->status === 'diminta') {
-                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary mb-1 mr-1">Input Faktur</a>';
-                    } elseif (in_array($row->status, ['diterima', 'diapprove'], true)) {
-                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary mb-1 mr-1">Edit</a>';
-                    }
-
-                    // Approve button - only show for diterima status (not diminta or diapprove yet)
-                    if ($row->status === 'diterima') {
-                        $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur mb-1 mr-1" data-id="' . $row->id . '">Approve</button>';
-                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp mb-1 mr-1" data-id="' . $row->id . '">Cek HPP</button>';
-                    }
-
-                    if ($row->status === 'diapprove' && !$latestRetur) {
-                        $actionBtn .= '<button class="btn btn-sm btn-warning btn-create-retur-faktur mb-1 mr-1" data-id="' . $row->id . '">Retur</button>';
-                    }
-
-                    if ($latestRetur) {
-                        $actionBtn .= '<button class="btn btn-sm btn-outline-info btn-detail-retur-faktur mb-1 mr-1" data-id="' . $latestRetur->id . '">Detail Retur</button>';
-                    }
-
-                    if ($row->status === 'diretur' && $latestRetur && $latestRetur->status === 'diapprove' && !$hasReplacementInvoice) {
-                        $actionBtn .= '<a href="' . route('erm.fakturbeli.create', ['replace_retur_id' => $latestRetur->id]) . '" class="btn btn-sm btn-outline-primary mb-1 mr-1">Faktur Pengganti</a>';
-                    }
-
-                    // Delete button
-                    if ($isAdmin) {
-                        $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur mb-1" data-id="' . $row->id . '">Delete</button>';
-                    }
-                    return $actionBtn;
+                ->addColumn('replaced_faktur_no', fn ($row) => optional($row->replacedFaktur)->no_faktur)
+                ->addColumn('source_retur_no', fn ($row) => optional($row->sourceRetur)->no_retur)
+                ->addColumn('replacement_invoice_nos', fn ($row) => $row->replacementInvoices->pluck('no_faktur')->filter()->values()->all())
+                ->addColumn('latest_retur', function ($row) {
+                    $retur = $row->returs->sortByDesc('id')->first();
+                    return $retur ? ['id' => $retur->id, 'no_retur' => $retur->no_retur, 'status' => $retur->status] : null;
                 })
-                ->rawColumns(['action'])
+                ->addColumn('actions', function ($row) use ($isAdmin) {
+                    $latestRetur = $row->returs->sortByDesc('id')->first();
+                    return [
+                        'input' => $row->status === 'diminta',
+                        'edit' => $row->status === 'diterima',
+                        'approve' => $row->status === 'diterima',
+                        'print' => in_array($row->status, ['diapprove', 'diretur_sebagian', 'diretur'], true),
+                        // A new retur is possible while received stok remains on the faktur
+                        'retur' => in_array($row->status, ['diapprove', 'diretur_sebagian'], true) && !($latestRetur && $latestRetur->status === 'diajukan'),
+                        'pengganti' => $latestRetur && $latestRetur->status === 'diapprove' && $row->replacementInvoices->isEmpty()
+                            && in_array($row->status, ['diretur', 'diretur_sebagian'], true)
+                            ? $latestRetur->id : null,
+                        'delete' => $isAdmin && in_array($row->status, ['diminta', 'diterima'], true),
+                    ];
+                })
+                ->with('counts', [
+                    'all' => (int) $counts->sum(),
+                    'diminta' => (int) ($counts['diminta'] ?? 0),
+                    'diterima' => (int) ($counts['diterima'] ?? 0),
+                    'diapprove' => (int) ($counts['diapprove'] ?? 0),
+                    'diretur' => (int) (($counts['diretur'] ?? 0) + ($counts['diretur_sebagian'] ?? 0)),
+                ])
+                ->orderColumn('requested_date', 'COALESCE(received_date, requested_date, created_at) $1')
                 ->make(true);
         }
+
         $principals = Principal::orderBy('nama')->get();
 
         return view('erm.fakturbeli.index', compact('principals'));
@@ -223,304 +177,239 @@ class FakturBeliController extends Controller
         ]);
     }
 
+    // The form lives in a modal on the Faktur Pembelian page; old links land there with the modal opened
     public function create(Request $request)
     {
-        $pemasoks = Pemasok::all();
-        $gudangs = Gudang::all();
-        $obats = Obat::all();
-
-        $sourceRetur = null;
-        $sourceFaktur = null;
-
-        if ($request->filled('replace_retur_id')) {
-            $sourceRetur = FakturRetur::with([
-                'fakturbeli.pemasok',
-                'items.obat',
-                'items.gudang',
-                'items.fakturbeliitem.obat',
-                'items.fakturbeliitem.gudang',
-            ])->findOrFail($request->input('replace_retur_id'));
-
-            abort_unless($sourceRetur->status === 'diapprove', 422, 'Retur harus diapprove sebelum membuat faktur pengganti.');
-
-            $originalFaktur = $sourceRetur->fakturbeli;
-            $sourceFaktur = new FakturBeli();
-            $sourceFaktur->pemasok_id = optional($originalFaktur)->pemasok_id;
-            $sourceFaktur->requested_date = optional($originalFaktur)->requested_date;
-            $sourceFaktur->ship_date = optional($originalFaktur)->ship_date;
-            $sourceFaktur->received_date = now()->toDateString();
-            $sourceFaktur->due_date = optional($originalFaktur)->due_date;
-            $sourceFaktur->notes = trim(collect([
-                optional($originalFaktur)->notes,
-                'Faktur pengganti dari retur ' . $sourceRetur->no_retur,
-            ])->filter()->implode(' | '));
-            $sourceFaktur->subtotal = null;
-            $sourceFaktur->global_diskon = 0;
-            $sourceFaktur->global_pajak = 0;
-            $sourceFaktur->total = null;
-            $sourceFaktur->setRelation('pemasok', optional($originalFaktur)->pemasok);
-            $replacementItems = collect($sourceRetur->items)->map(function ($returItem) {
-                $originalItem = $returItem->fakturbeliitem;
-
-                $item = new FakturBeliItem();
-                $item->permintaan_item_id = optional($originalItem)->permintaan_item_id;
-                $item->obat_id = $returItem->obat_id;
-                $item->principal_id = optional($originalItem)->principal_id;
-                $item->qty = $returItem->qty;
-                $item->diminta = $returItem->qty;
-                $item->sisa = 0;
-                $item->harga = optional($originalItem)->harga ?? 0;
-                $item->diskon = optional($originalItem)->diskon ?? 0;
-                $item->diskon_type = optional($originalItem)->diskon_type ?? 'nominal';
-                $item->tax = optional($originalItem)->tax ?? 0;
-                $item->tax_type = optional($originalItem)->tax_type ?? 'nominal';
-                $item->gudang_id = $returItem->gudang_id ?? optional($originalItem)->gudang_id;
-                $item->batch = $returItem->batch ?? optional($originalItem)->batch;
-                $item->expiration_date = $returItem->expiration_date ?? optional($originalItem)->expiration_date;
-                $item->total_amount = optional($originalItem)->total_amount ?? 0;
-                $item->setRelation('obat', $returItem->obat ?: optional($originalItem)->obat);
-                $item->setRelation('gudang', $returItem->gudang ?: optional($originalItem)->gudang);
-
-                return $item;
-            });
-            $sourceFaktur->setRelation('items', $replacementItems);
-        }
-
-        return view('erm.fakturbeli.create', compact('pemasoks', 'gudangs', 'obats', 'sourceRetur', 'sourceFaktur'));
+        return redirect()->route('erm.fakturbeli.index', array_filter([
+            'pengganti' => $request->input('replace_retur_id'),
+            'baru' => $request->filled('replace_retur_id') ? null : 1,
+        ]));
     }
 
-    public function store(Request $request)
+    /**
+     * Everything the faktur modal needs, as JSON: an existing faktur (id), a replacement for an approved retur
+     * (replace_retur_id) or an empty new faktur. Includes the gudang list and the default gudang.
+     */
+    public function formData(Request $request)
     {
+        $expiredId = app(\App\Services\ERM\GudangExpiredService::class)->gudangId();
+        $gudangs = Gudang::orderBy('nama')->get(['id', 'nama'])
+            ->reject(fn ($g) => $expiredId && (int) $g->id === (int) $expiredId)->values();
+        // The gudang most fakturs went to; the user can change it per line
+        $defaultGudang = (int) (FakturBeliItem::whereNotNull('gudang_id')
+            ->when($expiredId, fn ($q) => $q->where('gudang_id', '!=', $expiredId))
+            ->select('gudang_id', DB::raw('COUNT(*) as n'))->groupBy('gudang_id')->orderByDesc('n')->value('gudang_id')
+            ?: optional($gudangs->first())->id);
 
-        $validated = $request->validate([
+        $mapItem = function ($item) {
+            return [
+                'permintaan_item_id' => $item->permintaan_item_id,
+                'obat_id' => $item->obat_id,
+                'obat_nama' => optional($item->obat)->nama ?? 'Obat #' . $item->obat_id,
+                'satuan' => optional($item->obat)->satuan_stok_label,
+                'diminta' => (int) $item->diminta,
+                'qty' => (int) $item->qty,
+                'harga' => (float) $item->harga,
+                'diskon' => (float) $item->diskon,
+                'diskon_type' => $item->diskon_type ?: 'nominal',
+                'tax' => (float) $item->tax,
+                'tax_type' => $item->tax_type ?: 'nominal',
+                'gudang_id' => $item->gudang_id,
+                'batch' => $item->batch,
+                'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('Y-m-d') : null,
+            ];
+        };
+
+        $base = [
+            'gudangs' => $gudangs,
+            'default_gudang_id' => $defaultGudang,
+            'ppn_persen' => (float) config('pembelian.ppn_persen', 11),
+        ];
+
+        if ($request->filled('id')) {
+            $faktur = FakturBeli::with(['items.obat' => fn ($q) => $q->withInactive(), 'pemasok:id,nama'])->findOrFail($request->input('id'));
+            if ($lockedMessage = $this->fakturLockedMessage($faktur)) {
+                return response()->json(['success' => false, 'message' => $lockedMessage], 422);
+            }
+
+            return response()->json($base + [
+                'mode' => $faktur->status === 'diminta' ? 'input' : 'edit',
+                'id' => $faktur->id,
+                'status' => $faktur->status,
+                'permintaan_id' => $faktur->permintaan_id,
+                'no_permintaan' => $faktur->no_permintaan,
+                'pemasok' => $faktur->pemasok ? ['id' => $faktur->pemasok->id, 'nama' => $faktur->pemasok->nama] : null,
+                'pemasok_terkunci' => true,
+                // The follow-up faktur for undelivered items carries a placeholder number until its own invoice arrives
+                'no_faktur' => str_contains((string) $faktur->no_faktur, '-NEXT-') ? null : $faktur->no_faktur,
+                'lanjutan_dari' => str_contains((string) $faktur->no_faktur, '-NEXT-') ? strstr($faktur->no_faktur, '-NEXT-', true) : null,
+                'requested_date' => $faktur->requested_date,
+                'received_date' => $faktur->received_date ?: now()->toDateString(),
+                'due_date' => $faktur->due_date,
+                'ship_date' => $faktur->ship_date,
+                'notes' => $faktur->notes,
+                'bukti_url' => $faktur->bukti ? asset('storage/' . $faktur->bukti) : null,
+                // Stored global amounts are nominal; a faktur that never had them starts at the PPN rate
+                'global_diskon' => (float) $faktur->global_diskon,
+                'global_pajak' => $faktur->global_pajak !== null ? (float) $faktur->global_pajak : null,
+                'items' => $faktur->items->map($mapItem)->values(),
+            ]);
+        }
+
+        if ($request->filled('replace_retur_id')) {
+            $retur = FakturRetur::with(['fakturbeli.pemasok', 'items.obat' => fn ($q) => $q->withInactive(), 'items.fakturbeliitem'])
+                ->findOrFail($request->input('replace_retur_id'));
+            if ($retur->status !== 'diapprove') {
+                return response()->json(['success' => false, 'message' => 'Retur harus disetujui sebelum membuat faktur pengganti.'], 422);
+            }
+            $original = $retur->fakturbeli;
+
+            return response()->json($base + [
+                'mode' => 'pengganti',
+                'id' => null,
+                'replaced_fakturbeli_id' => $retur->fakturbeli_id,
+                'source_retur_id' => $retur->id,
+                'no_retur' => $retur->no_retur,
+                'pemasok' => optional($original)->pemasok ? ['id' => $original->pemasok->id, 'nama' => $original->pemasok->nama] : null,
+                'pemasok_terkunci' => true,
+                'no_faktur' => null,
+                'requested_date' => optional($original)->requested_date,
+                'received_date' => now()->toDateString(),
+                'due_date' => optional($original)->due_date,
+                'notes' => 'Faktur pengganti dari retur ' . $retur->no_retur,
+                'global_diskon' => 0,
+                'global_pajak' => null,
+                'items' => $retur->items->map(function ($returItem) use ($mapItem) {
+                    $source = $returItem->fakturbeliitem;
+                    $row = $source ? $mapItem($source) : [];
+                    return array_merge($row, [
+                        'obat_id' => $returItem->obat_id,
+                        'obat_nama' => optional($returItem->obat)->nama ?? 'Obat #' . $returItem->obat_id,
+                        'satuan' => optional($returItem->obat)->satuan_stok_label,
+                        'diminta' => (int) $returItem->qty,
+                        'qty' => (int) $returItem->qty,
+                        // A replacement arrives as a new batch
+                        'batch' => null,
+                        'expiration_date' => null,
+                    ]);
+                })->values(),
+            ]);
+        }
+
+        return response()->json($base + [
+            'mode' => 'baru',
+            'id' => null,
+            'pemasok' => null,
+            'pemasok_terkunci' => false,
+            'received_date' => now()->toDateString(),
+            'global_diskon' => 0,
+            'global_pajak' => null,
+            'items' => [],
+        ]);
+    }
+
+    private function fakturRules(Request $request, ?FakturBeli $faktur = null): array
+    {
+        return [
             'permintaan_id' => 'nullable|exists:erm_permintaan,id',
             'replaced_fakturbeli_id' => 'nullable|exists:erm_fakturbeli,id',
             'source_retur_id' => 'nullable|exists:erm_fakturretur,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
-            'no_faktur' => 'required|string|unique:erm_fakturbeli,no_faktur',
+            // One supplier never issues the same invoice number twice
+            'no_faktur' => [
+                'required', 'string', 'max:191',
+                \Illuminate\Validation\Rule::unique('erm_fakturbeli', 'no_faktur')
+                    ->where(fn ($q) => $q->where('pemasok_id', $request->input('pemasok_id')))
+                    ->ignore($faktur?->id),
+            ],
             'received_date' => 'required|date',
             'requested_date' => 'nullable|date',
             'due_date' => 'nullable|date',
             'ship_date' => 'nullable|date',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:1000',
             'bukti' => 'nullable|image|max:10240',
-            'items' => 'required|array',
-            'items.*.permintaan_item_id' => 'nullable|exists:erm_permintaan_items,id',
-            'items.*.obat_id' => 'required|exists:erm_obat,id',
-            'items.*.qty' => 'required|integer|min:1',
-            'items.*.diminta' => 'nullable|integer|min:0',
-            'items.*.harga' => 'required|numeric',
-            'items.*.diskon' => 'nullable|numeric',
-            'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
-            'items.*.tax' => 'nullable|numeric',
-            'items.*.tax_type' => 'nullable|string|in:nominal,percent',
-            'items.*.gudang_id' => 'required|exists:erm_gudang,id',
-            'items.*.batch' => 'nullable|string',
-            'items.*.expiration_date' => 'nullable|date',
-            'subtotal' => 'nullable|numeric',
-            'global_diskon' => 'nullable|numeric',
-            'global_diskon_type' => 'nullable|string',
-            'global_pajak' => 'nullable|numeric',
-            'global_pajak_type' => 'nullable|string',
-            'total' => 'nullable|numeric',
-        ]);
-
-        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
-            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
-        }
-
-        $buktiPath = null;
-        if ($request->hasFile('bukti')) {
-            $buktiPath = $request->file('bukti')->store('fakturbeli_bukti', 'public');
-        }
-
-        $faktur = FakturBeli::create([
-            'permintaan_id' => $validated['permintaan_id'] ?? null,
-            'replaced_fakturbeli_id' => $validated['replaced_fakturbeli_id'] ?? null,
-            'source_retur_id' => $validated['source_retur_id'] ?? null,
-            'pemasok_id' => $validated['pemasok_id'],
-            'no_faktur' => $validated['no_faktur'],
-            'received_date' => $validated['received_date'],
-            'requested_date' => $validated['requested_date'] ?? null,
-            'due_date' => $validated['due_date'] ?? null,
-            'ship_date' => $validated['ship_date'],
-            'notes' => $validated['notes'],
-            'bukti' => $buktiPath,
-            'subtotal' => $validated['subtotal'] ?? null,
-            'global_diskon' => $validated['global_diskon'] ?? null,
-            'global_pajak' => $validated['global_pajak'] ?? null,
-            'total' => $validated['total'] ?? null,
-            'status' => 'diterima', // When creating a full faktur, mark as received
-        ]);
-
-        // Calculate subtotal for all items (for global diskon/pajak percentage)
-        $itemSubtotals = [];
-        foreach ($validated['items'] as $item) {
-            $qty = $item['qty'] ?? 0;
-            $harga = $item['harga'] ?? 0;
-            $diskon = $item['diskon'] ?? 0;
-            $diskonType = $item['diskon_type'] ?? 'nominal';
-            $tax = $item['tax'] ?? 0;
-            $taxType = $item['tax_type'] ?? 'nominal';
-            $base = $qty * $harga;
-            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
-            $itemSubtotal = $base - $diskonValue + $taxValue;
-            $itemSubtotals[] = $itemSubtotal;
-        }
-        $totalItemSubtotal = array_sum($itemSubtotals);
-        $globalDiskon = $validated['global_diskon'] ?? 0;
-        $globalDiskonType = $validated['global_diskon_type'] ?? 'nominal';
-        $globalDiskonValue = $globalDiskonType === 'percent' ? ($totalItemSubtotal * $globalDiskon / 100) : $globalDiskon;
-        $globalPajak = $validated['global_pajak'] ?? 0;
-        $globalPajakType = $validated['global_pajak_type'] ?? 'nominal';
-        $globalPajakValue = $globalPajakType === 'percent' ? ($totalItemSubtotal * $globalPajak / 100) : $globalPajak;
-
-        foreach ($validated['items'] as $idx => $item) {
-            $qty = $item['qty'] ?? 0;
-            $harga = $item['harga'] ?? 0;
-            $diskon = $item['diskon'] ?? 0;
-            $diskonType = $item['diskon_type'] ?? 'nominal';
-            $tax = $item['tax'] ?? 0;
-            $taxType = $item['tax_type'] ?? 'nominal';
-            $base = $qty * $harga;
-            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
-            $itemSubtotal = $base - $diskonValue + $taxValue;
-            // Distribute global pajak proportionally
-            $prop = $totalItemSubtotal > 0 ? $itemSubtotal / $totalItemSubtotal : 0;
-            $globalPajakItem = $globalPajakValue * $prop;
-            // HPP calculation: (itemSubtotal + globalPajakItem) / qty
-            $hpp = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;
-
-            $faktur->items()->create([
-                'permintaan_item_id' => $item['permintaan_item_id'] ?? null,
-                'obat_id' => $item['obat_id'],
-                'principal_id' => $this->masterPembelian->principalForItem(
-                    (int) $item['obat_id'], isset($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null
-                ),
-                'qty' => $qty,
-                'diminta' => $item['diminta'] ?? $qty, // Default to qty if diminta not provided
-                'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
-                'harga' => $harga,
-                'diskon' => $diskon,
-                'diskon_type' => $diskonType,
-                'tax' => $tax,
-                'tax_type' => $taxType,
-                'gudang_id' => $item['gudang_id'],
-                'batch' => $item['batch'] ?? null,
-                'expiration_date' => $item['expiration_date'] ?? null,
-                'total_amount' => $itemSubtotal,
-            ]);
-        }
-
-        return response()->json(['success' => true, 'message' => 'Faktur berhasil disimpan']);
-    }
-
-        public function edit($id)
-    {
-        $faktur = FakturBeli::with('items')->findOrFail($id);
-        $pemasoks = Pemasok::all();
-        $gudangs = Gudang::all();
-        $obats = Obat::all();
-        return view('erm.fakturbeli.create', compact('faktur', 'pemasoks', 'gudangs', 'obats'));
-    }
-
-        public function update(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'permintaan_id' => 'nullable|exists:erm_permintaan,id',
-            'pemasok_id' => 'required|exists:erm_pemasok,id',
-            'no_faktur' => 'required|string',
-            'received_date' => 'required|date',
-            'requested_date' => 'nullable|date',
-            'due_date' => 'nullable|date',
-            'ship_date' => 'nullable|date',
-            'notes' => 'nullable|string',
-            'bukti' => 'nullable|image|max:10240',
-            'items' => 'required|array',
+            'items' => 'required|array|min:1',
             'items.*.permintaan_item_id' => 'nullable|exists:erm_permintaan_items,id',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:0',
             'items.*.diminta' => 'nullable|integer|min:0',
-            'items.*.harga' => 'required|numeric',
-            'items.*.diskon' => 'nullable|numeric',
+            'items.*.harga' => 'required|numeric|min:0',
+            'items.*.diskon' => 'nullable|numeric|min:0',
             'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
-            'items.*.tax' => 'nullable|numeric',
+            'items.*.tax' => 'nullable|numeric|min:0',
             'items.*.tax_type' => 'nullable|string|in:nominal,percent',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
-            'items.*.batch' => 'nullable|string',
+            'items.*.batch' => 'nullable|string|max:255',
             'items.*.expiration_date' => 'nullable|date',
-            'subtotal' => 'nullable|numeric',
-            'global_diskon' => 'nullable|numeric',
-            'global_pajak' => 'nullable|numeric',
-            'total' => 'nullable|numeric',
-        ]);
+            'global_diskon' => 'nullable|numeric|min:0',
+            'global_pajak' => 'nullable|numeric|min:0',
+        ];
+    }
 
-        foreach ($validated['items'] as $item) {
-            $diminta = (int) ($item['diminta'] ?? 0);
+    private const FAKTUR_MESSAGES = [
+        'no_faktur.unique' => 'Nomor faktur ini sudah dipakai untuk pemasok yang sama.',
+        'no_faktur.required' => 'Nomor faktur wajib diisi.',
+        'items.required' => 'Tambahkan minimal satu obat.',
+    ];
+
+    /**
+     * Item lines with their amounts: base = qty x harga, the item discount and item tax (nominal per
+     * line or percent of the line) -> line total. Also checks qty vs diminta and that received lines
+     * have a batch and ED (stok without them cannot be traced or rotated FEFO).
+     */
+    private function hitungItems(array $items): array
+    {
+        $errors = [];
+        $lines = [];
+        foreach ($items as $item) {
             $qty = (int) ($item['qty'] ?? 0);
+            $diminta = (int) ($item['diminta'] ?? 0);
+            $nama = optional(Obat::withInactive()->find($item['obat_id']))->nama ?? 'Obat #' . $item['obat_id'];
             if ($diminta > 0 && $qty > $diminta) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Qty diterima tidak boleh melebihi qty diminta.'
-                ], 422);
+                $errors[] = "{$nama}: qty diterima ({$qty}) melebihi qty diminta ({$diminta}).";
             }
-        }
-
-        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
-            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
-        }
-
-        $faktur = FakturBeli::findOrFail($id);
-
-        $buktiPath = $faktur->bukti;
-        if ($request->hasFile('bukti')) {
-            $buktiPath = $request->file('bukti')->store('fakturbeli_bukti', 'public');
-        }
-
-        DB::beginTransaction();
-        try {
-        $faktur->update([
-            'permintaan_id' => $validated['permintaan_id'] ?? $faktur->permintaan_id,
-            'pemasok_id' => $validated['pemasok_id'],
-            'no_faktur' => $validated['no_faktur'],
-            'received_date' => $validated['received_date'],
-            'requested_date' => $validated['requested_date'] ?? null,
-            'due_date' => $validated['due_date'] ?? null,
-            'ship_date' => $validated['ship_date'],
-            'notes' => $validated['notes'],
-            'bukti' => $buktiPath,
-            'subtotal' => $validated['subtotal'] ?? null,
-            'global_diskon' => $validated['global_diskon'] ?? null,
-            'global_pajak' => $validated['global_pajak'] ?? null,
-            'total' => $validated['total'] ?? null,
-            'status' => 'diterima', // Update status when editing
-        ]);
-
-        // Remove old items and re-add. The form has no principal field, so keep the principal the old item had
-        // (matched by permintaan item, else by obat); new lines take it from the permintaan / Master Pembelian.
-        $oldPrincipal = [];
-        foreach ($faktur->items()->whereNotNull('principal_id')->get(['permintaan_item_id', 'obat_id', 'principal_id']) as $old) {
-            if ($old->permintaan_item_id) {
-                $oldPrincipal['pi-' . $old->permintaan_item_id] = $old->principal_id;
+            if ($qty > 0 && (trim((string) ($item['batch'] ?? '')) === '' || empty($item['expiration_date']))) {
+                $errors[] = "{$nama}: nomor batch dan tanggal kadaluarsa wajib diisi untuk barang yang diterima.";
             }
-            $oldPrincipal['obat-' . $old->obat_id] = $oldPrincipal['obat-' . $old->obat_id] ?? $old->principal_id;
-        }
-        $faktur->items()->delete();
-        foreach ($validated['items'] as $item) {
-            $qty = $item['qty'] ?? 0;
-            $harga = $item['harga'] ?? 0;
-            $diskon = $item['diskon'] ?? 0;
-            $diskonType = $item['diskon_type'] ?? 'nominal';
-            $tax = $item['tax'] ?? 0;
-            $taxType = $item['tax_type'] ?? 'nominal';
+
+            $harga = (float) ($item['harga'] ?? 0);
             $base = $qty * $harga;
-            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
-            $itemSubtotal = $base - $diskonValue + $taxValue;
+            $diskonType = $item['diskon_type'] ?? 'nominal';
+            $taxType = $item['tax_type'] ?? 'nominal';
+            $diskonValue = $diskonType === 'percent' ? $base * (float) ($item['diskon'] ?? 0) / 100 : (float) ($item['diskon'] ?? 0);
+            $taxValue = $taxType === 'percent' ? $base * (float) ($item['tax'] ?? 0) / 100 : (float) ($item['tax'] ?? 0);
 
-            $permintaanItemId = isset($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null;
+            $lines[] = $item + [
+                '_qty' => $qty,
+                '_diskon_type' => $diskonType,
+                '_tax_type' => $taxType,
+                '_total' => round(max($base - $diskonValue + $taxValue, 0), 2),
+            ];
+        }
+
+        return [$lines, $errors];
+    }
+
+    // Header amounts computed here, not taken from the browser: subtotal of the lines, minus global diskon, plus global pajak
+    private function hitungTotal(array $lines, array $validated): array
+    {
+        $subtotal = round(array_sum(array_column($lines, '_total')), 2);
+        $globalDiskon = round((float) ($validated['global_diskon'] ?? 0), 2);
+        $globalPajak = round((float) ($validated['global_pajak'] ?? 0), 2);
+
+        return [
+            'subtotal' => $subtotal,
+            'global_diskon' => $globalDiskon,
+            'global_pajak' => $globalPajak,
+            'total' => round(max($subtotal - $globalDiskon + $globalPajak, 0), 2),
+        ];
+    }
+
+    private function simpanItems(FakturBeli $faktur, array $lines, array $oldPrincipal = []): void
+    {
+        foreach ($lines as $item) {
+            $permintaanItemId = !empty($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null;
+            $diminta = isset($item['diminta']) && $item['diminta'] !== '' ? (int) $item['diminta'] : $item['_qty'];
             $faktur->items()->create([
                 'permintaan_item_id' => $permintaanItemId,
                 'obat_id' => $item['obat_id'],
@@ -528,29 +417,134 @@ class FakturBeliController extends Controller
                     (int) $item['obat_id'], $permintaanItemId,
                     $oldPrincipal['pi-' . $permintaanItemId] ?? $oldPrincipal['obat-' . $item['obat_id']] ?? null
                 ),
-                'qty' => $qty,
-                'diminta' => $item['diminta'] ?? $qty,
-                'sisa' => max(($item['diminta'] ?? $qty) - $qty, 0),
-                'harga' => $harga,
-                'diskon' => $diskon,
-                'diskon_type' => $diskonType,
-                'tax' => $tax,
-                'tax_type' => $taxType,
+                'qty' => $item['_qty'],
+                'diminta' => $diminta,
+                'sisa' => max($diminta - $item['_qty'], 0),
+                'harga' => (float) ($item['harga'] ?? 0),
+                'diskon' => (float) ($item['diskon'] ?? 0),
+                'diskon_type' => $item['_diskon_type'],
+                'tax' => (float) ($item['tax'] ?? 0),
+                'tax_type' => $item['_tax_type'],
                 'gudang_id' => $item['gudang_id'],
-                'batch' => $item['batch'] ?? null,
+                'batch' => isset($item['batch']) ? trim($item['batch']) : null,
                 'expiration_date' => $item['expiration_date'] ?? null,
-                'total_amount' => $itemSubtotal,
+                'total_amount' => $item['_total'],
             ]);
         }
+    }
 
-            DB::commit();
-            return response()->json(['success' => true, 'message' => 'Faktur berhasil diupdate']);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            // Log error for debugging
-            return response()->json(['success' => false, 'message' => 'Gagal menyimpan faktur', 'error' => $e->getMessage()]);
+    public function store(Request $request)
+    {
+        $validated = $request->validate($this->fakturRules($request), self::FAKTUR_MESSAGES);
+
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
         }
-    // ...existing code...
+        [$lines, $errors] = $this->hitungItems($validated['items']);
+        if (!array_filter(array_column($lines, '_qty'))) {
+            $errors[] = 'Minimal satu obat harus punya qty diterima lebih dari 0.';
+        }
+        if ($errors) {
+            return response()->json(['success' => false, 'message' => implode("\n", $errors), 'errors' => ['items' => $errors]], 422);
+        }
+
+        $buktiPath = $request->hasFile('bukti') ? $request->file('bukti')->store('fakturbeli_bukti', 'public') : null;
+
+        $faktur = DB::transaction(function () use ($validated, $lines, $buktiPath) {
+            $faktur = FakturBeli::create([
+                'permintaan_id' => $validated['permintaan_id'] ?? null,
+                'replaced_fakturbeli_id' => $validated['replaced_fakturbeli_id'] ?? null,
+                'source_retur_id' => $validated['source_retur_id'] ?? null,
+                'pemasok_id' => $validated['pemasok_id'],
+                'no_faktur' => trim($validated['no_faktur']),
+                'received_date' => $validated['received_date'],
+                'requested_date' => ($validated['requested_date'] ?? null) ?: null,
+                'due_date' => ($validated['due_date'] ?? null) ?: null,
+                'ship_date' => ($validated['ship_date'] ?? null) ?: null,
+                'notes' => ($validated['notes'] ?? null) ?: null,
+                'bukti' => $buktiPath,
+                'status' => 'diterima', // received; stok enters on approval
+                'created_by' => Auth::id(),
+            ] + $this->hitungTotal($lines, $validated));
+
+            $this->simpanItems($faktur, $lines);
+
+            return $faktur;
+        });
+
+        return response()->json(['success' => true, 'message' => "Faktur {$faktur->no_faktur} disimpan dan menunggu approval. Stok masuk setelah di-approve.", 'id' => $faktur->id]);
+    }
+
+    public function edit($id)
+    {
+        $faktur = FakturBeli::findOrFail($id);
+        if ($lockedMessage = $this->fakturLockedMessage($faktur)) {
+            return redirect()->route('erm.fakturbeli.index')->with('error', $lockedMessage);
+        }
+
+        return redirect()->route('erm.fakturbeli.index', ['input' => $faktur->id]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $faktur = FakturBeli::findOrFail($id);
+        // Locked first, so an approved faktur says so instead of listing form errors
+        if ($lockedMessage = $this->fakturLockedMessage($faktur)) {
+            return response()->json(['success' => false, 'message' => $lockedMessage], 422);
+        }
+        $validated = $request->validate($this->fakturRules($request, $faktur), self::FAKTUR_MESSAGES);
+
+        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
+            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
+        }
+        [$lines, $errors] = $this->hitungItems($validated['items']);
+        if (!array_filter(array_column($lines, '_qty'))) {
+            $errors[] = 'Minimal satu obat harus punya qty diterima lebih dari 0.';
+        }
+        if ($errors) {
+            return response()->json(['success' => false, 'message' => implode("\n", $errors), 'errors' => ['items' => $errors]], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($request, $validated, $lines, $id) {
+                $faktur = FakturBeli::lockForUpdate()->findOrFail($id);
+                // Stok of an approved faktur is already in the gudang: editing would put it in again on the next approve
+                if ($lockedMessage = $this->fakturLockedMessage($faktur)) {
+                    throw new \DomainException($lockedMessage);
+                }
+
+                $buktiPath = $request->hasFile('bukti') ? $request->file('bukti')->store('fakturbeli_bukti', 'public') : $faktur->bukti;
+
+                $faktur->update([
+                    'permintaan_id' => $validated['permintaan_id'] ?? $faktur->permintaan_id,
+                    'pemasok_id' => $validated['pemasok_id'],
+                    'no_faktur' => trim($validated['no_faktur']),
+                    'received_date' => $validated['received_date'],
+                    'requested_date' => ($validated['requested_date'] ?? null) ?: $faktur->requested_date,
+                    'due_date' => ($validated['due_date'] ?? null) ?: null,
+                    'ship_date' => ($validated['ship_date'] ?? null) ?: null,
+                    'notes' => ($validated['notes'] ?? null) ?: null,
+                    'bukti' => $buktiPath,
+                    'status' => 'diterima',
+                ] + $this->hitungTotal($lines, $validated));
+
+                // The form has no principal field, so keep the principal the old item had
+                // (matched by permintaan item, else by obat); new lines take it from the permintaan / Master Pembelian.
+                $oldPrincipal = [];
+                foreach ($faktur->items()->whereNotNull('principal_id')->get(['permintaan_item_id', 'obat_id', 'principal_id']) as $old) {
+                    if ($old->permintaan_item_id) {
+                        $oldPrincipal['pi-' . $old->permintaan_item_id] = $old->principal_id;
+                    }
+                    $oldPrincipal['obat-' . $old->obat_id] = $oldPrincipal['obat-' . $old->obat_id] ?? $old->principal_id;
+                }
+                $faktur->items()->delete();
+                $this->simpanItems($faktur, $lines, $oldPrincipal);
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Faktur disimpan dan menunggu approval. Stok masuk setelah di-approve.', 'id' => (int) $id]);
     }
 
         public function destroy($id)
@@ -558,9 +552,28 @@ class FakturBeliController extends Controller
         abort_unless(Auth::check() && Auth::user()->hasAnyRole(['Admin']), 403, 'Unauthorized action.');
 
         $faktur = FakturBeli::findOrFail($id);
+
+        if ($lockedMessage = $this->fakturLockedMessage($faktur)) {
+            return response()->json(['success' => false, 'message' => $lockedMessage], 422);
+        }
+
         $faktur->items()->delete();
         $faktur->delete();
         return response()->json(['success' => true, 'message' => 'Faktur berhasil dihapus']);
+    }
+
+    /**
+     * A faktur whose stok already entered the gudang (approved / diretur, or with kartu stok rows)
+     * may not be edited or deleted; corrections go through Retur Pembelian.
+     */
+    private function fakturLockedMessage(FakturBeli $faktur): ?string
+    {
+        $stokSudahMasuk = in_array($faktur->status, ['diapprove', 'diretur_sebagian', 'diretur'], true)
+            || \App\Models\ERM\KartuStok::where('ref_type', 'faktur_pembelian')->where('ref_id', $faktur->id)->exists();
+
+        return $stokSudahMasuk
+            ? 'Faktur ini sudah di-approve dan stoknya sudah masuk gudang, jadi tidak bisa diubah atau dihapus. Gunakan Retur ke Supplier untuk koreksi.'
+            : null;
     }
 
         public function getPemasokSelect2(\Illuminate\Http\Request $request)
@@ -616,120 +629,55 @@ class FakturBeliController extends Controller
         }
     
     /**
-     * Debug HPP calculation without actually updating anything
+     * What approving this faktur will do, shown in the approval dialog: per line the qty, batch, ED, the
+     * price vs Master Pembelian, and the HPP the obat will get. Read-only.
      */
-    public function debugHpp($id)
+    public function approvePreview($id)
     {
-        $faktur = FakturBeli::with('items.obat')->findOrFail($id);
-        
-        if ($faktur->status !== 'diterima') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Faktur tidak dalam status diterima'
-            ]);
-        }
-        
-        // Calculate subtotal for proper global tax distribution
-        $invoiceSubtotal = 0;
-        foreach ($faktur->items as $invoiceItem) {
-            $invoiceSubtotal += ($invoiceItem->harga ?? 0) * ($invoiceItem->qty ?? 0);
-        }
-        
-        $debugInfo = [];
-        
-        foreach ($faktur->items as $item) {
-            if ($item->obat) {
-                $qty = $item->qty ?? 0;
-                $harga = $item->harga ?? 0;
-                $diskon = $item->diskon ?? 0;
-                $diskonType = $item->diskon_type ?? 'nominal';
-                $itemTax = $item->tax ?? 0;
-                $taxType = $item->tax_type ?? 'nominal';
-                $base = $qty * $harga;
-                $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-                $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
-                $itemSubtotal = $base - $diskonValue + $taxValue;
-                // Jika hanya satu item, global pajak langsung diberikan penuh
-                if (count($faktur->items) === 1) {
-                    $globalTaxPortion = $faktur->global_pajak ?? 0;
-                } else {
-                    $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
-                    $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
-                }
-                
-                // HPP excludes PPN (item tax + global pajak), same as approveFaktur
-                $purchaseCost = $base - $diskonValue; // HPP (dengan diskon)
-                $purchaseCostJual = $base; // HPP Jual (tanpa diskon) -> master HPP
-                
-                $obat = $item->obat;
-                $oldHpp = $obat->hpp ?? 0;
-                $oldHppJual = $obat->hpp ?? 0;
-                $oldStok = $obat->total_stok ?? 0; // Use total_stok attribute
+        $faktur = FakturBeli::with(['items.obat' => fn ($q) => $q->withInactive(), 'items.gudang:id,nama', 'pemasok:id,nama'])->findOrFail($id);
+        $tolerance = (float) config('pembelian.toleransi_harga_persen', 10);
+        $masters = \App\Models\ERM\MasterFaktur::where('pemasok_id', $faktur->pemasok_id)
+            ->whereIn('obat_id', $faktur->items->pluck('obat_id'))
+            ->get()
+            ->keyBy('obat_id');
 
-                // Per-unit costs used by the system when updating master HPP
-                $hppPerUnit = $qty > 0 ? ($purchaseCost / $qty) : 0; // include diskon
-                $hppJualPerUnit = $qty > 0 ? ($purchaseCostJual / $qty) : 0; // exclude diskon
-
-                // New behavior: master HPP and HPP_JUAL are set directly to the discount-excluded per-unit price
-                // (i.e., no averaging). Represent that as 'direct' values for debug display.
-                $newHpp_direct = $hppJualPerUnit; // price excluding discount per unit
-                $newHppJual_direct = $hppJualPerUnit; // same as above
-
-                // Simple average (legacy/system behavior) for reference
-                $newHpp_simple = ($oldHpp + $hppPerUnit) / 2;
-                $newHppJual_simple = ($oldHppJual + $hppJualPerUnit) / 2;
-
-                // Also compute weighted average for reference (previous debug behavior)
-                $newStok = $oldStok + $qty;
-                $newHpp_weighted = $newStok > 0 ? (($oldHpp * $oldStok) + $purchaseCost) / $newStok : 0;
-                $newHppJual_weighted = $newStok > 0 ? (($oldHppJual * $oldStok) + $purchaseCostJual) / $newStok : 0;
-
-                $debugInfo[] = [
-                    'obat_id' => $item->obat_id,
-                    'obat_nama' => $obat->nama ?? 'Unknown',
-                    'qty' => $qty,
-                    'harga' => $harga,
-                    'diskon_value' => $diskonValue,
-                    'tax_value' => $taxValue,
-                    'itemSubtotal' => $itemSubtotal, // Sudah include diskon dan pajak item
-                    'globalTaxPortion' => $globalTaxPortion,
-                    'purchaseCost' => $purchaseCost, // HPP dengan diskon
-                    'purchaseCostJual' => $purchaseCostJual, // HPP tanpa diskon  
-                    'oldHpp' => $oldHpp,
-                    'oldHppJual' => $oldHppJual,
-                    'oldStok' => $oldStok,
-                    'newStok' => $newStok,
-                    // Show new direct-set behavior as primary (no averaging)
-                    'newHpp' => $newHpp_direct,
-                    'newHppJual' => $newHppJual_direct,
-                    // Also include weighted results for comparison
-                    'newHpp_weighted' => $newHpp_weighted,
-                    'newHppJual_weighted' => $newHppJual_weighted,
-                    'hppPerUnit' => $qty > 0 ? $purchaseCost / $qty : 0,
-                    'hppJualPerUnit' => $qty > 0 ? $purchaseCostJual / $qty : 0,
-                    // Deltas for direct, simple and weighted methods
-                    'selisihHpp_direct' => $newHpp_direct - $oldHpp,
-                    'selisihHppJual_direct' => $newHppJual_direct - $oldHppJual,
-                    'selisihHpp_simple' => $newHpp_simple - $oldHpp,
-                    'selisihHppJual_simple' => $newHppJual_simple - $oldHppJual,
-                    'selisihHpp_weighted' => $newHpp_weighted - $oldHpp,
-                    'selisihHppJual_weighted' => $newHppJual_weighted - $oldHppJual,
-                ];
+        $problems = [];
+        $items = $faktur->items->filter(fn ($item) => (int) $item->qty > 0)->map(function ($item) use ($masters, $tolerance, &$problems) {
+            $nama = optional($item->obat)->nama ?? 'Obat #' . $item->obat_id;
+            if (trim((string) $item->batch) === '' || !$item->expiration_date) {
+                $problems[] = "{$nama}: batch / ED belum diisi.";
             }
-        }
-        
+            $master = $masters->get($item->obat_id);
+            $selisih = ($master && (float) $master->harga > 0)
+                ? round(((float) $item->harga - (float) $master->harga) / (float) $master->harga * 100, 1)
+                : null;
+
+            return [
+                'obat' => $nama,
+                'qty' => (int) $item->qty,
+                'diminta' => (int) $item->diminta,
+                'gudang' => optional($item->gudang)->nama,
+                'batch' => $item->batch,
+                'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('d/m/Y') : null,
+                'harga' => (float) $item->harga,
+                'harga_master' => $master ? (float) $master->harga : null,
+                'selisih_persen' => $selisih,
+                'selisih_besar' => $selisih !== null && abs($selisih) > $tolerance,
+                'hpp_lama' => (float) optional($item->obat)->hpp,
+                'hpp_baru' => (float) $item->harga, // master HPP = price before discount, excl. PPN
+            ];
+        })->values();
+
         return response()->json([
             'success' => true,
-            'faktur' => [
-                'id' => $faktur->id,
-                'no_faktur' => $faktur->no_faktur,
-                'subtotal' => $faktur->subtotal,
-                'global_diskon' => $faktur->global_diskon,
-                'global_pajak' => $faktur->global_pajak,
-                'total' => $faktur->total,
-                'invoiceSubtotalCalculated' => $invoiceSubtotal,
-            ],
-            'items' => $debugInfo
+            'no_faktur' => $faktur->no_faktur,
+            'pemasok' => optional($faktur->pemasok)->nama,
+            'status' => $faktur->status,
+            'total' => (float) $faktur->total,
+            'items' => $items,
+            'sisa' => $faktur->items->filter(fn ($item) => (int) $item->diminta > (int) $item->qty)->count(),
+            'toleransi_persen' => $tolerance,
+            'problems' => $problems,
         ]);
     }
 
@@ -738,22 +686,29 @@ class FakturBeliController extends Controller
      */
     public function approveFaktur($id)
     {
-        $faktur = FakturBeli::with(['items.obat', 'pemasok'])->findOrFail($id);
-        if ($faktur->status !== 'diterima') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Faktur harus berstatus diterima untuk bisa diapprove'
-            ], 400);
-        }
-
         DB::beginTransaction();
         try {
+            // Locked + checked inside the transaction: a double click or two users approving at once
+            // must not put the stok in twice
+            $faktur = FakturBeli::with(['items.obat', 'pemasok'])->lockForUpdate()->findOrFail($id);
+            if ($faktur->status !== 'diterima') {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Faktur harus berstatus diterima untuk bisa diapprove (status sekarang: ' . $faktur->status . ').'
+                ], 400);
+            }
+
             foreach ($faktur->items as $item) {
                 $diminta = (int) ($item->diminta ?? 0);
                 $qty = (int) ($item->qty ?? 0);
 
                 if ($diminta > 0 && $qty > $diminta) {
-                    throw new \RuntimeException('Qty diterima untuk ' . ($item->obat->nama ?? 'item') . ' melebihi qty diminta.');
+                    throw new \DomainException('Qty diterima untuk ' . ($item->obat->nama ?? 'item') . ' melebihi qty diminta.');
+                }
+                // Stok without batch / ED cannot be traced or rotated FEFO
+                if ($qty > 0 && (trim((string) $item->batch) === '' || !$item->expiration_date)) {
+                    throw new \DomainException('Batch dan tanggal kadaluarsa ' . ($item->obat->nama ?? 'item') . ' belum diisi. Lengkapi lewat Edit faktur sebelum approve.');
                 }
             }
 
@@ -809,7 +764,8 @@ class FakturBeliController extends Controller
             // Update status faktur
             $faktur->update([
                 'status' => 'diapprove',
-                'approved_by' => Auth::id()
+                'approved_by' => Auth::id(),
+                'approved_at' => now(),
             ]);
 
             // The price paid becomes the Master Pembelian price for the next permintaan
@@ -834,6 +790,7 @@ class FakturBeliController extends Controller
                     'global_pajak' => null,
                     'total' => null,
                     'status' => 'diminta',
+                    'created_by' => Auth::id(),
                 ]);
                 foreach ($itemsOutstanding as $outstanding) {
                     $item = $outstanding['item'];
@@ -866,115 +823,18 @@ class FakturBeliController extends Controller
                     ? 'Faktur berhasil diapprove dan stok telah diupdate. Faktur lanjutan dibuat untuk sisa item yang belum terpenuhi.'
                     : 'Faktur berhasil diapprove dan stok telah diupdate.'
             ]);
+        } catch (\DomainException $e) {
+            DB::rollback();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
             DB::rollback();
+            report($e);
             return response()->json([
                 'success' => false,
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
     }    // New methods for purchase request functionality
-    public function createPermintaan()
-    {
-        $pemasoks = Pemasok::all();
-        return view('erm.fakturbeli.permintaan', compact('pemasoks'));
-    }
-
-    public function storePermintaan(Request $request)
-    {
-        $validated = $request->validate([
-            'pemasok_id' => 'required|exists:erm_pemasok,id',
-            'requested_date' => 'required|date',
-            'notes' => 'nullable|string',
-            'items' => 'required|array',
-            'items.*.obat_id' => 'required|exists:erm_obat,id',
-            'items.*.diminta' => 'required|integer|min:1',
-        ]);
-
-        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
-            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
-        }
-
-        $faktur = FakturBeli::create([
-            'pemasok_id' => $validated['pemasok_id'],
-            'requested_date' => $validated['requested_date'],
-            'notes' => $validated['notes'] ?? null,
-            'status' => 'diminta',
-        ]);
-
-        foreach ($validated['items'] as $item) {
-            $faktur->items()->create([
-                'obat_id' => $item['obat_id'],
-                'principal_id' => $this->masterPembelian->principalFor((int) $item['obat_id']),
-                'diminta' => $item['diminta'],
-                'qty' => 0, // Initially, no items received yet
-                'sisa' => 0,
-            ]);
-        }
-
-        return response()->json(['success' => true, 'message' => 'Permintaan pembelian berhasil disimpan']);
-    }
-
-    public function editPermintaan($id)
-    {
-        $faktur = FakturBeli::with('items')->findOrFail($id);
-        $pemasoks = Pemasok::all();
-        return view('erm.fakturbeli.permintaan', compact('faktur', 'pemasoks'));
-    }
-
-    public function updatePermintaan(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'pemasok_id' => 'required|exists:erm_pemasok,id',
-            'requested_date' => 'required|date',
-            'notes' => 'nullable|string',
-            'items' => 'required|array',
-            'items.*.obat_id' => 'required|exists:erm_obat,id',
-            'items.*.diminta' => 'required|integer|min:1',
-        ]);
-
-        if ($msg = Obat::satuanStokRequiredMessage(array_column($validated['items'], 'obat_id'))) {
-            return response()->json(['success' => false, 'message' => $msg, 'errors' => ['items' => [$msg]]], 422);
-        }
-
-        $faktur = FakturBeli::findOrFail($id);
-
-        $faktur->update([
-            'pemasok_id' => $validated['pemasok_id'],
-            'requested_date' => $validated['requested_date'],
-            'notes' => $validated['notes'] ?? null,
-        ]);
-
-        // Remove old items and re-add
-        $faktur->items()->delete();
-        
-        foreach ($validated['items'] as $item) {
-            $faktur->items()->create([
-                'obat_id' => $item['obat_id'],
-                'principal_id' => $this->masterPembelian->principalFor((int) $item['obat_id']),
-                'diminta' => $item['diminta'],
-                'qty' => 0, // Initially, no items received yet
-                'sisa' => 0,
-            ]);
-        }
-
-        return response()->json(['success' => true, 'message' => 'Permintaan pembelian berhasil diupdate']);
-    }
-
-    public function completeFaktur($id)
-    {
-        $faktur = FakturBeli::with(['items.obat', 'pemasok'])->findOrFail($id);
-        if ($faktur->status !== 'diminta') {
-            return redirect()->route('erm.fakturbeli.index')->with('error', 'Faktur ini tidak dalam status permintaan');
-        }
-        
-        $pemasoks = Pemasok::all();
-        $gudangs = Gudang::all();
-        
-        // Pass the faktur to the create view with a flag indicating it's for completion
-        return view('erm.fakturbeli.create', compact('faktur', 'pemasoks', 'gudangs'));
-    }
-
         /**
      * Print Faktur Pembelian as PDF using mPDF
      */
@@ -1191,9 +1051,25 @@ class FakturBeliController extends Controller
         return optional(optional($item->obat)->principal)->nama ?: 'Tanpa Principal';
     }
 
+    /**
+     * Value of one line as on the faktur: the line total (incl. its own discount and tax) plus its share of
+     * the faktur's global pajak minus its share of the global diskon (by line value).
+     */
     private function calculateExportTotalHarga(FakturBeliItem $item): float
     {
-        return (float) ($item->total_amount ?? 0) * 1.11;
+        $lineTotal = (float) ($item->total_amount ?? 0);
+        $faktur = $item->fakturbeli;
+        if (!$faktur) {
+            return $lineTotal;
+        }
+
+        static $fakturSubtotal = [];
+        if (!isset($fakturSubtotal[$faktur->id])) {
+            $fakturSubtotal[$faktur->id] = (float) FakturBeliItem::where('fakturbeli_id', $faktur->id)->sum('total_amount');
+        }
+        $share = $fakturSubtotal[$faktur->id] > 0 ? $lineTotal / $fakturSubtotal[$faktur->id] : 0;
+
+        return round($lineTotal + $share * ((float) $faktur->global_pajak - (float) $faktur->global_diskon), 2);
     }
 
     /**

@@ -1,736 +1,461 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM | FakturPembelian')
+@section('title', 'Farmasi | Faktur Pembelian')
 @section('navbar')
     @include('layouts.erm.navbar-farmasi')
-@endsection  
+@endsection
 @section('content')
 <div class="container-fluid">
-            <!-- Page-Title -->
-    <!-- Title and Button Row -->
-    <div class="row mt-3 align-items-center mb-1">
-        <div class="col-md-4">
-            <h2 class="mb-0">Input Faktur Pembelian</h2>
+    <style>
+        .fb-tabs .nav-link { padding: .35rem .8rem; font-size: .875rem; }
+        #fakturbeli-table td { vertical-align: top; }
+        #fakturbeli-table tr.fb-perlu td:first-child { box-shadow: inset 3px 0 0 #17a2b8; }
+        #fakturbeli-table tr.fb-diminta td:first-child { box-shadow: inset 3px 0 0 #ffc107; }
+        #fakturbeli-table .badge { font-size: .72rem; }
+        .fb-approve-table td, .fb-approve-table th { font-size: .8rem; padding: .3rem .4rem; }
+    </style>
+
+    <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3">
+        <div>
+            <h4 class="page-title mb-0">Faktur Pembelian</h4>
+            <small class="text-muted">Faktur dari permintaan yang disetujui muncul berstatus <strong>Diminta</strong>. Isi saat barang datang, lalu approve agar stok masuk.</small>
         </div>
-        <div class="col-md-8">
-            <div class="d-flex flex-wrap justify-content-md-end align-items-center gap-2">
-                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
-                <button class="btn btn-success btn-sm ml-2" data-toggle="modal" data-target="#modalExportItems"><i class="fa fa-download"></i> Download Item Faktur (Excel)</button>
-                <div class="input-group input-group-sm ml-md-3" style="width: 260px;">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text" title="Pilih tanggal terima">
-                            <i class="fa fa-calendar"></i>
-                        </span>
-                    </div>
-                    <input type="text" id="tanggalTerimaRange" class="form-control form-control-sm" autocomplete="off" placeholder="Select date">
-                </div>
-                <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
-            </div>
+        <div class="mt-2 mt-md-0">
+            <button class="btn btn-outline-success" data-toggle="modal" data-target="#modalExportItems"><i class="fa fa-download"></i> Export Item</button>
+            <button type="button" class="btn btn-primary ml-1" id="btnFakturBaru" title="Faktur tanpa permintaan (mis. pembelian langsung)"><i class="fas fa-plus"></i> Faktur Baru</button>
         </div>
     </div>
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="page-title-box py-1 mb-2">
-                <div class="row">
-                    <div class="col">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item">Farmasi</li>
-                            <li class="breadcrumb-item active">Input Faktur Pembelian</li>
-                        </ol>
-                    </div><!--end col-->
-                </div><!--end row-->                                                              
-            </div><!--end page-title-box-->
-        </div><!--end col-->
-    </div><!--end row-->
-        <!-- end page title end breadcrumb -->
-        <div class="mb-3">
-                <div class="d-flex flex-wrap align-items-end justify-content-between">
-                    <div class="d-flex flex-wrap align-items-end">
-                        <div class="mr-4 mb-2">
-                            <label for="statusFilter" class="d-block mb-1 font-weight-bold text-uppercase small">Status</label>
-                            <select id="statusFilter" class="form-control" style="width:150px;">
-                                <option value="">Semua</option>
-                                <option value="diminta">Diminta</option>
-                                <option value="diterima">Diterima</option>
-                                <option value="diapprove">Diapprove</option>
-                                <option value="diretur">Diretur</option>
-                            </select>
-                        </div>
-                        <div class="mb-2">
-                            <span class="d-block mb-1 font-weight-bold text-uppercase small text-muted">Hide</span>
-                            <div class="d-flex flex-wrap align-items-center">
-                                <div class="custom-control custom-switch mr-3" title="Sembunyikan faktur diretur">
-                                    <input class="custom-control-input" type="checkbox" id="hideDireturCheckbox" checked>
-                                    <label class="custom-control-label small pt-1" for="hideDireturCheckbox">Diretur</label>
-                                </div>
-                                <div class="custom-control custom-switch" title="Sembunyikan faktur belum approve lebih dari 7 hari">
-                                    <input class="custom-control-input" type="checkbox" id="hideUnapprovedOver7DaysCheckbox" checked>
-                                    <label class="custom-control-label small pt-1" for="hideUnapprovedOver7DaysCheckbox">Pending &gt; 7 Hari</label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="d-flex flex-wrap align-items-end mb-2">
-                        <input type="text" id="searchNoFaktur" class="form-control ml-md-2 mb-2 mb-md-0" style="width:180px;" placeholder="Cari No Faktur">
-                        <input type="text" id="searchNamaObat" class="form-control ml-md-2 mb-2 mb-md-0" style="width:180px;" placeholder="Cari Nama Obat">
-                        <input type="text" id="searchPemasok" class="form-control ml-md-2" style="width:180px;" placeholder="Cari Pemasok">
+
+    <div class="card">
+        <div class="card-body">
+            <ul class="nav nav-pills fb-tabs mb-3" id="status-tabs">
+                <li class="nav-item"><a class="nav-link active" href="#" data-status="">Semua <span class="badge badge-light ml-1" data-count="all">0</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#" data-status="diminta" title="Menunggu barang datang">Diminta <span class="badge badge-warning ml-1" data-count="diminta">0</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#" data-status="diterima" title="Faktur sudah diisi, menunggu approval">Perlu approval <span class="badge badge-info ml-1" data-count="diterima">0</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#" data-status="diapprove">Disetujui <span class="badge badge-light ml-1" data-count="diapprove">0</span></a></li>
+                <li class="nav-item"><a class="nav-link" href="#" data-status="diretur">Diretur <span class="badge badge-light ml-1" data-count="diretur">0</span></a></li>
+            </ul>
+
+            <div class="form-row align-items-end mb-2">
+                <div class="col-md-3 mb-2">
+                    <label class="small text-muted mb-1" for="tanggalTerimaRange">Tanggal (terima / minta)</label>
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend"><span class="input-group-text"><i class="fa fa-calendar"></i></span></div>
+                        <input type="text" id="tanggalTerimaRange" class="form-control" autocomplete="off" placeholder="Semua tanggal">
                     </div>
                 </div>
-        </div>
-        <!-- Modal Cari Permintaan -->
-        <div class="modal fade" id="modalCariPermintaan" tabindex="-1" role="dialog" aria-labelledby="modalCariPermintaanLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalCariPermintaanLabel">Cari Faktur Berdasarkan No Permintaan</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
+                <div class="col-md-5 mb-2">
+                    <label class="small text-muted mb-1" for="searchFaktur">Cari</label>
+                    <input type="search" id="searchFaktur" class="form-control form-control-sm" placeholder="No faktur, no permintaan, pemasok, atau nama obat">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <div class="custom-control custom-switch mb-1">
+                        <input type="checkbox" class="custom-control-input" id="jatuhTempoFilter">
+                        <label class="custom-control-label small" for="jatuhTempoFilter" title="Faktur disetujui yang jatuh tempo dalam 7 hari atau sudah lewat">Jatuh tempo ≤ 7 hari</label>
                     </div>
-                    <div class="modal-body">
-                        <form id="formCariPermintaan">
-                            <div class="form-group">
-                                <label for="inputNoPermintaan">No Permintaan</label>
-                                <input type="text" class="form-control" id="inputNoPermintaan" name="no_permintaan" required>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                        <button type="button" class="btn btn-primary" id="btnCariPermintaan">Cari</button>
-                    </div>
+                </div>
+                <div class="col-md-2 mb-2">
+                    <button class="btn btn-light btn-sm btn-block" id="resetFilter"><i class="fas fa-undo"></i> Reset</button>
                 </div>
             </div>
-        </div>
-        <!-- Modal Export Items -->
-        <div class="modal fade" id="modalExportItems" tabindex="-1" role="dialog" aria-labelledby="modalExportItemsLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalExportItemsLabel">Export Item Faktur - Pilih Rentang Tanggal Terima</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <form id="formExportItems" method="GET" action="{{ route('erm.fakturbeli.items.export') }}">
-                            <div class="form-group">
-                                <label for="exportTanggalTerimaRange">Tanggal Terima (Range)</label>
-                                <input type="text" id="exportTanggalTerimaRange" name="tanggal_terima_range" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
-                            </div>
-                            <div class="form-group">
-                                <label for="exportPrincipalId">Principal</label>
-                                <select id="exportPrincipalId" name="principal_id" class="form-control">
-                                    <option value="">Semua Principal</option>
-                                    @foreach(($principals ?? collect()) as $principal)
-                                        <option value="{{ $principal->id }}">{{ $principal->nama }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="form-group mb-0">
-                                <label for="exportType">Jenis Export</label>
-                                <select id="exportType" name="export_type" class="form-control">
-                                    <option value="detail">Detail Item Faktur</option>
-                                    <option value="principal_summary">Rekap Principal per Obat</option>
-                                </select>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                        <button type="button" class="btn btn-success" id="btnExportItems">Download</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="modal fade" id="modalRetur" tabindex="-1" role="dialog" aria-labelledby="modalReturLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalReturLabel">Ajukan Retur Obat</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body" id="modalReturBody"></div>
-                </div>
-            </div>
-        </div>
-        <div class="modal fade" id="modalDetailRetur" tabindex="-1" role="dialog" aria-labelledby="modalDetailReturLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalDetailReturLabel">Detail Retur Obat</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body" id="modalDetailReturBody"></div>
-                </div>
-            </div>
-        </div>
-        <table class="table table-bordered" id="fakturbeli-table">
-                <thead>
+
+            <table class="table table-bordered table-sm w-100" id="fakturbeli-table">
+                <thead class="thead-light">
                     <tr>
-                        <th>No</th>
-                        <th>No Faktur</th>
-                        <th>Nama Obat</th>
-                        <th>Pemasok</th>
-                        <th>Timeline</th>
-                        <th>Total Harga</th>
+                        <th>Faktur</th>
+                        <th>Obat</th>
+                        <th>Tanggal</th>
+                        <th class="text-right">Total</th>
                         <th>Status</th>
-                        <th style="width: 280px; min-width: 260px; max-width: 320px;">Aksi</th>
+                        <th class="text-right">Aksi</th>
                     </tr>
                 </thead>
             </table>
+        </div>
+    </div>
+
+    <!-- Modal Export Items -->
+    <div class="modal fade" id="modalExportItems" tabindex="-1" role="dialog" aria-labelledby="modalExportItemsLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalExportItemsLabel">Export Item Faktur (disetujui)</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formExportItems" method="GET" action="{{ route('erm.fakturbeli.items.export') }}">
+                        <div class="form-group">
+                            <label for="exportTanggalTerimaRange">Tanggal Terima</label>
+                            <input type="text" id="exportTanggalTerimaRange" name="tanggal_terima_range" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label for="exportPrincipalId">Principal</label>
+                            <select id="exportPrincipalId" name="principal_id" class="form-control">
+                                <option value="">Semua Principal</option>
+                                @foreach(($principals ?? collect()) as $principal)
+                                    <option value="{{ $principal->id }}">{{ $principal->nama }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group mb-0">
+                            <label for="exportType">Jenis Export</label>
+                            <select id="exportType" name="export_type" class="form-control">
+                                <option value="detail">Detail Item Faktur</option>
+                                <option value="principal_summary">Rekap Principal per Obat</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="button" class="btn btn-success" id="btnExportItems"><i class="fa fa-download"></i> Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalRetur" tabindex="-1" role="dialog" aria-labelledby="modalReturLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalReturLabel">Ajukan Retur ke Supplier</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body" id="modalReturBody"></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="modalDetailRetur" tabindex="-1" role="dialog" aria-labelledby="modalDetailReturLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalDetailReturLabel">Detail Retur</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body" id="modalDetailReturBody"></div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 @push('scripts')
+@include('erm.fakturretur._actions-js')
+@include('erm.fakturbeli._form-modal')
 <script>
 $(function() {
-    function formatTanggalIndonesia(value) {
-        if (!value || value === '-') {
-            return '-';
-        }
+    var CSRF = '{{ csrf_token() }}';
+    var BASE = '{{ url('/erm/fakturpembelian') }}';
+    var currentStatus = '';
 
-        var parsed = moment(value, ['YYYY-MM-DD', moment.ISO_8601], true);
-        if (!parsed.isValid()) {
-            parsed = moment(value);
-        }
+    @if(session('error'))
+        Swal.fire({ icon: 'warning', title: 'Perhatian', text: @json(session('error')) });
+    @endif
 
-        if (!parsed.isValid()) {
-            return value;
-        }
-
-        return parsed.locale('id').format('D MMMM YYYY');
+    function esc(value) {
+        return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function rupiah(v) { return 'Rp ' + Number(v || 0).toLocaleString('id-ID', { maximumFractionDigits: 0 }); }
+    function tgl(v) { return v ? moment(v).format('DD/MM/YYYY') : '-'; }
+    function xhrMessage(xhr, fallback) {
+        var json = xhr && xhr.responseJSON;
+        if (json && json.errors) return Object.values(json.errors).map(function(m) { return Array.isArray(m) ? m.join('\n') : m; }).join('\n');
+        return (json && json.message) || fallback;
     }
 
-    // Handler for cari permintaan
-    $('#btnCariPermintaan').on('click', function() {
-        var noPermintaan = $('#inputNoPermintaan').val().trim();
-        if (!noPermintaan) {
-            Swal.fire('Error', 'No Permintaan harus diisi', 'error');
-            return;
-        }
-        // Cari faktur dengan no_permintaan
-        $.ajax({
-            url: '/erm/fakturpembelian/cari-by-no-permintaan',
-            type: 'GET',
-            data: { no_permintaan: noPermintaan },
-            success: function(res) {
-                if (res.success && Array.isArray(res.fakturs) && res.fakturs.length > 0) {
-                    if (res.fakturs.length === 1) {
-                        window.location.href = '/erm/fakturpembelian/' + res.fakturs[0].id + '/edit';
-                        return;
-                    }
+    var STATUS_BADGE = { diminta: 'badge-warning', diterima: 'badge-info', diapprove: 'badge-success', diretur_sebagian: 'badge-danger', diretur: 'badge-danger' };
 
-                    var options = {};
-                    res.fakturs.forEach(function(faktur) {
-                        var noFaktur = faktur.no_faktur || ('Faktur #' + faktur.id);
-                        var pemasok = faktur.pemasok ? ' - ' + faktur.pemasok : '';
-                        options[faktur.id] = noFaktur + pemasok + ' [' + (faktur.status || '-') + ']';
-                    });
-
-                    Swal.fire({
-                        title: 'Pilih Faktur',
-                        text: 'Terdapat lebih dari satu faktur untuk nomor permintaan ini.',
-                        input: 'select',
-                        inputOptions: options,
-                        inputPlaceholder: 'Pilih faktur',
-                        showCancelButton: true,
-                        confirmButtonText: 'Buka Faktur',
-                        cancelButtonText: 'Batal',
-                        inputValidator: function(value) {
-                            if (!value) {
-                                return 'Pilih salah satu faktur terlebih dahulu.';
-                            }
-                        }
-                    }).then(function(result) {
-                        if (result.value) {
-                            window.location.href = '/erm/fakturpembelian/' + result.value + '/edit';
-                        }
-                    });
-                } else {
-                    Swal.fire('Tidak ditemukan', res.message || 'Faktur dengan no permintaan tersebut tidak ditemukan', 'warning');
-                }
-            },
-            error: function() {
-                Swal.fire('Error', 'Terjadi kesalahan saat mencari faktur', 'error');
-            }
-        });
-    });
+    // Values from the server arrive HTML-escaped (Yajra)
     var fakturTable = $('#fakturbeli-table').DataTable({
-    processing: true,
-    serverSide: true,
-    dom: 'rt<"row align-items-center mt-3"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4 text-center"i><"col-sm-12 col-md-4 d-flex justify-content-md-end"p>>',
-    ajax: {
+        processing: true,
+        serverSide: true,
+        searching: false,
+        dom: 'rt<"d-flex flex-wrap justify-content-between align-items-center mt-2"lip>',
+        pageLength: 25,
+        ajax: {
             url: '{{ route('erm.fakturbeli.index') }}',
             data: function(d) {
+                d.status = currentStatus;
                 d.tanggal_terima_range = $('#tanggalTerimaRange').val();
-                d.status = $('#statusFilter').val();
-                d.hide_diretur = $('#hideDireturCheckbox').is(':checked') ? 1 : 0;
-                d.hide_unapproved_over_7_days = $('#hideUnapprovedOver7DaysCheckbox').is(':checked') ? 1 : 0;
-                d.search_no_faktur = $('#searchNoFaktur').val();
-                d.search_nama_obat = $('#searchNamaObat').val();
-                d.search_pemasok = $('#searchPemasok').val();
+                d.q = $('#searchFaktur').val();
+                d.jatuh_tempo = $('#jatuhTempoFilter').is(':checked') ? 1 : 0;
             }
-            },
-        order: [[4, 'desc']], // timeline column (backed by requested_date)
+        },
+        order: [[2, 'desc']],
+        createdRow: function(row, data) {
+            if (data.status === 'diterima') $(row).addClass('fb-perlu');
+            if (data.status === 'diminta') $(row).addClass('fb-diminta');
+        },
         columns: [
-            { data: null, name: 'no', orderable: false, searchable: false, render: function (data, type, row, meta) {
-                return meta.row + meta.settings._iDisplayStart + 1;
-            }},
-            { data: 'no_faktur', name: 'no_faktur', render: function(data, type, row) {
-                if (type !== 'display') {
-                    return data ? data : '-';
+            {
+                data: 'no_faktur', name: 'no_faktur', orderable: false,
+                render: function(data, type, row) {
+                    var html = '<div class="font-weight-bold">' + (data || '<span class="text-muted">belum ada nomor</span>') + '</div>'
+                        + '<div class="small">' + row.pemasok + '</div>';
+                    if (row.no_permintaan) html += '<div class="small text-muted">Permintaan ' + row.no_permintaan + '</div>';
+                    if (row.replaced_faktur_no) html += '<div class="small"><span class="badge badge-primary">Pengganti</span> asal ' + row.replaced_faktur_no + '</div>';
+                    if (row.replacement_invoice_nos && row.replacement_invoice_nos.length) html += '<div class="small text-success">Pengganti: ' + row.replacement_invoice_nos.join(', ') + '</div>';
+                    if (row.bukti) html += '<div class="small"><a href="/storage/' + row.bukti + '" target="_blank"><i class="fas fa-paperclip"></i> bukti</a></div>';
+                    return html;
                 }
-
-                var noFaktur = data ? data : '-';
-                var relationBadges = [];
-                var buktiLink = row.bukti
-                    ? `<div class="mt-1"><a href='/storage/${row.bukti}' target='_blank'><em>Lihat Bukti</em></a></div>`
-                    : '';
-                var replacedFrom = row.replaced_faktur_no
-                    ? `<div class="mt-1"><span class="badge badge-pill badge-primary">Pengganti</span> <small class="text-muted">asal: ${row.replaced_faktur_no}</small></div>`
-                    : '';
-                var sourceRetur = row.source_retur_no
-                    ? `<div class="mt-1"><span class="badge badge-pill badge-info">Retur Sumber</span> <small class="text-muted">${row.source_retur_no}</small></div>`
-                    : '';
-
-                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
-                    relationBadges.push(`<div class="mt-1"><span class="badge badge-pill badge-light border">Punya Pengganti</span> <small class="text-muted">${row.replacement_invoice_nos.join(', ')}</small></div>`);
+            },
+            {
+                data: 'nama_obat', orderable: false,
+                render: function(data, type, row) {
+                    return '<div>' + data + '</div><small class="text-muted">' + row.jumlah_item + ' obat</small>';
                 }
-
-                return `<div><strong>${noFaktur}</strong>${replacedFrom}${sourceRetur}${relationBadges.join('')}${buktiLink}</div>`;
-            }},
-            { data: 'nama_obat', name: 'nama_obat', orderable: false, searchable: false },
-            { data: 'pemasok', name: 'pemasok' },
-            { data: 'requested_date', name: 'requested_date', render: function(data, type, row) {
-                if (type !== 'display') {
-                    return data || row.received_date || row.due_date || '';
-                }
-
-                var requested = formatTanggalIndonesia(row.requested_date ? row.requested_date : '-');
-                var received = formatTanggalIndonesia(row.received_date ? row.received_date : '-');
-                var due = formatTanggalIndonesia(row.due_date ? row.due_date : '-');
-                var status = (row.status || '').toString().toLowerCase();
-                var lines = [];
-
-                function pushLine(label, value, color) {
-                    lines.push('<div><strong style="color:' + color + ';">' + label + '</strong> <span style="color:' + color + ';">' + value + '</span></div>');
-                }
-
-                if (status === 'diminta') {
-                    pushLine('Diminta Pada:', requested, '#f59e0b');
-                } else if (status === 'diapprove') {
-                    pushLine('Diterima Pada:', received, '#2563eb');
-                    pushLine('Jatuh Tempo Pada:', due, '#dc2626');
-                } else if (status === 'diterima') {
-                    pushLine('Diminta Pada:', requested, '#f59e0b');
-                    pushLine('Diterima Pada:', received, '#2563eb');
-                } else {
-                    pushLine('Diminta Pada:', requested, '#f59e0b');
-                    if (received !== '-') {
-                        pushLine('Diterima Pada:', received, '#2563eb');
+            },
+            {
+                data: 'requested_date', name: 'requested_date',
+                render: function(data, type, row) {
+                    var lines = [];
+                    if (row.requested_date) lines.push('<span class="text-muted">Diminta</span> ' + tgl(row.requested_date));
+                    if (row.received_date) lines.push('<span class="text-muted">Diterima</span> ' + tgl(row.received_date));
+                    if (row.due_date) {
+                        var hari = row.jatuh_tempo_hari;
+                        var cls = hari === null ? '' : (hari < 0 ? 'text-danger font-weight-bold' : (hari <= 7 ? 'text-warning font-weight-bold' : ''));
+                        var note = hari === null ? '' : (hari < 0 ? ' (lewat ' + Math.abs(hari) + ' hari)' : (hari === 0 ? ' (hari ini)' : (hari <= 7 ? ' (' + hari + ' hari lagi)' : '')));
+                        lines.push('<span class="text-muted">Jatuh tempo</span> <span class="' + cls + '">' + tgl(row.due_date) + note + '</span>');
                     }
-                    if (due !== '-') {
-                        pushLine('Jatuh Tempo Pada:', due, '#dc2626');
-                    }
+                    return '<div class="small text-nowrap">' + (lines.join('<br>') || '-') + '</div>';
                 }
+            },
+            {
+                data: 'total', name: 'total', className: 'text-right text-nowrap',
+                render: function(data) { return data ? rupiah(data) : '<span class="text-muted">-</span>'; }
+            },
+            {
+                data: 'status', name: 'status',
+                render: function(data, type, row) {
+                    var html = '<span class="badge ' + (STATUS_BADGE[data] || 'badge-secondary') + '">' + row.status_label + '</span>';
+                    if (data === 'diapprove' && row.approved_by_user_name) html += '<div class="small text-muted">oleh ' + row.approved_by_user_name + (row.approved_at_label ? '<br>' + row.approved_at_label : '') + '</div>';
+                    if (row.latest_retur) html += '<div class="small"><a href="#" class="btn-detail-retur-faktur" data-id="' + row.latest_retur.id + '"><i class="fas fa-undo"></i> ' + row.latest_retur.no_retur + '</a> <span class="text-muted">(' + row.latest_retur.status + ')</span></div>';
+                    if (row.actions.pengganti) html += '<div class="small text-danger">Menunggu faktur pengganti</div>';
+                    return html;
+                }
+            },
+            {
+                data: 'actions', orderable: false, className: 'text-right text-nowrap',
+                render: function(a, type, row) {
+                    var main = '';
+                    if (a.input) main = '<button type="button" class="btn btn-sm btn-warning btn-form-faktur" data-id="' + row.id + '"><i class="fas fa-keyboard"></i> Input Faktur</button>';
+                    else if (a.approve) main = '<button class="btn btn-sm btn-success btn-approve-faktur" data-id="' + row.id + '"><i class="fas fa-clipboard-check"></i> Tinjau & Approve</button>';
+                    else if (a.print) main = '<a href="' + BASE + '/' + row.id + '/print" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="fa fa-print"></i> Cetak</a>';
 
-                if (row.latest_retur_no) {
-                    lines.push('<div class="mt-1"><strong style="color:#b91c1c;">Retur:</strong> <span style="color:#b91c1c;">' + row.latest_retur_no + '</span></div>');
-                }
+                    var more = [];
+                    if (a.edit) more.push('<button type="button" class="btn btn-sm btn-outline-primary btn-form-faktur" data-id="' + row.id + '" title="Edit faktur"><i class="fas fa-pen"></i></button>');
+                    if (a.retur) more.push('<button type="button" class="btn btn-sm btn-outline-warning btn-create-retur-faktur" data-id="' + row.id + '" title="Ajukan retur"><i class="fas fa-undo"></i> Retur</button>');
+                    if (a.pengganti) more.push('<button type="button" class="btn btn-sm btn-outline-info btn-faktur-pengganti" data-retur="' + a.pengganti + '" title="Buat faktur pengganti"><i class="fas fa-file-medical"></i> Pengganti</button>');
+                    if (a.delete) more.push('<button type="button" class="btn btn-sm btn-outline-danger btn-delete-faktur" data-id="' + row.id + '" data-nomor="' + (row.no_faktur || ('#' + row.id)) + '" title="Hapus"><i class="fas fa-trash"></i></button>');
 
-                if (row.replaced_faktur_no) {
-                    lines.push('<div class="mt-1"><strong style="color:#1d4ed8;">Pengganti Dari:</strong> <span style="color:#1d4ed8;">' + row.replaced_faktur_no + '</span></div>');
+                    var html = main + (more.length ? ' ' + more.join(' ') : '');
+                    return html || '<span class="text-muted">-</span>';
                 }
-
-                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
-                    lines.push('<div class="mt-1"><strong style="color:#065f46;">Faktur Pengganti:</strong> <span style="color:#065f46;">' + row.replacement_invoice_nos.join(', ') + '</span></div>');
-                }
-
-                return lines.join('');
-            }},
-            { data: 'total', name: 'total', render: function(data) {
-                return data ? parseFloat(data).toLocaleString('id-ID', {style:'currency', currency:'IDR'}) : '-';
-            }},
-            { data: 'status', name: 'status', render: function(data, type, row) {
-                let badgeClass = '';
-                let approvedBy = '';
-                let extraInfo = '';
-                let relationInfo = '';
-                switch(data) {
-                    case 'diminta': badgeClass = 'badge-warning'; break;
-                    case 'diterima': badgeClass = 'badge-info'; break;
-                    case 'diapprove': badgeClass = 'badge-success';
-                        if (row.approved_by_user_name) {
-                            approvedBy = `<br><small class='text-success'>Approved by: ${row.approved_by_user_name}</small>`;
-                        }
-                        break;
-                    case 'diretur': badgeClass = 'badge-danger'; break;
-                    default: badgeClass = 'badge-secondary'; break;
-                }
-                if (data === 'diretur' && row.action && row.action.indexOf('Faktur Pengganti') !== -1) {
-                    extraInfo = `<br><small class='text-danger'>Menunggu faktur pengganti</small>`;
-                }
-
-                if (row.replaced_faktur_no) {
-                    relationInfo += `<br><small class='text-primary'>Faktur pengganti</small>`;
-                }
-
-                if (Array.isArray(row.replacement_invoice_nos) && row.replacement_invoice_nos.length > 0) {
-                    relationInfo += `<br><small class='text-success'>Sudah punya pengganti</small>`;
-                }
-
-                if (row.latest_retur_no && !row.replaced_faktur_no) {
-                    relationInfo += `<br><small class='text-info'>Retur: ${row.latest_retur_no}</small>`;
-                }
-
-                return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}${extraInfo}${relationInfo}`;
-            }},
-            { data: 'action', name: 'action', orderable: false, searchable: false, render: function(data, type, row) {
-                return data;
-            } },
+            }
         ],
-        columnDefs: [
-            { targets: 4, width: '260px' },
-            { targets: -1, width: '280px' }
-        ]
+        language: {
+            processing: '<i class="fas fa-spinner fa-spin"></i> Memuat...',
+            zeroRecords: 'Tidak ada faktur yang cocok',
+            emptyTable: 'Belum ada faktur',
+            info: '_START_–_END_ dari _TOTAL_ faktur',
+            infoEmpty: '0 faktur',
+            lengthMenu: 'Tampil _MENU_',
+            paginate: { previous: '‹', next: '›' }
+        },
+        drawCallback: function() {
+            var counts = (this.api().ajax.json() || {}).counts || {};
+            $('#status-tabs [data-count]').each(function() { $(this).text(counts[$(this).data('count')] || 0); });
+        }
     });
 
-        // Date Range Picker for Tanggal Terima
-        $('#tanggalTerimaRange').daterangepicker({
-            autoUpdateInput: false,
-            locale: {
-                cancelLabel: 'Clear',
-                format: 'YYYY-MM-DD'
-            }
-        });
+    $('#status-tabs').on('click', '.nav-link', function(e) {
+        e.preventDefault();
+        $('#status-tabs .nav-link').removeClass('active');
+        $(this).addClass('active');
+        currentStatus = $(this).data('status') || '';
+        fakturTable.draw();
+    });
 
+    $('#tanggalTerimaRange').daterangepicker({ autoUpdateInput: false, locale: { cancelLabel: 'Hapus', applyLabel: 'Terapkan', format: 'YYYY-MM-DD' } });
     $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-        fakturTable.ajax.reload();
-    });
-    $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+        fakturTable.draw();
+    }).on('cancel.daterangepicker', function() {
         $(this).val('');
-        fakturTable.ajax.reload();
+        fakturTable.draw();
     });
-    $('#resetTanggalTerima').on('click', function() {
-        $('#tanggalTerimaRange').val('');
-        fakturTable.ajax.reload();
+    $('#jatuhTempoFilter').on('change', function() { fakturTable.draw(); });
+
+    var searchTimer;
+    $('#searchFaktur').on('input', function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { fakturTable.draw(); }, 400);
     });
 
-    // Status filter handler
-    $('#statusFilter').on('change', function() {
-        fakturTable.ajax.reload();
+    $('#resetFilter').on('click', function() {
+        $('#tanggalTerimaRange, #searchFaktur').val('');
+        $('#jatuhTempoFilter').prop('checked', false);
+        $('#status-tabs .nav-link').removeClass('active').first().addClass('active');
+        currentStatus = '';
+        fakturTable.draw();
     });
-    // Hide diretur filter handler
-    $('#hideDireturCheckbox').on('change', function() {
-        fakturTable.ajax.reload();
-    });
-    $('#hideUnapprovedOver7DaysCheckbox').on('change', function() {
-        fakturTable.ajax.reload();
-    });
-    // Debounce helper to avoid excessive reloads
-    function debounce(fn, delay) {
-        let timer = null;
-        return function() {
-            const ctx = this, args = arguments;
-            clearTimeout(timer);
-            timer = setTimeout(function() {
-                fn.apply(ctx, args);
-            }, delay);
-        };
-    }
 
-    // Custom search handlers (include searchNoFaktur)
-    $('#searchNoFaktur, #searchNamaObat, #searchPemasok').on('input', debounce(function() {
-        fakturTable.ajax.reload();
-    }, 300));
-
-    // Also allow Enter key on No Faktur to immediately trigger search
-    $('#searchNoFaktur').on('keyup', function(e) {
-        if (e.key === 'Enter' || e.keyCode === 13) {
-            fakturTable.ajax.reload();
-        }
-    });
-    // Export modal: initialize daterangepicker and handle submit
-    $('#exportTanggalTerimaRange').daterangepicker({
-        autoUpdateInput: false,
-        locale: {
-            cancelLabel: 'Clear',
-            format: 'YYYY-MM-DD'
-        }
-    });
+    // Export
+    $('#exportTanggalTerimaRange').daterangepicker({ autoUpdateInput: false, locale: { cancelLabel: 'Hapus', applyLabel: 'Terapkan', format: 'YYYY-MM-DD' } });
     $('#exportTanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-    });
-    $('#exportTanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
-        $(this).val('');
-    });
-
+    }).on('cancel.daterangepicker', function() { $(this).val(''); });
     $('#btnExportItems').on('click', function() {
-        var range = $('#exportTanggalTerimaRange').val().trim();
-        if (!range) {
-            Swal.fire('Error', 'Pilih rentang tanggal terima terlebih dahulu', 'error');
+        if (!$('#exportTanggalTerimaRange').val().trim()) {
+            Swal.fire({ icon: 'warning', title: 'Pilih tanggal', text: 'Pilih rentang tanggal terima terlebih dahulu.' });
             return;
         }
-        // Submit the GET form which will trigger the XLSX download
         $('#formExportItems').submit();
         $('#modalExportItems').modal('hide');
     });
 
-    $('#fakturbeli-table').on('click', '.btn-create-retur-faktur', function() {
-        var id = $(this).data('id');
-        $.ajax({
-            url: '{{ route('erm.fakturretur.create') }}',
-            type: 'GET',
-            data: { fakturbeli_id: id },
-            success: function(res) {
-                $('#modalReturBody').html(res);
-                $('#modalRetur').modal('show');
-            },
-            error: function(xhr) {
-                Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal memuat form retur', 'error');
-            }
-        });
-    });
-
-    $('#fakturbeli-table').on('click', '.btn-detail-retur-faktur', function() {
-        var id = $(this).data('id');
-        $.ajax({
-            url: '/erm/fakturretur/' + id,
-            type: 'GET',
-            success: function(res) {
-                $('#modalDetailReturBody').html(res);
-                $('#modalDetailRetur').modal('show');
-            },
-            error: function(xhr) {
-                Swal.fire('Gagal', xhr.responseJSON?.message || 'Gagal memuat detail retur', 'error');
-            }
-        });
-    });
-
-    $(document).on('submit', '#formRetur', function(e) {
-        e.preventDefault();
-        var form = $(this);
-        $.ajax({
-            url: form.attr('action'),
-            type: 'POST',
-            data: form.serialize(),
-            success: function(res) {
-                if (res.success) {
-                    $('#modalRetur').modal('hide');
-                    fakturTable.ajax.reload();
-                    toastr.success(res.message);
-                } else {
-                    toastr.error(res.message);
-                }
-            },
-            error: function(xhr) {
-                toastr.error(xhr.responseJSON?.message || 'Terjadi kesalahan');
-            }
-        });
-    });
-
-    $(document).on('click', '#btn-approve-retur', function(e) {
-        e.preventDefault();
-        var id = $(this).data('id');
-        Swal.fire({
-            title: 'Approve Retur?',
-            text: 'Yakin ingin approve retur ini?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Approve',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.value) {
-                $.post('/erm/fakturretur/' + id + '/approve', {_token: $('meta[name="csrf-token"]').attr('content')}, function(res) {
-                    if(res.success) {
-                        $('#modalDetailRetur').modal('hide');
-                        fakturTable.ajax.reload();
-                        Swal.fire('Berhasil!', res.message, 'success');
-                    } else {
-                        Swal.fire('Gagal!', res.message, 'error');
-                    }
-                }).fail(function(xhr) {
-                    Swal.fire('Error!', xhr.responseJSON?.message || 'Terjadi kesalahan', 'error');
-                });
-            }
-        });
-    });
-
-    $(document).on('click', '.btn-remove-item', function() {
-        $(this).closest('tr').remove();
-    });
-
-    // Delete handler
-    $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {
-        if(confirm('Yakin ingin menghapus faktur ini?')) {
-            let id = $(this).data('id');
-            $.ajax({
-                url: '/erm/fakturpembelian/' + id,
-                type: 'DELETE',
-                data: {
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(res) {
-                    if(res.success) {
-                        alert(res.message);
-                        fakturTable.ajax.reload();
-                    }
-                },
-                error: function() {
-                    alert('Gagal menghapus faktur!');
-                }
-            });
-        }
-    });
-    
-    // Approve handler
+    // Approve: show what will happen (qty, batch, ED, price vs Master Pembelian, HPP) before confirming
     $('#fakturbeli-table').on('click', '.btn-approve-faktur', function() {
-        let id = $(this).data('id');
-        Swal.fire({
-            title: 'Konfirmasi',
-            text: 'Yakin ingin menyetujui faktur ini? Stok obat akan diperbarui.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Setujui',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: '{{ url("/erm/fakturpembelian") }}/' + id + '/approve',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(res) {
-                        if(res.success) {
-                            Swal.fire('Berhasil', res.message, 'success');
-                            fakturTable.ajax.reload();
-                        } else {
-                            Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
-                        }
-                    },
-                    error: function(xhr) {
-                        Swal.fire('Gagal', 'Gagal menyetujui faktur: ' + (xhr.responseJSON?.message || 'Terjadi kesalahan'), 'error');
-                    }
+        openApprove($(this).data('id'));
+    });
+
+    function openApprove(id) {
+        $.get(BASE + '/' + id + '/approve-preview').done(function(p) {
+            var rows = p.items.map(function(it) {
+                var selisih = it.selisih_persen === null ? '<span class="text-muted">-</span>'
+                    : '<span class="' + (it.selisih_besar ? 'text-danger font-weight-bold' : '') + '">' + (it.selisih_persen > 0 ? '+' : '') + it.selisih_persen + '%</span>';
+                return '<tr>'
+                    + '<td class="text-left">' + esc(it.obat) + '</td>'
+                    + '<td>' + it.qty + (it.diminta > it.qty ? ' <small class="text-muted">/ ' + it.diminta + '</small>' : '') + '</td>'
+                    + '<td class="text-left">' + (it.batch ? esc(it.batch) : '<span class="text-danger">-</span>') + '<br><small>' + (it.expiration_date || '<span class="text-danger">ED -</span>') + '</small></td>'
+                    + '<td>' + rupiah(it.harga) + '<br><small>' + selisih + '</small></td>'
+                    + '<td>' + rupiah(it.hpp_lama) + ' → <strong>' + rupiah(it.hpp_baru) + '</strong></td>'
+                    + '</tr>';
+            }).join('');
+            var warnings = '';
+            if (p.problems.length) {
+                warnings += '<div class="alert alert-danger small text-left mb-2">' + p.problems.map(esc).join('<br>') + '<br>Lengkapi lewat <strong>Edit faktur</strong> sebelum approve.</div>';
+            }
+            if (p.items.some(function(it) { return it.selisih_besar; })) {
+                warnings += '<div class="alert alert-warning small text-left mb-2">Ada harga yang berbeda lebih dari ' + p.toleransi_persen + '% dari Master Pembelian. Pastikan sesuai faktur.</div>';
+            }
+            if (p.sisa > 0) {
+                warnings += '<div class="small text-muted text-left mb-2">' + p.sisa + ' obat belum diterima penuh; sisanya otomatis dibuat sebagai faktur lanjutan (status diminta).</div>';
+            }
+            var html = '<div class="text-left small mb-2">' + esc(p.pemasok) + ' · total <strong>' + rupiah(p.total) + '</strong></div>'
+                + warnings
+                + '<div class="table-responsive"><table class="table table-bordered fb-approve-table mb-0"><thead class="thead-light"><tr>'
+                + '<th class="text-left">Obat</th><th>Qty</th><th class="text-left">Batch / ED</th><th>Harga<br><small>vs master</small></th><th>HPP</th>'
+                + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+                + '<div class="small text-muted mt-2 text-left">Stok masuk ke gudang per batch dan harga menjadi harga Master Pembelian berikutnya.</div>';
+
+            Swal.fire({
+                title: 'Approve faktur ' + esc(p.no_faktur || '') + '?',
+                html: html,
+                width: 820,
+                showCancelButton: true,
+                confirmButtonText: 'Ya, approve & masukkan stok',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#28a745',
+                reverseButtons: true,
+                onOpen: function() { if (p.problems.length) Swal.getConfirmButton().disabled = true; }
+            }).then(function(result) {
+                if (!result.value) return;
+                $.post(BASE + '/' + id + '/approve', { _token: CSRF }).done(function(res) {
+                    fakturTable.draw(false);
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message });
+                }).fail(function(xhr) {
+                    Swal.fire({ icon: 'error', title: 'Gagal approve', text: xhrMessage(xhr, 'Faktur gagal di-approve.') });
                 });
-            }
+            });
+        }).fail(function(xhr) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Data faktur tidak dapat dimuat.') });
+        });
+    }
+
+    // ---------- Faktur form (modal) ----------
+    $(document).on('click', '.btn-form-faktur', function(e) {
+        e.preventDefault();
+        FakturForm.open({ id: $(this).data('id') });
+    });
+    $(document).on('click', '.btn-faktur-pengganti', function(e) {
+        e.preventDefault();
+        $('#modalDetailRetur').modal('hide');
+        FakturForm.open({ pengganti: $(this).data('retur') });
+    });
+    $('#btnFakturBaru').on('click', function() { FakturForm.open({}); });
+
+    // Saved: offer to review and approve right away (stok enters on approval)
+    FakturForm.onSaved(function(res) {
+        fakturTable.draw(false);
+        Swal.fire({
+            icon: 'success',
+            title: 'Faktur tersimpan',
+            text: res.message,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-clipboard-check"></i> Tinjau & approve sekarang',
+            cancelButtonText: 'Nanti',
+            reverseButtons: true
+        }).then(function(result) {
+            if (result.value && res.id) openApprove(res.id);
         });
     });
-    
-    // Debug HPP handler
-    $('#fakturbeli-table').on('click', '.btn-debug-hpp', function() {
-        let id = $(this).data('id');
-        $.ajax({
-            url: '{{ url("/erm/fakturpembelian") }}/' + id + '/debug-hpp',
-            type: 'GET',
-            success: function(res) {
-                if(res.success) {
-                    // Format the data for better readability
-                    let debugInfo = '';
-                    debugInfo += `<h4>Faktur Info</h4>`;
-                    debugInfo += `<p>No Faktur: ${res.faktur.no_faktur || '-'}</p>`;
-                    debugInfo += `<p>Subtotal: Rp${parseFloat(res.faktur.subtotal || 0).toLocaleString('id-ID')}</p>`;
-                    debugInfo += `<p>Global Diskon: Rp${parseFloat(res.faktur.global_diskon || 0).toLocaleString('id-ID')}</p>`;
-                    debugInfo += `<p>Global Pajak: Rp${parseFloat(res.faktur.global_pajak || 0).toLocaleString('id-ID')}</p>`;
-                    debugInfo += `<p>Total: Rp${parseFloat(res.faktur.total || 0).toLocaleString('id-ID')}</p>`;
-                    debugInfo += `<p>Calculated Subtotal: Rp${parseFloat(res.faktur.invoiceSubtotalCalculated || 0).toLocaleString('id-ID')}</p>`;
-                    // Keep the items table minimal: only columns necessary for the HPP formula
-                    debugInfo += `<h4>Items Info</h4>`;
-                    debugInfo += `<table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Obat</th>
-                                <th>Old Stock</th>
-                                <th>Qty (received)</th>
-                                <th>Purchase Cost<br><small class="text-muted">(total)</small></th>
-                                <!-- HPP group side-by-side -->
-                                <th>Old HPP<br><small class="text-muted">(Rp/unit)</small></th>
-                                <th>HPP/unit<br><small class="text-muted">(purchase)</small></th>
-                                <th>New HPP<br><small class="text-muted">(Rp/unit)</small></th>
-                                <!-- Selling HPP (Jual) -->
-                                <th>HPP Jual/unit<br><small class="text-muted">(selling)</small></th>
-                                <th>New HPP Jual<br><small class="text-muted">(Rp/unit)</small></th>
-                                <th>New Stock</th>
-                                <th>Formula (concise)</th>
-                            </tr>
-                        </thead>
-                        <tbody>`;
-                    res.items.forEach(item => {
-                        // Build human-friendly formatted numbers
-                        const fmt = (v) => 'Rp' + parseFloat(v || 0).toLocaleString('id-ID');
-                        const num = (v) => (v === null || v === undefined) ? '-' : v;
 
-                        // New direct-set formula (no averaging): master HPP/HPP_Jual are set to the discount-excluded per-unit price
-                        const useHppJualPerUnit = item.hppJualPerUnit || item.hppPerUnit || 0;
-                        let directFormulaPurchase = `New HPP (direct) = HPP Jual per unit (exclude discount)<br>= ${fmt(useHppJualPerUnit)}`;
-                        let directFormulaJual = `New HPP Jual (direct) = HPP Jual per unit (exclude discount)<br>= ${fmt(useHppJualPerUnit)}`;
+    // Old links (/create, /edit, retur "faktur pengganti") land here with the modal to open
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('input')) FakturForm.open({ id: params.get('input') });
+        else if (params.get('pengganti')) FakturForm.open({ pengganti: params.get('pengganti') });
+        else if (params.get('baru')) FakturForm.open({});
+        if (params.toString()) window.history.replaceState({}, '', window.location.pathname);
+    })();
 
-                        // Deltas for direct method
-                        let deltaDirect = `Selisih (direct): ${fmt(item.selisihHpp_direct)}`;
-                        let deltaDirectJual = `Selisih Jual (direct): ${fmt(item.selisihHppJual_direct)}`;
-
-                        // Also provide legacy/simple formulas for comparison
-                        let conciseFormulaPurchase = `Direct: ${fmt(item.newHpp)}<br><em>${deltaDirect}</em>`;
-                        let conciseFormulaJual = `Direct: ${fmt(item.newHppJual)}<br><em>${deltaDirectJual}</em>`;
-                        debugInfo += `<tr>
-                            <td>${item.obat_nama}</td>
-                            <td>${num(item.oldStok)}</td>
-                            <td>${num(item.qty)}</td>
-                            <td>${fmt(item.purchaseCost)}</td>
-                            <td>${fmt(item.oldHpp)}</td>
-                            <td>${fmt(item.hppPerUnit)}</td>
-                            <td>${fmt(item.newHpp)}</td>
-                            <td>${fmt(item.hppJualPerUnit || 0)}</td>
-                            <td>${fmt(item.newHppJual || 0)}</td>
-                            <td>${num(item.newStok)}</td>
-                            <td style="font-size:0.9em;">
-                                <strong>Purchase HPP:</strong><br>${conciseFormulaPurchase}
-                                ${ conciseFormulaJual ? `<hr><strong>Selling HPP:</strong><br>${conciseFormulaJual}` : '' }
-                            </td>
-                        </tr>`;
-                    });
-                    debugInfo += `</tbody></table>`;
-                    // Create modal to display the debug info
-                    let modal = $(
-                        `<div class="modal fade" id="debugHppModal" tabindex="-1" role="dialog">
-                            <div class="modal-dialog modal-xl" role="document">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title">Debug HPP Calculation</h5>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                            <span aria-hidden="true">&times;</span>
-                                        </button>
-                                    </div>
-                                    <div class="modal-body">
-                                        ${debugInfo}
-                                    </div>
-                                    <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`
-                    );
-                    // Append to body, show and then remove on close
-                    $('body').append(modal);
-                    modal.modal('show');
-                    modal.on('hidden.bs.modal', function() {
-                        $(this).remove();
-                    });
-                } else {
-                    alert(res.message || 'Terjadi kesalahan');
-                }
-            },
-            error: function(xhr) {
-                alert('Gagal menampilkan debug HPP: ' + (xhr.responseJSON?.message || 'Terjadi kesalahan'));
-            }
+    $('#fakturbeli-table').on('click', '.btn-delete-faktur', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        Swal.fire({
+            icon: 'warning',
+            title: 'Hapus faktur ' + esc($(this).data('nomor')) + '?',
+            text: 'Faktur dan itemnya dihapus permanen. Stok tidak terpengaruh karena faktur ini belum di-approve.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#d33',
+            reverseButtons: true,
+            focusCancel: true
+        }).then(function(result) {
+            if (!result.value) return;
+            $.ajax({ url: BASE + '/' + id, type: 'DELETE', data: { _token: CSRF } }).done(function(res) {
+                fakturTable.draw(false);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 2000, showConfirmButton: false });
+            }).fail(function(xhr) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Faktur gagal dihapus.') });
+            });
         });
     });
+
+    // Retur ke supplier from a faktur
+    $('#fakturbeli-table').on('click', '.btn-create-retur-faktur', function(e) {
+        e.preventDefault();
+        $.get('{{ route('erm.fakturretur.create') }}', { fakturbeli_id: $(this).data('id') }).done(function(res) {
+            $('#modalReturBody').html(res);
+            $('#modalRetur').modal('show');
+        }).fail(function(xhr) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Form retur tidak dapat dimuat.') });
+        });
+    });
+
+    $('#fakturbeli-table').on('click', '.btn-detail-retur-faktur', function(e) {
+        e.preventDefault();
+        $.get('{{ url('/erm/fakturretur') }}/' + $(this).data('id')).done(function(res) {
+            $('#modalDetailReturBody').html(res);
+            $('#modalDetailRetur').modal('show');
+        }).fail(function(xhr) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Detail retur tidak dapat dimuat.') });
+        });
+    });
+
+    ReturActions.init(function() { fakturTable.draw(false); });
 });
 </script>
 @endpush

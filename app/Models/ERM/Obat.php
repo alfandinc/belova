@@ -216,13 +216,22 @@ class Obat extends Model
         'hpp',
         'is_generik',
         'is_favorite',
+        'wajib_stok',
         'principal_id',
     ];
-    
+
     protected $casts = [
         'is_generik' => 'boolean',
         'is_favorite' => 'boolean',
+        'wajib_stok' => 'boolean',
+        'stop_pengadaan' => 'boolean',
+        'stop_pengadaan_at' => 'datetime',
     ];
+
+    public function stopPengadaanOleh()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'stop_pengadaan_by');
+    }
     /**
      * The "booted" method of the model.
      * This ensures that only active medications are shown by default

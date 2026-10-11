@@ -95,6 +95,15 @@
 
                     @hasanyrole('Kasir|Admin|Finance|Employee|Maanager|Hrd')
                     <li class="menu-label">Pengajuan</li>
+                    @hasanyrole('Admin|Finance')
+                    @php($hargaMenunggu = \App\Models\ERM\ObatHargaPengajuan::where('status', 'menunggu')->count())
+                    <li>
+                        <a href="{{ route('erm.harga-jual.index') }}">
+                            <i data-feather="tag" class="align-self-center menu-icon"></i>
+                            <span>Approval Harga Jual Obat</span>@if($hargaMenunggu)<span class="badge badge-warning ml-auto">{{ $hargaMenunggu }}</span>@endif
+                        </a>
+                    </li>
+                    @endhasanyrole
                     <li>
                         <a href="{{ route('finance.pengajuan.index') }}">
                             <i class="fas fa-wallet align-self-center menu-icon"></i>

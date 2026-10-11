@@ -16,10 +16,22 @@ class MutasiStokItem extends Model
         'obat_id',
         'jumlah',
         'keterangan',
+        'alasan',
+        'batch_dipilih',
+        'batch',
+        'batch_baru',
+        'expiration_date',
+        'hpp',
+        'nilai',
     ];
 
     protected $casts = [
         'jumlah' => 'decimal:2',
+        'batch_dipilih' => 'boolean',
+        'batch_baru' => 'boolean',
+        'expiration_date' => 'date',
+        'hpp' => 'decimal:2',
+        'nilai' => 'decimal:2',
     ];
 
     public function mutasiStok()

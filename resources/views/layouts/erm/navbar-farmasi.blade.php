@@ -61,76 +61,59 @@
                         <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span></a>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Farmasi|Admin') 
+                    @hasanyrole('Farmasi|Admin|Beautician|Lab')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
+                            @hasanyrole('Farmasi|Admin')
                             <li>
                                 <a href="/erm/permintaan"><i data-feather="inbox" class="align-self-center menu-icon"></i><span>Permintaan Pembelian</span></a>
                             </li>
                             <li>
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
                             </li>
+                            @endhasanyrole
                             <li>
-                            <a href="/erm/fakturretur"><i data-feather="rotate-ccw" class="align-self-center menu-icon"></i><span>Retur Pembelian</span></a>
-                        </li>
+                                <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
+                            </li>
+                            @hasanyrole('Farmasi|Admin')
+                            <li>
+                                <a href="/erm/fakturretur"><i data-feather="rotate-ccw" class="align-self-center menu-icon"></i><span>Retur ke Supplier</span></a>
+                            </li>
+                            @endhasanyrole
+                            <li>
+                                <a href="{{ route('erm.obat.forecast.index') }}"><i data-feather="trending-up" class="align-self-center menu-icon"></i><span>Forecast Stok</span></a>
+                            </li>
+                            @hasanyrole('Farmasi|Admin')
+                            <li>
+                                <a href="{{ route('erm.laporan-pembelian.index') }}"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Laporan Pembelian</span></a>
+                            </li>
+                            @endhasanyrole
                         </ul>
                     </li>
-                    @endhasanyrole
-                    @hasanyrole('Farmasi|Admin|Beautician|Lab')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Stok & Mutasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="archive" class="align-self-center menu-icon"></i><span>Stok</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            {{-- <li>
-                                <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Obat Masuk</span></a>
-                            </li> --}}
-                            {{-- <li>
-                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
-                            </li> --}}
-                            {{-- <li>
-                                <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Obat Keluar</span></a>
-                            </li> --}}
-
-                            {{--
-                            <li>
-                                <a href="/erm/kartu-stok"><i data-feather="credit-card" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
-                            </li>
-                            --}}
                             <li>
                                 <a href="/erm/stok-gudang"><i data-feather="database" class="align-self-center menu-icon"></i><span>Manajemen Stok</span></a>
                             </li>
                             <li>
-                                <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Antar Gudang</span></a>
+                                <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Transfer Antar Gudang</span></a>
                             </li>
                             <li>
-                                <a href="/erm/mutasi-stok"><i data-feather="shuffle" class="align-self-center menu-icon"></i><span>Mutasi Stok</span></a>
-                            </li>
-                            <li>
-                                <a href="/erm/obat-hibah"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Obat Hibah</span></a>
+                                <a href="/erm/mutasi-stok"><i data-feather="shuffle" class="align-self-center menu-icon"></i><span>Penyesuaian Stok</span></a>
                             </li>
                             <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
-                            </li>
-                            <li>
-                                <a href="{{ route('erm.obat.forecast.index') }}"><i data-feather="trending-up" class="align-self-center menu-icon"></i><span>Forecast Stok</span></a>
                             </li>
                         </ul>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Farmasi|Admin')                         
-                            <li>
-                                <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
-                            </li>
-                            
-
-                            
-                            {{-- <li>
-                                <a href="/erm/obat?tambah=1"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
-                            </li> --}}
-                            {{-- <li>
-                                <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
-                            </li> --}}
-
+                    @hasanyrole('Farmasi|Admin|Finance')
+                    @php($hargaMenunggu = \App\Models\ERM\ObatHargaPengajuan::where('status', 'menunggu')->count())
+                    <li>
+                        <a href="{{ route('erm.harga-jual.index') }}"><i data-feather="tag" class="align-self-center menu-icon"></i><span>Harga Jual Obat</span>@if($hargaMenunggu)<span class="badge badge-warning ml-auto">{{ $hargaMenunggu }}</span>@endif</a>
+                    </li>
                     @endhasanyrole
                 </ul>
             </div>

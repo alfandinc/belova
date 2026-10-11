@@ -65,9 +65,9 @@
                                         </div>
                                         <div class="form-group mr-2">
                                             <label class="sr-only" for="temuan_jenis">Jenis</label>
-                                            <select id="temuan_jenis" class="form-control form-control-sm" style="width:120px;">
-                                                <option value="plus">Plus</option>
-                                                <option value="minus">Minus</option>
+                                            <select id="temuan_jenis" class="form-control form-control-sm" style="width:190px;" title="Nilai tersimpan tetap plus/minus; labelnya menjelaskan dampak ke stok">
+                                                <option value="plus">Fisik kurang (stok −)</option>
+                                                <option value="minus">Fisik lebih (stok +)</option>
                                             </select>
                                         </div>
                                         <div class="form-group mr-2" style="flex:1;">
@@ -702,8 +702,8 @@ $(function () {
                     if (res.temuan_records && res.temuan_records.length > 0) {
                         res.temuan_records.forEach(function(r) {
                             var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
-                                ? 'Minus'
-                                : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Plus' : '-');
+                                ? 'Fisik lebih (stok +)'
+                                : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Fisik kurang (stok −)' : '-');
                             var actionBtn = '';
                             if (r.process_status && parseInt(r.process_status) === 1) {
                                 actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
@@ -965,8 +965,8 @@ $(function () {
                     // append new record to table
                     var r = res.record;
                     var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
-                        ? 'Minus'
-                        : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Plus' : '-');
+                        ? 'Fisik lebih (stok +)'
+                        : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Fisik kurang (stok −)' : '-');
                     var actionBtn = '';
                     if (r.process_status && parseInt(r.process_status) === 1) {
                         actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;

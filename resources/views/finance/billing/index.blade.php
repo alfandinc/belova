@@ -19,7 +19,7 @@
                         <i class="fas fa-receipt mr-1"></i> Riwayat Transaksi
                     </button>
                     @endhasanyrole
-                    <button id="btn-retur-pembelian" type="button" class="btn btn-danger" title="Retur Pembelian">
+                    <button id="btn-retur-pembelian" type="button" class="btn btn-danger" title="Retur Penjualan (pasien)">
                         <i class="fas fa-undo-alt mr-1"></i> Retur
                         <span id="retur-pending-badge" class="badge badge-light ml-1" style="display:none;" title="Menunggu approval">0</span>
                     </button>

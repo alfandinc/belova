@@ -1,86 +1,65 @@
-<div class="table-responsive">
-    <table class="table table-sm table-borderless">
-        <tr>
-            <td width="150">No. Mutasi</td>
-            <td>: {{ $mutasi->nomor_mutasi }}</td>
-        </tr>
-        <tr>
-            <td>Tanggal</td>
-            <td>: {{ $mutasi->created_at->format('d/m/Y H:i') }}</td>
-        </tr>
-        <tr>
-            <td>Status</td>
-            <td>:
-                @php
-                    $labels = [
-                        'pending' => '<span class="badge bg-warning">Pending</span>',
-                        'approved' => '<span class="badge bg-success">Disetujui</span>',
-                        'rejected' => '<span class="badge bg-danger">Ditolak</span>'
-                    ];
-                @endphp
-                {!! $labels[$mutasi->status] ?? $mutasi->status !!}
-            </td>
-        </tr>
-        <tr>
-            <td>Diminta Oleh</td>
-            <td>: {{ $mutasi->requestedBy->name }}</td>
-        </tr>
-        @if($mutasi->approved_by)
-        <tr>
-            <td>Disetujui Oleh</td>
-            <td>: {{ $mutasi->approvedBy->name }}</td>
-        </tr>
-        <tr>
-            <td>Tanggal Disetujui</td>
-            <td>:
-                @if($mutasi->approved_at instanceof \Carbon\Carbon)
-                    {{ $mutasi->approved_at->format('d/m/Y H:i') }}
-                @elseif(is_string($mutasi->approved_at) && strtotime($mutasi->approved_at))
-                    {{ date('d/m/Y H:i', strtotime($mutasi->approved_at)) }}
-                @else
-                    -
-                @endif
-            </td>
-        </tr>
-        @endif
-    </table>
+@php
+    $fmt = function ($n) { return rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ','); };
+@endphp
+<div class="d-flex flex-wrap justify-content-between align-items-start mb-3">
+    <div class="mb-2">
+        <div class="h5 mb-1">{{ $mutasi->nomor_mutasi }} {!! $statusBadge !!}</div>
+        <div class="text-muted small">Dibuat {{ $mutasi->created_at->format('d/m/Y H:i') }} oleh {{ optional($mutasi->requestedBy)->name ?? '-' }}</div>
+    </div>
+    <div class="text-md-right mb-2">
+        <div class="small text-muted">Rute</div>
+        <div><i class="fas fa-arrow-circle-left text-danger"></i> {{ optional($mutasi->gudangAsal)->nama ?? '-' }}
+            <span class="mx-1">&rarr;</span>
+            <i class="fas fa-arrow-circle-right text-success"></i> {{ optional($mutasi->gudangTujuan)->nama ?? '-' }}</div>
+    </div>
+</div>
 
-    <h5 class="mt-4">Detail Obat</h5>
-    <table class="table table-bordered">
-        <thead>
+@if($mutasi->status === 'pending')
+    @if($kurang > 0)
+        <div class="alert alert-danger small py-2 mb-3"><i class="fas fa-exclamation-triangle"></i> Stok layak pakai di gudang asal <strong>tidak cukup untuk {{ $kurang }} obat</strong> (ditandai merah). Transfer ini tidak bisa disetujui sebelum stoknya cukup; tolak bila perlu.</div>
+    @else
+        <div class="alert alert-warning small py-2 mb-3"><i class="fas fa-hourglass-half"></i> Menunggu approval. <strong>Stok belum berpindah</strong> sampai transfer disetujui. Stok diambil dari batch layak pakai dengan ED terdekat (FEFO).</div>
+    @endif
+@elseif($mutasi->status === 'approved')
+    <div class="alert alert-success small py-2 mb-3"><i class="fas fa-check-circle"></i> Disetujui oleh <strong>{{ optional($mutasi->approvedBy)->name ?? '-' }}</strong>@if($mutasi->approved_at) pada {{ $mutasi->approved_at->format('d/m/Y H:i') }}@endif. Stok sudah berpindah.</div>
+@elseif($mutasi->status === 'rejected')
+    <div class="alert alert-danger small py-2 mb-3"><i class="fas fa-times-circle"></i> Ditolak oleh <strong>{{ optional($mutasi->rejectedBy)->name ?? '-' }}</strong>@if($mutasi->rejected_at) pada {{ $mutasi->rejected_at->format('d/m/Y H:i') }}@endif. Stok tidak berubah.@if($alasanTolak)<br>Alasan: {{ $alasanTolak }}@endif</div>
+@endif
+
+<div class="table-responsive">
+    <table class="table table-bordered table-sm mb-2">
+        <thead class="thead-light">
             <tr>
+                <th style="width:40px">#</th>
                 <th>Nama Obat</th>
-                <th>Jumlah</th>
+                <th class="text-right" style="width:130px">Jumlah</th>
+                @if($stokTersedia !== null)
+                    <th class="text-right" style="width:150px">Stok di asal</th>
+                @endif
                 <th>Keterangan</th>
             </tr>
         </thead>
         <tbody>
-            @if($mutasi->items && $mutasi->items->count() > 0)
-                @foreach($mutasi->items as $item)
-                    <tr>
-                        <td>{{ $item->obat ? $item->obat->nama : ('Obat ID ' . $item->obat_id) }}</td>
-                        <td>{{ $item->jumlah }}</td>
-                        <td>{{ $item->keterangan ?: '-' }}</td>
-                    </tr>
-                @endforeach
-            @else
-                {{-- Fallback to legacy single-obat fields --}}
-                <tr>
-                    <td>{{ $mutasi->obat ? $mutasi->obat->nama : '-' }}</td>
-                    <td>{{ $mutasi->jumlah ?? '-' }}</td>
-                    <td>{{ $mutasi->keterangan ?: '-' }}</td>
+            @foreach($items as $i => $item)
+                @php
+                    $satuan = $item->obat->satuan_stok_label ?? '';
+                    $tersedia = $stokTersedia !== null ? (float) ($stokTersedia[$item->obat_id] ?? 0) : null;
+                    $tidakCukup = $tersedia !== null && round($tersedia, 4) < round((float) $item->jumlah, 4);
+                @endphp
+                <tr class="{{ $tidakCukup ? 'table-danger' : '' }}">
+                    <td>{{ $i + 1 }}</td>
+                    <td>{{ $item->obat->nama ?? ('Obat ID ' . $item->obat_id) }}</td>
+                    <td class="text-right font-weight-bold">{{ $fmt($item->jumlah) }} {{ $satuan }}</td>
+                    @if($stokTersedia !== null)
+                        <td class="text-right {{ $tidakCukup ? 'text-danger font-weight-bold' : 'text-muted' }}">{{ $fmt($tersedia) }} {{ $satuan }}</td>
+                    @endif
+                    <td>{{ $item->keterangan ?: '-' }}</td>
                 </tr>
-            @endif
+            @endforeach
         </tbody>
     </table>
-    <table class="table table-borderless mt-2">
-        <tr>
-            <th width="150">Dari Gudang</th>
-            <td>: {{ $mutasi->gudangAsal->nama }}</td>
-        </tr>
-        <tr>
-            <th>Ke Gudang</th>
-            <td>: {{ $mutasi->gudangTujuan->nama }}</td>
-        </tr>
-    </table>
 </div>
+
+@if($mutasi->keterangan)
+    <div class="small"><strong>Catatan:</strong> {{ $mutasi->keterangan }}</div>
+@endif

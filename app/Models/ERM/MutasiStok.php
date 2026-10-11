@@ -22,12 +22,28 @@ class MutasiStok extends Model
         'cancelled_by',
         'cancelled_at',
         'revised_from_id',
+        'total_nilai',
+        'butuh_approval',
+        'approved_by',
+        'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'rejected_reason',
     ];
+
+    const STATUS_PENDING = 'pending';
+    const STATUS_DONE = 'done';
+    const STATUS_REJECTED = 'rejected';
+    const STATUS_CANCELLED = 'cancelled';
 
     protected $casts = [
         'tanggal_mutasi' => 'datetime',
         'tanggal_input' => 'datetime',
         'cancelled_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
+        'total_nilai' => 'decimal:2',
+        'butuh_approval' => 'boolean',
     ];
 
     public function gudang()
@@ -43,6 +59,16 @@ class MutasiStok extends Model
     public function cancelledBy()
     {
         return $this->belongsTo(\App\Models\User::class, 'cancelled_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
+
+    public function rejectedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'rejected_by');
     }
 
     public function revisedFrom()

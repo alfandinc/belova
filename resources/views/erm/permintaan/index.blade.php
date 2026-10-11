@@ -1,228 +1,96 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM | Master Faktur Pembelian')
+@section('title', 'Farmasi | Permintaan Pembelian')
 @section('navbar')
     @include('layouts.erm.navbar-farmasi')
-@endsection  
+@endsection
 
 @section('content')
 <div class="container-fluid">
     <style>
-        #permintaan-table td {
-            vertical-align: top;
-        }
-
-        #permintaan-table tbody tr:nth-child(odd) {
-            background-color: #fbfcff;
-        }
-
-        #permintaan-table tbody tr:nth-child(even) {
-            background-color: #f3f7ff;
-        }
-
-        #permintaan-table tbody tr:hover {
-            background-color: #eaf2ff;
-        }
-
-        #permintaan-table .permintaan-col-obat {
-            min-width: 340px;
-        }
-
-        #permintaan-table .permintaan-col-qty {
-            min-width: 110px;
-        }
-
+        #permintaan-table td { vertical-align: top; }
+        #permintaan-table tbody tr:hover { background-color: #f3f7ff; }
+        #permintaan-table tr.pr-waiting td:first-child { box-shadow: inset 3px 0 0 #ffc107; }
+        #permintaan-table .permintaan-col-obat { min-width: 300px; }
         #permintaan-table .permintaan-stack-row {
             min-height: 48px;
-            padding: 0.35rem 0;
+            padding: .35rem 0;
             border-bottom: 1px solid #e9edf4;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 0.15rem;
-            box-sizing: border-box;
+            gap: .15rem;
         }
-
-        #permintaan-table .permintaan-stack-row:last-child {
-            border-bottom: 0;
-        }
-
-        #permintaan-table .font-weight-medium {
-            font-weight: 500;
-        }
-
-        #permintaan-table .permintaan-request-cell {
-            min-width: 150px;
-        }
-
-        #permintaan-table .btn-lihat-nilai-pembelian {
-            padding: 0.1rem 0.45rem;
-            line-height: 1.2;
-        }
-
-        #permintaan-table .badge {
-            font-size: 0.72rem;
-        }
-
-        #nilaiPembelianModal .badge {
-            font-size: 0.72rem;
-        }
-
-        #nilaiPembelianModal tfoot th {
-            font-weight: 700 !important;
-        }
-
-        #permintaanTableFilters {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-right: 0.75rem;
-        }
-
-        #permintaan-table_filter {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-
-        #permintaan-table_filter label {
-            margin-bottom: 0;
-        }
-
-        .permintaan-total-summary {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 1rem;
-        }
-
-        .permintaan-total-summary-card {
-            min-width: 320px;
-            max-width: 100%;
-            padding: 0.9rem 1rem;
-            border: 1px solid #dbe4f0;
-            border-radius: 0.5rem;
-            background: #f8fbff;
-        }
-
-        .permintaan-total-summary-label {
-            display: block;
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: #6c7a92;
-            margin-bottom: 0.25rem;
-        }
-
-        .permintaan-total-summary-value {
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: #1f3b73;
-            line-height: 1.2;
-        }
-
-        @media (max-width: 767.98px) {
-            #permintaan-table_filter {
-                justify-content: flex-start;
-            }
-
-            #permintaanTableFilters {
-                margin-right: 0;
-            }
-
-            .permintaan-total-summary {
-                justify-content: stretch;
-            }
-
-            .permintaan-total-summary-card {
-                width: 100%;
-                min-width: 0;
-            }
-        }
+        #permintaan-table .permintaan-stack-row:last-child { border-bottom: 0; }
+        #permintaan-table .font-weight-medium { font-weight: 500; }
+        #permintaan-table .badge, #nilaiPembelianModal .badge { font-size: .72rem; }
+        .pr-tabs .nav-link { padding: .35rem .8rem; font-size: .875rem; }
+        .pr-total { border: 1px solid #dbe4f0; border-radius: .5rem; background: #f8fbff; padding: .5rem .9rem; }
+        .pr-total-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: #6c7a92; }
+        .pr-total-value { font-size: 1.2rem; font-weight: 700; color: #1f3b73; }
     </style>
-        <!-- Page-Title -->
-    <!-- Title and Button Row -->
-    <div class="row mt-3 align-items-center">
-        <div class="col-md-6">
-            <h2 class="mb-0">Daftar Permintaan Pembelian</h2>
+
+    <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3">
+        <div>
+            <h4 class="page-title mb-0">Permintaan Pembelian</h4>
+            <small class="text-muted">Setelah disetujui, permintaan menjadi Faktur Pembelian (status diminta) per pemasok.</small>
         </div>
-        <div class="col-md-6 d-flex justify-content-md-end mt-3 mt-md-0">
-            <div id="permintaanTableFilters" class="d-none">
-                <select id="principalFilter" class="form-control form-control-sm" style="width: 220px;">
-                    <option value="">Semua Principal</option>
-                    @foreach(($principals ?? collect()) as $principal)
-                        <option value="{{ $principal->id }}">{{ $principal->nama }}</option>
-                    @endforeach
-                </select>
-                <select id="statusFilter" class="form-control form-control-sm" style="width: 180px;">
-                    <option value="">Semua Status</option>
-                    <option value="waiting_approval">Waiting Approval</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                </select>
-                <div class="input-group input-group-sm" style="width: 280px;">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text"><i class="fa fa-calendar"></i></span>
-                    </div>
-                    <input type="text" id="requestDateRange" class="form-control" autocomplete="off" placeholder="Tanggal permintaan">
-                </div>
-                <button type="button" class="btn btn-secondary btn-sm" id="resetRequestDateRange">Reset</button>
-            </div>
-            <div>
-                <a href="{{ route('erm.permintaan.create') }}" class="btn btn-primary btn-sm mb-2 mb-md-0">Buat Permintaan</a>
-            </div>
-        </div>
+        <button type="button" class="btn btn-primary mt-2 mt-md-0" id="btnBuatPermintaan"><i class="fas fa-plus"></i> Buat Permintaan</button>
     </div>
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="page-title-box">
-                <div class="row">
-                    <div class="col">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item">Farmasi</li>
-                            <li class="breadcrumb-item active">Permintaan Pembelian</li>
-                        </ol>
-                    </div><!--end col-->
-                </div><!--end row-->                                                              
-            </div><!--end page-title-box-->
-        </div><!--end col-->
-    </div><!--end row-->
-    <!-- end page title end breadcrumb -->
-    
-    @if(session('success'))
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            Swal.fire({
-                icon: 'success',
-                title: 'Sukses',
-                text: @json(session('success')),
-                timer: 2000,
-                showConfirmButton: false
-            });
-        });
-        </script>
-    @endif
-    <table class="table table-bordered" id="permintaan-table">
-        <thead>
-            <tr>
-                <th>No</th>
-                <th>No Permintaan</th>
-                <th class="permintaan-col-obat">Nama Items</th>
-                <th class="permintaan-col-qty text-right">Diminta</th>
-                <th class="permintaan-col-qty text-right">Terpenuhi</th>
-                <th class="text-right">Tanggal</th>
-                <th class="text-right">Total Nilai Pembelian</th>
-                <th>Status</th>
-                <th>Aksi</th>
-            </tr>
-        </thead>
-    </table>
-    <div class="permintaan-total-summary">
-        <div class="permintaan-total-summary-card">
-            <span class="permintaan-total-summary-label">Total Nilai Pembelian</span>
-            <div class="permintaan-total-summary-value" id="permintaanTotalNilaiPembelian">Rp 0</div>
+
+    <div class="card">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start">
+                <ul class="nav nav-pills pr-tabs mb-3" id="status-tabs">
+                    <li class="nav-item"><a class="nav-link active" href="#" data-status="">Semua <span class="badge badge-light ml-1" data-count="all">0</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-status="waiting_approval">Menunggu approval <span class="badge badge-warning ml-1" data-count="waiting_approval">0</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-status="approved">Disetujui <span class="badge badge-light ml-1" data-count="approved">0</span></a></li>
+                    <li class="nav-item"><a class="nav-link" href="#" data-status="rejected">Ditolak <span class="badge badge-light ml-1" data-count="rejected">0</span></a></li>
+                </ul>
+                <div class="pr-total mb-3 text-right" title="Perkiraan dari harga Master Pembelian + PPN {{ rtrim(rtrim(number_format(config('pembelian.ppn_persen', 11), 2, ',', '.'), '0'), ',') }}%">
+                    <div class="pr-total-label">Total nilai (sesuai filter)</div>
+                    <div class="pr-total-value" id="permintaanTotalNilaiPembelian">Rp 0</div>
+                </div>
+            </div>
+
+            <div class="form-row align-items-end mb-2">
+                <div class="col-md-3 mb-2">
+                    <label class="small text-muted mb-1" for="requestDateRange">Tanggal permintaan</label>
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend"><span class="input-group-text"><i class="fa fa-calendar"></i></span></div>
+                        <input type="text" id="requestDateRange" class="form-control" autocomplete="off">
+                    </div>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <label class="small text-muted mb-1" for="principalFilter">Principal</label>
+                    <select id="principalFilter" class="form-control form-control-sm">
+                        <option value="">Semua Principal</option>
+                        @foreach(($principals ?? collect()) as $principal)
+                            <option value="{{ $principal->id }}">{{ $principal->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4 mb-2">
+                    <label class="small text-muted mb-1" for="searchPermintaan">Cari</label>
+                    <input type="search" id="searchPermintaan" class="form-control form-control-sm" placeholder="Nomor permintaan, pemasok, atau nama obat">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <button type="button" class="btn btn-light btn-sm btn-block" id="resetFilter"><i class="fas fa-undo"></i> Reset</button>
+                </div>
+            </div>
+
+            <table class="table table-bordered table-sm w-100" id="permintaan-table">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Nomor</th>
+                        <th class="permintaan-col-obat">Obat</th>
+                        <th class="text-right">Diminta</th>
+                        <th class="text-right">Terpenuhi</th>
+                        <th class="text-right">Nilai</th>
+                        <th>Status</th>
+                        <th class="text-right">Aksi</th>
+                    </tr>
+                </thead>
+            </table>
         </div>
     </div>
 
@@ -231,14 +99,13 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="nilaiPembelianModalLabel">Nilai Pembelian</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <div><strong>No Permintaan:</strong> <span id="nilaiPembelianNoPermintaan">-</span></div>
                         <div><strong>Tanggal Permintaan:</strong> <span id="nilaiPembelianTanggal">-</span></div>
+                        <div class="small text-muted">Perkiraan dari harga Master Pembelian. Harga final mengikuti faktur dari pemasok.</div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-sm">
@@ -256,10 +123,10 @@
                             <tbody id="nilaiPembelianTableBody"></tbody>
                             <tfoot>
                                 <tr>
-                                    <th colspan="4" class="text-right font-weight-bold">Total Nilai Permintaan Pembelian</th>
-                                    <th class="text-right font-weight-bold" id="nilaiPembelianSubtotalDiskon">Rp 0</th>
-                                    <th class="text-right font-weight-bold" id="nilaiPembelianPpn">Rp 0</th>
-                                    <th class="text-right font-weight-bold" id="nilaiPembelianGrandTotal">Rp 0</th>
+                                    <th colspan="4" class="text-right">Total Nilai Permintaan Pembelian</th>
+                                    <th class="text-right" id="nilaiPembelianSubtotalDiskon">Rp 0</th>
+                                    <th class="text-right" id="nilaiPembelianPpn">Rp 0</th>
+                                    <th class="text-right" id="nilaiPembelianGrandTotal">Rp 0</th>
                                 </tr>
                             </tfoot>
                         </table>
@@ -272,385 +139,342 @@
 @endsection
 
 @section('scripts')
+@include('erm.permintaan._form-modal')
 <script>
 $(document).ready(function() {
-    function alignPermintaanStackRows() {
-        $('#permintaan-table tbody tr').each(function() {
-            var $cells = $(this).children('td');
-            var groups = [
-                $cells.eq(2).find('.permintaan-stack-row'),
-                $cells.eq(3).find('.permintaan-stack-row'),
-                $cells.eq(4).find('.permintaan-stack-row')
-            ];
+    var CSRF = '{{ csrf_token() }}';
+    var BASE = '{{ url('erm/permintaan') }}';
+    var FAKTUR_BASE = '{{ url('erm/fakturpembelian') }}';
+    var currentStatus = '';
 
-            groups.forEach(function($rows) {
-                $rows.css('min-height', '48px');
-            });
+    @if(session('success'))
+        Swal.fire({ icon: 'success', title: 'Berhasil', text: @json(session('success')), timer: 2200, showConfirmButton: false });
+    @endif
+    @if(session('error'))
+        Swal.fire({ icon: 'warning', title: 'Perhatian', text: @json(session('error')) });
+    @endif
 
-            var maxRows = Math.max(groups[0].length, groups[1].length, groups[2].length);
-
-            for (var index = 0; index < maxRows; index++) {
-                var maxHeight = 48;
-
-                groups.forEach(function($rows) {
-                    var $row = $rows.eq(index);
-                    if ($row.length) {
-                        maxHeight = Math.max(maxHeight, $row.outerHeight());
-                    }
-                });
-
-                groups.forEach(function($rows) {
-                    var $row = $rows.eq(index);
-                    if ($row.length) {
-                        $row.css('min-height', maxHeight + 'px');
-                    }
-                });
-            }
+    function esc(value) {
+        return String(value === undefined || value === null ? '' : value).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
         });
     }
 
     function formatRupiah(value) {
-        return 'Rp ' + Number(value || 0).toLocaleString('id-ID', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 2
+        return 'Rp ' + Number(value || 0).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function formatTanggal(value) {
+        if (!value) return '-';
+        var p = String(value).substring(0, 10).split('-');
+        return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : value;
+    }
+
+    function xhrMessage(xhr, fallback) {
+        var json = xhr && xhr.responseJSON;
+        if (json && json.errors) {
+            return Object.values(json.errors).map(function(m) { return m[0]; }).join('\n');
+        }
+        return (json && json.message) || fallback;
+    }
+
+    // Keep the stacked item rows of the Obat / Diminta / Terpenuhi columns on the same height
+    function alignStackRows() {
+        $('#permintaan-table tbody tr').each(function() {
+            var $cells = $(this).children('td');
+            var groups = [$cells.eq(1).find('.permintaan-stack-row'), $cells.eq(2).find('.permintaan-stack-row'), $cells.eq(3).find('.permintaan-stack-row')];
+            groups.forEach(function($rows) { $rows.css('min-height', '48px'); });
+            var maxRows = Math.max(groups[0].length, groups[1].length, groups[2].length);
+            for (var i = 0; i < maxRows; i++) {
+                var h = 48;
+                groups.forEach(function($rows) { if ($rows.eq(i).length) h = Math.max(h, $rows.eq(i).outerHeight()); });
+                groups.forEach(function($rows) { if ($rows.eq(i).length) $rows.eq(i).css('min-height', h + 'px'); });
+            }
         });
     }
 
-    function formatTanggalIndonesia(value) {
-        if (!value) {
-            return '-';
-        }
-
-        var parts = value.split('-');
-        if (parts.length !== 3) {
-            return value;
-        }
-
-        return parts[2] + '/' + parts[1] + '/' + parts[0];
-    }
-
-    var defaultStartDate = moment().subtract(3, 'months');
-    var defaultEndDate = moment();
-
+    var defaultStart = moment().subtract(3, 'months');
+    var defaultEnd = moment();
     $('#requestDateRange').daterangepicker({
-        startDate: defaultStartDate,
-        endDate: defaultEndDate,
+        startDate: defaultStart,
+        endDate: defaultEnd,
         autoUpdateInput: true,
-        locale: {
-            format: 'YYYY-MM-DD',
-            cancelLabel: 'Clear'
-        }
+        locale: { format: 'YYYY-MM-DD', cancelLabel: 'Semua tanggal', applyLabel: 'Terapkan' }
     });
 
-    $('#requestDateRange').val(defaultStartDate.format('YYYY-MM-DD') + ' - ' + defaultEndDate.format('YYYY-MM-DD'));
+    var STATUS_BADGE = { waiting_approval: 'badge-warning', approved: 'badge-success', rejected: 'badge-danger' };
 
     var table = $('#permintaan-table').DataTable({
         processing: true,
         serverSide: true,
+        searchDelay: 400,
+        dom: 'rt<"d-flex flex-wrap justify-content-between align-items-center mt-2"lip>',
+        pageLength: 25,
+        ordering: false,
         ajax: {
             url: '{{ route('erm.permintaan.data') }}',
             data: function(d) {
                 d.request_date_range = $('#requestDateRange').val();
                 d.principal_id = $('#principalFilter').val();
-                d.status = $('#statusFilter').val();
+                d.status = currentStatus;
             }
         },
-        search: {
-            return: true
+        createdRow: function(row, data) {
+            if (data.status === 'waiting_approval') $(row).addClass('pr-waiting');
         },
         columns: [
-            { data: 'no', name: 'no', orderable: false, searchable: false },
-            { data: 'no_permintaan', name: 'no_permintaan' },
-            { data: 'obats', name: 'obats', orderable: false },
-            { data: 'qty_diminta', name: 'qty_diminta', orderable: false, searchable: false },
-            { data: 'qty_terpenuhi', name: 'qty_terpenuhi', orderable: false, searchable: false },
             {
-                data: 'request_date',
-                name: 'request_date',
-                render: function(data, type) {
-                    if (type !== 'display' || !data) {
-                        return data;
-                    }
-
-                    return formatTanggalIndonesia(data);
+                data: 'no_permintaan',
+                render: function(data, type, row) {
+                    return '<div class="font-weight-bold text-nowrap">' + esc(data || '-') + '</div>'
+                        + '<div class="small">' + esc(row.pemasok) + '</div>'
+                        + '<div class="small text-muted">' + formatTanggal(row.request_date) + (row.dibuat_oleh ? ' · ' + esc(row.dibuat_oleh) : '') + '</div>'
+                        + (row.notes ? '<div class="small text-muted font-italic" title="Catatan">' + esc(row.notes) + '</div>' : '');
                 }
             },
+            { data: 'obats' },
+            { data: 'qty_diminta' },
+            { data: 'qty_terpenuhi' },
             {
                 data: 'total_nilai_pembelian',
-                name: 'total_nilai_pembelian',
-                searchable: false,
+                className: 'text-right text-nowrap',
                 render: function(data, type, row) {
-                    if (type !== 'display') {
-                        return data;
-                    }
-
-                    return '<div class="d-flex align-items-center justify-content-end">'
-                        + '<span>' + formatRupiah(data) + '</span>'
-                        + '<button type="button" class="btn btn-outline-secondary btn-sm ml-2 btn-nilai-pembelian btn-lihat-nilai-pembelian" data-id="' + row.id + '" title="Lihat Nilai Pembelian">'
-                        + '<i class="fa fa-eye"></i>'
-                        + '</button>'
-                        + '</div>';
-                },
-                className: 'text-right font-weight-medium'
-            },
-            { 
-                data: 'status', 
-                name: 'status',
-                render: function(data, type, row) {
-                    if (data === 'waiting_approval' || data === 'waiting' || data === 'menunggu') {
-                        return '<span class="badge badge-warning text-dark">Waiting Approval</span>';
-                    } else if (data === 'approved' || data === 'disetujui') {
-                        let html = '<span class="badge badge-success">Approved</span>';
-                        if (row.approved_by_name) {
-                            html += '<br><small class="text-muted">by: ' + row.approved_by_name + '</small>';
-                        }
-                        return html;
-                    } else if (data === 'rejected' || data === 'ditolak') {
-                        return '<span class="badge badge-danger">Rejected</span>';
-                    } else {
-                        return '<span class="badge badge-secondary">'+data+'</span>';
-                    }
+                    return '<div class="font-weight-medium">' + formatRupiah(data) + '</div>'
+                        + '<a href="#" class="small btn-nilai-pembelian" data-id="' + row.id + '"><i class="fa fa-eye"></i> rincian</a>';
                 }
             },
-            { data: 'aksi', name: 'aksi', orderable: false, searchable: false },
+            {
+                data: 'status',
+                render: function(data, type, row) {
+                    var html = '<span class="badge ' + (STATUS_BADGE[data] || 'badge-secondary') + '">' + esc(row.status_label) + '</span>';
+                    if (data === 'approved' && row.approved_by_name) {
+                        html += '<div class="small text-muted">oleh ' + esc(row.approved_by_name) + (row.approved_date ? '<br>' + esc(row.approved_date) : '') + '</div>';
+                    }
+                    if (data === 'rejected') {
+                        html += '<div class="small text-muted">' + (row.rejected_by_name ? 'oleh ' + esc(row.rejected_by_name) : '') + '</div>'
+                            + (row.rejected_reason ? '<div class="small text-danger">' + esc(row.rejected_reason) + '</div>' : '');
+                    }
+                    // Link to the faktur(s) this permintaan became
+                    (row.fakturs || []).forEach(function(f) {
+                        var label = f.no_faktur ? esc(f.no_faktur) : 'Faktur #' + f.id;
+                        html += '<div class="small mt-1"><i class="fas fa-file-invoice text-muted"></i> '
+                            + (f.status === 'diminta'
+                                ? '<a href="' + FAKTUR_BASE + '/' + f.id + '/edit" title="Barang datang? Isi faktur dari pemasok">' + label + ' · input faktur</a>'
+                                : label + ' <span class="text-muted">(' + esc(f.status) + ')</span>')
+                            + '</div>';
+                    });
+                    return html;
+                }
+            },
+            {
+                data: null,
+                className: 'text-right text-nowrap',
+                render: function(data, type, row) {
+                    var html = '';
+                    if (row.status === 'waiting_approval') {
+                        html += '<button class="btn btn-sm btn-success btn-approve mb-1" data-id="' + row.id + '" data-nomor="' + esc(row.no_permintaan) + '" data-nilai="' + row.total_nilai_pembelian + '" data-items="' + row.jumlah_item + '"><i class="fas fa-check"></i> Setujui</button> ';
+                        html += '<button type="button" class="btn btn-sm btn-outline-primary btn-ubah mb-1" data-id="' + row.id + '" title="Ubah"><i class="fas fa-pen"></i></button> '
+                            + '<button type="button" class="btn btn-sm btn-outline-warning btn-reject mb-1" data-id="' + row.id + '" data-nomor="' + esc(row.no_permintaan) + '" title="Tolak"><i class="fas fa-times"></i> Tolak</button> '
+                            + '<button type="button" class="btn btn-sm btn-outline-danger btn-delete mb-1" data-id="' + row.id + '" data-nomor="' + esc(row.no_permintaan) + '" title="Hapus"><i class="fas fa-trash"></i></button>';
+                    } else if (row.status === 'approved') {
+                        html += '<div class="btn-group btn-group-sm">'
+                            + '<a href="' + BASE + '/' + row.id + '/print" target="_blank" class="btn btn-outline-secondary" title="Surat Permintaan"><i class="fa fa-print"></i> Permintaan</a>'
+                            + '<a href="' + BASE + '/' + row.id + '/print-surat-pemesanan" target="_blank" class="btn btn-outline-primary" title="Surat Pemesanan"><i class="fa fa-print"></i> Pemesanan</a>'
+                            + '</div>';
+                    } else if (row.status === 'rejected') {
+                        html += '<button class="btn btn-sm btn-outline-danger btn-delete" data-id="' + row.id + '" data-nomor="' + esc(row.no_permintaan) + '"><i class="fas fa-trash"></i> Hapus</button>';
+                    }
+                    return html;
+                }
+            }
         ],
         language: {
-            search: "Cari:",
-            searchPlaceholder: "Cari no permintaan, pemasok, obat, dll...",
-            processing: "Sedang memproses...",
-            lengthMenu: "Tampilkan _MENU_ data",
-            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
-            infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
-            infoFiltered: "(difilter dari _MAX_ total data)",
-            paginate: {
-                first: "Pertama",
-                last: "Terakhir", 
-                next: "Selanjutnya",
-                previous: "Sebelumnya"
-            }
+            processing: '<i class="fas fa-spinner fa-spin"></i> Memuat...',
+            zeroRecords: 'Tidak ada permintaan yang cocok',
+            emptyTable: 'Belum ada permintaan',
+            info: '_START_–_END_ dari _TOTAL_ permintaan',
+            infoEmpty: '0 permintaan',
+            infoFiltered: '',
+            lengthMenu: 'Tampil _MENU_',
+            paginate: { previous: '‹', next: '›' }
         },
         drawCallback: function() {
-            alignPermintaanStackRows();
+            alignStackRows();
+            var json = this.api().ajax.json() || {};
+            var counts = json.counts || {};
+            $('#status-tabs [data-count]').each(function() { $(this).text(counts[$(this).data('count')] || 0); });
+            $('#permintaanTotalNilaiPembelian').text(formatRupiah(json.total_nilai_pembelian_filtered));
         }
     });
 
-    table.on('xhr.dt', function(e, settings, json) {
-        $('#permintaanTotalNilaiPembelian').text(formatRupiah(json && json.total_nilai_pembelian_filtered ? json.total_nilai_pembelian_filtered : 0));
+    $(window).on('resize', alignStackRows);
+
+    // ---------- Form (modal) ----------
+    $('#btnBuatPermintaan').on('click', function() { PermintaanForm.open(); });
+    $('#permintaan-table').on('click', '.btn-ubah', function(e) {
+        e.preventDefault();
+        PermintaanForm.open({ id: $(this).data('id') });
     });
+    PermintaanForm.onSaved(function(res) {
+        // A new permintaan appears on top of the "Menunggu approval" tab
+        table.draw(false);
+        Swal.fire({ icon: 'success', title: 'Tersimpan', text: res.message, timer: 2500, showConfirmButton: false });
+    });
+    // Old links (/create, /edit) land here with the modal to open
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('ubah')) PermintaanForm.open({ id: params.get('ubah') });
+        else if (params.get('baru')) {
+            PermintaanForm.open();
+            // From the Forecast page: fill the new form with the forecast suggestions
+            if (params.get('forecast')) $('#modalPermintaan').one('shown.bs.modal', function () { $('#pr_forecast').trigger('click'); });
+        }
+        if (params.toString()) window.history.replaceState({}, '', window.location.pathname);
+    })();
 
-    $('#permintaanTableFilters').prependTo('#permintaan-table_filter').removeClass('d-none');
-
-    $(window).on('resize', function() {
-        alignPermintaanStackRows();
+    $('#status-tabs').on('click', '.nav-link', function(e) {
+        e.preventDefault();
+        $('#status-tabs .nav-link').removeClass('active');
+        $(this).addClass('active');
+        currentStatus = $(this).data('status') || '';
+        table.draw();
     });
 
     $('#requestDateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-        table.ajax.reload();
+        table.draw();
     });
-
+    // "Semua tanggal": an explicit marker so the server does not fall back to the last 3 months
     $('#requestDateRange').on('cancel.daterangepicker', function() {
-        $(this).val('');
-        table.ajax.reload();
+        $(this).val('semua');
+        table.draw();
+    });
+    $('#principalFilter').on('change', function() { table.draw(); });
+
+    var searchTimer;
+    $('#searchPermintaan').on('input', function() {
+        var value = this.value;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function() { table.search(value).draw(); }, 400);
     });
 
-    $('#principalFilter, #statusFilter').on('change', function() {
-        table.ajax.reload();
-    });
-
-    $('#resetRequestDateRange').on('click', function() {
-        $('#requestDateRange').data('daterangepicker').setStartDate(defaultStartDate);
-        $('#requestDateRange').data('daterangepicker').setEndDate(defaultEndDate);
-        $('#requestDateRange').val(defaultStartDate.format('YYYY-MM-DD') + ' - ' + defaultEndDate.format('YYYY-MM-DD'));
+    $('#resetFilter').on('click', function() {
+        var picker = $('#requestDateRange').data('daterangepicker');
+        picker.setStartDate(defaultStart);
+        picker.setEndDate(defaultEnd);
+        $('#requestDateRange').val(defaultStart.format('YYYY-MM-DD') + ' - ' + defaultEnd.format('YYYY-MM-DD'));
         $('#principalFilter').val('');
-        $('#statusFilter').val('');
-        table.ajax.reload();
+        $('#searchPermintaan').val('');
+        $('#status-tabs .nav-link').removeClass('active').first().addClass('active');
+        currentStatus = '';
+        table.search('').draw();
     });
 
-    // Approve button AJAX
+    function post(url, data, fallback) {
+        return $.ajax({ url: url, type: 'POST', data: $.extend({ _token: CSRF }, data || {}) })
+            .done(function(res) {
+                table.draw(false);
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 2500, showConfirmButton: false });
+            })
+            .fail(function(xhr) {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, fallback) });
+            });
+    }
+
     $('#permintaan-table').on('click', '.btn-approve', function() {
-        var id = $(this).data('id');
+        var $b = $(this);
         Swal.fire({
-            title: 'Approve permintaan ini?',
             icon: 'question',
+            title: 'Setujui ' + esc($b.data('nomor')) + '?',
+            html: $b.data('items') + ' obat, perkiraan nilai <strong>' + formatRupiah($b.data('nilai')) + '</strong>.'
+                + '<div class="small text-muted mt-2">Faktur Pembelian (status diminta) dibuat untuk pemasoknya, lalu diisi saat barang datang.</div>',
             showCancelButton: true,
-            confirmButtonText: 'Ya, Approve',
+            confirmButtonText: 'Ya, setujui',
             cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: '/erm/permintaan/' + id + '/approve',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(res) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: 'Permintaan berhasil diapprove!',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                        table.ajax.reload();
-                    },
-                    error: function(xhr) {
-                        let msg = 'Gagal approve permintaan!';
-                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Gagal',
-                            text: msg,
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    }
-                });
-            }
+            confirmButtonColor: '#28a745',
+            reverseButtons: true
+        }).then(function(result) {
+            if (!result.value) return;
+            $b.prop('disabled', true);
+            post(BASE + '/' + $b.data('id') + '/approve', {}, 'Gagal menyetujui permintaan.').always(function() { $b.prop('disabled', false); });
         });
     });
 
-    $('#permintaan-table').on('click', '.btn-reject', function() {
-        var id = $(this).data('id');
+    $('#permintaan-table').on('click', '.btn-reject', function(e) {
+        e.preventDefault();
+        var $b = $(this);
         Swal.fire({
-            title: 'Reject permintaan ini?',
             icon: 'warning',
+            title: 'Tolak ' + esc($b.data('nomor')) + '?',
+            input: 'textarea',
+            inputPlaceholder: 'Alasan penolakan...',
+            inputAttributes: { maxlength: 500 },
+            inputValidator: function(value) { if (!value || !value.trim()) return 'Alasan penolakan wajib diisi.'; },
             showCancelButton: true,
-            confirmButtonText: 'Ya, Reject',
+            confirmButtonText: 'Tolak',
             cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: '/erm/permintaan/' + id + '/reject',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(res) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: res.message || 'Permintaan berhasil direject!',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                        table.ajax.reload();
-                    },
-                    error: function(xhr) {
-                        let msg = 'Gagal reject permintaan!';
-                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Gagal',
-                            text: msg,
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    }
-                });
-            }
+            confirmButtonColor: '#d33',
+            reverseButtons: true
+        }).then(function(result) {
+            if (!result.value) return;
+            post(BASE + '/' + $b.data('id') + '/reject', { reason: result.value.trim() }, 'Gagal menolak permintaan.');
         });
     });
 
-    $('#permintaan-table').on('click', '.btn-delete', function() {
-        var id = $(this).data('id');
+    $('#permintaan-table').on('click', '.btn-delete', function(e) {
+        e.preventDefault();
+        var $b = $(this);
         Swal.fire({
-            title: 'Hapus permintaan ini?',
-            text: 'Data permintaan dan itemnya akan dihapus.',
             icon: 'warning',
+            title: 'Hapus ' + esc($b.data('nomor')) + '?',
+            text: 'Permintaan dan itemnya dihapus permanen.',
             showCancelButton: true,
-            confirmButtonText: 'Ya, Hapus',
+            confirmButtonText: 'Ya, hapus',
             cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: '/erm/permintaan/' + id,
-                    type: 'DELETE',
-                    data: {
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(res) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: res.message || 'Permintaan berhasil dihapus!',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                        table.ajax.reload();
-                    },
-                    error: function(xhr) {
-                        let msg = 'Gagal menghapus permintaan!';
-                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Gagal',
-                            text: msg,
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    }
-                });
-            }
+            confirmButtonColor: '#d33',
+            reverseButtons: true,
+            focusCancel: true
+        }).then(function(result) {
+            if (!result.value) return;
+            $.ajax({ url: BASE + '/' + $b.data('id'), type: 'DELETE', data: { _token: CSRF } })
+                .done(function(res) {
+                    table.draw(false);
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 2000, showConfirmButton: false });
+                })
+                .fail(function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Gagal menghapus permintaan.') }); });
         });
     });
 
-    $('#permintaan-table').on('click', '.btn-nilai-pembelian', function() {
-        var id = $(this).data('id');
-
-        $.ajax({
-            url: '/erm/permintaan/' + id + '/nilai-pembelian',
-            type: 'GET',
-            success: function(res) {
-                if (!res.success) {
-                    Swal.fire('Gagal', 'Data nilai pembelian tidak tersedia.', 'error');
-                    return;
-                }
-
-                $('#nilaiPembelianNoPermintaan').text(res.no_permintaan || '-');
-                $('#nilaiPembelianTanggal').text(formatTanggalIndonesia(res.request_date));
-
-                var rows = '';
-                (res.items || []).forEach(function(item) {
-                    var diskonLabel = item.diskon_type === 'percent' || item.diskon_type === '%' || item.diskon_type === 'persen'
-                        ? item.diskon + '%'
-                        : formatRupiah(item.diskon);
-                    var principalBadge = item.principal_name && item.principal_name !== '-'
-                        ? '<span class="badge badge-info mr-1">' + item.principal_name + '</span>'
-                        : '';
-                    var jenisBadgeClass = item.jenis_obat === 'Generik' ? 'badge-success' : 'badge-primary';
-                    var jenisBadge = item.jenis_obat
-                        ? '<span class="badge ' + jenisBadgeClass + '">' + item.jenis_obat + '</span>'
-                        : '';
-
-                    rows += '<tr>' +
-                        '<td>' + (item.nama_obat || '-') + '<br><div class="mt-1">' + principalBadge + jenisBadge + '</div></td>' +
-                        '<td class="text-right">' + Number(item.qty || 0).toLocaleString('id-ID') + ' (' + Number(item.box || 0).toLocaleString('id-ID') + ' Box)</td>' +
-                        '<td class="text-right">' + formatRupiah(item.harga) + '</td>' +
-                        '<td class="text-right">' + diskonLabel + '</td>' +
-                        '<td class="text-right">' + formatRupiah(item.setelah_diskon) + '</td>' +
-                        '<td class="text-right">' + formatRupiah(item.ppn) + '<br><small class="text-muted">' + item.ppn_rate + '%</small></td>' +
-                        '<td class="text-right font-weight-bold">' + formatRupiah(item.total_harga) + '</td>' +
-                        '</tr>';
-                });
-
-                if (!rows) {
-                    rows = '<tr><td colspan="7" class="text-center text-muted">Belum ada item.</td></tr>';
-                }
-
-                $('#nilaiPembelianTableBody').html(rows);
-                $('#nilaiPembelianSubtotalDiskon').text(formatRupiah(res.summary?.setelah_diskon));
-                $('#nilaiPembelianPpn').text(formatRupiah(res.summary?.ppn));
-                $('#nilaiPembelianGrandTotal').text(formatRupiah(res.summary?.total_harga));
-                $('#nilaiPembelianModal').modal('show');
-            },
-            error: function(xhr) {
-                var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal mengambil data nilai pembelian.';
-                Swal.fire('Gagal', msg, 'error');
-            }
+    $('#permintaan-table').on('click', '.btn-nilai-pembelian', function(e) {
+        e.preventDefault();
+        $.get(BASE + '/' + $(this).data('id') + '/nilai-pembelian').done(function(res) {
+            $('#nilaiPembelianNoPermintaan').text(res.no_permintaan || '-');
+            $('#nilaiPembelianTanggal').text(formatTanggal(res.request_date));
+            var rows = (res.items || []).map(function(item) {
+                var diskonLabel = ['percent', '%', 'persen'].indexOf(item.diskon_type) !== -1 ? item.diskon + '%' : formatRupiah(item.diskon);
+                return '<tr>'
+                    + '<td>' + esc(item.nama_obat)
+                        + '<div class="mt-1">' + (item.principal_name && item.principal_name !== '-' ? '<span class="badge badge-info mr-1">' + esc(item.principal_name) + '</span>' : '')
+                        + '<span class="badge ' + (item.jenis_obat === 'Generik' ? 'badge-success' : 'badge-primary') + '">' + esc(item.jenis_obat) + '</span>'
+                        + (item.harga_ditemukan ? '' : ' <span class="badge badge-warning" title="Obat + pemasok ini belum ada di Master Pembelian">harga belum ada</span>')
+                        + '</div></td>'
+                    + '<td class="text-right">' + Number(item.qty || 0).toLocaleString('id-ID') + ' (' + Number(item.box || 0).toLocaleString('id-ID') + ' box)</td>'
+                    + '<td class="text-right">' + formatRupiah(item.harga) + '</td>'
+                    + '<td class="text-right">' + diskonLabel + '</td>'
+                    + '<td class="text-right">' + formatRupiah(item.setelah_diskon) + '</td>'
+                    + '<td class="text-right">' + formatRupiah(item.ppn) + '<br><small class="text-muted">' + item.ppn_rate + '%</small></td>'
+                    + '<td class="text-right font-weight-bold">' + formatRupiah(item.total_harga) + '</td>'
+                    + '</tr>';
+            }).join('');
+            $('#nilaiPembelianTableBody').html(rows || '<tr><td colspan="7" class="text-center text-muted">Belum ada item.</td></tr>');
+            $('#nilaiPembelianSubtotalDiskon').text(formatRupiah(res.summary && res.summary.setelah_diskon));
+            $('#nilaiPembelianPpn').text(formatRupiah(res.summary && res.summary.ppn));
+            $('#nilaiPembelianGrandTotal').text(formatRupiah(res.summary && res.summary.total_harga));
+            $('#nilaiPembelianModal').modal('show');
+        }).fail(function(xhr) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: xhrMessage(xhr, 'Gagal mengambil data nilai pembelian.') });
         });
     });
 });
 </script>
 @endsection
-

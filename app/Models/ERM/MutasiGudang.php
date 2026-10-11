@@ -19,7 +19,15 @@ class MutasiGudang extends Model
         'status',
         'requested_by',
         'approved_by',
-        'approved_at'
+        'approved_at',
+        'rejected_by',
+        'rejected_at',
+        'rejected_reason',
+    ];
+
+    protected $casts = [
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     // Relasi ke Obat
@@ -50,6 +58,11 @@ class MutasiGudang extends Model
     public function approvedBy()
     {
         return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
+
+    public function rejectedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'rejected_by');
     }
 
     // Jika sekarang mendukung banyak items per mutasi

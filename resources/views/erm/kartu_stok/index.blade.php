@@ -236,95 +236,28 @@ $(function() {
     loadDetailKartuStok(lastObatId);
     });
 
-    // Handle view reference button inside detail modal (delegated)
-    (function() {
-        var refLoading = false; // guard to prevent multiple simultaneous loads
-
-        $(document).off('click', '.btn-view-ref');
-        $(document).on('click', '.btn-view-ref', function(e) {
-            e.preventDefault();
-            if (refLoading) return; // ignore if a load is in progress
-            refLoading = true;
-
-            var $btn = $(this);
-            var refType = $btn.data('ref-type');
-            var refId = $btn.data('ref-id');
-
-            var url = null;
-            if (refType === 'faktur_pembelian') {
-                // Use print view which is usually a minimal layout suitable for embedding
-                url = '{{ route("erm.fakturbeli.print", "__ID__") }}'.replace('__ID__', refId);
-            } else if (refType === 'invoice_penjualan' || refType === 'invoice_return') {
-                // Use printable invoice view
-                url = '{{ route("finance.invoice.print", "__ID__") }}'.replace('__ID__', refId);
-            }
-            if (refType === 'retur_pembelian') {
-                // For retur, open printable PDF in iframe so it behaves like invoice print
-                if ($('#detailModal').hasClass('show')) { $('#detailModal').modal('hide'); }
-                $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
-                var url = '{{ route("finance.retur-pembelian.print", "__ID__") }}'.replace('__ID__', refId);
-                try {
-                    var iframe = document.createElement('iframe');
-                    iframe.src = url;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '70vh';
-                    iframe.style.border = '0';
-                    $('#refDetailModalContent').empty().append(iframe);
-                } catch (err) {
-                    console.error('Failed to create iframe for retur:', err);
-                    $('#refDetailModal').modal('hide');
-                    window.open(url, '_blank');
-                } finally {
-                    refLoading = false;
-                    $('#refDetailModal').modal({ backdrop: true, keyboard: true });
-                }
-            } else {
-                // Other reference types: open in iframe (printable pages)
-                if (refType === 'faktur_pembelian') {
-                    url = '{{ route("erm.fakturbeli.print", "__ID__") }}'.replace('__ID__', refId);
-                } else if (refType === 'invoice_penjualan' || refType === 'invoice_return') {
-                    url = '{{ route("finance.invoice.print", "__ID__") }}'.replace('__ID__', refId);
-                } else {
-                    url = '/';
-                }
-
-                // Provide immediate feedback
-                $('#refDetailModalContent').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Memuat detail...</p></div>');
-
-                // Hide the parent detail modal to avoid stacking multiple modals on top
-                if ($('#detailModal').hasClass('show')) {
-                    $('#detailModal').modal('hide');
-                }
-
-                // Show ref modal
-                $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
-
-                // Embed the target page inside an iframe to isolate layout and scripts
-                try {
-                    // Create iframe via DOM API to avoid jQuery attribute quirks
-                    var iframe = document.createElement('iframe');
-                    iframe.src = url;
-                    iframe.style.width = '100%';
-                    iframe.style.height = '70vh';
-                    iframe.style.border = '0';
-                    iframe.onload = function() {
-                        // you could remove spinner or do other things here
-                    };
-
-                    // Replace content with iframe (wrap in jQuery for convenience)
-                    $('#refDetailModalContent').empty().append(iframe);
-                } catch (err) {
-                    console.error('Failed to create iframe for ref:', err);
-                    // If iframe fails, hide modal and open in new tab as fallback
-                    $('#refDetailModal').modal('hide');
-                    window.open(url, '_blank');
-                } finally {
-                    refLoading = false;
-                    $('#refDetailModal').modal({ backdrop: true, keyboard: true });
-                }
-            }
-        });
-    })();
+    // Reference documents (invoice, faktur, transfer, ...): the server sends the preview URL and mode
+    $(document).off('click', '.btn-view-ref');
+    $(document).on('click', '.btn-view-ref', function(e) {
+        e.preventDefault();
+        var url = $(this).data('preview-url');
+        var mode = $(this).data('preview-mode');
+        if (!url) return;
+        if ($('#detailModal').hasClass('show')) { $('#detailModal').modal('hide'); }
+        var $content = $('#refDetailModalContent');
+        $('#refDetailModal').modal('show');
+        if (mode === 'html') {
+            $content.html('<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>');
+            $.get(url).done(function(html) { $content.html(html); }).fail(function() { $content.html('<div class="text-danger text-center py-4">Dokumen tidak dapat dimuat.</div>'); });
+            return;
+        }
+        var iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.width = '100%';
+        iframe.style.height = '70vh';
+        iframe.style.border = '0';
+        $content.empty().append(iframe);
+    });
     // Analytics button (delegated) - opens analytics modal for current obat
     $(document).off('click', '.btn-analytics');
     $(document).on('click', '.btn-analytics', function(e) {
