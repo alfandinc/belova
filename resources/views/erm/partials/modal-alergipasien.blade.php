@@ -120,7 +120,7 @@ $(document).ready(function() {
                 );
                 
                 // Update the allergy display in the card-identitaspasien
-                updateAlergiDisplay(response.data);
+                window.pcUpdateAlergiDisplay(response.data);
                 
                 // Reset button state
                 submitBtn.html(originalBtnText);
@@ -153,33 +153,6 @@ $(document).ready(function() {
             }
         });
     });
-    
-    // Function to update the allergy display in the patient card
-    function updateAlergiDisplay(data) {
-        // Same rules as erm.partials.card-identitaspasien (allergy card)
-        var keyword = $.trim(data.kataKunci || '');
-        var names = data.alergiNames || [];
-        // Only a kata kunci and no zat aktif: 'belum diverifikasi' (yellow)
-        var unverified = names.length === 1 && keyword && names[0] === data.kataKunci;
-        var chips = unverified ? [] : names.filter(function(name) { return !!name; });
-        var hasAlergi = unverified || chips.length > 0 || !!keyword;
-
-        var badgesHtml = unverified
-            ? '<span class="pc-chip pc-alergi-unverified"><i class="fas fa-exclamation-triangle"></i>Belum diverifikasi</span>'
-            : chips.map(function(name) { return '<span class="pc-chip pc-alergi-item">' + $('<div>').text(name).html() + '</span>'; }).join('');
-        $('.alergi-badges').html(badgesHtml);
-
-        // Kata kunci: hidden when it only repeats a chip, a small note when it adds something
-        var keywordInChips = !!keyword && chips.some(function(name) { return String(name).trim().toLowerCase() === keyword.toLowerCase(); });
-        $('.alergi-label')
-            .text(hasAlergi ? keyword : 'Tidak ada alergi tercatat')
-            .removeClass('is-empty is-note d-none')
-            .addClass(!hasAlergi ? 'is-empty' : ((keywordInChips || !keyword) ? 'd-none' : (chips.length ? 'is-note' : '')));
-
-        // The card turns red while the patient has allergies
-        $('.pc-alergi').toggleClass('has-alergi', hasAlergi);
-    }
-
     
 });
 </script>

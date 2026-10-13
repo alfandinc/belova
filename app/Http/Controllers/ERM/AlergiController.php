@@ -4,14 +4,14 @@ namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Alergi;
-use App\Models\ERM\Pasien;
 use App\Models\ERM\ZatAktif;
 use App\Models\ERM\Visitation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AlergiController extends Controller
 {
-    public function store(Request $request, $visitation_id)
+    public function store(Request $request, string $visitation_id)
     {
         // Validation for zat aktif
         $request->validate([
@@ -48,7 +48,7 @@ class AlergiController extends Controller
                         'status' => $request->statusAlergi,
                         'katakunci' => $request->katakunci,
                         'verif_status' => $request->verifikasi ?? '1', // Default verification status
-                        'verifikator_id' => auth()->id(), // Logged-in user ID as verifier
+                        'verifikator_id' => Auth::id(), // Logged-in user ID as verifier
                     ]
                 );
             }
@@ -63,7 +63,7 @@ class AlergiController extends Controller
                     'status' => $request->statusAlergi,
                     'katakunci' => $request->katakunci,
                     'verif_status' => $request->verifikasi ?? '1',
-                    'verifikator_id' => auth()->id(),
+                    'verifikator_id' => Auth::id(),
                 ]
             );
         }
@@ -89,6 +89,31 @@ class AlergiController extends Controller
                 'kataKunci' => $request->katakunci ?? '-',
                 'alergiNames' => $alergiNames
             ]
+        ]);
+    }
+
+    /**
+     * Current allergies of the visit's patient, polled by the allergy pane of erm.partials.card-identitaspasien
+     * so a change made on another screen shows up. Same shape as store()'s data.
+     */
+    public function current(string $visitation_id)
+    {
+        $pasienId = Visitation::whereKey($visitation_id)->value('pasien_id');
+        abort_if(!$pasienId, 404);
+
+        $alergiPasien = Alergi::where('pasien_id', $pasienId)->with('zataktif:id,nama')->get();
+        $first = $alergiPasien->first();
+        $kataKunci = $first?->katakunci;
+        // Only a kata kunci, no zat aktif: the card shows it as 'belum diverifikasi' (names = [kata kunci])
+        $unverified = $alergiPasien->count() === 1 && empty($first->zataktif_id);
+
+        return response()->json([
+            'status' => $first?->status,
+            'kataKunci' => $kataKunci,
+            'alergiNames' => $unverified
+                ? [$kataKunci]
+                : $alergiPasien->pluck('zataktif.nama')->filter()->values()->all(),
+            'alergiIds' => $alergiPasien->pluck('zataktif_id')->filter()->values()->all(),
         ]);
     }
 }

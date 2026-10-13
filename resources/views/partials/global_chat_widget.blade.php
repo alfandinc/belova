@@ -16,7 +16,8 @@
         --belova-chat-messages-pattern-size: 28px 28px;
         --belova-chat-messages-pattern-opacity: 0.34;
         position: fixed;
-        right: 24px;
+        /* Bottom-left, next to the sidebar: --belova-chat-left is set by the script below (sidebar right edge + 24px) */
+        left: var(--belova-chat-left, 24px);
         bottom: var(--belova-chat-bottom);
         z-index: 1200;
         font-family: inherit;
@@ -84,9 +85,9 @@
 
     .belova-chat-panel {
         position: absolute;
-        right: 0;
+        left: 0;
         bottom: 74px;
-        width: min(860px, calc(100vw - 40px));
+        width: min(860px, calc(100vw - var(--belova-chat-left, 24px) - 24px));
         height: min(620px, calc(100vh - 120px));
         background: rgba(255, 255, 255, 0.97);
         color: #0f172a;
@@ -531,7 +532,7 @@
 
     @media (max-width: 767.98px) {
         .belova-chat-widget {
-            right: 12px;
+            left: 12px;
         }
 
         .belova-chat-launcher {
@@ -545,7 +546,7 @@
         }
 
         .belova-chat-panel {
-            right: 0;
+            left: 0;
             width: calc(100vw - 24px);
             height: min(78vh, 680px);
             bottom: 70px;
@@ -565,9 +566,9 @@
     /* Incoming-message popups: stacked above the launcher, answerable in place */
     .belova-chat-popups {
         position: absolute;
-        right: 0;
+        left: 0;
         bottom: 64px;
-        width: min(420px, calc(100vw - 24px));
+        width: min(420px, calc(100vw - var(--belova-chat-left, 24px) - 24px));
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -854,6 +855,28 @@
         }
 
         const $ = window.jQuery;
+
+        // Bottom-left, just right of the sidebar while it is shown (hidden / collapsed / mobile: the screen edge)
+        const placeChatWidget = function () {
+            let left = 24;
+            const sidenav = document.querySelector('.left-sidenav');
+            if (sidenav) {
+                const style = window.getComputedStyle(sidenav);
+                const rect = sidenav.getBoundingClientRect();
+                if (style.display !== 'none' && style.visibility !== 'hidden' && style.position === 'fixed' && rect.width > 0 && rect.right > 0) {
+                    left = Math.round(rect.right) + 24;
+                }
+            }
+            widget.style.setProperty('--belova-chat-left', left + 'px');
+        };
+        placeChatWidget();
+        window.addEventListener('resize', placeChatWidget);
+        // The menu toggle collapses the sidebar via a body class (and a .3s transition)
+        new MutationObserver(function () {
+            placeChatWidget();
+            setTimeout(placeChatWidget, 350);
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
         const csrfMeta = document.querySelector('meta[name="csrf-token"]');
         const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
         const endpoints = {
