@@ -567,7 +567,7 @@
         position: absolute;
         right: 0;
         bottom: 64px;
-        width: min(340px, calc(100vw - 24px));
+        width: min(420px, calc(100vw - 24px));
         display: flex;
         flex-direction: column;
         gap: 10px;
@@ -604,16 +604,16 @@
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 10px 10px 12px;
+        padding: 12px 12px 12px 14px;
         background: var(--belova-chat-header-bg);
         border-bottom: 1px solid rgba(148, 163, 184, 0.16);
     }
 
     .belova-chat-popup-head .belova-chat-user-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 10px;
-        font-size: 12px;
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        font-size: 14px;
     }
 
     .belova-chat-popup-who {
@@ -622,7 +622,7 @@
     }
 
     .belova-chat-popup-name {
-        font-size: 13px;
+        font-size: 15px;
         font-weight: 700;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -630,7 +630,7 @@
     }
 
     .belova-chat-popup-sub {
-        font-size: 11px;
+        font-size: 12px;
         opacity: 0.72;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -638,8 +638,8 @@
     }
 
     .belova-chat-popup-btn {
-        width: 30px;
-        height: 30px;
+        width: 34px;
+        height: 34px;
         flex: 0 0 auto;
         border: 0;
         border-radius: 10px;
@@ -661,23 +661,23 @@
     }
 
     .belova-chat-popup-messages {
-        max-height: 180px;
+        max-height: 300px;
         overflow-y: auto;
-        padding: 10px 12px;
+        padding: 14px 14px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
         background: var(--belova-chat-messages-base);
     }
 
     .belova-chat-popup-msg {
         align-self: flex-start;
-        max-width: 88%;
+        max-width: 85%;
         background: #fff;
         color: #0f172a;
         border-radius: 12px;
-        padding: 7px 10px 5px;
-        font-size: 13px;
+        padding: 9px 12px 6px;
+        font-size: 14px;
         line-height: 1.35;
         white-space: pre-wrap;
         word-break: break-word;
@@ -701,7 +701,7 @@
     .belova-chat-popup-msg-time {
         display: block;
         text-align: right;
-        font-size: 10px;
+        font-size: 11px;
         opacity: 0.7;
         margin-top: 2px;
     }
@@ -710,7 +710,7 @@
         display: flex;
         gap: 8px;
         align-items: flex-end;
-        padding: 10px 12px 12px;
+        padding: 12px 14px 14px;
         border-top: 1px solid rgba(148, 163, 184, 0.14);
     }
 
@@ -721,21 +721,21 @@
         border: 1px solid rgba(148, 163, 184, 0.26);
         background: rgba(148, 163, 184, 0.08);
         color: inherit;
-        padding: 8px 10px;
-        min-height: 38px;
-        max-height: 96px;
-        font-size: 13px;
+        padding: 10px 12px;
+        min-height: 44px;
+        max-height: 120px;
+        font-size: 14px;
         outline: none;
     }
 
     .belova-chat-popup-send {
-        height: 38px;
+        height: 44px;
         border: 0;
         border-radius: 12px;
-        padding: 0 14px;
+        padding: 0 18px;
         background: linear-gradient(135deg, var(--belova-chat-accent-start), var(--belova-chat-accent-end));
         color: #fff;
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 700;
     }
 
@@ -1192,8 +1192,19 @@
             }
 
             const latestId = items[items.length - 1].id;
-            const shouldScroll = forceScroll || state.lastRenderedMessageId !== latestId;
+            const previousId = state.lastRenderedMessageId;
+            const shouldScroll = forceScroll || previousId !== latestId;
             state.lastRenderedMessageId = latestId;
+
+            // The open conversation marks messages read on fetch, so the incoming poll never sees them: announce here.
+            // Only on the background refresh (not when the conversation is first opened).
+            if (!forceScroll && previousId) {
+                items.forEach(function (message) {
+                    if (!message.is_mine && Number(message.id) > Number(previousId)) {
+                        announceIncoming(message.id);
+                    }
+                });
+            }
 
             messages.innerHTML = items.map(function (message) {
                 const rowClass = message.is_mine ? 'belova-chat-message-row is-mine' : 'belova-chat-message-row';
@@ -1436,8 +1447,9 @@
                     const senderId = Number(group.user.id);
                     unreadSenders[senderId] = true;
 
-                    // Already visible in the open panel
+                    // Already visible in the open panel: no card, but still announce it
                     if (state.open && Number(state.activeUserId) === senderId) {
+                        newestId = Math.max(newestId, group.latestId);
                         return;
                     }
 
@@ -1476,8 +1488,14 @@
                 removePopup(ids.shift());
             }
 
-            if (newestId > notifiedMax) {
-                writeStore(storageKeys.popupNotified, newestId);
+            announceIncoming(newestId);
+        }
+
+        // Plays the sound once per incoming message id, across pages and across the popup/panel paths
+        function announceIncoming(messageId) {
+            const notifiedMax = Number(readStore(storageKeys.popupNotified, 0)) || 0;
+            if (Number(messageId) > notifiedMax) {
+                writeStore(storageKeys.popupNotified, Number(messageId));
                 playIncomingSound();
             }
         }
@@ -1523,6 +1541,7 @@
 
         function selectUser(userId) {
             removePopup(Number(userId));
+            state.lastRenderedMessageId = null;
             state.activeUserId = Number(userId);
             renderUsers({ data: state.users, meta: { total_unread: Number(launcherBadge.textContent) || 0 } });
             fetchConversation(true);
