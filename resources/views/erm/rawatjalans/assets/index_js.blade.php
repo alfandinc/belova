@@ -2200,9 +2200,10 @@ function openScreeningBatukModal(visitationId, editMode) {
             $('#screening-modal-title').text('Edit Screening Batuk');
             $('#screening-btn-text').text('Update Screening');
         } else {
-            // No pre-selected answers: the perawat must answer every question
+            // Every question starts at "Tidak"; the perawat only changes the ones that apply
             $('#form-screening-batuk')[0].reset();
             $('#form-screening-batuk input[type="radio"]').prop('checked', false);
+            $('#form-screening-batuk input[type="radio"][value="tidak"]').prop('checked', true);
             $('#form-screening-batuk tr.table-warning').removeClass('table-warning');
             $('#screening-modal-title').text('Screening Batuk');
             $('#screening-btn-text').text('Simpan & Lanjutkan');
