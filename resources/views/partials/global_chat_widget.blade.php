@@ -858,7 +858,8 @@
         const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
         const endpoints = {
             users: @json(route('chat.users')),
-            incoming: @json(route('chat.incoming')),
+            // Plain URL, not route(): a stale route cache must not take down every page that includes the widget
+            incoming: @json(url('/chat/incoming')),
             conversationTemplate: @json(url('/chat/conversations/__USER__')),
         };
 
