@@ -134,6 +134,15 @@
     .belova-attention-empty { padding: 28px 16px; text-align: center; font-size: 13px; opacity: .75; }
     .belova-attention-empty .feather { width: 28px; height: 28px; margin-bottom: 8px; color: #22c55e; }
 
+    /* Informasi Update: blinking glow so users notice it */
+    .belova-topbar-info { color: #f59e0b; border-color: rgba(245, 158, 11, 0.6); animation: belovaInfoBlink 1.2s ease-in-out infinite; }
+    .belova-topbar-info:hover { animation-play-state: paused; background: rgba(245, 158, 11, 0.18); }
+    @keyframes belovaInfoBlink {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); background: rgba(245, 158, 11, 0.22); color: #fbbf24; }
+        50% { box-shadow: 0 0 10px 4px rgba(245, 158, 11, 0.45); background: transparent; color: rgba(245, 158, 11, 0.45); }
+    }
+    @media (prefers-reduced-motion: reduce) { .belova-topbar-info { animation: none; background: rgba(245, 158, 11, 0.22); } }
+
     @media (max-width: 1399.98px) { .emotion-board .emotion-avatar-item:nth-child(n+9) { display: none; } }
     @media (max-width: 1199.98px) {
         .emotion-board .emotion-avatar-item:nth-child(n+5) { display: none; }
