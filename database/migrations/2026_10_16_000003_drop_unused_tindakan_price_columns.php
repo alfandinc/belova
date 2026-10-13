@@ -13,12 +13,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('erm_kode_tindakan', function (Blueprint $table) {
-            $table->dropColumn(['hpp', 'harga_jasmed', 'harga_jual', 'harga_bottom']);
-        });
-        Schema::table('erm_tindakan', function (Blueprint $table) {
-            $table->dropColumn('hpp');
-        });
+        // Only drop what exists: erm_tindakan.hpp was never created by a migration (absent on production),
+        // and a failed run may already have dropped the erm_kode_tindakan columns
+        $kodeColumns = array_values(array_filter(
+            ['hpp', 'harga_jasmed', 'harga_jual', 'harga_bottom'],
+            fn ($column) => Schema::hasColumn('erm_kode_tindakan', $column)
+        ));
+        if ($kodeColumns) {
+            Schema::table('erm_kode_tindakan', function (Blueprint $table) use ($kodeColumns) {
+                $table->dropColumn($kodeColumns);
+            });
+        }
+        if (Schema::hasColumn('erm_tindakan', 'hpp')) {
+            Schema::table('erm_tindakan', function (Blueprint $table) {
+                $table->dropColumn('hpp');
+            });
+        }
         Schema::dropIfExists('erm_tindakan_obat');
     }
 
