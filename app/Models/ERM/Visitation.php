@@ -13,6 +13,66 @@ class Visitation extends Model
     public const TYPE_LAB = 3;
     public const TYPE_EVENT = 4;
     public const TYPE_MARKETPLACE = 5;
+    // Same flow as Beli Produk (buy, straight to farmasi), for resellers
+    public const TYPE_RESELLER = 6;
+    // Service visits with their own ERM page (shortcut on Rawat Jalan)
+    public const TYPE_SLIMMING = 7;
+    public const TYPE_VAKSIN = 8;
+    public const TYPE_MCU = 9;
+
+    // Visits examined by perawat + dokter (asesmen, CPPT). Other types are transactions (produk, lab, ...)
+    public const CLINICAL_TYPES = [self::TYPE_KONSULTASI, self::TYPE_SLIMMING, self::TYPE_VAKSIN, self::TYPE_MCU];
+
+    public const STATUS_DIBATALKAN = 7;
+
+    // Badge colour per type (Rawat Jalan list + filter chips)
+    public const TYPE_COLORS = [
+        self::TYPE_KONSULTASI => '#1d63ed',
+        self::TYPE_PRODUK => '#d39e00',
+        self::TYPE_LAB => '#0aa2c0',
+        self::TYPE_EVENT => '#e83e8c',
+        self::TYPE_MARKETPLACE => '#343a40',
+        self::TYPE_RESELLER => '#fd7e14',
+        self::TYPE_SLIMMING => '#20a374',
+        self::TYPE_VAKSIN => '#6f42c1',
+        self::TYPE_MCU => '#c0392b',
+    ];
+
+    /**
+     * Rawat Jalan jenis filter chips: key => [label, types]. '' = every type.
+     *
+     * @return array<string, array{label: string, types: int[]}>
+     */
+    public static function rawatJalanFilters(): array
+    {
+        return [
+            '' => ['label' => 'Semua', 'types' => []],
+            'klinis' => ['label' => 'Klinis', 'types' => self::CLINICAL_TYPES],
+            '1' => ['label' => 'Konsultasi', 'types' => [self::TYPE_KONSULTASI]],
+            '7' => ['label' => 'Slimming', 'types' => [self::TYPE_SLIMMING]],
+            '8' => ['label' => 'Vaksin', 'types' => [self::TYPE_VAKSIN]],
+            '9' => ['label' => 'MCU', 'types' => [self::TYPE_MCU]],
+            'produk' => ['label' => 'Produk & Reseller', 'types' => [self::TYPE_PRODUK, self::TYPE_RESELLER]],
+            '5' => ['label' => 'Marketplace', 'types' => [self::TYPE_MARKETPLACE]],
+            '3' => ['label' => 'Lab', 'types' => [self::TYPE_LAB]],
+            '4' => ['label' => 'Event', 'types' => [self::TYPE_EVENT]],
+        ];
+    }
+
+    public static function isClinicalType($type): bool
+    {
+        return in_array((int) $type, self::CLINICAL_TYPES, true);
+    }
+
+    /**
+     * Progress (0 belum datang, 1 menunggu dokter, 2 selesai) only moves forward; a cancelled visit stays cancelled.
+     */
+    public static function advanceStatus($current, int $target): int
+    {
+        $current = (int) $current;
+
+        return $current === self::STATUS_DIBATALKAN ? $current : max($current, $target);
+    }
 
     
     protected $table = 'erm_visitations';
@@ -32,12 +92,17 @@ class Visitation extends Model
         'tanggal_visitation',
         'waktu_kunjungan', // add this line
         'no_antrian',
+        'masuk_ruangan_at', // perawat sent the patient into the dokter's room
         // Transaction referral: why the patient came for THIS visit.
         // The patient's source referral lives on erm_pasiens.
         'referral_type',
         'referral_detail',
         'referralable_type',
         'referralable_id',
+    ];
+
+    protected $casts = [
+        'masuk_ruangan_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -117,7 +182,72 @@ class Visitation extends Model
             self::TYPE_LAB => 'Laboratorium',
             self::TYPE_EVENT => 'Event',
             self::TYPE_MARKETPLACE => 'Marketplace',
+            self::TYPE_RESELLER => 'Reseller',
+            self::TYPE_SLIMMING => 'Slimming',
+            self::TYPE_VAKSIN => 'Vaksin',
+            self::TYPE_MCU => 'MCU',
             default => (string) $type,
+        };
+    }
+
+    /**
+     * Steps still missing before a service page (Slimming / Vaksin / MCU) may be opened, for every role:
+     * the perawat's asesmen first, and for Vaksin also the screening vaksin. Empty = ready.
+     *
+     * @return string[]
+     */
+    public static function serviceBlockers($type, ?string $statusDokumen, bool $hasScreeningVaksin): array
+    {
+        if (!in_array((int) $type, [self::TYPE_SLIMMING, self::TYPE_VAKSIN, self::TYPE_MCU], true)) {
+            return [];
+        }
+
+        return self::perawatStepsMissing($type, $statusDokumen, $hasScreeningVaksin);
+    }
+
+    /**
+     * Perawat steps a clinical visit still needs before the patient goes to the dokter
+     * (also gates the "Masuk" button): asesmen perawat, and for Vaksin the screening vaksin.
+     *
+     * @return string[]
+     */
+    public static function perawatStepsMissing($type, ?string $statusDokumen, bool $hasScreeningVaksin): array
+    {
+        return array_values(array_filter([
+            empty($statusDokumen) ? 'asesmen perawat' : null,
+            (int) $type === self::TYPE_VAKSIN && !$hasScreeningVaksin ? 'screening vaksin' : null,
+        ]));
+    }
+
+    /** masuk_ruangan_at exists once its migration ran (prod schema may lag behind the code). */
+    public static function tracksMasukRuangan(): bool
+    {
+        static $exists = null;
+
+        return $exists ??= \Illuminate\Support\Facades\Schema::hasColumn('erm_visitations', 'masuk_ruangan_at');
+    }
+
+    /** serviceBlockers() for this visit, reading the screening from the database. */
+    public function pendingServiceSteps(): array
+    {
+        $hasScreeningVaksin = (int) $this->jenis_kunjungan === self::TYPE_VAKSIN
+            && ScreeningVaksin::where('visitation_id', $this->id)->exists();
+
+        return self::serviceBlockers($this->jenis_kunjungan, $this->status_dokumen, $hasScreeningVaksin);
+    }
+
+    /**
+     * ERM page of a service visit type (Slimming / Vaksin / MCU), or null when the type has none.
+     *
+     * @return array{label: string, icon: string, url: string}|null
+     */
+    public static function servicePage($type, string $visitationId): ?array
+    {
+        return match ((int) $type) {
+            self::TYPE_SLIMMING => ['label' => 'Slimming', 'icon' => 'fas fa-weight', 'url' => route('erm.slimming.create', $visitationId)],
+            self::TYPE_VAKSIN => ['label' => 'Vaksin', 'icon' => 'fas fa-syringe', 'url' => route('erm.vaksin.create', $visitationId)],
+            self::TYPE_MCU => ['label' => 'MCU', 'icon' => 'fas fa-heartbeat', 'url' => route('erm.mcu.create', $visitationId)],
+            default => null,
         };
     }
 

@@ -22,7 +22,7 @@
 
     @if ($data['total'] === 0)
         <x-dash.empty icon="book-open" title="Belum ada task pada periode ini" text="Catat rencana kerja di Daily Journal.">
-            <a href="{{ route('daily-journal.index') }}" class="dw-link d-inline-flex mt-2"><i data-feather="plus"></i> Tambah task</a>
+            <a href="{{ route('daily-journal.index') }}" class="dw-link d-inline-flex mt-2 js-open-journal"><i data-feather="plus"></i> Tambah task</a>
         </x-dash.empty>
     @else
         <div class="dw-stats">

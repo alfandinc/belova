@@ -111,7 +111,7 @@
                                 </div>
                             </div>
                         </div>
-                        <table class="table table-bordered" style="color: white">
+                        <table class="table table-bordered erm-pf-table">
                             <tbody>
                                 <tr>
                                     <td>1.</td>
@@ -129,7 +129,7 @@
                                     <td>3.</td>
                                     <td><em>Thorax</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="thorax" value="{{ old('leher', $asesmen->leher ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="thorax" value="{{ old('thorax', $asesmen->thorax ?? 'dbn') }}"></td>
                                 </tr>
                                 <tr>
                                     <td>4.</td>

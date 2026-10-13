@@ -125,7 +125,8 @@ class CPPTController extends Controller
             $user = Auth::user();
 
             if ($user->hasRole('Perawat')) {
-                $visitation->status_kunjungan = 1;
+                // Only forward: a perawat CPPT after the dokter finished keeps the visit done
+                $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 1);
                 $visitation->status_dokumen = 'cppt';
             } elseif ($user->hasRole('Dokter')) {
                 $visitation->status_kunjungan = 2;

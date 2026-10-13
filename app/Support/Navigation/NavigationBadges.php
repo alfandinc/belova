@@ -30,7 +30,7 @@ class NavigationBadges
         $counts['daily_journal_deadline'] = $this->safe(fn () => \App\Models\DailyJournalTask::query()
             ->where('user_id', $user->id)
             ->whereNotNull('deadline_date')
-            ->where('status', '!=', 'done')
+            ->whereNotIn('status', ['done', 'skipped'])
             ->count());
 
         if ($user->hasAnyRole(['Farmasi', 'Admin', 'Finance'])) {

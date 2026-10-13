@@ -307,7 +307,7 @@
 </div>
 
 <!-- Keep your existing tables for physical examination -->
-<table class="table table-bordered" style="color: white">
+<table class="table table-bordered erm-pf-table">
     <tbody>
         <tr>
             <td>1.</td>

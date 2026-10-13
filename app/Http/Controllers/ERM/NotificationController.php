@@ -42,7 +42,11 @@ class NotificationController extends Controller
 
         // FALLBACK: if no cache-notification found, check database unread notifications
         try {
-            $dbNotif = Auth::user()->unreadNotifications()->latest()->first();
+            // Notifications with their own UI (jadwal card, journal reminder) must not be consumed here
+            $dbNotif = Auth::user()->unreadNotifications()
+                ->whereNotIn('type', \App\Support\NotificationTypes::OWN_UI)
+                ->latest()
+                ->first();
             if ($dbNotif) {
                 // compare created_at timestamp with lastCheck
                 $notifTs = strtotime($dbNotif->created_at);

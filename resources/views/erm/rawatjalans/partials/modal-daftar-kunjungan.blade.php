@@ -982,7 +982,11 @@ $(document).ready(function(){
                 renderRjCalendarBreakdownItem('Produk', breakdown.produk),
                 renderRjCalendarBreakdownItem('Lab', breakdown.lab),
                 renderRjCalendarBreakdownItem('Event', breakdown.event),
-                renderRjCalendarBreakdownItem('Marketplace', breakdown.marketplace)
+                renderRjCalendarBreakdownItem('Marketplace', breakdown.marketplace),
+                renderRjCalendarBreakdownItem('Reseller', breakdown.reseller),
+                renderRjCalendarBreakdownItem('Slimming', breakdown.slimming),
+                renderRjCalendarBreakdownItem('Vaksin', breakdown.vaksin),
+                renderRjCalendarBreakdownItem('MCU', breakdown.mcu)
             ].join('');
 
             if (day.is_past) {
@@ -1074,7 +1078,7 @@ $(document).ready(function(){
 
     function resolveSubmitUrl() {
         const mode = $('#rj_mode').val();
-        if (mode === 'produk') {
+        if (mode === 'produk' || mode === 'reseller') {
             return "{{ route('erm.visitations.produk.store') }}";
         }
         if (mode === 'lab') {
@@ -1187,6 +1191,12 @@ $(document).ready(function(){
             });
     }
 
+    const RJ_SERVICE_MODES = {
+        slimming: { jenis: '7', label: 'Slimming' },
+        vaksin: { jenis: '8', label: 'Vaksin' },
+        mcu: { jenis: '9', label: 'MCU' }
+    };
+
     function applyMode(mode){
         mode = (mode || 'konsultasi').toString();
         $('#rj_mode').val(mode);
@@ -1197,6 +1207,21 @@ $(document).ready(function(){
             $('#rj_waktu_group').hide();
             $('#rj_no_antrian_group').hide();
             $('#rj_waktu_kunjungan').val('');
+            $('#rj_no_antrian').val('');
+        } else if (mode === 'reseller') {
+            // Same flow as Beli Produk
+            $('#modalDaftarKunjunganRawatJalanLabel').text('Daftarkan Kunjungan Reseller');
+            $('#rj_jenis_kunjungan').val('6');
+            $('#rj_waktu_group').hide();
+            $('#rj_no_antrian_group').hide();
+            $('#rj_waktu_kunjungan').val('');
+            $('#rj_no_antrian').val('');
+        } else if (RJ_SERVICE_MODES[mode]) {
+            // Slimming / Vaksin / MCU: scheduled like a konsultasi, without a dokter queue number
+            $('#modalDaftarKunjunganRawatJalanLabel').text('Daftarkan Kunjungan ' + RJ_SERVICE_MODES[mode].label + ' Pasien');
+            $('#rj_jenis_kunjungan').val(RJ_SERVICE_MODES[mode].jenis);
+            $('#rj_waktu_group').show();
+            $('#rj_no_antrian_group').hide();
             $('#rj_no_antrian').val('');
         } else if (mode === 'lab') {
             $('#modalDaftarKunjunganRawatJalanLabel').text('Daftarkan Kunjungan Laboratorium Pasien');

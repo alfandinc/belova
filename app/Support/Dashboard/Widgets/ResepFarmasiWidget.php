@@ -21,7 +21,7 @@ class ResepFarmasiWidget implements Widget
         $visits = DB::table('erm_visitations as v')
             ->leftJoin('erm_resepdetail as rd', 'rd.visitation_id', '=', 'v.id')
             ->where('v.tanggal_visitation', $today)
-            ->whereIn('v.jenis_kunjungan', [1, 2, 5])
+            ->whereIn('v.jenis_kunjungan', [1, 2, 5, 6, 7, 8, 9])
             ->where('v.status_kunjungan', 2)
             ->whereExists(function ($q) {
                 $q->select(DB::raw(1))

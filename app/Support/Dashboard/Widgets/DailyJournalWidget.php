@@ -3,9 +3,9 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\DailyJournalTask;
-use App\Models\HRD\Employee;
 use App\Models\User;
 use App\Support\Dashboard\Fmt;
+use App\Support\DailyJournal\JournalTeam;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,8 +15,6 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class DailyJournalWidget implements Widget
 {
-    private const ALL_TASK_ROLES = ['Hrd', 'Admin', 'Ceo'];
-
     private const LIST_LIMIT = 7;
 
     public function data(User $user, array $filter): array
@@ -25,14 +23,14 @@ class DailyJournalWidget implements Widget
         $end = $filter['period_end']->copy()->endOfDay();
         $today = Carbon::today();
 
-        $teamUserIds = $this->teamUserIds($user);
+        $teamUserIds = app(JournalTeam::class)->memberUserIds($user);
         $canTeam = $teamUserIds !== null;
         $mode = $canTeam && request()->input('daily_journal_mode') === 'team' ? 'team' : 'my';
 
         $query = DailyJournalTask::query()
             ->where(function (Builder $q) use ($start, $end) {
                 $q->whereBetween('task_date', [$start->toDateString(), $end->toDateString()])
-                    ->orWhere(fn (Builder $d) => $d->whereNotNull('deadline_date')->where('status', '!=', 'done'));
+                    ->orWhere(fn (Builder $d) => $d->whereNotNull('deadline_date')->whereNotIn('status', ['done', 'skipped']));
             });
 
         if ($mode === 'team') {
@@ -90,37 +88,7 @@ class DailyJournalWidget implements Widget
             ],
             'overdue' => $overdue,
             'tasks' => $tasks->all(),
-            'journalUrl' => route('daily-journal.index', [
-                'filter' => 'custom',
-                'start_date' => $start->toDateString(),
-                'end_date' => $end->toDateString(),
-            ]),
+            'journalUrl' => route('daily-journal.index'),
         ];
-    }
-
-    /** true = may see everyone's tasks, list = team user ids, null = no team view. */
-    private function teamUserIds(User $user): array|bool|null
-    {
-        if ($user->hasAnyRole(self::ALL_TASK_ROLES)) {
-            return true;
-        }
-
-        $isManager = $user->getRoleNames()->contains(fn ($role) => str_contains(strtolower($role), 'manager'));
-        if (!$isManager) {
-            return null;
-        }
-
-        $positionIds = $user->employee?->positions()->pluck('hrd_position.id')->filter()->all() ?? [];
-        if (empty($positionIds)) {
-            return [];
-        }
-
-        return Employee::query()
-            ->whereNotNull('user_id')
-            ->whereHas('positions', fn (Builder $q) => $q->whereIn('hrd_position.parent_id', $positionIds))
-            ->pluck('user_id')
-            ->unique()
-            ->values()
-            ->all();
     }
 }

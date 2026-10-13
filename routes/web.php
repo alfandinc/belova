@@ -147,6 +147,16 @@ Route::middleware(['auth'])->group(function () {
 
     // Daily Journal (accessible for all authenticated users)
     Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
+    Route::get('/daily-journal/modal', [DailyJournalController::class, 'modal'])->name('daily-journal.modal');
+    Route::get('/daily-journal/tasks', [DailyJournalController::class, 'tasks'])->name('daily-journal.tasks');
+    Route::get('/daily-journal/team', [DailyJournalController::class, 'team'])->name('daily-journal.team');
+    Route::get('/daily-journal/team/{member}/tasks', [DailyJournalController::class, 'teamTasks'])->name('daily-journal.team.tasks');
+    Route::get('/daily-journal/recurrences', [DailyJournalController::class, 'recurrenceIndex'])->name('daily-journal.recurrences');
+    Route::delete('/daily-journal/recurrences/{recurrence}', [DailyJournalController::class, 'recurrenceDestroy'])->name('daily-journal.recurrences.destroy');
+    Route::post('/daily-journal/report', [DailyJournalController::class, 'report'])->name('daily-journal.report');
+    Route::get('/daily-journal/reminders', [DailyJournalController::class, 'reminders'])->name('daily-journal.reminders');
+    Route::post('/daily-journal/reminders/read', [DailyJournalController::class, 'readReminders'])->name('daily-journal.reminders.read');
+    Route::get('/daily-journal/updates', [DailyJournalController::class, 'updates'])->name('daily-journal.updates');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
     Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');
     Route::delete('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
@@ -1042,6 +1052,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/slimming/{visitation_id}/create', [\App\Http\Controllers\ERM\SlimmingController::class, 'create'])->name('erm.slimming.create');
     Route::post('/slimming/store', [\App\Http\Controllers\ERM\SlimmingController::class, 'store'])->name('erm.slimming.store');
     Route::get('/slimming/{visitation_id}/data', [\App\Http\Controllers\ERM\SlimmingController::class, 'data'])->name('erm.slimming.data');
+
+    // Vaksin & MCU (pages not built yet)
+    Route::get('/vaksin/{visitation_id}/create', [\App\Http\Controllers\ERM\VaksinController::class, 'create'])->name('erm.vaksin.create');
+    Route::get('/mcu/{visitation_id}/create', [\App\Http\Controllers\ERM\McuController::class, 'create'])->name('erm.mcu.create');
     
     // SPK Routes (Old system - keep for backward compatibility)
     Route::get('/tindakan/spk/by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');

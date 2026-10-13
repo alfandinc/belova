@@ -83,8 +83,10 @@ class AsesmenPerawatController extends Controller
         }
 
         // gunakan $visitation yang sudah diambil di atas
-        $visitation->status_kunjungan = 1; // Change progress to 1
-        $visitation->status_dokumen = 'asesmen';
+        // Progress only moves forward: editing the asesmen after the dokter finished (status 2 / CPPT)
+        // must not send the visit back (it would drop out of Billing).
+        $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 1);
+        $visitation->status_dokumen = $visitation->status_dokumen ?: 'asesmen';
         $visitation->save(); // Save the updated visitation
 
         $asesmenperawat = AsesmenPerawat::updateOrCreate(

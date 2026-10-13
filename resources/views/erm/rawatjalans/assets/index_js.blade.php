@@ -139,15 +139,18 @@
     $(document).on('click', '.btn-notify-dokter-patient-enter', function() {
         var visitationId = $(this).data('visitation-id');
         var pasienNama = $(this).data('pasien-nama') || 'Pasien';
+        var isResend = String($(this).data('resend') || '') === '1';
 
         if (!visitationId) {
             return;
         }
 
-        // Confirm first so an accidental click doesn't notify the doctor
+        // Confirm first so an accidental click doesn't notify the doctor (or record the wrong time)
         Swal.fire({
-            title: 'Kirim notifikasi pasien masuk?',
-            text: 'Dokter akan diberi tahu bahwa ' + pasienNama + ' memasuki ruangan.',
+            title: isResend ? 'Kirim ulang notifikasi?' : 'Pasien masuk ruangan dokter?',
+            text: isResend
+                ? 'Waktu masuk ' + pasienNama + ' tidak berubah; dokter hanya diberi tahu lagi.'
+                : 'Waktu masuk ' + pasienNama + ' dicatat sekarang dan dokter diberi tahu.',
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Ya, kirim',
@@ -166,6 +169,8 @@
                 if (res.success) {
                     var dokterName = res.dokter_name || 'dokter tujuan';
                     Swal.fire('Terkirim!', 'Notifikasi pasien masuk untuk ' + pasienNama + ' berhasil dikirim ke dokter ' + dokterName + '.', 'success');
+                    // Button turns into "Masuk HH.mm"
+                    try { $('#rawatjalan-table').DataTable().ajax.reload(null, false); } catch (e) {}
                 } else {
                     Swal.fire('Gagal', res.message || 'Notifikasi gagal dikirim.', 'error');
                 }
@@ -353,7 +358,11 @@
                 renderBreakdownItem('Produk', breakdown.produk),
                 renderBreakdownItem('Lab', breakdown.lab),
                 renderBreakdownItem('Event', breakdown.event),
-                renderBreakdownItem('Marketplace', breakdown.marketplace)
+                renderBreakdownItem('Marketplace', breakdown.marketplace),
+                renderBreakdownItem('Reseller', breakdown.reseller),
+                renderBreakdownItem('Slimming', breakdown.slimming),
+                renderBreakdownItem('Vaksin', breakdown.vaksin),
+                renderBreakdownItem('MCU', breakdown.mcu)
             ].join('');
             var detailHtml = breakdownItems
                 ? '<div class="queue-calendar-day-breakdown">' + breakdownItems + '</div>'
@@ -827,6 +836,57 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
     var spesialisasiColorMap = {!! json_encode($spesialisasiMap) !!};
     window.spesialisasiColorMap = spesialisasiColorMap;
 
+    // Jenis kunjungan: label + badge colour per type
+    var RJ_JENIS_KUNJUNGAN = {!! json_encode(collect(\App\Models\ERM\Visitation::TYPE_COLORS)->map(fn ($color, $type) => ['label' => \App\Models\ERM\Visitation::typeLabel($type), 'color' => $color])) !!};
+
+    // Jenis filter chip, remembered per browser
+    var RJ_JENIS_FILTER_KEY = 'rawatjalan.jenisFilter';
+    var rjJenisFilter = '';
+    try { rjJenisFilter = localStorage.getItem(RJ_JENIS_FILTER_KEY) || ''; } catch (e) {}
+    if (!$('#rj-jenis-chips [data-jenis-filter="' + rjJenisFilter + '"]').length) {
+        rjJenisFilter = '';
+    }
+    $('#rj-jenis-chips .rj-jenis-chip').each(function () {
+        $(this).toggleClass('active', String($(this).data('jenis-filter')) === rjJenisFilter);
+    });
+
+    // Visit progress label for clinical visits (Konsultasi, Slimming, Vaksin, MCU):
+    // Belum datang -> Menunggu dokter -> Masuk HH.mm -> Selesai, or Batal / Tidak datang.
+    // Produk / Lab / Marketplace / Reseller / Event don't follow this flow, so they get no label.
+    var RJ_CLINICAL_TYPES = {!! json_encode(\App\Models\ERM\Visitation::CLINICAL_TYPES) !!};
+    function rjVisitStatus(row) {
+        if (RJ_CLINICAL_TYPES.indexOf(parseInt(row.jenis_kunjungan, 10)) === -1) {
+            return null;
+        }
+
+        var status = parseInt(row.status_kunjungan, 10);
+        var today = (typeof moment !== 'undefined') ? moment().format('YYYY-MM-DD') : new Date().toISOString().slice(0, 10);
+        var tanggal = String(row.tanggal_visitation || '').slice(0, 10);
+
+        if (status === 7) {
+            return { label: 'Batal', color: '#94a3b8', icon: 'fas fa-ban' };
+        }
+        if (status === 2) {
+            return { label: 'Selesai', color: '#16a34a', icon: 'fas fa-check-circle' };
+        }
+        if (status === 1) {
+            if (row.masuk_ruangan_at) {
+                var masuk = (typeof moment !== 'undefined') ? moment(row.masuk_ruangan_at) : null;
+                return {
+                    label: 'Masuk' + (masuk && masuk.isValid() ? ' ' + masuk.format('HH.mm') : ''),
+                    color: '#0aa2c0',
+                    icon: 'fas fa-door-open'
+                };
+            }
+            return { label: 'Menunggu dokter', color: '#d39e00', icon: 'fas fa-hourglass-half' };
+        }
+        // Status 0 after its date has passed: the patient never came
+        if (tanggal && tanggal < today) {
+            return { label: 'Tidak datang', color: '#dc2626', icon: 'fas fa-user-times' };
+        }
+        return { label: 'Belum datang', color: '#64748b', icon: 'far fa-clock' };
+    }
+
     function getRawatJalanDokterFilterValue() {
         return $('#filter_dokter').val() || '__all__';
     }
@@ -852,6 +912,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                 d.end_date = $('#filter_end_date').val();
                 d.dokter_id = getRawatJalanDokterFilterValue();
                 d.klinik_id = getRawatJalanKlinikFilterValue();
+                d.jenis_filter = rjJenisFilter;
             }
         },
         order: [[4, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
@@ -1165,6 +1226,24 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     }
 
                     var tanggalPrimaryHtml = '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
+
+                    // Jenis kunjungan as small coloured text under the date (like the dokter's spesialisasi;
+                    // colours shared with the jenis filter chips)
+                    // One line: "Vaksin - (icon) Belum datang"; the status part only for clinical visits
+                    var jenisInfo = RJ_JENIS_KUNJUNGAN[String(row.jenis_kunjungan)];
+                    var statusInfo = rjVisitStatus(row);
+                    var jenisStatusParts = [];
+                    if (jenisInfo) {
+                        jenisStatusParts.push('<span style="color:' + jenisInfo.color + ';">' + $('<div>').text(jenisInfo.label).html() + '</span>');
+                    }
+                    if (statusInfo) {
+                        jenisStatusParts.push('<span style="color:' + statusInfo.color + ';"><i class="' + statusInfo.icon + ' mr-1"></i>'
+                            + $('<div>').text(statusInfo.label).html() + '</span>');
+                    }
+                    if (jenisStatusParts.length) {
+                        tanggalPrimaryHtml += '<div class="mt-1"><small class="font-weight-bold">'
+                            + jenisStatusParts.join('<span class="text-muted mx-1">-</span>') + '</small></div>';
+                    }
                     if (badgeHtml.length > 0) {
                         tanggalPrimaryHtml += '<div class="mt-2">' + badgeHtml.join('') + '</div>';
                     }
@@ -1195,13 +1274,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             + '</div>';
                     }
 
-                    if (row.pasien_id) {
-                        var pasienIdAttr = $('<div>').text(row.pasien_id).html();
-                        var pasienNamaAttr = $('<div>').text(row.nama_pasien || 'Pasien').html();
-                        tanggalHtml += '<div class="mt-1"><a href="#" class="small rawatjalan-visit-history-link" data-pasien-id="' + pasienIdAttr + '" data-pasien-nama="' + pasienNamaAttr + '">Lihat riwayat</a></div>';
-                    }
-
-                    return tanggalHtml;
+                    // min-width on the content: DataTables widths are only hints and the table squeezes this column
+                    return '<div style="min-width:250px;">' + tanggalHtml + '</div>';
                 }
             },
             @if (empty($isDokter))
@@ -1322,6 +1396,25 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
     });
 
     window.__rawatjalanTable = table;
+
+    // Chip counts come with every table load (they follow the date / dokter / klinik filters)
+    table.on('xhr.dt', function (e, settings, json) {
+        var counts = (json && json.jenis_counts) || {};
+        $('#rj-jenis-chips .rj-jenis-chip').each(function () {
+            var count = parseInt(counts[String($(this).data('jenis-filter'))] || 0, 10);
+            $(this).find('.rj-jenis-count').text('(' + count + ')');
+            // Empty types are hidden; Semua always stays
+            $(this).toggleClass('is-empty', count === 0 && String($(this).data('jenis-filter')) !== '');
+        });
+    });
+
+    $('#rj-jenis-chips').on('click', '.rj-jenis-chip', function () {
+        rjJenisFilter = String($(this).data('jenis-filter'));
+        $('#rj-jenis-chips .rj-jenis-chip').removeClass('active');
+        $(this).addClass('active');
+        try { localStorage.setItem(RJ_JENIS_FILTER_KEY, rjJenisFilter); } catch (e) {}
+        table.ajax.reload();
+    });
 
     function syncRawatJalanTableLayout() {
         if (!table) {
@@ -2097,14 +2190,17 @@ function openScreeningBatukModal(visitationId, editMode) {
     ensureScreeningBatukModalsLoaded().done(function(){
         $('#screening-visitation-id').val(visitationId);
         $('#screening-edit-mode').val(editMode ? 'true' : 'false');
+        $('#form-screening-batuk tr.table-warning').removeClass('table-warning');
 
         if (editMode) {
             loadScreeningDataForEdit(visitationId);
             $('#screening-modal-title').text('Edit Screening Batuk');
             $('#screening-btn-text').text('Update Screening');
         } else {
+            // No pre-selected answers: the perawat must answer every question
             $('#form-screening-batuk')[0].reset();
-            $('input[type="radio"][value="tidak"]').prop('checked', true);
+            $('#form-screening-batuk input[type="radio"]').prop('checked', false);
+            $('#form-screening-batuk tr.table-warning').removeClass('table-warning');
             $('#screening-modal-title').text('Screening Batuk');
             $('#screening-btn-text').text('Simpan & Lanjutkan');
             $('#screening-id').val('');
@@ -2118,14 +2214,18 @@ function openScreeningVaksinModal(visitationId, editMode) {
     ensureScreeningVaksinModalsLoaded().done(function(){
         $('#screening-vaksin-visitation-id').val(visitationId);
         $('#screening-vaksin-edit-mode').val(editMode ? 'true' : 'false');
+        $('#form-screening-vaksin tr.table-warning').removeClass('table-warning');
+        $('#rencana_vaksin_screening_vaksin').removeClass('is-invalid');
 
         if (editMode) {
             loadScreeningVaksinDataForEdit(visitationId);
             $('#screening-vaksin-modal-title').text('Edit Screening Vaksin');
             $('#screening-vaksin-btn-text').text('Update Screening');
         } else {
+            // No pre-selected answers: the perawat must answer every question
             $('#form-screening-vaksin')[0].reset();
-            $('#form-screening-vaksin input[type="radio"][value="tidak"]').prop('checked', true);
+            $('#form-screening-vaksin input[type="radio"]').prop('checked', false);
+            $('#form-screening-vaksin tr.table-warning').removeClass('table-warning');
             $('#screening-vaksin-modal-title').text('Screening Vaksin');
             $('#screening-vaksin-btn-text').text('Simpan Screening');
             $('#screening-vaksin-id').val('');
@@ -2363,16 +2463,12 @@ $(document).on('click', '#btn-simpan-screening', function() {
         'riwayat_pengobatan_tb', 'sedang_pengobatan_tb', 'batuk_demam', 'nafsu_makan_menurun', 'bb_turun', 'keringat_malam', 'sesak_nafas_tb', 'kontak_erat_tb', 'hasil_rontgen'
     ];
     
-    requiredFields.forEach(function(field) {
-        if (!$('input[name="' + field + '"]:checked').length) {
-            isValid = false;
-        }
-    });
-    
-    if (!isValid) {
+    const unanswered = findUnansweredScreening('#form-screening-batuk', requiredFields);
+    if (unanswered > 0) {
+        isValid = false;
         Swal.fire({
             title: 'Lengkapi Form',
-            text: 'Harap jawab semua pertanyaan screening batuk.',
+            text: unanswered + ' pertanyaan screening batuk belum dijawab (ditandai kuning).',
             icon: 'warning',
             confirmButtonText: 'OK'
         });
@@ -2448,6 +2544,26 @@ $(document).on('click', '#btn-simpan-screening', function() {
     });
 });
 
+// Marks unanswered screening questions (table row turns yellow) and returns how many there are
+function findUnansweredScreening(formSelector, fields) {
+    let count = 0;
+    fields.forEach(function(field) {
+        const $inputs = $(formSelector + ' input[name="' + field + '"]');
+        const answered = $inputs.filter(':checked').length > 0;
+        $inputs.first().closest('tr').toggleClass('table-warning', !answered);
+        if (!answered) count++;
+    });
+    return count;
+}
+
+// An answered question loses its yellow mark
+$(document).on('change', '#form-screening-batuk input[type="radio"], #form-screening-vaksin input[type="radio"]', function() {
+    $(this).closest('tr').removeClass('table-warning');
+});
+$(document).on('input', '#rencana_vaksin_screening_vaksin', function() {
+    $(this).toggleClass('is-invalid', !($(this).val() || '').trim());
+});
+
 $(document).on('click', '#btn-simpan-screening-vaksin', function() {
     let isValid = true;
     const requiredFields = [
@@ -2461,16 +2577,19 @@ $(document).on('click', '#btn-simpan-screening-vaksin', function() {
         'vaksinasi_4_minggu_terakhir'
     ];
 
-    requiredFields.forEach(function(field) {
-        if (!$('#form-screening-vaksin input[name="' + field + '"]:checked').length) {
-            isValid = false;
-        }
-    });
+    const unanswered = findUnansweredScreening('#form-screening-vaksin', requiredFields);
+    const $rencanaVaksin = $('#rencana_vaksin_screening_vaksin');
+    const rencanaKosong = !($rencanaVaksin.val() || '').trim();
+    $rencanaVaksin.toggleClass('is-invalid', rencanaKosong);
 
-    if (!isValid) {
+    if (unanswered > 0 || rencanaKosong) {
+        isValid = false;
+        const missing = [];
+        if (unanswered > 0) missing.push(unanswered + ' pertanyaan belum dijawab (ditandai kuning)');
+        if (rencanaKosong) missing.push('rencana vaksin belum diisi');
         Swal.fire({
             title: 'Lengkapi Form',
-            text: 'Harap jawab semua pertanyaan screening vaksin.',
+            text: 'Screening vaksin: ' + missing.join(', ') + '.',
             icon: 'warning',
             confirmButtonText: 'OK'
         });
@@ -2497,9 +2616,13 @@ $(document).on('click', '#btn-simpan-screening-vaksin', function() {
         data: formData + additionalData,
         success: function(res) {
             $('#modalScreeningVaksin').modal('hide');
+            // New screening on a Vaksin visit: continue to the next step, like screening batuk -> asesmen perawat
+            const nextUrl = !editMode && res && res.next_url ? res.next_url : null;
             Swal.fire({
                 title: 'Berhasil!',
-                text: editMode ? 'Data screening vaksin berhasil diperbarui.' : 'Data screening vaksin berhasil disimpan.',
+                text: editMode
+                    ? 'Data screening vaksin berhasil diperbarui.'
+                    : 'Data screening vaksin berhasil disimpan.' + (nextUrl ? ' Akan dialihkan ke ' + res.next_label + '.' : ''),
                 icon: 'success',
                 timer: 2000,
                 timerProgressBar: true,
@@ -2507,7 +2630,11 @@ $(document).on('click', '#btn-simpan-screening-vaksin', function() {
                 allowOutsideClick: false,
                 allowEscapeKey: false
             }).then(function() {
-                reloadRawatJalanTable(false);
+                if (nextUrl) {
+                    window.location.href = nextUrl;
+                } else {
+                    reloadRawatJalanTable(false);
+                }
             });
         },
         error: function(xhr) {

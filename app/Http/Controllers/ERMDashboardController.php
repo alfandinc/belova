@@ -34,9 +34,16 @@ class ERMDashboardController extends Controller
         $count = $baseQuery->count();
 
         // Jenis Kunjungan counts
+        $jenisCounts = (clone $baseQuery)
+            ->selectRaw('jenis_kunjungan, COUNT(*) as total')
+            ->groupBy('jenis_kunjungan')
+            ->pluck('total', 'jenis_kunjungan');
         $jenisKunjungan = [];
-        foreach ([1,2,3] as $jk) {
-            $jenisKunjungan[$jk] = (clone $baseQuery)->where('jenis_kunjungan', $jk)->count();
+        foreach (range(1, 9) as $jk) {
+            $jenisKunjungan[$jk] = [
+                'label' => \App\Models\ERM\Visitation::typeLabel($jk),
+                'total' => (int) ($jenisCounts[$jk] ?? 0),
+            ];
         }
         $dokterId = $request->input('dokter_id');
         $startDate = $request->input('start_date');

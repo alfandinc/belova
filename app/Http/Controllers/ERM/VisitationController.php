@@ -38,10 +38,10 @@ class VisitationController extends Controller
         ] + Pasien::referralInputRules(false));
 
         // Duplicate rule:
-        // - jenis_kunjungan = 1 (Konsultasi) => only ONE visitation per pasien per tanggal
+        // - clinical visits (Konsultasi, Slimming, Vaksin, MCU) => only ONE visitation of that type per pasien per tanggal per dokter
         // - jenis_kunjungan = 2/3 (Produk/Lab) => allow multiple
-        $jenis = $request->jenis_kunjungan ?? 1;
-        if ((int)$jenis === 1) {
+        $jenis = (int) ($request->jenis_kunjungan ?? 1);
+        if (Visitation::isClinicalType($jenis)) {
             $dokterId = $request->filled('dokter_id') ? $request->dokter_id : null;
             $exists = Visitation::where('pasien_id', $request->pasien_id)
                 ->whereDate('tanggal_visitation', $request->tanggal_visitation)
@@ -51,16 +51,18 @@ class VisitationController extends Controller
                     $query->whereNull('dokter_id');
                 })
                 ->where('status_kunjungan', '!=', 7)
-                ->where(function ($q) {
-                    $q->where('jenis_kunjungan', 1)
-                      ->orWhereNull('jenis_kunjungan');
+                ->where(function ($q) use ($jenis) {
+                    $q->where('jenis_kunjungan', $jenis);
+                    if ($jenis === Visitation::TYPE_KONSULTASI) {
+                        $q->orWhereNull('jenis_kunjungan');
+                    }
                 })
                 ->exists();
 
             if ($exists) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Pasien sudah didaftarkan untuk kunjungan hari ini dengan dokter yang sama.'
+                    'message' => 'Pasien sudah didaftarkan untuk kunjungan ' . Visitation::typeLabel($jenis) . ' pada tanggal ini dengan dokter yang sama.'
                 ], 422);
             }
         }
@@ -107,6 +109,8 @@ class VisitationController extends Controller
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
+            // Reseller follows the Beli Produk flow
+            'jenis_kunjungan' => ['nullable', Rule::in([Visitation::TYPE_PRODUK, Visitation::TYPE_RESELLER])],
         ] + Pasien::referralInputRules(false));
 
         // Buat ID custom
@@ -122,7 +126,7 @@ class VisitationController extends Controller
             'metode_bayar_id' => $request->metode_bayar_id,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'status_kunjungan' => 2,
-            'jenis_kunjungan' => 2,
+            'jenis_kunjungan' => (int) ($request->jenis_kunjungan ?: Visitation::TYPE_PRODUK),
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ] + $this->requestedReferral($request));
 

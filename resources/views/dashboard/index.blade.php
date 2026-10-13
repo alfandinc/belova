@@ -464,7 +464,7 @@
                             <span class="dsh-btn-count jv-unread" title="Jadwal Anda diubah">{{ $jadwalUnread }}</span>
                         @endif
                     </a>
-                    <a href="{{ route('daily-journal.index') }}" class="dsh-btn dsh-btn-primary">
+                    <a href="{{ route('daily-journal.index') }}" class="dsh-btn dsh-btn-primary js-open-journal">
                         <i data-feather="plus"></i> Daily Journal
                     </a>
                 </div>

@@ -40,7 +40,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="sakit_hari_ini_tidak" name="sakit_hari_ini" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="sakit_hari_ini_tidak" name="sakit_hari_ini" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="sakit_hari_ini_tidak"></label>
                                         </div>
                                     </td>
@@ -56,7 +56,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="alergi_obat_makanan_vaksin_tidak" name="alergi_obat_makanan_vaksin" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="alergi_obat_makanan_vaksin_tidak" name="alergi_obat_makanan_vaksin" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="alergi_obat_makanan_vaksin_tidak"></label>
                                         </div>
                                     </td>
@@ -72,7 +72,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="efek_samping_vaksin_berat_tidak" name="efek_samping_vaksin_berat" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="efek_samping_vaksin_berat_tidak" name="efek_samping_vaksin_berat" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="efek_samping_vaksin_berat_tidak"></label>
                                         </div>
                                     </td>
@@ -88,7 +88,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="gangguan_kekebalan_tubuh_tidak" name="gangguan_kekebalan_tubuh" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="gangguan_kekebalan_tubuh_tidak" name="gangguan_kekebalan_tubuh" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="gangguan_kekebalan_tubuh_tidak"></label>
                                         </div>
                                     </td>
@@ -104,7 +104,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="obat_steroid_atau_terapi_tidak" name="obat_steroid_atau_terapi" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="obat_steroid_atau_terapi_tidak" name="obat_steroid_atau_terapi" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="obat_steroid_atau_terapi_tidak"></label>
                                         </div>
                                     </td>
@@ -120,7 +120,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="transfusi_darah_atau_imunoglobulin_tidak" name="transfusi_darah_atau_imunoglobulin" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="transfusi_darah_atau_imunoglobulin_tidak" name="transfusi_darah_atau_imunoglobulin" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="transfusi_darah_atau_imunoglobulin_tidak"></label>
                                         </div>
                                     </td>
@@ -136,7 +136,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="hamil_atau_rencana_hamil_tidak" name="hamil_atau_rencana_hamil" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="hamil_atau_rencana_hamil_tidak" name="hamil_atau_rencana_hamil" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="hamil_atau_rencana_hamil_tidak"></label>
                                         </div>
                                     </td>
@@ -152,7 +152,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="vaksinasi_4_minggu_terakhir_tidak" name="vaksinasi_4_minggu_terakhir" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="vaksinasi_4_minggu_terakhir_tidak" name="vaksinasi_4_minggu_terakhir" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="vaksinasi_4_minggu_terakhir_tidak"></label>
                                         </div>
                                     </td>
@@ -162,8 +162,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="rencana_vaksin_screening_vaksin" class="font-weight-bold">Rencana Vaksin:</label>
-                        <input type="text" class="form-control" id="rencana_vaksin_screening_vaksin" name="rencana_vaksin" placeholder="Masukkan rencana vaksin">
+                        <label for="rencana_vaksin_screening_vaksin" class="font-weight-bold">Rencana Vaksin: <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="rencana_vaksin_screening_vaksin" name="rencana_vaksin" placeholder="Masukkan rencana vaksin" maxlength="255" required>
+                        <div class="invalid-feedback">Rencana vaksin wajib diisi.</div>
                     </div>
 
                     <div class="form-group">

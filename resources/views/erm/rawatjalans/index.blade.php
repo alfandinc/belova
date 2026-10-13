@@ -237,6 +237,32 @@
                     </select>
                 </div>
             </div>
+            {{-- Jenis kunjungan filter: outlined until chosen, filled when chosen (--chip = jenis colour); count from the server --}}
+            @php
+                $jenisChipColors = \App\Models\ERM\Visitation::TYPE_COLORS;
+            @endphp
+            <style>
+                .rj-jenis-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+                .rj-jenis-chip { border: 1px solid var(--chip); color: var(--chip); background: transparent; font-weight: 600; border-radius: 999px; padding: 3px 12px; font-size: 0.8rem; }
+                .rj-jenis-chip:hover { color: var(--chip); background: rgba(148, 163, 184, .15); }
+                .rj-jenis-chip.active, .rj-jenis-chip.active:hover { background: var(--chip); color: #fff; }
+                .rj-jenis-chip .rj-jenis-count { margin-left: 4px; opacity: .8; }
+                .rj-jenis-chip.is-empty:not(.active) { display: none; }
+            </style>
+            <div class="rj-jenis-chips mb-3" id="rj-jenis-chips" role="group" aria-label="Filter jenis kunjungan">
+                @foreach(\App\Models\ERM\Visitation::rawatJalanFilters() as $key => $filter)
+                    @php
+                        $chipColor = match (true) {
+                            $key === '' => '#64748b',
+                            $key === 'klinis' => '#0f766e',
+                            default => $jenisChipColors[$filter['types'][0]] ?? '#64748b',
+                        };
+                    @endphp
+                    <button type="button" class="btn btn-sm rj-jenis-chip{{ $key === '' ? ' active' : '' }}" data-jenis-filter="{{ $key }}" style="--chip: {{ $chipColor }};">
+                        {{ $filter['label'] }}<span class="rj-jenis-count"></span>
+                    </button>
+                @endforeach
+            </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>

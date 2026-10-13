@@ -298,9 +298,11 @@ $(document).ready(function() {
                 // Jenis Kunjungan
                 if (res.jenis_kunjungan) {
                     let jkHtml = '';
-                    jkHtml += '<div><span style="color:#28a745;font-weight:bold;">1. Konsultasi Dokter:</span> <span style="float:right;font-weight:bold;">' + (res.jenis_kunjungan[1] ?? 0) + '</span></div>';
-                    jkHtml += '<div><span style="color:#ffc107;font-weight:bold;">2. Beli Produk:</span> <span style="float:right;font-weight:bold;">' + (res.jenis_kunjungan[2] ?? 0) + '</span></div>';
-                    jkHtml += '<div><span style="color:#007bff;font-weight:bold;">3. Laboratorium:</span> <span style="float:right;font-weight:bold;">' + (res.jenis_kunjungan[3] ?? 0) + '</span></div>';
+                    const jkColors = { 1: '#28a745', 2: '#ffc107', 3: '#007bff' };
+                    Object.keys(res.jenis_kunjungan).forEach(function (jk) {
+                        const item = res.jenis_kunjungan[jk] || {};
+                        jkHtml += '<div><span style="color:' + (jkColors[jk] || '#6f42c1') + ';font-weight:bold;">' + jk + '. ' + $('<div>').text(item.label || jk).html() + ':</span> <span style="float:right;font-weight:bold;">' + (item.total ?? 0) + '</span></div>';
+                    });
                     $('#jenis-kunjungan-list').html(jkHtml);
                 } else {
                     $('#jenis-kunjungan-list').text('-');

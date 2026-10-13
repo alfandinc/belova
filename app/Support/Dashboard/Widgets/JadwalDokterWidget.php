@@ -17,7 +17,7 @@ class JadwalDokterWidget implements Widget
 
         $patients = DB::table('erm_visitations')
             ->where('tanggal_visitation', $today)
-            ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
+            ->whereIn('jenis_kunjungan', [1, 2, 4, 5, 6, 7, 8, 9])
             ->where('status_kunjungan', '!=', 7)
             ->groupBy('dokter_id')
             ->selectRaw('dokter_id, COUNT(*) as total, SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as selesai')

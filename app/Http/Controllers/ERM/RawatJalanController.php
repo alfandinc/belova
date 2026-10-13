@@ -289,6 +289,27 @@ class RawatJalanController extends Controller
             ], 404);
         }
 
+        // The patient goes in after the perawat's steps and before the visit is done
+        if (in_array((int) $visitation->status_kunjungan, [2, Visitation::STATUS_DIBATALKAN], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kunjungan ini sudah selesai atau dibatalkan.',
+            ], 422);
+        }
+        $hasScreeningVaksin = (int) $visitation->jenis_kunjungan === Visitation::TYPE_VAKSIN
+            && ScreeningVaksin::where('visitation_id', $visitation->id)->exists();
+        if ($missing = Visitation::perawatStepsMissing($visitation->jenis_kunjungan, $visitation->status_dokumen, $hasScreeningVaksin)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lengkapi dulu: ' . implode(' dan ', $missing) . '.',
+            ], 422);
+        }
+
+        // First time in keeps its time; a resend (dokter missed it) only notifies again
+        if (Visitation::tracksMasukRuangan() && !$visitation->masuk_ruangan_at) {
+            $visitation->forceFill(['masuk_ruangan_at' => now()])->save();
+        }
+
         $patient = $visitation->pasien;
         $patientName = optional($patient)->nama ?: 'Pasien';
         $patientId = optional($patient)->id;
@@ -304,6 +325,7 @@ class RawatJalanController extends Controller
             'success' => true,
             'message' => 'Notifikasi berhasil dikirim ke dokter.',
             'dokter_name' => $dokterUser->name,
+            'masuk_ruangan_at' => optional($visitation->masuk_ruangan_at)->format('H.i'),
         ]);
     }
 
@@ -595,13 +617,17 @@ class RawatJalanController extends Controller
 
         $isDokterUser = (bool) ($user && method_exists($user, 'hasRole') && $user->hasRole('Dokter'));
 
-        $allowedVisitTypes = $isDokterUser ? [1] : [1, 2, 3, 4, 5];
+        $allowedVisitTypes = $isDokterUser ? [1, 7, 8, 9] : [1, 2, 3, 4, 5, 6, 7, 8, 9];
         $visitTypeMap = [
             1 => 'konsultasi',
             2 => 'produk',
             3 => 'lab',
             4 => 'event',
             5 => 'marketplace',
+            6 => 'reseller',
+            7 => 'slimming',
+            8 => 'vaksin',
+            9 => 'mcu',
         ];
 
         $query = DB::table('erm_visitations')
@@ -658,6 +684,10 @@ class RawatJalanController extends Controller
                         'lab' => 0,
                         'event' => 0,
                         'marketplace' => 0,
+                        'reseller' => 0,
+                        'slimming' => 0,
+                        'vaksin' => 0,
+                        'mcu' => 0,
                     ];
                 }
 
@@ -687,6 +717,10 @@ class RawatJalanController extends Controller
                 'lab' => 0,
                 'event' => 0,
                 'marketplace' => 0,
+                'reseller' => 0,
+                'slimming' => 0,
+                'vaksin' => 0,
+                'mcu' => 0,
             ];
 
             $displayCount = array_sum($breakdown);
@@ -838,11 +872,11 @@ class RawatJalanController extends Controller
                     ->leftJoin('area_regencies as ar', 'ad.regency_id', '=', 'ar.id')
                     ->leftJoin('area_provinces as ap2', 'ar.province_id', '=', 'ap2.id')
                     ->when($user && $user->hasRole('Dokter'), function($q) {
-                        // Dokter view: only show Konsultasi (jenis_kunjungan = 1)
-                        $q->where('erm_visitations.jenis_kunjungan', 1);
+                        // Dokter view: Konsultasi + service visits (Slimming, Vaksin, MCU)
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 7, 8, 9]);
                     }, function($q) {
                         // Non-dokter view: show Konsultasi + Produk/Obat + Lab + Event
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 3, 4, 5]);
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9]);
                     })
                     ->where('erm_visitations.status_kunjungan', '!=', 7)
                     // Lab staff only need visits with lab work: lab visits, or any visit with a lab request
@@ -856,6 +890,10 @@ class RawatJalanController extends Controller
                                 });
                         });
                     });
+
+            if (Visitation::tracksMasukRuangan()) {
+                $visitations->addSelect('erm_visitations.masuk_ruangan_at');
+            }
 
             $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
             $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
@@ -879,6 +917,27 @@ class RawatJalanController extends Controller
             if ($dokterFilter) {
                 $visitations->where('erm_visitations.dokter_id', $dokterFilter);
             }
+
+            // Jenis filter chips: count per chip under the date/dokter/klinik filters, before the jenis filter itself
+            $countQuery = (clone $visitations)->toBase();
+            $countQuery->columns = null;
+            $countQuery->bindings['select'] = [];
+            $typeCounts = $countQuery
+                ->selectRaw('erm_visitations.jenis_kunjungan as jk, COUNT(*) as total')
+                ->groupBy('erm_visitations.jenis_kunjungan')
+                ->pluck('total', 'jk');
+            $jenisFilters = Visitation::rawatJalanFilters();
+            $jenisCounts = [];
+            foreach ($jenisFilters as $key => $filter) {
+                $jenisCounts[$key] = (int) ($filter['types']
+                    ? $typeCounts->only($filter['types'])->sum()
+                    : $typeCounts->sum());
+            }
+            $jenisFilter = (string) $request->input('jenis_filter', '');
+            if (!empty($jenisFilters[$jenisFilter]['types'])) {
+                $visitations->whereIn('erm_visitations.jenis_kunjungan', $jenisFilters[$jenisFilter]['types']);
+            }
+
             $visitations->addSelect([
                 'latest_surat_mondok_id' => SuratMondok::query()
                     ->select('id')
@@ -980,7 +1039,25 @@ class RawatJalanController extends Controller
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $actionButtons = [];
-                    if ($user->hasRole('Perawat')) {
+                    // Dokter actions wait for the perawat's asesmen (vital signs, alergi) and show greyed out until then
+                    $waitingForPerawat = $user->hasRole('Dokter') && !$user->hasRole('Perawat') && empty($v->status_dokumen);
+                    $waitingButton = function (string $icon, string $label, string $title = 'Menunggu asesmen perawat') {
+                        return '<span class="btn btn-sm btn-light text-muted" style="font-weight:bold; cursor:not-allowed;" aria-disabled="true" title="' . e($title) . '"><i class="' . $icon . ' mr-1"></i>' . e($label) . '</span>';
+                    };
+                    $isVaksinVisit = (int) $v->jenis_kunjungan === Visitation::TYPE_VAKSIN;
+                    $hasScreeningVaksin = !empty($v->has_screening_vaksin);
+                    $isClinicalVisit = Visitation::isClinicalType($v->jenis_kunjungan);
+                    if ($user->hasRole('Perawat') && !$isClinicalVisit) {
+                        // Produk / Lab / Event / Marketplace / Reseller: no asesmen (saving one would reopen a finished
+                        // visit); only old screening data stays viewable.
+                        $visitationId = (string) $v->id;
+                        if (!empty($v->has_screening_batuk)) {
+                            $actionButtons[] = '<button class="btn btn-sm btn-warning view-screening-btn" style="font-weight:bold;" title="Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs"></i></button>';
+                        }
+                        if ($hasScreeningVaksin) {
+                            $actionButtons[] = '<button class="btn btn-sm btn-success view-screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe"></i></button>';
+                        }
+                    } elseif ($user->hasRole('Perawat')) {
                         $visitationId = (string) $v->id;
                         if (!empty($v->has_screening_batuk)) {
                             $actionButtons[] = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary" style="font-weight:bold;" title="Dokumen"><i class="fas fa-file-alt mr-1"></i>Dokumen</a>';
@@ -988,12 +1065,12 @@ class RawatJalanController extends Controller
                         } else {
                             $actionButtons[] = '<button class="btn btn-sm btn-primary screening-btn" style="font-weight:bold;" title="Dokumen" data-visitation-id="' . $visitationId . '"><i class="fas fa-file-alt mr-1"></i>Dokumen</button>';
                         }
-                        if (!empty($v->has_screening_vaksin)) {
+                        // Screening vaksin belongs to Vaksin visits; other visits only keep a view button for old data
+                        if ($hasScreeningVaksin) {
                             $actionButtons[] = '<button class="btn btn-sm btn-success view-screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe"></i></button>';
-                        } else {
-                            $actionButtons[] = '<button class="btn btn-sm btn-outline-success screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe"></i></button>';
+                        } elseif ($isVaksinVisit) {
+                            $actionButtons[] = '<button class="btn btn-sm btn-outline-success blinking screening-vaksin-btn" style="font-weight:bold;" title="Screening Vaksin wajib diisi sebelum vaksin" data-visitation-id="' . $visitationId . '"><i class="fas fa-syringe mr-1"></i>Screening</button>';
                         }
-                        $actionButtons[] = '<button class="btn btn-sm btn-info btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien Memasuki Ruangan" data-visitation-id="' . $visitationId . '" data-pasien-nama="' . e($v->nama_pasien ?? 'Pasien') . '"><i class="fas fa-door-open"></i></button>';
                     } elseif ($user->hasRole('Dokter')) {
                         $tindakanUrl = route('erm.tindakan.create', $v->id);
                         $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
@@ -1006,8 +1083,42 @@ class RawatJalanController extends Controller
                         } elseif ($v->status_dokumen === 'cppt') {
                             $url = route('erm.cppt.create', $v->id);
                             $actionButtons[] = '<a href="' . $url . '" class="btn btn-sm btn-success" style="font-weight:bold;" title="CPPT"><i class="fas fa-notes-medical mr-1"></i>CPPT</a>';
+                        } elseif ($waitingForPerawat) {
+                            $actionButtons[] = $waitingButton('fas fa-user-md', 'Asesmen');
                         }
-                        $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
+                        // Tindakan already recorded stays reachable
+                        if ($waitingForPerawat && $tindakanCount === 0) {
+                            $actionButtons[] = $waitingButton('fas fa-procedures', 'Tindakan');
+                        } else {
+                            $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
+                        }
+                    }
+
+                    // Slimming / Vaksin / MCU visit: shortcut to its own page, for every role only once the
+                    // perawat's asesmen (and for Vaksin the screening vaksin) is done. The page checks it too.
+                    $servicePage = Visitation::servicePage($v->jenis_kunjungan, (string) $v->id);
+                    $serviceBlockers = Visitation::serviceBlockers($v->jenis_kunjungan, $v->status_dokumen, $hasScreeningVaksin);
+                    if ($servicePage && $serviceBlockers) {
+                        $actionButtons[] = $waitingButton($servicePage['icon'], $servicePage['label'], 'Menunggu ' . implode(' dan ', $serviceBlockers));
+                    } elseif ($servicePage) {
+                        $actionButtons[] ='<a href="' . $servicePage['url'] . '" class="btn btn-sm" style="font-weight:bold; background:#6f42c1; color:#fff;" title="Buka halaman ' . e($servicePage['label']) . '"><i class="' . $servicePage['icon'] . ' mr-1"></i>' . e($servicePage['label']) . '</a>';
+                    }
+
+                    // Perawat "Masuk": the last perawat step. After the asesmen (and screening vaksin) the patient
+                    // usually waits; the perawat presses it when the patient actually enters the dokter's room.
+                    $status = (int) $v->status_kunjungan;
+                    if ($user->hasRole('Perawat') && $isClinicalVisit && !in_array($status, [2, Visitation::STATUS_DIBATALKAN], true)) {
+                        $masukMissing = Visitation::perawatStepsMissing($v->jenis_kunjungan, $v->status_dokumen, $hasScreeningVaksin);
+                        $masukAt = !empty($v->masuk_ruangan_at) ? \Carbon\Carbon::parse($v->masuk_ruangan_at)->format('H.i') : null;
+                        $masukData = ' data-visitation-id="' . e($v->id) . '" data-pasien-nama="' . e($v->nama_pasien ?? 'Pasien') . '"';
+                        if ($masukMissing) {
+                            $actionButtons[] = $waitingButton('fas fa-door-open', 'Masuk', 'Menunggu ' . implode(' dan ', $masukMissing));
+                        } elseif ($masukAt) {
+                            // Already in: shows the time; clicking only re-sends the notification
+                            $actionButtons[] = '<button class="btn btn-sm btn-success btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien masuk ruangan pukul ' . $masukAt . '. Klik untuk kirim ulang notifikasi ke dokter." data-resend="1"' . $masukData . '><i class="fas fa-check mr-1"></i>Masuk ' . $masukAt . '</button>';
+                        } else {
+                            $actionButtons[] = '<button class="btn btn-sm btn-info btn-notify-dokter-patient-enter" style="font-weight:bold;" title="Pasien memasuki ruangan dokter: catat & beri tahu dokter"' . $masukData . '><i class="fas fa-door-open mr-1"></i>Masuk</button>';
+                        }
                     }
 
                     $labCount = intval($v->lab_permintaan_count ?? 0);
@@ -1052,6 +1163,7 @@ class RawatJalanController extends Controller
                 ->removeColumn('asesmen_penunjang_created_at')
                 ->removeColumn('cppt_created_at')
                 ->rawColumns(['antrian', 'nama_pasien', 'referral_display', 'dokumen'])
+                ->with('jenis_counts', $jenisCounts)
                 ->make(true);
             } catch (\Exception $e) {
                 Log::error('RawatJalanController@index AJAX error: ' . $e->getMessage(), ['exception' => $e]);
@@ -1131,7 +1243,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
+                ->whereIn('jenis_kunjungan', [1, 2, 4, 5, 6, 7, 8, 9])
                 ->whereDate('tanggal_visitation', $today);
 
             if ($dokter) {
@@ -1209,7 +1321,7 @@ class RawatJalanController extends Controller
                         SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                         SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                     )
-                    ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5])
+                    ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9])
                     ->whereDate('tanggal_visitation', '>=', $start)
                     ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1307,7 +1419,7 @@ class RawatJalanController extends Controller
                     SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                     SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                 )
-                ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
+                ->whereIn('jenis_kunjungan', [1, 2, 4, 5, 6, 7, 8, 9])
                 ->whereDate('tanggal_visitation', '>=', $start)
                 ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1640,15 +1752,27 @@ class RawatJalanController extends Controller
             'waktu_kunjungan' => 'nullable|date_format:H:i', // validate waktu_kunjungan
         ]);
 
-        // Duplicate rule: for konsultasi (jenis 1), only ONE active visit per pasien per tanggal PER DOKTER.
+        $oldVisit = $request->filled('visitation_id')
+            ? Visitation::find($request->visitation_id, ['id', 'jenis_kunjungan', 'klinik_id', 'metode_bayar_id'])
+            : null;
+
+        // A rescheduled Slimming / Vaksin / MCU visit keeps its type; anything else becomes konsultasi
+        $oldJenis = (int) ($oldVisit->jenis_kunjungan ?? 0);
+        $jenis = in_array($oldJenis, [Visitation::TYPE_SLIMMING, Visitation::TYPE_VAKSIN, Visitation::TYPE_MCU], true)
+            ? $oldJenis
+            : Visitation::TYPE_KONSULTASI;
+
+        // Duplicate rule: only ONE active visit of this type per pasien per tanggal PER DOKTER.
         // (If dokternya berbeda, boleh didaftarkan lagi.)
         $exists = Visitation::where('pasien_id', $request->pasien_id)
             ->whereDate('tanggal_visitation', $request->tanggal_visitation)
             ->where('dokter_id', $request->dokter_id)
             ->where('status_kunjungan', '!=', 7)
-            ->where(function ($q) {
-                $q->where('jenis_kunjungan', 1)
-                  ->orWhereNull('jenis_kunjungan');
+            ->where(function ($q) use ($jenis) {
+                $q->where('jenis_kunjungan', $jenis);
+                if ($jenis === Visitation::TYPE_KONSULTASI) {
+                    $q->orWhereNull('jenis_kunjungan');
+                }
             })
             ->exists();
         if ($exists) {
@@ -1665,16 +1789,25 @@ class RawatJalanController extends Controller
             ]);
         }
 
-        // buat kunjungan baru
+        // buat kunjungan baru (same custom id + resep detail as VisitationController@store)
+        $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
         Visitation::create([
+            'id' => $customId,
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
+            'klinik_id' => $oldVisit->klinik_id ?? null,
             'tanggal_visitation' => $request->tanggal_visitation,
             'waktu_kunjungan' => $request->waktu_kunjungan, // save waktu_kunjungan
             'no_antrian' => $request->no_antrian,
-            'metode_bayar_id' => $request->metode_bayar_id ?? 1,
+            'metode_bayar_id' => $request->metode_bayar_id ?? $oldVisit->metode_bayar_id ?? 1,
             'status_kunjungan' => 0,
-            'jenis_kunjungan' => 1,
+            'jenis_kunjungan' => $jenis,
+            'user_id' => Auth::id(),
+        ]);
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => 'RSP' . $customId,
+            'catatan_dokter' => null,
         ]);
 
         return response()->json(['message' => 'Berhasil menjadwalkan ulang pasien.']);
@@ -2151,7 +2284,7 @@ class RawatJalanController extends Controller
             'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
             'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
             'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
-            'rencana_vaksin' => 'nullable|string|max:255',
+            'rencana_vaksin' => 'required|string|max:255',
             'catatan' => 'nullable|string|max:1000',
         ]);
 
@@ -2188,9 +2321,25 @@ class RawatJalanController extends Controller
                 ScreeningVaksin::create($payload);
             }
 
+            // Vaksin visit: continue to the next step (asesmen perawat if still missing, else the Vaksin page)
+            $nextUrl = null;
+            $nextLabel = null;
+            $visitation = Visitation::find($request->visitation_id);
+            if ($visitation && (int) $visitation->jenis_kunjungan === Visitation::TYPE_VAKSIN) {
+                if (empty($visitation->status_dokumen)) {
+                    $nextUrl = route('erm.asesmenperawat.create', $visitation->id);
+                    $nextLabel = 'asesmen perawat';
+                } else {
+                    $nextUrl = route('erm.vaksin.create', $visitation->id);
+                    $nextLabel = 'halaman vaksin';
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Data screening vaksin berhasil disimpan.',
+                'next_url' => $nextUrl,
+                'next_label' => $nextLabel,
             ]);
         } catch (\Exception $e) {
             Log::error('Screening Vaksin Error: ' . $e->getMessage());
@@ -2241,7 +2390,7 @@ class RawatJalanController extends Controller
             'transfusi_darah_atau_imunoglobulin' => 'required|in:ya,tidak',
             'hamil_atau_rencana_hamil' => 'required|in:ya,tidak',
             'vaksinasi_4_minggu_terakhir' => 'required|in:ya,tidak',
-            'rencana_vaksin' => 'nullable|string|max:255',
+            'rencana_vaksin' => 'required|string|max:255',
             'catatan' => 'nullable|string|max:1000',
         ]);
 
@@ -2296,7 +2445,7 @@ class RawatJalanController extends Controller
 
         $query = Visitation::query()
             ->with(['pasien', 'dokter'])
-            ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5]);
+            ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         // Status filter
         if ($status && $status !== 'total') {

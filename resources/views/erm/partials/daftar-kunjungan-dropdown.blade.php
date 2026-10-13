@@ -20,6 +20,10 @@
         ['jenis' => 'produk', 'icon' => 'fas fa-shopping-bag', 'text' => 'Produk dan Obat'],
         ['jenis' => 'event', 'icon' => 'fas fa-calendar-alt', 'text' => 'Event'],
         ['jenis' => 'marketplace', 'icon' => 'fas fa-store', 'text' => 'Marketplace'],
+        ['jenis' => 'reseller', 'icon' => 'fas fa-boxes', 'text' => 'Reseller'],
+        ['jenis' => 'slimming', 'icon' => 'fas fa-weight', 'text' => 'Slimming'],
+        ['jenis' => 'vaksin', 'icon' => 'fas fa-syringe', 'text' => 'Vaksin'],
+        ['jenis' => 'mcu', 'icon' => 'fas fa-heartbeat', 'text' => 'MCU'],
     ];
 @endphp
 <div class="btn-group" role="group">

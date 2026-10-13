@@ -22,7 +22,7 @@ class StatisticController extends Controller
         $dokterId = $request->dokter_id;
 
         $applyFilters = function ($query) use ($startDate, $endDate, $klinikId, $dokterId) {
-            $query->whereIn('v.jenis_kunjungan', [1, 2])
+            $query->whereIn('v.jenis_kunjungan', [1, 2, 5, 6, 7, 8, 9])
                 ->whereIn('v.status_kunjungan', [1, 2])
                 ->whereBetween('v.tanggal_visitation', [$startDate, $endDate]);
             if ($klinikId) {

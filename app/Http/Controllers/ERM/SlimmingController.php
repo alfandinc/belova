@@ -23,6 +23,15 @@ class SlimmingController extends Controller
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
+
+        // Slimming visit: opens once the perawat's asesmen is done
+        if ($blockers = $visitation->pendingServiceSteps()) {
+            return view('erm.partials.service-blocked', array_merge(
+                ['visitation' => $visitation, 'serviceLabel' => 'Slimming', 'blockers' => $blockers],
+                $pasienData,
+                $createKunjunganData
+            ));
+        }
         $riwayatTindakanOptions = $visitation->riwayatTindakan()
             ->with('tindakan')
             ->whereHas('tindakan', function ($query) {
@@ -94,6 +103,11 @@ class SlimmingController extends Controller
         ]);
 
         $visitation = Visitation::findOrFail($data['visitation_id']);
+        if ($blockers = $visitation->pendingServiceSteps()) {
+            return redirect()
+                ->route('erm.slimming.create', $visitation->id)
+                ->withErrors(['visitation_id' => 'Lengkapi dulu: ' . implode(' dan ', $blockers) . '.']);
+        }
         $pasien = $visitation->pasien;
         $usia = $data['usia'] ?? $this->calculateAge($pasien?->tanggal_lahir);
         $baseWeight = $data['base_weight'] ?? $data['bb'] ?? null;

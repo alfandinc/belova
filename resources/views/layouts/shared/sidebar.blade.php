@@ -132,6 +132,8 @@
     @include('partials.payroll_password_modal')
 @endif
 
+@include('partials.daily_journal_reminder')
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     // Jadwal viewer is fetched on first use (it is ~30KB of markup + script nobody needs on most page views)
@@ -147,6 +149,28 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             jadwalLoading.done(function () { if (window.belovaOpenJadwal) window.belovaOpenJadwal(); });
         });
+
+        // Daily Journal is a modal too, loaded the same way
+        var journalLoading = null;
+        var openJournal = window.belovaJournalOpen = function (options) {
+            if (window.belovaOpenJournal) { window.belovaOpenJournal(options); return; }
+            if (!journalLoading) {
+                // Versioned URL: the browser keeps the markup between pages (see DailyJournalController::modal)
+                journalLoading = window.jQuery.ajax({ url: @json(route('daily-journal.modal', ['v' => \App\Http\Controllers\DailyJournalController::modalVersion()])), cache: true })
+                    .done(function (html) { window.jQuery('body').append(html); })
+                    .fail(function () { journalLoading = null; });
+            }
+            journalLoading.done(function () { if (window.belovaOpenJournal) window.belovaOpenJournal(options); });
+        };
+        window.jQuery(document).on('click', '.js-open-journal, a[href=' + JSON.stringify(@json(route('daily-journal.index'))) + ']', function (e) {
+            e.preventDefault();
+            openJournal();
+        });
+        // Old /daily-journal links land on the dashboard with ?journal=1
+        if (/[?&]journal=1(&|$)/.test(window.location.search)) {
+            window.history.replaceState({}, '', window.location.pathname + window.location.search.replace(/([?&])journal=1(&|$)/, '$1').replace(/[?&]$/, '') + window.location.hash);
+            openJournal();
+        }
     }
 
     var sidenav = document.getElementById('belovaSidenav');

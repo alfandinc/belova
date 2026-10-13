@@ -41,7 +41,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="demam_badan_panas_tidak" name="demam_badan_panas" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="demam_badan_panas_tidak" name="demam_badan_panas" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="demam_badan_panas_tidak"></label>
                                         </div>
                                     </td>
@@ -57,7 +57,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="batuk_pilek_tidak" name="batuk_pilek" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="batuk_pilek_tidak" name="batuk_pilek" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="batuk_pilek_tidak"></label>
                                         </div>
                                     </td>
@@ -73,7 +73,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="sesak_nafas_tidak" name="sesak_nafas" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="sesak_nafas_tidak" name="sesak_nafas" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="sesak_nafas_tidak"></label>
                                         </div>
                                     </td>
@@ -89,7 +89,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="kontak_covid_tidak" name="kontak_covid" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="kontak_covid_tidak" name="kontak_covid" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="kontak_covid_tidak"></label>
                                         </div>
                                     </td>
@@ -105,7 +105,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="perjalanan_luar_negeri_tidak" name="perjalanan_luar_negeri" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="perjalanan_luar_negeri_tidak" name="perjalanan_luar_negeri" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="perjalanan_luar_negeri_tidak"></label>
                                         </div>
                                     </td>
@@ -138,7 +138,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="riwayat_perjalanan_tidak" name="riwayat_perjalanan" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="riwayat_perjalanan_tidak" name="riwayat_perjalanan" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="riwayat_perjalanan_tidak"></label>
                                         </div>
                                     </td>
@@ -154,7 +154,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="kontak_erat_covid_tidak" name="kontak_erat_covid" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="kontak_erat_covid_tidak" name="kontak_erat_covid" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="kontak_erat_covid_tidak"></label>
                                         </div>
                                     </td>
@@ -170,7 +170,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="faskes_covid_tidak" name="faskes_covid" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="faskes_covid_tidak" name="faskes_covid" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="faskes_covid_tidak"></label>
                                         </div>
                                     </td>
@@ -186,7 +186,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="kontak_hewan_tidak" name="kontak_hewan" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="kontak_hewan_tidak" name="kontak_hewan" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="kontak_hewan_tidak"></label>
                                         </div>
                                     </td>
@@ -202,7 +202,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="riwayat_demam_tidak" name="riwayat_demam" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="riwayat_demam_tidak" name="riwayat_demam" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="riwayat_demam_tidak"></label>
                                         </div>
                                     </td>
@@ -218,7 +218,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="riwayat_kontak_luar_negeri_tidak" name="riwayat_kontak_luar_negeri" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="riwayat_kontak_luar_negeri_tidak" name="riwayat_kontak_luar_negeri" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="riwayat_kontak_luar_negeri_tidak"></label>
                                         </div>
                                     </td>
@@ -251,7 +251,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="riwayat_pengobatan_tb_tidak" name="riwayat_pengobatan_tb" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="riwayat_pengobatan_tb_tidak" name="riwayat_pengobatan_tb" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="riwayat_pengobatan_tb_tidak"></label>
                                         </div>
                                     </td>
@@ -267,7 +267,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="sedang_pengobatan_tb_tidak" name="sedang_pengobatan_tb" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="sedang_pengobatan_tb_tidak" name="sedang_pengobatan_tb" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="sedang_pengobatan_tb_tidak"></label>
                                         </div>
                                     </td>
@@ -283,7 +283,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="batuk_demam_tidak" name="batuk_demam" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="batuk_demam_tidak" name="batuk_demam" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="batuk_demam_tidak"></label>
                                         </div>
                                     </td>
@@ -299,7 +299,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="nafsu_makan_menurun_tidak" name="nafsu_makan_menurun" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="nafsu_makan_menurun_tidak" name="nafsu_makan_menurun" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="nafsu_makan_menurun_tidak"></label>
                                         </div>
                                     </td>
@@ -315,7 +315,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="bb_turun_tidak" name="bb_turun" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="bb_turun_tidak" name="bb_turun" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="bb_turun_tidak"></label>
                                         </div>
                                     </td>
@@ -331,7 +331,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="keringat_malam_tidak" name="keringat_malam" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="keringat_malam_tidak" name="keringat_malam" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="keringat_malam_tidak"></label>
                                         </div>
                                     </td>
@@ -347,7 +347,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="sesak_nafas_tb_tidak" name="sesak_nafas_tb" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="sesak_nafas_tb_tidak" name="sesak_nafas_tb" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="sesak_nafas_tb_tidak"></label>
                                         </div>
                                     </td>
@@ -363,7 +363,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="kontak_erat_tb_tidak" name="kontak_erat_tb" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="kontak_erat_tb_tidak" name="kontak_erat_tb" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="kontak_erat_tb_tidak"></label>
                                         </div>
                                     </td>
@@ -379,7 +379,7 @@
                                     </td>
                                     <td class="text-center align-middle">
                                         <div class="custom-control custom-radio">
-                                            <input type="radio" id="hasil_rontgen_tidak" name="hasil_rontgen" value="tidak" class="custom-control-input" required checked>
+                                            <input type="radio" id="hasil_rontgen_tidak" name="hasil_rontgen" value="tidak" class="custom-control-input" required>
                                             <label class="custom-control-label" for="hasil_rontgen_tidak"></label>
                                         </div>
                                     </td>

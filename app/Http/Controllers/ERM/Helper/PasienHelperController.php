@@ -19,6 +19,7 @@ class PasienHelperController
 
         $tanggal_lahir = $pasien->tanggal_lahir;
         $usia = '-';
+        $usiaLengkap = '-';
 
         if ($tanggal_lahir) {
             $dob = Carbon::parse($tanggal_lahir);
@@ -35,18 +36,28 @@ class PasienHelperController
             $years = (int) $years;
             $months = (int) $months;
             $days = (int) $days;
-            // Format hasil usia
-            $usia = "$years tahun $months bulan $days hari";
+            $usiaLengkap = "$years tahun $months bulan $days hari";
+            // Short form: months / days only matter for small children
+            $usia = match (true) {
+                $years >= 2 => "$years tahun",
+                $years === 1 => $months ? "1 tahun $months bulan" : '1 tahun',
+                $months > 0 => "$months bulan $days hari",
+                default => "$days hari",
+            };
         }
 
-
-        // Find last visit date (excluding current visit) with status_kunjungan = 2
-        $lastVisit = Visitation::where('pasien_id', $pasien->id)
+        // Last completed clinical visit before this one (Konsultasi / Slimming / Vaksin / MCU; not a product purchase).
+        // Raw Y-m-d: a translated date ("05 Januari 2026") can't be parsed back by Carbon.
+        $currentDate = $visitation->tanggal_visitation;
+        $previousVisits = Visitation::where('pasien_id', $pasien->id)
             ->where('id', '!=', $visitationId)
             ->where('status_kunjungan', 2)
-            ->latest('tanggal_visitation')
-            ->first();
-        $lastVisitDate = $lastVisit ? Carbon::parse($lastVisit->tanggal_visitation)->translatedFormat('d F Y') : '-';
+            ->whereIn('jenis_kunjungan', Visitation::CLINICAL_TYPES)
+            ->whereDate('tanggal_visitation', '<=', $currentDate);
+        $lastVisit = (clone $previousVisits)->latest('tanggal_visitation')->first(['tanggal_visitation']);
+        $lastVisitDate = $lastVisit ? Carbon::parse($lastVisit->tanggal_visitation)->toDateString() : null;
+        // This visit's number among the patient's clinical visits (1 = first visit)
+        $visitNumber = (clone $previousVisits)->count() + 1;
 
         // Find last lab for this patient (from all visitations)
         $lastLab = null;
@@ -74,8 +85,8 @@ class PasienHelperController
             ->with('zataktif') // Eager load zataktif relationship
             ->get();
 
-        // Extract zataktif IDs and names
-        $alergiNames = $alergiPasien->pluck('zataktif.nama')->toArray();
+        // Extract zataktif IDs and names (rows with only a kata kunci have no zat aktif name)
+        $alergiNames = $alergiPasien->pluck('zataktif.nama')->filter()->values()->toArray();
         $alergiIds = $alergiPasien->pluck('zataktif_id')->toArray();
 
         $firstAlergi = $alergiPasien->first();
@@ -88,6 +99,8 @@ class PasienHelperController
         return [
             'pasien' => $visitation->pasien,
             'usia' => $usia,
+            'usiaLengkap' => $usiaLengkap,
+            'visitNumber' => $visitNumber,
             'alergiNames' => $alergiNames,
             'alergiIds' => $alergiIds,
             'zatAktif' => $zatAktif,
@@ -97,7 +110,6 @@ class PasienHelperController
             'alergiList' => $alergiList,
             'lastLab' => $lastLab,
             'lastLabVisitDate' => $lastLabVisitDate,
-            'lastLabPermintaanList' => $lastLabPermintaanList,
-        ];
+            'lastLabPermintaanList' => $lastLabPermintaanList,        ];
     }
 }

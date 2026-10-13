@@ -131,9 +131,12 @@ class RiwayatKunjunganController extends Controller
 
             if ($request->filled('jenis_kunjungan')) {
                 $jenis = $request->get('jenis_kunjungan');
-                // In case jenis_kunjungan is stored in a column named 'jenis_kunjungan'
-                // or 'jenis_kunjungan' uses specific codes, adjust mapping if needed.
-                $kunjungan->where('jenis_kunjungan', $jenis);
+                if ($jenis === 'klinis') {
+                    // Konsultasi + Slimming / Vaksin / MCU (visits with asesmen & CPPT)
+                    $kunjungan->whereIn('jenis_kunjungan', Visitation::CLINICAL_TYPES);
+                } else {
+                    $kunjungan->where('jenis_kunjungan', $jenis);
+                }
             }
 
             return DataTables::of($kunjungan)
@@ -175,8 +178,8 @@ class RiwayatKunjunganController extends Controller
                     // If jenis_kunjungan is Beli Produk (2) or Laboratorium (3) then only show the specific button(s)
                     $jenis = isset($row->jenis_kunjungan) ? (int)$row->jenis_kunjungan : null;
 
-                    if ($jenis === 2) {
-                        // Beli Produk -> show only Resep
+                    if ($jenis === 2 || $jenis === Visitation::TYPE_RESELLER) {
+                        // Beli Produk / Reseller -> show only Resep
                         try {
                             $resepUrl = route('erm.eresep.create', $row->id);
                             return '<a href="' . $resepUrl . '" class="btn btn-sm btn-success" target="_blank">Resep</a>';
@@ -202,6 +205,12 @@ class RiwayatKunjunganController extends Controller
                     $buttons .= '<a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a> ';
                     $buttons .= '<a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary dokumen-btn" target="_blank">Dokumen</a> ';
                     $buttons .= $diagnosisBtn;
+
+                    // Slimming / Vaksin / MCU: also their own page
+                    $servicePage = Visitation::servicePage($jenis, (string) $row->id);
+                    if ($servicePage) {
+                        $buttons .= ' <a href="' . $servicePage['url'] . '" class="btn btn-sm text-white" style="background:#6f42c1;" target="_blank">' . e($servicePage['label']) . '</a>';
+                    }
 
                     return $buttons;
                 })

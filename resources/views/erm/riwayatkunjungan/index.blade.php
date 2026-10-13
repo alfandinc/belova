@@ -79,9 +79,16 @@
                             <label for="filter_jenis_kunjungan">Jenis Kunjungan</label>
                             <select id="filter_jenis_kunjungan" class="form-control select2">
                                 <option value="">Semua</option>
+                                <option value="klinis">Klinis (Konsultasi, Slimming, Vaksin, MCU)</option>
                                 <option value="1">Konsultasi Dokter</option>
                                 <option value="2">Beli Produk</option>
                                 <option value="3">Laboratorium</option>
+                                <option value="4">Event</option>
+                                <option value="5">Marketplace</option>
+                                <option value="6">Reseller</option>
+                                <option value="7">Slimming</option>
+                                <option value="8">Vaksin</option>
+                                <option value="9">MCU</option>
                             </select>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
@@ -121,9 +128,9 @@
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
 
-    // Set default filters: status_kunjungan = 2, jenis_kunjungan = 1
+    // Set default filters: status_kunjungan = 2, jenis kunjungan klinis (Konsultasi, Slimming, Vaksin, MCU)
     $('#filter_status_kunjungan').val('2').trigger('change');
-    $('#filter_jenis_kunjungan').val('1').trigger('change');
+    $('#filter_jenis_kunjungan').val('klinis').trigger('change');
 
     var riwayatTable = $('#riwayat-table').DataTable({
         processing: true,

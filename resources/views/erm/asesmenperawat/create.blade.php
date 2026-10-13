@@ -4,22 +4,6 @@
     @include('layouts.erm.navbardetail')
 @endsection
 @section('content')
-<style>
-    /* Sembunyikan form wizard sebelum siap */
-    #asesmenperawat-form {
-        visibility: hidden;
-    }
-
-    /* Tampilkan setelah wizard di-init */
-    #asesmenperawat-form.wizard-initialized {
-        visibility: visible;
-    }
-
-    .is-invalid {
-    border-color: red !important;    
-    }
-
-</style>
 
 @include('erm.partials.modal-alergipasien')
 
@@ -117,474 +101,303 @@
     </div>
     @endif
                 
-    <div class="card">
-        <div class="card-body">
-            <form id="asesmenperawat-form" class="form-wizard-wrapper" action="{{ route('erm.asesmenperawat.store') }}" method="POST">
-                @csrf
-                <input type="text" id="visitation_id" name="visitation_id" class="form-control mr-2" value="{{ $visitation->id }}" hidden>
+    @include('erm.partials.form-theme')
+    @php
+        $radioChecked = fn (string $field, string $value) => old($field, $dataperawat->$field ?? '') == $value ? 'checked' : '';
+        if (old('masalah_keperawatan')) {
+            $oldMasalah = old('masalah_keperawatan');
+        } elseif (isset($dataperawat->masalah_keperawatan)) {
+            $oldMasalah = is_string($dataperawat->masalah_keperawatan)
+                ? json_decode($dataperawat->masalah_keperawatan, true)
+                : $dataperawat->masalah_keperawatan;
+        } else {
+            $oldMasalah = [];
+        }
+        $oldMasalah = (array) $oldMasalah;
+        $lainLainText = old('lain_lain_text', $dataperawat->lain_lain_text ?? '');
+        // Masalah keperawatan per domain (value = stored text, id = checkbox id)
+        $masalahGroups = [
+            'Respirasi' => ['aspirasi' => 'Risiko Aspirasi'],
+            'Sirkulasi' => ['perfusi' => 'Risiko Perfusi Perifer Tidak Efektif'],
+            'Nutrisi dan Cairan' => ['diare' => 'Diare', 'ikterik' => 'Ikterik Neonatus', 'glukosa' => 'Ketidakstabilan Kadar Glukosa Darah'],
+            'Eliminasi' => ['konstipasi' => 'Konstipasi', 'retensi' => 'Retensi Urin'],
+            'Reproduksi dan Seksualitas' => ['persalinan' => 'Kesiapan Persalinan'],
+            'Nyeri dan Kenyamanan' => ['rasa_nyaman' => 'Gangguan Rasa Nyaman', 'pasca_partum' => 'Ketidaknyamanan Pasca Partum', 'nausea' => 'Nausea', 'nyeri_akut' => 'Nyeri Akut', 'nyeri_kronis' => 'Nyeri Kronis'],
+            'Integritas Ego' => ['ansietas' => 'Ansietas'],
+            'Pertumbuhan dan Perkembangan' => ['tumbuh_kembang' => 'Gangguan Tumbuh Kembang'],
+            'Penyuluhan dan Pembelajaran' => ['defisit_pengetahuan' => 'Defisit Pengetahuan'],
+            'Interaksi Sosial' => ['komunikasi_verbal' => 'Gangguan Komunikasi Verbal'],
+            'Keamanan dan Proteksi' => ['hiper_hipo' => 'Hipertemia / Hipotermia', 'pasca_bedah' => 'Perlambatan Pemulihan Pasca Bedah', 'cedera' => 'Risiko Cedera', 'jatuh' => 'Risiko Jatuh'],
+        ];
+    @endphp
 
-                <h3>Pengkajian Keperawatan</h3>
-                    <fieldset>
-                        <hr>
-                        <div class="col-md-12">                           
-                            <label><strong>1. Keluhan Utama Pasien</strong></label>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-12">
-                                
-                            </div>
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label for="keluhan_utama">Keluhan Utama</label>
-                                    <div class="form-group">
-                                    <select class="form-control select2" id="keluhan_utama_select" name="keluhan_utama_select">
-                                        <option value="">Pilih Keluhan Utama</option>
-                                    </select>
-                                </div>
-                                    
-                                    <textarea class="form-control" id="keluhan_utama" name="keluhan_utama" rows="3">{{ old('keluhan_utama', $dataperawat->keluhan_utama ?? 'Pasien mengeluhkan') }}</textarea>
-                                </div>
-                            </div>
-                            <div class="col-md-12">
-                                <div class="form-group">
-                                    <label for="alasan_kunjungan">Alasan Kunjungan</label>
-                                    <input type="text" class="form-control" id="alasan_kunjungan" name="alasan_kunjungan" value="{{ old('alasan_kunjungan', $dataperawat->alasan_kunjungan ?? '') }}">
-                                </div>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="col-md-12">
-                            <label><strong>2. Keadaan Umum Pasien</strong></label>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <div class="form-group">
-                                        <label for="kesadaran">Kesadaran</label>
-                                        <input type="text" class="form-control" id="kesadaran" name="kesadaran" value="{{ old('kesadaran', $dataperawat->kesadaran ?? '') }}">
-                                    </div>                              
-                                </div> 
-                            </div> 
-                            <div class="col-md-6">
-                                <div class="form-row">
-                                    <div class="form-group col-md-6 col-lg-3">
-                                        <label for="td">TD (mmHg)</label>
-                                        <input type="text" class="form-control" id="td" name="td" placeholder="Contoh: 120/80" value="{{ old('td', $dataperawat->td ?? '') }}">
-                                    </div>
-                                    <div class="form-group col-md-6 col-lg-3">
-                                        <label for="nadi">Nadi (x/mnt)</label>
-                                        <input type="text" class="form-control" id="nadi" name="nadi" placeholder="Contoh: 75" value="{{ old('nadi', $dataperawat->nadi ?? '') }}">
-                                    </div>
-                                    <div class="form-group col-md-6 col-lg-3">
-                                        <label for="rr">RR (x/mnt)</label>
-                                        <input type="text" class="form-control" id="rr" name="rr" placeholder="Contoh: 18" value="{{ old('rr', $dataperawat->rr ?? '') }}">
-                                    </div>
-                                    <div class="form-group col-md-6 col-lg-3">
-                                        <label for="suhu">Suhu (°C)</label>
-                                        <input type="text" class="form-control" id="suhu" name="suhu" placeholder="Contoh: 36.5" value="{{ old('suhu', $dataperawat->suhu ?? '') }}">
-                                    </div>
-                                </div>
-                            </div> 
-                        </div>
-                        <div class="row">
-                            <!-- Left Side: Input -->
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="riwayat_psikososial">Riwayat Psikososial</label>
-                                    <input type="text" class="form-control" id="riwayat_psikososial" name="riwayat_psikososial" value="{{ old('riwayat_psikososial', $dataperawat->riwayat_psikososial ?? '') }}">
-                                </div>
-                            </div>
+    <form id="asesmenperawat-form" class="erm-form" action="{{ route('erm.asesmenperawat.store') }}" method="POST" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
+        @csrf
+        <input type="hidden" id="visitation_id" name="visitation_id" value="{{ $visitation->id }}">
 
-                            <!-- Right Side: Radio Buttons -->
-                            <div class="col-md-6 d-flex align-items-center">
-                                <label class="mr-3 mb-0" for="hubunganBaik">Hubungan dengan keluarga</label>
-                                <div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="hubungan_keluarga" id="hubunganBaik" value="Baik"
-                                            {{ old('hubungan_keluarga', $dataperawat->hubungan_keluarga ?? '') == 'Baik' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="hubunganBaik">Baik</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="hubungan_keluarga" id="hubunganTidakBaik" value="Tidak Baik"
-                                            {{ old('hubungan_keluarga', $dataperawat->hubungan_keluarga ?? '') == 'Tidak Baik' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="hubunganTidakBaik">Tidak Baik</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>     
-                        <hr>
-                        <div class="col-md-12">
-                            <label><strong>3. Skrining Gizi Pasien</strong></label>
-                        </div>
-                        <div class="row">
-                            
-                            
-                            <div class="col-md-12">
-                                <label>Asesmen Nutrisi Pasien Dewasa <em>(Malnutrition Universal Scoring Treatment)</em></label>
-                            </div>
-
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label for="tb">TB :</label>
-                                    <input type="text" class="form-control" id="tb" name="tb" placeholder="Cm" value="{{ old('tb', $dataperawat->tb ?? '') }}">
-                                </div>
-                            </div>
-
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label for="bb">BB :</label>
-                                    <input type="text" class="form-control" id="bb" name="bb" placeholder="Kg" value="{{ old('bb', $dataperawat->bb ?? '') }}">
-                                </div>
-                            </div>
-
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label for="lla">LLA :</label>
-                                    <input type="text" class="form-control" id="lla" name="lla" placeholder="Cm" value="{{ old('lla', $dataperawat->lla ?? '') }}">
-                                </div>
-                            </div>
-
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="diet">Diet :</label>
-                                    <input type="text" class="form-control" id="diet" name="diet" value="{{ old('diet', $dataperawat->diet ?? '') }}">
-                                </div>
-                            </div>
-
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="porsi">Porsi :</label>
-                                    <input type="text" class="form-control" id="porsi" name="porsi" value="{{ old('porsi', $dataperawat->porsi ?? '') }}">
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Tabel Penilaian dan Skor -->
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <table class="table table-bordered">
-                                    <thead class="text-center">
-                                        <tr>
-                                            <th>Penilaian</th>
-                                            <th style="width: 150px;">Skor</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>IMT</td>
-                                            <td><input type="text" class="form-control" name="imt" value="{{ old('imt', $dataperawat->imt ?? '') }}"></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Presentase Kehilangan BB yang tidak diharapkan</td>
-                                            <td><input type="text" class="form-control" name="presentase" value="{{ old('presentase', $dataperawat->presentase ?? '') }}"></td>
-                                        </tr>
-                                        <tr>
-                                            <td>Efek Dari Penyakit Yang Diderita / 5 Hari Tidak Mendapat Asupan Nutrisi</td>
-                                            <td><input type="text" class="form-control" name="efek" value="{{ old('efek', $dataperawat->efek ?? '') }}"></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="col-md-12">
-                            <label><strong>4. Skrining Nyeri Pasien</strong></label>
-                        </div> 
-                        <div class="row">
-                            <div class="col-md-12">
-                                
-                                <div class="form-group">
-                                    <label>Nyeri:</label>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="nyeri" id="nyeri_tidak" value="Tidak"
-                                            {{ old('nyeri', $dataperawat->nyeri ?? '') == 'Tidak' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="nyeri_tidak">Tidak</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="nyeri" id="nyeri_ya" value="Ya"
-                                            {{ old('nyeri', $dataperawat->nyeri ?? '') == 'Ya' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="nyeri_ya">Ya</label>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>Asesmen Nyeri Dengan:</label>
-                                    <div class="row">
-                                        <div class="col-md-2">
-                                            <label for="p">P:</label>
-                                            <input type="text" class="form-control" id="p" name="p" value="{{ old('p', $dataperawat->p ?? '') }}">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="q">Q:</label>
-                                            <input type="text" class="form-control" id="q" name="q" value="{{ old('q', $dataperawat->q ?? '') }}">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="r">R:</label>
-                                            <input type="text" class="form-control" id="r" name="r" value="{{ old('r', $dataperawat->r ?? '') }}">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label for="t">T:</label>
-                                            <input type="text" class="form-control" id="t" name="t" value="{{ old('t', $dataperawat->t ?? '') }}">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label>Onset:</label>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="onset" id="onset_akut" value="Akut"
-                                            {{ old('onset', $dataperawat->onset ?? '') == 'Akut' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="onset_akut">Akut</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="onset" id="onset_kronik" value="Kronik"
-                                            {{ old('onset', $dataperawat->onset ?? '') == 'Kronik' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="onset_kronik">Kronik</label>
-                                    </div>
-                                </div>
-
-                                <div class="form-group row">
-                                    <div class="col-md-2">
-                                        <label for="skor">Skor:</label>
-                                        <input type="text" class="form-control" id="skor" name="skor" value="{{ old('skor', $dataperawat->skor ?? '') }}">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label for="kategori">Kategori:</label>
-                                        <input type="text" class="form-control" id="kategori" name="kategori" value="{{ old('kategori', $dataperawat->kategori ?? '') }}">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="col-md-12">
-                            <label><strong>5. Risiko Jatuh Rawat Jalan (Get Up And Go)</strong></label>
-                        </div>                            
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <div class="form-group mt-2">
-                                    <div class="form-check form-check-inline ms-3">
-                                        <input class="form-check-input" type="radio" name="kategori_risja" id="tidak_beresiko" value="tidak_beresiko"
-                                            {{ old('kategori_risja', $dataperawat->kategori_risja ?? '') == 'tidak_beresiko' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="tidak_beresiko">Tdk Beresiko (tdk ditemukan a dan b)</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="kategori_risja" id="risiko_rendah" value="risiko_rendah"
-                                            {{ old('kategori_risja', $dataperawat->kategori_risja ?? '') == 'risiko_rendah' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="risiko_rendah">Risiko Rendah (ditemukan a atau b)</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="kategori_risja" id="risiko_tinggi" value="risiko_tinggi"
-                                            {{ old('kategori_risja', $dataperawat->kategori_risja ?? '') == 'risiko_tinggi' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="risiko_tinggi">Risiko Tinggi (a dan b ditemukan)</label>
-                                    </div>
-                                </div>
-                                
-                                
-                            </div>
-                        </div>
-                        <hr>
-                        <div class="col-md-12">
-                            <label><strong>6. Status Psikologis</strong></label>
-                        </div> 
-                        <div class="row mt-3">
-                            <div class="col-md-12">
-                                <div class="form-group mt-2">
-                                    <div class="form-check form-check-inline ms-3">
-                                        <input class="form-check-input" type="radio" name="status_fungsional" id="tenang" value="tenang"
-                                            {{ old('status_fungsional', $dataperawat->status_fungsional ?? '') == 'tenang' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="tenang">Tenang</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="status_fungsional" id="cemas" value="cemas"
-                                            {{ old('status_fungsional', $dataperawat->status_fungsional ?? '') == 'cemas' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="cemas">Cemas</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="status_fungsional" id="takut" value="takut"
-                                            {{ old('status_fungsional', $dataperawat->status_fungsional ?? '') == 'takut' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="takut">Takut</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="status_fungsional" id="marah" value="marah"
-                                            {{ old('status_fungsional', $dataperawat->status_fungsional ?? '') == 'marah' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="marah">Marah</label>
-                                    </div>
-                                    <div class="form-check form-check-inline">
-                                        <input class="form-check-input" type="radio" name="status_fungsional" id="sedih" value="sedih"
-                                            {{ old('status_fungsional', $dataperawat->status_fungsional ?? '') == 'sedih' ? 'checked' : '' }}>
-                                        <label class="form-check-label" for="sedih">Sedih</label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>              
-                    </fieldset>       
-                <h3>Masalah Keperawatan</h3>
-                    <fieldset>
-                        @php
-    if (old('masalah_keperawatan')) {
-        $oldMasalah = old('masalah_keperawatan');
-    } elseif (isset($dataperawat->masalah_keperawatan)) {
-        $oldMasalah = is_string($dataperawat->masalah_keperawatan)
-            ? json_decode($dataperawat->masalah_keperawatan, true)
-            : $dataperawat->masalah_keperawatan;
-    } else {
-        $oldMasalah = [];
-    }
-
-    $lainLainText = old('lain_lain_text', $dataperawat->lain_lain_text ?? '');
-@endphp
-
-<div class="row mt-3">
-    <div class="col-md-12">
-        <div class="row mt-2">
-            <div class="col-md-4">
-                <label><strong>Respirasi</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Risiko Aspirasi" id="aspirasi"
-                        {{ in_array('Risiko Aspirasi', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="aspirasi">Risiko Aspirasi</label>
+        {{-- 1. Keluhan --}}
+        <section class="erm-section">
+            <div class="erm-section-head">
+                <span class="erm-section-num">1</span>
+                <h4 class="erm-section-title">Keluhan Utama<span class="erm-section-sub">Pilih dari daftar untuk menambahkan ke keluhan</span></h4>
+            </div>
+            <div class="row">
+                <div class="col-lg-7">
+                    <div class="form-group">
+                        <label for="keluhan_utama">Keluhan Utama</label>
+                        <select class="form-control select2" id="keluhan_utama_select" name="keluhan_utama_select">
+                            <option value="">Cari keluhan utama...</option>
+                        </select>
+                        <textarea class="form-control mt-2" id="keluhan_utama" name="keluhan_utama" rows="3">{{ old('keluhan_utama', $dataperawat->keluhan_utama ?? 'Pasien mengeluhkan') }}</textarea>
+                    </div>
                 </div>
-
-                <label><strong>Sirkulasi</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Risiko Perfusi Perifer Tidak Efektif" id="perfusi"
-                        {{ in_array('Risiko Perfusi Perifer Tidak Efektif', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="perfusi">Risiko Perfusi Perifer Tidak Efektif</label>
-                </div>
-
-                <label><strong>Nutrisi dan Cairan</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Diare" id="diare"
-                        {{ in_array('Diare', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="diare">Diare</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Ikterik Neonatus" id="ikterik"
-                        {{ in_array('Ikterik Neonatus', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="ikterik">Ikterik Neonatus</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Ketidakstabilan Kadar Glukosa Darah" id="glukosa"
-                        {{ in_array('Ketidakstabilan Kadar Glukosa Darah', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="glukosa">Ketidakstabilan Kadar Glukosa Darah</label>
-                </div>
-
-                <label><strong>Eliminasi</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Konstipasi" id="konstipasi"
-                        {{ in_array('Konstipasi', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="konstipasi">Konstipasi</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Retensi Urin" id="retensi"
-                        {{ in_array('Retensi Urin', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="retensi">Retensi Urin</label>
-                </div>
-
-                <label><strong>Reproduksi dan Seksualitas</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Kesiapan Persalinan" id="persalinan"
-                        {{ in_array('Kesiapan Persalinan', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="persalinan">Kesiapan Persalinan</label>
+                <div class="col-lg-5">
+                    <div class="form-group">
+                        <label for="alasan_kunjungan">Alasan Kunjungan</label>
+                        <input type="text" class="form-control" id="alasan_kunjungan" name="alasan_kunjungan" value="{{ old('alasan_kunjungan', $dataperawat->alasan_kunjungan ?? '') }}">
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="col-md-4">
-                <label><strong>Nyeri dan Kenyamanan</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Gangguan Rasa Nyaman" id="rasa_nyaman"
-                        {{ in_array('Gangguan Rasa Nyaman', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="rasa_nyaman">Gangguan Rasa Nyaman</label>
+        {{-- 2. Keadaan umum + tanda vital --}}
+        <section class="erm-section">
+            <div class="erm-section-head">
+                <span class="erm-section-num">2</span>
+                <h4 class="erm-section-title">Keadaan Umum &amp; Tanda Vital</h4>
+            </div>
+            <div class="row">
+                <div class="col-md-6 col-xl-4">
+                    <div class="form-group">
+                        <label for="kesadaran">Kesadaran</label>
+                        <input type="text" class="form-control" id="kesadaran" name="kesadaran" placeholder="Contoh: Compos Mentis" value="{{ old('kesadaran', $dataperawat->kesadaran ?? '') }}">
+                    </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Ketidaknyamanan Pasca Partum" id="pasca_partum"
-                        {{ in_array('Ketidaknyamanan Pasca Partum', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="pasca_partum">Ketidaknyamanan Pasca Partum</label>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <div class="form-group">
+                        <label for="td">Tekanan Darah</label>
+                        <div class="erm-unit"><input type="text" class="form-control" id="td" name="td" placeholder="120/80" value="{{ old('td', $dataperawat->td ?? '') }}"><span>mmHg</span></div>
+                    </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Nausea" id="nausea"
-                        {{ in_array('Nausea', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="nausea">Nausea</label>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <div class="form-group">
+                        <label for="nadi">Nadi</label>
+                        <div class="erm-unit"><input type="text" class="form-control" id="nadi" name="nadi" placeholder="75" value="{{ old('nadi', $dataperawat->nadi ?? '') }}"><span>x/mnt</span></div>
+                    </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Nyeri Akut" id="nyeri_akut"
-                        {{ in_array('Nyeri Akut', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="nyeri_akut">Nyeri Akut</label>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <div class="form-group">
+                        <label for="rr">Respirasi</label>
+                        <div class="erm-unit"><input type="text" class="form-control" id="rr" name="rr" placeholder="18" value="{{ old('rr', $dataperawat->rr ?? '') }}"><span>x/mnt</span></div>
+                    </div>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Nyeri Kronis" id="nyeri_kronis"
-                        {{ in_array('Nyeri Kronis', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="nyeri_kronis">Nyeri Kronis</label>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <div class="form-group">
+                        <label for="suhu">Suhu</label>
+                        <div class="erm-unit"><input type="text" class="form-control" id="suhu" name="suhu" placeholder="36.5" value="{{ old('suhu', $dataperawat->suhu ?? '') }}"><span>°C</span></div>
+                    </div>
                 </div>
-
-                <label><strong>Integritas Ego</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Ansietas" id="ansietas"
-                        {{ in_array('Ansietas', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="ansietas">Ansietas</label>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="riwayat_psikososial">Riwayat Psikososial</label>
+                        <input type="text" class="form-control" id="riwayat_psikososial" name="riwayat_psikososial" value="{{ old('riwayat_psikososial', $dataperawat->riwayat_psikososial ?? '') }}">
+                    </div>
                 </div>
-
-                <label><strong>Pertumbuhan dan Perkembangan</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Gangguan Tumbuh Kembang" id="tumbuh_kembang"
-                        {{ in_array('Gangguan Tumbuh Kembang', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="tumbuh_kembang">Gangguan Tumbuh Kembang</label>
-                </div>
-
-                <label><strong>Penyuluhan dan Pembelajaran</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Defisit Pengetahuan" id="defisit_pengetahuan"
-                        {{ in_array('Defisit Pengetahuan', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="defisit_pengetahuan">Defisit Pengetahuan</label>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label class="d-block">Hubungan dengan Keluarga</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="hubungan_keluarga" id="hubunganBaik" value="Baik" {{ $radioChecked('hubungan_keluarga', 'Baik') }}>
+                            <label class="form-check-label" for="hubunganBaik">Baik</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="hubungan_keluarga" id="hubunganTidakBaik" value="Tidak Baik" {{ $radioChecked('hubungan_keluarga', 'Tidak Baik') }}>
+                            <label class="form-check-label" for="hubunganTidakBaik">Tidak Baik</label>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="col-md-4">
-                <label><strong>Interaksi Sosial</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Gangguan Komunikasi Verbal" id="komunikasi_verbal"
-                        {{ in_array('Gangguan Komunikasi Verbal', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="komunikasi_verbal">Gangguan Komunikasi Verbal</label>
-                </div>
+        <div class="row">
+            {{-- 3. Skrining gizi --}}
+            <div class="col-xl-6">
+                <section class="erm-section">
+                    <div class="erm-section-head">
+                        <span class="erm-section-num">3</span>
+                        <h4 class="erm-section-title">Skrining Gizi<span class="erm-section-sub">Asesmen nutrisi pasien dewasa (<em>Malnutrition Universal Screening Tool</em>)</span></h4>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="form-group">
+                                <label for="tb">Tinggi Badan</label>
+                                <div class="erm-unit"><input type="text" class="form-control" id="tb" name="tb" value="{{ old('tb', $dataperawat->tb ?? '') }}"><span>cm</span></div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="form-group">
+                                <label for="bb">Berat Badan</label>
+                                <div class="erm-unit"><input type="text" class="form-control" id="bb" name="bb" value="{{ old('bb', $dataperawat->bb ?? '') }}"><span>kg</span></div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="form-group">
+                                <label for="lla">LLA</label>
+                                <div class="erm-unit"><input type="text" class="form-control" id="lla" name="lla" value="{{ old('lla', $dataperawat->lla ?? '') }}"><span>cm</span></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="diet">Diet</label>
+                                <input type="text" class="form-control" id="diet" name="diet" value="{{ old('diet', $dataperawat->diet ?? '') }}">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group">
+                                <label for="porsi">Porsi</label>
+                                <input type="text" class="form-control" id="porsi" name="porsi" value="{{ old('porsi', $dataperawat->porsi ?? '') }}">
+                            </div>
+                        </div>
+                    </div>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr><th>Penilaian</th><th style="width: 130px;">Skor</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>IMT</td><td><input type="text" class="form-control" name="imt" value="{{ old('imt', $dataperawat->imt ?? '') }}"></td></tr>
+                            <tr><td>Persentase kehilangan BB yang tidak diharapkan</td><td><input type="text" class="form-control" name="presentase" value="{{ old('presentase', $dataperawat->presentase ?? '') }}"></td></tr>
+                            <tr><td>Efek dari penyakit yang diderita / 5 hari tidak mendapat asupan nutrisi</td><td><input type="text" class="form-control" name="efek" value="{{ old('efek', $dataperawat->efek ?? '') }}"></td></tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
 
-                <label><strong>Keamanan dan Proteksi</strong></label>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Hipertemia / Hipotermia" id="hiper_hipo"
-                        {{ in_array('Hipertemia / Hipotermia', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="hiper_hipo">Hipertemia / Hipotermia</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Perlambatan Pemulihan Pasca Bedah" id="pasca_bedah"
-                        {{ in_array('Perlambatan Pemulihan Pasca Bedah', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="pasca_bedah">Perlambatan Pemulihan Pasca Bedah</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Risiko Cedera" id="cedera"
-                        {{ in_array('Risiko Cedera', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="cedera">Risiko Cedera</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Risiko Jatuh" id="jatuh"
-                        {{ in_array('Risiko Jatuh', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="jatuh">Risiko Jatuh</label>
-                </div>
+            {{-- 4. Skrining nyeri --}}
+            <div class="col-xl-6">
+                <section class="erm-section">
+                    <div class="erm-section-head">
+                        <span class="erm-section-num">4</span>
+                        <h4 class="erm-section-title">Skrining Nyeri</h4>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <label class="d-block">Nyeri</label>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="nyeri" id="nyeri_tidak" value="Tidak" {{ $radioChecked('nyeri', 'Tidak') }}>
+                                    <label class="form-check-label" for="nyeri_tidak">Tidak</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="nyeri" id="nyeri_ya" value="Ya" {{ $radioChecked('nyeri', 'Ya') }}>
+                                    <label class="form-check-label" for="nyeri_ya">Ya</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-group">
+                                <label class="d-block">Onset</label>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="onset" id="onset_akut" value="Akut" {{ $radioChecked('onset', 'Akut') }}>
+                                    <label class="form-check-label" for="onset_akut">Akut</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="onset" id="onset_kronik" value="Kronik" {{ $radioChecked('onset', 'Kronik') }}>
+                                    <label class="form-check-label" for="onset_kronik">Kronik</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="erm-subhead">Asesmen nyeri (PQRT)</div>
+                    <div class="row">
+                        <div class="col-6 col-sm-3"><div class="form-group"><label for="p">P — Provokasi</label><input type="text" class="form-control" id="p" name="p" value="{{ old('p', $dataperawat->p ?? '') }}"></div></div>
+                        <div class="col-6 col-sm-3"><div class="form-group"><label for="q">Q — Kualitas</label><input type="text" class="form-control" id="q" name="q" value="{{ old('q', $dataperawat->q ?? '') }}"></div></div>
+                        <div class="col-6 col-sm-3"><div class="form-group"><label for="r">R — Lokasi</label><input type="text" class="form-control" id="r" name="r" value="{{ old('r', $dataperawat->r ?? '') }}"></div></div>
+                        <div class="col-6 col-sm-3"><div class="form-group"><label for="t">T — Waktu</label><input type="text" class="form-control" id="t" name="t" value="{{ old('t', $dataperawat->t ?? '') }}"></div></div>
+                        <div class="col-6"><div class="form-group"><label for="skor">Skor</label><input type="text" class="form-control" id="skor" name="skor" value="{{ old('skor', $dataperawat->skor ?? '') }}"></div></div>
+                        <div class="col-6"><div class="form-group"><label for="kategori">Kategori</label><input type="text" class="form-control" id="kategori" name="kategori" value="{{ old('kategori', $dataperawat->kategori ?? '') }}"></div></div>
+                    </div>
+                </section>
+            </div>
 
-                <label><strong>Lain-lain</strong></label>
-                <div class="form-check d-flex align-items-center gap-2">
-                    <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Lain-lain" id="lain_lain"
-                        {{ in_array('Lain-lain', (array)$oldMasalah) ? 'checked' : '' }}>
-                    <label class="form-check-label" for="lain_lain">Lain-lain</label>
-                    <input type="text" name="lain_lain_text" class="form-control" style="width: 70%" placeholder="Sebutkan" value="{{ $lainLainText }}">
-                </div>
+            {{-- 5. Risiko jatuh --}}
+            <div class="col-xl-6">
+                <section class="erm-section">
+                    <div class="erm-section-head">
+                        <span class="erm-section-num">5</span>
+                        <h4 class="erm-section-title">Risiko Jatuh Rawat Jalan<span class="erm-section-sub">Get Up and Go</span></h4>
+                    </div>
+                    <div class="form-group">
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="kategori_risja" id="tidak_beresiko" value="tidak_beresiko" {{ $radioChecked('kategori_risja', 'tidak_beresiko') }}>
+                            <label class="form-check-label" for="tidak_beresiko">Tidak berisiko <small class="text-muted">(a dan b tidak ditemukan)</small></label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="kategori_risja" id="risiko_rendah" value="risiko_rendah" {{ $radioChecked('kategori_risja', 'risiko_rendah') }}>
+                            <label class="form-check-label" for="risiko_rendah">Risiko rendah <small class="text-muted">(a atau b)</small></label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="radio" name="kategori_risja" id="risiko_tinggi" value="risiko_tinggi" {{ $radioChecked('kategori_risja', 'risiko_tinggi') }}>
+                            <label class="form-check-label" for="risiko_tinggi">Risiko tinggi <small class="text-muted">(a dan b)</small></label>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            {{-- 6. Status psikologis --}}
+            <div class="col-xl-6">
+                <section class="erm-section">
+                    <div class="erm-section-head">
+                        <span class="erm-section-num">6</span>
+                        <h4 class="erm-section-title">Status Psikologis</h4>
+                    </div>
+                    <div class="form-group">
+                        @foreach (['tenang' => 'Tenang', 'cemas' => 'Cemas', 'takut' => 'Takut', 'marah' => 'Marah', 'sedih' => 'Sedih'] as $value => $label)
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status_fungsional" id="{{ $value }}" value="{{ $value }}" {{ $radioChecked('status_fungsional', $value) }}>
+                                <label class="form-check-label" for="{{ $value }}">{{ $label }}</label>
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
             </div>
         </div>
-    </div>
-</div>
 
+        {{-- 7. Masalah keperawatan --}}
+        <section class="erm-section">
+            <div class="erm-section-head">
+                <span class="erm-section-num">7</span>
+                <h4 class="erm-section-title">Masalah Keperawatan<span class="erm-section-sub">Centang semua yang sesuai</span></h4>
+            </div>
+            <div class="erm-masalah-grid">
+                @foreach ($masalahGroups as $group => $items)
+                    <div class="erm-masalah-group">
+                        <div class="erm-subhead">{{ $group }}</div>
+                        @foreach ($items as $id => $value)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="{{ $value }}" id="{{ $id }}" {{ in_array($value, $oldMasalah) ? 'checked' : '' }}>
+                                <label class="form-check-label" for="{{ $id }}">{{ $value }}</label>
+                            </div>
+                        @endforeach
+                    </div>
+                @endforeach
+                <div class="erm-masalah-group">
+                    <div class="erm-subhead">Lain-lain</div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="masalah_keperawatan[]" value="Lain-lain" id="lain_lain" {{ in_array('Lain-lain', $oldMasalah) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="lain_lain">Lain-lain</label>
+                    </div>
+                    <input type="text" name="lain_lain_text" class="form-control form-control-sm mt-1" placeholder="Sebutkan" value="{{ $lainLainText }}">
+                </div>
+            </div>
+        </section>
 
-                    </fieldset>
-            </form>
+        <div class="erm-actionbar">
+            <span class="erm-actionbar-hint"><i class="fas fa-info-circle mr-1"></i>Pastikan tanda vital dan masalah keperawatan sudah terisi.</span>
+            <button type="submit" class="btn btn-erm-primary" id="btn-simpan-asesmen-perawat">
+                <i class="fas fa-save mr-1"></i>Simpan Asesmen
+            </button>
         </div>
-    </div>
+    </form>
 </div><!-- container -->
 
 
@@ -593,43 +406,7 @@
 <script>  
 
    $(document).ready(function () {
-    var wizard = $("#asesmenperawat-form").steps({
-    headerTag: "h3",
-    bodyTag: "fieldset",
-    transitionEffect: "slide",
-    onStepChanged: function () {},
-    onInit: function () {
-        $('#asesmenperawat-form').addClass('wizard-initialized');
-        },
-    onStepChanging: function (event, currentIndex, newIndex) {
-        var currentStep = $('.body:eq(' + currentIndex + ')');
-        var isValid = true;
-
-        currentStep.find('input, select, textarea').each(function () {
-            if (!this.checkValidity()) {
-                isValid = false;
-                $(this).addClass('is-invalid');
-
-                // ✅ Tambahkan class ke Select2
-                if ($(this).hasClass('select2-hidden-accessible')) {
-                    $(this).next('.select2-container').find('.select2-selection').addClass('is-invalid');
-                }
-            } else {
-                $(this).removeClass('is-invalid');
-
-                if ($(this).hasClass('select2-hidden-accessible')) {
-                    $(this).next('.select2-container').find('.select2-selection').removeClass('is-invalid');
-                }
-            }
-        });
-
-        return isValid; // ⬅️ Hanya lanjut step jika valid
-    },
-    onFinished: function (event, currentIndex) {
-            $('#asesmenperawat-form').submit(); // 👈 THIS enables actual form submission
-        }
-    });
-    
+    // One page form (was a 2-step wizard); saved with the save bar at the bottom
     $('.select2').select2({ width: '100%' });
 
 
@@ -790,6 +567,13 @@
 
         let form = $(this);
         let formData = new FormData(this);
+        // Guard against double submit while saving
+        let saveBtn = $('#btn-simpan-asesmen-perawat');
+        if (saveBtn.prop('disabled')) {
+            return;
+        }
+        let saveBtnHtml = saveBtn.html();
+        saveBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm mr-1"></span>Menyimpan...');
 
         $.ajax({
             url: form.attr('action'),
@@ -798,6 +582,9 @@
             contentType: false,
             processData: false,
             dataType: 'json', // ✅ ensure it's parsed
+            complete: function () {
+                saveBtn.prop('disabled', false).html(saveBtnHtml);
+            },
             success: function (response) {
                 Swal.fire({
                     title: 'Sukses!',

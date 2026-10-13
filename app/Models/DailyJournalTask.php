@@ -28,6 +28,7 @@ class DailyJournalTask extends Model
     protected $fillable = [
         'user_id',
         'from_user_id',
+        'recurrence_id',
         'task_date',
         'deadline_date',
         'title',
@@ -56,5 +57,10 @@ class DailyJournalTask extends Model
     public function fromUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'from_user_id');
+    }
+
+    public function recurrence(): BelongsTo
+    {
+        return $this->belongsTo(DailyJournalRecurrence::class, 'recurrence_id');
     }
 }

@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  */
 class KunjunganHariIniWidget implements Widget
 {
-    private const VISIT_TYPES = [1, 2, 4, 5];
+    private const VISIT_TYPES = [1, 2, 4, 5, 6, 7, 8, 9];
 
     private const WAITING_LIMIT = 8;
 

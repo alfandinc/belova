@@ -97,7 +97,7 @@ class MainNavigation
         return $this->module('utama', 'Utama', 'home', [
             $this->item('Dashboard', 'grid', url('/')),
             $this->item('Jadwal', 'calendar', '#', $this->badge('jadwal_unread', 'danger', 'Jadwal Anda diubah', 'jv-unread'), ['class' => 'js-open-jadwal']),
-            $this->item('Daily Journal', 'book-open', $this->route('daily-journal.index'), $this->badge('daily_journal_deadline', 'warning', 'Task dengan deadline belum selesai')),
+            $this->item('Daily Journal', 'book-open', $this->route('daily-journal.index'), $this->badge('daily_journal_deadline', 'warning', 'Task dengan deadline belum selesai'), ['class' => 'js-open-journal']),
         ]);
     }
 

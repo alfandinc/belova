@@ -163,7 +163,7 @@ class EresepController extends Controller
                 ->leftJoin('area_districts as ad', 'av.district_id', '=', 'ad.id')
                 ->leftJoin('area_regencies as ar', 'ad.regency_id', '=', 'ar.id')
                 ->leftJoin('area_provinces as ap2', 'ar.province_id', '=', 'ap2.id')
-                ->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 5])
+                ->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 5, 6, 7, 8, 9])
                 ->where('erm_visitations.status_kunjungan', '!=', 7);
 
             if ($request->tanggal_mulai && $request->tanggal_selesai) {

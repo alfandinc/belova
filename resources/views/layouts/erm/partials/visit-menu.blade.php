@@ -84,6 +84,22 @@
         </a>
     </li>
 
+    @if((int) $visitation->jenis_kunjungan === \App\Models\ERM\Visitation::TYPE_VAKSIN)
+        <li>
+            <a href="{{ route('erm.vaksin.create', $visitation->id) }}" target="_blank">
+                <i data-feather="shield" class="align-self-center menu-icon"></i>
+                <span>Vaksin</span>
+            </a>
+        </li>
+    @elseif((int) $visitation->jenis_kunjungan === \App\Models\ERM\Visitation::TYPE_MCU)
+        <li>
+            <a href="{{ route('erm.mcu.create', $visitation->id) }}" target="_blank">
+                <i data-feather="heart" class="align-self-center menu-icon"></i>
+                <span>MCU</span>
+            </a>
+        </li>
+    @endif
+
     <li>
         <a href="{{ route('erm.riwayatkunjungan.index', $visitation->pasien_id) }}" target="_blank">
             <i data-feather="book-open" class="align-self-center menu-icon"></i>

@@ -397,7 +397,8 @@ $(document).ready(function () {
                     var jenis = {
                         '1': '<small class="font-weight-bold text-primary">Konsultasi</small>',
                         '2': '<small class="font-weight-bold" style="color:#d39e00;">Beli Produk</small>',
-                        '5': '<small class="font-weight-bold text-dark">Marketplace</small>'
+                        '5': '<small class="font-weight-bold text-dark">Marketplace</small>',
+                        '6': '<small class="font-weight-bold" style="color:#6f42c1;">Reseller</small>'
                     }[String(row.jenis_kunjungan)] || '';
 
                     return '<div><strong>' + tanggal + '</strong>' + waktu + '</div>' + jenis;

@@ -987,9 +987,11 @@ class BillingController extends Controller
         // user was away for a while) produced a new popup every poll until it was drained.
         // Notifications from previous days are marked read silently (still listed under Notifikasi Lama)
         // so they don't pop up when the kasir opens the system on a later day.
-        $user->unreadNotifications()->where('created_at', '<', now()->startOfDay())->update(['read_at' => now()]);
+        // Notifications with their own UI (jadwal, daily journal) are left alone
+        $ownUi = \App\Support\NotificationTypes::OWN_UI;
+        $user->unreadNotifications()->whereNotIn('type', $ownUi)->where('created_at', '<', now()->startOfDay())->update(['read_at' => now()]);
 
-        $unread = $user->unreadNotifications()->latest()->get();
+        $unread = $user->unreadNotifications()->whereNotIn('type', $ownUi)->latest()->get();
         if ($unread->isEmpty()) {
             return response()->json(['new' => false]);
         }
@@ -5450,27 +5452,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return optional(optional($visitation->dokter)->spesialisasi)->nama ?? '';
             })
             ->addColumn('jenis_kunjungan', function ($visitation) {
-                // Map numeric values to labels
                 if (isset($visitation->jenis_kunjungan)) {
-                    switch ($visitation->jenis_kunjungan) {
-                        case 1:
-                        case '1':
-                            return 'Konsultasi Dokter';
-                        case 2:
-                        case '2':
-                            return 'Beli Produk';
-                        case 3:
-                        case '3':
-                            return 'Laboratorium';
-                        case 4:
-                        case '4':
-                            return 'Event';
-                        case 5:
-                        case '5':
-                            return 'Marketplace';
-                        default:
-                            return $visitation->jenis_kunjungan;
-                    }
+                    return Visitation::typeLabel($visitation->jenis_kunjungan);
                 }
                 return '-';
             })
