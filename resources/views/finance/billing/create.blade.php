@@ -84,7 +84,7 @@
             // invoice_item_id => qty returned (approved retur); returned rows stay in Rincian Billing with a marker
             returnedQtyByInvoiceItem: @json((object) ($returnedQtyByInvoiceItem ?? [])),
             // Same roles as the update-batch-exp route: lets the Stok Tersedia modal fix a wrong batch ED in place
-            canKoreksiEd: @json(auth()->check() && auth()->user()->hasAnyRole(['Admin', 'Farmasi', 'Beautician', 'Lab'])),
+            canKoreksiEd: {{ \Illuminate\Support\Js::from(auth()->check() && auth()->user()->hasAnyRole(['Admin', 'Farmasi', 'Beautician', 'Lab'])) }},
             updateBatchExpUrl: @json(route('erm.stok-gudang.update-batch-exp'))
         };
 
