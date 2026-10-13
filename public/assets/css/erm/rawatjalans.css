@@ -192,6 +192,11 @@
     white-space: normal;
 }
 
+.pasien-notes-preview .rawatjalan-no-rm {
+    font-weight: 700;
+    color: var(--rawatjalan-fixed-text);
+}
+
 :root.theme-light .pasien-notes-preview {
     color: #5f6b8a;
 }
@@ -799,3 +804,38 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Isi Kunjungan column: what the visit already contains */
+.rj-isi-kunjungan {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.rj-isi-chip {
+    --isi: #64748b;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--isi);
+    color: var(--isi);
+    background: color-mix(in srgb, var(--isi) 10%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+}
+.rj-isi-chip i { font-size: 10px; }
+.rj-isi-tindakan { --isi: #d97706; }
+.rj-isi-lab { --isi: #dc2626; }
+.rj-isi-lab-done { --isi: #16a34a; }
+.rj-isi-resep { --isi: #0891b2; }
+.rj-isi-rujuk { --isi: #7c3aed; }
+.rj-isi-surat { --isi: #2563eb; }
+:root.theme-dark .rj-isi-tindakan { --isi: #fbbf24; }
+:root.theme-dark .rj-isi-lab { --isi: #f87171; }
+:root.theme-dark .rj-isi-lab-done { --isi: #4ade80; }
+:root.theme-dark .rj-isi-resep { --isi: #22d3ee; }
+:root.theme-dark .rj-isi-rujuk { --isi: #a78bfa; }
+:root.theme-dark .rj-isi-surat { --isi: #60a5fa; }

@@ -930,19 +930,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     }
                 }
             },
-            {
-                data: 'no_rm',
-                name: 'no_rm',
-                searchable: true,
-                orderable: false,
-                render: function(data, type, row, meta) {
-                    if (!data) return '-';
-                    var newVisitBadgeHtml = parseInt(row.is_first_visit || 0, 10) === 1
-                        ? ' <span class="badge badge-primary blinking ml-1" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
-                        : '';
-                    return '<span class="d-inline-flex align-items-center">' + $('<div>').text(data).html() + newVisitBadgeHtml + '</span>';
-                }
-            },
+            { data: 'isi_kunjungan', name: 'isi_kunjungan', searchable: false, orderable: false },
                 {
                     data: 'nama_pasien',
                     name: 'nama_pasien',
@@ -982,8 +970,17 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             var patientName = $('<div>').text(data || '').html();
                             var catatanPasien = $.trim(row.catatan_pasien || '');
                             var patientLabelHtml = '<span class="rawatjalan-patient-name-text">' + patientName + '</span>';
-                            var notesHtml = catatanPasien
-                                ? '<small class="pasien-notes-preview">' + $('<div>').text(catatanPasien).html() + '</small>'
+                            // No RM sits under the name, before the notes: "001708 - Notes Pasien"
+                            var noRmHtml = row.no_rm
+                                ? '<span class="rawatjalan-no-rm">' + $('<div>').text(row.no_rm).html() + '</span>'
+                                : '';
+                            var newVisitBadgeHtml = parseInt(row.is_first_visit || 0, 10) === 1
+                                ? ' <span class="badge badge-primary blinking ml-1" style="font-size:10px; line-height:1; padding:3px 6px; border-radius:999px; vertical-align:middle;" title="Visit pertama pasien">NEW</span>'
+                                : '';
+                            var notesHtml = (noRmHtml || catatanPasien)
+                                ? '<small class="pasien-notes-preview">' + noRmHtml + newVisitBadgeHtml
+                                    + (noRmHtml && catatanPasien ? ' - ' : '')
+                                    + $('<div>').text(catatanPasien).html() + '</small>'
                                 : '';
                             var linkHtml = '<div class="d-inline-flex align-items-center font-weight-bold">' + patientLabelHtml + statusBadgesInline + '</div>';
 
@@ -1365,8 +1362,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
         ],
         columnDefs: [
             @if (!empty($isDokter))
-            { targets: 0, width: "60px" },   // No
-            { targets: 1, width: "110px" },  // No RM
+            { targets: 0, width: "60px" },   // # (No)
+            { targets: 1, width: "180px" },  // Status (isi kunjungan)
             { targets: 2, width: "280px" },  // Nama Pasien
             { targets: 3, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "280px" },  // Tanggal Kunjungan
@@ -1374,8 +1371,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
             { targets: 6, width: "220px", className: "rawatjalan-col-referral" },  // Referral
             { targets: 7, width: "320px" },  // Dokumen
             @else
-            { targets: 0, width: "80px" },   // Antrian
-            { targets: 1, width: "110px" },  // No RM
+            { targets: 0, width: "80px" },   // # (Antrian)
+            { targets: 1, width: "180px" },  // Status (isi kunjungan)
             { targets: 2, width: "270px" },  // Nama Pasien
             { targets: 3, width: "260px", className: "rawatjalan-col-informasi" },  // Informasi Pasien
             { targets: 4, width: "260px" },  // Tanggal

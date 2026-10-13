@@ -266,14 +266,8 @@
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        <th>
-                            @if (!empty($isDokter))
-                                No
-                            @else
-                                Antrian
-                            @endif
-                        </th>
-                        <th>No RM</th>
+                        <th>#</th>
+                        <th>Status</th>
                         <th>Nama Pasien</th>
                         <th>Informasi Pasien</th>
                         <th>Tanggal Kunjungan</th>

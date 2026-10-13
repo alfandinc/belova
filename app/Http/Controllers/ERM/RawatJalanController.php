@@ -828,6 +828,10 @@ class RawatJalanController extends Controller
                     // avoid eager-load queries by using cheap correlated subqueries
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
+                    // Isi kunjungan strip (resep / rujuk / surat diagnosa) in the Dokumen column
+                    ->selectRaw('EXISTS(SELECT 1 FROM erm_resepdokter rd WHERE rd.visitation_id = erm_visitations.id) as has_resep')
+                    ->selectRaw('EXISTS(SELECT 1 FROM erm_rujuks rj WHERE rj.visitation_id = erm_visitations.id) as has_rujuk')
+                    ->selectRaw('EXISTS(SELECT 1 FROM erm_suratdiagnosa sd WHERE sd.visitation_id = erm_visitations.id) as has_surat_diagnosa')
                     ->selectRaw("CASE WHEN EXISTS (
                         SELECT 1
                         FROM erm_visitations ev_prev
@@ -976,8 +980,10 @@ class RawatJalanController extends Controller
             return datatables()->of($visitations)
                 ->filterColumn('nama_pasien', function ($query, $keyword) {
                     $query->where(function ($subQuery) use ($keyword) {
+                        // No RM is shown under the name, so it is searchable here too
                         $subQuery->where('erm_pasiens.nama', 'like', "%{$keyword}%")
-                            ->orWhere('erm_pasiens.notes', 'like', "%{$keyword}%");
+                            ->orWhere('erm_pasiens.notes', 'like', "%{$keyword}%")
+                            ->orWhere('erm_pasiens.id', 'like', "%{$keyword}%");
                     });
                 })
                 ->filterColumn('no_rm', function ($query, $keyword) {
@@ -1149,6 +1155,48 @@ class RawatJalanController extends Controller
 
                         return $buttonHtml;
                     })
+                // What this visit already contains (tindakan, lab, resep, rujuk, surat), so the perawat sees it at a glance
+                ->addColumn('isi_kunjungan', function ($v) {
+                    $isiItems = [];
+                    $tindakanCount = intval($v->riwayat_tindakan_count ?? 0);
+                    if ($tindakanCount > 0) {
+                        $isiItems[] = ['fas fa-procedures', 'Tindakan', $tindakanCount, 'tindakan'];
+                    }
+                    $labCount = intval($v->lab_permintaan_count ?? 0);
+                    if ($labCount > 0) {
+                        $allLabCompleted = intval($v->lab_permintaan_completed_count ?? 0) === $labCount;
+                        $isiItems[] = ['fas fa-flask', $allLabCompleted ? 'Lab selesai' : 'Lab', $labCount, $allLabCompleted ? 'lab-done' : 'lab'];
+                    }
+                    if (!empty($v->has_resep)) {
+                        $isiItems[] = ['fas fa-prescription-bottle-alt', 'Resep', 0, 'resep'];
+                    }
+                    if (!empty($v->has_rujuk)) {
+                        $isiItems[] = ['fas fa-share-alt', 'Rujuk', 0, 'rujuk'];
+                    }
+                    $suratLabels = [];
+                    if (intval($v->surat_istirahat_count ?? 0) > 0) {
+                        $suratLabels[] = 'Istirahat';
+                    }
+                    if (intval($v->surat_mondok_count ?? 0) > 0) {
+                        $suratLabels[] = 'Mondok';
+                    }
+                    if (!empty($v->has_surat_diagnosa)) {
+                        $suratLabels[] = 'Diagnosa';
+                    }
+                    if ($suratLabels) {
+                        $isiItems[] = ['fas fa-envelope-open-text', 'Surat ' . implode(', ', $suratLabels), 0, 'surat'];
+                    }
+                    if (!$isiItems) {
+                        return '<span class="text-muted">-</span>';
+                    }
+
+                    $html = '<div class="rj-isi-kunjungan">';
+                    foreach ($isiItems as [$icon, $label, $count, $kind]) {
+                        $html .= '<span class="rj-isi-chip rj-isi-' . $kind . '"><i class="' . $icon . '"></i>' . e($label)
+                            . ($count > 0 ? ' <b>' . $count . '</b>' : '') . '</span>';
+                    }
+                    return $html . '</div>';
+                })
                 ->addColumn('waktu_kunjungan', function ($v) {
                     return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';
                 })
@@ -1160,9 +1208,12 @@ class RawatJalanController extends Controller
                 ->removeColumn('spesialisasi_nama')
                 ->removeColumn('has_screening_batuk')
                 ->removeColumn('has_screening_vaksin')
+                ->removeColumn('has_resep')
+                ->removeColumn('has_rujuk')
+                ->removeColumn('has_surat_diagnosa')
                 ->removeColumn('asesmen_penunjang_created_at')
                 ->removeColumn('cppt_created_at')
-                ->rawColumns(['antrian', 'nama_pasien', 'referral_display', 'dokumen'])
+                ->rawColumns(['antrian', 'nama_pasien', 'referral_display', 'isi_kunjungan', 'dokumen'])
                 ->with('jenis_counts', $jenisCounts)
                 ->make(true);
             } catch (\Exception $e) {
