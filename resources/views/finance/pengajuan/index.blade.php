@@ -134,6 +134,11 @@
         #itemsDetailModal .detail-bukti img { width: 120px; height: 120px; object-fit: cover; border: 1px solid #dee2e6; border-radius: 4px; cursor: zoom-in; }
         /* Ensure form labels in the pengajuan modal use Title Case instead of all-caps */
         #pengajuanModal label { text-transform: capitalize !important; }
+        /* modal-dialog-scrollable only scrolls a direct .modal-body child; the form sits in between,
+           so make it part of the flex chain to keep the footer (Simpan) visible and the body scrollable */
+        #pengajuanModal #pengajuanForm { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+        #pengajuanModal #pengajuanForm > .modal-body { overflow-y: auto; min-height: 0; }
+        #pengajuanModal #pengajuanForm > .modal-footer { flex-shrink: 0; }
         /* show red asterisk for required fields */
         #pengajuanModal label.required:after { content: " *"; color: #e74c3c; margin-left: 4px; }
         /* simplified pengajuan form: numbered sections */
