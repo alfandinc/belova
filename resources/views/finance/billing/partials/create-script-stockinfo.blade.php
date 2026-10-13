@@ -18,28 +18,43 @@ function loadStockTotal(obatId, gudangId) {
     const cached = stockCache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.at && (now - cached.at) <= STOCK_CACHE_TTL_MS) {
-        return $.Deferred().resolve({ total: cached.total, gudangName: cached.gudangName, cached: true }).promise();
+        return $.Deferred().resolve({ total: cached.total, expired: cached.expired || [], gudangName: cached.gudangName, cached: true }).promise();
     }
 
     return $.getJSON("{{ $billingUrls['batchDetails'] }}", { obat_id: obatId, gudang_id: gudangId })
         .then(function(resp) {
             const data = resp.data || [];
             let total = 0;
+            const expired = [];
             data.forEach(function(d) {
-                // Expired batches cannot be sold; the server-side stock check skips them too
-                if (d.is_expired) return;
+                let stok = 0;
                 if (typeof d.stok !== 'undefined') {
-                    total += parseFloat(d.stok) || 0;
+                    stok = parseFloat(d.stok) || 0;
                 } else if (d.stok_display) {
-                    const num = d.stok_display.toString().replace(/[^0-9\-]/g, '');
-                    total += parseFloat(num) || 0;
+                    stok = parseFloat(d.stok_display.toString().replace(/[^0-9\-]/g, '')) || 0;
                 }
+                // Expired batches cannot be sold; the server-side stock check skips them too.
+                // Kept aside so the modal can explain the gap and offer an ED correction.
+                if (d.is_expired) {
+                    if (stok > 0) {
+                        expired.push({ id: d.id, batch: d.batch, stok: stok, ed: d.expiration_date, edRaw: d.expiration_date_raw });
+                    }
+                    return;
+                }
+                total += stok;
             });
             const gudangName = getGudangNameById(gudangId);
             const resolvedTotal = (data.length === 0) ? 0 : total;
-            stockCache.set(cacheKey, { total: resolvedTotal, gudangName: gudangName, at: Date.now() });
-            return { total: resolvedTotal, gudangName: gudangName, cached: false };
+            stockCache.set(cacheKey, { total: resolvedTotal, expired: expired, gudangName: gudangName, at: Date.now() });
+            return { total: resolvedTotal, expired: expired, gudangName: gudangName, cached: false };
         });
+}
+
+// Drop cached stok so the modal and row warnings re-read it after an ED correction
+function invalidateStockCaches() {
+    try { stockCache.clear(); } catch (e) { }
+    try { itemStockWarningCache.clear(); } catch (e) { }
+    try { stockWarningServerHintsValid = false; } catch (e) { }
 }
 
 function escapeHtml(value) {
@@ -228,6 +243,9 @@ function renderStockRowsToHtml(rows, stockResults) {
         return String(num);
     }
 
+    const canKoreksiEd = !!(window.billingPage && window.billingPage.canKoreksiEd);
+    let hasExpired = false;
+
     let html = '<div class="table-responsive">' +
         '<table class="table table-sm table-bordered mb-0">' +
         '<thead><tr><th>Obat/Produk</th><th class="text-right">Stok Dibutuhkan</th><th class="text-right">Stok Tersedia</th></tr></thead><tbody>';
@@ -235,6 +253,8 @@ function renderStockRowsToHtml(rows, stockResults) {
     rows.forEach(function(row, idx) {
         const r = stockResults[idx];
         const stok = (r && typeof r.total !== 'undefined') ? r.total : 0;
+        const expired = (r && Array.isArray(r.expired)) ? r.expired : [];
+        const expiredQty = expired.reduce(function(sum, b) { return sum + (Number(b.stok) || 0); }, 0);
 
         const stokNum = isNaN(Number(stok)) ? 0 : Number(stok);
         const neededNum = isNaN(Number(row.needed)) ? 0 : Number(row.needed);
@@ -244,13 +264,94 @@ function renderStockRowsToHtml(rows, stockResults) {
         html += '<tr' + trClass + '>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
                 '<td class="text-right">' + formatQty(row.needed || 0) + '</td>' +
-            '<td class="text-right">' + stok + '</td>' +
+            '<td class="text-right">' + formatQty(stok) +
+                (expiredQty > 0 ? ' <span class="text-danger small">(' + formatQty(expiredQty) + ' expired)</span>' : '') +
+            '</td>' +
             '</tr>';
+
+        expired.forEach(function(b) {
+            hasExpired = true;
+            html += '<tr class="stock-expired-batch">' +
+                '<td colspan="3" class="small bg-light">' +
+                    '<div class="d-flex flex-wrap align-items-center">' +
+                        '<span class="badge badge-danger mr-2">Expired</span>' +
+                        '<span class="mr-3">Batch <strong>' + escapeHtml(b.batch || '-') + '</strong></span>' +
+                        '<span class="mr-3">ED <strong>' + escapeHtml(b.ed || '-') + '</strong></span>' +
+                        '<span class="mr-auto">Stok <strong>' + formatQty(b.stok) + '</strong></span>' +
+                        (canKoreksiEd
+                            ? '<span class="ed-fix-area">' +
+                                '<button type="button" class="btn btn-sm btn-outline-primary btn-koreksi-ed" data-id="' + escapeHtml(b.id) + '" data-ed="' + escapeHtml(b.edRaw || '') + '"><i class="fas fa-calendar-alt"></i> Koreksi ED</button>' +
+                              '</span>'
+                            : '') +
+                    '</div>' +
+                '</td>' +
+                '</tr>';
+        });
     });
 
     html += '</tbody></table></div>';
+
+    if (hasExpired) {
+        html += '<div class="small text-muted mt-2">' +
+            'Batch yang sudah lewat ED tidak dihitung sebagai stok tersedia. ' +
+            (canKoreksiEd
+                ? 'Jika ED tercatat salah, cocokkan dengan kemasan/faktur lalu klik <strong>Koreksi ED</strong>. Jika barang memang expired, jangan dijual; pindahkan ke gudang expired.'
+                : 'Jika ED tercatat salah, minta Farmasi/Admin mengoreksi ED batch tersebut.') +
+            '</div>';
+    }
     return html;
 }
+
+// Inline ED correction inside the Stok Tersedia modal (Admin/Farmasi/Beautician/Lab only; server enforces the role)
+$(document).on('click', '#stockInfoModal .btn-koreksi-ed', function() {
+    const btn = $(this);
+    const area = btn.closest('.ed-fix-area');
+    area.data('orig', area.html());
+    area.html(
+        '<span class="d-inline-flex align-items-center">' +
+            '<input type="date" class="form-control form-control-sm ed-fix-input" style="width:150px;" value="' + escapeHtml(btn.data('ed') || '') + '">' +
+            '<button type="button" class="btn btn-sm btn-primary ml-1 btn-koreksi-ed-save" data-id="' + escapeHtml(btn.data('id')) + '">Simpan</button>' +
+            '<button type="button" class="btn btn-sm btn-secondary ml-1 btn-koreksi-ed-cancel">Batal</button>' +
+        '</span>'
+    );
+    area.find('.ed-fix-input').trigger('focus');
+});
+
+$(document).on('click', '#stockInfoModal .btn-koreksi-ed-cancel', function() {
+    const area = $(this).closest('.ed-fix-area');
+    area.html(area.data('orig') || '');
+});
+
+$(document).on('click', '#stockInfoModal .btn-koreksi-ed-save', function() {
+    const btn = $(this);
+    const area = btn.closest('.ed-fix-area');
+    const newEd = area.find('.ed-fix-input').val();
+    if (!newEd) {
+        Swal.fire({ icon: 'warning', title: 'ED belum diisi', text: 'Isi tanggal kadaluarsa sesuai kemasan/faktur.' });
+        return;
+    }
+
+    btn.prop('disabled', true).text('Menyimpan...');
+    $.post(window.billingPage.updateBatchExpUrl, {
+        _token: $('meta[name="csrf-token"]').attr('content'),
+        id: btn.data('id'),
+        expiration_date: newEd
+    }).done(function() {
+        invalidateStockCaches();
+        const ctx = $('#stockInfoModal').data('stock-context');
+        if (ctx) {
+            openStockInfoModalForItem(ctx.itemId, ctx.item);
+        }
+        try { updateStockWarningsForVisibleRows(); } catch (e) { }
+        Swal.fire({ icon: 'success', title: 'ED disimpan', timer: 1500, showConfirmButton: false });
+    }).fail(function(xhr) {
+        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+            ? xhr.responseJSON.message
+            : (xhr.status === 403 ? 'Anda tidak punya akses mengubah ED.' : 'Gagal menyimpan ED.');
+        Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+        btn.prop('disabled', false).text('Simpan');
+    });
+});
 
 function loadRiwayatTindakanObatRows(riwayatTindakanId) {
     if (!riwayatTindakanId) {
@@ -333,7 +434,10 @@ function openStockInfoModalForItem(itemId, item) {
     $('#stockInfoItemName').text(item && item.nama_item ? item.nama_item : (itemId || '-'));
     $('#stockInfoGudangName').text('-');
     $('#stockInfoContent').html('<div class="text-muted">Memuat stok...</div>');
-    $('#stockInfoModal').modal('show');
+    $('#stockInfoModal').data('stock-context', { itemId: itemId, item: item });
+    if (!$('#stockInfoModal').hasClass('show')) {
+        $('#stockInfoModal').modal('show');
+    }
 
     if (!item) {
         $('#stockInfoContent').html('<div class="text-danger">Item tidak ditemukan.</div>');

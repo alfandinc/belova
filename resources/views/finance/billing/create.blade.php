@@ -82,7 +82,10 @@
             eventResetUrl: @json($eventResetUrl),
             eventItemSearchUrl: @json($eventItemSearchUrl ?? null),
             // invoice_item_id => qty returned (approved retur); returned rows stay in Rincian Billing with a marker
-            returnedQtyByInvoiceItem: @json((object) ($returnedQtyByInvoiceItem ?? []))
+            returnedQtyByInvoiceItem: @json((object) ($returnedQtyByInvoiceItem ?? [])),
+            // Same roles as the update-batch-exp route: lets the Stok Tersedia modal fix a wrong batch ED in place
+            canKoreksiEd: @json(auth()->check() && auth()->user()->hasAnyRole(['Admin', 'Farmasi', 'Beautician', 'Lab'])),
+            updateBatchExpUrl: @json(route('erm.stok-gudang.update-batch-exp'))
         };
 
         window.eventPromoDetails = @json($eventPromoDetails ?? []);
