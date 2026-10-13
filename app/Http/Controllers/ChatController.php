@@ -127,6 +127,66 @@ class ChatController extends Controller
         ]);
     }
 
+    /**
+     * Lightweight poll for the global popup: unread messages to the current user, grouped by sender.
+     */
+    public function incoming(): JsonResponse
+    {
+        $authId = (int) Auth::id();
+
+        $unread = UserChatMessage::query()
+            ->select(['id', 'sender_id', 'body', 'created_at'])
+            ->where('recipient_id', $authId)
+            ->whereNull('read_at')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+
+        $senders = User::query()
+            ->select(['id', 'name'])
+            ->with(['employee:id,user_id', 'employee.position:id,name'])
+            ->whereIn('id', $unread->pluck('sender_id')->unique())
+            ->get()
+            ->keyBy('id');
+
+        $data = $unread
+            ->groupBy('sender_id')
+            ->map(function (Collection $items, $senderId) use ($senders) {
+                $sender = $senders->get($senderId);
+                if (!$sender) {
+                    return null;
+                }
+
+                return [
+                    'user' => [
+                        'id' => $sender->id,
+                        'name' => $sender->name,
+                        'position_label' => $sender->employee?->position?->name,
+                        'avatar_initials' => $this->resolveAvatarInitials($sender),
+                    ],
+                    'unread_count' => $items->count(),
+                    // Popup only needs the latest few, oldest first
+                    'messages' => $items->take(5)->sortBy('id')->values()->map(fn (UserChatMessage $message) => [
+                        'id' => $message->id,
+                        'body' => $message->body,
+                        'created_at' => $message->created_at?->toIso8601String(),
+                    ]),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'total_unread' => UserChatMessage::query()
+                    ->where('recipient_id', $authId)
+                    ->whereNull('read_at')
+                    ->count(),
+            ],
+        ]);
+    }
+
     public function conversation(User $user, Request $request): JsonResponse
     {
         $authId = (int) Auth::id();
@@ -202,6 +262,13 @@ class ChatController extends Controller
             'recipient_id' => $user->id,
             'body' => $body,
         ]);
+
+        // Replying implies the other user's messages were read (e.g. answered from the popup)
+        UserChatMessage::query()
+            ->where('sender_id', $user->id)
+            ->where('recipient_id', $authId)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
 
         return response()->json([
             'message' => [

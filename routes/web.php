@@ -133,6 +133,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/user-emotions/update', [AuthController::class, 'updateEmotion'])->name('user-emotions.update');
     Route::get('/chat/avatar/{user}', [ChatController::class, 'avatar'])->name('chat.avatar');
     Route::get('/chat/users', [ChatController::class, 'users'])->name('chat.users');
+    Route::get('/chat/incoming', [ChatController::class, 'incoming'])->name('chat.incoming');
     Route::get('/chat/conversations/{user}', [ChatController::class, 'conversation'])->name('chat.conversation');
     Route::post('/chat/conversations/{user}', [ChatController::class, 'store'])->name('chat.store');
     // Jadwal viewer modal (HTML + script), loaded on demand from the sidebar instead of being embedded in every page

@@ -562,6 +562,194 @@
         }
     }
 
+    /* Incoming-message popups: stacked above the launcher, answerable in place */
+    .belova-chat-popups {
+        position: absolute;
+        right: 0;
+        bottom: 64px;
+        width: min(340px, calc(100vw - 24px));
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    }
+
+    .belova-chat-popup {
+        pointer-events: auto;
+        background: #fff;
+        color: #0f172a;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 16px;
+        box-shadow: 0 18px 44px rgba(15, 23, 42, 0.22);
+        overflow: hidden;
+        animation: belovaChatPopupIn 0.22s ease-out;
+    }
+
+    .theme-dark .belova-chat-popup,
+    html.theme-dark .belova-chat-popup,
+    html[data-theme="dark"] .belova-chat-popup,
+    body.dark-sidenav .belova-chat-popup {
+        background: #0f172a;
+        color: #e2e8f0;
+        border-color: rgba(148, 163, 184, 0.18);
+        box-shadow: 0 18px 44px rgba(2, 6, 23, 0.55);
+    }
+
+    @keyframes belovaChatPopupIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .belova-chat-popup-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 10px 10px 12px;
+        background: var(--belova-chat-header-bg);
+        border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .belova-chat-popup-head .belova-chat-user-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        font-size: 12px;
+    }
+
+    .belova-chat-popup-who {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .belova-chat-popup-name {
+        font-size: 13px;
+        font-weight: 700;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .belova-chat-popup-sub {
+        font-size: 11px;
+        opacity: 0.72;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .belova-chat-popup-btn {
+        width: 30px;
+        height: 30px;
+        flex: 0 0 auto;
+        border: 0;
+        border-radius: 10px;
+        background: rgba(148, 163, 184, 0.14);
+        color: inherit;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .belova-chat-popup-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2;
+    }
+
+    .belova-chat-popup-messages {
+        max-height: 180px;
+        overflow-y: auto;
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: var(--belova-chat-messages-base);
+    }
+
+    .belova-chat-popup-msg {
+        align-self: flex-start;
+        max-width: 88%;
+        background: #fff;
+        color: #0f172a;
+        border-radius: 12px;
+        padding: 7px 10px 5px;
+        font-size: 13px;
+        line-height: 1.35;
+        white-space: pre-wrap;
+        word-break: break-word;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    }
+
+    .theme-dark .belova-chat-popup-msg,
+    html.theme-dark .belova-chat-popup-msg,
+    html[data-theme="dark"] .belova-chat-popup-msg,
+    body.dark-sidenav .belova-chat-popup-msg {
+        background: rgba(30, 41, 59, 0.98);
+        color: #e2e8f0;
+    }
+
+    .belova-chat-popup-msg.is-mine {
+        align-self: flex-end;
+        background: linear-gradient(135deg, var(--belova-chat-accent-deep), var(--belova-chat-accent-start));
+        color: #fff;
+    }
+
+    .belova-chat-popup-msg-time {
+        display: block;
+        text-align: right;
+        font-size: 10px;
+        opacity: 0.7;
+        margin-top: 2px;
+    }
+
+    .belova-chat-popup-composer {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        padding: 10px 12px 12px;
+        border-top: 1px solid rgba(148, 163, 184, 0.14);
+    }
+
+    .belova-chat-popup-input {
+        flex: 1;
+        resize: none;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        background: rgba(148, 163, 184, 0.08);
+        color: inherit;
+        padding: 8px 10px;
+        min-height: 38px;
+        max-height: 96px;
+        font-size: 13px;
+        outline: none;
+    }
+
+    .belova-chat-popup-send {
+        height: 38px;
+        border: 0;
+        border-radius: 12px;
+        padding: 0 14px;
+        background: linear-gradient(135deg, var(--belova-chat-accent-start), var(--belova-chat-accent-end));
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .belova-chat-popup-send:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .belova-chat-popup-status {
+        padding: 0 12px 10px;
+        font-size: 11px;
+        opacity: 0.75;
+    }
+
     /* Own hidden state: must not depend on Bootstrap's .d-none being loaded yet */
     .belova-chat-widget .d-none,
     .belova-chat-panel[aria-hidden="true"] {
@@ -584,6 +772,8 @@
         <span class="belova-chat-launcher-text">Chat Internal</span>
         <span class="belova-chat-launcher-badge d-none" id="belovaChatLauncherBadge">0</span>
     </button>
+
+    <div class="belova-chat-popups" id="belovaChatPopups" aria-live="polite"></div>
 
     <div class="belova-chat-panel d-none" id="belovaChatPanel" aria-hidden="true">
         <div class="belova-chat-panel-header">
@@ -668,6 +858,7 @@
         const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
         const endpoints = {
             users: @json(route('chat.users')),
+            incoming: @json(route('chat.incoming')),
             conversationTemplate: @json(url('/chat/conversations/__USER__')),
         };
 
@@ -681,6 +872,7 @@
             conversationTimer: null,
             usersTimer: null,
             lastRenderedMessageId: null,
+            lastTotalUnread: null,
         };
 
         const launcher = document.getElementById('belovaChatLauncher');
@@ -696,10 +888,21 @@
         const messages = document.getElementById('belovaChatMessages');
         const input = document.getElementById('belovaChatInput');
         const sendButton = document.getElementById('belovaChatSend');
+        const popupContainer = document.getElementById('belovaChatPopups');
+        const authUserId = @json(auth()->id());
 
         const storageKeys = {
-            theme: 'belova-chat-theme'
+            theme: 'belova-chat-theme',
+            // Per sender: highest message id the user closed the popup on, so it does not come back on the next page
+            popupDismissed: 'belova-chat-popup-dismissed-' + authUserId,
+            // Highest incoming message id already announced with a sound
+            popupNotified: 'belova-chat-popup-notified-' + authUserId
         };
+
+        const popups = {}; // senderId -> { el, list, input, send, status, maxId, closeTimer }
+        const maxVisiblePopups = 3;
+        let incomingTimer = null;
+        let incomingInFlight = false;
 
         const themePresets = [
             {
@@ -1045,10 +1248,266 @@
             settingsToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
         }
 
+        function readStore(key, fallback) {
+            try {
+                const raw = window.localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        }
+
+        function writeStore(key, value) {
+            try {
+                window.localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) {
+                // Storage unavailable: popups still work for this page
+            }
+        }
+
+        const incomingSound = new Audio(@json(asset('sounds/notif-chat.mp3')));
+        incomingSound.preload = 'auto';
+
+        function playIncomingSound() {
+            try {
+                incomingSound.currentTime = 0;
+                const playing = incomingSound.play();
+                if (playing && playing.catch) {
+                    // Autoplay blocked before any user interaction: the popup itself is enough
+                    playing.catch(function () {});
+                }
+            } catch (e) {
+                // Audio unsupported: ignore
+            }
+        }
+
+        function popupMessageHtml(message, mine) {
+            return ''
+                + '<div class="belova-chat-popup-msg' + (mine ? ' is-mine' : '') + '">'
+                + escapeHtml(message.body)
+                + '<span class="belova-chat-popup-msg-time">' + escapeHtml(formatTime(message.created_at)) + '</span>'
+                + '</div>';
+        }
+
+        function removePopup(senderId) {
+            const popup = popups[senderId];
+            if (!popup) {
+                return;
+            }
+            clearTimeout(popup.closeTimer);
+            popup.el.remove();
+            delete popups[senderId];
+        }
+
+        function dismissPopup(senderId) {
+            const popup = popups[senderId];
+            if (popup) {
+                const dismissed = readStore(storageKeys.popupDismissed, {});
+                dismissed[senderId] = Math.max(Number(dismissed[senderId] || 0), popup.maxId);
+                writeStore(storageKeys.popupDismissed, dismissed);
+            }
+            removePopup(senderId);
+        }
+
+        function createPopup(user) {
+            const el = document.createElement('div');
+            el.className = 'belova-chat-popup';
+            el.setAttribute('data-popup-user', user.id);
+            const positionLabel = user.position_label ? escapeHtml(user.position_label) : 'Pesan baru';
+            el.innerHTML = ''
+                + '<div class="belova-chat-popup-head">'
+                + '  ' + renderAvatar(user, 'belova-chat-user-avatar')
+                + '  <div class="belova-chat-popup-who">'
+                + '      <div class="belova-chat-popup-name">' + escapeHtml(user.name) + '</div>'
+                + '      <div class="belova-chat-popup-sub">' + positionLabel + '</div>'
+                + '  </div>'
+                + '  <button type="button" class="belova-chat-popup-btn" data-popup-action="open" title="Buka di Chat Internal" aria-label="Buka di Chat Internal">'
+                + '      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg>'
+                + '  </button>'
+                + '  <button type="button" class="belova-chat-popup-btn" data-popup-action="dismiss" title="Tutup" aria-label="Tutup">'
+                + '      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>'
+                + '  </button>'
+                + '</div>'
+                + '<div class="belova-chat-popup-messages"></div>'
+                + '<div class="belova-chat-popup-composer">'
+                + '  <textarea class="belova-chat-popup-input" rows="1" placeholder="Balas pesan..."></textarea>'
+                + '  <button type="button" class="belova-chat-popup-send">Kirim</button>'
+                + '</div>'
+                + '<div class="belova-chat-popup-status d-none"></div>';
+
+            const popup = {
+                el: el,
+                list: el.querySelector('.belova-chat-popup-messages'),
+                input: el.querySelector('.belova-chat-popup-input'),
+                send: el.querySelector('.belova-chat-popup-send'),
+                status: el.querySelector('.belova-chat-popup-status'),
+                maxId: 0,
+                closeTimer: null,
+            };
+
+            el.addEventListener('click', function (event) {
+                const action = event.target.closest('[data-popup-action]');
+                if (!action) {
+                    return;
+                }
+                if (action.getAttribute('data-popup-action') === 'dismiss') {
+                    dismissPopup(user.id);
+                } else {
+                    removePopup(user.id);
+                    openPanel();
+                    selectUser(user.id);
+                }
+            });
+
+            popup.send.addEventListener('click', function () {
+                sendPopupReply(user.id);
+            });
+
+            popup.input.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendPopupReply(user.id);
+                }
+            });
+
+            // Keep the card while the user is writing a follow-up
+            popup.input.addEventListener('input', function () {
+                clearTimeout(popup.closeTimer);
+                popup.status.classList.add('d-none');
+            });
+
+            popups[user.id] = popup;
+            // Newest conversation sits closest to the launcher
+            popupContainer.appendChild(el);
+            return popup;
+        }
+
+        function sendPopupReply(senderId) {
+            const popup = popups[senderId];
+            if (!popup) {
+                return;
+            }
+            const body = popup.input.value.trim();
+            if (!body || popup.send.disabled) {
+                return;
+            }
+
+            popup.send.disabled = true;
+
+            $.ajax({
+                url: conversationUrl(senderId),
+                type: 'POST',
+                data: { _token: csrfToken, body: body },
+            }).done(function (response) {
+                popup.input.value = '';
+                popup.list.insertAdjacentHTML('beforeend', popupMessageHtml(response.message || { body: body }, true));
+                popup.list.scrollTop = popup.list.scrollHeight;
+                popup.status.textContent = 'Terkirim ✓';
+                popup.status.classList.remove('d-none');
+                clearTimeout(popup.closeTimer);
+                popup.closeTimer = setTimeout(function () { removePopup(senderId); }, 4000);
+                pollIncoming();
+            }).fail(function (xhr) {
+                const message = xhr && xhr.responseJSON && xhr.responseJSON.message
+                    ? xhr.responseJSON.message
+                    : 'Pesan gagal dikirim.';
+                popup.status.textContent = message;
+                popup.status.classList.remove('d-none');
+            }).always(function () {
+                popup.send.disabled = false;
+            });
+        }
+
+        function renderIncoming(groups) {
+            const dismissed = readStore(storageKeys.popupDismissed, {});
+            const notifiedMax = Number(readStore(storageKeys.popupNotified, 0)) || 0;
+            let newestId = notifiedMax;
+            const unreadSenders = {};
+
+            groups
+                .map(function (group) {
+                    const ids = group.messages.map(function (m) { return Number(m.id); });
+                    group.latestId = ids.length ? Math.max.apply(null, ids) : 0;
+                    return group;
+                })
+                .sort(function (a, b) { return a.latestId - b.latestId; })
+                .forEach(function (group) {
+                    const senderId = Number(group.user.id);
+                    unreadSenders[senderId] = true;
+
+                    // Already visible in the open panel
+                    if (state.open && Number(state.activeUserId) === senderId) {
+                        return;
+                    }
+
+                    const fresh = group.messages.filter(function (m) {
+                        return Number(m.id) > Number(dismissed[senderId] || 0);
+                    });
+                    if (!fresh.length) {
+                        return;
+                    }
+
+                    const popup = popups[senderId] || createPopup(group.user);
+                    fresh.forEach(function (message) {
+                        if (Number(message.id) > popup.maxId) {
+                            popup.list.insertAdjacentHTML('beforeend', popupMessageHtml(message, false));
+                            popup.maxId = Number(message.id);
+                            // A new message keeps the card open
+                            clearTimeout(popup.closeTimer);
+                            popup.status.classList.add('d-none');
+                        }
+                    });
+                    popup.list.scrollTop = popup.list.scrollHeight;
+                    newestId = Math.max(newestId, popup.maxId);
+                });
+
+            // Drop cards whose messages were read elsewhere (another tab, the panel), unless mid-reply or just answered
+            Object.keys(popups).forEach(function (senderId) {
+                const popup = popups[senderId];
+                if (!unreadSenders[senderId] && !popup.input.value.trim() && popup.status.classList.contains('d-none')) {
+                    removePopup(senderId);
+                }
+            });
+
+            // Cap the stack: the oldest cards go first (they stay reachable through the badge)
+            const ids = Object.keys(popups).sort(function (a, b) { return popups[a].maxId - popups[b].maxId; });
+            while (ids.length > maxVisiblePopups) {
+                removePopup(ids.shift());
+            }
+
+            if (newestId > notifiedMax) {
+                writeStore(storageKeys.popupNotified, newestId);
+                playIncomingSound();
+            }
+        }
+
+        function pollIncoming() {
+            if (incomingInFlight) {
+                return;
+            }
+            incomingInFlight = true;
+
+            $.get(endpoints.incoming)
+                .done(function (response) {
+                    const totalUnread = response && response.meta ? Number(response.meta.total_unread || 0) : 0;
+                    setLauncherBadge(totalUnread);
+                    renderIncoming(response && Array.isArray(response.data) ? response.data : []);
+                    // Refresh the open panel's list only when something actually changed
+                    if (state.open && totalUnread !== state.lastTotalUnread) {
+                        fetchUsers();
+                    }
+                    state.lastTotalUnread = totalUnread;
+                })
+                .always(function () {
+                    incomingInFlight = false;
+                });
+        }
+
         function openPanel() {
             state.open = true;
             panel.classList.remove('d-none');
             panel.setAttribute('aria-hidden', 'false');
+            popupContainer.classList.add('d-none');
             fetchUsers();
         }
 
@@ -1057,9 +1516,12 @@
             setSettingsPanelOpen(false);
             panel.classList.add('d-none');
             panel.setAttribute('aria-hidden', 'true');
+            popupContainer.classList.remove('d-none');
+            pollIncoming();
         }
 
         function selectUser(userId) {
+            removePopup(Number(userId));
             state.activeUserId = Number(userId);
             renderUsers({ data: state.users, meta: { total_unread: Number(launcherBadge.textContent) || 0 } });
             fetchConversation(true);
@@ -1164,5 +1626,18 @@
                 fetchConversation(false);
             }
         }, 4000);
+
+        // Incoming popups run on every page, panel open or not
+        pollIncoming();
+        incomingTimer = window.setInterval(function () {
+            if (!document.hidden) {
+                pollIncoming();
+            }
+        }, 5000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                pollIncoming();
+            }
+        });
     });
 </script>
