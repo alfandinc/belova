@@ -32,7 +32,7 @@
 
 @include('erm.partials.card-identitaspasien')
     
-    @if(isset($visitation) && isset($visitation->dokter->spesialisasi) && strtolower($visitation->dokter->spesialisasi->nama) === 'estetika')
+    @if(isset($visitation) && strtolower(optional($visitation->resolvedSpesialisasi())->nama ?? '') === 'estetika')
     @php
         $existingSkincheck = \App\Models\ERM\HasilSkincheck::where('visitation_id', $visitation->id)->latest()->first();
     @endphp

@@ -55,9 +55,16 @@ class Dokter extends Model
                 ->get();
         });
 
+        // Default spesialisasi first (same order as the filter), then the ones only set per klinik
+        $names = $dokters->map(fn ($dokter) => optional($dokter->spesialisasi)->nama);
+        if (self::tracksKlinikSpesialisasi()) {
+            $names = $names->merge(Spesialisasi::whereIn('id', \Illuminate\Support\Facades\DB::table('erm_dokter_klinik_spesialisasis')->select('spesialisasi_id'))
+                ->orderBy('id')
+                ->pluck('nama'));
+        }
+
         $map = [];
-        foreach ($dokters as $dokter) {
-            $name = optional($dokter->spesialisasi)->nama;
+        foreach ($names as $name) {
             if ($name && !isset($map[$name])) {
                 $map[$name] = $palette[count($map) % count($palette)];
             }
@@ -83,27 +90,75 @@ class Dokter extends Model
     public function kliniks(): BelongsToMany
     {
         return $this->belongsToMany(Klinik::class, 'erm_dokter_kliniks', 'dokter_id', 'klinik_id')
-            ->withPivot('spesialisasi_id')
+            ->withTimestamps();
+    }
+
+    /** erm_dokter_klinik_spesialisasis exists once its migration ran (prod schema may lag behind the code). */
+    public static function tracksKlinikSpesialisasi(): bool
+    {
+        static $exists = null;
+
+        return $exists ??= \Illuminate\Support\Facades\Schema::hasTable('erm_dokter_klinik_spesialisasis');
+    }
+
+    /**
+     * Spesialisasi the dokter practises as, per klinik (pivot klinik_id). A klinik can have several.
+     */
+    public function klinikSpesialisasis(): BelongsToMany
+    {
+        return $this->belongsToMany(Spesialisasi::class, 'erm_dokter_klinik_spesialisasis', 'dokter_id', 'spesialisasi_id')
+            ->withPivot('klinik_id')
             ->withTimestamps();
     }
 
     /**
-     * Spesialisasi the dokter practices as in the given klinik,
-     * falling back to the dokter's default spesialisasi.
+     * Spesialisasi ids the dokter can be registered as in the given klinik:
+     * the ones set for that klinik, or the dokter's default spesialisasi when none are set.
+     *
+     * @return int[]
+     */
+    public function spesialisasiIdsForKlinik($klinikId): array
+    {
+        $ids = [];
+        if ($klinikId && self::tracksKlinikSpesialisasi()) {
+            $ids = $this->relationLoaded('klinikSpesialisasis')
+                ? $this->klinikSpesialisasis->filter(fn ($s) => (int) $s->pivot->klinik_id === (int) $klinikId)->pluck('id')->sort()->all()
+                : $this->klinikSpesialisasis()->wherePivot('klinik_id', $klinikId)->orderBy('erm_spesialisasis.id')->pluck('erm_spesialisasis.id')->all();
+        }
+
+        if (empty($ids) && $this->spesialisasi_id) {
+            $ids = [$this->spesialisasi_id];
+        }
+
+        return array_values(array_unique(array_map('intval', $ids)));
+    }
+
+    /**
+     * Default spesialisasi in the given klinik (the first one when the dokter holds several there).
      */
     public function spesialisasiIdForKlinik($klinikId): ?int
     {
-        if ($klinikId) {
-            $pivotSpesialisasiId = $this->kliniks()
-                ->where('erm_klinik.id', $klinikId)
-                ->value('erm_dokter_kliniks.spesialisasi_id');
+        return $this->spesialisasiIdsForKlinik($klinikId)[0] ?? null;
+    }
 
-            if ($pivotSpesialisasiId) {
-                return (int) $pivotSpesialisasiId;
-            }
+    /**
+     * Replace the per-klinik spesialisasi list: [klinik_id => [spesialisasi_id, ...]].
+     * A klinik without ids keeps no rows (= the dokter's default spesialisasi).
+     */
+    public function syncKlinikSpesialisasis(array $map): void
+    {
+        if (!self::tracksKlinikSpesialisasi()) {
+            return;
         }
 
-        return $this->spesialisasi_id ? (int) $this->spesialisasi_id : null;
+        $this->klinikSpesialisasis()->detach();
+
+        foreach ($map as $klinikId => $spesialisasiIds) {
+            $ids = array_unique(array_filter(array_map('intval', (array) $spesialisasiIds)));
+            foreach ($ids as $spesialisasiId) {
+                $this->klinikSpesialisasis()->attach($spesialisasiId, ['klinik_id' => (int) $klinikId]);
+            }
+        }
     }
 
     public function spesialisasiForKlinik($klinikId): ?Spesialisasi

@@ -866,7 +866,7 @@ class RawatJalanController extends Controller
                     ->leftJoin('erm_metode_bayar as mb', 'erm_visitations.metode_bayar_id', '=', 'mb.id')
                     ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
                     ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
-                    ->leftJoin('erm_spesialisasis as s', 'd.spesialisasi_id', '=', 's.id')
+                    ->leftJoin('erm_spesialisasis as s', 's.id', '=', Visitation::spesialisasiIdSql('d'))
                     ->leftJoin('area_villages as av', 'erm_pasiens.village_id', '=', 'av.id')
                     ->leftJoin('area_districts as ad', 'av.district_id', '=', 'ad.id')
                     ->leftJoin('area_regencies as ar', 'ad.regency_id', '=', 'ar.id')

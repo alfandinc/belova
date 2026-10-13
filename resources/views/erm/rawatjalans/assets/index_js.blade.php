@@ -1949,7 +1949,10 @@ function loadEditAntrianDokters(klinikId, selectedDokterId) {
         if (Array.isArray(data)) {
             $.each(data, function (index, dokter) {
                 var dokterName = dokter && dokter.user && dokter.user.name ? dokter.user.name : 'Unknown Doctor';
-                var spesialis = dokter && dokter.spesialisasi && dokter.spesialisasi.nama ? ' - ' + dokter.spesialisasi.nama : '';
+                var spesialisNama = Array.isArray(dokter.spesialisasis) && dokter.spesialisasis.length
+                    ? dokter.spesialisasis.map(function (s) { return s.nama; }).join(' / ')
+                    : (dokter && dokter.spesialisasi && dokter.spesialisasi.nama ? dokter.spesialisasi.nama : '');
+                var spesialis = spesialisNama ? ' - ' + spesialisNama : '';
                 $dokterSelect.append('<option value="' + escapeOptionValue(dokter.id) + '">' + escapeOptionValue(dokterName + spesialis) + '</option>');
             });
         }

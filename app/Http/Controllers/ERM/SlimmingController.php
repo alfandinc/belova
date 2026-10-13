@@ -40,7 +40,7 @@ class SlimmingController extends Controller
             ->orderByDesc('tanggal_tindakan')
             ->get();
 
-        $spesialisasiId = optional($visitation->dokter)->spesialisasi_id;
+        $spesialisasiId = $visitation->resolvedSpesialisasiId();
         if (!$spesialisasiId) {
             $spesialisasiId = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->value('id');
         }

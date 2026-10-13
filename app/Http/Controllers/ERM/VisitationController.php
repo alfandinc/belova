@@ -30,6 +30,7 @@ class VisitationController extends Controller
         $request->validate([
             'pasien_id' => 'required|exists:erm_pasiens,id',
             'dokter_id' => 'nullable|exists:erm_dokters,id',
+            'spesialisasi_id' => 'nullable|exists:erm_spesialisasis,id', // checked against the dokter + klinik on save
             'tanggal_visitation' => 'required|date',
             // 'waktu_kunjungan' => 'date_format:H:i', // Validasi waktu kunjungan
             'metode_bayar_id' => 'required',
@@ -76,6 +77,7 @@ class VisitationController extends Controller
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $dokterId,
+            'spesialisasi_id' => $dokterId ? $request->spesialisasi_id : null,
             'tanggal_visitation' => $request->tanggal_visitation,
             'waktu_kunjungan' => $request->waktu_kunjungan, // Menyimpan waktu kunjungan
             'no_antrian' => $noAntrian,
@@ -304,28 +306,28 @@ class VisitationController extends Controller
                     });
             })
             ->where(fn ($q) => $q->where('is_active', true)->when($includeId, fn ($q) => $q->orWhere('erm_dokters.id', $includeId)))
-            ->with([
-                'spesialisasi',
-                'user',
-                'kliniks' => function ($query) use ($klinikId) {
-                    $query->where('erm_klinik.id', $klinikId);
-                },
-            ])
+            ->with(['spesialisasi', 'user'])
+            ->when(Dokter::tracksKlinikSpesialisasi(), fn ($q) => $q->with([
+                'klinikSpesialisasis' => fn ($query) => $query->wherePivot('klinik_id', $klinikId),
+            ]))
             ->get();
 
-        // Show the spesialisasi the dokter practises as in this klinik, not their default one.
-        $pivotSpesialisasiIds = $dokters
-            ->map(fn (Dokter $dokter) => optional(optional($dokter->kliniks->first())->pivot)->spesialisasi_id)
-            ->filter()
-            ->unique();
-        $pivotSpesialisasis = Spesialisasi::whereIn('id', $pivotSpesialisasiIds)->get()->keyBy('id');
+        // Spesialisasi the dokter practises as in this klinik (one or more), not their default one.
+        // `spesialisasi` = the first one, `spesialisasis` = all of them (pendaftaran picks one when several).
+        $spesialisasis = Spesialisasi::whereIn('id', $dokters->flatMap(fn (Dokter $d) => $d->spesialisasiIdsForKlinik($klinikId))->unique())
+            ->get(['id', 'nama'])
+            ->keyBy('id');
 
-        $dokters->each(function (Dokter $dokter) use ($pivotSpesialisasis) {
-            $pivotSpesialisasiId = optional(optional($dokter->kliniks->first())->pivot)->spesialisasi_id;
-            if ($pivotSpesialisasiId && $pivotSpesialisasis->has($pivotSpesialisasiId)) {
-                $dokter->setRelation('spesialisasi', $pivotSpesialisasis->get($pivotSpesialisasiId));
+        $dokters->each(function (Dokter $dokter) use ($klinikId, $spesialisasis) {
+            $options = collect($dokter->spesialisasiIdsForKlinik($klinikId))
+                ->map(fn ($id) => $spesialisasis->get($id))
+                ->filter()
+                ->values();
+            if ($options->isNotEmpty()) {
+                $dokter->setRelation('spesialisasi', $options->first());
             }
-            $dokter->unsetRelation('kliniks');
+            $dokter->setAttribute('spesialisasis', $options);
+            $dokter->unsetRelation('klinikSpesialisasis');
         });
 
         return response()->json($dokters);

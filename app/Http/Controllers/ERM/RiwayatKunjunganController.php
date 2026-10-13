@@ -57,7 +57,7 @@ class RiwayatKunjunganController extends Controller
             'visitation_id' => $visitation->id,
             'tanggal_visit' => $visitation->tanggal_visitation,
             'nama_dokter' => $visitation->dokter->user->name ?? 'Doctor',
-            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'spesialisasi' => $visitation->listSpesialisasiNama() ?? '-',
             'pasien' => $pasien['pasien'],
             'diagnosis_list' => $diagnosisList,
             'keterangan' => $suratDiagnosa->keterangan ?? '-',
@@ -80,7 +80,7 @@ class RiwayatKunjunganController extends Controller
     {
         $diagnosas = SuratDiagnosa::whereHas('visitation', function($q) use ($pasienId) {
             $q->where('pasien_id', $pasienId);
-        })->with(['visitation.dokter.user', 'visitation.dokter.spesialisasi'])->get();
+        })->with(['visitation.dokter.user', 'visitation.dokter.spesialisasi', 'visitation.spesialisasi'])->get();
 
         return \Yajra\DataTables\DataTables::of($diagnosas)
             ->addIndexColumn()
@@ -88,7 +88,7 @@ class RiwayatKunjunganController extends Controller
                 return $row->visitation->dokter->user->name ?? '-';
             })
             ->addColumn('spesialisasi', function($row) {
-                return $row->visitation->dokter->spesialisasi->nama ?? '-';
+                return $row->visitation->listSpesialisasiNama() ?? '-';
             })
             ->addColumn('keterangan', function($row) {
                 return $row->keterangan ?? '-';
@@ -117,7 +117,7 @@ class RiwayatKunjunganController extends Controller
 
         // \Log::info('Masuk controller riwayatkunjungan');
         if ($request->ajax()) {
-            $kunjungan = Visitation::with(['metodeBayar:id,nama', 'dokter.user:id,name', 'dokter.spesialisasi:id,nama'])
+            $kunjungan = Visitation::with(['metodeBayar:id,nama', 'dokter.user:id,name', 'dokter.spesialisasi:id,nama', 'spesialisasi:id,nama'])
                 ->select('erm_visitations.*') // ini penting!
                 ->where('pasien_id', $pasien)
                 ->orderBy('erm_visitations.created_at', 'desc');
@@ -143,7 +143,7 @@ class RiwayatKunjunganController extends Controller
                 ->addIndexColumn()
                 ->addColumn('metode', fn($row) => $row->metodeBayar->nama ?? '-')
                 ->addColumn('spesialisasi', function ($row) {
-                    return optional(optional($row->dokter)->spesialisasi)->nama ?? '-';
+                    return $row->listSpesialisasiNama() ?? '-';
                 })
                 ->addColumn('dokter', function ($row) {
                     return optional(optional($row->dokter)->user)->name ?? '-';
@@ -374,7 +374,7 @@ class RiwayatKunjunganController extends Controller
             'visitation_id' => $visitation->id,
             'tanggal_visit' => $visitation->tanggal_visitation,
             'nama_dokter' => $visitation->dokter->user->name ?? 'Dokter',
-            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'spesialisasi' => $visitation->listSpesialisasiNama() ?? '-',
             'pasien' => $pasien['pasien'],
             'keluhan_utama' => $keluhanUtama,
             'keadaan_umum' => $keadaanUmum,
@@ -495,7 +495,7 @@ class RiwayatKunjunganController extends Controller
             'visitation_id' => $visitation->id,
             'tanggal_visit' => $visitation->tanggal_visitation,
             'nama_dokter' => $visitation->dokter->user->name ?? 'Dokter',
-            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'spesialisasi' => $visitation->listSpesialisasiNama() ?? '-',
             'pasien' => $pasien['pasien'],
             'diagnosis_list' => $diagnosisList,
             'keterangan' => $suratDiagnosa->keterangan ?? '-',

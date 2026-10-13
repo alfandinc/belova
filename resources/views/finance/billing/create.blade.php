@@ -431,7 +431,7 @@
                                     <td>:
                                         @if($visitation && $visitation->dokter)
                                             @php
-                                                $specName = optional($visitation->dokter->spesialisasi)->nama;
+                                                $specName = $visitation->listSpesialisasiNama();
                                                 $specColors = ['badge-primary','badge-info','badge-success','badge-warning','badge-danger','badge-dark','badge-secondary'];
                                                 $specBadgeClass = 'badge-secondary';
                                                 if(!empty($specName)) {

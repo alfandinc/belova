@@ -70,12 +70,11 @@ class DokterController extends Controller
                 ->select('erm_dokters.*')
                 ->leftJoin('users', 'users.id', '=', 'erm_dokters.user_id')
                 ->leftJoin('erm_spesialisasis as sp', 'sp.id', '=', 'erm_dokters.spesialisasi_id')
-                ->with(['user:id,name,email', 'spesialisasi:id,nama', 'klinik:id,nama', 'kliniks:id,nama']);
+                ->with(['user:id,name,email', 'spesialisasi:id,nama', 'klinik:id,nama', 'kliniks:id,nama'])
+                ->when(Dokter::tracksKlinikSpesialisasi(), fn ($q) => $q->with('klinikSpesialisasis:id,nama'));
             if (in_array($request->quick, self::QUICK, true)) {
                 $this->applyQuick($dokters, $request->quick);
             }
-
-            $spesialisasiNames = Spesialisasi::pluck('nama', 'id');
 
             return datatables()->eloquent($dokters)
                 ->addColumn('nama', fn ($d) => optional($d->user)->name)
@@ -83,12 +82,14 @@ class DokterController extends Controller
                 ->addColumn('spesialisasi', fn ($d) => optional($d->spesialisasi)->nama)
                 ->addColumn('photo_url', fn ($d) => $d->photo ? asset('storage/' . $d->photo) : null)
                 ->addColumn('ttd_url', fn ($d) => $d->ttd ? asset('img/qr/' . $d->ttd) : null)
-                ->addColumn('klinik_daftar', function ($d) use ($spesialisasiNames) {
+                ->addColumn('klinik_daftar', function ($d) {
                     // Klinik utama first, then the others; spesialisasi only when set per klinik
                     $list = $d->kliniks->map(fn ($k) => [
                         'nama' => $k->nama,
                         'utama' => (int) $k->id === (int) $d->klinik_id,
-                        'spesialisasi' => $k->pivot->spesialisasi_id ? ($spesialisasiNames[$k->pivot->spesialisasi_id] ?? null) : null,
+                        'spesialisasi' => ($d->relationLoaded('klinikSpesialisasis') ? $d->klinikSpesialisasis : collect())
+                            ->filter(fn ($s) => (int) $s->pivot->klinik_id === (int) $k->id)
+                            ->pluck('nama')->implode(', ') ?: null,
                     ]);
                     if ($d->klinik && !$list->contains('utama', true)) {
                         $list->push(['nama' => $d->klinik->nama, 'utama' => true, 'spesialisasi' => null]);
@@ -99,7 +100,7 @@ class DokterController extends Controller
                 ->filterColumn('spesialisasi', fn ($q, $keyword) => $q->where('sp.nama', 'like', "%{$keyword}%"))
                 ->orderColumn('nama', 'users.name $1')
                 ->orderColumn('spesialisasi', 'sp.nama $1')
-                ->removeColumn('user', 'klinik', 'kliniks')
+                ->removeColumn('user', 'klinik', 'kliniks', 'klinik_spesialisasis')
                 ->with('summary', $this->summary($request))
                 ->make(true);
         }
@@ -241,7 +242,9 @@ class DokterController extends Controller
             return redirect()->route('hrd.dokters.index', ['edit' => $id]);
         }
 
-        $dokter = Dokter::with(['user', 'spesialisasi', 'klinik', 'kliniks'])->findOrFail($id);
+        $dokter = Dokter::with(['user', 'spesialisasi', 'klinik', 'kliniks'])
+            ->when(Dokter::tracksKlinikSpesialisasi(), fn ($q) => $q->with('klinikSpesialisasis'))
+            ->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -319,7 +322,8 @@ class DokterController extends Controller
             'klinik_ids' => 'nullable|array',
             'klinik_ids.*' => 'exists:erm_klinik,id',
             'klinik_spesialisasi' => 'nullable|array',
-            'klinik_spesialisasi.*' => 'nullable|exists:erm_spesialisasis,id',
+            'klinik_spesialisasi.*' => 'nullable|array',
+            'klinik_spesialisasi.*.*' => 'nullable|exists:erm_spesialisasis,id',
             'due_date_sip' => 'nullable|date',
             'photo' => 'nullable|file|image|max:5120',
             'ttd' => 'nullable|file|image|max:5120',
@@ -387,17 +391,16 @@ class DokterController extends Controller
             ->values()
             ->all();
 
-        // Optional per-klinik spesialisasi; empty means use the dokter's default spesialisasi.
-        $klinikSpesialisasi = $request->input('klinik_spesialisasi', []);
+        // Optional per-klinik spesialisasi (one or more); empty means use the dokter's default spesialisasi.
+        $klinikSpesialisasi = collect($klinikIds)
+            ->mapWithKeys(fn ($klinikId) => [$klinikId => (array) $request->input("klinik_spesialisasi.$klinikId", [])])
+            ->all();
 
         // Dokter and its klinik list together: no dokter without klinik when the sync fails
         $dokter = DB::transaction(function () use ($request, $data, $klinikIds, $klinikSpesialisasi) {
             $dokter = Dokter::updateOrCreate(['id' => $request->id], $data);
-            $dokter->kliniks()->sync(
-                collect($klinikIds)->mapWithKeys(fn ($klinikId) => [
-                    $klinikId => ['spesialisasi_id' => ($klinikSpesialisasi[$klinikId] ?? null) ?: null],
-                ])->all()
-            );
+            $dokter->kliniks()->sync($klinikIds);
+            $dokter->syncKlinikSpesialisasis($klinikSpesialisasi);
             return $dokter;
         });
 

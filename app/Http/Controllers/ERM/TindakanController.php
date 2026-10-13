@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
 use App\Models\ERM\Spk;
@@ -48,15 +49,15 @@ class TindakanController extends Controller
         };
 
         // Replace all obat of this riwayat in one transaction, so a failure never leaves it half-deleted
-        \DB::transaction(function () use ($id, $obats, $qty, $dosis, $satuanDosis, $normalizeDecimal) {
-            \DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
+        DB::transaction(function () use ($id, $obats, $qty, $dosis, $satuanDosis, $normalizeDecimal) {
+            DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
             // Insert new pivot entries with qty, dosis, satuan_dosis
             foreach ($obats as $kodeTindakanId => $obatIds) {
                 if (!is_array($obatIds)) continue;
                 foreach ($obatIds as $obatId) {
                     $rawDosis = isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null;
                     $normDosis = $normalizeDecimal($rawDosis);
-                    \DB::table('erm_riwayat_tindakan_obat')->insert([
+                    DB::table('erm_riwayat_tindakan_obat')->insert([
                         'riwayat_tindakan_id' => $id,
                         'kode_tindakan_id' => $kodeTindakanId,
                         'obat_id' => $obatId,
@@ -116,7 +117,7 @@ class TindakanController extends Controller
         $visitation = Visitation::with('dokter')->findOrFail($visitationId);
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
-        $spesialisasiId = optional($visitation->dokter)->spesialisasi_id;
+        $spesialisasiId = $visitation->resolvedSpesialisasiId();
 
         if (!$spesialisasiId) {
             $spesialisasiId = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->value('id');
@@ -311,6 +312,7 @@ class TindakanController extends Controller
                 $cardBodies = $finder->query("//div[contains(@class, 'card-body')]");
                 if ($cardBodies->length > 0) {
                     // Find the card-body that contains the consent text (the one with Catatan Tambahan inside)
+                    /** @var \DOMElement $cardBody */
                     foreach ($cardBodies as $cardBody) {
                         $hasCatatan = false;
                         foreach ($cardBody->getElementsByTagName('label') as $label) {
@@ -324,7 +326,7 @@ class TindakanController extends Controller
                             $content = '';
                             foreach ($cardBody->childNodes as $child) {
                                 // Stop at the Catatan Tambahan label
-                                if ($child->nodeType === XML_ELEMENT_NODE && $child->nodeName === 'div') {
+                                if ($child instanceof \DOMElement && $child->nodeName === 'div') {
                                     $label = $child->getElementsByTagName('label')->item(0);
                                     if ($label && stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
                                         break;
@@ -343,7 +345,7 @@ class TindakanController extends Controller
                 $dokterUser = $visitation->dokter->user ?? null;
                 $dokterName = $dokterUser ? ($dokterUser->name ?? '') : ($visitation->dokter->nama ?? '');
             }
-            $perawatName = optional(auth()->user())->name ?? '';
+            $perawatName = optional(Auth::user())->name ?? '';
 
             // Helper to generate QR data URI via Google Chart API (fallback to empty string on failure)
             $generateQrDataUri = function ($text) {
@@ -683,7 +685,7 @@ class TindakanController extends Controller
         // Get all riwayat tindakan for all visitations of this patient and collapse
         // duplicate tindakan within the same visit into one row with a count badge.
         $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
+            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'visitation.spesialisasi', 'informConsent'])
             ->get()
             ->groupBy(function ($item) {
                 return $item->visitation_id . '-' . ($item->tindakan_id ?? 0);
@@ -710,7 +712,7 @@ class TindakanController extends Controller
                     'tanggal_raw' => $tanggalRaw,
                     'tindakan' => $representative->tindakan->nama ?? '-',
                     'dokter' => $representative->visitation->dokter->user->name ?? '-',
-                    'spesialisasi' => $representative->visitation->dokter->spesialisasi->nama ?? '-',
+                    'spesialisasi' => $representative->visitation->listSpesialisasiNama() ?? '-',
                     'inform_consent' => $informConsentSource->informConsent,
                     'duplicate_count' => $group->count(),
                     'current' => ($representative->visitation_id == $visitationId)

@@ -5,7 +5,10 @@
     $val = fn($field) => $d->{$field} ?? '';
     $date = fn($field) => ($d && $d->{$field}) ? \Carbon\Carbon::parse($d->{$field})->format('Y-m-d') : '';
     $selectedKlinikIds = $isEdit ? $dokter->kliniks->pluck('id')->map(fn ($id) => (int) $id)->all() : [];
-    $klinikSpesialisasiIds = $isEdit ? $dokter->kliniks->pluck('pivot.spesialisasi_id', 'id')->all() : [];
+    // klinik_id => [spesialisasi_id, ...]
+    $klinikSpesialisasiIds = $isEdit && $dokter->relationLoaded('klinikSpesialisasis')
+        ? $dokter->klinikSpesialisasis->groupBy('pivot.klinik_id')->map(fn ($rows) => $rows->pluck('id')->map(fn ($id) => (int) $id)->all())->all()
+        : [];
     $req = '<span class="text-danger">*</span>';
     // Card per group: icon, title, what it is used for
     $block = fn($icon, $title, $desc) => '<div class="df-block-head"><span class="df-block-icon"><i class="fas ' . $icon . '"></i></span>'
@@ -184,7 +187,7 @@
                     </div>
                 </div>
                 <div class="df-block">
-                    {!! $block('fa-clinic-medical', 'Klinik Praktik', 'Centang semua klinik tempat dokter praktik. Spesialisasi per klinik menentukan form asesmen.') !!}
+                    {!! $block('fa-clinic-medical', 'Klinik Praktik', 'Centang semua klinik tempat dokter praktik. Spesialisasi per klinik (boleh lebih dari satu) menentukan form asesmen; bila lebih dari satu, spesialisasi dipilih saat pendaftaran.') !!}
                     <div class="df-block-body pb-2">
                         @foreach($kliniks as $klinik)
                             @php $checked = in_array((int) $klinik->id, $selectedKlinikIds, true); @endphp
@@ -193,12 +196,13 @@
                                     <input type="checkbox" class="custom-control-input df-klinik-check" id="df-klinik-{{ $klinik->id }}" name="klinik_ids[]" value="{{ $klinik->id }}" {{ $checked ? 'checked' : '' }}>
                                     <label class="custom-control-label" for="df-klinik-{{ $klinik->id }}">{{ $klinik->nama }} <span class="badge badge-primary ml-1 df-utama-badge" style="display:none;">utama</span></label>
                                 </div>
-                                <select name="klinik_spesialisasi[{{ $klinik->id }}]" class="form-control form-control-sm df-klinik-spesialisasi my-1" style="max-width: 240px;">
-                                    <option value="">Spesialisasi default</option>
-                                    @foreach($spesialisasis as $s)
-                                        <option value="{{ $s->id }}" {{ (string) ($klinikSpesialisasiIds[$klinik->id] ?? '') === (string) $s->id ? 'selected' : '' }}>{{ $s->nama }}</option>
-                                    @endforeach
-                                </select>
+                                <div class="my-1" style="width: 280px; max-width: 100%;">
+                                    <select name="klinik_spesialisasi[{{ $klinik->id }}][]" class="form-control form-control-sm df-klinik-spesialisasi" multiple data-placeholder="Spesialisasi default">
+                                        @foreach($spesialisasis as $s)
+                                            <option value="{{ $s->id }}" {{ in_array((int) $s->id, $klinikSpesialisasiIds[$klinik->id] ?? [], true) ? 'selected' : '' }}>{{ $s->nama }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </div>
                         @endforeach
                     </div>

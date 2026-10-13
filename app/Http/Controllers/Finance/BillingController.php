@@ -5437,10 +5437,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
                 if ($visitation->dokter && $visitation->dokter->user) {
                     $name = $visitation->dokter->user->name;
-                    if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
-                        return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
-                    }
-                    return $name;
+                    $spesialisasi = $visitation->listSpesialisasiNama();
+                    return $spesialisasi ? $name . ' (' . $spesialisasi . ')' : $name;
                 }
                 return '-';
             })
@@ -5449,7 +5447,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return optional(optional($visitation->dokter)->user)->name ?? '-';
             })
             ->addColumn('dokter_spesialisasi', function ($visitation) {
-                return optional(optional($visitation->dokter)->spesialisasi)->nama ?? '';
+                return $visitation->listSpesialisasiNama() ?? '';
             })
             ->addColumn('jenis_kunjungan', function ($visitation) {
                 if (isset($visitation->jenis_kunjungan)) {
@@ -5577,6 +5575,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'klinik',
             'dokter.user',
             'dokter.spesialisasi',
+            'spesialisasi',
             'metodeBayar',
             'invoice' => function ($query) {
                 // Only the invoice fields the billing table / status read.
@@ -5791,6 +5790,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
                 $q->where('nama', 'like', "%$search%") ;
             })
+            ->when(Visitation::tracksSpesialisasi(), fn ($query) => $query->orWhereHas('spesialisasi', function($q) use ($search) {
+                $q->where('nama', 'like', "%$search%") ;
+            }))
             ->orWhereHas('klinik', function($q) use ($search) {
                 $q->where('nama', 'like', "%$search%") ;
             })

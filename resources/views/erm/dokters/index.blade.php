@@ -663,6 +663,7 @@ $(function() {
     function initDokterForm() {
         var $form = $('#dokter-form');
         $form.find('.df-select2').select2({ width: '100%', dropdownParent: $formModal });
+        $form.find('.df-klinik-spesialisasi').select2({ width: '100%', dropdownParent: $formModal, allowClear: true });
 
         // Klinik utama is always saved as a klinik praktik: keep its box checked and locked.
         // When the utama changes, a box that was only checked because it was the utama is unchecked again.

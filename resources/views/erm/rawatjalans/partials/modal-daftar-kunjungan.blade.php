@@ -475,6 +475,12 @@
                                         <option value="">Tanpa Dokter</option>
                                     </select>
                                 </div>
+
+                                {{-- Only when the dokter holds more than one spesialisasi in this klinik --}}
+                                <div class="col-sm form-group" id="rj_spesialisasi_group" style="display:none;">
+                                    <label for="rj_spesialisasi_id">Spesialisasi</label>
+                                    <select id="rj_spesialisasi_id" name="spesialisasi_id" class="form-control" disabled></select>
+                                </div>
                             </div>
 
                             <div class="form-row">
@@ -1141,6 +1147,7 @@ $(document).ready(function(){
             $('#form-daftar-kunjungan-rawatjalan')[0].reset();
             $('#rj_pasien_id').val(null).trigger('change');
             $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
+            rjRenderSpesialisasi();
             $('#rj_no_antrian').val('');
             resetRawatJalanMarketplaceFields();
 
@@ -1320,12 +1327,28 @@ $(document).ready(function(){
         });
     }
 
+    // dokter id => spesialisasi [{id, nama}] in the selected klinik
+    let rjDokterSpesialisasis = {};
+
+    // Spesialisasi picker: shown only when the dokter holds several in this klinik
+    function rjRenderSpesialisasi() {
+        const options = rjDokterSpesialisasis[$('#rj_dokter_id').val()] || [];
+        const $select = $('#rj_spesialisasi_id').empty();
+        options.forEach(function(s) {
+            $select.append($('<option>').val(s.id).text(s.nama));
+        });
+        $select.prop('disabled', options.length < 2);
+        $('#rj_spesialisasi_group').toggle(options.length > 1);
+    }
+
     // klinik => load doctors
     $('#rj_klinik_id').on('change', function(){
         let klinikId = $(this).val();
         let dokterSelect = $('#rj_dokter_id');
 
         dokterSelect.empty().append('<option value="">Loading...</option>').prop('disabled', true);
+        rjDokterSpesialisasis = {};
+        rjRenderSpesialisasi();
         if (!klinikId) {
             dokterSelect.empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2');
             $('#rj_no_antrian').val('');
@@ -1340,7 +1363,12 @@ $(document).ready(function(){
             if (data && data.length) {
                 $.each(data, function(_, dokter){
                     let dokterName = (dokter.user && dokter.user.name) ? dokter.user.name : 'Unknown Doctor';
-                    let spesialis = (dokter.spesialisasi && dokter.spesialisasi.nama) ? ` (${dokter.spesialisasi.nama})` : '';
+                    let spesialisasis = Array.isArray(dokter.spesialisasis) ? dokter.spesialisasis : [];
+                    rjDokterSpesialisasis[dokter.id] = spesialisasis;
+                    let spesialisNama = spesialisasis.length
+                        ? spesialisasis.map(function(s) { return s.nama; }).join(' / ')
+                        : ((dokter.spesialisasi && dokter.spesialisasi.nama) || '');
+                    let spesialis = spesialisNama ? ` (${spesialisNama})` : '';
                     dokterSelect.append(`<option value="${dokter.id}">${dokterName}${spesialis}</option>`);
                 });
             }
@@ -1358,6 +1386,8 @@ $(document).ready(function(){
     });
 
     // dokter/date => cek antrian
+    $('#rj_dokter_id').on('change', rjRenderSpesialisasi);
+
     $('#rj_dokter_id, #rj_tanggal_visitation').on('change', function(){
         cekAntrianRJ();
         loadRjCalendarPreview();
@@ -1422,7 +1452,7 @@ $(document).ready(function(){
     $('#modalDaftarKunjunganRawatJalan').on('hidden.bs.modal', function(){
         try { $('#form-daftar-kunjungan-rawatjalan')[0].reset(); } catch(e) {}
         try { $('#rj_pasien_id').val(null).trigger('change'); } catch(e) {}
-        try { $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2'); } catch(e) {}
+        try { $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2'); rjRenderSpesialisasi(); } catch(e) {}
         $('#rj_no_antrian').val('');
         rjFixedPasienContext = null;
         rjPendingFollowUp = null;

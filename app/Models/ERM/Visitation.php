@@ -84,6 +84,7 @@ class Visitation extends Model
         'pasien_id',
         'metode_bayar_id',
         'dokter_id',
+        'spesialisasi_id', // chosen at pendaftaran; null on old visits
         'user_id',
         'klinik_id',
         'status_kunjungan',
@@ -113,6 +114,28 @@ class Visitation extends Model
             }
 
             $visitation->forceFill(self::defaultReferralFor((string) $visitation->pasien_id));
+        });
+
+        // Spesialisasi must be one the dokter holds in this klinik; default to the first one
+        static::saving(function (Visitation $visitation) {
+            if (!self::tracksSpesialisasi()) {
+                unset($visitation->spesialisasi_id);
+                return;
+            }
+
+            if (empty($visitation->dokter_id)) {
+                $visitation->spesialisasi_id = null;
+                return;
+            }
+
+            if (!$visitation->isDirty(['dokter_id', 'klinik_id', 'spesialisasi_id']) && $visitation->exists) {
+                return;
+            }
+
+            $options = Dokter::find($visitation->dokter_id)?->spesialisasiIdsForKlinik($visitation->klinik_id) ?? [];
+            if (!in_array((int) $visitation->spesialisasi_id, $options, true)) {
+                $visitation->spesialisasi_id = $options[0] ?? null;
+            }
         });
 
         // A visit booked from a CRM follow up turns that follow up's booking into Sukses
@@ -227,6 +250,25 @@ class Visitation extends Model
         return $exists ??= \Illuminate\Support\Facades\Schema::hasColumn('erm_visitations', 'masuk_ruangan_at');
     }
 
+    /** spesialisasi_id exists once its migration ran (prod schema may lag behind the code). */
+    public static function tracksSpesialisasi(): bool
+    {
+        static $exists = null;
+
+        return $exists ??= \Illuminate\Support\Facades\Schema::hasColumn('erm_visitations', 'spesialisasi_id');
+    }
+
+    /**
+     * SQL for a visit's spesialisasi id in list queries joining erm_dokters as $dokterAlias:
+     * the one chosen at pendaftaran, else the dokter's default.
+     */
+    public static function spesialisasiIdSql(string $dokterAlias): \Illuminate\Database\Query\Expression
+    {
+        return \Illuminate\Support\Facades\DB::raw(self::tracksSpesialisasi()
+            ? "COALESCE(erm_visitations.spesialisasi_id, {$dokterAlias}.spesialisasi_id)"
+            : "{$dokterAlias}.spesialisasi_id");
+    }
+
     /** serviceBlockers() for this visit, reading the screening from the database. */
     public function pendingServiceSteps(): array
     {
@@ -275,12 +317,41 @@ class Visitation extends Model
         return $this->belongsTo(Dokter::class, 'dokter_id');
     }
 
+    public function spesialisasi()
+    {
+        return $this->belongsTo(Spesialisasi::class, 'spesialisasi_id');
+    }
+
     /**
-     * The dokter's spesialisasi for this visit's klinik (a dokter can practise differently per klinik).
+     * Spesialisasi of this visit: the one chosen at pendaftaran, or for old visits
+     * the dokter's spesialisasi in this visit's klinik.
      */
     public function resolvedSpesialisasi(): ?Spesialisasi
     {
+        if ($this->spesialisasi_id) {
+            return $this->spesialisasi;
+        }
+
         return $this->dokter?->spesialisasiForKlinik($this->klinik_id);
+    }
+
+    /**
+     * Spesialisasi name for list tables (no extra queries with `spesialisasi` and `dokter.spesialisasi` loaded):
+     * the one chosen at pendaftaran, else the dokter's default. Same as spesialisasiIdSql().
+     */
+    public function listSpesialisasiNama(): ?string
+    {
+        return ($this->spesialisasi_id ? $this->spesialisasi?->nama : null)
+            ?? $this->dokter?->spesialisasi?->nama;
+    }
+
+    public function resolvedSpesialisasiId(): ?int
+    {
+        if ($this->spesialisasi_id) {
+            return (int) $this->spesialisasi_id;
+        }
+
+        return $this->dokter?->spesialisasiIdForKlinik($this->klinik_id);
     }
     public function asesmenPerawat()
     {
