@@ -14,11 +14,11 @@
     $pasienData = !empty($pasienId)
         ? ' data-id="' . e($pasienId) . '" data-nama="' . e($pasienNama ?? '') . '"'
         : '';
+    // No Event here: event visits are registered from the event page
     $items = [
         ['jenis' => 'konsultasi', 'icon' => 'fas fa-stethoscope', 'text' => 'Konsultasi'],
         ['jenis' => 'lab', 'icon' => 'fas fa-flask', 'text' => 'Laboratorium'],
         ['jenis' => 'produk', 'icon' => 'fas fa-shopping-bag', 'text' => 'Produk dan Obat'],
-        ['jenis' => 'event', 'icon' => 'fas fa-calendar-alt', 'text' => 'Event'],
         ['jenis' => 'marketplace', 'icon' => 'fas fa-store', 'text' => 'Marketplace'],
         ['jenis' => 'reseller', 'icon' => 'fas fa-boxes', 'text' => 'Reseller'],
         ['jenis' => 'slimming', 'icon' => 'fas fa-weight', 'text' => 'Slimming'],
