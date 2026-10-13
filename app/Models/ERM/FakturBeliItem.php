@@ -9,8 +9,9 @@ class FakturBeliItem extends Model
 {
     use HasFactory;
     protected $table = 'erm_fakturbeli_items';
+    protected $casts = ['is_bonus' => 'boolean'];
     protected $fillable = [
-        'fakturbeli_id', 'permintaan_item_id', 'obat_id', 'principal_id', 'qty', 'sisa', 'harga', 'diskon', 'diskon_type', 'tax', 'tax_type', 'gudang_id', 'batch', 'expiration_date', 'diminta', 'total_amount'
+        'fakturbeli_id', 'permintaan_item_id', 'obat_id', 'principal_id', 'qty', 'sisa', 'harga', 'diskon', 'diskon_type', 'tax', 'tax_type', 'gudang_id', 'batch', 'expiration_date', 'diminta', 'total_amount', 'is_bonus'
     ];
 
     public function obat()

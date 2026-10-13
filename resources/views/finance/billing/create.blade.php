@@ -29,6 +29,7 @@
             'batchDetails' => route('events.billing.batch-details'),
             'riwayatTindakanObats' => route('events.billing.riwayat-tindakan-obats'),
             'tindakanObats' => route('events.billing.tindakan-obats'),
+            'labObats' => route('events.billing.lab-obats'),
             'stockInfoModal' => route('events.billing.stock-info-modal'),
             'back' => route('events.index'),
         ]
@@ -43,6 +44,7 @@
             'batchDetails' => route('erm.stok-gudang.batch-details'),
             'riwayatTindakanObats' => route('finance.billing.riwayat-tindakan-obats'),
             'tindakanObats' => route('finance.billing.tindakan-obats'),
+            'labObats' => route('finance.billing.lab-obats'),
             'stockInfoModal' => route('finance.billing.stock-info-modal'),
             'back' => route('finance.billing.index'),
         ];
@@ -2275,13 +2277,38 @@
             const isTindakan = item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan' || item.billable_type === 'App\\Models\\ERM\\Tindakan';
             const isObat = item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || item.billable_type === 'App\\Models\\ERM\\Obat' || !!item.obat_id;
             const isRacikan = !!item.is_racikan;
-            if (!isTindakan && !isObat && !isRacikan) {
+            const isLab = isLabBillingItem(item);
+            if (!isTindakan && !isObat && !isRacikan && !isLab) {
                 return $.Deferred().resolve(false).promise();
             }
 
             let gudangId = getSelectedGudangIdForItem(itemId, item);
             if (!gudangId) {
                 return $.Deferred().resolve(false).promise();
+            }
+
+            if (isLab) {
+                return loadLabObatRows(item.id).then(function(resp) {
+                    const labRows = resp && resp.rows ? resp.rows : [];
+                    if (!item.selected_gudang_id && resp && resp.suggestedGudangId) {
+                        gudangId = resp.suggestedGudangId;
+                    }
+                    if (!labRows.length) return false;
+
+                    const requests = labRows.map(function(r) {
+                        return loadStockTotal(r.obatId, gudangId);
+                    });
+                    return $.when.apply($, requests).then(function() {
+                        const normalized = (requests.length === 1) ? [arguments[0]] : Array.prototype.slice.call(arguments);
+                        return labRows.some(function(r, idx) {
+                            const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
+                            const needed = Number(r.needed) || 0;
+                            return needed > 0 && stok < needed;
+                        });
+                    }, function() {
+                        return false;
+                    });
+                });
             }
 
             const baseRows = buildObatRowsForStockModal(item);

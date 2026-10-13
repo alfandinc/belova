@@ -9,6 +9,10 @@ class CatatanKeluhan extends Model
 {
     use HasFactory;
     protected $table = 'marketing_catatan_keluhan';
+
+    /** Statuses of a handled complaint; anything else counts as still open. */
+    public const CLOSED_STATUSES = ['Selesai', 'Ditolak'];
+
     protected $fillable = [
         'perusahaan',
         'pasien_id',

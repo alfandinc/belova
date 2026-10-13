@@ -62,10 +62,10 @@ class ZatAktifController extends Controller
         $allObat = fn ($q) => $q->withoutGlobalScope('active');
         switch ($request->input('pemakaian')) {
             case 'dipakai':
-                $query->where(fn ($q) => $q->whereHas('obats', $allObat)->orHas('alergi'));
+                $query->where(fn ($q) => $q->whereHas('obats', $allObat)->orHas('alergi')->orHas('rndProduks'));
                 break;
             case 'tidak_dipakai':
-                $query->whereDoesntHave('obats', $allObat)->doesntHave('alergi');
+                $query->whereDoesntHave('obats', $allObat)->doesntHave('alergi')->doesntHave('rndProduks');
                 break;
             case 'ganda':
                 $query->whereIn('id', $this->duplicateIds());
@@ -191,6 +191,11 @@ class ZatAktifController extends Controller
             DB::table('erm_alergi')->where('zataktif_id', $source->id)->whereIn('pasien_id', $pasienWithTarget)->delete();
             $alergi = DB::table('erm_alergi')->where('zataktif_id', $source->id)->update(['zataktif_id' => $target->id]);
 
+            // R&D product links: same as obat, without creating a duplicate link on a product that already has the target
+            $produkWithTarget = DB::table('rnd_produk_zat_aktif')->where('zataktif_id', $target->id)->pluck('produk_id');
+            DB::table('rnd_produk_zat_aktif')->where('zataktif_id', $source->id)->whereIn('produk_id', $produkWithTarget)->delete();
+            DB::table('rnd_produk_zat_aktif')->where('zataktif_id', $source->id)->update(['zataktif_id' => $target->id, 'updated_at' => $now]);
+
             $source->delete();
 
             return ['obat' => $obatIds->count(), 'alergi' => $alergi];
@@ -216,6 +221,13 @@ class ZatAktifController extends Controller
         if ($zat->obat_count > 0 || $zat->alergi_count > 0) {
             return response()->json([
                 'message' => "Zat aktif masih dipakai di {$zat->obat_count} obat dan {$zat->alergi_count} data alergi pasien, tidak bisa dihapus. Gunakan Gabungkan jika ini nama ganda.",
+            ], 422);
+        }
+
+        $rndCount = DB::table('rnd_produk_zat_aktif')->where('zataktif_id', $zat->id)->count();
+        if ($rndCount > 0) {
+            return response()->json([
+                'message' => "Zat aktif masih dipakai di {$rndCount} produk R&D, tidak bisa dihapus. Gunakan Gabungkan jika ini nama ganda.",
             ], 422);
         }
 

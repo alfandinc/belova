@@ -49,23 +49,37 @@ class Visitation extends Model
 
             $visitation->forceFill(self::defaultReferralFor((string) $visitation->pasien_id));
         });
+
+        // A visit booked from a CRM follow up turns that follow up's booking into Sukses
+        static::saved(function (Visitation $visitation) {
+            if ($visitation->referral_type === Pasien::REFERRAL_TYPE_FOLLOW_UP
+                && $visitation->referralable_id
+                && ($visitation->wasRecentlyCreated || $visitation->wasChanged('referralable_id'))) {
+                \App\Models\Marketing\FollowUp::whereKey($visitation->referralable_id)->update(['status_booking' => 'Sukses']);
+            }
+        });
     }
 
     /**
      * Default referral for a new visit: copy the patient's last visit referral,
      * or the patient's source referral when this is their first visit.
+     * A follow up referral belongs to the one visit it booked, so it is never copied.
      */
     public static function defaultReferralFor(string $pasienId): array
     {
         $previous = self::query()
             ->where('pasien_id', $pasienId)
             ->whereNotNull('referral_type')
+            ->where('referral_type', '!=', Pasien::REFERRAL_TYPE_FOLLOW_UP)
             ->orderByDesc('tanggal_visitation')
             ->orderByDesc('waktu_kunjungan')
             ->orderByDesc('created_at')
             ->first(['referral_type', 'referral_detail', 'referralable_type', 'referralable_id']);
 
         $source = $previous ?? Pasien::find($pasienId, ['referral_type', 'referral_detail', 'referralable_type', 'referralable_id']);
+        if (($source->referral_type ?? null) === Pasien::REFERRAL_TYPE_FOLLOW_UP) {
+            $source = null;
+        }
 
         return [
             'referral_type' => $source->referral_type ?? Pasien::REFERRAL_TYPE_WALK_IN,

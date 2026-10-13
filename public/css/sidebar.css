@@ -1,0 +1,213 @@
+/* Shared left sidebar (resources/views/layouts/shared/sidebar.blade.php).
+   Clinic accent vars (--sb-accent, --sb-accent-deep, --sb-accent-rgb, --sb-accent-text-light/-dark) come from the
+   inline style on #belovaSidenav; html.theme-dark / html.theme-light pick the surface colours.
+   Surface tokens are also set on <html> so the topbar / footer (below) share the sidebar's colours. */
+/* ---- Tokens ---- */
+html, #belovaSidenav {
+    --sb-accent-text: var(--sb-accent-text-light);
+    --sb-bg: #ffffff;
+    --sb-text: #4b5671;
+    --sb-text-strong: #1e2538;
+    --sb-muted: #8a94ad;
+    --sb-line: rgba(100, 116, 139, 0.16);
+    --sb-hover: rgba(var(--sb-accent-rgb), 0.07);
+    --sb-tile: rgba(100, 116, 139, 0.09);
+    --sb-tile-icon: #66718d;
+    --sb-input: #f4f6fa;
+}
+html.theme-dark, html.theme-dark #belovaSidenav {
+    --sb-accent-text: var(--sb-accent-text-dark);
+    --sb-bg: #1a1e2b;
+    --sb-text: #aab4c8;
+    --sb-text-strong: #f1f4fa;
+    --sb-muted: #6c7792;
+    --sb-line: rgba(148, 163, 184, 0.12);
+    --sb-hover: rgba(var(--sb-accent-rgb), 0.12);
+    --sb-tile: rgba(148, 163, 184, 0.08);
+    --sb-tile-icon: #97a3bc;
+    --sb-input: rgba(148, 163, 184, 0.07);
+}
+
+/* Logo + search sit above the menu, so the menu takes only the remaining height (theme's height:100% pushed the bottom items off-screen) */
+.belova-sidenav { display: flex; flex-direction: column; }
+#belovaSidenav {
+    background:
+        radial-gradient(120% 220px at 0% 0%, rgba(var(--sb-accent-rgb), 0.13), transparent 70%),
+        var(--sb-bg);
+    border-right: 1px solid var(--sb-line);
+    box-shadow: 4px 0 24px -12px rgba(15, 23, 42, 0.18);
+}
+.belova-sidenav .brand, .belova-nav-search { flex-shrink: 0; }
+.belova-sidenav .menu-content { flex: 1 1 auto; min-height: 0; height: auto !important; padding-bottom: 24px; }
+.belova-sidenav .brand { height: auto; margin: 18px 0 6px; padding: 0 16px; }
+.belova-sidenav .brand .logo { display: block; line-height: 1; transition: transform .2s ease; }
+.belova-sidenav .brand .logo:hover { transform: scale(1.03); }
+.belova-sidenav .brand img { width: auto; height: 46px; max-width: 190px; object-fit: contain; }
+.belova-sidenav .brand-accent {
+    display: block; height: 3px; width: 44px; margin: 10px auto 0; border-radius: 3px;
+    background: linear-gradient(90deg, var(--sb-accent), var(--sb-accent-deep));
+    opacity: .85;
+}
+
+/* ---- Search ---- */
+.belova-nav-search { padding: 8px 14px 6px; }
+.belova-nav-search .input-wrap { position: relative; }
+.belova-nav-search input {
+    width: 100%; height: 36px; border-radius: 11px; padding: 6px 30px 6px 34px; font-size: 13px;
+    border: 1px solid var(--sb-line); background: var(--sb-input); color: var(--sb-text-strong); outline: none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.belova-nav-search input::placeholder { color: var(--sb-muted); }
+.belova-nav-search input:focus {
+    border-color: rgba(var(--sb-accent-rgb), 0.6); background: var(--sb-bg);
+    box-shadow: 0 0 0 4px rgba(var(--sb-accent-rgb), 0.14);
+}
+.belova-nav-search .search-icon {
+    position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px;
+    color: var(--sb-muted); pointer-events: none; transition: color .15s;
+}
+.belova-nav-search .input-wrap:focus-within .search-icon { color: var(--sb-accent-text); }
+.belova-nav-search kbd {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 10px; padding: 1px 6px;
+    background: var(--sb-bg); border: 1px solid var(--sb-line); border-bottom-width: 2px; border-radius: 5px;
+    color: var(--sb-muted); box-shadow: none; font-family: inherit;
+}
+
+/* ---- Menu ---- */
+#belovaSidenav .left-sidenav-menu { padding: 6px 12px 16px; }
+#belovaSidenav .left-sidenav-menu li { margin-top: 2px; }
+#belovaSidenav .left-sidenav-menu .menu-label {
+    display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 6px 8px 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--sb-muted);
+}
+#belovaSidenav .left-sidenav-menu .menu-label::after { content: ''; flex: 1; height: 1px; background: var(--sb-line); }
+#belovaSidenav .left-sidenav-menu .menu-label.mt-0 { margin-top: 4px; }
+
+#belovaSidenav .left-sidenav-menu > li > a {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 11px; color: var(--sb-text); font-size: 13.5px; font-weight: 500;
+    transition: background .18s ease, color .18s ease;
+}
+#belovaSidenav .left-sidenav-menu > li > a .menu-icon {
+    flex-shrink: 0; width: 30px; height: 30px; padding: 7px; margin: 0; border-radius: 9px;
+    background: var(--sb-tile); color: var(--sb-tile-icon); fill: none; stroke-width: 1.8px;
+    transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+}
+#belovaSidenav .left-sidenav-menu > li > a > span:not(.menu-arrow):not(.badge) {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#belovaSidenav .left-sidenav-menu > li > a:hover { background: var(--sb-hover); color: var(--sb-text-strong); }
+#belovaSidenav .left-sidenav-menu > li > a:hover .menu-icon { color: var(--sb-accent-text); background: rgba(var(--sb-accent-rgb), 0.12); }
+
+/* Open module: tinted row, filled icon tile */
+#belovaSidenav .left-sidenav-menu > li.mm-active > a { background: var(--sb-hover); color: var(--sb-text-strong); font-weight: 600; }
+#belovaSidenav .left-sidenav-menu > li.mm-active > a .menu-icon {
+    background: linear-gradient(135deg, var(--sb-accent), var(--sb-accent-deep)); color: #fff;
+    box-shadow: 0 6px 14px -6px rgba(var(--sb-accent-rgb), 0.7);
+}
+/* Direct link that is the current page: full accent pill */
+#belovaSidenav .left-sidenav-menu > li.belova-nav-link > a.active {
+    background: linear-gradient(135deg, var(--sb-accent), var(--sb-accent-deep)); color: #fff;
+    box-shadow: 0 8px 18px -8px rgba(var(--sb-accent-rgb), 0.8);
+}
+#belovaSidenav .left-sidenav-menu > li.belova-nav-link > a.active .menu-icon { background: rgba(255, 255, 255, 0.18); color: #fff; box-shadow: none; }
+
+/* Chevron rotates instead of swapping glyphs */
+#belovaSidenav .left-sidenav-menu .menu-arrow { margin-left: auto; display: inline-flex; }
+#belovaSidenav .left-sidenav-menu .menu-arrow i { width: auto; font-size: 16px; color: var(--sb-muted); opacity: 1; transition: transform .22s ease, color .18s; }
+#belovaSidenav .left-sidenav-menu li.mm-active .menu-arrow i:before { content: "\F142"; }
+#belovaSidenav .left-sidenav-menu > li.mm-active > a .menu-arrow i { transform: rotate(90deg); color: var(--sb-accent-text); }
+
+/* Badges */
+.belova-sidenav .belova-nav-badge {
+    min-width: 20px; padding: 3px 6px; font-size: 10.5px; font-weight: 700; line-height: 1.15; border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--sb-bg);
+}
+.belova-sidenav .left-sidenav-menu > li > a .belova-nav-badge { margin-left: auto; margin-right: 2px; }
+.belova-sidenav .left-sidenav-menu > li > a .belova-nav-badge + .belova-nav-badge { margin-left: 4px; }
+.belova-sidenav .left-sidenav-menu > li > a:not([aria-expanded]) .belova-nav-badge:last-child,
+.belova-sidenav .left-sidenav-menu > li.belova-nav-link > a .belova-nav-badge { margin-right: 0; }
+
+/* ---- Submenu ---- */
+/* Closed submenus stay hidden before metisMenu initialises (otherwise every module flashes open) */
+.belova-sidenav .nav-second-level:not(.mm-show):not(.mm-collapsing) { display: none; }
+#belovaSidenav .left-sidenav-menu .nav-second-level {
+    position: relative; margin: 4px 0 6px 22px; padding: 2px 0 2px 12px; border-left: 1.5px solid var(--sb-line);
+}
+#belovaSidenav .left-sidenav-menu .nav-second-level li { margin-top: 1px; }
+#belovaSidenav .left-sidenav-menu .nav-second-level .nav-link {
+    position: relative; display: flex; align-items: center; padding: 6px 10px; border-radius: 8px;
+    color: var(--sb-text); font-size: 13px; font-weight: 400; transition: background .15s, color .15s, transform .15s;
+}
+#belovaSidenav .left-sidenav-menu .nav-second-level .nav-link:hover {
+    background: var(--sb-hover); color: var(--sb-text-strong); transform: translateX(2px);
+}
+#belovaSidenav .left-sidenav-menu .nav-second-level li.nav-item a.nav-link.active {
+    background: rgba(var(--sb-accent-rgb), 0.12); color: var(--sb-accent-text); font-weight: 600;
+}
+#belovaSidenav .left-sidenav-menu .nav-second-level .nav-link.active::before {
+    content: ''; position: absolute; left: -13.5px; top: 7px; bottom: 7px; width: 3px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--sb-accent), var(--sb-accent-deep));
+}
+.belova-sidenav .nav-second-level .belova-nav-badge { margin-left: auto; font-size: 10px; box-shadow: none; }
+.belova-sidenav .nav-second-level .nav-sub-label {
+    font-size: 9.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--sb-muted); padding: 10px 0 3px 10px; pointer-events: none;
+}
+.belova-sidenav .nav-second-level .nav-sub-label:first-child { padding-top: 4px; }
+.belova-sidenav .nav-second-level .belova-sub-icon {
+    width: 15px; height: 15px; margin-right: 9px; flex-shrink: 0; color: var(--sb-muted); stroke-width: 1.9px;
+    transition: color .15s;
+}
+.belova-sidenav .nav-second-level .nav-link:hover .belova-sub-icon { color: var(--sb-text-strong); }
+.belova-sidenav .nav-second-level .nav-link.active .belova-sub-icon { color: var(--sb-accent-text); }
+
+/* ---- Scrollbar (simplebar + native) ---- */
+.belova-sidenav .simplebar-scrollbar:before { background: rgba(var(--sb-accent-rgb), 0.45); }
+.belova-sidenav .menu-content { scrollbar-width: thin; scrollbar-color: rgba(var(--sb-accent-rgb), 0.35) transparent; }
+
+.belova-sidenav .belova-nav-empty { display: none; padding: 12px 20px; font-size: 12px; color: var(--sb-muted); text-align: center; }
+.belova-sidenav.is-filtering .belova-nav-empty.show { display: block; }
+.belova-sidenav .menu-label.belova-context-label { margin-top: 0; }
+body.enlarge-menu .belova-nav-search,
+body.enlarge-menu .belova-sidenav .nav-sub-label,
+body.enlarge-menu .belova-sidenav .left-sidenav-menu > li > a .belova-nav-badge { display: none; }
+/* Footer is position:absolute; anchor it to the content column, not <body>, so it never runs under the sidebar */
+.page-wrapper { position: relative; }
+
+/* ---- Topbar + footer: same surface + clinic accent as the sidebar so the chrome reads as one piece ----
+   The topbar gets the clinic accent vars inline (layouts/shared/topbar.blade.php), like #belovaSidenav. */
+.topbar { --sb-accent-text: var(--sb-accent-text-light); }
+html.theme-dark .topbar { --sb-accent-text: var(--sb-accent-text-dark); }
+.topbar {
+    /* Continues the sidebar's top-left accent glow across the top edge */
+    background:
+        linear-gradient(90deg, rgba(var(--sb-accent-rgb), 0.09), rgba(var(--sb-accent-rgb), 0.02) 45%, transparent 75%),
+        var(--sb-bg);
+    border-bottom: 1px solid var(--sb-line);
+    color: var(--sb-text);
+    --belova-topbar-bg: var(--sb-bg);
+}
+html .topbar .navbar-custom { background: transparent; border-bottom: 0; } /* also beats body.dark-topbar */
+.topbar .topbar-icon, .topbar .button-menu-mobile { color: var(--sb-tile-icon); }
+.topbar .button-menu-mobile:hover .topbar-icon { color: var(--sb-accent-text); }
+.topbar .date-time-display { color: var(--sb-text-strong); }
+.topbar .date-time-display .dt-date { color: var(--sb-text); opacity: 1; }
+.topbar .shared-topbar-profile-name { color: var(--sb-accent-text) !important; font-weight: 600; }
+
+/* Square icon buttons (theme, bell, info) + avatar: sidebar tile look, accent on hover */
+.topbar .shared-theme-toggle {
+    border-color: var(--sb-line); background: var(--sb-bg); color: var(--sb-tile-icon);
+}
+.topbar .shared-theme-toggle:hover, .topbar .show > .shared-theme-toggle {
+    background: rgba(var(--sb-accent-rgb), 0.1); border-color: rgba(var(--sb-accent-rgb), 0.35); color: var(--sb-accent-text);
+}
+.topbar .shared-topbar-avatar { border-color: rgba(var(--sb-accent-rgb), 0.35); }
+.topbar .belova-online-count { border-color: var(--sb-line); background: var(--sb-bg); color: var(--sb-text-strong); }
+.topbar .belova-online-count:hover { border-color: rgba(var(--sb-accent-rgb), 0.35); }
+.topbar .emotion-avatar-item.is-current-user .emotion-avatar { box-shadow: 0 0 0 2px var(--sb-accent); }
+.footer {
+    background: var(--sb-bg);
+    border-top: 1px solid var(--sb-line);
+    color: var(--sb-muted);
+}

@@ -11,6 +11,12 @@ class FollowUp extends Model
 
     protected $table = 'marketing_follow_ups';
 
+    /** Kategori of the follow up logged when a birthday greeting is sent. */
+    public const KATEGORI_ULANG_TAHUN = 'Ulang Tahun';
+
+    /** Status respon: "Menunggu" = contacted, no reply yet. */
+    public const STATUS_RESPON = ['Direspon', 'Tidak Direspon', 'Menunggu'];
+
     protected $fillable = [
         'pasien_id',
         'kategori',

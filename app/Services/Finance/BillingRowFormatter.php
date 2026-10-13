@@ -98,19 +98,7 @@ class BillingRowFormatter
     {
         $referralType = (string) (($owner->referral_type ?? null) ?: Pasien::REFERRAL_TYPE_WALK_IN);
 
-        $typeLabel = match ($referralType) {
-            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
-            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
-            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
-            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
-            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
-            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
-            Pasien::REFERRAL_TYPE_EVENT => 'Event',
-            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
-            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
-            default => 'Walk-in',
-        };
+        $typeLabel = Pasien::referralTypeLabel($referralType);
 
         $source = $owner ? $owner->referralable : null;
         $referralDetail = $owner->referral_detail ?? null;

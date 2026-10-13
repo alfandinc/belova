@@ -26,7 +26,7 @@ class PrSlipGajiDokterController extends Controller
 
     protected function isCeo($user)
     {
-        return $user && $user->hasAnyRole(['Ceo', 'CEO']);
+        return $user && $user->hasRole('Ceo');
     }
 
     protected function isAdmin($user)

@@ -3,12 +3,8 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\{
     AuthController,
     ERMDashboardController,
-    HRDDashboardController,
-    InventoryDashboardController,
-    MarketingDashboardController,
     FinanceDashboardController,
-    WorkdocDashboardController,
-    BCLDashboardController
+    WorkdocDashboardController
 };
 use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
@@ -36,7 +32,6 @@ use App\Http\Controllers\ERM\{
     EradiologiController,
     ElabController,
     TindakanController,
-    SpkTindakanController,
     AsesmenController,
     AsesmenPerawatController,
     BirthdayController,
@@ -79,7 +74,6 @@ use App\Http\Controllers\Insiden\LaporanInsidenController;
 
 use App\Http\Controllers\BCL\{
     ChatTemplateController,
-    HomeController,
     PricelistController,
     RoomsController,
     RenterController,
@@ -102,63 +96,27 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DailyJournalController;
 use App\Http\Controllers\KPI\IndicatorController;
 use App\Http\Controllers\KPI\KpiPeriodController;
-use App\Http\Controllers\RndDashboardController;
 use App\Http\Controllers\RndMasterController;
 use App\Http\Controllers\RndProdukController;
-Route::get('/', function () {
+// Home: login page for guests, otherwise the dashboard: header + the widgets the user's roles have permission for
+// (config/dashboard_widgets.php, access via Admin Panel > Widget Dashboard). The old main menu is gone:
+// every module is reachable from the shared sidebar (App\Support\Navigation\MainNavigation).
+Route::get('/', function (\Illuminate\Http\Request $request) {
     if (!Auth::check()) {
         return view('auth.main_login', [
             'emotionOptions' => AuthController::emotionCatalog(),
         ]);
     }
-    // Pass number of in-progress JobList items to the main menu for notification badge
-    $user = Auth::user();
-    if (!$user) {
-        $inProgressCount = 0;
-    } else {
-        // CEO, Head Manager, Admin, and Hrd see all progress items
-            if ($user->hasAnyRole(['Ceo', 'Head Manager', 'Admin', 'Hrd'])) {
-            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')->count();
-        }
-        // Manager sees items assigned to their division (including all_divisions)
-            elseif ($user->hasRole('Manager')) {
-            $divisionId = optional($user->employee)->division_id;
-            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
-                ->where(function($q) use ($divisionId) {
-                    $q->where('all_divisions', 1)
-                      ->orWhereHas('divisions', function($q2) use ($divisionId) {
-                          $q2->where('hrd_division.id', $divisionId);
-                      })
-                      ->orWhere('division_id', $divisionId);
-                })->count();
-        }
-        // Regular employees: only count non-manager items for their division
-        else {
-                $divisionId = optional($user->employee)->division_id;
-            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
-                ->where('for_manager', 0)
-                ->where(function($q) use ($divisionId) {
-                    $q->where('all_divisions', 1)
-                      ->orWhereHas('divisions', function($q2) use ($divisionId) {
-                          $q2->where('hrd_division.id', $divisionId);
-                      })
-                      ->orWhere('division_id', $divisionId);
-                })->count();
-        }
-    }
-    $activeUserEmotions = AuthController::getActiveUserEmotions();
-    $emotionOptions = AuthController::emotionCatalog();
-    $currentUserEmotion = session('user_emotion', AuthController::DEFAULT_EMOTION);
 
-    return view('mainmenu', compact('inProgressCount', 'activeUserEmotions', 'emotionOptions', 'currentUserEmotion'));
-});
+    return app(\App\Http\Controllers\Dashboard\DashboardController::class)->index($request);
+})->name('dashboard.index');
 
 // Different login pages (GET requests only)
 
 // Hilangkan login per modul, login hanya di halaman utama
 
 // Single POST route for login processing (all forms submit here)
-Route::post('/login', [AuthController::class, 'login'])->name('login');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 // Clinic choice session route
@@ -167,6 +125,7 @@ Route::fallback(function () {
     if (!Auth::check()) {
         return redirect('/');
     }
+    abort(404);
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -176,6 +135,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/chat/users', [ChatController::class, 'users'])->name('chat.users');
     Route::get('/chat/conversations/{user}', [ChatController::class, 'conversation'])->name('chat.conversation');
     Route::post('/chat/conversations/{user}', [ChatController::class, 'store'])->name('chat.store');
+    // Jadwal viewer modal (HTML + script), loaded on demand from the sidebar instead of being embedded in every page
+    Route::get('/jadwal-viewer', fn () => view('partials.jadwal_viewer'))->name('jadwal.viewer');
 
     // Buku Menu (accessible for all authenticated users)
     Route::get('/buku-menu', [BukuMenuController::class, 'index'])->name('buku-menu.index');
@@ -185,9 +146,6 @@ Route::middleware(['auth'])->group(function () {
 
     // Daily Journal (accessible for all authenticated users)
     Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
-    Route::get('/daily-journal/division', [DailyJournalController::class, 'divisionIndex'])
-        ->middleware('role:Manager|Head Manager|Hrd|Admin')
-        ->name('daily-journal.division.index');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
     Route::patch('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'update'])->name('daily-journal.update');
     Route::delete('/daily-journal/{dailyJournalTask}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
@@ -208,47 +166,20 @@ Route::middleware(['auth'])->group(function () {
         Route::post('piutang/{id}/receive', [PiutangController::class, 'receivePayment'])->name('finance.piutang.receive');
     });
 
-    // HRD dashboard: accessible to every authenticated user
-    Route::get('/hrd', [HRDDashboardController::class, 'index'])
-        ->name('hrd.dashboard');
-    Route::get('/dashboard', [\App\Http\Controllers\Dashboard\DashboardController::class, 'index'])
-        ->name('dashboard.index');
+    // Old dashboard URL: the dashboard now lives on "/"
+    Route::get('/dashboard', fn (\Illuminate\Http\Request $request) => redirect()->route('dashboard.index', $request->query()));
+    // One home widget's HTML, loaded by the dashboard after the page is shown (access checked per widget)
+    Route::get('/dashboard/widget/{key}', [\App\Http\Controllers\Dashboard\DashboardController::class, 'widget'])->name('dashboard.widget');
 
     // Dashboard widgets/settings admin area
-    Route::prefix('dashboard')->middleware('role:Admin|Ceo|CEO|Head Manager')->group(function () {
+    Route::prefix('dashboard')->middleware('role:Admin|Ceo|Head Manager')->group(function () {
         Route::get('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'index'])->name('dashboard.widgets.index');
-        Route::get('widgets/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'data'])->name('dashboard.widgets.data');
-        Route::post('widgets', [\App\Http\Controllers\Dashboard\WidgetController::class, 'store'])->name('dashboard.widgets.store');
-        Route::put('widgets/{id}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'update'])->name('dashboard.widgets.update');
-        Route::delete('widgets/{id}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'destroy'])->name('dashboard.widgets.destroy');
-
-        Route::get('widget-mappings/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'mappingsData'])->name('dashboard.widget-mappings.data');
-        Route::post('widget-mappings', [\App\Http\Controllers\Dashboard\WidgetController::class, 'storeMapping'])->name('dashboard.widget-mappings.store');
-        Route::put('widget-mappings/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'updateMapping'])->name('dashboard.widget-mappings.update');
-        Route::delete('widget-mappings/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'destroyMapping'])->name('dashboard.widget-mappings.destroy');
-
-        Route::get('widgets/{id}/positions', [\App\Http\Controllers\Dashboard\WidgetController::class, 'positions'])->name('dashboard.widgets.positions');
-        Route::get('widgets/{id}/positions/data', [\App\Http\Controllers\Dashboard\WidgetController::class, 'positionsData'])->name('dashboard.widgets.positions.data');
-        Route::post('widgets/{id}/positions', [\App\Http\Controllers\Dashboard\WidgetController::class, 'addPosition'])->name('dashboard.widgets.positions.add');
-        Route::put('widgets/{id}/positions/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'updatePosition'])->name('dashboard.widgets.positions.update');
-        Route::delete('widgets/{id}/positions/{mapId}', [\App\Http\Controllers\Dashboard\WidgetController::class, 'removePosition'])->name('dashboard.widgets.positions.remove');
+        Route::post('widgets/access', [\App\Http\Controllers\Dashboard\WidgetController::class, 'toggle'])->name('dashboard.widgets.toggle');
     });
     // AJAX: generate next employee `no_induk` in YYMMXXX format
     Route::get('hrd/employee/next-no-induk', [App\Http\Controllers\HRD\EmployeeController::class, 'nextNoInduk'])
         ->name('hrd.employee.nextNoInduk')->middleware('role:Hrd|Admin');
     // Memorandum routes moved to Workdoc section
-    // AJAX: Pending approvals filtered by date range (no reload)
-    Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
-        ->name('hrd.dashboard.pending');
-
-    Route::get('/inventory', [InventoryDashboardController::class, 'index'])
-        ->middleware('role:Admin|Inventaris')   
-        ->name('inventory.dashboard');
-
-    Route::get('/marketing', [MarketingDashboardController::class, 'index'])
-        ->middleware('role:Marketing|Admin|Finance')
-        ->name('marketing.dashboard');
-
     // compatibility redirect: old link without 'erm' prefix
     Route::get('/marketing/kategori-tindakan', function() {
         return redirect('/erm/marketing/kategori-tindakan');
@@ -268,80 +199,105 @@ Route::middleware(['auth'])->group(function () {
         return redirect('/workdoc/insiden/laporan_insiden' . ($path && $path !== 'laporan_insiden' ? '/' . preg_replace('#^laporan_insiden/#', '', $path) : ''));
     })->where('path', '.*')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin');
 
-    Route::get('/bcl', [BCLDashboardController::class, 'index'])
-        ->middleware('role:Kos|Admin')
-        ->name('bcl.dashboard');
-
-    Route::get('/bcl/data', [BCLDashboardController::class, 'data'])
-        ->middleware('role:Kos|Admin')
-        ->name('bcl.dashboard.data');
-
-    Route::get('/bcl/monthly-revenue-details', [BCLDashboardController::class, 'monthlyRevenueDetails'])
-        ->middleware('role:Kos|Admin')
-        ->name('bcl.dashboard.monthly-revenue-details');
-
-    Route::get('/rnd', [RndDashboardController::class, 'index'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
-        ->name('rnd.dashboard');
+    // Brand, Kemasan & Vendor are managed from the Produk R&D page ("Kelola ..." buttons)
+    Route::redirect('/rnd', '/rnd/produk')->name('rnd.dashboard');
     Route::get('/rnd/produk', [RndProdukController::class, 'index'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.index');
     Route::get('/rnd/produk/data', [RndProdukController::class, 'data'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.data');
+    Route::get('/rnd/produk/options', [RndProdukController::class, 'options'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.options');
+    Route::get('/rnd/produk/export', [RndProdukController::class, 'export'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.export');
+    Route::get('/rnd/produk/user-search', [RndProdukController::class, 'userSearch'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.user-search');
+    Route::put('/rnd/produk/timelines/{timeline}', [RndProdukController::class, 'updateProdukTimeline'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.timelines.update');
+    Route::delete('/rnd/produk/timelines/{timeline}', [RndProdukController::class, 'destroyProdukTimeline'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.timelines.destroy');
+    // Legalitas & sertifikasi (Notifikasi BPOM, Uji Cemaran, Halal, ...)
+    Route::post('/rnd/produk/{produk}/sertifikasi', [\App\Http\Controllers\RndSertifikasiController::class, 'store'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.sertifikasi.store');
+    Route::put('/rnd/sertifikasi/{sertifikasi}', [\App\Http\Controllers\RndSertifikasiController::class, 'update'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.sertifikasi.update');
+    Route::delete('/rnd/sertifikasi/{sertifikasi}', [\App\Http\Controllers\RndSertifikasiController::class, 'destroy'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.sertifikasi.destroy');
+    Route::get('/rnd/sertifikasi/{sertifikasi}/dokumen', [\App\Http\Controllers\RndSertifikasiController::class, 'document'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.sertifikasi.document');
     Route::get('/rnd/produk/timeline-data', [RndProdukController::class, 'timelineData'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.timeline-data');
     Route::put('/rnd/produk/sample-log/{sampleLog}', [RndProdukController::class, 'updateSampleLog'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.sample-log.update');
     Route::delete('/rnd/produk/sample-log/{sampleLog}', [RndProdukController::class, 'destroySampleLog'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.sample-log.destroy');
-    Route::get('/rnd/produk/notif/{notif}/document', [RndProdukController::class, 'viewNotifDocument'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
-        ->name('rnd.products.notif.document');
     Route::get('/rnd/produk/documents/{document}', [RndProdukController::class, 'viewProdukDocument'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.documents.show');
     Route::delete('/rnd/produk/documents/{document}', [RndProdukController::class, 'destroyProdukDocument'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.documents.destroy');
+    // Rilis ke Master Obat (static path first so it is not taken as {produk})
+    Route::get('/rnd/produk/obat-search', [RndProdukController::class, 'obatSearch'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.obat-search');
+    Route::get('/rnd/produk/{produk}/rilis', [RndProdukController::class, 'releaseForm'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.release.form');
+    Route::post('/rnd/produk/{produk}/rilis', [RndProdukController::class, 'release'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.release');
+    Route::delete('/rnd/produk/{produk}/rilis', [RndProdukController::class, 'unrelease'])
+        ->middleware('role:Admin|Rnd')
+        ->name('rnd.products.release.destroy');
     Route::get('/rnd/produk/{produk}', [RndProdukController::class, 'show'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.show');
     Route::post('/rnd/produk/{produk}/notes', [RndProdukController::class, 'storeProdukNote'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.notes.store');
     Route::post('/rnd/produk/{produk}/timelines', [RndProdukController::class, 'storeProdukTimeline'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.timelines.store');
     Route::post('/rnd/produk/{produk}/documents', [RndProdukController::class, 'uploadProdukDocuments'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.documents.upload');
     Route::post('/rnd/produk', [RndProdukController::class, 'store'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.store');
     Route::put('/rnd/produk/{produk}', [RndProdukController::class, 'update'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.update');
     Route::delete('/rnd/produk/{produk}', [RndProdukController::class, 'destroy'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.products.destroy');
     Route::get('/rnd/masters/{master}/data', [RndMasterController::class, 'data'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.masters.data');
     Route::get('/rnd/masters/{master}/{id}', [RndMasterController::class, 'show'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.masters.show');
     Route::post('/rnd/masters/{master}', [RndMasterController::class, 'store'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.masters.store');
     Route::put('/rnd/masters/{master}/{id}', [RndMasterController::class, 'update'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.masters.update');
     Route::delete('/rnd/masters/{master}/{id}', [RndMasterController::class, 'destroy'])
-        ->middleware('role:Admin|Rnd|rnd|RND')
+        ->middleware('role:Admin|Rnd')
         ->name('rnd.masters.destroy');
 });
 
@@ -382,6 +338,7 @@ Route::middleware('auth')->prefix('events')->name('events.')->group(function () 
         Route::get('/stock-info-modal', [\App\Http\Controllers\Finance\BillingController::class, 'stockInfoModal'])->name('stock-info-modal');
         Route::get('/riwayat-tindakan-obats', [\App\Http\Controllers\Finance\BillingController::class, 'riwayatTindakanObats'])->name('riwayat-tindakan-obats');
         Route::get('/tindakan-obats', [\App\Http\Controllers\Finance\BillingController::class, 'tindakanObats'])->name('tindakan-obats');
+        Route::get('/lab-obats', [\App\Http\Controllers\Finance\BillingController::class, 'labObats'])->name('lab-obats');
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('batch-details');
         Route::get('/pasien-select2', [\App\Http\Controllers\ERM\PasienController::class, 'select2'])->name('pasien-select2');
 
@@ -474,9 +431,9 @@ Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::clas
     ->name('running.wa_preview');
 
 // SatuSehat lives in the Admin Panel; klinik configs are edited in Admin > Klinik Setting (tab SatuSehat)
-Route::get('/satusehat', fn () => redirect()->route('admin.klinik_settings.index'))->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.index');
+Route::get('/satusehat', fn () => redirect()->route('admin.klinik_settings.index'))->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.index');
 
-Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+Route::prefix('satusehat')->middleware(['auth','role:SatuSehat|Admin'])->group(function () {
     Route::get('/clinics/{any?}', fn () => redirect()->route('admin.klinik_settings.index'))->where('any', '.*')->name('satusehat.clinics.index');
     Route::post('/clinics/{clinicConfig}/link', [\App\Http\Controllers\SatusehatClinicController::class, 'link'])->name('satusehat.clinics.link');
     Route::delete('/clinics/{clinicConfig}', [\App\Http\Controllers\SatusehatClinicController::class, 'destroy'])->name('satusehat.clinics.destroy');
@@ -484,7 +441,7 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 });
 
 // SatuSehat Locations CRUD
-Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+Route::prefix('satusehat')->middleware(['auth','role:SatuSehat|Admin'])->group(function () {
     // Locations are edited per klinik in Admin > Klinik Setting (tab SatuSehat)
     Route::get('/locations/{any?}', fn () => redirect()->route('admin.klinik_settings.index'))->where('any', '.*')->name('satusehat.locations.index');
     Route::post('/locations/{location}/link', [\App\Http\Controllers\Satusehat\LocationController::class, 'link'])->name('satusehat.locations.link');
@@ -492,21 +449,21 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 });
 
 // Dokter Mapping (SatuSehat)
-Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+Route::prefix('satusehat')->middleware(['auth','role:SatuSehat|Admin'])->group(function () {
     Route::get('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'index'])->name('satusehat.dokter_mapping.index');
     Route::match(['get','post'], '/mapping-dokter/data', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'data'])->name('satusehat.dokter_mapping.data');
     Route::post('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'store'])->name('satusehat.dokter_mapping.store');
 });
 
 // Satusehat - Pasien (index + AJAX data for today's visitations)
-Route::get('/satusehat/pasiens', [SatusehatPasienController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.index');
-Route::get('/satusehat/pasiens/data', [SatusehatPasienController::class, 'data'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.data');
-Route::get('/satusehat/pasiens/{visitation}/get-data', [SatusehatPasienController::class, 'getKemkesPatient'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.get_kemkes');
-Route::post('/satusehat/pasiens/{visitation}/create-encounter', [SatusehatPasienController::class, 'createKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.create_encounter');
-Route::post('/satusehat/pasiens/{visitation}/send-condition', [SatusehatPasienController::class, 'createKemkesCondition'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.send_condition');
-Route::post('/satusehat/pasiens/{visitation}/update-encounter', [SatusehatPasienController::class, 'updateKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.update_encounter');
-Route::post('/satusehat/pasiens/{visitation}/finish-encounter', [SatusehatPasienController::class, 'finishKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.finish_encounter');
-Route::post('/satusehat/pasiens/{visitation}/send-medication', [SatusehatPasienController::class, 'sendKemkesMedication'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.send_medication');
+Route::get('/satusehat/pasiens', [SatusehatPasienController::class, 'index'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.index');
+Route::get('/satusehat/pasiens/data', [SatusehatPasienController::class, 'data'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.data');
+Route::get('/satusehat/pasiens/{visitation}/get-data', [SatusehatPasienController::class, 'getKemkesPatient'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.get_kemkes');
+Route::post('/satusehat/pasiens/{visitation}/create-encounter', [SatusehatPasienController::class, 'createKemkesEncounter'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.create_encounter');
+Route::post('/satusehat/pasiens/{visitation}/send-condition', [SatusehatPasienController::class, 'createKemkesCondition'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.send_condition');
+Route::post('/satusehat/pasiens/{visitation}/update-encounter', [SatusehatPasienController::class, 'updateKemkesEncounter'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.update_encounter');
+Route::post('/satusehat/pasiens/{visitation}/finish-encounter', [SatusehatPasienController::class, 'finishKemkesEncounter'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.finish_encounter');
+Route::post('/satusehat/pasiens/{visitation}/send-medication', [SatusehatPasienController::class, 'sendKemkesMedication'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.send_medication');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
@@ -630,6 +587,15 @@ Route::post('/admin/visitations/preview', [\App\Http\Controllers\Admin\Visitatio
     ->name('admin.visitations.preview')
     ->middleware(['auth','role:Admin']);
 // ERM Routes
+// Shared "Daftarkan Kunjungan" modal: the ERM roles plus Marketing (registers visits from a CRM follow up)
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Marketing')->group(function () {
+    Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
+    Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
+    Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
+    Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
+    Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
+});
+
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir')->group(function () {
     // Dokter to Perawat notification
     Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
@@ -668,13 +634,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/marketing/kategori-tindakan/import/apply', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importApply'])->name('marketing.kategori.import.apply');
     // Select2 search for kategori (used by kode tindakan form)
     Route::get('/erm/kategori-tindakan/search', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'search'])->name('marketing.kategori.search');
-    // Provide endpoints to toggle active status for bulk actions (accept POST here to avoid being shadowed by the {id} route)
-    Route::post('/kodetindakan/action/make-all-inactive', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllInactive']);
-    Route::post('/kodetindakan/action/make-all-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllActive']);
-    // Bulk activate/deactivate with date-range preview
-    Route::get('/kodetindakan/by-date', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getByDate']);
-    Route::post('/kodetindakan/action/bulk-set-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'bulkSetActive']);
-    Route::post('/marketing/kodetindakan/import', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'importCsv']);
+    // Bulk activate/deactivate (Admin)
+    Route::post('/kodetindakan/action/bulk-set-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'bulkSetActive'])->middleware('role:Admin');
+    Route::post('/marketing/kodetindakan/import', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'importCsv'])->middleware('role:Admin');
     // Allow ERM pages to get kode tindakan details (includes hpp)
     Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
 
@@ -893,25 +855,20 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
-    Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
     Route::get('/pasiens/check-identity-number', [PasienController::class, 'checkIdentityNumber'])->name('erm.pasiens.check-identity-number');
     Route::get('/pasiens/check-duplicate-name-birthdate', [PasienController::class, 'checkDuplicateNameBirthdate'])->name('erm.pasiens.check-duplicate-name-birthdate');
     Route::get('/pasiens/marketplace/check-duplicate', [PasienController::class, 'checkMarketplaceDuplicate'])->name('erm.pasiens.marketplace.check-duplicate');
     Route::get('/pasiens/duplicates', [App\Http\Controllers\ERM\PasienMergeController::class, 'duplicates'])->name('erm.pasiens.duplicates');
     Route::post('/pasiens/merge', [App\Http\Controllers\ERM\PasienMergeController::class, 'merge'])->name('erm.pasiens.merge');
-    Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
     Route::post('/visitations/marketplace', [VisitationController::class, 'storeMarketplace'])->name('erm.visitations.marketplace.store');
-    Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
-    Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
 
     Route::get('/rawatjalans',[RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/assets/index.js', [RawatJalanController::class, 'assetsJs'])->name('erm.rawatjalans.assets.js');
     Route::get('/rawatjalans/modals/common', [RawatJalanController::class, 'commonModals'])->name('erm.rawatjalans.modals.common');
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
     Route::get('/rawatjalans/modals/screening-vaksin', [RawatJalanController::class, 'screeningVaksinModals'])->name('erm.rawatjalans.modals.screeningVaksin');
-    Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
@@ -1046,7 +1003,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::put('/eradiologi/hasil/{id}/deskripsi', [EradiologiController::class, 'updateRadiologiHasilDescription'])->name('erm.eradiologi.hasil.update-deskripsi');
     
     //Lab
-    Route::get('/elab', [ElabController::class, 'index'])->name('erm.elab.index');
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');  
     Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
@@ -1066,27 +1022,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Lab notifications (completed tests polling)
     Route::get('/elab/notifications/completed', [\App\Http\Controllers\API\LabNotificationController::class, 'completed'])->name('erm.elab.notifications.completed');
 
-    // Lab analytics dashboard
-    Route::get('/elab/analytics', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'index'])->name('erm.elab.analytics');
-    Route::get('/elab/analytics/visits-per-day', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'visitsPerDay'])->name('erm.elab.analytics.visits-per-day');
-    Route::get('/elab/analytics/tests-per-category', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'testsPerCategory'])->name('erm.elab.analytics.tests-per-category');
-    Route::get('/elab/analytics/patients-type', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'patientsType'])->name('erm.elab.analytics.patients-type');
-    Route::get('/elab/analytics/payment-status', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'paymentStatus'])->name('erm.elab.analytics.payment-status');
-    Route::get('/elab/analytics/top-tests', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topTests'])->name('erm.elab.analytics.top-tests');
-    Route::get('/elab/analytics/top-patients-visits', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topPatientsByVisits'])->name('erm.elab.analytics.top-patients-visits');
-    Route::get('/elab/analytics/top-patients-spending', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topPatientsBySpending'])->name('erm.elab.analytics.top-patients-spending');
-    Route::get('/elab/analytics/totals-summary', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'totalsSummary'])->name('erm.elab.analytics.totals-summary');
-
-    // Lightweight unauthenticated health/test endpoint for analytics (debug only)
-    Route::get('/elab/analytics/test-json', function(){
-        return response()->json(['ok' => true, 'msg' => 'analytics test endpoint reachable']);
-    });
-
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');
     Route::get('/tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getTindakanData'])->name('erm.tindakan.data');
     // Custom Tindakan creation (AJAX) route removed
-    Route::get('/paket-tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getPaketTindakanData'])->name('erm.paket-tindakan.data');
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::get('/tindakan/{id}/prices', [TindakanController::class, 'getPrices']);
     Route::get('/tindakan/{id}/multi-visit-status', [TindakanController::class, 'getMultiVisitStatus']);
@@ -1095,7 +1034,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getRiwayatTindakanHistory'])->name('tindakan.history');
     // Print detail riwayat tindakan (grouped by visitation for the same patient)
     Route::get('/tindakan/history/{visitation}/print-detail', [TindakanController::class, 'printHistoryDetail'])->name('erm.tindakan.history.print');
-    Route::get('/tindakan/sop/{id}', [TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
 
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
 
@@ -1109,13 +1047,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
     Route::get('/spk/create', [TindakanController::class, 'spkCreate'])->name('erm.spk.create');
     Route::get('/spk/modal', [TindakanController::class, 'spkModal'])->name('erm.spk.modal');
-    Route::get('/spk/print/{riwayatId}', [TindakanController::class, 'printSpk'])->name('erm.spk.print');
 
-    // SPK Tindakan Routes (New detailed system)
-    Route::get('/spktindakan', [SpkTindakanController::class, 'index'])->name('erm.spktindakan.index');
-    Route::get('/spktindakan/{id}/items', [SpkTindakanController::class, 'showItems'])->name('erm.spktindakan.items');
-    Route::post('/spktindakan/{id}/items', [SpkTindakanController::class, 'updateItems'])->name('erm.spktindakan.items.update');
-    Route::post('/spktindakan/{id}/status', [SpkTindakanController::class, 'updateStatus'])->name('erm.spktindakan.status.update');
 
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
@@ -1414,6 +1346,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         // Stock modal (tindakan): load obat rows from riwayat tindakan pivot
         Route::get('/billing/riwayat-tindakan-obats', [BillingController::class, 'riwayatTindakanObats'])->name('finance.billing.riwayat-tindakan-obats');
         Route::get('/billing/tindakan-obats', [BillingController::class, 'tindakanObats'])->name('finance.billing.tindakan-obats');
+        Route::get('/billing/lab-obats', [BillingController::class, 'labObats'])->name('finance.billing.lab-obats');
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');
@@ -1486,8 +1419,6 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
 );
 
 Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function () {
-        Route::get('/', [App\Http\Controllers\InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
-        
         // Existing Item routes
         Route::get('/item', [ItemController::class, 'index'])->name('inventory.item.index');
         Route::get('/item/create', [ItemController::class, 'create'])->name('inventory.item.create');
@@ -1734,10 +1665,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|Perawat|Pendaftaran')->group(function () {
 
-    // // Main dashboard and analytics
-    Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
-    Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
-
     // Birthday patient greetings
     Route::get('/birthday', [BirthdayController::class, 'index'])->name('marketing.birthday.index');
     Route::get('/birthday/data', [BirthdayController::class, 'getData'])->name('marketing.birthday.data');
@@ -1772,8 +1699,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
     Route::get('/kodetindakan/data', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'data'])->name('marketing.kode_tindakan.data');
     Route::post('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'store']);
-    Route::post('/kodetindakan/action/make-all-inactive', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllInactive']);
-    Route::post('/kodetindakan/action/make-all-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllActive']);
+    Route::post('/kodetindakan/{id}/toggle-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'toggleActive'])->name('marketing.kode_tindakan.toggle');
     Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
     Route::put('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
     Route::delete('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
@@ -1782,24 +1708,9 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
 
     
     
-    // Analytics pages  
-    Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
-    Route::get('/patients', [MarketingController::class, 'patients'])->name('marketing.patients');
-    // Social Media analytics (new)
-    Route::get('/social-media-analytics', [\App\Http\Controllers\Marketing\SocialMediaAnalyticsController::class, 'index'])->name('marketing.social-analytics.index');
-    Route::get('/social-media-analytics/data', [\App\Http\Controllers\Marketing\SocialMediaAnalyticsController::class, 'data'])->name('marketing.social-analytics.data');
-    Route::get('/services', [MarketingController::class, 'services'])->name('marketing.services');
-    Route::get('/products', [MarketingController::class, 'products'])->name('marketing.products');
-    Route::get('/clinic-comparison', [MarketingController::class, 'clinicComparison'])->name('marketing.clinic-comparison');
-
     // Patient data management
     Route::get('/pasien-data', [MarketingController::class, 'pasienData'])->name('marketing.pasien.data');
     Route::get('pasien/{pasien}/riwayat-rm', [MarketingController::class, 'riwayatRM']);
-    
-    // Add pasien to follow up from pasien data
-    Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
-    // AJAX search for SOPs
-    Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
 
     // Before After Gallery
     Route::get('/before-after-gallery', [App\Http\Controllers\Marketing\BeforeAfterGalleryController::class, 'index'])->name('marketing.before_after_gallery.index');
@@ -1809,34 +1720,30 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Tindakan Management
     Route::get('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'index'])->name('marketing.tindakan.index');
     Route::get('/tindakan/data', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakanData'])->name('marketing.tindakan.data');
-    Route::post('/tindakan/import', [App\Http\Controllers\Marketing\TindakanController::class, 'importCsv']);
-    Route::get('/tindakan/list', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakanList'])->name('marketing.tindakan.list');
+    // Import, bulk status and delete are Admin-only (the page only shows them to Admin)
+    Route::post('/tindakan/import', [App\Http\Controllers\Marketing\TindakanController::class, 'importCsv'])->middleware('role:Admin');
     Route::post('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'store'])->name('marketing.tindakan.store');
-    Route::post('/tindakan/import-relations', [App\Http\Controllers\Marketing\TindakanController::class, 'importRelationsCsv']);
-    Route::get('/tindakan/by-date', [App\Http\Controllers\Marketing\TindakanController::class, 'getByDate']);
-    Route::post('/tindakan/action/bulk-set-active', [App\Http\Controllers\Marketing\TindakanController::class, 'bulkSetActive']);
+    Route::post('/tindakan/import-relations', [App\Http\Controllers\Marketing\TindakanController::class, 'importRelationsCsv'])->middleware('role:Admin');
+    Route::post('/tindakan/action/bulk-set-active', [App\Http\Controllers\Marketing\TindakanController::class, 'bulkSetActive'])->middleware('role:Admin');
     Route::get('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakan']);
-    Route::delete('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroy']);
+    Route::delete('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroy'])->middleware('role:Admin');
 
-    // Bulk active/inactive actions for tindakan
-    Route::post('/tindakan/action/make-all-inactive', [App\Http\Controllers\Marketing\TindakanController::class, 'makeAllInactive']);
-    Route::post('/tindakan/action/make-all-active', [App\Http\Controllers\Marketing\TindakanController::class, 'makeAllActive']);
     // Toggle single tindakan active state
     Route::post('/tindakan/{id}/toggle-active', [App\Http\Controllers\Marketing\TindakanController::class, 'toggleActive']);
 
-    // SOP Tindakan endpoints for modal
-    Route::get('/tindakan/{id}/sop', [App\Http\Controllers\Marketing\TindakanController::class, 'getSopTindakan']);
-    Route::post('/tindakan/{id}/sop', [App\Http\Controllers\Marketing\TindakanController::class, 'updateSopTindakan']);
     
-    // Get list of specialists (for dropdown)
-    Route::get('/spesialisasi/list', [App\Http\Controllers\Marketing\TindakanController::class, 'getSpesialisasiList'])->name('marketing.spesialisasi.list');
     
-    // Paket Tindakan Management
-    Route::get('/paket-tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'indexPaket'])->name('marketing.tindakan.paket.index');
-    Route::get('/tindakan/paket/data', [App\Http\Controllers\Marketing\TindakanController::class, 'getPaketData'])->name('marketing.tindakan.paket.data');
-    Route::post('/tindakan/paket', [App\Http\Controllers\Marketing\TindakanController::class, 'storePaket'])->name('marketing.tindakan.paket.store');
-    Route::get('/tindakan/paket/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'getPaket']);
-    Route::delete('/tindakan/paket/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroyPaket']);
+    // Harga jual paket tindakan: Marketing/Admin propose, Admin/Finance approve
+    Route::prefix('harga-tindakan')->middleware('role:Admin|Marketing|Finance')->group(function () {
+        Route::get('/', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'index'])->name('marketing.harga-tindakan.index');
+        Route::get('/data', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'data'])->name('marketing.harga-tindakan.data');
+        Route::get('/pengajuan', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'pengajuanData'])->name('marketing.harga-tindakan.pengajuan');
+        Route::get('/tindakan/{tindakan}/riwayat', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'riwayat'])->name('marketing.harga-tindakan.riwayat');
+        Route::post('/pengajuan', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'store'])->middleware('role:Admin|Marketing')->name('marketing.harga-tindakan.store');
+        Route::post('/pengajuan/{id}/batal', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'batal'])->middleware('role:Admin|Marketing')->name('marketing.harga-tindakan.batal');
+        Route::post('/pengajuan/approve', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'approve'])->middleware('role:Admin|Finance')->name('marketing.harga-tindakan.approve');
+        Route::post('/pengajuan/{id}/reject', [App\Http\Controllers\Marketing\HargaTindakanController::class, 'reject'])->middleware('role:Admin|Finance')->name('marketing.harga-tindakan.reject');
+    });
 
     Route::get('/pasien-data', [App\Http\Controllers\Marketing\MarketingController::class, 'pasienData'])->name('marketing.pasien-data');
 
@@ -1932,34 +1839,7 @@ Route::prefix('workdoc/insiden')->middleware('role:Hrd|Manager|Head Manager|Empl
     Route::delete('laporan_insiden/{id}', [LaporanInsidenController::class, 'destroy'])->name('insiden.laporan_insiden.destroy');
     Route::post('laporan_insiden/{id}/diterima', [LaporanInsidenController::class, 'diterima'])->name('insiden.laporan_insiden.diterima');
 });
-// AJAX route for patient analytics charts
-Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
-
-// AJAX route for services analytics charts
-Route::get('/marketing/services-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsData'])->name('marketing.services.analytics.data');
-// AJAX route for full services list (for modal / export)
-Route::get('/marketing/services-analytics-all', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsAllData'])->name('marketing.services.analytics.all');
-
-// AJAX route for products analytics charts
-Route::get('/marketing/products-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsData'])->name('marketing.products.analytics.data');
-// AJAX route for full products list (for modal / export)
-Route::get('/marketing/products-analytics-all', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsAllData'])->name('marketing.products.analytics.all');
-
 // (moved) HRD Libur capacity check route is defined under the HRD libur group below
-
-// AJAX route for revenue analytics charts
-Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');
-Route::get('/marketing/revenue-analytics/treatments/{treatmentId}/visitations', [\App\Http\Controllers\Marketing\MarketingController::class, 'getTreatmentVisitations'])->name('marketing.revenue.analytics.treatment-visitations');
-
-// AJAX route for patient analytics charts
-Route::get('/marketing/analytics/patients-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
-
-// AJAX route for clinics data
-Route::get('/marketing/clinics', [\App\Http\Controllers\Marketing\MarketingController::class, 'getClinics'])->name('marketing.clinics');
-
-// AJAX route for new patients list (modal DataTable)
-Route::get('/marketing/patients/new-list', [\App\Http\Controllers\Marketing\MarketingController::class, 'newPatientsList'])->name('marketing.patients.new_list');
-
 Route::prefix('indicator')->name('indicator.')->middleware(['auth', 'role:Employee|Manager|Hrd|Ceo|Head Manager|Admin'])->group(function () {
     Route::get('/', [IndicatorController::class, 'index'])->name('index');
     Route::get('/meta', [IndicatorController::class, 'meta'])->name('meta');
@@ -2108,19 +1988,6 @@ Route::post('/erm/hasil-skincheck', [\App\Http\Controllers\ERM\HasilSkincheckCon
 Route::post('/erm/hasil-skincheck/decode', [\App\Http\Controllers\ERM\HasilSkincheckController::class, 'decode'])->name('erm.hasil_skincheck.decode');
 // Riwayat (pasien) - return last records as JSON for AJAX DataTable
 Route::get('/erm/hasil-skincheck/riwayat', [\App\Http\Controllers\ERM\HasilSkincheckController::class, 'riwayat'])->name('erm.hasil_skincheck.riwayat');
-// Cancel visitation (Lab index) - change status_kunjungan to 7
-Route::post('/erm/elab/visitation/{id}/cancel', [\App\Http\Controllers\ERM\ElabController::class, 'cancelVisitation'])
-    ->middleware('role:Lab|Admin')
-    ->name('erm.elab.visitation.cancel');
-Route::post('/erm/elab/visitation/{id}/force-destroy', [\App\Http\Controllers\ERM\ElabController::class, 'forceDestroy'])
-    ->middleware('role:Lab|Admin')
-    ->name('erm.elab.visitation.forceDestroy');
-Route::get('/erm/elab/canceled', [\App\Http\Controllers\ERM\ElabController::class, 'canceledList'])
-    ->middleware('role:Lab|Admin')
-    ->name('erm.elab.canceled.list');
-Route::post('/erm/elab/visitation/{id}/restore', [\App\Http\Controllers\ERM\ElabController::class, 'restoreVisitation'])
-    ->middleware('role:Lab|Admin')
-    ->name('erm.elab.visitation.restore');
 
 // ===================== MASTER LAB TEST & KATEGORI (AJAX CRUD) =====================
 // Dedicated group restricted to Lab & Admin roles only
@@ -2314,7 +2181,7 @@ Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Adm
 
 // Obat KFA mapping (index + AJAX endpoints)
 // Moved under satusehat prefix so URL becomes `/satusehat/obat-kfa`.
-Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+Route::prefix('satusehat')->middleware(['auth','role:SatuSehat|Admin'])->group(function () {
     Route::get('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'index'])->name('erm.obat_kfa.index');
     Route::match(['get','post'], '/obat-kfa/data', [\App\Http\Controllers\ERM\ObatKfaController::class, 'data'])->name('erm.obat_kfa.data');
     Route::post('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'store'])->name('erm.obat_kfa.store');
@@ -2371,3 +2238,12 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
 });
 
 
+
+// ===================== MASTER SATUAN =====================
+// Options for satuan stok & dosis obat and sediaan produk R&D (rows store the satuan as text)
+Route::prefix('erm/master/satuan')->middleware(['auth', 'role:Admin'])->name('erm.satuan.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\ERM\SatuanController::class, 'index'])->name('index');
+    Route::post('/', [\App\Http\Controllers\ERM\SatuanController::class, 'store'])->name('store');
+    Route::put('/{satuan}', [\App\Http\Controllers\ERM\SatuanController::class, 'update'])->name('update');
+    Route::delete('/{satuan}', [\App\Http\Controllers\ERM\SatuanController::class, 'destroy'])->name('destroy');
+});

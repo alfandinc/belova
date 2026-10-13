@@ -7,13 +7,6 @@
 
 @section('content')
 <style>
-.step {
-    display: none;
-}
-.step-navigation {
-    margin-top: 20px;
-    text-align: center;
-}
 .blink-new {
         display: inline-block;
         -webkit-animation: blinker 1s linear infinite;
@@ -138,28 +131,6 @@
                 </div>
             </div>
         </div>
-        <!-- Paket Tindakan DataTable -->
-        {{-- <div class="col-lg-6 col-md-12 mb-3">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0">Daftar Paket Tindakan</h5>
-                </div>
-                <div class="card-body p-2">
-                    <div class="table-responsive">
-                        <table id="paketTindakanTable" class="table table-bordered w-100">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama</th>
-                                    <th>Harga Paket</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div> --}}
     </div>
 </div>
 <!-- Riwayat Tindakan Detail Modal -->
@@ -183,12 +154,12 @@
     </div>
 </div>
 
-<!-- SOP Detail Modal -->
+<!-- Isi paket tindakan modal -->
 <div class="modal fade" id="modalSopDetail" tabindex="-1" aria-labelledby="modalSopDetailLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-    <h5 class="modal-title" id="modalSopDetailLabel">Detail Kode Tindakan</h5>
+    <h5 class="modal-title" id="modalSopDetailLabel">Isi Paket Tindakan</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -273,8 +244,6 @@
         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
     }
 });
-        let tindakanData = [];
-        let currentStep = 1;
         const spesialisasiId = @json($spesialisasiId); 
         const currentVisitationId = @json($visitation->id);
         // Function to format numbers as Rupiah
@@ -395,32 +364,6 @@
         });
 
                 // Create Custom Tindakan feature removed: modal, UI and handlers deleted
-
-        // Initialize Paket Tindakan DataTable
-        $('#paketTindakanTable').DataTable({
-            processing: true,
-            serverSide: true,
-            responsive: true,
-            pageLength: 10,
-            ajax: `/erm/paket-tindakan/data/${spesialisasiId}`,
-            columns: [
-                { data: 'id', name: 'id' },
-                { data: 'nama', name: 'nama' },
-                { 
-                    data: 'harga_paket', 
-                    name: 'harga_paket',
-                    render: function (data) {
-                        return formatRupiah(data);
-                    }
-                },
-                { 
-                    data: 'action', 
-                    name: 'action', 
-                    orderable: false, 
-                    searchable: false,
-                },
-            ],
-        });
 
         // Initialize History Tindakan DataTable
         $('#historyTindakanTable').DataTable({
@@ -666,10 +609,8 @@
         function initializeSignaturePads(step) {
             console.log(`Initializing signature pads for step ${step}`);
             
-            // Selector yang lebih spesifik untuk mendapatkan canvas pada langkah yang aktif
-            const stepSelector = tindakanData.length > 0 ? `.step[data-step="${step}"] ` : "";
-            const patientCanvas = $(`${stepSelector}#signatureCanvas`).get(0);
-            const witnessCanvas = $(`${stepSelector}#witnessSignatureCanvas`).get(0);
+            const patientCanvas = $('#signatureCanvas').get(0);
+            const witnessCanvas = $('#witnessSignatureCanvas').get(0);
 
             if (!patientCanvas || !witnessCanvas) {
                 console.log(`Canvas elements not found for step ${step}`);
@@ -721,55 +662,9 @@
         $(document).on('shown.bs.modal', '#modalInformConsent', function () {
             console.log("Modal fully shown");
             setTimeout(function() {
-                if (tindakanData.length > 0) {
-                    // Paket tindakan - tampilkan langkah pertama
-                    showStep(1);
-                } else {
-                    // Tindakan tunggal
-                    initializeSignaturePads(1);
-                }
+                initializeSignaturePads(1);
             }, 300); // Sedikit delay untuk memastikan DOM selesai render
         });
-
-        // Menggunakan delegate untuk menangkap klik pada tombol next/prev
-        $(document).on('click', '.next-step', function () {
-            console.log('Next button clicked, current step:', currentStep);
-            if (currentStep < tindakanData.length) {
-                currentStep++;
-                showStep(currentStep);
-            }
-        });
-
-        $(document).on('click', '.prev-step', function () {
-            console.log('Previous button clicked, current step:', currentStep);
-            if (currentStep > 1) {
-                currentStep--;
-                showStep(currentStep);
-            }
-        });
-
-            // Implementasi showStep yang lebih baik
-        function showStep(step) {
-            console.log(`Showing step ${step} of ${tindakanData.length}`);
-            
-            // Hide all steps and show only the current one
-            $('.step').hide();
-            $(`.step[data-step="${step}"]`).show();
-
-            // Show "Simpan" button only on the last step
-            if (step === tindakanData.length) {
-                $('#saveInformConsent').removeClass('d-none');
-                $('.next-step').addClass('d-none');
-            } else {
-                $('#saveInformConsent').addClass('d-none');
-                $('.next-step').removeClass('d-none');
-            }
-
-            // Beri waktu untuk DOM update sebelum inisialisasi signature
-            setTimeout(function() {
-                initializeSignaturePads(step);
-            }, 100);
-        };
 
         function loadInformConsentModal(tindakanId, visitationId) {
             $.get(`/erm/tindakan/inform-consent/${tindakanId}?visitation_id=${visitationId}`)
@@ -863,9 +758,8 @@
             const id = $(this).data('id');
             const visitationId = @json($visitation->id);
             
-            // Reset signature pads dan tindakan data
+            // Reset signature pads
             signaturePads = {};
-            tindakanData = [];
 
             if (type === 'tindakan') {
                 // Check if tindakan already exists in this visitation
@@ -896,111 +790,8 @@
             }
         });
 
-            // Fungsi buat-paket-tindakan dengan tracking status load
-        $(document).on('click', '.buat-paket-tindakan', function () {
-            tindakanData = JSON.parse($(this).attr('data-tindakan'));
-            const paketId = $(this).data('id');
-            window.currentPaketId = paketId;
-            
-            // FIXED PRICE EXTRACTION
-            const row = $(this).closest('tr');
-            const priceText = row.find('td:eq(2)').text().trim();
-            
-            // Properly handle Indonesian currency format (Rp 750.000,00)
-            let priceDigitsOnly = priceText
-                .replace(/[^\d,\.]/g, '') // Remove everything except digits, comma and dot
-                .replace(/\./g, '')       // Remove thousand separators (dots)
-                .replace(',', '.');       // Replace decimal comma with dot
-            
-            window.paketHarga = parseFloat(priceDigitsOnly);
-            window.paketNama = row.find('td:eq(1)').text().trim();
-            
-            console.log('Extracted price text:', priceText);
-            console.log('Extracted digits:', priceDigitsOnly);
-            console.log('Paket price (parsed):', window.paketHarga);
-            console.log('Paket name:', window.paketNama);
-            
-            const visitationId = @json($visitation->id);
-
-            currentStep = 1;
-            signaturePads = {}; // Reset signature pads
-            
-            console.log(`Building steps for ${tindakanData.length} tindakan`);
-
-            let stepsHtml = '';
-            tindakanData.forEach((tindakan, index) => {
-                stepsHtml += `<div class="step" data-step="${index + 1}">
-                    <h5>Inform Consent for ${tindakan.nama}</h5>
-                    <div id="informConsentStep${index + 1}"></div>
-                </div>`;
-            });
-
-            $('#modalInformConsentBody').html(`
-                <div id="stepsContainer">
-                    ${stepsHtml}
-                </div>
-                <div class="step-navigation mt-3">
-                    <button class="btn btn-secondary prev-step">Previous</button>
-                    <button class="btn btn-primary next-step">Next</button>
-                    <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button>
-                </div>
-            `);
-
-            // Memuat konten untuk setiap langkah
-            let loadedSteps = 0;
-            tindakanData.forEach((tindakan, index) => {
-                $.get(`/erm/tindakan/inform-consent/${tindakan.id}?visitation_id=${visitationId}`)
-                    .done(function (html) {
-                        $(`#informConsentStep${index + 1}`).html(html);
-                        // Inject price selector into each loaded step form
-                        (function injectPriceSelectorStep(tid, container, stepIdx) {
-                            $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
-                                if (!res.success) return;
-                                const harga = res.harga || 0;
-                                const hargaPaketVisit = res.harga_paket_visit || null;
-                                const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
-                                const formattedHargaPaket = (hargaPaketVisit !== null && hargaPaketVisit !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(hargaPaketVisit) : '';
-                                const $form = $(container).find('#informConsentForm');
-                                if ($form.length) {
-                                    const preferred = window.preferredHargaType || 'normal';
-                                    const checkedNormal = preferred === 'normal' ? 'checked' : '';
-                                    const checked3x = preferred === '3x' ? 'checked' : '';
-                                    const multiVisitTotal = res.multi_visit_total || 3;
-                                    const multiVisitLabel = multiVisitTotal + 'x Visit';
-                                    let html2 = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
-                                    html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal_step_${stepIdx}" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal_step_${stepIdx}">Normal - ${formattedHarga}</label></div>`;
-                                    if (formattedHargaPaket) {
-                                        html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x_step_${stepIdx}" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x_step_${stepIdx}">${multiVisitLabel} - ${formattedHargaPaket}</label></div>`;
-                                    }
-                                    html2 += '</div></div>';
-                                    $form.prepend(html2);
-                                    // Clear preference for subsequent steps/modals
-                                    window.preferredHargaType = null;
-                                }
-                            }).fail(function(){/* ignore */});
-                        })(tindakan.id, `#informConsentStep${index + 1}`, index+1);
-                        loadedSteps++;
-                        
-                        // Ketika semua langkah dimuat, tampilkan modal
-                        if (loadedSteps === tindakanData.length) {
-                            $('#modalInformConsent').modal('show');
-                        }
-                    })
-                    .fail(function () {
-                        alert('Error loading inform consent form');
-                    });
-            });
-        });
-
-        // Handler untuk menyimpan semua inform consent di paket
         $(document).on('click', '#saveInformConsent', function () {
-            if (tindakanData.length === 0) {
-                // Tindakan tunggal - gunakan fungsi simpan yang sudah ada
-                saveSingleInformConsent();
-            } else {
-                // Paket tindakan - simpan semua tanda tangan
-                saveAllInformConsents();
-            }
+            saveSingleInformConsent();
         });
         
         // Fungsi untuk menyimpan satu inform consent
@@ -1106,137 +897,6 @@
             });
         }
         
-        // Fungsi untuk menyimpan semua inform consent di paket
-        function saveAllInformConsents() {
-            // Validasi semua tanda tangan
-            let valid = true;
-            let missingSignatures = [];
-            
-            for (let i = 1; i <= tindakanData.length; i++) {
-                if (!signaturePads[i] || !signaturePads[i].patient || !signaturePads[i].witness) {
-                    missingSignatures.push(`Step ${i}: Signature pads not initialized`);
-                    valid = false;
-                    continue;
-                }
-                
-                if (signaturePads[i].patient.isEmpty()) {
-                    missingSignatures.push(`Step ${i}: Patient signature missing`);
-                    valid = false;
-                }
-                
-                if (signaturePads[i].witness.isEmpty()) {
-                    missingSignatures.push(`Step ${i}: Witness signature missing`);
-                    valid = false;
-                }
-            }
-            
-            if (!valid) {
-                Swal.fire('Error', 'Please complete all signatures: ' + missingSignatures.join(', '), 'error');
-                return;
-            }
-            
-            // Show loading
-            Swal.fire({
-                title: 'Saving...',
-                text: 'Please wait while all inform consents are being saved.',
-                icon: 'info',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-            });
-            
-            // Buat array untuk menyimpan promises semua request ajax
-            const savePromises = [];
-            
-            // Loop melalui setiap tindakan dan simpan form-nya
-            for (let i = 1; i <= tindakanData.length; i++) {
-                const step = i;
-                const form = $(`.step[data-step="${step}"] #informConsentForm`);
-                
-                if (!form.length) {
-                    console.error(`Form not found for step ${step}`);
-                    continue;
-                }
-                
-                // Clone form untuk menghindari konflik
-                const clonedForm = form.clone();
-                
-                // Tambahkan data tanda tangan ke form
-                const formData = new FormData(form[0]);
-                formData.append('signature', signaturePads[step].patient.toDataURL());
-                formData.append('witness_signature', signaturePads[step].witness.toDataURL());
-                formData.append('tindakan_id', tindakanData[step-1].id);
-
-               // Add paket_id if exists
-                if (window.currentPaketId) {
-                    formData.append('paket_id', window.currentPaketId);
-                    
-                    // Always include the price/name data - the server will only use it once
-                    formData.append('jumlah', window.paketHarga || 0);
-                    formData.append('keterangan', `Paket Tindakan: ${window.paketNama || 'Unknown'}`);
-                }
-
-                // Juga pastikan semua field yang dibutuhkan tersedia
-                if (!formData.has('tanggal')) {
-                    formData.append('tanggal', new Date().toISOString().split('T')[0]);
-                }
-
-                if (!formData.has('nama_pasien') && $('#namaPasien').length) {
-                    formData.append('nama_pasien', $('#namaPasien').text().trim());
-                }
-
-                if (!formData.has('nama_saksi') && $('#namaSaksi').length) {
-                    formData.append('nama_saksi', $('#namaSaksi').val() || 'Saksi');
-                }
-
-                if (!formData.has('notes')) {
-                    formData.append('notes', '');
-                }
-                
-                // Buat promise untuk request ajax
-                const savePromise = new Promise((resolve, reject) => {
-                    // Generate QR for this step and append
-                    const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
-                    const perawatNameForQr = '{{ optional(auth()->user())->name ?? '' }}';
-                    const dokterQrData = generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '';
-                    const perawatQrData = generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '';
-                    formData.append('dokter_qr', dokterQrData);
-                    formData.append('perawat_qr', perawatQrData);
-
-                    $.ajax({
-                        url: form.attr('action'),
-                        method: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(response) {
-                            resolve(response);
-                        },
-                        error: function(xhr) {
-                            reject(xhr);
-                        }
-                    });
-                });
-                
-                savePromises.push(savePromise);
-            }
-            
-            // Jalankan semua promises
-            Promise.all(savePromises)
-                .then(responses => {
-                    Swal.fire('Success', 'Semua Tindakan dan billing berhasil disimpan!', 'success')
-                        .then(() => {
-                            $('#modalInformConsent').modal('hide');
-                            // Reload riwayat tindakan table after saving paket
-                            $('#historyTindakanTable').DataTable().ajax.reload();
-                        });
-                })
-                .catch(errors => {
-                    console.error('Errors:', errors);
-                    Swal.fire('Error', 'Some inform consents could not be saved.', 'error');
-                });
-        }
-        
         // SPK Read-Only Functionality
 $(document).on('click', '.spk-btn', function() {
     const riwayatId = $(this).data('riwayat-id') || $(this).data('id');
@@ -1263,26 +923,10 @@ $(document).on('click', '.spk-btn', function() {
                 <div class='col-md-4'><b>Nama Tindakan:</b> ${data.tindakan_nama}</div>
                 <div class='col-md-4'><b>Harga:</b> ${data.harga}</div>
             </div>`;
-            html += `<div class='table-responsive'><table class='table table-bordered'><thead><tr>
-                <th>NO</th><th>TINDAKAN</th><th>PJ</th><th>SBK</th><th>SBA</th><th>SDC</th><th>SDK</th><th>SDL</th><th>MULAI</th><th>SELESAI</th><th>NOTES</th>
-            </tr></thead><tbody>`;
-            data.sop_list.forEach((sop, idx) => {
-                const detail = data.spk?.details?.find(d => d.sop_id == sop.id) || {};
-                html += `<tr>
-                    <td>${idx+1}</td>
-                    <td>${sop.nama_sop}</td>
-                    <td>${detail.penanggung_jawab || '-'}</td>
-                    <td><input type='checkbox' disabled ${detail.sbk ? 'checked' : ''}></td>
-                    <td><input type='checkbox' disabled ${detail.sba ? 'checked' : ''}></td>
-                    <td><input type='checkbox' disabled ${detail.sdc ? 'checked' : ''}></td>
-                    <td><input type='checkbox' disabled ${detail.sdk ? 'checked' : ''}></td>
-                    <td><input type='checkbox' disabled ${detail.sdl ? 'checked' : ''}></td>
-                    <td>${detail.waktu_mulai || '-'}</td>
-                    <td>${detail.waktu_selesai || '-'}</td>
-                    <td>${detail.notes || ''}</td>
-                </tr>`;
-            });
-            html += '</tbody></table></div>';
+            html += `<div class='row mb-2'>
+                <div class='col-md-4'><b>Jam Mulai:</b> ${data.spk?.waktu_mulai ? data.spk.waktu_mulai.substring(0,5) : '-'}</div>
+                <div class='col-md-4'><b>Jam Selesai:</b> ${data.spk?.waktu_selesai ? data.spk.waktu_selesai.substring(0,5) : '-'}</div>
+            </div>`;
             $('#modalSpkReadOnlyBody').html(html);
         } else {
             $('#modalSpkReadOnlyBody').html('<div class="alert alert-danger">SPK data not found.</div>');
@@ -1330,12 +974,12 @@ $(document).on('click', '.batalkan-tindakan-btn', function() {
 $(document).on('click', '.detail-sop-btn, .tindakan-name-link', function(e) {
     e.preventDefault();
     const tindakanId = $(this).data('id');
-    $('#modalSopDetailLabel').text('SOP Tindakan');
+    $('#modalSopDetailLabel').text('Isi Paket Tindakan');
     $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Loading...</td></tr>');
     $('#modalSopDetail').modal('show');
     $.get(`/erm/tindakan/${tindakanId}/sop-list`, function(response) {
         if (response.success) {
-            $('#modalSopDetailLabel').text('Detail Kode Tindakan: ' + response.tindakan);
+            $('#modalSopDetailLabel').text('Isi Paket Tindakan: ' + response.tindakan);
             let rows = '';
             if (response.kode_tindakans && response.kode_tindakans.length > 0) {
                 response.kode_tindakans.forEach(function(item) {
@@ -1357,7 +1001,7 @@ $(document).on('click', '.detail-sop-btn, .tindakan-name-link', function(e) {
                     </tr>`;
                 });
             } else {
-                rows = '<tr><td colspan="4" class="text-center">Tidak ada kode tindakan</td></tr>';
+                rows = '<tr><td colspan="4" class="text-center">Belum ada tindakan di paket ini</td></tr>';
             }
             $('#sopTable tbody').html(rows);
         } else {

@@ -1148,6 +1148,102 @@ class BillingController extends Controller
         ]);
     }
 
+    /**
+     * Stock modal (lab): obat consumed by a LabPermintaan / LabPaket billing row and the gudang
+     * createInvoice takes them from (the 'lab' mapping).
+     */
+    public function labObats(Request $request)
+    {
+        $billingId = (int) $request->query('billing_id');
+        if ($billingId <= 0) {
+            return response()->json([
+                'message' => 'billing_id is required',
+                'data' => []
+            ], 422);
+        }
+
+        $billing = Billing::find($billingId);
+        $merged = [];
+        foreach ($billing ? $this->labObatRequirementsForBilling($billing) : [] as $req) {
+            $obatId = $req['obat_id'];
+            if (!isset($merged[$obatId])) {
+                $merged[$obatId] = ['obat_id' => $obatId, 'obat_nama' => $req['obat_nama'], 'qty' => 0];
+            }
+            $merged[$obatId]['qty'] += $req['qty'];
+        }
+
+        [$secondaryEntityType, $secondaryEntityId] = $this->resolveGudangSecondaryScope($request);
+        $suggestedGudangId = GudangMapping::getDefaultGudangId('lab', null, null, $secondaryEntityType, $secondaryEntityId);
+
+        return response()->json([
+            'suggested_gudang_id' => $suggestedGudangId,
+            'data' => array_values($merged),
+        ]);
+    }
+
+    /**
+     * Obat a lab billing row consumes (same quantities createInvoice reduces from stock).
+     * LabPermintaan: dosis x billing qty; LabPaket: dosis of every test requested under that paket.
+     *
+     * @return array<int, array{obat_id:int, obat_nama:string, qty:float, lab_test_id:int, lab_test_nama:string}>
+     */
+    private function labObatRequirementsForBilling($billing): array
+    {
+        $type = $billing->billable_type ?? null;
+
+        if ($type === 'App\\Models\\ERM\\LabPermintaan') {
+            $permintaans = \App\Models\ERM\LabPermintaan::with('labTest.obats')->whereKey($billing->billable_id)->get();
+
+            $qtyTestRaw = $billing->qty ?? 1;
+            if (is_string($qtyTestRaw)) {
+                $normalized = str_replace('.', '', $qtyTestRaw);
+                $normalized = str_replace(',', '.', $normalized);
+                $qtyTest = floatval($normalized);
+            } else {
+                $qtyTest = floatval($qtyTestRaw);
+            }
+            if ($qtyTest >= 100 && $qtyTest <= 1000) {
+                $qtyTest = $qtyTest / 100.0;
+            }
+        } elseif ($type === 'App\\Models\\ERM\\LabPaket') {
+            $permintaans = \App\Models\ERM\LabPermintaan::with('labTest.obats')
+                ->where('visitation_id', $billing->visitation_id)
+                ->where('lab_paket_id', $billing->billable_id)
+                ->get();
+            $qtyTest = 1.0;
+        } else {
+            return [];
+        }
+
+        $rows = [];
+        foreach ($permintaans as $labPermintaan) {
+            if (!$labPermintaan->labTest) {
+                continue;
+            }
+
+            foreach ($labPermintaan->labTest->obats as $obat) {
+                $dosisRaw = $obat->pivot->dosis ?? 0;
+                $dosis = is_string($dosisRaw)
+                    ? floatval(str_replace(',', '.', $dosisRaw))
+                    : floatval($dosisRaw);
+                $required = $dosis * $qtyTest;
+                if ($required <= 0) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'obat_id' => (int) $obat->id,
+                    'obat_nama' => $obat->nama ?? ('Obat #' . $obat->id),
+                    'qty' => $required,
+                    'lab_test_id' => (int) $labPermintaan->labTest->id,
+                    'lab_test_nama' => $labPermintaan->labTest->nama ?? 'Lab Test',
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
     public function create(Request $request, $visitation_id)
 {
     if ($request->ajax()) {
@@ -1957,7 +2053,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $billingsCount = method_exists($billings, 'count') ? intval($billings->count()) : 0;
                 $cacheKey = 'billing:create:oos:' . intval($visitation_id) . ':' . $billingsCount . ':' . $maxUpdatedAt;
 
-                $outOfStockByBillingId = Cache::remember($cacheKey, now()->addSeconds(10), function() use ($processedBillings) {
+                $outOfStockByBillingId = Cache::remember($cacheKey, now()->addSeconds(10), function() use ($processedBillings, $visitation_id) {
                     $out = [];
                     try {
                         $requirementsByBillingId = []; // billing_id => [ ['obat_id'=>..,'gudang_id'=>..,'needed'=>..], ... ]
@@ -1979,6 +2075,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $defaultKodeTindakanGudangId = $resolveGudangId(GudangMapping::resolveGudangForTransaction('kode_tindakan'));
                         if (!$defaultKodeTindakanGudangId) {
                             $defaultKodeTindakanGudangId = $fallbackGudang ? $fallbackGudang->id : null;
+                        }
+
+                        // Lab obat come from the 'lab' mapping (event visits use the event-scoped one), as in createInvoice
+                        $isEventVisit = (int) (Visitation::query()->whereKey($visitation_id)->value('jenis_kunjungan') ?? 0) === 4;
+                        $defaultLabGudangId = $isEventVisit
+                            ? GudangMapping::getDefaultGudangId('lab', null, null, GudangMapping::ENTITY_TYPE_BILLING_CONTEXT, GudangMapping::BILLING_CONTEXT_EVENT)
+                            : GudangMapping::getDefaultGudangId('lab');
+                        if (!$defaultLabGudangId) {
+                            $defaultLabGudangId = $fallbackGudang ? $fallbackGudang->id : null;
                         }
 
                         $tindakanBillingToRiwayat = []; // billing_id => [riwayat_tindakan_id, ...]
@@ -2028,6 +2133,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 if (!empty($rowRiwayatIds)) {
                                     $tindakanBillingToRiwayat[$billingId] = $rowRiwayatIds;
                                     $riwayatIds = array_merge($riwayatIds, $rowRiwayatIds);
+                                }
+                                continue;
+                            }
+
+                            // Lab test / paket: obat linked to the lab tests
+                            if (isset($row->billable_type) && in_array($row->billable_type, ['App\\Models\\ERM\\LabPermintaan', 'App\\Models\\ERM\\LabPaket'], true)) {
+                                if ($defaultLabGudangId) {
+                                    foreach ($this->labObatRequirementsForBilling($row) as $labReq) {
+                                        $requirementsByBillingId[$billingId][] = [
+                                            'obat_id' => $labReq['obat_id'],
+                                            'gudang_id' => intval($defaultLabGudangId),
+                                            'needed' => floatval($labReq['qty']),
+                                        ];
+                                        $allObatIds[] = $labReq['obat_id'];
+                                        $allGudangIds[] = intval($defaultLabGudangId);
+                                    }
                                 }
                                 continue;
                             }
@@ -2601,20 +2722,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }, $row->fee_descriptions ?? []);
                     
                     return implode("<br>", $formattedFees);
-                } else if ($row->billable_type == 'App\\Models\\ERM\\PaketTindakan') {
-                    // For PaketTindakan, show a list of contained tindakan
-                    $tindakanList = optional($row->billable)->tindakan ? optional($row->billable)->tindakan()->pluck('nama')->toArray() : [];
-
-                    if (empty($tindakanList)) {
-                        return '-';
-                    }
-
-                    // Format tindakan list with dash prefixes and line breaks
-                    $formattedList = array_map(function ($item) {
-                        return "- " . $item;
-                    }, $tindakanList);
-
-                    return implode("<br>", $formattedList);
                 } else if ($row->billable_type == 'App\\Models\\ERM\\LabPaket') {
                     $labTestList = optional($row->billable)->labTests ? optional($row->billable)->labTests()->pluck('nama')->toArray() : [];
 
@@ -3270,127 +3377,43 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             foreach ($billingItems as $item) {
-                if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPermintaan') {
-                    $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest.obats')->find($item->billable_id);
-                    if ($labPermintaan && $labPermintaan->labTest) {
-                        $qtyTestRaw = $item->qty ?? 1;
-                        if (is_string($qtyTestRaw)) {
-                            $normalized = str_replace('.', '', $qtyTestRaw);
-                            $normalized = str_replace(',', '.', $normalized);
-                            $qtyTest = floatval($normalized);
-                        } else {
-                            $qtyTest = floatval($qtyTestRaw);
-                        }
-                        if ($qtyTest >= 100 && $qtyTest <= 1000) {
-                            $qtyTest = $qtyTest / 100.0;
-                        }
+                $isLabPaket = isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPaket';
 
-                        foreach ($labPermintaan->labTest->obats as $obat) {
-                            $dosisRaw = $obat->pivot->dosis ?? 0;
-                            if (is_string($dosisRaw)) {
-                                $dosis = floatval(str_replace(',', '.', $dosisRaw));
-                            } else {
-                                $dosis = floatval($dosisRaw);
-                            }
-                            $required = $dosis * $qtyTest;
-                            if ($required <= 0) { continue; }
+                foreach ($this->labObatRequirementsForBilling($item) as $labReq) {
+                    $obatId = $labReq['obat_id'];
+                    $required = $labReq['qty'];
 
-                            $billingKey = $item->id;
-                            $selectedGudangId = null;
-                            if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
-                                $selectedGudangId = $gudangSelections[$billingKey];
-                            } elseif (isset($gudangSelections['lab_' . $obat->id]) && $gudangSelections['lab_' . $obat->id]) {
-                                $selectedGudangId = $gudangSelections['lab_' . $obat->id];
-                            }
-
-                            if ($selectedGudangId) {
-                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                    ->where('gudang_id', $selectedGudangId)
-                                    ->layakPakai()->sum('stok');
-                            } else {
-                                $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
-                                if ($mappedGudangId) {
-                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->where('gudang_id', $mappedGudangId)
-                                        ->layakPakai()->sum('stok');
-                                } else {
-                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->layakPakai()->sum('stok');
-                                }
-                            }
-
-                            if ($required > $currentStock) {
-                                $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
-                                $stockErrors[] = "Stok {$obat->nama} untuk lab ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia (belum kadaluarsa): {$currentStock}";
-                            }
-
-                            $labRequiredObats[] = [
-                                'billing_id' => $item->id,
-                                'obat_id' => $obat->id,
-                                'qty' => $required,
-                                'lab_test_id' => $labPermintaan->labTest->id,
-                            ];
-                        }
+                    $billingKey = $item->id;
+                    $selectedGudangId = null;
+                    if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                        $selectedGudangId = $gudangSelections[$billingKey];
+                    } elseif (isset($gudangSelections['lab_' . $obatId]) && $gudangSelections['lab_' . $obatId]) {
+                        $selectedGudangId = $gudangSelections['lab_' . $obatId];
                     }
-                } elseif (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPaket') {
-                    $packageRequests = \App\Models\ERM\LabPermintaan::with('labTest.obats')
-                        ->where('visitation_id', $item->visitation_id)
-                        ->where('lab_paket_id', $item->billable_id)
-                        ->get();
+                    $labGudangId = $selectedGudangId ?: $this->getGudangForItem($request, $obatId, 'lab', $item->id);
 
-                    foreach ($packageRequests as $labPermintaan) {
-                        if (!$labPermintaan->labTest) {
-                            continue;
-                        }
-
-                        foreach ($labPermintaan->labTest->obats as $obat) {
-                            $dosisRaw = $obat->pivot->dosis ?? 0;
-                            $dosis = is_string($dosisRaw)
-                                ? floatval(str_replace(',', '.', $dosisRaw))
-                                : floatval($dosisRaw);
-                            $required = $dosis;
-                            if ($required <= 0) {
-                                continue;
-                            }
-
-                            $billingKey = $item->id;
-                            $selectedGudangId = null;
-                            if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
-                                $selectedGudangId = $gudangSelections[$billingKey];
-                            } elseif (isset($gudangSelections['lab_' . $obat->id]) && $gudangSelections['lab_' . $obat->id]) {
-                                $selectedGudangId = $gudangSelections['lab_' . $obat->id];
-                            }
-
-                            if ($selectedGudangId) {
-                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                    ->where('gudang_id', $selectedGudangId)
-                                    ->layakPakai()->sum('stok');
-                            } else {
-                                $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
-                                if ($mappedGudangId) {
-                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->where('gudang_id', $mappedGudangId)
-                                        ->layakPakai()->sum('stok');
-                                } else {
-                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->layakPakai()->sum('stok');
-                                }
-                            }
-
-                            if ($required > $currentStock) {
-                                $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
-                                $packageName = optional(LabPaket::find($item->billable_id))->nama ?? 'Paket Lab';
-                                $stockErrors[] = "Stok {$obat->nama} untuk {$packageName} ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia (belum kadaluarsa): {$currentStock}";
-                            }
-
-                            $labRequiredObats[] = [
-                                'billing_id' => $item->id,
-                                'obat_id' => $obat->id,
-                                'qty' => $required,
-                                'lab_test_id' => $labPermintaan->labTest->id,
-                            ];
-                        }
+                    $stockQuery = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)->layakPakai();
+                    if ($labGudangId) {
+                        $stockQuery->where('gudang_id', $labGudangId);
                     }
+                    $currentStock = $stockQuery->sum('stok');
+
+                    if ($required > $currentStock) {
+                        $testName = $labReq['lab_test_nama'];
+                        $gudangName = $labGudangId ? optional(\App\Models\ERM\Gudang::find($labGudangId))->nama : null;
+                        $suffix = $gudangName ? " di gudang {$gudangName}" : "";
+                        $label = $isLabPaket
+                            ? (optional(LabPaket::find($item->billable_id))->nama ?? 'Paket Lab') . " ({$testName})"
+                            : "lab ({$testName})";
+                        $stockErrors[] = "Stok {$labReq['obat_nama']} untuk {$label}{$suffix} tidak mencukupi. Dibutuhkan: {$required}, Tersedia (belum kadaluarsa): {$currentStock}";
+                    }
+
+                    $labRequiredObats[] = [
+                        'billing_id' => $item->id,
+                        'obat_id' => $obatId,
+                        'qty' => $required,
+                        'lab_test_id' => $labReq['lab_test_id'],
+                    ];
                 }
             }
 
@@ -3879,15 +3902,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     $name = $billableModel->nama;
                                 } elseif (isset($billableModel->name)) {
                                     $name = $billableModel->name;
-                                // Special-case: if this is a RiwayatTindakan, prefer the tindakan or paket name
+                                // Special-case: if this is a RiwayatTindakan, prefer the tindakan name
                                 } elseif ($item->billable_type == 'App\\Models\\ERM\\RiwayatTindakan') {
                                     // Try to load via relation fields if present
                                     try {
                                         $rt = $billableModel; // already loaded
                                         if (isset($rt->tindakan) && isset($rt->tindakan->nama)) {
                                             $name = $rt->tindakan->nama;
-                                        } elseif (isset($rt->paketTindakan) && isset($rt->paketTindakan->nama)) {
-                                            $name = $rt->paketTindakan->nama;
                                         }
                                     } catch (\Exception $ex) {
                                         // swallow - we'll fallback below
@@ -4955,7 +4976,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'visitation_id' => $visitation->id,
                     'tanggal_tindakan' => $visitation->tanggal_visitation ?: Carbon::today()->toDateString(),
                     'tindakan_id' => $billableId,
-                    'paket_tindakan_id' => null,
                 ]);
 
                 $this->syncRiwayatTindakanObatsFromTindakan($riwayatTindakan->id, (int) $billableId);
@@ -5107,7 +5127,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'visitation_id' => $visitation->id,
                 'tanggal_tindakan' => $sourceRiwayat->tanggal_tindakan ?: ($visitation->tanggal_visitation ?: Carbon::today()->toDateString()),
                 'tindakan_id' => $sourceRiwayat->tindakan_id,
-                'paket_tindakan_id' => $sourceRiwayat->paket_tindakan_id,
             ]);
 
             $this->cloneRiwayatTindakanObats($sourceRiwayat->id, $newRiwayat->id);

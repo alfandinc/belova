@@ -1,5 +1,9 @@
 @extends('layouts.erm.app')
 
+@section('navbar')
+    @include('layouts.shared.sidebar')
+@endsection
+
 @section('content')
 <div class="container">
     <h1>Tambah Master Faktur</h1>

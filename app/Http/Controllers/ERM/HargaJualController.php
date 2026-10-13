@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatHargaPengajuan;
+use App\Services\ERM\MasterPembelianService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
@@ -197,9 +198,11 @@ class HargaJualController extends Controller
             ->leftJoin('users as pu', 'pu.id', '=', 'erm_obat_harga_pengajuan.diajukan_by')
             ->leftJoin('users as su', 'su.id', '=', 'erm_obat_harga_pengajuan.disetujui_by')
             ->leftJoin('users as tu', 'tu.id', '=', 'erm_obat_harga_pengajuan.ditolak_by')
+            ->leftJoinSub(MasterPembelianService::estimasiHppQuery(), 'est', 'est.obat_id', '=', 'o.id')
             ->select([
                 'erm_obat_harga_pengajuan.*',
                 'o.nama as obat_nama', 'o.kode_obat', 'o.harga_nonfornas as harga_sekarang', 'o.hna as hna_sekarang', 'o.hpp as hpp_sekarang',
+                'est.hpp_estimasi',
                 'pu.name as pengaju', 'su.name as penyetuju', 'tu.name as penolak',
             ])
             ->when($status !== 'semua', fn ($q) => $q->where('erm_obat_harga_pengajuan.status', $status));
@@ -227,6 +230,28 @@ class HargaJualController extends Controller
                 $modal = (float) $p->hna_sekarang ?: (float) $p->hpp_sekarang * (1 + Obat::PPN_PERCENT / 100);
 
                 return $p->status === 'menunggu' ? self::margin((float) $p->harga_baru, $modal ?: null) : null;
+            })
+            // Today's HPP / HNA; an obat never bought shows the Master Pembelian price as an estimate
+            ->addColumn('estimasi', fn ($p) => (float) $p->hpp_sekarang <= 0 && (float) $p->hpp_estimasi > 0)
+            ->addColumn('hpp_tampil', function ($p) {
+                $hpp = (float) $p->hpp_sekarang ?: (float) $p->hpp_estimasi;
+
+                return $hpp > 0 ? round($hpp, 2) : null;
+            })
+            // HNA follows the HPP shown: both real, or both from the estimate
+            ->addColumn('hna_tampil', function ($p) {
+                $hna = (float) $p->hpp_sekarang <= 0 && (float) $p->hpp_estimasi > 0
+                    ? Obat::hnaFromHpp((float) $p->hpp_estimasi)
+                    : ((float) $p->hna_sekarang ?: Obat::hnaFromHpp((float) $p->hpp_sekarang));
+
+                return $hna > 0 ? round($hna, 2) : null;
+            })
+            ->addColumn('margin_estimasi', function ($p) {
+                if ((float) $p->hpp_sekarang > 0 || (float) $p->hpp_estimasi <= 0) {
+                    return null;
+                }
+
+                return self::margin((float) $p->harga_baru, Obat::hnaFromHpp((float) $p->hpp_estimasi));
             })
             ->addColumn('bisa_setujui', fn ($p) => $p->status === 'menunggu' && $canApprove && ((int) $p->diajukan_by !== (int) $me || $isAdmin))
             ->addColumn('bisa_batal', fn ($p) => $p->status === 'menunggu' && ((int) $p->diajukan_by === (int) $me || $isAdmin))

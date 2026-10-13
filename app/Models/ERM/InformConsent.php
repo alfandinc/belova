@@ -10,7 +10,6 @@ class InformConsent extends Model
     protected $fillable = [
         'visitation_id',
         'tindakan_id',
-        'paket_id',
         'file_path',
         'before_image_path',
         'after_image_path',

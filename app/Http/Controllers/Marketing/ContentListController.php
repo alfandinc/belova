@@ -49,7 +49,7 @@ class ContentListController extends Controller
     public function datatable(Request $request)
     {
         $query = ContentList::with(['assignedTo', 'approvedBy', 'scheduledPlan']);
-        $isManager = Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']);
+        $isManager = Auth::check() && Auth::user()->hasRole('Manager');
 
         if ($request->filled('filter_brand')) {
             $brands = $request->filter_brand;
@@ -163,7 +163,7 @@ class ContentListController extends Controller
             })
             ->addColumn('action', function ($row) {
                 $buttons = [];
-                $canApprove = Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']);
+                $canApprove = Auth::check() && Auth::user()->hasRole('Manager');
 
                 $status = strtolower($row->approval_status ?? 'pending');
                 $isScheduled = (bool) ($row->scheduled_plan_id && $row->scheduledPlan);
@@ -240,7 +240,7 @@ class ContentListController extends Controller
 
     public function approve(Request $request, $id)
     {
-        abort_unless(Auth::check() && Auth::user()->hasAnyRole(['Manager', 'manager']), 403);
+        abort_unless(Auth::check() && Auth::user()->hasRole('Manager'), 403);
 
         $list = ContentList::findOrFail($id);
         $payload = $request->validate([

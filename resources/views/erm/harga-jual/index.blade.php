@@ -105,6 +105,8 @@
                             <tr>
                                 <th style="width:24px">@if($canApprove)<input type="checkbox" id="pjCheckAll" title="Pilih semua yang bisa disetujui di halaman ini">@endif</th>
                                 <th>Obat</th>
+                                <th class="text-right" title="Harga beli tanpa PPN saat ini, dari faktur terakhir">HPP</th>
+                                <th class="text-right" title="HPP + PPN {{ $ppn }}% saat ini">HNA</th>
                                 <th class="text-right">Harga lama → baru</th>
                                 <th class="text-right" title="Terhadap HNA saat diajukan">Margin lama → baru</th>
                                 <th>Alasan</th>
@@ -114,6 +116,7 @@
                             </tr>
                         </thead>
                     </table>
+                    <small class="text-muted d-block"><span class="badge badge-warning">estimasi</span> obat baru yang belum pernah dibeli: HPP / HNA diambil dari harga Master Pembelian, belum real dari faktur.</small>
                     @if($canApprove)
                     <small class="text-muted">Admin bisa langsung menyetujui pengajuannya sendiri. Harga baru langsung berlaku di e-resep dan kasir setelah disetujui.</small>
                     @endif
@@ -490,7 +493,7 @@ $(function () {
         pageLength: 25,
         dom: 'rt<"d-flex flex-wrap justify-content-between align-items-center mt-2"lip>',
         ajax: { url: URLS.pengajuan, data: function (d) { d.status = state.pjStatus; } },
-        order: [[5, 'desc']],
+        order: [[7, 'desc']],
         language: {
             processing: '<i class="fas fa-spinner fa-spin"></i> Memuat...',
             zeroRecords: 'Tidak ada pengajuan', emptyTable: 'Tidak ada pengajuan',
@@ -504,6 +507,23 @@ $(function () {
             },
             { data: 'obat', name: 'obat', render: function (d, t, r) { return '<div class="hj-name">' + esc(d) + '</div><div class="small text-muted">' + esc(r.kode_obat || '') + '</div>'; } },
             {
+                data: 'hpp_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                render: function (d, t, r) {
+                    if (!(d > 0)) return '<span class="text-muted">-</span><div class="small text-muted">belum ada HPP</div>';
+                    return rupiah(d) + (r.estimasi ? '<div><span class="badge badge-warning" title="Obat baru, belum pernah dibeli: dari harga Master Pembelian, belum real dari faktur">estimasi</span></div><div class="small text-muted">Master Pembelian</div>' : '');
+                }
+            },
+            {
+                data: 'hna_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                render: function (d, t, r) {
+                    if (!(d > 0)) return '<span class="text-muted">-</span>';
+                    var html = rupiah(d) + (r.estimasi ? '<div><span class="badge badge-warning">estimasi</span></div>' : '');
+                    // HNA at proposal time, when it differs from today's
+                    if (!r.estimasi && r.hna > 0 && Math.abs(r.hna - d) >= 1) html += '<div class="small text-muted">saat diajukan ' + rupiah(r.hna) + '</div>';
+                    return html;
+                }
+            },
+            {
                 data: 'harga_baru', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
                     var lama = Number(r.harga_lama || 0), baru = Number(d);
@@ -516,7 +536,9 @@ $(function () {
             {
                 data: 'margin_baru', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
-                    var html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(d) + '<div class="small text-muted">HNA ' + rupiah(r.hna) + '</div>';
+                    var html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(d);
+                    // New obat: margin against the estimated HNA
+                    if (d === null && r.margin_estimasi !== null) html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(r.margin_estimasi) + '<div class="small text-warning">dari HNA estimasi</div>';
                     // HNA changed since the proposal (new faktur): show the margin on today's HNA
                     if (r.margin_sekarang_hna !== null && r.margin_baru !== null && Math.abs(r.margin_sekarang_hna - r.margin_baru) >= 0.5) {
                         html += '<div class="small text-warning" title="HNA berubah setelah pengajuan dibuat">dengan HNA sekarang: ' + pct(r.margin_sekarang_hna) + '</div>';

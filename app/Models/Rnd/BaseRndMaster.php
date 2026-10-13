@@ -13,6 +13,12 @@ abstract class BaseRndMaster extends Model
 
     abstract public static function fields(): array;
 
+    /** Columns that together must be unique (case-insensitive); the first field by default. */
+    public static function duplicateColumns(): array
+    {
+        return [static::fields()[0]['name']];
+    }
+
     public static function columns(): array
     {
         return array_map(function (array $field) {
@@ -45,6 +51,8 @@ abstract class BaseRndMaster extends Model
 
             if ($field['type'] === 'textarea') {
                 $fieldRules[] = 'string';
+            } elseif ($field['type'] === 'date') {
+                $fieldRules[] = 'date';
             } elseif ($field['type'] === 'select') {
                 $fieldRules[] = 'in:' . implode(',', $field['options']);
             } else {

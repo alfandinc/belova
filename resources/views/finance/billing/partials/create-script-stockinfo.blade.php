@@ -70,6 +70,11 @@ function getItemSpesialisasiId(item) {
     return null;
 }
 
+// Lab test / paket rows: their obat are reduced from the 'lab' gudang mapping when the invoice is made
+function isLabBillingItem(item) {
+    return !!item && (item.billable_type === 'App\\Models\\ERM\\LabPermintaan' || item.billable_type === 'App\\Models\\ERM\\LabPaket');
+}
+
 // Helper function to get default gudang for an item
 function getDefaultGudangForItem(item) {
     const isEventBilling = !!(window.billingPage && window.billingPage.isEventBilling);
@@ -77,8 +82,11 @@ function getDefaultGudangForItem(item) {
     // Determine transaction type based on item
     let transactionType = 'tindakan'; // default
 
+    if (isLabBillingItem(item)) {
+        transactionType = 'lab';
+    }
     // Check if this is an obat/resep item
-    if (item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' ||
+    else if (item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' ||
         item.billable_type === 'App\\Models\\ERM\\Racikan' ||
         (item.deskripsi && item.deskripsi.toLowerCase().includes('obat')) ||
         (item.nama_item && item.nama_item.toLowerCase().includes('obat'))) {
@@ -295,6 +303,31 @@ function loadTindakanObatRows(tindakanId) {
     });
 }
 
+function loadLabObatRows(billingId) {
+    if (!billingId) {
+        return $.Deferred().resolve({ rows: [], suggestedGudangId: null }).promise();
+    }
+
+    return $.getJSON("{{ $billingUrls['labObats'] }}", {
+        billing_id: billingId,
+        visitation_id: window.billingPage && window.billingPage.visitationId ? window.billingPage.visitationId : null
+    }).then(function(resp) {
+        const data = (resp && resp.data) ? resp.data : [];
+        const rows = [];
+        data.forEach(function(d) {
+            if (!d || !d.obat_id) return;
+            const needed = (typeof d.qty !== 'undefined' && d.qty !== null) ? (parseFloat(d.qty) || 0) : 0;
+            rows.push({ obatId: d.obat_id, name: (d.obat_nama || ('Obat #' + d.obat_id)), needed: needed });
+        });
+        return {
+            rows: rows,
+            suggestedGudangId: (resp && resp.suggested_gudang_id) ? resp.suggested_gudang_id : null
+        };
+    }, function() {
+        return { rows: [], suggestedGudangId: null };
+    });
+}
+
 function openStockInfoModalForItem(itemId, item) {
     // Assumes modal HTML is already present in DOM
     $('#stockInfoItemName').text(item && item.nama_item ? item.nama_item : (itemId || '-'));
@@ -354,6 +387,41 @@ function openStockInfoModalForItem(itemId, item) {
                         const normalized = (requests.length === 1) ? [arguments[0]] : args;
                         const html = renderStockRowsToHtml(pivotRows, normalized);
                         $('#stockInfoContent').html(html);
+                    })
+                    .fail(function() {
+                        $('#stockInfoContent').html('<div class="text-danger">Gagal memuat stok. Coba lagi.</div>');
+                    });
+            });
+        return;
+    }
+
+    if (isLabBillingItem(item)) {
+        $('#stockInfoContent').html('<div class="text-muted">Memuat stok lab...</div>');
+        loadLabObatRows(item.id)
+            .then(function(resp) {
+                const labRows = resp && resp.rows ? resp.rows : [];
+                const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
+
+                const explicitGudangFromItem = (item && item.selected_gudang_id) ? item.selected_gudang_id : null;
+                if (!explicitGudangFromItem && suggestedGudangId) {
+                    gudangId = suggestedGudangId;
+                    $('#stockInfoGudangName').text(getGudangNameById(gudangId) || '-');
+                }
+
+                if (!labRows.length) {
+                    $('#stockInfoContent').html('<div class="text-muted">Item ini tidak memiliki stok (tidak ada obat terkait).</div>');
+                    return;
+                }
+
+                const requests = labRows.map(function(r) {
+                    return loadStockTotal(r.obatId, gudangId);
+                });
+
+                $.when.apply($, requests)
+                    .done(function() {
+                        const args = Array.prototype.slice.call(arguments);
+                        const normalized = (requests.length === 1) ? [arguments[0]] : args;
+                        $('#stockInfoContent').html(renderStockRowsToHtml(labRows, normalized));
                     })
                     .fail(function() {
                         $('#stockInfoContent').html('<div class="text-danger">Gagal memuat stok. Coba lagi.</div>');

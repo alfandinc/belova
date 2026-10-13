@@ -22,12 +22,23 @@ $(function() {
     });
 });
 
+var farmasiPollBusy = false;
 function pollFarmasiNotifications() {
+    if (farmasiPollBusy) return;
+    farmasiPollBusy = true;
+
+    // Continue from the previous leader tab's last check so nothing falls in the hand-over gap
+    var sharedLastCheck = parseInt(BelovaTabLeader.shared('farmasi-notif'), 10);
+    if (sharedLastCheck && sharedLastCheck < window.lastFarmasiNotifCheck) {
+        window.lastFarmasiNotifCheck = sharedLastCheck;
+    }
+
     // Send lastCheck and page so server can correctly compare timestamps
     $.get('{{ route("erm.check.notifications") }}', { lastCheck: window.lastFarmasiNotifCheck, page: window.farmasiNotifPage }, function(data) {
         // update last check timestamp from server to avoid re-processing
         if (data && data.timestamp) {
             try { window.lastFarmasiNotifCheck = parseInt(data.timestamp) || window.lastFarmasiNotifCheck; } catch(e) {}
+            BelovaTabLeader.share('farmasi-notif', window.lastFarmasiNotifCheck);
         }
 
         if (data && data.hasNew) {
@@ -57,12 +68,12 @@ function pollFarmasiNotifications() {
     }).fail(function(xhr, status, err) {
         // silently ignore (could be auth redirect when session expires)
         //console.warn('farmasi poll failed', status);
+    }).always(function() {
+        farmasiPollBusy = false;
     });
 }
 
-// Start polling every 2s
-setInterval(pollFarmasiNotifications, 2000);
-// immediate first poll
-pollFarmasiNotifications();
+// Poll every 2s from one tab per browser (the tab the user is looking at); see public/js/belova-tab-leader.js
+BelovaTabLeader.run('farmasi-notif', 2000, pollFarmasiNotifications);
 </script>
 @endif

@@ -507,7 +507,10 @@ Terima kasih.
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WEBSITE }}">Website</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PARTNERSHIP }}">B2B Partnership</option>
                             <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_GOOGLE_MAPS }}">Google Maps</option>
+                            {{-- Only for a visit already booked from a CRM follow up (set from Pasien & Follow Up / Daftarkan Kunjungan) --}}
+                            <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP }}">Follow Up CRM</option>
                         </select>
+                        <input type="hidden" id="referral_follow_up_id_modal" name="referral_follow_up_id">
                     </div>
 
                     <div class="d-none" id="referral_pasien_wrapper_modal">

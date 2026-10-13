@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\KodeTindakan;
-use Yajra\DataTables\DataTables;
+use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -39,8 +39,14 @@ class KodeTindakanController extends Controller
     {
         $q = $request->input('q');
         $query = KodeTindakan::query();
+        // Inactive kode are hidden from pickers; filters (e.g. gallery) can opt in
+        if (!$request->boolean('include_inactive')) {
+            $query->where('is_active', true);
+        }
         if ($q) {
-            $query->where('nama', 'like', "%{$q}%")->orWhere('kode', 'like', "%{$q}%");
+            $query->where(function($w) use ($q) {
+                $w->where('nama', 'like', "%{$q}%")->orWhere('kode', 'like', "%{$q}%");
+            });
         }
         $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama', 'kode']);
         return response()->json([
@@ -49,7 +55,7 @@ class KodeTindakanController extends Controller
                     'id' => $item->id,
                     'nama' => $item->nama,
                     'kode' => $item->kode,
-                    'text' => $item->nama . ' (' . $item->kode . ')',
+                    'text' => $item->kode ? $item->nama . ' (' . $item->kode . ')' : $item->nama,
                 ];
             })
         ]);
@@ -59,18 +65,69 @@ class KodeTindakanController extends Controller
      */
     public function index()
     {
-        return view('marketing.kode_tindakan.index');
+        return view('marketing.kode_tindakan.index', ['actionCounts' => $this->actionCounts(), 'statusCounts' => $this->statusCounts()]);
+    }
+
+    /** Aktif / nonaktif / semua, for the status buttons */
+    private function statusCounts(): array
+    {
+        $row = KodeTindakan::query()->selectRaw('COUNT(*) as semua, COALESCE(SUM(is_active = 1), 0) as aktif')->first();
+
+        return ['active' => (int) $row->aktif, 'inactive' => (int) $row->semua - (int) $row->aktif, 'all' => (int) $row->semua];
     }
 
     /**
-     * Return DataTable JSON for kode tindakan.
+     * Switch one tindakan aktif / nonaktif from the list.
+     */
+    public function toggleActive($id)
+    {
+        $kodeTindakan = KodeTindakan::findOrFail($id);
+        $kodeTindakan->update(['is_active' => !$kodeTindakan->is_active]);
+
+        return response()->json([
+            'success' => true,
+            'is_active' => (bool) $kodeTindakan->is_active,
+            'warning' => $kodeTindakan->is_active ? null : self::paketAktifWarning([$kodeTindakan->id]),
+        ]);
+    }
+
+    /**
+     * "Data yang perlu action": data problems shown as cards above the table. Nothing is deleted
+     * automatically; each card filters the table so the user can fix or deactivate the rows.
+     * key => [label, hint, filter]
+     */
+    private function actionChecks(): array
+    {
+        return [
+            'old' => ['Nama "-old ..."', 'sisa import lama; gabungkan atau nonaktifkan',
+                fn ($q) => $q->where('nama', 'like', '-old %')],
+            'aktif_tanpa_obat' => ['Aktif tanpa obat/BHP', 'biaya bahan paket jadi tidak lengkap',
+                fn ($q) => $q->where('is_active', true)->doesntHave('obats')],
+            'aktif_tanpa_paket' => ['Aktif belum dipakai paket', 'tidak bisa dijual sebelum masuk paket',
+                fn ($q) => $q->where('is_active', true)->doesntHave('tindakans')],
+            'nonaktif_di_paket' => ['Nonaktif tapi masih di paket aktif', 'keluarkan dari paket atau aktifkan lagi',
+                fn ($q) => $q->where('is_active', false)->whereHas('tindakans', fn ($t) => $t->where('is_active', true))],
+        ];
+    }
+
+    private function actionCounts(): array
+    {
+        $out = [];
+        foreach ($this->actionChecks() as $key => [$label, $hint, $filter]) {
+            $out[$key] = ['label' => $label, 'hint' => $hint, 'count' => $filter(KodeTindakan::query())->count()];
+        }
+        return $out;
+    }
+
+    /**
+     * Tindakan list for the DataTable: plain data, the page renders it. Search covers nama, kode and obat;
+     * the card / status counts are only sent when asked (?counts=1: first load and after a change).
      */
     public function data(Request $request)
     {
         $query = KodeTindakan::with(['obats' => function($q) {
-            // include `satuan` so the listing can show units when building the summary
             $q->select('erm_obat.id', 'nama', 'satuan');
-        }])->select('erm_kode_tindakan.*')->withCount('obats');
+        }, 'tindakans:id,nama,is_active'])->select('erm_kode_tindakan.*')->withCount(['obats', 'tindakans']);
 
         // Apply status filter if provided: 'active', 'inactive', or absent for all
         $status = $request->input('status');
@@ -86,47 +143,51 @@ class KodeTindakanController extends Controller
         } elseif ($obatsFilter === 'none') {
             $query->doesntHave('obats');
         }
+        // "Data yang perlu action" card filter
+        $checks = $this->actionChecks();
+        if (isset($checks[$request->input('action')])) {
+            $checks[$request->input('action')][2]($query);
+        }
+        // Paket usage filter: 'used' => in at least one paket tindakan, 'unused' => in none
+        $paketFilter = $request->input('paket_filter');
+        if ($paketFilter === 'used') {
+            $query->has('tindakans');
+        } elseif ($paketFilter === 'unused') {
+            $query->doesntHave('tindakans');
+        }
 
-        return DataTables::of($query)
-            ->addColumn('obats_summary', function($row) {
-                // Build summary like: "Paracetamol (0.5 Pcs), Ibuprofen (1 Tablet)"
-                $parts = [];
-                if ($row->obats && $row->obats->count()) {
-                    foreach ($row->obats as $obat) {
-                        $pivot = $obat->pivot;
-                        $qty = isset($pivot->qty) ? (float)$pivot->qty : 0;
-                        $satuan = $pivot->satuan_dosis ?? ($obat->satuan ?? '');
-                        // Normalize unit to lowercase for display (e.g., 'Pcs' -> 'pcs', 'Ml' -> 'ml')
-                        $unitDisplay = $satuan ? strtolower(trim($satuan)) : '';
-                        // Format qty: remove trailing zeros (1.00 -> 1, 0.50 -> 0.5)
-                        $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
-                        $label = htmlspecialchars($obat->nama, ENT_QUOTES, 'UTF-8');
-                        if ($unitDisplay) {
-                            $parts[] = $label . ' (' . $qtyStr . ' ' . htmlspecialchars($unitDisplay, ENT_QUOTES, 'UTF-8') . ')';
-                        } else {
-                            $parts[] = $label . ' (' . $qtyStr . ')';
-                        }
-                    }
-                }
-                // Return HTML with <br> separators so each obat appears on its own line
-                return implode('<br>', $parts);
-            })
-            ->addColumn('status', function($row) {
-                if ($row->is_active) {
-                    return '<span class="badge badge-success">Aktif</span>';
-                }
-                return '<span class="badge badge-secondary">Nonaktif</span>';
-            })
-            ->editColumn('nama', function($row) {
-                // show blinking warning icon if this kode tindakan has no obat connected
-                $name = htmlspecialchars($row->nama, ENT_QUOTES, 'UTF-8');
-                if (isset($row->obats_count) && intval($row->obats_count) === 0) {
-                    return '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Belum ada obat terhubung"></i> ' . $name;
-                }
-                return $name;
-            })
-            ->rawColumns(['obats_summary','status','nama'])
-            ->make(true);
+        $q = trim((string) $request->input('search.value'));
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('erm_kode_tindakan.nama', 'like', "%{$q}%")
+                    ->orWhere('erm_kode_tindakan.kode', 'like', "%{$q}%")
+                    ->orWhereHas('obats', fn ($o) => $o->where('erm_obat.nama', 'like', "%{$q}%"));
+            });
+        }
+
+        $table = DataTables::eloquent($query)
+            ->only(['id', 'kode', 'nama', 'is_active', 'obat', 'paket', 'paket_count'])
+            // qty without trailing zeros (1.00 -> 1, 0.50 -> 0.5); unit from the pivot, else the obat's
+            ->addColumn('obat', fn ($row) => $row->obats->map(fn ($obat) => [
+                'nama' => $obat->nama,
+                'qty' => rtrim(rtrim(number_format((float) $obat->pivot->qty, 2, '.', ''), '0'), '.'),
+                'satuan' => strtolower(trim((string) ($obat->pivot->satuan_dosis ?: $obat->satuan))),
+            ])->values()->all())
+            ->addColumn('paket', fn ($row) => $row->tindakans->sortBy('nama')->take(4)
+                ->map(fn ($p) => ['nama' => $p->nama, 'aktif' => (bool) $p->is_active])->values()->all())
+            ->addColumn('paket_count', fn ($row) => (int) $row->tindakans_count)
+            ->orderColumn('kode', 'erm_kode_tindakan.kode $1')
+            ->orderColumn('nama', 'erm_kode_tindakan.nama $1')
+            ->orderColumn('paket_count', 'tindakans_count $1')
+            ->orderColumn('is_active', 'erm_kode_tindakan.is_active $1')
+            // Rendered and escaped by the page
+            ->escapeColumns([]);
+
+        if ($request->boolean('counts')) {
+            $table->with('action_counts', $this->actionCounts())->with('status_counts', $this->statusCounts());
+        }
+
+        return $table->make(true);
     }
 
     /**
@@ -138,35 +199,36 @@ class KodeTindakanController extends Controller
             'kode' => 'nullable|string|unique:erm_kode_tindakan,kode',
             'nama' => 'required|string',
             'is_active' => 'nullable|boolean',
-            'hpp' => 'nullable|numeric',
-            'harga_jasmed' => 'nullable|numeric',
-            'harga_jual' => 'nullable|numeric',
-            'harga_bottom' => 'nullable|numeric',
             'obats' => 'array',
-            'obats.*.obat_id' => 'required|exists:erm_obat,id',
+            'obats.*.obat_id' => 'required|distinct|exists:erm_obat,id',
             'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
             'kategori_ids' => 'array',
             'kategori_ids.*' => 'exists:erm_kategori_tindakan,id',
+        ], [
+            'obats.*.obat_id.distinct' => 'Obat yang sama tidak boleh ditambahkan lebih dari sekali.',
         ]);
-        $kodeTindakan = KodeTindakan::create($validated);
-        // Attach obat to pivot
-        if ($request->has('obats')) {
-            $pivotData = [];
-            foreach ($request->obats as $obat) {
-                $pivotData[$obat['obat_id']] = [
-                    'qty' => floatval($obat['qty']),
-                    'dosis' => $obat['dosis'] ?? null,
-                    'satuan_dosis' => $obat['satuan_dosis'] ?? null,
-                ];
+        $kodeTindakan = DB::transaction(function() use ($request, $validated) {
+            $kodeTindakan = KodeTindakan::create($validated);
+            // Attach obat to pivot
+            if ($request->has('obats')) {
+                $pivotData = [];
+                foreach ($request->obats as $obat) {
+                    $pivotData[$obat['obat_id']] = [
+                        'qty' => floatval($obat['qty']),
+                        'dosis' => $obat['dosis'] ?? null,
+                        'satuan_dosis' => $obat['satuan_dosis'] ?? null,
+                    ];
+                }
+                $kodeTindakan->obats()->attach($pivotData);
             }
-            $kodeTindakan->obats()->attach($pivotData);
-        }
-        // Attach categories if provided
-        if ($request->has('kategori_ids')) {
-            $kodeTindakan->kategoris()->sync($request->input('kategori_ids', []));
-        }
+            // Attach categories if provided
+            if ($request->has('kategori_ids')) {
+                $kodeTindakan->kategoris()->sync($request->input('kategori_ids', []));
+            }
+            return $kodeTindakan;
+        });
         return response()->json(['success' => true, 'data' => $kodeTindakan]);
     }
 
@@ -180,56 +242,54 @@ class KodeTindakanController extends Controller
             'kode' => 'nullable|string|unique:erm_kode_tindakan,kode,' . $id,
             'nama' => 'required|string',
             'is_active' => 'nullable|boolean',
-            'hpp' => 'nullable|numeric',
-            'harga_jasmed' => 'nullable|numeric',
-            'harga_jual' => 'nullable|numeric',
-            'harga_bottom' => 'nullable|numeric',
             'obats' => 'array',
-            'obats.*.obat_id' => 'required|exists:erm_obat,id',
+            'obats.*.obat_id' => 'required|distinct|exists:erm_obat,id',
             'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
             'kategori_ids' => 'array',
             'kategori_ids.*' => 'exists:erm_kategori_tindakan,id',
+        ], [
+            'obats.*.obat_id.distinct' => 'Obat yang sama tidak boleh ditambahkan lebih dari sekali.',
         ]);
-        $kodeTindakan->update($validated);
-        // Sync obat to pivot
-        $pivotData = [];
-        if ($request->has('obats')) {
-            foreach ($request->obats as $obat) {
-                $pivotData[$obat['obat_id']] = [
-                    'qty' => floatval($obat['qty']),
-                    'dosis' => $obat['dosis'] ?? null,
-                    'satuan_dosis' => $obat['satuan_dosis'] ?? null,
-                ];
+        $wasActive = (bool) $kodeTindakan->is_active;
+        DB::transaction(function() use ($request, $validated, $kodeTindakan) {
+            $kodeTindakan->update($validated);
+            // Sync obat to pivot
+            $pivotData = [];
+            if ($request->has('obats')) {
+                foreach ($request->obats as $obat) {
+                    $pivotData[$obat['obat_id']] = [
+                        'qty' => floatval($obat['qty']),
+                        'dosis' => $obat['dosis'] ?? null,
+                        'satuan_dosis' => $obat['satuan_dosis'] ?? null,
+                    ];
+                }
             }
-        }
-        $kodeTindakan->obats()->sync($pivotData);
-        // sync categories
-        if ($request->has('kategori_ids')) {
+            $kodeTindakan->obats()->sync($pivotData);
+            // An empty multi-select is not serialized, so a missing key means "no kategori"
             $kodeTindakan->kategoris()->sync($request->input('kategori_ids', []));
+        });
+        $warning = $wasActive && !$kodeTindakan->is_active ? self::paketAktifWarning([$kodeTindakan->id]) : null;
+        return response()->json(['success' => true, 'data' => $kodeTindakan, 'warning' => $warning]);
+    }
+
+    /**
+     * Deactivating a tindakan does not remove it from the paket that contain it: those paket keep using
+     * it (obat and biaya bahan). Returns a warning naming the active paket, or null.
+     */
+    private static function paketAktifWarning(array $kodeIds): ?string
+    {
+        $paket = \App\Models\ERM\Tindakan::where('is_active', true)
+            ->whereHas('kodeTindakans', fn($q) => $q->whereIn('erm_kode_tindakan.id', $kodeIds))
+            ->orderBy('nama')
+            ->pluck('nama');
+        if ($paket->isEmpty()) {
+            return null;
         }
-        return response()->json(['success' => true, 'data' => $kodeTindakan]);
-    }
-
-    /**
-     * Set all kode tindakan as inactive (AJAX).
-     */
-    public function makeAllInactive(Request $request)
-    {
-        // mass update: set is_active = false for all records
-        KodeTindakan::query()->update(['is_active' => false]);
-        return response()->json(['success' => true, 'message' => 'Semua kode tindakan telah dinonaktifkan']);
-    }
-
-    /**
-     * Set all kode tindakan as active (AJAX).
-     */
-    public function makeAllActive(Request $request)
-    {
-        // mass update: set is_active = true for all records
-        KodeTindakan::query()->update(['is_active' => true]);
-        return response()->json(['success' => true, 'message' => 'Semua kode tindakan telah diaktifkan']);
+        return 'Tindakan nonaktif ini masih menjadi isi ' . $paket->count() . ' paket tindakan aktif: '
+            . $paket->take(10)->implode(', ') . ($paket->count() > 10 ? ', ...' : '')
+            . '. Paket tersebut tetap memakai tindakan ini; keluarkan dari paket jika memang tidak dipakai lagi.';
     }
 
     /**
@@ -250,7 +310,6 @@ class KodeTindakanController extends Controller
         $errors = [];
         $created_items = [];
         $skipped_items = [];
-        $renamed_items = [];
 
         DB::beginTransaction();
         try {
@@ -273,26 +332,11 @@ class KodeTindakanController extends Controller
                     }
 
                     $nama = $namaRaw;
-                    // avoid duplicate by exact name — if exists, rename the old one with prefix '-old '
-                    $exists = KodeTindakan::where('nama', $nama)->first();
-                    if ($exists) {
-                        $originalName = $exists->nama;
-                        $newName = '-old ' . $originalName;
-                        $counter = 0;
-                        while (KodeTindakan::where('nama', $newName)->exists()) {
-                            $counter++;
-                            $newName = '-old ' . $originalName . ' ' . $counter;
-                        }
-                        try {
-                            $oldId = $exists->id;
-                            $exists->update(['nama' => $newName]);
-                            $renamed_items[] = ['old_id' => $oldId, 'old_name' => $originalName, 'new_name' => $newName];
-                        } catch (\Exception $e) {
-                            $errors[] = "Row {$rowIndex}: Failed to rename existing record: " . $e->getMessage();
-                            $skipped++;
-                            $skipped_items[] = ['row' => $rowIndex, 'nama' => $nama, 'reason' => 'Failed to rename existing: '.$e->getMessage()];
-                            continue;
-                        }
+                    // Skip names that already exist: the existing record keeps its obat/tindakan links
+                    if (KodeTindakan::where('nama', $nama)->exists()) {
+                        $skipped++;
+                        $skipped_items[] = ['row' => $rowIndex, 'nama' => $nama, 'reason' => 'Nama sudah ada'];
+                        continue;
                     }
 
                     try {
@@ -329,29 +373,6 @@ class KodeTindakanController extends Controller
     }
 
     /**
-     * Return kode tindakan created within a date range for preview (AJAX)
-     */
-    public function getByDate(Request $request)
-    {
-        $start = $request->input('start');
-        $end = $request->input('end');
-
-        $query = KodeTindakan::query();
-        if ($start && $end) {
-            try {
-                $s = Carbon::parse($start)->startOfDay();
-                $e = Carbon::parse($end)->endOfDay();
-                $query->whereBetween('created_at', [$s, $e]);
-            } catch (\Exception $e) {
-                return response()->json(['success' => false, 'message' => 'Tanggal tidak valid'], 422);
-            }
-        }
-
-        $list = $query->orderBy('created_at', 'asc')->get(['id', 'nama', 'created_at', 'is_active']);
-        return response()->json(['success' => true, 'data' => $list]);
-    }
-
-    /**
      * Bulk set is_active for selected ids or by date range
      */
     public function bulkSetActive(Request $request)
@@ -375,7 +396,8 @@ class KodeTindakanController extends Controller
                 }
             }
             DB::commit();
-            return response()->json(['success' => true, 'updated' => $updated]);
+            $warning = !$setActive && is_array($ids) && count($ids) ? self::paketAktifWarning($ids) : null;
+            return response()->json(['success' => true, 'updated' => $updated, 'warning' => $warning]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
@@ -389,7 +411,7 @@ class KodeTindakanController extends Controller
     {
         $kodeTindakan = KodeTindakan::with(['obats' => function($q) {
             $q->select('erm_obat.id', 'nama', 'satuan');
-        }])->findOrFail($id);
+        }, 'kategoris:id,nama'])->findOrFail($id);
         $obats = [];
         foreach ($kodeTindakan->obats as $obat) {
             $pivot = $obat->pivot;
@@ -413,6 +435,24 @@ class KodeTindakanController extends Controller
     public function destroy($id)
     {
         $kodeTindakan = KodeTindakan::findOrFail($id);
+        // FKs on these tables cascade, so deleting would silently wipe history
+        $usage = [
+            'paket tindakan' => $kodeTindakan->tindakans()->count(),
+            'riwayat tindakan' => DB::table('erm_riwayat_tindakan_obat')->where('kode_tindakan_id', $id)->count(),
+            'SPK' => DB::table('erm_spk_tindakan_items')->where('kode_tindakan_id', $id)->count(),
+        ];
+        $usedIn = [];
+        foreach ($usage as $label => $count) {
+            if ($count > 0) {
+                $usedIn[] = "{$count} {$label}";
+            }
+        }
+        if ($usedIn) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tindakan masih dipakai di ' . implode(', ', $usedIn) . '. Nonaktifkan saja agar riwayat tetap utuh.',
+            ], 422);
+        }
         $kodeTindakan->delete();
         return response()->json(['success' => true]);
     }

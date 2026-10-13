@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatMapping;
+use App\Models\ERM\Satuan;
 use App\Models\ERM\Supplier;
 use App\Models\ERM\ZatAktif;
 use App\Models\ERM\MetodeBayar;
@@ -136,7 +137,7 @@ class ObatController extends Controller
             'nama' => array_merge($req, ['string', 'max:191']),
             'dosis' => 'nullable|string|max:191',
             'satuan' => ['nullable', Rule::in(Obat::satuanDosisOptions())],
-            'satuan_stok' => array_merge($req, [Rule::in(Obat::SATUAN_STOK_LIST)]),
+            'satuan_stok' => array_merge($req, [Rule::in(Obat::satuanStokOptions())]),
             'kategori' => array_merge($req, [Rule::in(Obat::KATEGORI_LIST)]),
             'metode_bayar_id' => array_merge($req, ['exists:erm_metode_bayar,id']),
             'is_generik' => 'sometimes|boolean',
@@ -354,6 +355,8 @@ class ObatController extends Controller
                 ->select('erm_obat.*')
                 ->selectSub($distributorSql, 'distributor_list')
                 ->selectSub($principalSql, 'principal_list')
+                // Set when the obat was released from an R&D product (Produk R&D > Rilis ke Master Obat)
+                ->selectSub('SELECT rp.nama_produk FROM rnd_produk rp WHERE rp.obat_id = erm_obat.id LIMIT 1', 'rnd_produk_nama')
                 ->with(['zatAktifs:erm_zataktif.id,erm_zataktif.nama', 'metodeBayar:id,nama'])
                 ->withSum('stokGudang as stok_total_sum', 'stok');
 
@@ -378,8 +381,8 @@ class ObatController extends Controller
 
         $kategoris = Obat::KATEGORI_LIST;
         $metodeBayars = MetodeBayar::orderBy('nama')->get(['id', 'nama']);
-        $satuanStokList = Obat::SATUAN_STOK_LIST;
-        $satuanDosisList = Obat::SATUAN_DOSIS_LIST;
+        $satuanStokList = Obat::satuanStokOptions();
+        $satuanDosisList = Satuan::dosisOnlyOptions();
         $canDelete = (bool) optional(Auth::user())->hasAnyRole(['Admin']);
 
         return view('erm.obat.index', compact('kategoris', 'metodeBayars', 'satuanStokList', 'satuanDosisList', 'canDelete'));
@@ -1455,7 +1458,7 @@ class ObatController extends Controller
                     case 'satuan_stok':
                         $value = Obat::normalizeSatuan($raw);
                         $allowed = self::CSV_COLUMNS[$field]['type'] === 'satuan_stok'
-                            ? Obat::SATUAN_STOK_LIST
+                            ? Obat::satuanStokOptions()
                             : Obat::satuanDosisOptions();
                         if (!in_array($value, $allowed, true)) {
                             $errors[] = "$label tidak dikenal: $raw";

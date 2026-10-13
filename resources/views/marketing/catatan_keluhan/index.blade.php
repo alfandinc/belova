@@ -10,13 +10,19 @@
 <div class="container-fluid mt-4">
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Catatan Keluhan Customer</h4>
-            <button class="btn btn-success" id="addKeluhanBtn">Tambah Catatan</button>
+            <h4 class="mb-0">Keluhan Customer</h4>
+            <button class="btn btn-success" id="addKeluhanBtn"><i class="fas fa-plus mr-1"></i>Tambah Keluhan</button>
         </div>
         <div class="card-body">
+    @if($filterPasien)
+        <div class="alert alert-info d-flex justify-content-between align-items-center py-2" id="filterPasienAlert">
+            <span>Menampilkan keluhan pasien <b>{{ $filterPasien->nama }}</b> ({{ $filterPasien->id }})</span>
+            <a href="{{ route('marketing.catatan-keluhan.index') }}" class="btn btn-sm btn-outline-secondary">Tampilkan semua pasien</a>
+        </div>
+    @endif
     <div class="row mb-3">
         <div class="col-md-3 mb-2">
-            <label for="dateRange">Filter Tanggal Publish</label>
+            <label for="dateRange">Filter Tanggal Kunjungan</label>
             <input type="text" id="dateRange" class="form-control" placeholder="Filter Tanggal Kunjungan" autocomplete="off" readonly>
         </div>
         <div class="col-md-3 mb-2">
@@ -55,13 +61,19 @@
             <label for="filterStatus">Filter Status</label>
             <select id="filterStatus" class="form-control filter-select" style="width:100%">
                 <option value="">Semua Status</option>
-                <option value="Diproses">Diproses</option>
+                <option value="open" @selected($filterStatus === 'open')>Belum selesai</option>
+                <option value="Diproses" @selected($filterStatus === 'Diproses')>Diproses</option>
                 <option value="Selesai">Selesai</option>
                 <option value="Ditolak">Ditolak</option>
             </select>
         </div>
     </div>
-            <table class="table table-bordered" id="catatanTable">
+            <style>
+                #catatanTable .keluhan-text { white-space: normal; min-width: 200px; max-width: 360px; }
+                #catatanTable td { vertical-align: middle; }
+                #catatanTable .text-nowrap .btn { margin-bottom: 2px; }
+            </style>
+            <table class="table table-bordered table-hover w-100" id="catatanTable">
                 <thead>
                     <tr>
                         <th>No</th>
@@ -233,6 +245,8 @@
 @push('scripts')
 <script>
 $(function() {
+    // Set when opened from a patient's "keluhan terbuka" badge
+    var filterPasienId = @json($filterPasien->id ?? null);
 
     // Date Range Picker
     $('#dateRange').daterangepicker({
@@ -288,6 +302,9 @@ $(function() {
                 if(status) {
                     d.status = status;
                 }
+                if (filterPasienId) {
+                    d.pasien_id = filterPasienId;
+                }
             }
         },
         columns: [
@@ -297,9 +314,9 @@ $(function() {
             { data: 'visit_date', name: 'visit_date' },
             { data: 'unit', name: 'unit' },
             { data: 'kategori', name: 'kategori' },
-            { data: 'keluhan', name: 'keluhan' },
+            { data: 'keluhan', name: 'keluhan', className: 'keluhan-text' },
             { data: 'status', name: 'status' },
-            { data: 'action', name: 'action', orderable: false, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false, className: 'text-nowrap' },
         ],
         order: [[3, 'desc']],
         drawCallback: function(settings) {
@@ -323,29 +340,17 @@ $(function() {
         table.ajax.reload();
     });
 
-    // Select2 for perusahaan
-    $('#perusahaanSelect').select2({
-        placeholder: 'Pilih Perusahaan',
-    });
+    // Select2s inside the modal need it as dropdownParent, otherwise their search box cannot be typed in
+    var $keluhanModal = $('#keluhanModal');
+    $('#perusahaanSelect').select2({ placeholder: 'Pilih Perusahaan', dropdownParent: $keluhanModal });
+    $('#kategoriSelect').select2({ placeholder: 'Pilih Kategori', dropdownParent: $keluhanModal });
+    $('#statusSelect').select2({ placeholder: 'Pilih Status', dropdownParent: $keluhanModal });
+    $('#unitSelect').select2({ placeholder: 'Pilih Unit', dropdownParent: $keluhanModal });
 
-    // Select2 for kategori
-    $('#kategoriSelect').select2({
-        placeholder: 'Pilih Kategori',
-    });
-
-    // Select2 for status
-    $('#statusSelect').select2({
-        placeholder: 'Pilih Status',
-    });
-
-    // Select2 for unit
-    $('#unitSelect').select2({
-        placeholder: 'Pilih Unit',
-    });
-
-    // Select2 for pasien
+    // Select2 for pasien (by name or No RM)
     $('#pasienSelect').select2({
-        placeholder: 'Cari Pasien',
+        placeholder: 'Cari Pasien (nama / No RM)',
+        dropdownParent: $keluhanModal,
         ajax: {
             url: '/marketing/catatan-keluhan-pasien-search',
             dataType: 'json',
@@ -360,13 +365,20 @@ $(function() {
                 params.page = params.page || 1;
                 return {
                     results: $.map(data, function(item) {
-                        return { id: item.id, text: item.nama };
+                        return { id: item.id, text: item.nama + ' (' + item.id + ')', no_hp: item.no_hp };
                     })
                 };
             },
             cache: true
         },
         minimumInputLength: 2
+    });
+
+    // Show the chosen patient's No RM / No HP
+    $('#pasienSelect').on('select2:select', function(e) {
+        $('#noRmField').val(e.params.data.id || '');
+        $('#noHpField').val(e.params.data.no_hp || '');
+        $('#noRmField, #noHpField').closest('.form-group').show();
     });
 
     $('#addKeluhanBtn').click(function() {
@@ -382,6 +394,11 @@ $(function() {
         $('#noHpField').val('');
         $('#noRmField').closest('.form-group').hide();
         $('#noHpField').closest('.form-group').hide();
+        $('#buktiPreview').html('');
+        // From a patient's page: start the new complaint for that patient
+        if (filterPasienId) {
+            $('#pasienSelect').append(new Option(@json(($filterPasien->nama ?? '') . ' (' . ($filterPasien->id ?? '') . ')'), filterPasienId, true, true)).trigger('change');
+        }
         $('#keluhanModal').modal('show');
     });
 

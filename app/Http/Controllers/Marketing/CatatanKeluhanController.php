@@ -32,9 +32,15 @@ class CatatanKeluhanController extends Controller
             if ($request->filled('kategori')) {
                 $data = $data->where('kategori', $request->kategori);
             }
-            // Status filter
-            if ($request->filled('status')) {
+            // Status filter; "open" = not yet Selesai / Ditolak
+            if ($request->status === 'open') {
+                $data = $data->where(fn ($q) => $q->whereNull('status')->orWhereNotIn('status', CatatanKeluhan::CLOSED_STATUSES));
+            } elseif ($request->filled('status')) {
                 $data = $data->where('status', $request->status);
+            }
+            // One patient (link from Pasien & Follow Up)
+            if ($request->filled('pasien_id')) {
+                $data = $data->where('pasien_id', $request->pasien_id);
             }
             return DataTables::of($data)
                 ->addColumn('no_rm', function($row){
@@ -47,9 +53,9 @@ class CatatanKeluhanController extends Controller
                     return $row->pasien ? $row->pasien->nama : '-';
                 })
                 ->addColumn('action', function($row){
-                    return '<button class="btn btn-sm btn-primary editBtn" data-id="'.$row->id.'" title="Lihat/Edit"><i class="fa fa-eye"></i></button> '
-                        . '<button class="btn btn-sm btn-danger deleteBtn" data-id="'.$row->id.'" title="Hapus"><i class="fa fa-trash"></i></button> '
-                        . '<button class="btn btn-sm btn-info printBtn" data-id="'.$row->id.'" title="Print"><i class="fa fa-print"></i></button>';
+                    return '<button class="btn btn-sm btn-outline-primary editBtn" data-id="'.$row->id.'"><i class="fa fa-pen mr-1"></i>Edit</button> '
+                        . '<button class="btn btn-sm btn-outline-info printBtn" data-id="'.$row->id.'"><i class="fa fa-print mr-1"></i>Print</button> '
+                        . '<button class="btn btn-sm btn-outline-danger deleteBtn" data-id="'.$row->id.'"><i class="fa fa-trash mr-1"></i>Hapus</button>';
                 })
                 ->editColumn('visit_date', function($row){
                     if (!$row->visit_date) return '-';
@@ -74,8 +80,12 @@ class CatatanKeluhanController extends Controller
                 ->rawColumns(['action', 'status', 'visit_date'])
                 ->make(true);
         }
-        $pasiens = Pasien::all();
-        return view('marketing.catatan_keluhan.index', compact('pasiens'));
+        // Opened from a patient's "keluhan terbuka" badge
+        $filterPasien = $request->filled('pasien_id') ? Pasien::find($request->pasien_id, ['id', 'nama']) : null;
+        return view('marketing.catatan_keluhan.index', [
+            'filterPasien' => $filterPasien,
+            'filterStatus' => $request->query('status'),
+        ]);
     }
 
     // Print PDF laporan catatan keluhan
@@ -187,12 +197,13 @@ class CatatanKeluhanController extends Controller
     // AJAX search pasien for select2
     public function pasienSearch(Request $request)
     {
+        // By name or No RM
         $search = $request->input('search');
         $query = Pasien::query();
         if ($search) {
-            $query->where('nama', 'like', "%$search%");
+            $query->where(fn ($q) => $q->where('nama', 'like', "%$search%")->orWhere('id', 'like', "$search%"));
         }
-        $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama']);
+        $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama', 'no_hp']);
         return response()->json($results);
     }
 }

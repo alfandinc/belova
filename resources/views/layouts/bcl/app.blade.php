@@ -39,25 +39,7 @@
 </head>
 
 <body class="dark-sidenav">
-    <!-- Left Sidenav -->
-    <div class="left-sidenav">
-        <!-- LOGO -->
-        <div class="brand">
-            <a href="{{ url('/') }}" class="logo">
-                <!-- <span>
-                    <img src="{{ asset('dastone/assets/images/icon.png')}}" alt="logo-small" class="logo-sm">
-                </span> -->
-                <span>
-                    <img src="{{ asset('dastone/assets/images/logo.png')}}" style="max-height: 32px;" alt="logo-large" class="logo-xl logo-dark">
-                </span>
-            </a>
-            <br>
-            <h5 class="text-white text-center mt-0 pt-0">{{config('app.tagline2')}}</h5>
-        </div>
-        <!--end logo-->
-        @include('layouts.bcl.navbar')
-    </div>
-    <!-- end left-sidenav-->
+    @include('layouts.shared.sidebar')
 
 
     <div class="page-wrapper">

@@ -21,10 +21,7 @@
     </script>
 
     <!-- Theme CSS -->
-    <link id="bootstrap-dark" href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" />
-    <link id="app-dark" href="{{ asset('dastone/default/assets/css/app-dark.min.css') }}" rel="stylesheet" />
-    <link id="bootstrap-light" href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" disabled />
-    <link id="app-light" href="{{ asset('dastone/default/assets/css/app.min.css') }}" rel="stylesheet" disabled />
+    @include('layouts.shared.theme_styles')
 
     <!-- Other CSS -->
     <link href="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.css') }}" rel="stylesheet" />
@@ -100,10 +97,7 @@
 
             html.classList.add('no-transition');
 
-            bootstrapDark.disabled = !isDark;
-            appDark.disabled = !isDark;
-            bootstrapLight.disabled = isDark;
-            appLight.disabled = isDark;
+            window.belovaSetThemeSheets(isDark);
 
             // Force style recalculation
             void bootstrapDark.offsetWidth;

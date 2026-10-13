@@ -1,131 +1,83 @@
 @extends('layouts.marketing.app')
 
-@section('title', 'Master Kode Tindakan')
+@section('title', 'Tindakan - Marketing')
 
 @section('navbar')
     @include('layouts.marketing.navbar')
 @endsection
 
 @section('content')
-<div class="container-fluid mt-4">
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Master Kode Tindakan</h4>
-            <div class="d-flex align-items-center">
-                <div class="mr-2">
-                    <select id="filterStatus" class="form-control form-control-sm">
-                        <option value="all">Semua</option>
-                        <option value="active">Aktif</option>
-                        <option value="inactive">Nonaktif</option>
-                    </select>
-                </div>
-                <div class="mr-2">
-                    <select id="filterObat" class="form-control form-control-sm">
-                        <option value="all">Semua Obat</option>
-                        <option value="has">Dengan Obat</option>
-                        <option value="none">Tanpa Obat</option>
-                    </select>
-                </div>
-                <div>
-                    @if(auth()->check() && (
-                        (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Admin')) ||
-                        (isset(auth()->user()->role) && auth()->user()->role === 'Admin') ||
-                        (isset(auth()->user()->is_admin) && auth()->user()->is_admin)
-                    ))
-                        <button class="btn btn-info" id="btnImportCsv"><i class="mdi mdi-file-import"></i> Import CSV</button>
-                        <button class="btn btn-success" id="btnMakeAllActive"><i class="mdi mdi-check-circle-outline"></i> Aktifkan Semua</button>
-                        <button class="btn btn-danger" id="btnMakeAllInactive"><i class="mdi mdi-close-circle-outline"></i> Nonaktifkan Semua</button>
-                    @endif
-                    <button class="btn btn-primary" id="btnAddKodeTindakan"><i class="mdi mdi-plus"></i> Tambah Kode Tindakan</button>
-                </div>
-            </div>
+@php $isAdmin = auth()->user()->hasRole('Admin'); @endphp
+<style>
+    .kt-toolbar { gap: 8px; }
+    .kt-toolbar .kt-search { max-width: 320px; }
+    .kt-status .btn { font-weight: 600; }
+    #kodeTindakanTable td { vertical-align: middle; }
+    #kodeTindakanTable .kt-nama { font-weight: 600; }
+    #kodeTindakanTable .kt-obat { font-size: .8rem; margin: 0; padding-left: 1rem; }
+    #kodeTindakanTable tr.kt-off td { color: #8a94a6; }
+    #kodeTindakanTable tr.kt-selected td { background: #eef4ff; }
+    .kt-bulk { background: #eef4ff; border: 1px solid #c9dafc; border-radius: .4rem; padding: .35rem .6rem; }
+</style>
+<div class="container-fluid">
+    <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3" style="gap:8px">
+        <div>
+            <h4 class="page-title mb-0">Tindakan</h4>
+            <small class="text-muted">Berisi obat/BHP yang dipakai, <strong>tanpa harga jual</strong>. Agar bisa dijual, masukkan ke <a href="{{ route('marketing.tindakan.index') }}">Paket Tindakan</a>.</small>
         </div>
+        <div class="d-flex flex-wrap" style="gap:6px">
+            @if($isAdmin)
+            <button type="button" class="btn btn-light btn-sm" id="btnImportCsv" title="Buat tindakan dari CSV (kolom nama)"><i class="fas fa-file-import"></i> Import CSV</button>
+            @endif
+            <button type="button" class="btn btn-primary btn-sm" id="btnAddKodeTindakan"><i class="fas fa-plus"></i> Tambah Tindakan</button>
+        </div>
+    </div>
 
-                <!-- Import CSV Modal -->
-                <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
-                    <div class="modal-dialog" role="document">
-                        <div class="modal-content">
-                            <form id="importCsvForm">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="importCsvModalLabel">Import Kode Tindakan dari CSV</h5>
-                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                        <span aria-hidden="true">&times;</span>
-                                    </button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="form-group">
-                                        <label for="csvFile">Pilih file CSV (kolom: nama)</label>
-                                        <input type="file" id="csvFile" name="csv" accept=".csv,text/csv" class="form-control-file" required />
-                                        <small class="form-text text-muted">File should contain one column with the name of the kode tindakan. Header optional.</small>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                                    <button type="submit" class="btn btn-primary">Import</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                        <!-- Bulk Action Modal (activate/deactivate by date-range preview) -->
-                        <div class="modal fade" id="bulkActionModal" tabindex="-1" role="dialog" aria-labelledby="bulkActionModalLabel" aria-hidden="true">
-                            <div class="modal-dialog modal-lg" role="document">
-                                <div class="modal-content">
-                                    <div class="modal-header">
-                                        <h5 class="modal-title" id="bulkActionModalLabel">Bulk Action Preview</h5>
-                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                    </div>
-                                    <div class="modal-body">
-                                        <div class="form-row mb-2">
-                                            <div class="form-group col-md-5">
-                                                <label>Start</label>
-                                                <input type="date" id="bulkStart" class="form-control">
-                                            </div>
-                                            <div class="form-group col-md-5">
-                                                <label>End</label>
-                                                <input type="date" id="bulkEnd" class="form-control">
-                                            </div>
-                                            <div class="form-group col-md-2 d-flex align-items-end">
-                                                <button id="bulkPreviewBtn" class="btn btn-primary btn-block">Preview</button>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <table class="table table-sm table-bordered" id="bulkPreviewTable">
-                                                <thead>
-                                                    <tr>
-                                                        <th style="width:4%"><input type="checkbox" id="bulkSelectAll"></th>
-                                                        <th>Nama</th>
-                                                        <th style="width:18%">Dibuat</th>
-                                                        <th style="width:12%">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody></tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    <div class="modal-footer">
-                                        <input type="hidden" id="bulkSetActiveValue" value="1">
-                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                                        <button type="button" id="bulkApplyBtn" class="btn btn-primary">Apply</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+    @include('partials.action-cards', ['actionCounts' => $actionCounts])
+
+    <div class="card">
         <div class="card-body">
-            <table id="kodeTindakanTable" class="table table-bordered table-striped" style="width:100%">
-                <thead>
+            <div class="d-flex flex-wrap align-items-center kt-toolbar mb-2">
+                <div class="input-group input-group-sm kt-search">
+                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
+                    <input type="search" id="ktSearch" class="form-control" placeholder="Cari nama, kode, atau obat/BHP..." autocomplete="off">
+                </div>
+                <div class="btn-group btn-group-sm kt-status" role="group" id="ktStatus">
+                    <button type="button" class="btn btn-outline-primary active" data-status="active">Aktif <span class="badge badge-light" data-count="active">{{ $statusCounts['active'] }}</span></button>
+                    <button type="button" class="btn btn-outline-primary" data-status="inactive">Nonaktif <span class="badge badge-light" data-count="inactive">{{ $statusCounts['inactive'] }}</span></button>
+                    <button type="button" class="btn btn-outline-primary" data-status="all">Semua <span class="badge badge-light" data-count="all">{{ $statusCounts['all'] }}</span></button>
+                </div>
+                <select id="filterObat" class="custom-select custom-select-sm" style="width:auto">
+                    <option value="">Obat/BHP: semua</option>
+                    <option value="has">Ada obat/BHP</option>
+                    <option value="none">Tanpa obat/BHP</option>
+                </select>
+                <select id="filterPaket" class="custom-select custom-select-sm" style="width:auto">
+                    <option value="">Paket: semua</option>
+                    <option value="used">Dipakai di paket</option>
+                    <option value="unused">Belum dipakai paket</option>
+                </select>
+                <button type="button" class="btn btn-link btn-sm d-none" id="ktReset">Reset filter</button>
+            </div>
+
+            @if($isAdmin)
+            <div class="kt-bulk d-none align-items-center mb-2" id="ktBulk" style="gap:8px">
+                <strong id="ktBulkInfo"></strong>
+                <button type="button" class="btn btn-sm btn-success" data-bulk="1"><i class="fas fa-eye"></i> Aktifkan</button>
+                <button type="button" class="btn btn-sm btn-warning" data-bulk="0"><i class="fas fa-eye-slash"></i> Nonaktifkan</button>
+                <button type="button" class="btn btn-sm btn-link" id="ktBulkClear">Batal pilih</button>
+            </div>
+            @endif
+
+            <table id="kodeTindakanTable" class="table table-sm table-hover w-100">
+                <thead class="thead-light">
                     <tr>
-                        <th style="width:10%">Kode</th>
-                        <th style="width:40%">Nama</th>
-                        <th style="width:35%">Obat / Jumlah</th>
-                        <th style="width:10%">Status</th>
-                        <!-- Removed from UI for now: HPP / Harga Jasmed / Harga Jual / Harga Bottom
-                        <th>HPP</th>
-                        <th>Harga Jasmed</th>
-                        <th>Harga Jual</th>
-                        <th>Harga Bottom</th>
-                        -->
-                        <th style="width:10%">Aksi</th>
+                        <th style="width:24px">@if($isAdmin)<input type="checkbox" id="ktCheckAll" title="Pilih semua di halaman ini">@endif</th>
+                        <th>Tindakan</th>
+                        <th>Obat / BHP</th>
+                        <th>Dipakai di paket</th>
+                        <th class="text-center" style="width:80px">Aktif</th>
+                        <th class="text-right" style="width:1%">Aksi</th>
                     </tr>
                 </thead>
             </table>
@@ -133,585 +85,443 @@
     </div>
 </div>
 
-<!-- Modal -->
-<!-- Make this modal non-dismissible by backdrop click or Escape; only the header X immediately closes -->
-<div class="modal fade" id="kodeTindakanModal" tabindex="-1" role="dialog" aria-labelledby="kodeTindakanModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-xl" role="document" style="max-width:1100px;">
-    <div class="modal-content">
-    <form id="kodeTindakanForm" novalidate>
-        <div class="modal-header">
-          <h5 class="modal-title" id="kodeTindakanModalLabel">Tambah Kode Tindakan</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-                    <input type="hidden" id="kodeTindakanId" name="id">
-                    <div class="form-row">
-                        <div class="form-group col-md-4">
-                            <label for="kode">Kode</label>
-                            <input type="text" class="form-control" id="kode" name="kode">
-                        </div>
-                        <div class="form-group col-md-8">
-                            <label for="nama">Nama</label>
-                            <input type="text" class="form-control" id="nama" name="nama" required>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-12">
-                            <label for="kategori">Kategori</label>
-                            <select id="kategoriSelect" name="kategori_ids[]" class="form-control kategori-select" multiple="multiple" style="width:100%"></select>
-                            <small class="form-text text-muted">Pilih satu atau lebih kategori untuk kode tindakan ini.</small>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-12">
-                            <input type="hidden" name="is_active" value="0">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" value="1" id="is_active" name="is_active" checked>
-                                <label class="form-check-label" for="is_active">Aktif</label>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- HPP and price inputs temporarily removed from UI. Uncomment to restore.
-                    <div class="form-row">
-                        <div class="form-group col-md-3">
-                            <label for="hpp">HPP</label>
-                            <input type="number" step="0.01" class="form-control" id="hpp" name="hpp">
-                        </div>
-                        <div class="form-group col-md-3">
-                            <label for="harga_jual">Harga Jual</label>
-                            <input type="number" step="0.01" class="form-control" id="harga_jual" name="harga_jual">
-                        </div>
-                        <div class="form-group col-md-3">
-                            <label for="harga_bottom">Harga Bottom</label>
-                            <input type="number" step="0.01" class="form-control" id="harga_bottom" name="harga_bottom">
-                        </div>
-                        <div class="form-group col-md-3">
-                            <label for="harga_jasmed">Harga Jasmed</label>
-                            <input type="number" step="0.01" class="form-control" id="harga_jasmed" name="harga_jasmed">
-                        </div>
-                    </div>
-                    -->
-                    <hr>
-                    <label>Obat dan BHP</label>
-                    <table class="table table-bordered" id="obatTable">
-                        <thead>
-                            <tr>
-                                <th style="width:60%">Obat dan BHP</th>
-                                <th style="width:12%">Jumlah</th>
-                                <th style="width:24%">Satuan Dosis</th>
-                                <th style="width:4%"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
-                    <button type="button" class="btn btn-success btn-sm" id="addObatRow">Tambah Obat</button>
-        </div>
-                <div class="modal-footer">
-                    <!-- Footer cancel does not auto-dismiss; asks for confirmation -->
-                    <button type="button" class="btn btn-secondary" id="kodeTindakanModalCancel">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
+@if($isAdmin)
+<!-- Import CSV Modal -->
+<div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="importCsvForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importCsvModalLabel">Import Tindakan dari CSV</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                 </div>
-      </form>
+                <div class="modal-body">
+                    <div class="form-group mb-0">
+                        <label for="csvFile">File CSV</label>
+                        <input type="file" id="csvFile" name="csv" accept=".csv,text/csv" class="form-control" required />
+                        <small class="form-text text-muted">Satu kolom berisi nama tindakan. Header opsional. Nama yang sudah ada dilewati. Obat/BHP diisi lewat Edit.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        </div>
     </div>
-  </div>
+</div>
+@endif
+
+<!-- Add / edit; only the X or the footer button (with confirmation) close it -->
+<div class="modal fade" id="kodeTindakanModal" tabindex="-1" role="dialog" aria-labelledby="kodeTindakanModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <form class="modal-content" id="kodeTindakanForm" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="kodeTindakanModalLabel">Tambah Tindakan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="kodeTindakanId" name="id">
+                <div class="form-row">
+                    <div class="form-group col-md-8">
+                        <label for="nama">Nama <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="nama" name="nama" required>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label for="kode">Kode</label>
+                        <input type="text" class="form-control" id="kode" name="kode" placeholder="Opsional">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="kategoriSelect">Kategori</label>
+                    <select id="kategoriSelect" name="kategori_ids[]" class="form-control" multiple="multiple" style="width:100%"></select>
+                </div>
+                <div class="form-group">
+                    <input type="hidden" name="is_active" value="0">
+                    <div class="custom-control custom-switch">
+                        <input class="custom-control-input" type="checkbox" value="1" id="is_active" name="is_active" checked>
+                        <label class="custom-control-label" for="is_active">Aktif</label>
+                    </div>
+                </div>
+                <hr>
+                <label class="mb-0">Obat dan BHP</label>
+                <small class="form-text text-muted mt-0 mb-1">Dipakai untuk mengurangi stok dan menghitung biaya bahan paket.</small>
+                <table class="table table-sm table-bordered mb-1" id="obatTable">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Obat / BHP</th>
+                            <th style="width:110px">Jumlah</th>
+                            <th style="width:110px">Satuan</th>
+                            <th style="width:34px"></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <button type="button" class="btn btn-outline-success btn-sm" id="addObatRow"><i class="fas fa-plus"></i> Tambah Obat</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="kodeTindakanModalCancel">Tutup</button>
+                <button type="submit" class="btn btn-primary" id="ktSave"><i class="fas fa-save"></i> Simpan</button>
+            </div>
+        </form>
+    </div>
 </div>
 @endsection
 
 @push('scripts')
 <script>
-$(document).ready(function() {
+$(function () {
+    var CSRF = '{{ csrf_token() }}';
+    var IS_ADMIN = @json($isAdmin);
+    var state = { status: 'active', needCounts: false, selected: {} };
+
+    $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': CSRF } });
+
+    function esc(v) { return $('<div>').text(v == null ? '' : v).html(); }
+    function ajaxErrorMessage(xhr, fallback) {
+        var json = xhr && xhr.responseJSON;
+        if (json && json.errors) {
+            var first = Object.values(json.errors)[0];
+            if (first && first.length) return first[0];
+        }
+        return (json && json.message) || fallback || 'Terjadi kesalahan';
+    }
+    function showError(message) { Swal.fire({ icon: 'error', title: 'Gagal', text: message }); }
+
+    // ================= Table =================
     var table = $('#kodeTindakanTable').DataTable({
         processing: true,
         serverSide: true,
+        deferRender: true,
+        autoWidth: false,
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100],
+        order: [[1, 'asc']],
+        dom: 'rt<"d-flex flex-wrap justify-content-between align-items-center mt-2"lip>',
         ajax: {
             url: '{{ route('marketing.kode_tindakan.data') }}',
-            type: 'GET'
-        },
-        // enforce column widths and include status column
-        columnDefs: [
-            { width: '10%', targets: 0 },
-            { width: '35%', targets: 1 },
-            { width: '35%', targets: 2 },
-            { width: '10%', targets: 3 },
-            { width: '10%', targets: 4 }
-        ],
-        ajax: {
-            url: '{{ route('marketing.kode_tindakan.data') }}',
-            type: 'GET',
-            data: function(d) {
-                // send status filter to server: 'all' | 'active' | 'inactive'
-                var s = $('#filterStatus').val();
-                if (s && s !== 'all') {
-                    d.status = s;
-                }
-                var ob = $('#filterObat').val();
-                if (ob && ob !== 'all') {
-                    d.obats_filter = ob;
-                }
+            data: function (d) {
+                if (state.status !== 'all') d.status = state.status;
+                if ($('#filterObat').val()) d.obats_filter = $('#filterObat').val();
+                if ($('#filterPaket').val()) d.paket_filter = $('#filterPaket').val();
+                if (window.ActionCards && ActionCards.active) d.action = ActionCards.active;
+                // Counts only on demand: they are already on the page and only change after an edit
+                if (state.needCounts) { d.counts = 1; state.needCounts = false; }
             }
+        },
+        language: {
+            processing: '<i class="fas fa-spinner fa-spin"></i> Memuat...',
+            zeroRecords: 'Tidak ada tindakan yang cocok', emptyTable: 'Belum ada tindakan',
+            info: '_START_–_END_ dari _TOTAL_ tindakan', infoEmpty: '0 tindakan', infoFiltered: '',
+            lengthMenu: 'Tampil _MENU_', paginate: { previous: '‹', next: '›' }
         },
         columns: [
-            { data: 'kode', name: 'kode' },
-            { data: 'nama', name: 'nama' },
-            { data: 'obats_summary', name: 'obats_summary', orderable: false, searchable: false, defaultContent: '-' },
-            { data: 'status', name: 'is_active', orderable: false, searchable: false },
-            // HPP / Harga fields removed from UI — keep code here commented for easy restore
-            /* { data: 'hpp', name: 'hpp', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
-            { data: 'harga_jasmed', name: 'harga_jasmed', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
-            { data: 'harga_jual', name: 'harga_jual', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
-            { data: 'harga_bottom', name: 'harga_bottom', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } }, */
             {
-                data: null,
-                orderable: false,
-                searchable: false,
-                render: function(data, type, row) {
-                        return `<button class="btn btn-sm btn-warning btn-edit" data-id="${row.id}">Edit</button>
-                            <button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}">Hapus</button>`;
+                data: 'id', orderable: false, searchable: false,
+                render: function (id) { return IS_ADMIN ? '<input type="checkbox" class="kt-check" value="' + id + '"' + (state.selected[id] ? ' checked' : '') + '>' : ''; }
+            },
+            {
+                data: 'nama', name: 'nama', searchable: false,
+                render: function (d, t, r) {
+                    return '<div class="kt-nama">' + esc(d) + '</div>' + (r.kode ? '<div class="small text-muted">' + esc(r.kode) + '</div>' : '');
+                }
+            },
+            {
+                data: 'obat', orderable: false, searchable: false,
+                render: function (d) {
+                    if (!d || !d.length) return '<span class="small text-warning"><i class="fas fa-exclamation-triangle"></i> belum ada obat/BHP</span>';
+                    return '<ul class="kt-obat">' + d.map(function (o) {
+                        return '<li>' + esc(o.nama) + ' <span class="text-muted">· ' + esc(o.qty) + (o.satuan ? ' ' + esc(o.satuan) : '') + '</span></li>';
+                    }).join('') + '</ul>';
+                }
+            },
+            {
+                data: 'paket_count', name: 'paket_count', searchable: false,
+                render: function (d, t, r) {
+                    if (!d) return '<span class="small text-muted">belum dipakai</span>';
+                    var names = (r.paket || []).map(function (p) { return p.aktif ? esc(p.nama) : '<span class="text-muted">' + esc(p.nama) + ' (nonaktif)</span>'; });
+                    return '<span class="badge badge-info">' + d + '</span> <span class="small">' + names.join(', ') + (d > names.length ? ', …' : '') + '</span>';
+                }
+            },
+            {
+                data: 'is_active', name: 'is_active', searchable: false, className: 'text-center',
+                render: function (d, t, r) {
+                    return '<div class="custom-control custom-switch d-inline-block" title="' + (d ? 'Aktif: klik untuk nonaktifkan' : 'Nonaktif: klik untuk aktifkan') + '">'
+                        + '<input type="checkbox" class="custom-control-input kt-toggle" id="kt_on_' + r.id + '" data-id="' + r.id + '"' + (d ? ' checked' : '') + '>'
+                        + '<label class="custom-control-label" for="kt_on_' + r.id + '"></label></div>';
+                }
+            },
+            {
+                data: null, orderable: false, searchable: false, className: 'text-right text-nowrap',
+                render: function (d, t, r) {
+                    return '<button type="button" class="btn btn-sm btn-outline-primary btn-edit" data-id="' + r.id + '"><i class="fas fa-edit"></i> Edit</button>'
+                        + ' <button type="button" class="btn btn-sm btn-outline-danger btn-delete" data-id="' + r.id + '" data-nama="' + esc(r.nama) + '" title="Hapus (hanya tindakan yang belum pernah dipakai)"><i class="fas fa-trash"></i></button>';
                 }
             }
-        ]
+        ],
+        createdRow: function (tr, r) {
+            $(tr).toggleClass('kt-off', !r.is_active).toggleClass('kt-selected', !!state.selected[r.id]);
+        },
+        drawCallback: function () { $('#ktCheckAll').prop('checked', false); }
     });
 
-    // small helper: escape HTML in JS (avoid dependency on lodash)
-    function escapeHtml(unsafe) {
-        if (!unsafe && unsafe !== 0) return '';
-        return String(unsafe)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+    table.on('xhr', function (e, s, json) {
+        if (!json) return;
+        if (json.action_counts) ActionCards.update(json.action_counts);
+        if (json.status_counts) $.each(json.status_counts, function (k, v) { $('#ktStatus [data-count="' + k + '"]').text(v); });
+    });
+    function reloadWithCounts() { state.needCounts = true; table.ajax.reload(null, false); }
+
+    // ================= Filters =================
+    function filtersActive() { return !!($('#ktSearch').val() || $('#filterObat').val() || $('#filterPaket').val() || state.status !== 'active'); }
+    function refresh() { $('#ktReset').toggleClass('d-none', !filtersActive()); table.ajax.reload(); }
+    function setStatus(s) {
+        state.status = s;
+        $('#ktStatus .btn').removeClass('active').filter('[data-status="' + s + '"]').addClass('active');
     }
 
-    // reload table when filter changes (preserve current page)
-    $('#filterStatus').on('change', function() {
-        table.ajax.reload(null, false);
+    var searchTimer;
+    $('#ktSearch').on('input', function () {
+        var v = this.value;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () { $('#ktReset').toggleClass('d-none', !filtersActive()); table.search(v).draw(); }, 350);
     });
-    $('#filterObat').on('change', function() {
-        table.ajax.reload(null, false);
+    $('#ktStatus').on('click', '.btn', function () { setStatus($(this).data('status')); refresh(); });
+    $('#filterObat, #filterPaket').on('change', refresh);
+    $('#ktReset').on('click', function () {
+        $('#ktSearch, #filterObat, #filterPaket').val('');
+        setStatus('active');
+        table.search('');
+        refresh();
     });
 
-    // Add Obat Row
-    function obatRow(idx, obat = {}) {
-        const satuanOptions = [
-            'Mg', 'Ml', 'Gram', 'Tablet', 'Kapsul', 'Botol', 'Strip', 'Tube', 'Ampul', 'Sachet', 'Vial', 'Pcs', 'Lainnya'
-        ];
-        // Satuan will be shown as read-only text pulled from the selected Obat
-        const satuanValue = obat.satuan_dosis || obat.satuan || '';
-        let satuanField = `<input type="text" name="obats[${idx}][satuan_dosis]" class="form-control satuan-text" value="${satuanValue}" readonly>`;
+    // "Data yang perlu action" cards: show every status so the card's rows are not hidden by the other filters
+    ActionCards.init(function () { table.ajax.reload(); }, function () {
+        $('#filterObat, #filterPaket').val('');
+        setStatus('all');
+        $('#ktReset').removeClass('d-none');
+    });
 
-            return `<tr>
-            <td style="width:60%"><select name="obats[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>
-            <td style="width:12%"><input type="number" name="obats[${idx}][qty]" class="form-control" min="0.01" step="0.01" inputmode="decimal" pattern="^\\d+(\\.\\d{1,2})?$" data-rule-min="0.01" data-msg-min="Jumlah harus minimal 0.01" value="${obat.qty || 1}" required></td>
-            <td style="width:24%">${satuanField}</td>
-            <td style="width:4%"><button type="button" class="btn btn-danger btn-sm remove-obat">Hapus</button></td>
-        </tr>`;
+    // ================= Aktif / nonaktif =================
+    $('#kodeTindakanTable').on('change', '.kt-toggle', function () {
+        var $cb = $(this).prop('disabled', true);
+        $.post('/marketing/kodetindakan/' + $cb.data('id') + '/toggle-active')
+            .done(function (res) {
+                reloadWithCounts();
+                if (res.warning) Swal.fire({ icon: 'warning', title: 'Dinonaktifkan, tapi perhatikan', text: res.warning });
+            })
+            .fail(function (xhr) { $cb.prop('checked', !$cb.prop('checked')); showError(ajaxErrorMessage(xhr, 'Status gagal diubah')); })
+            .always(function () { $cb.prop('disabled', false); });
+    });
+
+    // Bulk (Admin): tick rows, then Aktifkan / Nonaktifkan
+    function refreshBulk() {
+        var n = Object.keys(state.selected).length;
+        $('#ktBulk').toggleClass('d-none', !n).toggleClass('d-flex', !!n);
+        $('#ktBulkInfo').text(n + ' tindakan dipilih');
+    }
+    $('#kodeTindakanTable').on('change', '.kt-check', function () {
+        if (this.checked) state.selected[this.value] = true; else delete state.selected[this.value];
+        $(this).closest('tr').toggleClass('kt-selected', this.checked);
+        refreshBulk();
+    });
+    $('#ktCheckAll').on('change', function () {
+        var on = this.checked;
+        $('#kodeTindakanTable .kt-check').each(function () { if (this.checked !== on) $(this).prop('checked', on).trigger('change'); });
+    });
+    $('#ktBulkClear').on('click', function () { state.selected = {}; refreshBulk(); table.draw(false); });
+    $('#ktBulk').on('click', '[data-bulk]', function () {
+        var ids = Object.keys(state.selected).map(Number);
+        var on = $(this).data('bulk') === 1;
+        Swal.fire({
+            icon: 'question', title: (on ? 'Aktifkan ' : 'Nonaktifkan ') + ids.length + ' tindakan?',
+            text: on ? 'Tindakan bisa dipilih lagi saat menyusun paket.' : 'Paket yang berisi tindakan ini tetap memakainya sampai dikeluarkan dari paket.',
+            showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Batal', reverseButtons: true
+        }).then(function (r) {
+            if (!r.value) return;
+            $.post('/erm/kodetindakan/action/bulk-set-active', { ids: ids, set_active: on ? 1 : 0 })
+                .done(function (res) {
+                    state.selected = {};
+                    refreshBulk();
+                    reloadWithCounts();
+                    Swal.fire({ icon: res.warning ? 'warning' : 'success', title: 'Selesai', text: (res.updated || 0) + ' tindakan diperbarui.' + (res.warning ? ' ' + res.warning : '') });
+                })
+                .fail(function (xhr) { showError(ajaxErrorMessage(xhr)); });
+        });
+    });
+
+    // ================= Form =================
+    function obatRow(idx, obat) {
+        obat = obat || {};
+        return $('<tr>'
+            + '<td><select name="obats[' + idx + '][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>'
+            + '<td><input type="number" name="obats[' + idx + '][qty]" class="form-control form-control-sm" min="0.01" step="0.01" value="' + esc(obat.qty || 1) + '" required></td>'
+            + '<td><input type="text" name="obats[' + idx + '][satuan_dosis]" class="form-control form-control-sm satuan-text" value="' + esc(obat.satuan_dosis || obat.satuan || '') + '" readonly></td>'
+            + '<td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 remove-obat" title="Hapus"><i class="fas fa-times"></i></button></td>'
+            + '</tr>');
     }
 
-    function refreshObatRows() {
-        $('#obatTable tbody tr').each(function(i, tr) {
-            $(tr).find('select, input').each(function() {
-                let name = $(this).attr('name');
-                if (name) {
-                    let newName = name.replace(/obats\[\d+\]/, `obats[${i}]`);
-                    $(this).attr('name', newName);
-                }
+    // Keep obats[i] continuous after a row is removed
+    function renumberObatRows() {
+        $('#obatTable tbody tr').each(function (i, tr) {
+            $(tr).find('select, input').each(function () {
+                var name = $(this).attr('name');
+                if (name) $(this).attr('name', name.replace(/obats\[\d+\]/, 'obats[' + i + ']'));
             });
         });
     }
 
-    function initObatSelect2(context, selected = null) {
-        $(context).find('.obat-select').select2({
-            placeholder: 'Cari Obat',
+    function initObatSelect2($row, selected) {
+        var $select = $row.find('.obat-select');
+        $select.select2({
+            dropdownParent: $('#kodeTindakanModal'),
+            placeholder: 'Cari obat / BHP',
             minimumInputLength: 2,
+            width: '100%',
             ajax: {
                 url: '/obat/search',
                 dataType: 'json',
                 delay: 250,
-                data: function(params) {
-                    return { q: params.term };
-                },
-                processResults: function(data) {
-                    // Normalize results and strip packaging suffixes like " - 14 Pcs"
-                    function cleanResult(item) {
-                        if (!item) return item;
-                        // If server returned label as 'text', use it; otherwise try 'nama' or 'name'
-                        let raw = item.text || item.nama || item.name || '';
-                        // Remove trailing patterns like " - 14 Pcs", " - 100", etc. (case-insensitive)
-                        let display = raw.replace(/\s*-\s*\d+\s*(pcs)?$/i, '').trim();
-                        // Preserve original raw text in a separate prop in case we need it
-                        item._raw_text = raw;
-                        // Overwrite text used by select2 with cleaned display
-                        item.text = display || raw;
+                data: function (params) { return { q: params.term }; },
+                processResults: function (data) {
+                    var list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []));
+                    // Strip packaging suffixes like " - 14 Pcs" from the label
+                    return { results: list.map(function (item) {
+                        var raw = item.text || item.nama || item.name || '';
+                        item.text = raw.replace(/\s*-\s*\d+\s*(pcs)?$/i, '').trim() || raw;
                         return item;
-                    }
-
-                    if (Array.isArray(data.results)) {
-                        return { results: data.results.map(cleanResult) };
-                    } else if (Array.isArray(data)) {
-                        return { results: data.map(cleanResult) };
-                    } else if (data && Array.isArray(data.data)) {
-                        // In case server returns { data: [...] }
-                        return { results: data.data.map(cleanResult) };
-                    } else if (data) {
-                        return { results: [cleanResult(data)] };
-                    } else {
-                        return { results: [] };
-                    }
+                    }) };
                 },
                 cache: true
-            },
-            width: '100%',
-            allowClear: true
+            }
+        }).on('select2:select', function (e) {
+            var data = e.params.data || {};
+            $row.find('.satuan-text').val(data.satuan || data.satuan_dosis || '');
         });
-        // When an obat is selected, populate the satuan field from returned data
-        $(context).find('.obat-select').on('select2:select', function(e) {
-            const data = e.params.data || {};
-            const satuan = data.satuan || data.satuan_dosis || '';
-            const $row = $(this).closest('tr');
-            $row.find('.satuan-text').val(satuan);
-        });
-
-        // When cleared, empty the satuan field
-        $(context).find('.obat-select').on('select2:clear', function() {
-            const $row = $(this).closest('tr');
-            $row.find('.satuan-text').val('');
-        });
-
         if (selected) {
-            // selected may include satuan property provided by server when editing
-            // Clean common packaging suffixes (e.g. " - 14 Pcs") for the displayed text
-            let rawText = selected.text || '';
-            let displayText = rawText.replace(/\s*-\s*\d+\s*pcs$/i, '');
-            let option = new Option(displayText, selected.id, true, true);
-            $(context).find('.obat-select').append(option).trigger('change');
-            const satuan = selected.satuan || selected.satuan_dosis || '';
-            $(context).find('.satuan-text').val(satuan);
+            $select.append(new Option((selected.text || '').replace(/\s*-\s*\d+\s*pcs$/i, ''), selected.id, true, true)).trigger('change');
         }
     }
 
-    function initKategoriSelect2(selected = null) {
-        $('#kategoriSelect').select2({
+    function initKategoriSelect2(selected) {
+        var $k = $('#kategoriSelect');
+        if ($k.hasClass('select2-hidden-accessible')) $k.select2('destroy');
+        $k.empty().select2({
+            dropdownParent: $('#kodeTindakanModal'),
             placeholder: 'Cari atau pilih kategori',
             minimumInputLength: 1,
+            width: '100%',
+            allowClear: true,
             ajax: {
                 url: '{{ route('marketing.kategori.search') }}',
                 dataType: 'json',
                 delay: 250,
-                data: function(params) { return { q: params.term }; },
-                processResults: function(data) {
-                    var results = [];
-                    if (Array.isArray(data.results)) results = data.results;
-                    else if (Array.isArray(data)) results = data;
-                    else if (data && Array.isArray(data.data)) results = data.data;
-                    return { results: results.map(function(item){ return { id: item.id, text: item.nama || item.text || item.name }; }) };
+                data: function (params) { return { q: params.term }; },
+                processResults: function (data) {
+                    var list = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []));
+                    return { results: list.map(function (item) { return { id: item.id, text: item.nama || item.text || item.name }; }) };
                 },
                 cache: true
-            },
-            tags: false,
-            width: '100%',
-            allowClear: true
+            }
         });
-
-        if (selected && Array.isArray(selected)) {
-            // selected: array of {id, nama}
-            selected.forEach(function(s) {
-                var option = new Option(s.nama || s.text || s.name || s.id, s.id, true, true);
-                $('#kategoriSelect').append(option);
-            });
-            $('#kategoriSelect').trigger('change');
-        } else {
-            $('#kategoriSelect').val(null).trigger('change');
-        }
+        (selected || []).forEach(function (s) { $k.append(new Option(s.nama, s.id, true, true)); });
+        $k.trigger('change');
     }
 
-    // Add new row
-    $('#addObatRow').on('click', function() {
-        let idx = $('#obatTable tbody tr').length;
-        let $row = $(obatRow(idx));
+    $('#addObatRow').on('click', function () {
+        var $row = obatRow($('#obatTable tbody tr').length);
         $('#obatTable tbody').append($row);
         initObatSelect2($row);
+        $row.find('.obat-select').select2('open');
     });
+    $('#obatTable').on('click', '.remove-obat', function () { $(this).closest('tr').remove(); renumberObatRows(); });
 
-    // Initialize kategori select on page load
-    initKategoriSelect2();
-
-    // Remove row
-    $(document).on('click', '.remove-obat', function() {
-        $(this).closest('tr').remove();
-        refreshObatRows();
-    });
-
-    // Show modal for add
-    $('#btnAddKodeTindakan').click(function() {
+    function openForm(data) {
+        data = data || {};
         $('#kodeTindakanForm')[0].reset();
-        $('#kodeTindakanId').val('');
+        $('#kodeTindakanId').val(data.id || '');
+        $('#kode').val(data.kode || '');
+        $('#nama').val(data.nama || '');
+        $('#is_active').prop('checked', data.id ? !!data.is_active : true);
         $('#obatTable tbody').empty();
-        // default new kode tindakan to active
-        $('#is_active').prop('checked', true);
-        $('#kodeTindakanModalLabel').text('Tambah Kode Tindakan');
-        // clear kategori selection
-        initKategoriSelect2();
+        (data.obats || []).forEach(function (obat, idx) {
+            var $row = obatRow(idx, obat);
+            $('#obatTable tbody').append($row);
+            initObatSelect2($row, { id: obat.obat_id, text: obat.obat_nama });
+        });
+        initKategoriSelect2((data.kategoris || []).map(function (k) { return { id: k.id, nama: k.nama }; }));
+        $('#kodeTindakanModalLabel').text(data.id ? 'Edit Tindakan: ' + data.nama : 'Tambah Tindakan');
         $('#kodeTindakanModal').modal('show');
+    }
+
+    $('#btnAddKodeTindakan').on('click', function () { openForm(); });
+    $('#kodeTindakanTable').on('click', '.btn-edit', function () {
+        $.getJSON('/marketing/kodetindakan/' + $(this).data('id'))
+            .done(openForm)
+            .fail(function (xhr) { showError(ajaxErrorMessage(xhr)); });
     });
 
-    // Import CSV modal open
-    $('#btnImportCsv').on('click', function() {
-        $('#importCsvForm')[0].reset();
-        $('#importCsvModal').modal('show');
-    });
-
-    // Handle CSV import form submit
-    $('#importCsvForm').on('submit', function(e) {
-        e.preventDefault();
-        var fileInput = $('#csvFile')[0];
-        if (!fileInput.files || !fileInput.files.length) {
-            Swal.fire('Pilih file', 'Silakan pilih file CSV terlebih dahulu.', 'warning');
-            return;
-        }
-        var fd = new FormData();
-        fd.append('csv', fileInput.files[0]);
-        fd.append('_token', '{{ csrf_token() }}');
-        Swal.fire({title: 'Mengimpor...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
-        $.ajax({
-            url: '/erm/marketing/kodetindakan/import',
-            type: 'POST',
-            data: fd,
-            processData: false,
-            contentType: false,
-            success: function(res) {
-                $('#importCsvModal').modal('hide');
-                table.ajax.reload(null, false);
-                // Build detailed report
-                var html = '<div style="max-height:320px; overflow:auto; text-align:left;">';
-                html += '<p><strong>Dibuat:</strong> ' + (res.created||0) + '</p>';
-                if (res.created_items && res.created_items.length) {
-                    html += '<ul>';
-                    res.created_items.forEach(function(it) {
-                        html += '<li>#' + it.row + ' — ' + escapeHtml(it.nama) + ' (id: ' + (it.id||'') + ')</li>';
-                    });
-                    html += '</ul>';
-                }
-                html += '<p><strong>Dilewati:</strong> ' + (res.skipped||0) + '</p>';
-                if (res.skipped_items && res.skipped_items.length) {
-                    html += '<ul>';
-                    res.skipped_items.forEach(function(it) {
-                        html += '<li>#' + it.row + ' — ' + escapeHtml(it.nama) + ' — ' + escapeHtml(it.reason) + '</li>';
-                    });
-                    html += '</ul>';
-                }
-                if (res.renamed_items && res.renamed_items.length) {
-                    html += '<hr><p><strong>Renamed existing records:</strong></p><ul>';
-                    res.renamed_items.forEach(function(it) {
-                        html += '<li>Old #'+it.old_id+' — ' + escapeHtml(it.old_name) + ' → ' + escapeHtml(it.new_name) + '</li>';
-                    });
-                    html += '</ul>';
-                }
-                if (res.errors && res.errors.length) {
-                    html += '<hr><p><strong>Errors:</strong></p><ul>';
-                    res.errors.forEach(function(err) { html += '<li>' + escapeHtml(err) + '</li>'; });
-                    html += '</ul>';
-                }
-                html += '</div>';
-                Swal.fire({title: 'Import Selesai', html: html, width: 700});
-            },
-            error: function(xhr) {
-                var msg = 'Terjadi kesalahan saat import';
-                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                Swal.fire('Gagal', msg, 'error');
-            }
-        });
-    });
-
-    // Footer Cancel: ask confirmation before hiding since modal is non-dismissible
-    $(document).on('click', '#kodeTindakanModalCancel', function() {
+    $('#kodeTindakanModalCancel').on('click', function () {
         Swal.fire({
-            title: 'Tutup formulir?',
-            text: 'Perubahan yang belum disimpan akan hilang. Yakin ingin menutup?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, tutup',
-            cancelButtonText: 'Batal'
-        }).then(function(result) {
-            if (result.value) {
-                $('#kodeTindakanModal').modal('hide');
-            }
-        });
+            title: 'Tutup formulir?', text: 'Perubahan yang belum disimpan akan hilang.', icon: 'warning',
+            showCancelButton: true, confirmButtonText: 'Ya, tutup', cancelButtonText: 'Kembali', reverseButtons: true
+        }).then(function (r) { if (r.value) $('#kodeTindakanModal').modal('hide'); });
     });
 
-    // Show modal for edit
-    $('#kodeTindakanTable').on('click', '.btn-edit', function() {
-        var id = $(this).data('id');
-        $.get('/marketing/kodetindakan/' + id, function(data) {
-            $('#kodeTindakanId').val(data.id);
-            $('#kode').val(data.kode);
-            $('#nama').val(data.nama);
-            // HPP / Harga fields are removed from UI; these were previously set here:
-            // $('#hpp').val(data.hpp);
-            // $('#harga_jasmed').val(data.harga_jasmed);
-            // $('#harga_jual').val(data.harga_jual);
-            // $('#harga_bottom').val(data.harga_bottom);
-            $('#obatTable tbody').empty();
-            if (data.obats && data.obats.length) {
-                data.obats.forEach(function(obat, idx) {
-                    let $row = $(obatRow(idx, obat));
-                    $('#obatTable tbody').append($row);
-                    // Pass unit info so the select2 initializer can populate the satuan field
-                    initObatSelect2($row, {id: obat.obat_id, text: obat.obat_nama, satuan: (obat.satuan_dosis || obat.satuan || '')});
-                });
-            }
-            // set active checkbox
-            $('#is_active').prop('checked', data.is_active ? true : false);
-            // populate kategori selection if provided by API
-            if (data.kategoris && Array.isArray(data.kategoris)) {
-                // each kategori should be {id, nama}
-                initKategoriSelect2(data.kategoris.map(function(k){ return {id: k.id, nama: k.nama || k.text || k.name}; }));
-            } else {
-                initKategoriSelect2();
-            }
-            $('#kodeTindakanModalLabel').text('Edit Kode Tindakan');
-            $('#kodeTindakanModal').modal('show');
-        });
-    });
-
-    // Save (add/edit)
-    $('#kodeTindakanForm').submit(function(e) {
+    $('#kodeTindakanForm').on('submit', function (e) {
         e.preventDefault();
+        if (!$.trim($('#nama').val())) { Swal.fire('Periksa lagi', 'Nama tindakan wajib diisi.', 'warning'); return; }
         var id = $('#kodeTindakanId').val();
-        var url = id ? '/marketing/kodetindakan/' + id : '/marketing/kodetindakan';
-        var method = id ? 'PUT' : 'POST';
-        var formData = $(this).serialize();
-        $.ajax({
-            url: url,
-            type: method,
-            data: formData,
-            success: function(res) {
+        var $btn = $('#ktSave').prop('disabled', true);
+        $.ajax({ url: id ? '/marketing/kodetindakan/' + id : '/marketing/kodetindakan', type: id ? 'PUT' : 'POST', data: $(this).serialize() })
+            .done(function (res) {
                 $('#kodeTindakanModal').modal('hide');
-                    table.ajax.reload(null, false);
-                Swal.fire('Berhasil', 'Data berhasil disimpan', 'success');
-            },
-            error: function(xhr) {
-                Swal.fire('Gagal', xhr.responseJSON.message || 'Terjadi kesalahan', 'error');
-            }
-        });
+                reloadWithCounts();
+                if (res && res.warning) Swal.fire({ icon: 'warning', title: 'Tersimpan, tapi perhatikan', text: res.warning });
+                else Swal.fire({ icon: 'success', title: 'Tersimpan', timer: 1500, showConfirmButton: false });
+            })
+            .fail(function (xhr) { showError(ajaxErrorMessage(xhr)); })
+            .always(function () { $btn.prop('disabled', false); });
     });
 
-    // Delete
-    $('#kodeTindakanTable').on('click', '.btn-delete', function() {
+    // Delete: the server refuses a tindakan that is in a paket or in history
+    $('#kodeTindakanTable').on('click', '.btn-delete', function () {
         var id = $(this).data('id');
         Swal.fire({
-            title: 'Hapus Kode Tindakan?',
-            text: 'Data yang dihapus tidak dapat dikembalikan!',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: '/marketing/kodetindakan/' + id,
-                    type: 'DELETE',
-                    data: {_token: '{{ csrf_token() }}'},
-                    success: function(res) {
-                        table.ajax.reload(null, false);
-                        Swal.fire('Berhasil', 'Data berhasil dihapus', 'success');
-                    },
-                    error: function(xhr) {
-                        Swal.fire('Gagal', xhr.responseJSON.message || 'Terjadi kesalahan', 'error');
-                    }
-                });
-            }
+            title: 'Hapus tindakan ' + $(this).data('nama') + '?',
+            text: 'Tindakan yang ada di paket atau riwayat pasien tidak bisa dihapus; nonaktifkan saja.',
+            icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33',
+            confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal', reverseButtons: true, focusCancel: true
+        }).then(function (result) {
+            if (!result.value) return;
+            $.ajax({ url: '/marketing/kodetindakan/' + id, type: 'DELETE' })
+                .done(function () { reloadWithCounts(); Swal.fire({ icon: 'success', title: 'Terhapus', timer: 1500, showConfirmButton: false }); })
+                .fail(function (xhr) { showError(ajaxErrorMessage(xhr)); });
         });
     });
 
-    // Make all inactive
-    $('#btnMakeAllInactive').on('click', function() {
-        $('#bulkActionModalLabel').text('Preview: Nonaktifkan Kode Tindakan');
-        $('#bulkSetActiveValue').val(0);
-        $('#bulkPreviewTable tbody').empty();
-        $('#bulkStart').val('');
-        $('#bulkEnd').val('');
-        $('#bulkActionModal').modal('show');
-    });
-
-    // Make all active
-    $('#btnMakeAllActive').on('click', function() {
-        $('#bulkActionModalLabel').text('Preview: Aktifkan Kode Tindakan');
-        $('#bulkSetActiveValue').val(1);
-        $('#bulkPreviewTable tbody').empty();
-        $('#bulkStart').val('');
-        $('#bulkEnd').val('');
-        $('#bulkActionModal').modal('show');
-    });
-
-    // Bulk preview
-    $('#bulkPreviewBtn').on('click', function(e) {
+    // ================= Import (Admin) =================
+    $('#btnImportCsv').on('click', function () { $('#importCsvForm')[0].reset(); $('#importCsvModal').modal('show'); });
+    $('#importCsvForm').on('submit', function (e) {
         e.preventDefault();
-        var start = $('#bulkStart').val();
-        var end = $('#bulkEnd').val();
-        if (!start || !end) {
-            Swal.fire('Tanggal dibutuhkan', 'Silakan pilih tanggal mulai dan akhir untuk preview.', 'warning');
-            return;
-        }
-        $('#bulkPreviewTable tbody').html('<tr><td colspan="4" class="text-center">Memuat...</td></tr>');
-        $.get('/erm/kodetindakan/by-date', { start: start, end: end }, function(res) {
-            if (!res.success) {
-                Swal.fire('Gagal', res.message || 'Tidak dapat mengambil data', 'error');
-                return;
-            }
-            var rows = '';
-            res.data.forEach(function(item) {
-                var checked = item.is_active ? '' : '';
-                rows += '<tr data-id="'+item.id+'">'
-                    + '<td><input type="checkbox" class="bulk-row-checkbox" value="'+item.id+'"></td>'
-                    + '<td>'+ escapeHtml(item.nama) +'</td>'
-                    + '<td>'+ item.created_at +'</td>'
-                    + '<td>'+(item.is_active ? '<span class="badge badge-success">Aktif</span>' : '<span class="badge badge-secondary">Nonaktif</span>')+'</td>'
-                    + '</tr>';
-            });
-            if (!res.data.length) rows = '<tr><td colspan="4" class="text-center">Tidak ada data</td></tr>';
-            $('#bulkPreviewTable tbody').html(rows);
-        }).fail(function() {
-            Swal.fire('Gagal', 'Terjadi kesalahan saat mengambil preview', 'error');
-        });
-    });
-
-    // select all in preview
-    $(document).on('change', '#bulkSelectAll', function() {
-        var checked = $(this).is(':checked');
-        $('#bulkPreviewTable tbody').find('.bulk-row-checkbox').prop('checked', checked);
-    });
-
-    // Apply bulk set active
-    $('#bulkApplyBtn').on('click', function() {
-        var setActive = parseInt($('#bulkSetActiveValue').val(),10);
-        var ids = [];
-        $('#bulkPreviewTable tbody').find('.bulk-row-checkbox:checked').each(function() { ids.push($(this).val()); });
-        var payload = {_token: '{{ csrf_token() }}', set_active: setActive};
-        if (ids.length) {
-            payload.ids = ids;
-        } else {
-            var start = $('#bulkStart').val();
-            var end = $('#bulkEnd').val();
-            if (!start || !end) {
-                Swal.fire('Tidak ada data', 'Pilih baris atau tentukan rentang tanggal untuk melakukan aksi.', 'warning');
-                return;
-            }
-            payload.start = start; payload.end = end;
-        }
-        Swal.fire({title: 'Menerapkan...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
-        $.post('/erm/kodetindakan/action/bulk-set-active', payload, function(res) {
-            $('#bulkActionModal').modal('hide');
-            table.ajax.reload(null, false);
-            Swal.fire('Selesai', 'Diperbarui: ' + (res.updated||0), 'success');
-        }).fail(function(xhr) {
-            Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Terjadi kesalahan', 'error');
-        });
+        var file = $('#csvFile')[0].files;
+        if (!file || !file.length) { Swal.fire('Pilih file', 'Silakan pilih file CSV terlebih dahulu.', 'warning'); return; }
+        var fd = new FormData();
+        fd.append('csv', file[0]);
+        fd.append('_token', CSRF);
+        Swal.fire({ title: 'Mengimpor...', allowOutsideClick: false, onOpen: function () { Swal.showLoading(); } });
+        $.ajax({ url: '/erm/marketing/kodetindakan/import', type: 'POST', data: fd, processData: false, contentType: false })
+            .done(function (res) {
+                $('#importCsvModal').modal('hide');
+                reloadWithCounts();
+                var list = function (items, fmt) { return items && items.length ? '<ul>' + items.map(fmt).join('') + '</ul>' : ''; };
+                Swal.fire({ title: 'Import selesai', width: 700, html: '<div style="max-height:320px;overflow:auto;text-align:left">'
+                    + '<p><strong>Dibuat:</strong> ' + (res.created || 0) + '</p>' + list(res.created_items, function (it) { return '<li>#' + it.row + ' ' + esc(it.nama) + '</li>'; })
+                    + '<p><strong>Dilewati:</strong> ' + (res.skipped || 0) + '</p>' + list(res.skipped_items, function (it) { return '<li>#' + it.row + ' ' + esc(it.nama) + ' — ' + esc(it.reason) + '</li>'; })
+                    + '</div>' });
+            })
+            .fail(function (xhr) { showError(ajaxErrorMessage(xhr, 'Import gagal')); });
     });
 });
-
 </script>
 @endpush

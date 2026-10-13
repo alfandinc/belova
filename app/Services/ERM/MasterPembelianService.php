@@ -6,6 +6,7 @@ use App\Models\ERM\FakturBeli;
 use App\Models\ERM\MasterFaktur;
 use App\Models\ERM\Obat;
 use App\Models\ERM\PermintaanItem;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Master Pembelian (erm_master_faktur) is the single source for "obat X from pemasok Y":
@@ -17,6 +18,23 @@ use App\Models\ERM\PermintaanItem;
  */
 class MasterPembelianService
 {
+    /**
+     * Estimated HPP (excl PPN) for obat that were never bought: the Master Pembelian price of the latest
+     * pemasok entry. Only an estimate; the real HPP comes from the first approved faktur.
+     * Rows: obat_id, hpp_estimasi.
+     */
+    public static function estimasiHppQuery()
+    {
+        $latest = DB::table('erm_master_faktur')
+            ->where('harga', '>', 0)
+            ->groupBy('obat_id')
+            ->select('obat_id', DB::raw('MAX(id) as id'));
+
+        return DB::table('erm_master_faktur as mf')
+            ->joinSub($latest, 'mfl', 'mfl.id', '=', 'mf.id')
+            ->select('mf.obat_id', 'mf.harga as hpp_estimasi');
+    }
+
     /** Principal of an obat, from Master Obat. */
     public function principalFor(?int $obatId): ?int
     {

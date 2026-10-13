@@ -87,7 +87,7 @@ class DocumentController extends Controller
         $breadcrumbs = $this->getBreadcrumbs($currentFolder);
 
         // Use Spatie role check for admin
-        $isAdmin = $user->hasRole('Admin') || $user->hasRole('admin') || $user->hasRole('super admin');
+        $isAdmin = $user->hasRole('Admin');
         
         return view('workdoc.index', compact('folders', 'documents', 'currentFolder', 'divisions', 'breadcrumbs', 'isAdmin'));
     }

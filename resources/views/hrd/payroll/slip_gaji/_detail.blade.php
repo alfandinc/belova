@@ -7,7 +7,7 @@
     $isPaid = $normalizedStatus === 'paid';
     $isCeoSlipView = auth()->check()
         && method_exists(auth()->user(), 'hasAnyRole')
-        && auth()->user()->hasAnyRole(['Ceo', 'CEO']);
+        && auth()->user()->hasRole('Ceo');
 
     if ($normalizedStatus === 'rejected') {
         $statusOptions = [

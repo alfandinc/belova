@@ -67,7 +67,7 @@ class PrSlipGajiController extends Controller
     {
         return $user
             && method_exists($user, 'hasAnyRole')
-            && $user->hasAnyRole(['Ceo', 'CEO']);
+            && $user->hasRole('Ceo');
     }
 
     protected function isPayrollOperator($user)

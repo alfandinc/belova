@@ -292,7 +292,7 @@
                                 <label>Satuan Stok</label>
                                 <select id="edit_obat_satuan" name="satuan_stok" class="form-control form-control-sm">
                                     <option value="">-- Pilih Satuan Stok --</option>
-                                    @foreach(\App\Models\ERM\Obat::SATUAN_STOK_LIST as $s)
+                                    @foreach(\App\Models\ERM\Obat::satuanStokOptions() as $s)
                                         <option value="{{ $s }}">{{ $s }}</option>
                                     @endforeach
                                 </select>

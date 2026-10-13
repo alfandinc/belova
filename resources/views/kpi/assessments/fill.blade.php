@@ -1,7 +1,7 @@
 <div class="card" id="kpiAssessmentFillSection">
     <div class="card-body">
         @php
-            $isHrdUser = auth()->user()?->hasAnyRole(['Hrd', 'HRD', 'hrd']);
+            $isHrdUser = auth()->user()?->hasRole('Hrd');
         @endphp
         <div class="mb-3">
             <h4 class="mb-2">KPI Assessment - {{ optional($assessment->period)->period_name ?: (optional(optional($assessment->period)->month) ? \DateTime::createFromFormat('!m', optional($assessment->period)->month)->format('F') . ' ' . optional($assessment->period)->year : '') }}</h4>

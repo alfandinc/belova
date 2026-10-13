@@ -21,10 +21,6 @@ class KodeTindakan extends Model
     protected $fillable = [
         'kode',
         'nama',
-        'hpp',
-        'harga_jasmed',
-        'harga_jual',
-        'harga_bottom',
         'is_active',
     ];
 
@@ -32,10 +28,6 @@ class KodeTindakan extends Model
      * The attributes that should be cast.
      */
     protected $casts = [
-        'hpp' => 'decimal:2',
-        'harga_jasmed' => 'decimal:2',
-        'harga_jual' => 'decimal:2',
-        'harga_bottom' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 

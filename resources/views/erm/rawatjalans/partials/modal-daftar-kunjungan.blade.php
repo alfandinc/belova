@@ -365,7 +365,13 @@
                                         <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_WEBSITE }}">Website</option>
                                         <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_PARTNERSHIP }}">B2B Partnership</option>
                                         <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_GOOGLE_MAPS }}">Google Maps</option>
+                                        <option value="{{ \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP }}">Follow Up CRM</option>
                                     </select>
+                                </div>
+
+                                <div class="col-sm form-group d-none" id="rj_referral_follow_up_wrapper">
+                                    <label for="rj_referral_follow_up_id">Follow Up</label>
+                                    <select class="form-control rj-referral-select2" id="rj_referral_follow_up_id" name="referral_follow_up_id" disabled></select>
                                 </div>
 
                                 <div class="col-sm form-group d-none" id="rj_referral_pasien_wrapper">
@@ -573,7 +579,8 @@ $(document).ready(function(){
         event: 'Event',
         website: 'Website',
         partnership: 'B2B Partnership',
-        google_maps: 'Google Maps'
+        google_maps: 'Google Maps',
+        follow_up: 'Follow Up CRM'
     };
     const RJ_REFERRAL_DETAIL_OPTIONS = {
         social_media: [
@@ -593,6 +600,8 @@ $(document).ready(function(){
     };
     const RJ_REFERRAL_TYPES_WITH_DETAIL = ['social_media', 'marketplace', 'partnership', 'google_maps'];
     let rjReferralContext = null;
+    // Follow up the modal was opened from ({ id, label }); becomes the visit referral
+    let rjPendingFollowUp = null;
 
     $('#modalDaftarKunjunganRawatJalan .rj-referral-select2').select2({ width: '100%' });
     $('#rj_referral_target_pasien_id').select2({
@@ -646,8 +655,23 @@ $(document).ready(function(){
         $('#rj_referral_type').val('').trigger('change.select2');
         $('#rj_referral_employee_id, #rj_referral_dokter_id, #rj_referral_event_id').val('').trigger('change.select2');
         $('#rj_referral_target_pasien_id').val(null).trigger('change.select2');
+        $('#rj_referral_follow_up_id').empty().trigger('change.select2');
         $('#rj_referral_detail_select').empty();
         $('#rj_referral_detail_input').val('');
+    }
+
+    // Options = the patient's open follow ups (+ the one the modal was opened from)
+    function fillRjFollowUpOptions(followUps) {
+        const $select = $('#rj_referral_follow_up_id').empty();
+        const list = (followUps || []).slice();
+        if (rjPendingFollowUp && !list.some(function(f) { return String(f.id) === String(rjPendingFollowUp.id); })) {
+            list.unshift(rjPendingFollowUp);
+        }
+        list.forEach(function(f) {
+            $select.append(new Option(f.label || ('Follow up #' + f.id), f.id, false, false));
+        });
+        $select.val(list.length ? String((rjPendingFollowUp || list[0]).id) : null).trigger('change.select2');
+        return list;
     }
 
     function syncRjReferralFields() {
@@ -664,12 +688,14 @@ $(document).ready(function(){
         $('#rj_referral_employee_wrapper').toggleClass('d-none', !editable || type !== 'employee');
         $('#rj_referral_dokter_wrapper').toggleClass('d-none', !editable || type !== 'dokter');
         $('#rj_referral_event_wrapper').toggleClass('d-none', !editable || type !== 'event');
+        $('#rj_referral_follow_up_wrapper').toggleClass('d-none', !editable || type !== 'follow_up');
         $('#rj_referral_detail_wrapper').toggleClass('d-none', !editable || !needsDetail);
 
         $('#rj_referral_target_pasien_id').prop('disabled', !editable || type !== 'pasien');
         $('#rj_referral_employee_id').prop('disabled', !editable || type !== 'employee');
         $('#rj_referral_dokter_id').prop('disabled', !editable || type !== 'dokter');
         $('#rj_referral_event_id').prop('disabled', !editable || type !== 'event');
+        $('#rj_referral_follow_up_id').prop('disabled', !editable || type !== 'follow_up');
 
         if (detailOptions) {
             const currentValue = detailSelect.val() || '';
@@ -719,6 +745,10 @@ $(document).ready(function(){
                 } else if (isRjReferralLockedToDokter()) {
                     $('#rj_referral_type').val('dokter').trigger('change.select2');
                     $('#rj_referral_hint').text('Didaftarkan oleh dokter — referral otomatis: Dokter (' + rjReferralContext.registrar_dokter.label + '). Sumber awal pasien: ' + sourceLabel + '.');
+                } else if (fillRjFollowUpOptions(rjReferralContext.follow_ups).length) {
+                    // Booked from a CRM follow up: that follow up is the referral, still changeable
+                    $('#rj_referral_type').val('follow_up').trigger('change.select2');
+                    $('#rj_referral_hint').text('Referral otomatis dari follow up CRM. Ganti bila pasien datang karena hal lain. Sumber awal pasien: ' + sourceLabel + '.');
                 } else {
                     $('#rj_referral_hint').text('Sumber awal pasien: ' + sourceLabel + '. Pilih alasan datang kunjungan ini.');
                 }
@@ -748,6 +778,7 @@ $(document).ready(function(){
         if (type === 'employee' && !$('#rj_referral_employee_id').val()) return 'Karyawan referral wajib dipilih.';
         if (type === 'dokter' && !$('#rj_referral_dokter_id').val()) return 'Dokter referral wajib dipilih.';
         if (type === 'event' && !$('#rj_referral_event_id').val()) return 'Event referral wajib dipilih.';
+        if (type === 'follow_up' && !$('#rj_referral_follow_up_id').val()) return 'Pasien ini tidak punya follow up yang bisa dipakai. Pilih referral lain.';
         if (RJ_REFERRAL_DETAIL_OPTIONS[type] && !$('#rj_referral_detail_select').val()) return 'Detail referral wajib dipilih.';
         if (['partnership', 'google_maps'].includes(type) && !($('#rj_referral_detail_input').val() || '').trim()) return 'Detail referral wajib diisi.';
 
@@ -801,6 +832,9 @@ $(document).ready(function(){
         $('#rj_referral_target_pasien_id').val(null).trigger('change.select2');
         $('#rj_referral_detail_select').val('');
         $('#rj_referral_detail_input').val('');
+        if ($(this).val() === 'follow_up') {
+            fillRjFollowUpOptions(rjReferralContext ? rjReferralContext.follow_ups : []);
+        }
         syncRjReferralFields();
     });
 
@@ -1205,10 +1239,12 @@ $(document).ready(function(){
 
     /**
      * Single entry point for every "Daftarkan Kunjungan" flow.
-     * opts: { jenis, pasienId, pasienNama, klinikId, dokterId, metodeBayarId } (all optional)
+     * opts: { jenis, pasienId, pasienNama, klinikId, dokterId, metodeBayarId, followUpId, followUpLabel } (all optional)
      */
     function openRjDaftarKunjungan(opts) {
         opts = opts || {};
+        // Set before the patient is applied: its referral context load picks it up
+        rjPendingFollowUp = opts.followUpId ? { id: String(opts.followUpId), label: opts.followUpLabel || '' } : null;
         applyMode(opts.jenis || 'konsultasi');
         setFixedPasienContext(opts.pasienId || '', opts.pasienNama || '');
         $('#rj_tanggal_visitation').val(todayYmd());
@@ -1364,6 +1400,7 @@ $(document).ready(function(){
         try { $('#rj_dokter_id').empty().append('<option value="">Tanpa Dokter</option>').prop('disabled', true).trigger('change.select2'); } catch(e) {}
         $('#rj_no_antrian').val('');
         rjFixedPasienContext = null;
+        rjPendingFollowUp = null;
         $('#rj_pasien_id').prop('disabled', false);
         resetRawatJalanMarketplaceFields();
         toggleRjCalendarPreview(false);

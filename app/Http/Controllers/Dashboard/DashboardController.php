@@ -3,79 +3,69 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
-use App\Models\Sys\PositionWidget;
+use App\Support\Dashboard\DashboardWidgets;
+use App\Support\Dashboard\QuickLinks;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\View;
 
 class DashboardController extends Controller
 {
+    /**
+     * The page itself only lists the user's widgets (config/dashboard_widgets.php, per role permission);
+     * each widget's data is fetched afterwards from widget(), so a heavy widget never holds up the page
+     * (or the redirect right after login).
+     */
     public function index(Request $request)
     {
         $user = Auth::user();
-        $employee = $user?->employee;
-        $position = $employee?->primaryPosition();
+
+        return view('dashboard.index', [
+            'dashboardWidgets' => DashboardWidgets::forUser($user),
+            'employeePosition' => $user?->employee?->primaryPosition(),
+            'quickLinks' => QuickLinks::forUser($user),
+            'dashboardFilter' => $this->filter($request),
+            // Unread "jadwal diubah" notifications, shown on the header's "Jadwal Saya" button
+            'jadwalUnread' => $user->unreadNotifications()
+                ->where('type', \App\Notifications\JadwalBerubahNotification::class)
+                ->count(),
+        ]);
+    }
+
+    /** One widget's rendered HTML for the current period and widget options (AJAX). */
+    public function widget(Request $request, string $key)
+    {
+        $user = Auth::user();
+        $widget = DashboardWidgets::forUser($user)->firstWhere('key', $key);
+        abort_unless($widget, 404);
+
+        $dashboardFilter = $this->filter($request);
+        DashboardWidgets::load(collect([$widget]), $user, $dashboardFilter);
+
+        return response()->json([
+            'html' => view('dashboard.partials.widget', compact('widget', 'dashboardFilter'))->render(),
+        ]);
+    }
+
+    private function filter(Request $request): array
+    {
         $now = Carbon::now();
+        $start = $this->parseStartDate($request->input('start_date'), $now);
+        $end = $this->parseEndDate($request->input('end_date'), $start, $now);
 
-        $selectedPeriodStart = $this->parseStartDate($request->input('start_date'), $now);
-        $selectedPeriodEnd = $this->parseEndDate($request->input('end_date'), $selectedPeriodStart, $now);
-
-        if ($selectedPeriodEnd->lt($selectedPeriodStart)) {
-            [$selectedPeriodStart, $selectedPeriodEnd] = [$selectedPeriodEnd->copy()->startOfDay(), $selectedPeriodStart->copy()->endOfDay()];
+        if ($end->lt($start)) {
+            [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
         }
 
-        $dashboardFilter = [
-            'year' => (int) $selectedPeriodEnd->year,
-            'month' => (int) $selectedPeriodStart->month,
-            'period_start' => $selectedPeriodStart,
-            'period_end' => $selectedPeriodEnd,
-            'start_date' => $selectedPeriodStart->format('Y-m-d'),
-            'end_date' => $selectedPeriodEnd->format('Y-m-d'),
-            'label' => $selectedPeriodStart->format('Y-m-d') . ' - ' . $selectedPeriodEnd->format('Y-m-d'),
+        return [
+            'year' => (int) $end->year,
+            'month' => (int) $start->month,
+            'period_start' => $start,
+            'period_end' => $end,
+            'start_date' => $start->format('Y-m-d'),
+            'end_date' => $end->format('Y-m-d'),
+            'label' => $start->format('Y-m-d') . ' - ' . $end->format('Y-m-d'),
         ];
-
-        $widgets = collect();
-
-        if ($position) {
-            $widgets = PositionWidget::query()
-                ->with('widget')
-                ->where('position_id', $position->id)
-                ->orderBy('row_index')
-                ->orderBy('order_index')
-                ->get()
-                ->filter(function ($mapping) {
-                    return $mapping->widget && $mapping->widget->is_active;
-                })
-                ->map(function ($mapping) {
-                    $widget = $mapping->widget;
-                    $widget->resolved_view = $this->normalizeWidgetViewPath($widget->component_path);
-                    $widget->view_exists = $widget->resolved_view
-                        ? View::exists($widget->resolved_view)
-                        : false;
-                    $widget->row_index = max(1, (int) ($mapping->row_index ?? 1));
-                    $widget->column_span = max(1, min(12, (int) $mapping->column_span));
-
-                    return $widget;
-                })
-                ->values();
-        }
-
-        $viewData = [
-            'dashboardWidgets' => $widgets,
-            'employeePosition' => $position,
-            'dashboardFilter' => $dashboardFilter,
-        ];
-
-        if ($request->ajax()) {
-            return response()->json([
-                'html' => view('dashboard.partials.widgets_grid', $viewData)->render(),
-                'hasEmployeePosition' => (bool) $position,
-                'hasWidgets' => $widgets->isNotEmpty(),
-            ]);
-        }
-
-        return view('dashboard.index', $viewData);
     }
 
     private function parseStartDate(?string $value, Carbon $now): Carbon
@@ -104,27 +94,5 @@ class DashboardController extends Controller
         } catch (\Throwable $e) {
             return $startDate->copy()->endOfMonth();
         }
-    }
-
-    private function normalizeWidgetViewPath(?string $componentPath): ?string
-    {
-        if (! $componentPath) {
-            return null;
-        }
-
-        $path = trim($componentPath);
-        $path = str_replace('\\', '/', $path);
-
-        if (str_starts_with($path, 'resources/views/')) {
-            $path = substr($path, strlen('resources/views/'));
-        }
-
-        if (str_ends_with($path, '.blade.php')) {
-            $path = substr($path, 0, -10);
-        } elseif (str_ends_with($path, '.php')) {
-            $path = substr($path, 0, -4);
-        }
-
-        return str_replace('/', '.', trim($path, './'));
     }
 }

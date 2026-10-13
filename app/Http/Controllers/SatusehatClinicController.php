@@ -31,10 +31,12 @@ class SatusehatClinicController extends Controller
         // Guzzle verify option: allow control from .env
         // SATUSEHAT_SSL_VERIFY=false  -> disable verification (development only)
         // SATUSEHAT_CACERT_PATH=/path/to/cacert.pem -> use custom CA bundle
+        // Read via config (not env()) so it keeps working after `php artisan config:cache`
         $verify = true;
-        if (env('SATUSEHAT_SSL_VERIFY') === 'false' || env('SATUSEHAT_SSL_VERIFY') === false) {
+        $sslVerify = config('services.satusehat.ssl_verify', true);
+        if ($sslVerify === 'false' || $sslVerify === false) {
             $verify = false;
-        } elseif ($path = env('SATUSEHAT_CACERT_PATH')) {
+        } elseif ($path = config('services.satusehat.cacert_path')) {
             $verify = $path;
         }
 

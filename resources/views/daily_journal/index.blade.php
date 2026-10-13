@@ -1284,7 +1284,7 @@
 
             {{-- <a href="/" class="back-link">
                 <i class="fas fa-arrow-left"></i>
-                <span>Kembali ke Main Menu</span>
+                <span>Kembali ke Dashboard</span>
             </a> --}}
         </div>
     </div>

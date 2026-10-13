@@ -47,10 +47,7 @@
     <link href="{{ asset('dastone/default/assets/css/icons.min.css')}}" rel="stylesheet" type="text/css" />
 
     <!-- Theme CSS -->
-    <link id="bootstrap-dark" href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" />
-    <link id="app-dark" href="{{ asset('dastone/default/assets/css/app-dark.min.css') }}" rel="stylesheet" />
-    <link id="bootstrap-light" href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" disabled />
-    <link id="app-light" href="{{ asset('dastone/default/assets/css/app.min.css') }}" rel="stylesheet" disabled />
+    @include('layouts.shared.theme_styles')
 
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
 
@@ -117,6 +114,8 @@
     <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
     {{-- <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script> --}}
     <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
+    {{-- One notification poller per browser instead of per tab (used by farmasi/perawat/lab/rawat jalan polling) --}}
+    <script src="{{ asset('js/belova-tab-leader.js') }}?v={{ filemtime(public_path('js/belova-tab-leader.js')) }}"></script>
 
     <!-- Sweet-Alert  -->
         <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js')}}"></script>
@@ -133,10 +132,7 @@
 
             html.classList.add('no-transition');
 
-            bootstrapDark.disabled = !isDark;
-            appDark.disabled = !isDark;
-            bootstrapLight.disabled = isDark;
-            appLight.disabled = isDark;
+            window.belovaSetThemeSheets(isDark);
 
             // Force style recalculation
             void bootstrapDark.offsetWidth;
@@ -183,8 +179,8 @@
             const LS_KEY = 'labNotifLastCompleted';
             const endpoint = '{{ route('erm.elab.notifications.completed') }}';
             const pollIntervalMs = 15000;
-            let lastCompleted = localStorage.getItem(LS_KEY); // last seen completed_at
-            let initialHydrated = false; // prevent toasts on first load
+            let lastCompleted = null; // last seen completed_at, shared by all tabs through localStorage
+            let pollBusy = false;
 
             function toast(text){
                 Swal.fire({
@@ -200,19 +196,22 @@
             }
 
             async function poll(){
+                if (pollBusy) return;
+                pollBusy = true;
                 try {
+                    // Re-read every time: another tab may have been the poller until now
+                    lastCompleted = localStorage.getItem(LS_KEY);
                     const url = new URL(endpoint, window.location.origin);
                     if (lastCompleted) url.searchParams.set('since', lastCompleted);
                     const res = await fetch(url.toString(), { headers:{'X-Requested-With':'XMLHttpRequest'} });
                     if(!res.ok) throw new Error('HTTP '+res.status);
                     const data = await res.json();
                     if(data.ok){
-                        // If first hydration (no lastCompleted yet), just set baseline and skip toasts
-                        if(!initialHydrated){
+                        // First hydration in this browser (no lastCompleted yet): just set baseline and skip toasts
+                        if(!lastCompleted){
                             // Prefer last_completed_at returned, fallback server_time
                             lastCompleted = data.last_completed_at || data.server_time;
                             if (lastCompleted) localStorage.setItem(LS_KEY, lastCompleted);
-                            initialHydrated = true;
                         } else {
                             (data.data || []).forEach(item => {
                                 if(item.completed_at){
@@ -234,12 +233,18 @@
                 } catch(e){
                     // silent
                 } finally {
-                    setTimeout(poll, pollIntervalMs);
+                    pollBusy = false;
                 }
             }
 
             document.addEventListener('DOMContentLoaded', function(){
-                poll();
+                // One poller per browser (the tab the user is looking at); see public/js/belova-tab-leader.js
+                if (window.BelovaTabLeader) {
+                    window.BelovaTabLeader.run('lab-notif', pollIntervalMs, poll);
+                } else {
+                    setInterval(poll, pollIntervalMs);
+                    poll();
+                }
             });
         })();
     </script>

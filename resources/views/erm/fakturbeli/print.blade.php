@@ -40,7 +40,7 @@
             @foreach($faktur->items as $i => $item)
             <tr>
                 <td>{{ $i+1 }}</td>
-                <td>{{ $item->obat->nama ?? '-' }}</td>
+                <td>{{ $item->obat->nama ?? '-' }}@if($item->is_bonus) <em>(bonus)</em>@endif</td>
                 <td class="right">{{ $item->diminta }}</td>
                 <td class="right">{{ $item->qty }}</td>
                 <td class="right">{{ number_format($item->harga, 2, ',', '.') }}</td>

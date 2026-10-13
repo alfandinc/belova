@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\Tindakan;
-use App\Models\ERM\PaketTindakan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -18,170 +16,109 @@ class TindakanController extends Controller
      */
     public function index()
     {
-        return view('marketing.tindakan.index');
+        return view('marketing.tindakan.index', [
+            'actionCounts' => $this->actionCounts(),
+            'statusCounts' => $this->statusCounts(),
+            'spesialisasi' => \App\Models\ERM\Spesialisasi::orderBy('nama')->get(['id', 'nama']),
+        ]);
+    }
+
+    /** Aktif / nonaktif / semua, for the status buttons */
+    private function statusCounts(): array
+    {
+        $row = Tindakan::query()->selectRaw('COUNT(*) as semua, COALESCE(SUM(is_active = 1), 0) as aktif')->first();
+
+        return ['active' => (int) $row->aktif, 'inactive' => (int) $row->semua - (int) $row->aktif, 'all' => (int) $row->semua];
     }
 
     /**
-     * Get tindakan data for DataTables.
+     * "Data yang perlu action" for active paket: shown as cards; each card filters the table.
+     * key => [label, hint, filter]
+     */
+    private function actionChecks(): array
+    {
+        return [
+            'tanpa_isi' => ['Paket aktif belum ada tindakan', 'obat/BHP tidak tercatat saat dipakai',
+                fn ($q) => $q->where('is_active', true)->doesntHave('kodeTindakans')],
+            'isi_nonaktif' => ['Paket aktif berisi tindakan nonaktif', 'ganti atau keluarkan tindakan tersebut',
+                fn ($q) => $q->where('is_active', true)->whereHas('kodeTindakans', fn ($k) => $k->where('is_active', false))],
+            'tanpa_harga' => ['Paket aktif belum ada harga', 'tertagih Rp 0; ajukan harga',
+                fn ($q) => $q->where('is_active', true)->where(fn ($h) => $h->whereNull('harga')->orWhere('harga', '<=', 0))],
+            'nama_lama' => ['Nama "(menu lama)" / "- copy"', 'sisa import lama; nonaktifkan atau ganti nama',
+                fn ($q) => $q->where(fn ($n) => $n->where('nama', 'like', '%(menu lama)%')->orWhere('nama', 'like', '% - copy%'))],
+        ];
+    }
+
+    private function actionCounts(): array
+    {
+        $out = [];
+        foreach ($this->actionChecks() as $key => [$label, $hint, $filter]) {
+            $out[$key] = ['label' => $label, 'hint' => $hint, 'count' => $filter(Tindakan::query())->count()];
+        }
+        return $out;
+    }
+
+    /**
+     * Paket list for the DataTable: plain data, the page renders it. Search covers nama, spesialis and isi;
+     * the card / status counts are only sent when asked (?counts=1: first load and after a change).
      */
     public function getTindakanData(Request $request)
     {
-        $spesialisId = $request->input('spesialis_id');
-        $status = $request->input('status');
-        $canDelete = Auth::check()
-            && method_exists(Auth::user(), 'hasAnyRole')
-            && Auth::user()->hasAnyRole(['Admin', 'admin']);
+        $query = Tindakan::query()
+            ->with(['spesialis:id,nama', 'kodeTindakans:id,nama,is_active'])
+            ->select('erm_tindakan.*')
+            ->withCount('kodeTindakans')
+            ->addSelect(['pengajuan_harga' => \App\Models\ERM\TindakanHargaPengajuan::select('harga_baru')
+                ->whereColumn('tindakan_id', 'erm_tindakan.id')->where('status', 'menunggu')->latest('id')->limit(1)]);
 
-        $query = Tindakan::with('spesialis')->withCount(['sop', 'kodeTindakans']);
-        if ($spesialisId) {
-            $query->where('spesialis_id', $spesialisId);
+        if ($request->filled('spesialis_id')) {
+            $query->where('spesialis_id', $request->input('spesialis_id'));
         }
-        if ($status === 'active') {
-            $query->where('is_active', true);
-        } elseif ($status === 'inactive') {
-            $query->where('is_active', false);
+        match ($request->input('status')) {
+            'active' => $query->where('is_active', true),
+            'inactive' => $query->where('is_active', false),
+            default => null,
+        };
+        match ($request->input('jenis')) {
+            'slimming' => $query->where('is_slimming', true),
+            'vaksin' => $query->where('is_vaksin', true),
+            'multivisit' => $query->where('multi_visit_total', '>', 1),
+            'diskon' => $query->where('diskon_active', true)->where('harga_diskon', '>', 0),
+            default => null,
+        };
+        // "Data yang perlu action" card filter
+        $checks = $this->actionChecks();
+        if (isset($checks[$request->input('action')])) {
+            $checks[$request->input('action')][2]($query);
+        }
+        $q = trim((string) $request->input('search.value'));
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('erm_tindakan.nama', 'like', "%{$q}%")
+                    ->orWhereHas('spesialis', fn ($s) => $s->where('nama', 'like', "%{$q}%"))
+                    ->orWhereHas('kodeTindakans', fn ($k) => $k->where('erm_kode_tindakan.nama', 'like', "%{$q}%"));
+            });
         }
 
-        return DataTables::of($query)
-            ->addColumn('spesialis_nama', function ($row) {
-                return $row->spesialis ? $row->spesialis->nama : 'N/A';
-            })
-            ->editColumn('nama', function ($row) {
-                $nama = $row->nama;
-                if (isset($row->kode_tindakans_count) && $row->kode_tindakans_count == 0) {
-                    $nama = '<i class="fas fa-exclamation-triangle text-danger blink-icon mr-2" title="No Kode Tindakan assigned"></i>' . $nama;
-                }
-                return $nama;
-            })
-            ->addColumn('action', function ($row) use ($canDelete) {
-                $deleteButton = $canDelete ? '
-                    <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm delete-tindakan" data-id="'.$row->id.'">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                ' : '
-                    <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                ';
+        $table = DataTables::eloquent($query)
+            ->only(['id', 'nama', 'spesialis_nama', 'harga', 'harga_diskon', 'diskon_active', 'harga_paket_visit', 'multi_visit_total',
+                'is_slimming', 'is_vaksin', 'is_active', 'pengajuan_harga', 'isi', 'isi_count', 'isi_nonaktif'])
+            ->addColumn('spesialis_nama', fn ($row) => optional($row->spesialis)->nama)
+            ->addColumn('isi', fn ($row) => $row->kodeTindakans->pluck('nama')->sort()->values()->take(6)->all())
+            ->addColumn('isi_count', fn ($row) => (int) $row->kode_tindakans_count)
+            ->addColumn('isi_nonaktif', fn ($row) => $row->kodeTindakans->where('is_active', false)->count())
+            ->orderColumn('nama', 'erm_tindakan.nama $1')
+            ->orderColumn('spesialis_nama', '(SELECT nama FROM erm_spesialisasis WHERE erm_spesialisasis.id = erm_tindakan.spesialis_id) $1')
+            ->orderColumn('harga', 'erm_tindakan.harga $1')
+            ->orderColumn('is_active', 'erm_tindakan.is_active $1')
+            // Rendered and escaped by the page
+            ->escapeColumns([]);
 
-                return $deleteButton . '
-                    <button type="button" class="btn btn-secondary btn-sm toggle-active-tindakan" data-id="'.$row->id.'" data-active="'.($row->is_active ? '1' : '0').'">
-                        '.($row->is_active ? '<i class="fas fa-eye"></i> Active' : '<i class="fas fa-eye-slash"></i> Inactive').'
-                    </button>
-                ';
-            })
-            ->addColumn('status', function($row) {
-                if ($row->is_active) {
-                    return '<span class="badge badge-success">Active</span>'; 
-                }
-                return '<span class="badge badge-secondary">Inactive</span>';
-            })
-            ->rawColumns(['nama', 'action', 'status'])
-            ->make(true);
-    }
+        if ($request->boolean('counts')) {
+            $table->with('action_counts', $this->actionCounts())->with('status_counts', $this->statusCounts());
+        }
 
-        /**
-     * AJAX search for SOPs (for Select2)
-     */
-    public function searchSop(Request $request)
-    {
-        $q = $request->input('q');
-        $sopQuery = \App\Models\ERM\Sop::query();
-        if ($q) {
-            $sopQuery->where('nama_sop', 'like', "%".$q."%");
-        }
-        $sops = $sopQuery->orderBy('nama_sop')->limit(20)->get(['id', 'nama_sop']);
-        $results = $sops->map(function($sop) {
-            return [
-                'id' => $sop->id,
-                'nama_sop' => $sop->nama_sop
-            ];
-        });
-        return response()->json($results);
-    }
-
-    /**
-     * Get all SOPs and selected SOPs for a tindakan (for modal select2)
-     */
-    public function getSopTindakan($id)
-    {
-        $tindakan = Tindakan::with(['sop' => function($q) { $q->orderBy('urutan'); }])->findOrFail($id);
-        $orderedSops = $tindakan->sop;
-        $allSop = \App\Models\ERM\Sop::all(['id', 'nama_sop']);
-        $selectedSopIds = $orderedSops->pluck('id')->toArray();
-        return response()->json([
-            'all_sop' => $allSop,
-            'selected_sop_ids' => $selectedSopIds
-        ]);
-    }
-
-    /**
-     * Update SOPs for a tindakan (from modal select2)
-     */
-    public function updateSopTindakan(Request $request, $id)
-    {
-        $tindakan = Tindakan::findOrFail($id);
-        $sopIds = $request->input('sop_ids', []);
-        $currentSops = $tindakan->sop;
-        $toDelete = $currentSops->whereNotIn('id', $sopIds);
-        $notDeleted = [];
-        foreach ($toDelete as $sop) {
-            $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
-            if ($isReferenced) {
-                $notDeleted[] = $sop->nama_sop;
-                // Do not delete or update, and keep it assigned to tindakan (do nothing)
-                if (!in_array($sop->id, $sopIds)) {
-                    $sopIds[] = $sop->id;
-                }
-                continue;
-            }
-            // Only delete if not referenced
-            $sop->delete();
-        }
-        // Do NOT update tindakan_id to null for referenced SOPs, only for non-referenced ones
-        // So, no further detach/update here
-        // Add new SOPs (clone from master SOP if not already present)
-        $existingIds = $currentSops->pluck('id')->toArray();
-        foreach ($sopIds as $idx => $sopId) {
-            if (!in_array($sopId, $existingIds)) {
-                $sop = \App\Models\ERM\Sop::find($sopId);
-                if ($sop) {
-                    $tindakan->sop()->create([
-                        'nama_sop' => $sop->nama_sop,
-                        'deskripsi' => $sop->deskripsi,
-                        'urutan' => $idx + 1
-                    ]);
-                }
-            }
-        }
-        // Update urutan for all assigned SOPs (including existing)
-        $assignedSops = $tindakan->sop()->whereIn('id', $sopIds)->get();
-        foreach ($sopIds as $idx => $sopId) {
-            $sop = $assignedSops->where('id', $sopId)->first();
-            if ($sop) {
-                $sop->urutan = $idx + 1;
-                $sop->save();
-            }
-        }
-        $msg = 'SOP tindakan updated successfully.';
-        if (count($notDeleted)) {
-            $msg .= ' Some SOPs were not deleted because they are in use: ' . implode(', ', $notDeleted);
-        }
-        return response()->json([
-            'success' => true,
-            'message' => $msg
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new tindakan.
-     */
-    public function create()
-    {
-        return view('marketing.tindakan.form');
+        return $table->make(true);
     }
 
     /**
@@ -189,27 +126,35 @@ class TindakanController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $isNew = !$request->filled('id');
+        // Rows added in the form but left empty send an empty id; ignore them instead of failing validation
+        $request->merge(['kode_tindakan_ids' => array_values(array_unique(array_filter((array) $request->input('kode_tindakan_ids', []))))]);
+        // Prices only go through approval (Harga Paket Tindakan); a new paket's prices become its first proposal
+        $hargaRules = $isNew ? [
+            'harga' => 'required|numeric|min:1|max:9999999999',
+            'harga_diskon' => 'nullable|numeric|min:1|max:9999999999|lt:harga|required_if_accepted:diskon_active',
+            'diskon_active' => 'nullable|boolean',
+            'harga_paket_visit' => 'nullable|numeric|min:1|max:9999999999',
+        ] : [];
+        $request->validate(array_merge([
             'id' => 'nullable|exists:erm_tindakan,id',
-            'nama' => ['required', 'string', 'max:255', 
+            'nama' => ['required', 'string', 'max:255',
                 Rule::unique('erm_tindakan')->ignore($request->id)],
             'deskripsi' => 'nullable|string',
-            'harga' => 'required|numeric|min:0',
-            'harga_diskon' => 'nullable|numeric|min:0',
-            'diskon_active' => 'nullable|boolean',
             'spesialis_id' => 'required|exists:erm_spesialisasis,id',
-            'obat_ids' => 'array',
-            'obat_ids.*' => 'exists:erm_obat,id',
-            'kode_tindakan_ids' => 'array',
+            // A paket is what gets sold, so it must contain at least one tindakan (even if only one)
+            'kode_tindakan_ids' => 'required|array|min:1',
             'kode_tindakan_ids.*' => 'exists:erm_kode_tindakan,id',
             'is_active' => 'nullable|boolean',
-            'harga_paket_visit' => 'nullable|numeric|min:0',
             'is_slimming' => 'nullable|boolean',
             'is_vaksin' => 'nullable|boolean',
             'multi_visit_total' => 'nullable|integer|min:2|max:20',
             'total_rf' => 'nullable|integer|min:0',
             'total_inject' => 'nullable|integer|min:0',
-        ]);
+        ], $hargaRules), array_merge([
+            'kode_tindakan_ids.required' => 'Paket tindakan harus berisi minimal satu tindakan.',
+            'kode_tindakan_ids.min' => 'Paket tindakan harus berisi minimal satu tindakan.',
+        ], HargaTindakanController::itemMessages('')));
 
         $isSlimming = $request->boolean('is_slimming');
 
@@ -217,81 +162,43 @@ class TindakanController extends Controller
             DB::beginTransaction();
             $tindakan = Tindakan::updateOrCreate(
                 ['id' => $request->id],
-                [
+                array_merge($isNew ? [
+                    // Not billable at a price until the first proposal is approved
+                    'harga' => 0,
+                    'harga_diskon' => null,
+                    'diskon_active' => 0,
+                    'harga_paket_visit' => null,
+                ] : [],
+                // The form has no deskripsi field: keep the stored one unless it is sent
+                $request->has('deskripsi') ? ['deskripsi' => $request->deskripsi] : [], [
                     'nama' => $request->nama,
-                    'deskripsi' => $request->deskripsi,
-                    'harga' => $request->harga,
-                    'harga_diskon' => $request->harga_diskon,
-                    'diskon_active' => $request->diskon_active ?? 0,
                     'spesialis_id' => $request->spesialis_id,
-                        'is_active' => $request->input('is_active', 1),
-                        'harga_paket_visit' => $request->input('harga_paket_visit', null),
+                        // An unchecked checkbox is not sent, so absent means inactive
+                        'is_active' => $request->boolean('is_active'),
                         'is_slimming' => $isSlimming,
                         'is_vaksin' => $request->boolean('is_vaksin'),
                         'multi_visit_total' => $request->filled('multi_visit_total') ? $request->integer('multi_visit_total') : null,
                         // Only slimming tindakan carry RF/inject quota
                         'total_rf' => $isSlimming && $request->filled('total_rf') ? $request->integer('total_rf') : null,
                         'total_inject' => $isSlimming && $request->filled('total_inject') ? $request->integer('total_inject') : null,
-                ]
+                ])
             );
-
-            // Handle SOPs (from text input, as names)
-            $sopNames = $request->input('sop_names');
-            $sopNamesArr = [];
-            if ($sopNames) {
-                $sopNamesArr = is_array($sopNames) ? $sopNames : explode(',', $sopNames);
-                $sopNamesArr = array_filter(array_map('trim', $sopNamesArr)); // Remove empty strings
-            }
-            
-            // Get current SOPs for tindakan
-            $currentSops = $tindakan->sop()->get();
-            
-            // Find SOPs to delete (current SOPs not in the new list)
-            $toDelete = $currentSops->filter(function($sop) use ($sopNamesArr) {
-                return !in_array($sop->nama_sop, $sopNamesArr);
-            });
-            
-            // Only delete SOPs not referenced in erm_spk_details
-            foreach ($toDelete as $sop) {
-                $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
-                if (!$isReferenced) {
-                    $sop->delete();
-                }
-            }
-            
-            // Add or update SOPs
-            foreach ($sopNamesArr as $idx => $sopName) {
-                $sopName = trim($sopName);
-                if ($sopName === '') continue;
-                $existing = $currentSops->firstWhere('nama_sop', $sopName);
-                if ($existing) {
-                    // Update order if needed
-                    if ($existing->urutan != $idx + 1) {
-                        $existing->urutan = $idx + 1;
-                        $existing->save();
-                    }
-                } else {
-                    $tindakan->sop()->create([
-                        'nama_sop' => $sopName,
-                        'deskripsi' => null,
-                        'urutan' => $idx + 1
-                    ]);
-                }
-            }
-
-            // Sync bundled obat
-            $obatIds = $request->input('obat_ids', []);
-            $tindakan->obats()->sync($obatIds);
 
             // Sync kode tindakan
             $kodeTindakanIds = $request->input('kode_tindakan_ids', []);
             $tindakan->kodeTindakans()->sync($kodeTindakanIds);
 
+            if ($isNew) {
+                HargaTindakanController::ajukan($tindakan, $request->only(['harga', 'harga_diskon', 'diskon_active', 'harga_paket_visit']), 'Harga awal paket tindakan baru');
+            }
+
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tindakan has been ' . ($request->id ? 'updated' : 'created') . ' successfully!',
+                'message' => $isNew
+                    ? 'Paket tindakan dibuat. Harganya diajukan dan baru berlaku setelah disetujui Admin / Finance.'
+                    : 'Paket tindakan diperbarui.',
                 'data' => $tindakan
             ]);
         } catch (\Exception $e) {
@@ -300,32 +207,6 @@ class TindakanController extends Controller
                 'success' => false,
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
-        }
-    }
-
-    /**
-     * Set all tindakan as inactive.
-     */
-    public function makeAllInactive(Request $request)
-    {
-        try {
-            Tindakan::query()->update(['is_active' => false]);
-            return response()->json(['success' => true, 'message' => 'All tindakan set to inactive']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Set all tindakan as active.
-     */
-    public function makeAllActive(Request $request)
-    {
-        try {
-            Tindakan::query()->update(['is_active' => true]);
-            return response()->json(['success' => true, 'message' => 'All tindakan set to active']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
@@ -349,22 +230,8 @@ class TindakanController extends Controller
      */
     public function getTindakan($id)
     {
-        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }, 'obats', 'kodeTindakans'])->findOrFail($id);
+        $tindakan = Tindakan::with(['spesialis', 'kodeTindakans.obats'])->findOrFail($id);
         $result = $tindakan->toArray();
-        $result['sop'] = $tindakan->sop->map(function($sop) {
-            return [
-                'nama_sop' => $sop->nama_sop,
-                'urutan' => $sop->urutan
-            ];
-        })->toArray();
-        $result['obat_ids'] = $tindakan->obats->pluck('id')->toArray();
-        // Also return basic obat objects (id & nama) to allow frontend to populate Select2 labels
-        $result['obats'] = $tindakan->obats->map(function($obat) {
-            return [
-                'id' => $obat->id,
-                'nama' => $obat->nama
-            ];
-        })->toArray();
         $result['kode_tindakan_ids'] = $tindakan->kodeTindakans->pluck('id')->toArray();
         // Add kode_tindakans array for Select2 population
         $result['kode_tindakans'] = $tindakan->kodeTindakans->map(function($kt) {
@@ -523,84 +390,53 @@ class TindakanController extends Controller
                         continue;
                     }
 
-                    $baseName = $nama;
-                    $createdThis = false;
+                    // Prices from the CSV become a proposal; the paket is created without a price until it is approved
+                    $ajukanHarga = function (Tindakan $paket, int $row) use ($hargaVal, $hargaDiskonVal, $hargaPaketVisitVal, &$errors) {
+                        if (!($hargaVal > 0)) {
+                            $errors[] = "Row {$row}: harga normal kosong, paket dibuat tanpa harga (ajukan di Harga Paket Tindakan)";
+                            return;
+                        }
+                        $diskon = $hargaDiskonVal > 0 && $hargaDiskonVal < $hargaVal ? $hargaDiskonVal : null;
+                        if ($hargaDiskonVal !== null && $diskon === null) {
+                            $errors[] = "Row {$row}: harga diskon diabaikan (harus > 0 dan lebih kecil dari harga normal)";
+                        }
+                        HargaTindakanController::ajukan($paket, [
+                            'harga' => $hargaVal,
+                            'harga_diskon' => $diskon,
+                            'diskon_active' => $diskon !== null,
+                            'harga_paket_visit' => $hargaPaketVisitVal > 0 ? $hargaPaketVisitVal : null,
+                        ], 'Import CSV paket tindakan');
+                    };
 
-                    // If a tindakan with the same name exists, rename the old one to append " (menu lama)"
-                    $existing = Tindakan::where('nama', $baseName)->first();
-                    if ($existing) {
-                        // Ensure the new name for the old item is unique
-                        $candidateBase = $existing->nama . ' (menu lama)';
-                        $candidate = $candidateBase;
-                        $idx = 1;
-                        while (Tindakan::where('nama', $candidate)->exists()) {
-                            $idx++;
-                            $candidate = $candidateBase . ' ' . $idx;
-                            if ($idx > 100) break;
-                        }
-                        try {
-                            $existing->nama = $candidate;
-                            $existing->save();
-                        } catch (\Exception $e) {
-                            $errors[] = "Row {$rowIndex}: Failed to rename existing tindakan: " . $e->getMessage();
-                            $skipped++;
-                            continue;
-                        }
+                    $baseName = $nama;
+
+                    // Skip names that already exist: the existing paket keeps its isi, riwayat and billing
+                    if (Tindakan::where('nama', $baseName)->exists()) {
+                        $errors[] = "Row {$rowIndex}: Paket '{$baseName}' sudah ada, dilewati (ubah harganya lewat Harga Paket Tindakan)";
+                        $skipped++;
+                        continue;
                     }
 
                     // Try to create the new tindakan with the original name
                     try {
-                        Tindakan::create([
+                        $baru = Tindakan::create([
                             'nama' => $baseName,
                             'deskripsi' => null,
-                            'harga' => $hargaVal ?? 0,
-                            'harga_diskon' => $hargaDiskonVal,
-                                'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
+                            'harga' => 0,
+                            'harga_diskon' => null,
+                                'diskon_active' => 0,
                             'spesialis_id' => $spesialis_id,
                                 'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
-                            'harga_paket_visit' => $hargaPaketVisitVal,
+                            'harga_paket_visit' => null,
                             'multi_visit_total' => $multiVisitTotalVal,
                             'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
                             'is_vaksin' => ($isVaksinVal !== null) ? $isVaksinVal : 0,
                         ]);
                         $created++;
-                        $createdThis = true;
+                        $ajukanHarga($baru, $rowIndex);
                     } catch (\Exception $e) {
-                        // If creation fails due to duplicate (race), fall back to copy-suffix strategy
-                        $msg = $e->getMessage();
-                        if (stripos($msg, 'duplicate') !== false || stripos($msg, 'unique') !== false || stripos($msg, 'Integrity constraint') !== false) {
-                            $attempt = 0;
-                            while ($attempt < 10 && !$createdThis) {
-                                $attemptName = $attempt === 0 ? $baseName . ' - copy' : ($baseName . ' - copy ' . ($attempt + 1));
-                                try {
-                                    Tindakan::create([
-                                        'nama' => $attemptName,
-                                        'deskripsi' => null,
-                                        'harga' => $hargaVal ?? 0,
-                                        'harga_diskon' => $hargaDiskonVal,
-                                            'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
-                                        'spesialis_id' => $spesialis_id,
-                                            'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
-                                        'harga_paket_visit' => $hargaPaketVisitVal,
-                                        'multi_visit_total' => $multiVisitTotalVal,
-                                        'is_slimming' => ($isSlimmingVal !== null) ? $isSlimmingVal : 0,
-                                        'is_vaksin' => ($isVaksinVal !== null) ? $isVaksinVal : 0,
-                                    ]);
-                                    $created++;
-                                    $createdThis = true;
-                                } catch (\Exception $e2) {
-                                    $attempt++;
-                                    continue;
-                                }
-                            }
-                            if (!$createdThis) {
-                                $errors[] = "Row {$rowIndex}: Could not create unique name after multiple attempts for base name '{$baseName}'";
-                                $skipped++;
-                            }
-                        } else {
-                            $errors[] = "Row {$rowIndex}: " . $e->getMessage();
-                            $skipped++;
-                        }
+                        $errors[] = "Row {$rowIndex}: " . $e->getMessage();
+                        $skipped++;
                     }
                 }
                 fclose($handle);
@@ -704,30 +540,6 @@ class TindakanController extends Controller
     }
 
     /**
-     * Return tindakan created in a date range for preview (AJAX)
-     */
-    public function getByDate(Request $request)
-    {
-        $request->validate([
-            'date_from' => 'required|date',
-            'date_to' => 'required|date',
-        ]);
-        $from = \Carbon\Carbon::parse($request->input('date_from'))->startOfDay();
-        $to = \Carbon\Carbon::parse($request->input('date_to'))->endOfDay();
-
-        $items = Tindakan::whereBetween('created_at', [$from, $to])->orderBy('created_at')->get(['id','nama','created_at','is_active']);
-        $rows = $items->map(function($t){
-            return [
-                'id' => $t->id,
-                'nama' => $t->nama,
-                'created_at' => $t->created_at ? $t->created_at->toDateTimeString() : null,
-                'is_active' => (bool)$t->is_active,
-            ];
-        });
-        return response()->json(['success' => true, 'data' => $rows]);
-    }
-
-    /**
      * Bulk set `is_active` by ids or date range
      */
     public function bulkSetActive(Request $request)
@@ -769,29 +581,37 @@ class TindakanController extends Controller
     {
         try {
             $tindakan = Tindakan::findOrFail($id);
-            
-            // Check if tindakan is used in any paket
-            $isUsed = $tindakan->paketTindakan()->exists();
-            if ($isUsed) {
+
+            // Riwayat, SPK, inform consent and SOP rows cascade on delete, and billing points at the paket:
+            // a paket that was ever used must be deactivated instead so patient history stays intact
+            $usage = [
+                'riwayat tindakan' => DB::table('erm_riwayat_tindakan')->where('tindakan_id', $tindakan->id)->count(),
+                'SPK' => DB::table('erm_spk')->where('tindakan_id', $tindakan->id)->count(),
+                'inform consent' => DB::table('erm_inform_consent')->where('tindakan_id', $tindakan->id)->count(),
+                'billing' => DB::table('finance_billing')->where('billable_type', Tindakan::class)->where('billable_id', $tindakan->id)->count(),
+                'paket multi-visit' => DB::table('erm_multi_visit_usages')->where('tindakan_id', $tindakan->id)->count(),
+            ];
+            $usedIn = [];
+            foreach ($usage as $label => $count) {
+                if ($count > 0) {
+                    $usedIn[] = "{$count} {$label}";
+                }
+            }
+            if ($usedIn) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot delete tindakan because it is included in one or more paket tindakan.'
-                ], 400);
+                    'message' => 'Paket tindakan sudah dipakai di ' . implode(', ', $usedIn) . '. Nonaktifkan saja agar riwayat pasien tetap utuh.'
+                ], 422);
             }
-            
-            // Check if tindakan has any inform consents
-            if ($tindakan->informConsent()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete tindakan because it has associated inform consents.'
-                ], 400);
-            }
-            
-            $tindakan->delete();
-            
+
+            DB::transaction(function () use ($tindakan) {
+                \App\Models\ERM\TindakanHargaPengajuan::where('tindakan_id', $tindakan->id)->delete();
+                $tindakan->delete();
+            });
+
             return response()->json([
                 'success' => true,
-                'message' => 'Tindakan deleted successfully!'
+                'message' => 'Paket tindakan dihapus.'
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -799,163 +619,6 @@ class TindakanController extends Controller
                 'message' => 'Error: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Display a listing of paket tindakan.
-     */
-    public function indexPaket()
-    {
-        return view('marketing.tindakan.paket-index');
-    }
-
-    /**
-     * Get paket tindakan data for DataTables.
-     */
-    public function getPaketData(Request $request)
-    {
-        $paketTindakan = PaketTindakan::with('tindakan');
-
-        return DataTables::of($paketTindakan)
-            ->addColumn('tindakan_list', function ($row) {
-                $tindakanNames = $row->tindakan->pluck('nama')->toArray();
-                return implode(', ', $tindakanNames);
-            })
-            ->addColumn('action', function ($row) {
-                return '
-                    <button type="button" class="btn btn-primary btn-sm edit-paket" data-id="'.$row->id.'">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm delete-paket" data-id="'.$row->id.'">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                ';
-            })
-            ->rawColumns(['action'])
-            ->make(true);
-    }
-
-    /**
-     * Show the form for creating a new paket tindakan.
-     */
-    public function createPaket()
-    {
-        $tindakan = Tindakan::all();
-        return view('marketing.tindakan.paket-form', compact('tindakan'));
-    }
-
-    /**
-     * Store a newly created paket tindakan or update an existing one.
-     */
-    public function storePaket(Request $request)
-    {
-        $request->validate([
-            'id' => 'nullable|exists:erm_paket_tindakan,id',
-            'nama' => ['required', 'string', 'max:255', 
-                Rule::unique('erm_paket_tindakan')->ignore($request->id)],
-            'deskripsi' => 'nullable|string',
-            'harga_paket' => 'required|numeric|min:0',
-            'tindakan_ids' => 'required|array|min:1',
-            'tindakan_ids.*' => 'exists:erm_tindakan,id',
-        ]);
-
-        try {
-            DB::beginTransaction();
-            
-            $paketTindakan = PaketTindakan::updateOrCreate(
-                ['id' => $request->id],
-                [
-                    'nama' => $request->nama,
-                    'deskripsi' => $request->deskripsi,
-                    'harga_paket' => $request->harga_paket,
-                ]
-            );
-
-            // Sync the tindakan relationships
-            $paketTindakan->tindakan()->sync($request->tindakan_ids);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Paket Tindakan has been ' . ($request->id ? 'updated' : 'created') . ' successfully!',
-                'data' => $paketTindakan
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Error: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get paket tindakan data by ID.
-     */
-    public function getPaket($id)
-    {
-        $paketTindakan = PaketTindakan::with('tindakan')->findOrFail($id);
-        $tindakanIds = $paketTindakan->tindakan->pluck('id')->toArray();
-        
-        $response = [
-            'paket' => $paketTindakan,
-            'tindakan_ids' => $tindakanIds
-        ];
-        
-        return response()->json($response);
-    }
-
-    /**
-     * Delete a paket tindakan.
-     */
-    public function destroyPaket($id)
-    {
-        try {
-            $paketTindakan = PaketTindakan::findOrFail($id);
-            
-            // Check if paket has any billings
-            if ($paketTindakan->billing()->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete paket tindakan because it has associated billings.'
-                ], 400);
-            }
-            
-            // Delete the relationship with tindakan
-            $paketTindakan->tindakan()->detach();
-            
-            // Delete the paket
-            $paketTindakan->delete();
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Paket Tindakan deleted successfully!'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get list of specialists for dropdown.
-     */
-    public function getSpesialisasiList()
-    {
-        $spesialisasi = \App\Models\ERM\Spesialisasi::select('id', 'nama')->get();
-        return response()->json($spesialisasi);
-    }
-
-    /**
-     * Get list of tindakan for dropdown.
-     */
-    public function getTindakanList()
-    {
-        $tindakan = Tindakan::with('spesialis')->orderBy('nama')->get();
-        return response()->json($tindakan);
     }
 
     public function searchTindakan(Request $request)

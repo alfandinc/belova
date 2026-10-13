@@ -1190,19 +1190,7 @@ class PasienController extends Controller
 
     private function formatReferralDisplay(Pasien $pasien): string
     {
-        $typeLabel = match ($pasien->referral_type) {
-            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
-            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
-            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
-            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
-            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
-            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
-            Pasien::REFERRAL_TYPE_EVENT => 'Event',
-            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-                Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
-            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
-            default => 'Walk-in',
-        };
+        $typeLabel = Pasien::referralTypeLabel($pasien->referral_type);
 
         $iconClass = match ($pasien->referral_type) {
             Pasien::REFERRAL_TYPE_WALK_IN => 'fas fa-walking',
@@ -1215,6 +1203,7 @@ class PasienController extends Controller
             Pasien::REFERRAL_TYPE_WEBSITE => 'fas fa-globe',
             Pasien::REFERRAL_TYPE_PARTNERSHIP => 'fas fa-handshake',
             Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'fas fa-map-marker-alt',
+            Pasien::REFERRAL_TYPE_FOLLOW_UP => 'fas fa-phone-alt',
             default => 'fas fa-walking',
         };
 

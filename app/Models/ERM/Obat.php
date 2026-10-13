@@ -97,19 +97,7 @@ class Obat extends Model
         return "Satuan stok belum diisi untuk: {$list}. Isi dulu di Master Obat, karena qty, isi per box dan harga per satuan dihitung dalam satuan ini.";
     }
 
-    /**
-     * Satuan stok/jual: the unit stock, HPP and harga jual are counted in (1 stok = 1 of these).
-     */
-    public const SATUAN_STOK_LIST = [
-        'Tablet', 'Kapsul', 'Kaplet', 'Botol', 'Tube', 'Pot', 'Ampul', 'Vial', 'Sachet', 'Strip',
-        'Pcs', 'Pack', 'Box', 'Softbag', 'Pen', 'Pump', 'g', 'IU',
-    ];
-
-    /**
-     * Unit for `dosis` (kekuatan per 1 satuan stok). Measurement units, or a stok unit when the
-     * dose is counted per piece (e.g. "1 Tablet") — racikan math divides by `dosis`.
-     */
-    public const SATUAN_DOSIS_LIST = ['mg', 'mcg', 'g', 'mL', 'IU', '%'];
+    // Satuan options come from the Satuan master (erm_satuan); the obat row stores the satuan as text.
 
     /**
      * Legacy spellings => canonical value, used by the satuan clean-up migration and the CSV import.
@@ -122,9 +110,21 @@ class Obat extends Model
         'softbag' => 'Softbag', 'pen' => 'Pen', 'pump' => 'Pump',
     ];
 
+    /**
+     * Satuan stok/jual: the unit stock, HPP and harga jual are counted in (1 stok = 1 of these).
+     */
+    public static function satuanStokOptions(): array
+    {
+        return Satuan::stokOptions();
+    }
+
+    /**
+     * Unit for `dosis` (kekuatan per 1 satuan stok). Measurement units, or a stok unit when the
+     * dose is counted per piece (e.g. "1 Tablet") — racikan math divides by `dosis`.
+     */
     public static function satuanDosisOptions(): array
     {
-        return array_values(array_unique(array_merge(self::SATUAN_DOSIS_LIST, self::SATUAN_STOK_LIST)));
+        return Satuan::dosisOptions();
     }
 
     public static function normalizeSatuan(?string $value): ?string
@@ -155,7 +155,7 @@ class Obat extends Model
         'erm_mutasi_gudang', 'erm_mutasi_gudang_items', 'erm_mutasi_stok_items',
         'erm_obat_hibah_items', 'erm_stok_opname_items', 'erm_permintaan_items',
         'erm_riwayat_tindakan_obat', 'erm_obat_expired_tindak_lanjut',
-        'erm_tindakan_obat', 'erm_kode_tindakan_obat', 'erm_lab_test_obat',
+        'erm_kode_tindakan_obat', 'erm_lab_test_obat',
         'erm_paket_racikan_detail', 'marketing_penawaran_items',
     ];
 
@@ -269,6 +269,12 @@ class Obat extends Model
         return $this->belongsTo(Supplier::class, 'supplier_id');
     }
 
+    /** R&D product this obat was released from (Produk R&D > Rilis ke Master Obat). */
+    public function rndProduk()
+    {
+        return $this->hasOne(\App\Models\Rnd\RndProduk::class, 'obat_id');
+    }
+
     public function zatAktifs()
     {
         return $this->belongsToMany(ZatAktif::class, 'erm_kandungan_obat', 'obat_id', 'zataktif_id');
@@ -286,14 +292,6 @@ class Obat extends Model
     {
         return $this->hasOne(ObatKfa::class, 'obat_id');
     }
-
-        /**
-         * The tindakan that this obat is bundled with.
-         */
-        public function tindakans()
-        {
-            return $this->belongsToMany(Tindakan::class, 'erm_tindakan_obat', 'obat_id', 'tindakan_id');
-        }
 
     /**
      * @deprecated HPP calculation now handled directly in StokService

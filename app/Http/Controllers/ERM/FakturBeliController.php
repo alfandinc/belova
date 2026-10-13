@@ -92,12 +92,13 @@ class FakturBeliController extends Controller
             return DataTables::of($data)
                 ->addColumn('pemasok', fn ($row) => optional($row->pemasok)->nama ?? '-')
                 ->addColumn('nama_obat', function ($row) {
-                    $names = $row->items->map(fn ($item) => optional($item->obat)->nama)->filter()->values();
+                    // An obat received in several batches is listed once
+                    $names = $row->items->map(fn ($item) => optional($item->obat)->nama)->filter()->unique()->values();
                     return $names->count() > 3
                         ? $names->take(3)->implode(', ') . ' +' . ($names->count() - 3) . ' lainnya'
                         : ($names->implode(', ') ?: '-');
                 })
-                ->addColumn('jumlah_item', fn ($row) => $row->items->count())
+                ->addColumn('jumlah_item', fn ($row) => $row->items->pluck('obat_id')->unique()->count())
                 ->addColumn('status_label', fn ($row) => self::STATUS_LABEL[$row->status] ?? $row->status)
                 ->addColumn('approved_by_user_name', fn ($row) => optional($row->approver)->name)
                 ->addColumn('approved_at_label', fn ($row) => optional($row->approved_at)->format('d/m/Y H:i'))
@@ -217,6 +218,7 @@ class FakturBeliController extends Controller
                 'gudang_id' => $item->gudang_id,
                 'batch' => $item->batch,
                 'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('Y-m-d') : null,
+                'bonus' => (bool) $item->is_bonus,
             ];
         };
 
@@ -252,7 +254,7 @@ class FakturBeliController extends Controller
                 // Stored global amounts are nominal; a faktur that never had them starts at the PPN rate
                 'global_diskon' => (float) $faktur->global_diskon,
                 'global_pajak' => $faktur->global_pajak !== null ? (float) $faktur->global_pajak : null,
-                'items' => $faktur->items->map($mapItem)->values(),
+                'items' => $this->formItems($faktur->items, $mapItem),
             ]);
         }
 
@@ -341,6 +343,9 @@ class FakturBeliController extends Controller
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string|max:255',
             'items.*.expiration_date' => 'nullable|date',
+            // Lines with the same grup are batches of one obat line; bonus lines are free goods outside the permintaan
+            'items.*.grup' => 'nullable|string|max:20',
+            'items.*.bonus' => 'nullable|boolean',
             'global_diskon' => 'nullable|numeric|min:0',
             'global_pajak' => 'nullable|numeric|min:0',
         ];
@@ -356,38 +361,93 @@ class FakturBeliController extends Controller
      * Item lines with their amounts: base = qty x harga, the item discount and item tax (nominal per
      * line or percent of the line) -> line total. Also checks qty vs diminta and that received lines
      * have a batch and ED (stok without them cannot be traced or rotated FEFO).
+     *
+     * One obat can arrive in several batches: those lines share a grup and their qty together may not
+     * exceed diminta. Diminta is split over them (the first line keeps what is still outstanding, the
+     * others exactly what they received) so sisa and the faktur lanjutan stay per obat.
+     * Bonus lines are free goods: harga 0 (HPP and Master Pembelian untouched), outside the permintaan.
      */
     private function hitungItems(array $items): array
     {
         $errors = [];
-        $lines = [];
-        foreach ($items as $item) {
-            $qty = (int) ($item['qty'] ?? 0);
-            $diminta = (int) ($item['diminta'] ?? 0);
-            $nama = optional(Obat::withInactive()->find($item['obat_id']))->nama ?? 'Obat #' . $item['obat_id'];
-            if ($diminta > 0 && $qty > $diminta) {
-                $errors[] = "{$nama}: qty diterima ({$qty}) melebihi qty diminta ({$diminta}).";
-            }
-            if ($qty > 0 && (trim((string) ($item['batch'] ?? '')) === '' || empty($item['expiration_date']))) {
-                $errors[] = "{$nama}: nomor batch dan tanggal kadaluarsa wajib diisi untuk barang yang diterima.";
-            }
-
-            $harga = (float) ($item['harga'] ?? 0);
-            $base = $qty * $harga;
-            $diskonType = $item['diskon_type'] ?? 'nominal';
-            $taxType = $item['tax_type'] ?? 'nominal';
-            $diskonValue = $diskonType === 'percent' ? $base * (float) ($item['diskon'] ?? 0) / 100 : (float) ($item['diskon'] ?? 0);
-            $taxValue = $taxType === 'percent' ? $base * (float) ($item['tax'] ?? 0) / 100 : (float) ($item['tax'] ?? 0);
-
-            $lines[] = $item + [
-                '_qty' => $qty,
-                '_diskon_type' => $diskonType,
-                '_tax_type' => $taxType,
-                '_total' => round(max($base - $diskonValue + $taxValue, 0), 2),
-            ];
+        $groups = [];
+        foreach (array_values($items) as $i => $item) {
+            $bonus = !empty($item['bonus']);
+            $key = (!$bonus && (string) ($item['grup'] ?? '') !== '') ? 'g' . $item['grup'] : 'i' . $i;
+            $groups[$key][] = $item + ['_bonus' => $bonus];
         }
 
-        return [$lines, $errors];
+        $lines = [];
+        foreach ($groups as $group) {
+            $nama = optional(Obat::withInactive()->find($group[0]['obat_id']))->nama ?? 'Obat #' . $group[0]['obat_id'];
+            if (count(array_unique(array_map(fn ($l) => (int) $l['obat_id'], $group))) > 1) {
+                $errors[] = "{$nama}: baris batch lain harus untuk obat yang sama.";
+                continue;
+            }
+            $diminta = max(array_map(fn ($l) => (int) ($l['diminta'] ?? 0), $group));
+            $qtyTotal = array_sum(array_map(fn ($l) => (int) ($l['qty'] ?? 0), $group));
+            if ($diminta > 0 && $qtyTotal > $diminta) {
+                $errors[] = "{$nama}: qty diterima ({$qtyTotal}) melebihi qty diminta ({$diminta}).";
+            }
+            // Nothing requested and nothing received: an empty line
+            if ($diminta === 0 && $qtyTotal === 0) {
+                continue;
+            }
+            // Lines that received nothing carry nothing, except the first one when it still holds diminta
+            $group = array_values(array_filter($group, fn ($l, $idx) => (int) ($l['qty'] ?? 0) > 0 || ($idx === 0 && $diminta > 0), ARRAY_FILTER_USE_BOTH));
+            $qtyFirst = (int) ($group[0]['qty'] ?? 0);
+
+            foreach ($group as $idx => $item) {
+                $qty = (int) ($item['qty'] ?? 0);
+                if ($qty > 0 && (trim((string) ($item['batch'] ?? '')) === '' || empty($item['expiration_date']))) {
+                    $errors[] = "{$nama}: nomor batch dan tanggal kadaluarsa wajib diisi untuk barang yang diterima.";
+                }
+                if ($item['_bonus']) {
+                    $item = array_merge($item, ['permintaan_item_id' => null, 'harga' => 0, 'diskon' => 0, 'tax' => 0]);
+                }
+
+                $harga = (float) ($item['harga'] ?? 0);
+                $base = $qty * $harga;
+                $diskonType = $item['diskon_type'] ?? 'nominal';
+                $taxType = $item['tax_type'] ?? 'nominal';
+                $diskonValue = $diskonType === 'percent' ? $base * (float) ($item['diskon'] ?? 0) / 100 : (float) ($item['diskon'] ?? 0);
+                $taxValue = $taxType === 'percent' ? $base * (float) ($item['tax'] ?? 0) / 100 : (float) ($item['tax'] ?? 0);
+
+                $lines[] = $item + [
+                    '_qty' => $qty,
+                    '_diminta' => $diminta > 0 ? ($idx === 0 ? $diminta - ($qtyTotal - $qtyFirst) : $qty) : $qty,
+                    '_diskon_type' => $diskonType,
+                    '_tax_type' => $taxType,
+                    '_total' => round(max($base - $diskonValue + $taxValue, 0), 2),
+                ];
+            }
+        }
+
+        return [$lines, array_values(array_unique($errors))];
+    }
+
+    /**
+     * Saved lines back as form rows: batches of one permintaan item become one row with the total diminta
+     * plus "split" rows for the other batches.
+     */
+    private function formItems($items, callable $mapItem)
+    {
+        return $items->sortBy('id')
+            ->groupBy(fn ($item) => $item->permintaan_item_id ? 'pi-' . $item->permintaan_item_id : 'id-' . $item->id)
+            ->flatMap(function ($group) use ($mapItem) {
+                $diminta = (int) $group->sum('diminta');
+                return $group->values()->map(function ($item, $idx) use ($mapItem, $diminta) {
+                    $row = $mapItem($item);
+                    if ($idx === 0) {
+                        $row['diminta'] = $diminta;
+                    } else {
+                        $row['split'] = true;
+                        $row['diminta'] = null;
+                    }
+                    return $row;
+                });
+            })
+            ->values();
     }
 
     // Header amounts computed here, not taken from the browser: subtotal of the lines, minus global diskon, plus global pajak
@@ -409,7 +469,7 @@ class FakturBeliController extends Controller
     {
         foreach ($lines as $item) {
             $permintaanItemId = !empty($item['permintaan_item_id']) ? (int) $item['permintaan_item_id'] : null;
-            $diminta = isset($item['diminta']) && $item['diminta'] !== '' ? (int) $item['diminta'] : $item['_qty'];
+            $diminta = $item['_diminta'];
             $faktur->items()->create([
                 'permintaan_item_id' => $permintaanItemId,
                 'obat_id' => $item['obat_id'],
@@ -429,6 +489,7 @@ class FakturBeliController extends Controller
                 'batch' => isset($item['batch']) ? trim($item['batch']) : null,
                 'expiration_date' => $item['expiration_date'] ?? null,
                 'total_amount' => $item['_total'],
+                'is_bonus' => $item['_bonus'],
             ]);
         }
     }
@@ -641,21 +702,30 @@ class FakturBeliController extends Controller
             ->get()
             ->keyBy('obat_id');
 
+        // Batches of one permintaan item are compared to diminta together
+        $grupKey = fn ($item) => $item->permintaan_item_id ? 'pi-' . $item->permintaan_item_id : 'id-' . $item->id;
+        $grups = $faktur->items->groupBy($grupKey);
+
         $problems = [];
-        $items = $faktur->items->filter(fn ($item) => (int) $item->qty > 0)->map(function ($item) use ($masters, $tolerance, &$problems) {
+        $items = $faktur->items->sortBy('id')->filter(fn ($item) => (int) $item->qty > 0)->map(function ($item) use ($masters, $tolerance, &$problems, $grups, $grupKey) {
             $nama = optional($item->obat)->nama ?? 'Obat #' . $item->obat_id;
             if (trim((string) $item->batch) === '' || !$item->expiration_date) {
                 $problems[] = "{$nama}: batch / ED belum diisi.";
             }
+            $bonus = (bool) $item->is_bonus;
             $master = $masters->get($item->obat_id);
-            $selisih = ($master && (float) $master->harga > 0)
+            $selisih = (!$bonus && $master && (float) $master->harga > 0)
                 ? round(((float) $item->harga - (float) $master->harga) / (float) $master->harga * 100, 1)
                 : null;
+            $grup = $grups->get($grupKey($item));
 
             return [
                 'obat' => $nama,
                 'qty' => (int) $item->qty,
-                'diminta' => (int) $item->diminta,
+                'diminta' => (int) $grup->sum('diminta'),
+                'qty_grup' => (int) $grup->sum('qty'),
+                'batch_grup' => $grup->filter(fn ($i) => (int) $i->qty > 0)->count(),
+                'bonus' => $bonus,
                 'gudang' => optional($item->gudang)->nama,
                 'batch' => $item->batch,
                 'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('d/m/Y') : null,
@@ -664,7 +734,8 @@ class FakturBeliController extends Controller
                 'selisih_persen' => $selisih,
                 'selisih_besar' => $selisih !== null && abs($selisih) > $tolerance,
                 'hpp_lama' => (float) optional($item->obat)->hpp,
-                'hpp_baru' => (float) $item->harga, // master HPP = price before discount, excl. PPN
+                // master HPP = price before discount, excl. PPN; a free line leaves it as is
+                'hpp_baru' => $bonus ? (float) optional($item->obat)->hpp : (float) $item->harga,
             ];
         })->values();
 
@@ -875,11 +946,15 @@ class FakturBeliController extends Controller
                         'nama_obat' => $obatName,
                         'satuan' => $satuan,
                         'qty' => 0,
+                        'qty_bonus' => 0,
                         'total_harga' => 0,
                     ];
                 }
 
                 $summaryRows[$key]['qty'] += (float) ($item->qty ?? 0);
+                if ($item->is_bonus) {
+                    $summaryRows[$key]['qty_bonus'] += (float) ($item->qty ?? 0);
+                }
                 $summaryRows[$key]['total_harga'] += $this->calculateExportTotalHarga($item);
             }
 
@@ -893,11 +968,12 @@ class FakturBeliController extends Controller
                     $row['nama_obat'],
                     $row['satuan'],
                     $row['qty'],
+                    $row['qty_bonus'],
                     $row['total_harga'],
                 ];
             }, array_values($summaryRows));
 
-            $headings = ['Principal', 'Nama Obat', 'Satuan', 'Total Qty', 'Total Harga'];
+            $headings = ['Principal', 'Nama Obat', 'Satuan', 'Total Qty', 'Qty Bonus', 'Total Harga'];
 
             $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
                 private $array;
@@ -951,6 +1027,7 @@ class FakturBeliController extends Controller
                     'received_date' => $faktur->received_date ?? '',
                     'nama_obat' => $item->obat->nama ?? '',
                     'qty' => $item->qty ?? 0,
+                    'bonus' => $item->is_bonus ? 'Ya' : '',
                     'satuan' => $item->obat->satuan ?? '',
                     'nama_vendor' => $faktur->pemasok->nama ?? '',
                     'nama_principal' => $this->resolvePrincipalNameForItem($item),
@@ -978,6 +1055,7 @@ class FakturBeliController extends Controller
                 $r['received_date'],
                 $r['nama_obat'],
                 $r['qty'],
+                $r['bonus'],
                 $r['satuan'],
                 $r['nama_vendor'],
                 $r['nama_principal'],
@@ -990,7 +1068,7 @@ class FakturBeliController extends Controller
             ];
         }, $rows);
 
-        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Tanggal Permintaan', 'Tanggal Terima', 'Nama Obat', 'Qty', 'Satuan', 'Nama Distributor', 'Nama Principal', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
+        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Tanggal Permintaan', 'Tanggal Terima', 'Nama Obat', 'Qty', 'Bonus', 'Satuan', 'Nama Distributor', 'Nama Principal', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
 
         $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
             private $array;

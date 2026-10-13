@@ -1,6 +1,6 @@
 @extends('layouts.marketing.app')
 
-@section('title', 'Kunjungan Marketing')
+@section('title', 'Kunjungan Instansi')
 
 @section('navbar')
     @include('layouts.marketing.navbar')
@@ -10,26 +10,48 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="card">
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4 class="card-title mb-0">Kunjungan Instansi</h4>
+                    <button id="btn-add" class="btn btn-success"><i class="fas fa-plus mr-1"></i>Tambah Kunjungan</button>
+                </div>
                 <div class="card-body">
-                    <h4 class="card-title">Kunjungan Marketing</h4>
                     <style>
                         .badge-pink{ background:#e83e8c; color:#fff; }
                         .badge-orange{ background:#fd7e14; color:#fff; }
+                        #kunjungan-table td { vertical-align: middle; }
+                        #kunjungan-table .hasil-text { white-space: normal; min-width: 200px; max-width: 380px; }
                     </style>
-                    <div class="mb-3 d-flex align-items-center">
-                        <button id="btn-add" class="btn btn-primary mr-3">Tambah Kunjungan</button>
+                    <div class="form-row mb-3">
+                        <div class="col-md-3 col-6">
+                            <label for="filter-instansi" class="small font-weight-bold text-uppercase mb-1" style="opacity:.65;">Instansi</label>
+                            <select id="filter-instansi" class="form-control">
+                                <option value="">Semua</option>
+                                <option value="Premiere Belova">Premiere Belova</option>
+                                <option value="Belova Skincare">Belova Skincare</option>
+                                <option value="BCL">BCL</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <label for="filter-status" class="small font-weight-bold text-uppercase mb-1" style="opacity:.65;">Status</label>
+                            <select id="filter-status" class="form-control">
+                                <option value="">Semua</option>
+                                <option value="Planned">Planned</option>
+                                <option value="On Going">On Going</option>
+                                <option value="Done">Done</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <table id="kunjungan-table" class="table table-striped table-bordered" style="width:100%">
+                    <table id="kunjungan-table" class="table table-hover table-bordered w-100">
                         <thead>
                             <tr>
-                                <th>No</th>
                                 <th>Tanggal</th>
-                                <th>Instansi Tujuan</th>
+                                <th>Instansi Tujuan / PIC</th>
                                 <th>Status</th>
                                 <th>Hasil</th>
-                                <th>Action</th>
+                                <th>Aksi</th>
                             </tr>
                         </thead>
                     </table>
@@ -39,12 +61,11 @@
     </div>
 </div>
 
-<!-- Modal -->
-<div class="modal fade" id="kunjunganModal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal fade" id="kunjunganModal" tabindex="-1" role="dialog" aria-labelledby="kunjunganModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Kunjungan Marketing</h5>
+        <h5 class="modal-title" id="kunjunganModalLabel">Tambah Kunjungan</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -94,7 +115,7 @@
                     </select>
                 </div>
                 <div class="form-group col-md-6">
-                    <label>Bukti Kunjungan (image)</label>
+                    <label>Bukti Kunjungan (gambar)</label>
                     <div class="custom-file">
                         <input type="file" name="bukti_kunjungan" id="bukti_kunjungan" class="custom-file-input" accept="image/*">
                         <label class="custom-file-label" for="bukti_kunjungan">Pilih file</label>
@@ -107,8 +128,8 @@
             </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+        <button type="submit" class="btn btn-primary" id="kunjungan-submit">Simpan</button>
       </div>
       </form>
     </div>
@@ -120,141 +141,152 @@
 @section('scripts')
 <script>
     $(function(){
+        const baseUrl = @json(url('marketing/kunjungan'));
+        const storageUrl = @json(asset('storage'));
+        const esc = (value) => $('<div>').text(value === null || value === undefined ? '' : String(value)).html();
+        const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+        // Client-side filters (the endpoint returns every row)
+        $.fn.dataTable.ext.search.push(function(settings, data, index, row){
+            if (settings.nTable.id !== 'kunjungan-table') return true;
+            const instansi = $('#filter-instansi').val();
+            const status = $('#filter-status').val();
+            if (instansi && (row.instansi || '') !== instansi) return false;
+            if (status && (row.status || '').toLowerCase() !== status.toLowerCase()) return false;
+            return true;
+        });
+
         const table = $('#kunjungan-table').DataTable({
-            ajax: {
-                url: '{!! url('marketing/kunjungan/data') !!}',
-            },
-            order: [[0,'asc']],
+            ajax: { url: baseUrl + '/data' },
+            order: [[0, 'desc']],
+            language: { search: 'Search:', searchPlaceholder: 'Instansi / PIC / hasil', emptyTable: 'Belum ada kunjungan', zeroRecords: 'Kunjungan tidak ditemukan' },
             columns: [
-                { data: null, render: function(data,type,row,meta){ return meta.row + meta.settings._iDisplayStart + 1; } },
-                { data: 'tanggal_kunjungan', render: function(d,type,row){
-                        // format date
-                        let dateStr = '';
-                        if(d){
+                { data: 'tanggal_kunjungan', className: 'text-nowrap', render: function(d, type, row){
+                        // sort/search on the raw date
+                        if (type !== 'display') return d || '';
+                        let dateStr = '<span class="text-muted">-</span>';
+                        if (d) {
                             const parts = d.split('-');
-                            if(parts.length===3){
-                                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                                dateStr = parts[2] + ' ' + months[parseInt(parts[1],10)-1] + ' ' + parts[0];
-                            } else {
-                                dateStr = d;
-                            }
+                            dateStr = parts.length === 3 ? parseInt(parts[2], 10) + ' ' + months[parseInt(parts[1], 10) - 1] + ' ' + parts[0] : esc(d);
                         }
-                        // instansi badge below the date
                         const inst = (row.instansi || '').toString();
-                        let badgeHtml = '';
-                        if(inst){
-                            const key = inst.toLowerCase();
-                            const map = {'premiere belova':'badge-primary','belova skincare':'badge-pink','bcl':'badge-orange'};
-                            const cls = map[key] || 'badge-secondary';
-                            badgeHtml = `<div class="mt-1"><span class="badge ${cls}">${inst}</span></div>`;
-                        }
-                        return (dateStr ? `<div>${dateStr}</div>` : '') + badgeHtml;
+                        const map = {'premiere belova':'badge-primary','belova skincare':'badge-pink','bcl':'badge-orange'};
+                        const badgeHtml = inst ? `<div class="mt-1"><span class="badge ${map[inst.toLowerCase()] || 'badge-secondary'}">${esc(inst)}</span></div>` : '';
+                        return `<div>${dateStr}</div>${badgeHtml}`;
                     }
                 },
-                { data: null, render: function(data,type,row){
-                        // instansi tujuan plus PIC and phone shown underneath
-                        const tujuan = row.instansi_tujuan ? `<div>${row.instansi_tujuan}</div>` : '';
-                        const pic = row.pic ? `<div class="text-muted" style="font-size:0.85rem;margin-top:6px">${row.pic}${row.no_hp?(' — ' + row.no_hp):''}</div>` : (row.no_hp?`<div class="text-muted" style="font-size:0.85rem;margin-top:6px">${row.no_hp}</div>` : '');
-                        return tujuan + pic;
+                { data: 'instansi_tujuan', render: function(d, type, row){
+                        if (type !== 'display') return [d, row.pic, row.no_hp].filter(Boolean).join(' ');
+                        const tujuan = `<div class="font-weight-bold">${d ? esc(d) : '-'}</div>`;
+                        const contact = [row.pic, row.no_hp].filter(Boolean).map(esc).join(' · ');
+                        return tujuan + (contact ? `<div class="small text-muted mt-1">${contact}</div>` : '');
                     }
                 },
-                { data: 'status', render: function(s){
-                        if(!s) return '';
-                        const key = (s||'').toString().toLowerCase();
-                        const map = {
-                            'planned':'badge-primary',
-                            'on going':'badge-warning',
-                            'ongoing':'badge-warning',
-                            'done':'badge-success',
-                            'cancelled':'badge-danger',
-                            'canceled':'badge-danger'
-                        };
-                        const cls = map[key] || 'badge-secondary';
-                        // display with capitalized text
-                        const txt = s.charAt(0).toUpperCase() + s.slice(1);
-                        return `<span class="badge ${cls}">${txt}</span>`;
+                { data: 'status', render: function(s, type){
+                        if (type !== 'display') return s || '';
+                        if (!s) return '<span class="text-muted">-</span>';
+                        const map = {'planned':'badge-primary','on going':'badge-warning','ongoing':'badge-warning','done':'badge-success','cancelled':'badge-danger','canceled':'badge-danger'};
+                        return `<span class="badge ${map[s.toLowerCase()] || 'badge-secondary'}">${esc(s.charAt(0).toUpperCase() + s.slice(1))}</span>`;
                     }
                 },
-                { data: 'hasil_kunjungan', render: function(d){ return d ? d : ''; } },
-                { data: null, orderable:false, searchable:false, render: function(data,type,row){
-                    const imgBtn = row.bukti_kunjungan ? ` <a class="btn btn-sm btn-primary" href="{{ asset('storage') }}/${row.bukti_kunjungan}" target="_blank">Bukti</a> ` : '';
-                    const editBtn = ` <button class="btn btn-sm btn-info btn-edit" data-id="${row.id}">Edit</button> `;
-                    const delBtn = ` <button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}">Delete</button>`;
-                    return `<div class="btn-group" role="group">${imgBtn}${editBtn}${delBtn}</div>`;
-                }}
+                { data: 'hasil_kunjungan', className: 'hasil-text', render: function(d, type){
+                        if (type !== 'display') return d || '';
+                        return d ? esc(d).replace(/\n/g, '<br>') : '<span class="text-muted">-</span>';
+                    }
+                },
+                { data: null, orderable: false, searchable: false, className: 'text-nowrap', render: function(data, type, row){
+                        const bukti = row.bukti_kunjungan
+                            ? `<a class="btn btn-sm btn-outline-secondary" href="${storageUrl}/${encodeURI(row.bukti_kunjungan)}" target="_blank"><i class="fas fa-image mr-1"></i>Bukti</a> `
+                            : '';
+                        return bukti
+                            + `<button class="btn btn-sm btn-outline-primary btn-edit" data-id="${row.id}"><i class="fas fa-pen mr-1"></i>Edit</button> `
+                            + `<button class="btn btn-sm btn-outline-danger btn-delete" data-id="${row.id}"><i class="fas fa-trash mr-1"></i>Hapus</button>`;
+                    }
+                }
             ]
         });
+
+        $('#filter-instansi, #filter-status').on('change', function(){ table.draw(); });
 
         $('#btn-add').on('click', function(){
             $('#kunjungan-form')[0].reset();
             $('#kunjungan-id').val('');
-            $('#instansi').val('');
-            $('#tanggal_kunjungan').val('');
-            $('#bukti_kunjungan').next('.custom-file-label').html('Pilih file');
+            $('#bukti_kunjungan').next('.custom-file-label').text('Pilih file');
+            $('#kunjunganModalLabel').text('Tambah Kunjungan');
             $('#kunjunganModal').modal('show');
         });
 
         $('#kunjungan-table').on('click', '.btn-edit', function(){
             const id = $(this).data('id');
-            $.get(`{!! url('marketing/kunjungan') !!}/${id}`, function(res){
+            $.get(`${baseUrl}/${id}`, function(res){
                 const d = res.item;
+                $('#kunjungan-form')[0].reset();
                 $('#kunjungan-id').val(d.id);
-                $('#instansi').val(d.instansi);
+                $('#instansi').val(d.instansi || '');
                 $('#instansi_tujuan').val(d.instansi_tujuan);
-                $('#tanggal_kunjungan').val(d.tanggal_kunjungan);
+                // date input needs YYYY-MM-DD
+                $('#tanggal_kunjungan').val(d.tanggal_kunjungan ? String(d.tanggal_kunjungan).substring(0, 10) : '');
                 $('#pic').val(d.pic);
                 $('#no_hp').val(d.no_hp);
-                $('#status').val(d.status);
+                $('#status').val(d.status || 'Planned');
                 $('#hasil_kunjungan').val(d.hasil_kunjungan);
-                if(d.bukti_kunjungan){
-                    const fname = d.bukti_kunjungan.split('/').pop();
-                    $('#bukti_kunjungan').next('.custom-file-label').html(fname);
-                } else {
-                    $('#bukti_kunjungan').next('.custom-file-label').html('Pilih file');
-                }
+                $('#bukti_kunjungan').next('.custom-file-label').text(d.bukti_kunjungan ? d.bukti_kunjungan.split('/').pop() : 'Pilih file');
+                $('#kunjunganModalLabel').text('Edit Kunjungan');
                 $('#kunjunganModal').modal('show');
+            }).fail(function(){
+                Swal.fire({icon:'error', title:'Gagal memuat data'});
             });
         });
 
         $(document).on('change', '#bukti_kunjungan', function(){
             const fileName = $(this).val().split('\\').pop();
-            $(this).next('.custom-file-label').html(fileName || 'Pilih file');
+            $(this).next('.custom-file-label').text(fileName || 'Pilih file');
         });
 
         $('#kunjungan-form').on('submit', function(e){
             e.preventDefault();
             const id = $('#kunjungan-id').val();
-            const url = id ? `{!! url('marketing/kunjungan') !!}/${id}` : `{!! url('marketing/kunjungan') !!}`;
-            const form = document.getElementById('kunjungan-form');
-            const formData = new FormData(form);
-            if(id) formData.append('_method','PUT');
+            const formData = new FormData(this);
+            if (id) formData.append('_method', 'PUT');
+            const $submit = $('#kunjungan-submit').prop('disabled', true).text('Menyimpan...');
 
             $.ajax({
-                url: url,
+                url: id ? `${baseUrl}/${id}` : baseUrl,
                 method: 'POST',
                 data: formData,
                 contentType: false,
                 processData: false,
                 success: function(){
-                    Swal.fire({icon:'success', title:'Berhasil', text: 'Data disimpan', timer:1200, showConfirmButton:false});
+                    Swal.fire({icon:'success', title:'Tersimpan', timer:1200, showConfirmButton:false});
                     $('#kunjunganModal').modal('hide');
-                    table.ajax.reload();
+                    table.ajax.reload(null, false);
                 },
                 error: function(xhr){
-                    Swal.fire({icon:'error', title:'Error', text: xhr.responseJSON?.message || 'Validation failed'});
+                    const errors = xhr.responseJSON && xhr.responseJSON.errors;
+                    Swal.fire({icon:'error', title:'Gagal menyimpan', html: errors ? Object.values(errors).map(m => esc(m)).join('<br>') : esc(xhr.responseJSON?.message || 'Terjadi kesalahan')});
+                },
+                complete: function(){
+                    $submit.prop('disabled', false).text('Simpan');
                 }
             });
         });
 
         $('#kunjungan-table').on('click', '.btn-delete', function(){
-            if(!confirm('Delete this item?')) return;
             const id = $(this).data('id');
-            $.ajax({url:`{!! url('marketing/kunjungan') !!}/${id}`, method:'DELETE', success:function(){
-                Swal.fire({icon:'success', title:'Berhasil', text:'Data dihapus', timer:1000, showConfirmButton:false});
-                table.ajax.reload();
-            }, error:function(){ Swal.fire({icon:'error', title:'Error', text:'Gagal'}); }});
+            Swal.fire({
+                title: 'Hapus kunjungan ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, hapus',
+                cancelButtonText: 'Batal'
+            }).then(function(result){
+                if (!result.value) return;
+                $.ajax({url: `${baseUrl}/${id}`, method: 'DELETE', success: function(){
+                    Swal.fire({icon:'success', title:'Terhapus', timer:1000, showConfirmButton:false});
+                    table.ajax.reload(null, false);
+                }, error: function(){ Swal.fire({icon:'error', title:'Gagal menghapus'}); }});
+            });
         });
-
     });
 </script>
 @endsection

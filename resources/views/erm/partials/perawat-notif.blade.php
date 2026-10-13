@@ -37,10 +37,23 @@ if (window.__ermPerawatNotifTimer) {
     clearInterval(window.__ermPerawatNotifTimer);
 }
 
-window.__ermPerawatNotifTimer = setInterval(function() {
+var perawatPollBusy = false;
+// One poller per browser (shared with the Rawat Jalan page handler); see public/js/belova-tab-leader.js
+window.__ermPerawatNotifTimer = null;
+BelovaTabLeader.run('erm-get-notif', 2000, function() {
+    if (perawatPollBusy) return;
+    perawatPollBusy = true;
+
+    // Continue from the previous leader tab's last poll so nothing falls in the hand-over gap
+    // (the server de-duplicates delivered notifications per session)
+    var requestStartedMs = Date.now();
+    var sharedSinceMs = parseInt(BelovaTabLeader.shared('erm-get-notif'), 10);
+    var sinceMs = sharedSinceMs ? Math.min(window.__ermRealtimeNotificationSinceMs, sharedSinceMs) : window.__ermRealtimeNotificationSinceMs;
+
     $.get('/erm/get-notif', {
-        since_ms: window.__ermRealtimeNotificationSinceMs
+        since_ms: sinceMs
     }, function(data) {
+        BelovaTabLeader.share('erm-get-notif', requestStartedMs);
         if (data.new) {
             let soundFile = '/sounds/notif.mp3';
             let popupIconHtml = null;
@@ -70,8 +83,10 @@ window.__ermPerawatNotifTimer = setInterval(function() {
                 audio.play();
             }
         }
+    }).always(function() {
+        perawatPollBusy = false;
     });
-}, 2000);
+});
 }
 </script>
 @endif

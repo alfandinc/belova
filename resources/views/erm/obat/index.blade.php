@@ -730,8 +730,12 @@
 
     function renderNamaCell(data, type, row) {
         if (type !== 'display') return data;
-        const inactive = String(row.status_aktif) === '0' ? '<div class="mt-1"><span class="badge badge-danger">Tidak Aktif</span></div>' : '';
-        return '<div class="obat-nama">' + escapeHtml(row.nama) + '</div>' + inactive;
+        const inactive = String(row.status_aktif) === '0' ? '<span class="badge badge-danger mr-1">Tidak Aktif</span>' : '';
+        const rnd = row.rnd_produk_nama
+            ? '<span class="badge badge-soft-purple" style="background:rgba(124,58,237,.12);color:#6d28d9;" title="Dirilis dari Produk R&D: ' + escapeHtml(row.rnd_produk_nama) + '">R&amp;D</span>'
+            : '';
+        const badges = inactive || rnd ? '<div class="mt-1">' + inactive + rnd + '</div>' : '';
+        return '<div class="obat-nama">' + escapeHtml(row.nama) + '</div>' + badges;
     }
 
     function renderKategoriCell(data, type) {

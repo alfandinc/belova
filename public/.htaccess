@@ -23,3 +23,39 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# ---------------------------------------------------------------------------
+# Performance. Each block is inactive until its Apache module is enabled
+# (httpd.conf: mod_deflate, mod_expires, mod_headers).
+# ---------------------------------------------------------------------------
+
+# Compress text responses (HTML pages are ~250KB uncompressed, ~40KB gzipped)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml application/javascript text/javascript application/json image/svg+xml
+</IfModule>
+
+# Images, fonts and sounds rarely change: let the browser reuse them for 30 days
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/gif "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+    ExpiresByType image/x-icon "access plus 30 days"
+    ExpiresByType font/woff2 "access plus 30 days"
+    ExpiresByType font/woff "access plus 30 days"
+    ExpiresByType font/ttf "access plus 30 days"
+    ExpiresByType application/font-woff "access plus 30 days"
+    ExpiresByType application/vnd.ms-fontobject "access plus 30 days"
+    ExpiresByType audio/mpeg "access plus 30 days"
+    ExpiresByType audio/wav "access plus 30 days"
+</IfModule>
+
+# Vendor theme/plugins under /dastone never change: cache CSS/JS there for 30 days.
+# App CSS/JS outside /dastone (custom.css, js/*) keep normal revalidation so edits show up immediately.
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#/dastone/#">
+        Header set Cache-Control "public, max-age=2592000"
+    </If>
+</IfModule>

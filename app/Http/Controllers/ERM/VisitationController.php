@@ -509,10 +509,33 @@ class VisitationController extends Controller
             $referralable instanceof Dokter => optional($referralable->user)->name ?: 'Dokter ID ' . $referralable->id,
             $referralable instanceof \App\Models\HRD\Employee => $referralable->nama,
             $referralable instanceof \App\Models\Marketing\MarketingEvent => $referralable->nama_event,
+            $referralable instanceof \App\Models\Marketing\FollowUp => $pasien->referral_detail ?: 'Follow up #' . $referralable->id,
             default => null,
         };
 
         $registrarDokter = $this->registrarDokter();
+
+        // CRM follow ups of the last 14 days that have not booked a visit yet (newest first);
+        // the modal pre-selects the first one as this visit's referral.
+        $followUps = \App\Models\Marketing\FollowUp::with('sales:id,nama')
+            ->where('pasien_id', $pasien->id)
+            ->where('created_at', '>=', now()->subDays(14)->startOfDay())
+            ->where(fn ($q) => $q->whereNull('status_booking')->orWhere('status_booking', '!=', 'Batal'))
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('erm_visitations')
+                    ->where('erm_visitations.referral_type', Pasien::REFERRAL_TYPE_FOLLOW_UP)
+                    ->whereColumn('erm_visitations.referralable_id', DB::raw('CAST(marketing_follow_ups.id AS CHAR)'));
+            })
+            ->latest()
+            ->limit(10)
+            ->get()
+            ->map(fn ($followUp) => [
+                'id' => $followUp->id,
+                'label' => $followUp->created_at->format('d/m/Y')
+                    . ($followUp->sales ? ' · ' . $followUp->sales->nama : '')
+                    . ($followUp->status_respon ? ' · ' . $followUp->status_respon : ''),
+            ]);
 
         return response()->json([
             'is_first_visit' => !$pasien->visitations()->exists(),
@@ -527,6 +550,7 @@ class VisitationController extends Controller
                 'id' => $registrarDokter->id,
                 'label' => optional($registrarDokter->user)->name ?: 'Dokter ID ' . $registrarDokter->id,
             ] : null,
+            'follow_ups' => $followUps,
         ]);
     }
 

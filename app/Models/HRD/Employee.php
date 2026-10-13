@@ -479,13 +479,13 @@ class Employee extends Model
     public function isManager()
     {
         // Make case-insensitive for safety
-        return $this->user && $this->user->hasRole(['manager', 'Manager']);
+        return $this->user && $this->user->hasRole('Manager');
     }
     
     public function isCEO()
     {
         // Check if user has CEO role
-        return $this->user && $this->user->hasRole(['ceo', 'Ceo', 'CEO']);
+        return $this->user && $this->user->hasRole('Ceo');
     }
 
     public function jatahLibur()

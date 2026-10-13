@@ -12,7 +12,6 @@ class RiwayatTindakan extends Model
         'visitation_id',
         'tanggal_tindakan',
         'tindakan_id',
-        'paket_tindakan_id',
         'multi_visit_usage_id',
         'total_rf',
         'rf_used',
@@ -44,11 +43,6 @@ class RiwayatTindakan extends Model
     public function tindakan()
     {
         return $this->belongsTo(Tindakan::class, 'tindakan_id');
-    }
-
-    public function paketTindakan()
-    {
-        return $this->belongsTo(PaketTindakan::class, 'paket_tindakan_id');
     }
 
     public function informConsent()

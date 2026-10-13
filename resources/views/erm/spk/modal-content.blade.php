@@ -10,7 +10,7 @@
                     <div class="dropdown-menu" aria-labelledby="tindakanDropdown">
                         @foreach($allRiwayat as $index => $item)
                         <a class="dropdown-item load-spk-index" href="#" data-visitation-id="{{ $item->visitation_id }}" data-index="{{ $index }}">
-                            {{ $index + 1 }}. {{ $item->tindakan->nama ?? ($item->paketTindakan->nama ?? 'N/A') }}
+                            {{ $index + 1 }}. {{ $item->tindakan->nama ?? 'N/A' }}
                         </a>
                         @endforeach
                     </div>
@@ -82,7 +82,7 @@
                 <div class="form-group">
                     <label>Jam Mulai</label>
                     <div class="input-group">
-                        <input type="time" class="form-control" id="globalJamMulaiModal">
+                        <input type="time" class="form-control" id="globalJamMulaiModal" name="waktu_mulai">
                         <div class="input-group-append">
                             <button type="button" class="btn btn-secondary" id="btnNowJamMulaiModal">Now</button>
                         </div>
@@ -93,32 +93,13 @@
                 <div class="form-group">
                     <label>Jam Selesai</label>
                     <div class="input-group">
-                        <input type="time" class="form-control" id="globalJamSelesaiModal">
+                        <input type="time" class="form-control" id="globalJamSelesaiModal" name="waktu_selesai">
                         <div class="input-group-append">
                             <button type="button" class="btn btn-secondary" id="btnNowJamSelesaiModal">Now</button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div class="table-responsive mt-4">
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th style="width: 2%">NO</th>
-                        <th style="width: 10%">TINDAKAN</th>
-                        <th style="width: 12%">PJ</th>
-                        <th style="width: 4%">SBK</th>
-                        <th style="width: 4%">SBA</th>
-                        <th style="width: 4%">SDC</th>
-                        <th style="width: 4%">SDK</th>
-                        <th style="width: 4%">SDL</th>
-                        <th style="width: 30%">NOTES</th>
-                    </tr>
-                </thead>
-                <tbody id="spkModalTableBody">
-                </tbody>
-            </table>
         </div>
         <input type="hidden" id="spkModalInformConsentId" name="inform_consent_id">
         <input type="hidden" id="spkModalRiwayatTindakanId" name="riwayat_tindakan_id" value="{{ $riwayat->id ?? '' }}">
@@ -171,61 +152,6 @@
     'use strict';
 
     // Modal-specific JavaScript
-    const renderSpkModalTable = (sopList, spk, users) =>
-        sopList.map((sop, index) => {
-            const existingDetail = spk?.details?.find(d => d.sop_id == sop.id);
-            return `<tr>
-                <td>${index + 1}</td>
-                <td>${sop.nama_sop}</td>
-                <td>
-                    <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
-                        <option value="">Pilih PJ</option>
-                    </select>
-                </td>
-                <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail?.sbk ? 'checked' : ''}></td>
-                <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail?.sba ? 'checked' : ''}></td>
-                <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail?.sdc ? 'checked' : ''}></td>
-                <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail?.sdk ? 'checked' : ''}></td>
-                <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail?.sdl ? 'checked' : ''}></td>
-                <td class="d-flex align-items-center">
-                    <textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail?.notes || ''}</textarea>
-                    <button type="button" class="btn btn-sm btn-primary mt-2 check-all-btn" data-checked="0">Check All</button>
-                </td>
-                <input type="hidden" class="spk-mulai" name="details[${index}][waktu_mulai]" value="${existingDetail?.waktu_mulai?.substring(0,5) || ''}">
-                <input type="hidden" class="spk-selesai" name="details[${index}][waktu_selesai]" value="${existingDetail?.waktu_selesai?.substring(0,5) || ''}">
-                <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
-            </tr>`;
-        }).join('');
-
-    const populateModalSelect2 = (users, spk) => {
-        $('#spkModal .select2-spk').each(function() {
-            const sopId = $(this).data('sop-id');
-            const existingDetail = spk?.details?.find(d => d.sop_id == sopId);
-            
-            // Destroy existing select2 if it exists
-            if ($(this).hasClass('select2-hidden-accessible')) {
-                $(this).select2('destroy');
-            }
-            
-            // Clear existing options except placeholder
-            $(this).find('option:not(:first)').remove();
-            
-            users.forEach(user => {
-                const option = $('<option></option>');
-                option.val(user.name);
-                option.text(user.name);
-                if (existingDetail?.penanggung_jawab === user.name) option.prop('selected', true);
-                $(this).append(option);
-            });
-            
-            // Re-initialize select2
-            $(this).select2({
-                width: '100%',
-                dropdownParent: $('#spkModal')
-            });
-        });
-    };
-
     const loadSpkModalData = () => {
         return new Promise((resolve, reject) => {
             const riwayatTindakanId = $('#spkModalRiwayatTindakanId').val();
@@ -236,7 +162,6 @@
                 $('#spkModalNamaTindakan').val('Loading...');
                 $('#spkModalDokterPJ').val('Loading...');
                 $('#spkModalHarga').val('Loading...');
-                $('#spkModalTableBody').html('<tr><td colspan="9" class="text-center"><i class="fa fa-spinner fa-spin"></i> Memuat data SPK...</td></tr>');
                 
                 fetch(`/erm/tindakan/spk/by-riwayat/${riwayatTindakanId}`)
                     .then(res => res.json())
@@ -255,23 +180,9 @@
                             }
                             $('#spkModalTanggalTindakan').val(tanggalTindakan || new Date().toISOString().split('T')[0]);
                             
-                            if (data.sop_list && data.sop_list.length > 0) {
-                                $('#spkModalTableBody').html(renderSpkModalTable(data.sop_list, data.spk, data.users));
-                                populateModalSelect2(data.users, data.spk);
-                            } else {
-                                $('#spkModalTableBody').html('<tr><td colspan="9" class="text-center text-muted">Tidak ada SOP untuk tindakan ini</td></tr>');
-                            }
-                            
-                            // Set global times from first detail if available
-                            if (data.spk && data.spk.details && data.spk.details.length > 0) {
-                                const firstDetail = data.spk.details[0];
-                                if (firstDetail.waktu_mulai) {
-                                    $('#globalJamMulaiModal').val(firstDetail.waktu_mulai.substring(0,5));
-                                }
-                                if (firstDetail.waktu_selesai) {
-                                    $('#globalJamSelesaiModal').val(firstDetail.waktu_selesai.substring(0,5));
-                                }
-                            }
+                            // Jam mulai/selesai are stored on the SPK itself
+                            $('#globalJamMulaiModal').val(data.spk && data.spk.waktu_mulai ? data.spk.waktu_mulai.substring(0,5) : '');
+                            $('#globalJamSelesaiModal').val(data.spk && data.spk.waktu_selesai ? data.spk.waktu_selesai.substring(0,5) : '');
                             
                             // Update timestamp information
                             if (data.spk) {
@@ -302,7 +213,6 @@
                             
                             resolve(data);
                         } else {
-                            $('#spkModalTableBody').html('<tr><td colspan="9" class="text-center text-danger">Gagal memuat data SPK</td></tr>');
                             reject(new Error('Failed to load SPK data'));
                         }
                     })
@@ -313,7 +223,6 @@
                         $('#spkModalNamaTindakan').val('');
                         $('#spkModalDokterPJ').val('');
                         $('#spkModalHarga').val('');
-                        $('#spkModalTableBody').html('<tr><td colspan="9" class="text-center text-danger">Error memuat data SPK</td></tr>');
                         
                         // Clear timestamps on error
                         $('#spkCreatedAt').text('-');
@@ -332,7 +241,6 @@
                 $('#spkModalTanggalTindakan').val(new Date().toISOString().split('T')[0]);
                 $('#globalJamMulaiModal').val('');
                 $('#globalJamSelesaiModal').val('');
-                $('#spkModalTableBody').html('<tr><td colspan="9" class="text-center text-muted">Pilih tindakan untuk memuat SPK</td></tr>');
                 
                 // Clear timestamps
                 $('#spkCreatedAt').text('-');
@@ -410,13 +318,6 @@
         // Disable navigation buttons during loading
         $('.load-spk-index').prop('disabled', true);
         
-        // Destroy any existing select2 instances
-        $('#spkModal .select2-spk').each(function() {
-            if ($(this).hasClass('select2-hidden-accessible')) {
-                $(this).select2('destroy');
-            }
-        });
-        
         // Load new content via AJAX with timeout
         window.spkNavigationTimeout = setTimeout(function() {
             Swal.fire('Timeout', 'Permintaan memuat data terlalu lama. Silakan coba lagi.', 'warning');
@@ -467,17 +368,9 @@ function cleanupSpkModal() {
     // Remove any existing overlays
     $('.loading-overlay').remove();
     
-    // Destroy select2 instances
-    $('#spkModal .select2-spk').each(function() {
-        if ($(this).hasClass('select2-hidden-accessible')) {
-            $(this).select2('destroy');
-        }
-    });
-    
     // Remove namespaced event handlers
     $(document).off('click.spkNavigation');
     $(document).off('click.spkSave');
-    $(document).off('click.spkCheckAll');
     $(document).off('click.spkTimeButtons');
     
     // Clear any pending timeouts
@@ -505,15 +398,6 @@ $(document).off('click.spkSave', '#saveSpkModal').on('click.spkSave', '#saveSpkM
     // Disable save button to prevent multiple submissions
     $(this).prop('disabled', true);
     
-    // Set all waktu_mulai and waktu_selesai per row from global input
-    const jamMulai = $('#globalJamMulaiModal').val();
-    const jamSelesai = $('#globalJamSelesaiModal').val();
-    $('#spkModal input.spk-mulai').each(function() {
-        $(this).val(jamMulai);
-    });
-    $('#spkModal input.spk-selesai').each(function() {
-        $(this).val(jamSelesai);
-    });
     
     const form = $('#spkModalForm')[0];
     const formData = new FormData(form);
@@ -560,16 +444,6 @@ $(document).off('click.spkSave', '#saveSpkModal').on('click.spkSave', '#saveSpkM
     });
 });
 
-// Handle check all buttons - using namespaced event
-$(document).off('click.spkCheckAll', '.check-all-btn').on('click.spkCheckAll', '.check-all-btn', function() {
-    const row = $(this).closest('tr');
-    const checkboxes = row.find('input[type="checkbox"]');
-    const isChecked = $(this).attr('data-checked') === '1';
-    
-    checkboxes.prop('checked', !isChecked);
-    $(this).attr('data-checked', isChecked ? '0' : '1');
-    $(this).text(isChecked ? 'Check All' : 'Uncheck All');
-});
 
 // Handle time buttons - using namespaced events
 $(document).off('click.spkTimeButtons', '#btnNowJamMulaiModal').on('click.spkTimeButtons', '#btnNowJamMulaiModal', function() {

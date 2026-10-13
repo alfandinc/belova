@@ -14,8 +14,19 @@ class Spk extends Model
         'tindakan_id',
         'dokter_id',
         'tanggal_tindakan',
+        'waktu_mulai',
+        'waktu_selesai',
         'riwayat_tindakan_id'
     ];
+
+    /** started = jam mulai filled, selesai = jam selesai filled; drives the SPK colour in riwayat lists */
+    public function status(): string
+    {
+        if (!empty($this->waktu_selesai)) {
+            return 'selesai';
+        }
+        return !empty($this->waktu_mulai) ? 'mulai' : 'belum';
+    }
 
     protected $casts = [
         'tanggal_tindakan' => 'date'
@@ -39,11 +50,6 @@ class Spk extends Model
     public function dokter()
     {
         return $this->belongsTo(Dokter::class, 'dokter_id');
-    }
-
-    public function details()
-    {
-        return $this->hasMany(SpkDetail::class, 'spk_id');
     }
 
     public function riwayatTindakan()

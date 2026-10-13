@@ -8,6 +8,12 @@ class RndMasterBrand extends BaseRndMaster
 
     protected $fillable = [
         'nama_brand',
+        'no_hki',
+        'hki_berlaku_sampai',
+    ];
+
+    protected $casts = [
+        'hki_berlaku_sampai' => 'date:Y-m-d',
     ];
 
     public static function label(): string
@@ -23,6 +29,18 @@ class RndMasterBrand extends BaseRndMaster
                 'label' => 'Nama Brand',
                 'type' => 'text',
                 'required' => true,
+            ],
+            [
+                'name' => 'no_hki',
+                'label' => 'No. Pendaftaran Merek (HKI)',
+                'type' => 'text',
+                'required' => false,
+            ],
+            [
+                'name' => 'hki_berlaku_sampai',
+                'label' => 'Merek Berlaku s/d',
+                'type' => 'date',
+                'required' => false,
             ],
         ];
     }

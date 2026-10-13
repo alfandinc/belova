@@ -27,6 +27,11 @@ class ZatAktif extends Model
         return $this->belongsToMany(Obat::class, 'erm_kandungan_obat', 'zataktif_id', 'obat_id');
     }
 
+    public function rndProduks()
+    {
+        return $this->belongsToMany(\App\Models\Rnd\RndProduk::class, 'rnd_produk_zat_aktif', 'zataktif_id', 'produk_id');
+    }
+
     /**
      * Stored form of a name: trimmed, single spaces, uppercase (matches existing data).
      */

@@ -324,12 +324,16 @@ $(function() {
             var rows = p.items.map(function(it) {
                 var selisih = it.selisih_persen === null ? '<span class="text-muted">-</span>'
                     : '<span class="' + (it.selisih_besar ? 'text-danger font-weight-bold' : '') + '">' + (it.selisih_persen > 0 ? '+' : '') + it.selisih_persen + '%</span>';
+                // Several batches of one obat: show the total next to each batch
+                var qty = it.qty
+                    + (it.batch_grup > 1 ? ' <small class="text-muted">(total ' + it.qty_grup + ')</small>' : '')
+                    + (!it.bonus && it.diminta > it.qty_grup ? ' <small class="text-muted">/ ' + it.diminta + '</small>' : '');
                 return '<tr>'
-                    + '<td class="text-left">' + esc(it.obat) + '</td>'
-                    + '<td>' + it.qty + (it.diminta > it.qty ? ' <small class="text-muted">/ ' + it.diminta + '</small>' : '') + '</td>'
+                    + '<td class="text-left">' + esc(it.obat) + (it.bonus ? ' <span class="badge badge-success">Bonus</span>' : '') + '</td>'
+                    + '<td>' + qty + '</td>'
                     + '<td class="text-left">' + (it.batch ? esc(it.batch) : '<span class="text-danger">-</span>') + '<br><small>' + (it.expiration_date || '<span class="text-danger">ED -</span>') + '</small></td>'
-                    + '<td>' + rupiah(it.harga) + '<br><small>' + selisih + '</small></td>'
-                    + '<td>' + rupiah(it.hpp_lama) + ' → <strong>' + rupiah(it.hpp_baru) + '</strong></td>'
+                    + '<td>' + (it.bonus ? '<span class="text-muted">gratis</span>' : rupiah(it.harga) + '<br><small>' + selisih + '</small>') + '</td>'
+                    + '<td>' + (it.bonus ? '<span class="text-muted">tidak berubah</span>' : rupiah(it.hpp_lama) + ' → <strong>' + rupiah(it.hpp_baru) + '</strong>') + '</td>'
                     + '</tr>';
             }).join('');
             var warnings = '';

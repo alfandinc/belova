@@ -1,31 +1,30 @@
-@if (! $employeePosition)
-    <div class="alert alert-warning">
-        Dashboard belum bisa ditampilkan karena akun ini belum memiliki posisi utama karyawan.
-    </div>
-@elseif ($dashboardWidgets->isEmpty())
-    <div class="alert alert-info">
-        Belum ada widget yang dipetakan untuk posisi {{ $employeePosition->name }}.
+@if ($dashboardWidgets->isEmpty())
+    <div class="dsh-empty dsh-widgets-empty">
+        <div class="dsh-empty-icon"><i data-feather="grid"></i></div>
+        <div class="dsh-empty-title">Belum ada widget</div>
+        <p class="dsh-empty-text">Role Anda belum diberi akses ke widget dashboard mana pun.</p>
     </div>
 @else
-    @foreach ($dashboardWidgets->groupBy(function ($widget) { return $widget->row_index ?? 1; })->sortKeys() as $rowWidgets)
-        <div class="row">
-            @foreach ($rowWidgets as $widget)
-                <div class="col-lg-{{ $widget->column_span }} col-md-12 mb-4">
-                    @if ($widget->view_exists)
-                        @include($widget->resolved_view, ['widget' => $widget, 'dashboardFilter' => $dashboardFilter])
-                    @else
-                        <div class="card h-100 border-warning dashboard-widget-card">
-                            <div class="card-body">
-                                <h5 class="card-title mb-2">{{ $widget->widget_name }}</h5>
-                                <p class="text-muted mb-2">{{ $widget->description ?: 'Widget belum memiliki deskripsi.' }}</p>
-                                <div class="small text-warning">
-                                    View widget tidak ditemukan: {{ $widget->component_path }}
-                                </div>
-                            </div>
-                        </div>
-                    @endif
-                </div>
-            @endforeach
-        </div>
-    @endforeach
+    {{-- Widgets flow left to right in config order and wrap by their column span. A widget with a data
+         class starts as a skeleton and is filled from dashboard.widget; one without (e.g. Buku Menu)
+         renders right away. --}}
+    <div class="row">
+        @foreach ($dashboardWidgets as $widget)
+            <div class="col-xl-{{ $widget->column_span }} col-12 mb-4"
+                 data-widget-slot="{{ $widget->key }}"
+                 data-uses-period="{{ $widget->uses_period ? 1 : 0 }}"
+                 @if ($widget->class) data-widget-url="{{ route('dashboard.widget', $widget->key) }}" @endif>
+                @if ($widget->class)
+                    <x-dash.card :widget="$widget" class="dw-skeleton" aria-busy="true">
+                        <div class="dw-skel-line" style="width: 40%"></div>
+                        <div class="dw-skel-block"></div>
+                        <div class="dw-skel-line" style="width: 85%"></div>
+                        <div class="dw-skel-line" style="width: 65%"></div>
+                    </x-dash.card>
+                @else
+                    @include('dashboard.partials.widget', ['widget' => $widget, 'dashboardFilter' => $dashboardFilter])
+                @endif
+            </div>
+        @endforeach
+    </div>
 @endif

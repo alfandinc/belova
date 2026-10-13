@@ -174,7 +174,9 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required',
             'emotion' => 'nullable|in:' . implode(',', array_keys(self::emotionCatalog())),
-            'clinic_choice' => 'nullable|in:skin,premiere,dental',
+            'clinic_choice' => 'required|in:skin,premiere,dental',
+        ], [
+            'clinic_choice.required' => 'Pilih klinik terlebih dahulu.',
         ]);
 
         // Find user with given email
@@ -182,31 +184,48 @@ class AuthController extends Controller
 
         // Check if user exists
         if (!$user) {
-            return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
+            return $this->loginFailed($request, 'Email atau password salah.');
         }
 
         // Attempt to login (nonaktif accounts are rejected)
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password, 'is_active' => true])) {
+            // New session id after login (prevents session fixation)
+            $request->session()->regenerate();
+
             $loggedInUser = Auth::user();
-            $emotion = $request->input('emotion', self::DEFAULT_EMOTION);
+            // An empty hidden input arrives as null, so fall back explicitly (storeUserEmotion needs a string)
+            $emotion = $request->input('emotion') ?: self::DEFAULT_EMOTION;
             if ($loggedInUser) {
                 self::storeUserEmotion($loggedInUser, $emotion);
             }
-            session(['user_emotion' => $emotion]);
+            session([
+                'user_emotion' => $emotion,
+                'clinic_choice' => $request->clinic_choice,
+            ]);
 
-            // Save clinic_choice to session if present
-            if ($request->has('clinic_choice')) {
-                session(['clinic_choice' => $request->clinic_choice]);
-            }
-            // Redirect ke main menu
-            return redirect('/');
+            // Back to the page the user was trying to open, otherwise the dashboard
+            $redirect = redirect()->intended('/');
+
+            // The login page submits via fetch: hand it the target URL instead of a redirect
+            return $request->expectsJson()
+                ? response()->json(['redirect' => $redirect->getTargetUrl()])
+                : $redirect;
         }
 
         if (!$user->is_active && Hash::check($request->password, $user->password)) {
-            return back()->withErrors(['email' => 'Akun Anda dinonaktifkan. Hubungi Admin.'])->withInput();
+            return $this->loginFailed($request, 'Akun Anda dinonaktifkan. Hubungi Admin.');
         }
 
-        return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
+        return $this->loginFailed($request, 'Email atau password salah.');
+    }
+
+    protected function loginFailed(Request $request, string $message)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        return back()->withErrors(['email' => $message])->withInput();
     }
 
     // Handle logout

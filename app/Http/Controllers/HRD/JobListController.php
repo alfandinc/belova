@@ -42,7 +42,7 @@ class JobListController extends Controller
                 $divisionIds = $user->employee
                     ? $user->employee->positions()->whereNotNull('division_id')->pluck('division_id')->unique()->values()->toArray()
                     : [];
-                $isManager = $user->hasAnyRole(['Manager','manager']);
+                $isManager = $user->hasRole('Manager');
                 if (!empty($divisionIds)) {
                     $query->where(function($q) use ($divisionIds, $isManager) {
                         // Jobs visible to all employees in the division (for_manager = false)
@@ -302,7 +302,7 @@ class JobListController extends Controller
             ->setRowAttr([
                 'class' => function ($row) {
                     try {
-                        if ($row->creator && method_exists($row->creator, 'hasRole') && $row->creator->hasRole(['ceo','Ceo','CEO'])) {
+                        if ($row->creator && method_exists($row->creator, 'hasRole') && $row->creator->hasRole('Ceo')) {
                             return 'table-warning';
                         }
                     } catch (\Throwable $e) {

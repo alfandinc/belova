@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Area\Village;
 use App\Models\HRD\Employee;
 use App\Models\ERM\KelasPasien;
+use App\Models\Marketing\FollowUp;
 use App\Models\Marketing\MarketingEvent;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
@@ -28,6 +29,8 @@ class Pasien extends Model
     public const REFERRAL_TYPE_MARKETPLACE = 'marketplace';
     public const REFERRAL_TYPE_PARTNERSHIP = 'partnership';
     public const REFERRAL_TYPE_GOOGLE_MAPS = 'google_maps';
+    // Visit booked from a CRM follow up (referralable = Marketing\FollowUp, detail = its sales name)
+    public const REFERRAL_TYPE_FOLLOW_UP = 'follow_up';
     public const MARKETPLACE_REFERRAL_DETAILS = ['shopee', 'tiktokshop', 'tokopedia', 'lazada'];
     public const SOCIAL_MEDIA_REFERRAL_DETAILS = ['instagram', 'tiktok', 'facebook', 'threads', 'twitter', 'whatsapp'];
 
@@ -153,7 +156,26 @@ class Pasien extends Model
             self::REFERRAL_TYPE_MARKETPLACE,
             self::REFERRAL_TYPE_PARTNERSHIP,
             self::REFERRAL_TYPE_GOOGLE_MAPS,
+            self::REFERRAL_TYPE_FOLLOW_UP,
         ];
+    }
+
+    /** Display label of a referral type (unknown / empty = Walk-in). */
+    public static function referralTypeLabel(?string $type): string
+    {
+        return match ($type) {
+            self::REFERRAL_TYPE_PASIEN => 'Pasien',
+            self::REFERRAL_TYPE_DOKTER => 'Dokter',
+            self::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
+            self::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
+            self::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
+            self::REFERRAL_TYPE_EVENT => 'Event',
+            self::REFERRAL_TYPE_WEBSITE => 'Website',
+            self::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
+            self::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
+            self::REFERRAL_TYPE_FOLLOW_UP => 'Follow Up',
+            default => 'Walk-in',
+        };
     }
 
     /**
@@ -168,6 +190,7 @@ class Pasien extends Model
             'referral_employee_id' => 'nullable|exists:hrd_employee,id',
             'referral_dokter_id' => 'nullable|exists:erm_dokters,id',
             'referral_event_id' => 'nullable|exists:marketing_event,id',
+            'referral_follow_up_id' => 'nullable|exists:marketing_follow_ups,id',
         ];
     }
 
@@ -186,8 +209,10 @@ class Pasien extends Model
         $referralEmployeeId = $value('referral_employee_id');
         $referralDokterId = $value('referral_dokter_id');
         $referralEventId = $value('referral_event_id');
+        $referralFollowUpId = $value('referral_follow_up_id');
 
         $error = match (true) {
+            $referralType === self::REFERRAL_TYPE_FOLLOW_UP && !$referralFollowUpId => 'Follow up referral wajib dipilih.',
             $referralType === self::REFERRAL_TYPE_PASIEN && !$referralPasienId => 'Pasien referral wajib dipilih.',
             $referralType === self::REFERRAL_TYPE_EMPLOYEE && !$referralEmployeeId => 'Karyawan referral wajib dipilih.',
             $referralType === self::REFERRAL_TYPE_DOKTER && !$referralDokterId => 'Dokter referral wajib dipilih.',
@@ -214,6 +239,7 @@ class Pasien extends Model
             self::REFERRAL_TYPE_EMPLOYEE => $referralEmployeeId,
             self::REFERRAL_TYPE_DOKTER => $referralDokterId,
             self::REFERRAL_TYPE_EVENT => $referralEventId,
+            self::REFERRAL_TYPE_FOLLOW_UP => $referralFollowUpId,
             default => null,
         };
 
@@ -269,6 +295,17 @@ class Pasien extends Model
                 'referral_detail' => $referralDetail,
                 'referralable_type' => $referralableId ? (new MarketingEvent())->getMorphClass() : null,
                 'referralable_id' => $referralableId,
+            ];
+        }
+
+        if ($referralType === self::REFERRAL_TYPE_FOLLOW_UP) {
+            $followUp = $referralableId ? FollowUp::with('sales:id,nama')->find($referralableId) : null;
+
+            return [
+                // Sales name as detail, so every referral label shows "Follow Up: <sales>"
+                'referral_detail' => $followUp ? ($followUp->sales->nama ?? null) : $referralDetail,
+                'referralable_type' => $followUp ? $followUp->getMorphClass() : null,
+                'referralable_id' => $followUp ? (string) $followUp->id : null,
             ];
         }
 

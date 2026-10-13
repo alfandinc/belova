@@ -3,20 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyJournalTask;
-use App\Models\HRD\Employee;
-use App\Models\HRD\Position;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DailyJournalController extends Controller
 {
-    private const ALL_TASK_ACCESS_ROLES = ['Hrd', 'HRD', 'hrd', 'Admin', 'admin', 'Ceo', 'CEO', 'ceo'];
-
     private const FILTERS = [
         'today',
         'week',
@@ -89,131 +84,9 @@ class DailyJournalController extends Controller
         ]);
     }
 
-    public function divisionIndex(Request $request): View
-    {
-        $actor = Auth::user();
-        $canViewAllTasks = $this->canViewAllDivisionTasks($actor);
-        $canAssignTasks = $this->canAssignDivisionTasks($actor);
-        $actorEmployee = $actor?->employee;
-        $assignableMemberQuery = $this->resolveDivisionMemberQuery($actorEmployee, $canViewAllTasks);
-
-        abort_unless($canAssignTasks || $canViewAllTasks, 403);
-
-        $selectedDate = $this->resolveSelectedDate($request->query('date'));
-        $filter = in_array($request->query('filter'), self::FILTERS, true) ? $request->query('filter') : 'today';
-        $selectedStatus = in_array($request->query('status'), DailyJournalTask::STATUSES, true)
-            ? $request->query('status')
-            : null;
-        $delegatedByMe = $request->has('delegated_by_me')
-            ? $request->boolean('delegated_by_me')
-            : true;
-        $weekStart = $selectedDate->copy()->startOfWeek(Carbon::MONDAY);
-        $weekDays = collect(range(0, 6))->map(function (int $offset) use ($weekStart) {
-            return $weekStart->copy()->addDays($offset);
-        });
-        [$rangeStart, $rangeEnd] = $this->resolveDateRange($request, $selectedDate, $filter);
-
-        $divisionName = $canViewAllTasks
-            ? 'All Employees'
-            : ($actorEmployee ? 'My Team' : null);
-
-        $divisionMembers = collect();
-        $selectedUserId = null;
-        $tasks = collect();
-        $totalCount = 0;
-        $statusCounts = [
-            'todo' => 0,
-            'in_progress' => 0,
-            'done' => 0,
-            'skipped' => 0,
-        ];
-
-        if ($assignableMemberQuery !== null) {
-            $divisionMembers = (clone $assignableMemberQuery)
-                ->whereNotNull('user_id')
-                ->with('user:id,name')
-                ->get()
-                ->filter(fn (Employee $employee) => $employee->user !== null)
-                ->unique('user_id')
-                ->sortBy(fn (Employee $employee) => strtolower($employee->user->name))
-                ->values();
-
-            $memberUserIds = $divisionMembers->pluck('user_id')->filter()->unique()->values();
-            $requestedUserId = (int) $request->query('user_id', 0);
-            $selectedUserId = $memberUserIds->contains($requestedUserId) ? $requestedUserId : null;
-
-            $tasksQuery = DailyJournalTask::query()
-                ->with([
-                    'user:id,name',
-                    'user.employee:id,user_id,photo',
-                    'fromUser:id,name',
-                    'fromUser.employee:id,user_id,photo',
-                ])
-                ->when(!$canViewAllTasks, function ($query) use ($memberUserIds) {
-                    $query->whereIn('user_id', $memberUserIds->all());
-                })
-                ->where(function ($query) use ($rangeStart, $rangeEnd) {
-                    $query->whereBetween('task_date', [$rangeStart->toDateString(), $rangeEnd->toDateString()])
-                        ->orWhere(function ($deadlineQuery) {
-                            $deadlineQuery->whereNotNull('deadline_date')
-                                ->where('status', '!=', 'done');
-                        });
-                })
-                ->when($delegatedByMe, function ($query) use ($actor) {
-                    $query->where('from_user_id', $actor?->id);
-                });
-
-            if ($selectedUserId) {
-                $tasksQuery->where('user_id', $selectedUserId);
-            }
-
-            $totalCount = (clone $tasksQuery)->count();
-
-            $statusCounts = [
-                'todo' => (clone $tasksQuery)->where('status', 'todo')->count(),
-                'in_progress' => (clone $tasksQuery)->where('status', 'in_progress')->count(),
-                'done' => (clone $tasksQuery)->where('status', 'done')->count(),
-                'skipped' => (clone $tasksQuery)->where('status', 'skipped')->count(),
-            ];
-
-            if ($selectedStatus) {
-                $tasksQuery->where('status', $selectedStatus);
-            }
-
-            $tasks = $tasksQuery
-                ->orderByDesc('task_date')
-                ->orderByRaw('CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END')
-                ->orderBy('scheduled_time')
-                ->orderByDesc('id')
-                ->get();
-        }
-
-        return view('daily_journal.division_index', [
-            'filter' => $filter,
-            'filterLabel' => $this->resolveFilterLabel($filter),
-            'periodTitle' => $this->resolvePeriodTitle($filter, $selectedDate, $rangeStart, $rangeEnd),
-            'periodDescription' => $this->resolvePeriodDescription($filter, $selectedDate, $rangeStart, $rangeEnd),
-            'selectedDate' => $selectedDate,
-            'rangeStart' => $rangeStart,
-            'rangeEnd' => $rangeEnd,
-            'weekDays' => $weekDays,
-            'tasks' => $tasks,
-            'totalCount' => $totalCount,
-            'statusCounts' => $statusCounts,
-            'selectedStatus' => $selectedStatus,
-            'statusOptions' => DailyJournalTask::STATUSES,
-            'divisionMembers' => $divisionMembers,
-            'selectedUserId' => $selectedUserId,
-            'divisionName' => $divisionName,
-            'canAssignTasks' => $canAssignTasks,
-            'delegatedByMe' => $delegatedByMe,
-        ]);
-    }
-
     public function store(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $validated = $request->validate([
-            'user_id' => ['nullable', 'integer'],
             'task_date' => ['required', 'date'],
             'deadline_date' => ['nullable', 'date', 'after_or_equal:task_date'],
             'title' => ['required', 'string', 'max:120'],
@@ -224,35 +97,11 @@ class DailyJournalController extends Controller
             'icon' => ['nullable', 'string', 'max:16'],
         ]);
 
-        $actor = Auth::user();
         $userId = Auth::id();
-        $fromUserId = null;
-        $canViewAllTasks = $this->canViewAllDivisionTasks($actor);
-        $assignableMemberQuery = $this->resolveDivisionMemberQuery($actor?->employee, $canViewAllTasks);
-
-        if ($canViewAllTasks && !empty($validated['user_id'])) {
-            $userId = (int) $validated['user_id'];
-            $fromUserId = $actor->id;
-        } elseif ($this->canAssignDivisionTasks($actor) && !empty($validated['user_id'])) {
-            $divisionMemberIds = ($assignableMemberQuery ?? Employee::query()->whereRaw('1 = 0'))
-                ->whereNotNull('user_id')
-                ->pluck('user_id')
-                ->filter()
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            $requestedUserId = (int) $validated['user_id'];
-            abort_unless(in_array($requestedUserId, $divisionMemberIds, true), 403);
-
-            $userId = $requestedUserId;
-            $fromUserId = $actor->id;
-        }
-
         $themeIndex = DailyJournalTask::query()->where('user_id', $userId)->count() % count(DailyJournalTask::THEMES);
 
         DailyJournalTask::create([
             'user_id' => $userId,
-            'from_user_id' => $fromUserId,
             'task_date' => $validated['task_date'],
             'deadline_date' => $validated['deadline_date'] ?? null,
             'title' => $validated['title'],
@@ -266,19 +115,8 @@ class DailyJournalController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => $fromUserId
-                    ? 'Task berhasil diberikan ke employee.'
-                    : 'Task Daily Journal berhasil ditambahkan.',
+                'message' => 'Task Daily Journal berhasil ditambahkan.',
             ]);
-        }
-
-        if ($fromUserId) {
-            return redirect()
-                ->route('daily-journal.division.index', $this->buildDivisionRedirectParams(
-                    $request,
-                    $request->input('redirect_date', $validated['task_date'])
-                ))
-                ->with('success', 'Task berhasil diberikan ke employee.');
         }
 
         return redirect()
@@ -461,113 +299,5 @@ class DailyJournalController extends Controller
         }
 
         return $params;
-    }
-
-    private function buildDivisionRedirectParams(Request $request, ?string $date): array
-    {
-        $params = $this->buildRedirectParams($request, $date);
-
-        $userId = $request->input('redirect_user_id', $request->input('user_id'));
-        $status = $request->input('redirect_status', $request->input('status'));
-
-        if ($userId !== null && $userId !== '') {
-            $params['user_id'] = $userId;
-        }
-
-        if ($status !== null && $status !== '') {
-            $params['status'] = $status;
-        }
-
-        $delegatedByMe = $request->input('redirect_delegated_by_me', $request->input('delegated_by_me'));
-
-        if ($delegatedByMe !== null && $delegatedByMe !== '') {
-            $params['delegated_by_me'] = $delegatedByMe;
-        }
-
-        return $params;
-    }
-
-    private function canViewAllDivisionTasks($user): bool
-    {
-        return (bool) $user?->hasRole(self::ALL_TASK_ACCESS_ROLES);
-    }
-
-    private function canAssignDivisionTasks($user): bool
-    {
-        if ($this->canViewAllDivisionTasks($user)) {
-            return true;
-        }
-
-        if (!$user) {
-            return false;
-        }
-
-        return $user->roles()
-            ->pluck('name')
-            ->contains(fn ($roleName) => str_contains(strtolower($roleName), 'manager'));
-    }
-
-    private function resolveDivisionMemberQuery(?Employee $actorEmployee, bool $canViewAllTasks): ?Builder
-    {
-        $query = Employee::active();
-
-        if ($canViewAllTasks) {
-            return $query;
-        }
-
-        if (!$actorEmployee) {
-            return null;
-        }
-
-        $managerPositionIds = $actorEmployee->positions()
-            ->pluck('hrd_position.id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($managerPositionIds->isEmpty()) {
-            return null;
-        }
-
-        $descendantPositionIds = $this->resolveDescendantPositionIds($managerPositionIds->all());
-
-        if (empty($descendantPositionIds)) {
-            return null;
-        }
-
-        return $query
-            ->where('id', '!=', $actorEmployee->id)
-            ->whereHas('positions', function (Builder $positionQuery) use ($descendantPositionIds) {
-                $positionQuery->whereIn('hrd_position.id', $descendantPositionIds);
-            });
-    }
-
-    private function resolveDescendantPositionIds(array $parentPositionIds): array
-    {
-        $pendingParentIds = collect($parentPositionIds)
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values();
-
-        $descendantIds = collect();
-
-        while ($pendingParentIds->isNotEmpty()) {
-            $childIds = Position::query()
-                ->whereIn('parent_id', $pendingParentIds->all())
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->diff($descendantIds)
-                ->values();
-
-            if ($childIds->isEmpty()) {
-                break;
-            }
-
-            $descendantIds = $descendantIds->concat($childIds)->unique()->values();
-            $pendingParentIds = $childIds;
-        }
-
-        return $descendantIds->all();
     }
 }

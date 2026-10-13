@@ -73,7 +73,7 @@ public function updateProfile(Request $request)
             ]);
         }
 
-        return redirect()->route('hrd.dashboard')
+        return redirect()->route('dashboard.index')
             ->with('error', 'Data karyawan tidak ditemukan');
     }
 

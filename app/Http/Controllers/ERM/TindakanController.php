@@ -9,7 +9,6 @@ use App\Models\Finance\Billing;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Tindakan;
-use App\Models\ERM\PaketTindakan;
 use App\Models\ERM\RiwayatTindakan;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +18,6 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
 use App\Models\ERM\Spk;
 use App\Models\ERM\AsesmenPenunjang;
-use App\Models\User;
 use Carbon\Carbon;
 use App\Models\ERM\MultiVisitUsage;
 
@@ -38,10 +36,6 @@ class TindakanController extends Controller
         $dosis = $request->input('dosis', []); // [kode_tindakan_id][obat_id] => value
         $satuanDosis = $request->input('satuan_dosis', []); // [kode_tindakan_id][obat_id] => value
 
-        // Remove all existing pivot entries for this riwayat tindakan
-        \DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
-
-        // Insert new pivot entries with qty, dosis, satuan_dosis
         // Helper: normalize decimal string (accept comma or dot)
         $normalizeDecimal = function($v) {
             if ($v === null || $v === '') return null;
@@ -53,27 +47,28 @@ class TindakanController extends Controller
             return is_numeric($s) ? $s : null;
         };
 
-        foreach ($obats as $kodeTindakanId => $obatIds) {
-            if (!is_array($obatIds)) continue;
-            foreach ($obatIds as $obatId) {
-                $rawDosis = isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null;
-                $normDosis = $normalizeDecimal($rawDosis);
-                \DB::table('erm_riwayat_tindakan_obat')->insert([
-                    'riwayat_tindakan_id' => $id,
-                    'kode_tindakan_id' => $kodeTindakanId,
-                    'obat_id' => $obatId,
-                    'qty' => isset($qty[$kodeTindakanId][$obatId]) ? $qty[$kodeTindakanId][$obatId] : 1,
-                    'dosis' => $normDosis,
-                    'satuan_dosis' => isset($satuanDosis[$kodeTindakanId][$obatId]) ? $satuanDosis[$kodeTindakanId][$obatId] : null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+        // Replace all obat of this riwayat in one transaction, so a failure never leaves it half-deleted
+        \DB::transaction(function () use ($id, $obats, $qty, $dosis, $satuanDosis, $normalizeDecimal) {
+            \DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
+            // Insert new pivot entries with qty, dosis, satuan_dosis
+            foreach ($obats as $kodeTindakanId => $obatIds) {
+                if (!is_array($obatIds)) continue;
+                foreach ($obatIds as $obatId) {
+                    $rawDosis = isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null;
+                    $normDosis = $normalizeDecimal($rawDosis);
+                    \DB::table('erm_riwayat_tindakan_obat')->insert([
+                        'riwayat_tindakan_id' => $id,
+                        'kode_tindakan_id' => $kodeTindakanId,
+                        'obat_id' => $obatId,
+                        'qty' => isset($qty[$kodeTindakanId][$obatId]) ? $qty[$kodeTindakanId][$obatId] : 1,
+                        'dosis' => $normDosis,
+                        'satuan_dosis' => isset($satuanDosis[$kodeTindakanId][$obatId]) ? $satuanDosis[$kodeTindakanId][$obatId] : null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
-
-            // set tindakan harga to total HPP of attached kode tindakan
-            $tindakan->harga = $totalHpp;
-            $tindakan->save();
-        }
+        });
 
         return response()->json(['success' => true, 'message' => 'Obat berhasil disimpan']);
     }
@@ -82,7 +77,7 @@ class TindakanController extends Controller
      */
     public function getRiwayatDetail($id)
     {
-        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['tindakan.kodeTindakans.obats', 'tindakan', 'tindakan.kodeTindakans', 'tindakan.obats'])->find($id);
+        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['tindakan.kodeTindakans.obats', 'tindakan', 'tindakan.kodeTindakans'])->find($id);
         if (!$riwayatTindakan) {
             $riwayatTindakan = new \stdClass();
             $riwayatTindakan->kodeTindakans = [];
@@ -169,21 +164,6 @@ class TindakanController extends Controller
             ';
             })
             ->rawColumns(['action'])
-            ->make(true);
-    }
-
-    public function getPaketTindakanData(Request $request, $spesialisasiId)
-    {
-        $paketTindakan = PaketTindakan::whereHas('tindakan', function ($query) use ($spesialisasiId) {
-            $query->where('spesialis_id', $spesialisasiId);
-        })->with('tindakan')->get();
-
-        return datatables()->of($paketTindakan)
-            ->addColumn('action', function ($row) {
-                // Properly encode tindakan data as JSON
-                $tindakanJson = json_encode($row->tindakan);
-                return '<button class="btn btn-success btn-sm buat-paket-tindakan" data-id="' . $row->id . '" data-tindakan=\'' . $tindakanJson . '\'>Buat</button>';
-            })
             ->make(true);
     }
 
@@ -289,7 +269,6 @@ class TindakanController extends Controller
             'notes' => 'nullable|string',
             'nama_pasien' => 'nullable|string',
             'nama_saksi' => 'nullable|string',
-            'paket_id' => 'nullable|exists:erm_paket_tindakan,id',
             'reuse_existing_inform_consent' => 'nullable|boolean',
         ];
         $data = $request->validate($rules);
@@ -303,7 +282,6 @@ class TindakanController extends Controller
             'visitation_id' => $data['visitation_id'],
             'tanggal_tindakan' => $data['tanggal'],
             'tindakan_id' => $data['tindakan_id'],
-            'paket_tindakan_id' => $data['paket_id'] ?? null,
             // Snapshot slimming RF/inject quota from master tindakan
             'total_rf' => $tindakan->is_slimming ? $tindakan->total_rf : null,
             'total_inject' => $tindakan->is_slimming ? $tindakan->total_inject : null,
@@ -427,7 +405,6 @@ class TindakanController extends Controller
                 'visitation_id' => $data['visitation_id'],
                 'tindakan_id' => $data['tindakan_id'],
                 'file_path' => $pdfPath,
-                'paket_id' => $data['paket_id'] ?? null,
                 'riwayat_tindakan_id' => $riwayatTindakan->id,
                 'created_at' => now(),
             ]);
@@ -446,7 +423,6 @@ class TindakanController extends Controller
                     'file_path' => $existingInformConsent->file_path,
                     'before_image_path' => $existingInformConsent->before_image_path,
                     'after_image_path' => $existingInformConsent->after_image_path,
-                    'paket_id' => $data['paket_id'] ?? $existingInformConsent->paket_id,
                     'riwayat_tindakan_id' => $riwayatTindakan->id,
                     'allow_post' => $existingInformConsent->allow_post,
                     'created_at' => now(),
@@ -468,148 +444,126 @@ class TindakanController extends Controller
         // Determine harga type: 'normal' or '3x'
         $hargaType = $request->input('harga_type') ?? 'normal';
 
-        if (isset($data['paket_id'])) {
-            $paketId = $data['paket_id'];
-            $visitationId = $data['visitation_id'];
-            $existingBilling = Billing::where('visitation_id', $visitationId)
-                ->where('billable_id', $paketId)
-                ->where('billable_type', 'App\\Models\\ERM\\PaketTindakan')
+        // Handle normal vs 3x visit pricing & multi-visit usage
+        $shouldCreateBilling = true;
+        $billingAmount = $tindakan->harga;
+        $multiVisitTotal = max((int) ($tindakan->multi_visit_total ?: 3), 2);
+        $multiVisitLabel = $multiVisitTotal . 'x Visit';
+
+        if ($hargaType === '3x' && !empty($tindakan->harga_paket_visit)) {
+            // Check for existing unused multi-visit usage for this patient & tindakan
+            $existingUsage = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
+                ->where('tindakan_id', $tindakan->id)
+                ->whereColumn('used', '<', 'total')
                 ->first();
-            if (!$existingBilling) {
-                $paketTindakan = PaketTindakan::find($paketId);
-                $billingData = [
-                    'visitation_id' => $visitationId,
-                    'billable_id' => $paketId,
-                    'billable_type' => 'App\\Models\\ERM\\PaketTindakan',
-                    'jumlah' => !empty($data['jumlah']) ? $data['jumlah'] : ($paketTindakan->harga_paket ?? 0),
-                    'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . ($paketTindakan->nama ?? '')
-                ];
-                $billing = Billing::create($billingData);
+
+            if ($existingUsage) {
+                // This patient already has remaining sessions: consume one
+                $existingUsage->used = $existingUsage->used + 1;
+                $existingUsage->save();
+                $riwayatTindakan->multi_visit_usage_id = $existingUsage->id;
+                $riwayatTindakan->save();
+                // For subsequent visits (2/3 and 3/3) we still create a billing record,
+                // but with amount 0 so it appears in billing history without charging.
+                $billingAmount = 0;
+                $shouldCreateBilling = true;
             } else {
-                $billing = $existingBilling;
+                // create new multi-visit usage record using tindakan-configured total
+                $newUsage = MultiVisitUsage::create([
+                    'pasien_id' => $visitation->pasien_id,
+                    'tindakan_id' => $tindakan->id,
+                    'first_visitation_id' => $data['visitation_id'],
+                    'total' => $multiVisitTotal,
+                    'used' => 1,
+                ]);
+                $riwayatTindakan->multi_visit_usage_id = $newUsage->id;
+                $riwayatTindakan->save();
+                // charge the multi-visit package price on first use
+                $billingAmount = $tindakan->harga_paket_visit;
+                $shouldCreateBilling = true;
             }
-        } else {
-            // Handle normal vs 3x visit pricing & multi-visit usage
-            $shouldCreateBilling = true;
-            $billingAmount = $tindakan->harga;
-            $multiVisitTotal = max((int) ($tindakan->multi_visit_total ?: 3), 2);
-            $multiVisitLabel = $multiVisitTotal . 'x Visit';
+        }
 
-            if ($hargaType === '3x' && !empty($tindakan->harga_paket_visit)) {
-                // Check for existing unused multi-visit usage for this patient & tindakan
-                $existingUsage = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
-                    ->where('tindakan_id', $tindakan->id)
-                    ->whereColumn('used', '<', 'total')
-                    ->first();
-
-                if ($existingUsage) {
-                    // This patient already has remaining sessions: consume one
-                    $existingUsage->used = $existingUsage->used + 1;
-                    $existingUsage->save();
-                    $riwayatTindakan->multi_visit_usage_id = $existingUsage->id;
-                    $riwayatTindakan->save();
-                    // For subsequent visits (2/3 and 3/3) we still create a billing record,
-                    // but with amount 0 so it appears in billing history without charging.
-                    $billingAmount = 0;
-                    $shouldCreateBilling = true;
-                } else {
-                    // create new multi-visit usage record using tindakan-configured total
-                    $newUsage = MultiVisitUsage::create([
-                        'pasien_id' => $visitation->pasien_id,
-                        'tindakan_id' => $tindakan->id,
-                        'first_visitation_id' => $data['visitation_id'],
-                        'total' => $multiVisitTotal,
-                        'used' => 1,
-                    ]);
-                    $riwayatTindakan->multi_visit_usage_id = $newUsage->id;
-                    $riwayatTindakan->save();
-                    // charge the multi-visit package price on first use
-                    $billingAmount = $tindakan->harga_paket_visit;
-                    $shouldCreateBilling = true;
+        if ($shouldCreateBilling) {
+            // Build a contextual keterangan. If this is a multi-visit flow, include progress (e.g. 2/3)
+            $billingKeterangan = 'Tindakan: ' . $tindakan->nama;
+            if ($hargaType === '3x') {
+                if (isset($existingUsage) && $existingUsage) {
+                    $billingKeterangan .= ' (' . ($existingUsage->used ?? 0) . '/' . ($existingUsage->total ?? 3) . ') - No Charge';
+                } elseif (isset($newUsage) && $newUsage) {
+                    $billingKeterangan .= ' (1/' . ($newUsage->total ?? $multiVisitTotal) . ') - ' . $multiVisitLabel . ' Charge';
                 }
             }
 
-            if ($shouldCreateBilling) {
-                // Build a contextual keterangan. If this is a multi-visit flow, include progress (e.g. 2/3)
-                $billingKeterangan = 'Tindakan: ' . $tindakan->nama;
-                if ($hargaType === '3x') {
-                    if (isset($existingUsage) && $existingUsage) {
-                        $billingKeterangan .= ' (' . ($existingUsage->used ?? 0) . '/' . ($existingUsage->total ?? 3) . ') - No Charge';
-                    } elseif (isset($newUsage) && $newUsage) {
-                        $billingKeterangan .= ' (1/' . ($newUsage->total ?? $multiVisitTotal) . ') - ' . $multiVisitLabel . ' Charge';
-                    }
-                }
+            // Calculate discount amount based on harga type. For 3x visits we do not apply the
+            // normal tindakan discount (unless you want a separate 3x discount field).
+            $discountAmount = 0;
+            $billingDiscountType = null;
 
-                // Calculate discount amount based on harga type. For 3x visits we do not apply the
-                // normal tindakan discount (unless you want a separate 3x discount field).
-                $discountAmount = 0;
-                $billingDiscountType = null;
+            $activePromoDiscountAmount = 0.0;
+            if ($hargaType !== '3x' && floatval($billingAmount) > 0 && floatval($tindakan->harga ?? 0) > 0) {
+                try {
+                    $today = \Carbon\Carbon::today()->format('Y-m-d');
+                    $activePromoItems = \App\Models\Marketing\PromoItem::where('item_type', 'tindakan')
+                        ->where('item_id', $tindakan->id)
+                        ->whereHas('promo', function ($q) use ($today) {
+                            $q->where(function ($q2) use ($today) {
+                                $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                                    ->where('start_date', '<=', $today)
+                                    ->where('end_date', '>=', $today);
+                            })->orWhere(function ($q2) use ($today) {
+                                $q2->whereNotNull('start_date')->whereNull('end_date')
+                                    ->where('start_date', '<=', $today);
+                            })->orWhere(function ($q2) use ($today) {
+                                $q2->whereNull('start_date')->whereNotNull('end_date')
+                                    ->where('end_date', '>=', $today);
+                            });
+                        })
+                        ->get(['discount_type', 'discount_value', 'discount_percent']);
 
-                $activePromoDiscountAmount = 0.0;
-                if ($hargaType !== '3x' && floatval($billingAmount) > 0 && floatval($tindakan->harga ?? 0) > 0) {
-                    try {
-                        $today = \Carbon\Carbon::today()->format('Y-m-d');
-                        $activePromoItems = \App\Models\Marketing\PromoItem::where('item_type', 'tindakan')
-                            ->where('item_id', $tindakan->id)
-                            ->whereHas('promo', function ($q) use ($today) {
-                                $q->where(function ($q2) use ($today) {
-                                    $q2->whereNotNull('start_date')->whereNotNull('end_date')
-                                        ->where('start_date', '<=', $today)
-                                        ->where('end_date', '>=', $today);
-                                })->orWhere(function ($q2) use ($today) {
-                                    $q2->whereNotNull('start_date')->whereNull('end_date')
-                                        ->where('start_date', '<=', $today);
-                                })->orWhere(function ($q2) use ($today) {
-                                    $q2->whereNull('start_date')->whereNotNull('end_date')
-                                        ->where('end_date', '>=', $today);
-                                });
-                            })
-                            ->get(['discount_type', 'discount_value', 'discount_percent']);
-
-                        foreach ($activePromoItems as $promoItem) {
-                            $discountAmount = $promoItem->calculateDiscountAmount((float) $billingAmount);
-                            if ($discountAmount > $activePromoDiscountAmount) {
-                                $activePromoDiscountAmount = $discountAmount;
-                            }
+                    foreach ($activePromoItems as $promoItem) {
+                        $discountAmount = $promoItem->calculateDiscountAmount((float) $billingAmount);
+                        if ($discountAmount > $activePromoDiscountAmount) {
+                            $activePromoDiscountAmount = $discountAmount;
                         }
-                    } catch (\Exception $e) {
-                        $activePromoDiscountAmount = 0.0;
                     }
+                } catch (\Exception $e) {
+                    $activePromoDiscountAmount = 0.0;
                 }
-
-                if ($activePromoDiscountAmount > 0) {
-                    // Promo replaces tindakan harga_diskon when both exist.
-                    $discountAmount = round($activePromoDiscountAmount, 2);
-                    $billingDiscountType = $discountAmount > 0 ? 'nominal' : null;
-                } elseif ($tindakan->diskon_active) {
-                    if ($hargaType === '3x') {
-                        // No automatic discount applied to 3x-visit pricing by default
-                        $discountAmount = 0;
-                    } else {
-                        $discountAmount = ($tindakan->harga - $tindakan->harga_diskon);
-                        $billingDiscountType = $discountAmount > 0 ? ($tindakan->diskon_type ?? 'nominal') : null;
-                    }
-                }
-
-                $billingData = [
-                    'visitation_id' => $data['visitation_id'],
-                    'billable_id' => $riwayatTindakan->id,
-                    'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
-                    'jumlah' => $billingAmount,
-                    'diskon' => $discountAmount,
-                    'diskon_type' => $billingDiscountType,
-                    'keterangan' => $billingKeterangan
-                ];
-                if (!empty($data['jumlah'])) {
-                    $billingData['jumlah'] = $data['jumlah'];
-                }
-                if (!empty($data['keterangan'])) {
-                    $billingData['keterangan'] = $data['keterangan'];
-                }
-                $billing = Billing::create($billingData);
-            } else {
-                $billing = null; // intentionally no billing for consumed session
             }
+
+            if ($activePromoDiscountAmount > 0) {
+                // Promo replaces tindakan harga_diskon when both exist.
+                $discountAmount = round($activePromoDiscountAmount, 2);
+                $billingDiscountType = $discountAmount > 0 ? 'nominal' : null;
+            } elseif ($tindakan->diskon_active) {
+                if ($hargaType === '3x') {
+                    // No automatic discount applied to 3x-visit pricing by default
+                    $discountAmount = 0;
+                } else {
+                    $discountAmount = ($tindakan->harga - $tindakan->harga_diskon);
+                    $billingDiscountType = $discountAmount > 0 ? ($tindakan->diskon_type ?? 'nominal') : null;
+                }
+            }
+
+            $billingData = [
+                'visitation_id' => $data['visitation_id'],
+                'billable_id' => $riwayatTindakan->id,
+                'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
+                'jumlah' => $billingAmount,
+                'diskon' => $discountAmount,
+                'diskon_type' => $billingDiscountType,
+                'keterangan' => $billingKeterangan
+            ];
+            if (!empty($data['jumlah'])) {
+                $billingData['jumlah'] = $data['jumlah'];
+            }
+            if (!empty($data['keterangan'])) {
+                $billingData['keterangan'] = $data['keterangan'];
+            }
+            $billing = Billing::create($billingData);
+        } else {
+            $billing = null; // intentionally no billing for consumed session
         }
         // Copy obat from kode tindakan to riwayat tindakan obat pivot table
         $kodeTindakans = $tindakan->kodeTindakans;
@@ -628,43 +582,9 @@ class TindakanController extends Controller
             }
         }
 
-        // Create SPK Tindakan (new detailed SPK system)
-        $spkTindakan = \App\Models\ERM\SpkTindakan::create([
-            'riwayat_tindakan_id' => $riwayatTindakan->id,
-            'tanggal_tindakan' => $data['tanggal'],
-            'status' => 'pending',
-        ]);
-
-        // Create SPK Tindakan Items for each kode tindakan
-        $spkTindakanItems = [];
-        foreach ($kodeTindakans as $kodeTindakan) {
-            $spkTindakanItem = \App\Models\ERM\SpkTindakanItem::create([
-                'spk_tindakan_id' => $spkTindakan->id,
-                'kode_tindakan_id' => $kodeTindakan->id,
-                'penanggung_jawab' => null, // Will be filled later by staff
-                'sbk' => null,
-                'sba' => null,
-                'sdc' => null,
-                'sdk' => null,
-                'sdl' => null,
-                'notes' => null,
-            ]);
-            $spkTindakanItems[] = $spkTindakanItem;
-        }
-
-        // Create billing for bundled obats
+        // Obat of a paket come from its tindakan (copied to erm_riwayat_tindakan_obat above); there is no
+        // separate per-paket obat bundle anymore
         $obatBillings = [];
-        foreach ($tindakan->obats as $obat) {
-            $obatBilling = Billing::create([
-                'visitation_id' => $data['visitation_id'],
-                'billable_id' => $obat->id,
-                'billable_type' => 'App\\Models\\ERM\\Obat',
-                'jumlah' => 0,
-                'qty' => 1,
-                'keterangan' => 'Obat Bundled: ' . $obat->nama
-            ]);
-            $obatBillings[] = $obatBilling;
-        }
 
         $this->syncKategoriIcd10ToAsesmenPenunjang($visitation->id, $tindakan);
 
@@ -678,8 +598,6 @@ class TindakanController extends Controller
             'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
             'informConsent' => $informConsent,
             'spk' => $spk,
-            'spkTindakan' => $spkTindakan,
-            'spkTindakanItems' => $spkTindakanItems,
             'billing' => $billing,
             'obatBillings' => $obatBillings,
             'riwayatTindakan' => $riwayatTindakan
@@ -765,7 +683,7 @@ class TindakanController extends Controller
         // Get all riwayat tindakan for all visitations of this patient and collapse
         // duplicate tindakan within the same visit into one row with a count badge.
         $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
+            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
             ->get()
             ->groupBy(function ($item) {
                 return $item->visitation_id . '-' . ($item->tindakan_id ?? 0);
@@ -791,7 +709,6 @@ class TindakanController extends Controller
                     'tanggal' => $tanggalFormatted,
                     'tanggal_raw' => $tanggalRaw,
                     'tindakan' => $representative->tindakan->nama ?? '-',
-                    'paket' => $representative->paketTindakan->nama ?? '-',
                     'dokter' => $representative->visitation->dokter->user->name ?? '-',
                     'spesialisasi' => $representative->visitation->dokter->spesialisasi->nama ?? '-',
                     'inform_consent' => $informConsentSource->informConsent,
@@ -843,9 +760,9 @@ class TindakanController extends Controller
                 // Check SPK detail status for this riwayat
                 $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
                 if ($spk) {
-                    $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                    $hasSelesai = !empty($spk->waktu_selesai);
                     if ($hasSelesai) return 'green';
-                    $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                    $hasMulai = !empty($spk->waktu_mulai);
                     if ($hasMulai) return 'yellow';
                 }
                 return '';
@@ -853,9 +770,9 @@ class TindakanController extends Controller
             ->setRowClass(function($row) {
                 $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
                 if ($spk) {
-                    $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                    $hasSelesai = !empty($spk->waktu_selesai);
                     if ($hasSelesai) return 'table-success';
-                    $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                    $hasMulai = !empty($spk->waktu_mulai);
                     if ($hasMulai) return 'table-warning';
                 }
                 return '';
@@ -864,27 +781,6 @@ class TindakanController extends Controller
             ->make(true);
     }
 
-    // public function generateSopPdf($id)
-    // {
-    //     $tindakan = Tindakan::with('sop')->findOrFail($id);
-
-    //     // If SOP doesn't exist, return a message
-    //     if ($tindakan->sop->isEmpty()) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'SOP belum tersedia untuk tindakan ini'
-    //         ]);
-    //     }
-
-    //     $pdf = PDF::loadView('erm.tindakan.sop.pdf', [
-    //         'tindakan' => $tindakan,
-    //         'sopList' => $tindakan->sop->sortBy('urutan')
-    //     ]);
-
-    //     $filename = 'SOP-' . str_replace(' ', '-', $tindakan->nama) . '.pdf';
-
-    //     return $pdf->stream($filename);
-    // }
 
     public function uploadFoto(Request $request, $id)
     {
@@ -939,7 +835,7 @@ class TindakanController extends Controller
     {
         if ($request->ajax()) {
             // Get all riwayat tindakan and group them by visitation
-            $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan']);
+            $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user']);
 
             // Filter by date range
             $tanggalStart = $request->input('tanggal_start');
@@ -972,21 +868,7 @@ class TindakanController extends Controller
                 
                 // Check if SPK data exists AND has meaningful data for any riwayat in this group
                 $hasSpkData = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)
-                    ->whereHas('details', function($q) {
-                        $q->where(function($subQ) {
-                            $subQ->whereNotNull('waktu_mulai')
-                                 ->where('waktu_mulai', '!=', '')
-                                 ->orWhereNotNull('waktu_selesai')
-                                 ->where('waktu_selesai', '!=', '')
-                                 ->orWhere('sbk', true)
-                                 ->orWhere('sba', true)
-                                 ->orWhere('sdc', true)
-                                 ->orWhere('sdk', true)
-                                 ->orWhere('sdl', true)
-                                 ->orWhereNotNull('notes')
-                                 ->where('notes', '!=', '');
-                        });
-                    })
+                    ->where(fn ($q) => $q->whereNotNull('waktu_mulai')->orWhereNotNull('waktu_selesai'))
                     ->exists();
                 
                 return [
@@ -999,7 +881,6 @@ class TindakanController extends Controller
                         return [
                             'id' => $item->id,
                             'tindakan' => $item->tindakan,
-                            'paket_tindakan' => $item->paketTindakan
                         ];
                     })->toArray()
                 ];
@@ -1049,12 +930,7 @@ class TindakanController extends Controller
                 ->addColumn('tindakan', function($row) {
                     // Create a formatted list of tindakan
                     $tindakanList = collect($row['all_tindakan'])->map(function($item) {
-                        if ($item['tindakan']) {
-                            return $item['tindakan']->nama;
-                        } elseif ($item['paket_tindakan']) {
-                            return 'Paket: ' . $item['paket_tindakan']->nama;
-                        }
-                        return '-';
+                        return $item['tindakan']->nama ?? '-';
                     })->join('<br>');
                     
                     return $tindakanList ?: '-';
@@ -1095,7 +971,7 @@ class TindakanController extends Controller
                     // Check if any SPK detail for any riwayat in this group has waktu_mulai filled
                     $riwayatIds = collect($row['all_tindakan'])->pluck('id')->toArray();
                     $spk = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)->first();
-                    if ($spk && $spk->details()->whereNotNull('waktu_mulai')->exists()) {
+                    if ($spk && !empty($spk->waktu_mulai)) {
                         return true;
                     }
                     return false;
@@ -1109,12 +985,12 @@ class TindakanController extends Controller
                         $anyStarted = false;
                         
                         foreach ($spks as $spk) {
-                            $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                            $hasSelesai = !empty($spk->waktu_selesai);
                             if (!$hasSelesai) {
                                 $allCompleted = false;
                             }
                             
-                            $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                            $hasMulai = !empty($spk->waktu_mulai);
                             if ($hasMulai) {
                                 $anyStarted = true;
                             }
@@ -1134,12 +1010,12 @@ class TindakanController extends Controller
                         $anyStarted = false;
                         
                         foreach ($spks as $spk) {
-                            $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                            $hasSelesai = !empty($spk->waktu_selesai);
                             if (!$hasSelesai) {
                                 $allCompleted = false;
                             }
                             
-                            $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                            $hasMulai = !empty($spk->waktu_mulai);
                             if ($hasMulai) {
                                 $anyStarted = true;
                             }
@@ -1169,8 +1045,7 @@ class TindakanController extends Controller
             $riwayat = RiwayatTindakan::with([
                 'visitation.pasien',
                 'visitation.dokter.user',
-                'tindakan.sop',
-                'paketTindakan'
+                'tindakan',
             ])->find($riwayatId);
             
             if (!$riwayat) {
@@ -1180,7 +1055,6 @@ class TindakanController extends Controller
             // Get all riwayat for this visitation for navigation
             $allRiwayat = RiwayatTindakan::with([
                 'tindakan',
-                'paketTindakan'
             ])->where('visitation_id', $riwayat->visitation_id)->get();
             
             // Find the index of the current riwayat
@@ -1192,8 +1066,7 @@ class TindakanController extends Controller
             $allRiwayat = RiwayatTindakan::with([
                 'visitation.pasien',
                 'visitation.dokter.user',
-                'tindakan.sop',
-                'paketTindakan'
+                'tindakan',
             ])->where('visitation_id', $visitationId)->get();
             
             if ($allRiwayat->isEmpty()) {
@@ -1220,8 +1093,7 @@ class TindakanController extends Controller
             $allRiwayat = RiwayatTindakan::with([
                 'visitation.pasien',
                 'visitation.dokter.user',
-                'tindakan.sop',
-                'paketTindakan'
+                'tindakan',
             ])->where('visitation_id', $visitationId)->get();
             
             if ($allRiwayat->isEmpty()) {
@@ -1240,37 +1112,18 @@ class TindakanController extends Controller
     {
         // Use eager loading to reduce queries
         $riwayat = RiwayatTindakan::with([
-            'paketTindakan',
             'visitation.pasien',
             'visitation.dokter.user',
-            'tindakan.sop' => function($query) {
-                $query->orderBy('urutan');
-            }
+            'tindakan',
         ])->findOrFail($riwayatId);
 
-        // Get SPK with details in one query
-        $spk = Spk::with(['details.sop' => function($query) {
-            $query->orderBy('urutan');
-        }])->where('riwayat_tindakan_id', $riwayatId)->first();
-        
-        // Cache users query for better performance
-        $users = cache()->remember('spk_users', 300, function() {
-            return User::whereHas('roles', function($query) {
-                $query->whereIn('name', ['Dokter', 'Beautician']);
-            })->get(['id', 'name']);
-        });
-
-        $sopList = $riwayat->tindakan && $riwayat->tindakan->sop 
-            ? $riwayat->tindakan->sop->sortBy('urutan')->values()->toArray()
-            : [];
+        $spk = Spk::where('riwayat_tindakan_id', $riwayatId)->first();
 
         return response()->json([
             'success' => true,
             'data' => [
                 'riwayat' => $riwayat,
                 'spk' => $spk,
-                'users' => $users,
-                'sop_list' => $sopList,
                 'pasien_nama' => $riwayat->visitation?->pasien?->nama ?? '',
                 'pasien_id' => $riwayat->visitation?->pasien?->id ?? '',
                 'tindakan_nama' => $riwayat->tindakan?->nama ?? '',
@@ -1315,45 +1168,22 @@ class TindakanController extends Controller
                     'pasien_id' => $riwayatTindakan->visitation->pasien->id,
                     'tindakan_id' => $riwayatTindakan->tindakan->id,
                     'dokter_id' => $riwayatTindakan->visitation->dokter->id,
-                    'tanggal_tindakan' => $request->tanggal_tindakan ?? Carbon::now()->toDateString()
+                    'tanggal_tindakan' => $request->tanggal_tindakan ?? Carbon::now()->toDateString(),
+                    'waktu_mulai' => $request->filled('waktu_mulai') ? $request->waktu_mulai : null,
+                    'waktu_selesai' => $request->filled('waktu_selesai') ? $request->waktu_selesai : null,
                 ];
-                
+
                 $spk = Spk::updateOrCreate(
                     ['riwayat_tindakan_id' => $riwayatTindakanId],
                     $spkData
                 );
-                
-                // Delete existing details if any
-                $spk->details()->delete();
-                
-                // Create new details
-                if ($request->has('details')) {
-                    foreach ($request->details as $detail) {
-                        if (empty($detail['sop_id'])) {
-                            continue;
-                        }
-                        
-                        $spk->details()->create([
-                            'sop_id' => $detail['sop_id'],
-                            'penanggung_jawab' => $detail['penanggung_jawab'] ?? 'Not specified',
-                            'sbk' => isset($detail['sbk']),
-                            'sba' => isset($detail['sba']),
-                            'sdc' => isset($detail['sdc']),
-                            'sdk' => isset($detail['sdk']),
-                            'sdl' => isset($detail['sdl']),
-                            'waktu_mulai' => !empty($detail['waktu_mulai']) ? $detail['waktu_mulai'] : null,
-                            'waktu_selesai' => !empty($detail['waktu_selesai']) ? $detail['waktu_selesai'] : null,
-                            'notes' => $detail['notes'] ?? null
-                        ]);
-                    }
-                }
-                
+
                 DB::commit();
-                
+
                 return response()->json([
                     'success' => true,
                     'message' => 'SPK berhasil disimpan!',
-                    'data' => $spk->load('details')
+                    'data' => $spk
                 ]);
             } catch (\Exception $e) {
                 DB::rollBack();
@@ -1461,6 +1291,7 @@ class TindakanController extends Controller
         \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->delete();
         \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->delete();
 
+        // The SPK Tindakan page is gone and no new records are created, but older tindakan may still have them
         $spkTindakanIds = \App\Models\ERM\SpkTindakan::where('riwayat_tindakan_id', $riwayat->id)->pluck('id');
         if ($spkTindakanIds->isNotEmpty()) {
             \App\Models\ERM\SpkTindakanItem::whereIn('spk_tindakan_id', $spkTindakanIds)->delete();
@@ -1485,7 +1316,7 @@ class TindakanController extends Controller
                     return [
                         'id' => $obat->id,
                         'nama' => $obat->nama,
-                        'jumlah' => $obat->pivot->jumlah ?? null,
+                        'jumlah' => $obat->pivot->qty ?? null,
                         'dosis' => $obat->pivot->dosis ?? null,
                         'satuan_dosis' => $obat->pivot->satuan_dosis ?? null,
                     ];

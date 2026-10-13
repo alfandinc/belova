@@ -10,6 +10,8 @@
     #fakturItems tr.fk-kurang td { background: #fff8e1; }
     #fakturItems tr.fk-kosong td { background: #fafafa; color: #6c757d; }
     #fakturItems .fk-obat { min-width: 200px; }
+    #fakturItems tr.fk-split td.fk-obat { padding-left: 1.2rem; }
+    #fakturItems tr.fk-bonus td { background: #f1f8e9; }
     .fk-total-box { border: 1px solid #dbe4f0; border-radius: .5rem; background: #f8fbff; }
 </style>
 
@@ -104,8 +106,11 @@
                 </div>
                 <div class="d-flex flex-wrap justify-content-between align-items-start">
                     <div class="mb-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" id="fk_add_item"><i class="fas fa-plus"></i> Tambah Obat</button>
-                        <div class="small text-muted mt-2">Batch dan tanggal kadaluarsa wajib untuk baris dengan qty diterima lebih dari 0.<br>Baris dengan qty 0 dianggap belum datang dan dibuat faktur lanjutan saat approve.</div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="fk_add_item" title="Obat yang ikut di faktur tapi tidak ada di permintaan, termasuk bonus"><i class="fas fa-plus"></i> Tambah Obat</button>
+                        <div class="small text-muted mt-2">Batch dan tanggal kadaluarsa wajib untuk baris dengan qty diterima lebih dari 0.<br>
+                            Satu obat datang dalam beberapa batch? Klik <strong>+ batch lain</strong> di baris obatnya.<br>
+                            Barang gratis dari pemasok: centang <strong>Bonus</strong> (stok masuk, HPP tidak berubah).<br>
+                            Baris dengan qty 0 dianggap belum datang dan dibuat faktur lanjutan saat approve.</div>
                     </div>
                     {{-- 3. Totals --}}
                     <div class="fk-total-box p-2 mb-2" style="min-width:330px">
@@ -147,7 +152,7 @@ window.FakturForm = (function () {
         obat: '{{ url('/get-obat-select2') }}'
     };
     var CSRF = '{{ csrf_token() }}';
-    var state = { id: null, gudangs: [], defaultGudang: null };
+    var state = { id: null, gudangs: [], defaultGudang: null, seq: 0, hasPermintaan: false };
     var savedCallback = function () {};
     var $modal, $tbody;
 
@@ -161,20 +166,39 @@ window.FakturForm = (function () {
         }).join('');
     }
 
-    // One line; obat of an existing line is fixed (it belongs to the permintaan / retur)
-    function addRow(item) {
+    // One line; obat of an existing line is fixed (it belongs to the permintaan / retur).
+    // Rows sharing data-grup are batches of one obat line: the head (.fk-head) carries diminta and the
+    // qty of all of them together may not exceed it. Bonus rows are free goods outside that check.
+    function addRow(item, $after) {
         item = item || {};
+        var uid = ++state.seq;
         var fixed = !!item.obat_id && !item.baru;
-        var $tr = $('<tr>'
-            + '<td class="fk-obat">'
-                + (fixed
-                    ? '<div class="font-weight-bold">' + esc(item.obat_nama) + '</div><small class="text-muted">' + esc(item.satuan || '') + '</small><input type="hidden" class="f-obat" value="' + item.obat_id + '">'
-                    : '<select class="form-control form-control-sm f-obat-select" style="width:100%"></select><input type="hidden" class="f-obat" value="">')
+        var bonus = !!item.bonus;
+        var head = !item.split && !bonus && num(item.diminta) > 0;
+        var tambahan = state.hasPermintaan && !item.permintaan_item_id && !item.split;
+        var obatHtml;
+        if (!fixed) {
+            obatHtml = '<select class="form-control form-control-sm f-obat-select" style="width:100%"></select>';
+        } else if (item.split) {
+            obatHtml = '<div><span class="text-muted">↳</span> <span class="f-nama">' + esc(item.obat_nama) + '</span></div><small class="text-muted">batch lain</small>';
+        } else {
+            obatHtml = '<div class="font-weight-bold f-nama">' + esc(item.obat_nama) + '</div><small class="text-muted">' + esc(item.satuan || '') + '</small>';
+        }
+        var $tr = $('<tr data-grup="' + (item.grup || uid) + '">'
+            + '<td class="fk-obat">' + obatHtml
+                + (tambahan ? ' <span class="badge badge-light border" title="Tidak ada di permintaan">Tambahan</span>' : '')
+                + '<div><button type="button" class="btn btn-link btn-sm p-0 small f-split" title="Obat yang sama dengan nomor batch berbeda"' + (item.obat_id ? '' : ' style="display:none"') + '><i class="fas fa-plus"></i> batch lain</button></div>'
+                + '<input type="hidden" class="f-obat" value="' + (fixed ? item.obat_id : '') + '">'
                 + '<input type="hidden" class="f-pi" value="' + (item.permintaan_item_id || '') + '">'
             + '</td>'
-            + '<td class="text-right align-middle"><span class="f-diminta-label">' + (item.diminta ? Number(item.diminta).toLocaleString('id-ID') : '-') + '</span><input type="hidden" class="f-diminta" value="' + (item.diminta || '') + '"></td>'
+            + '<td class="text-right align-middle">'
+                + (head ? '<span class="f-diminta-label">' + Number(item.diminta).toLocaleString('id-ID') + '</span><small class="d-block text-muted f-grup-sum"></small>' : (item.split ? '' : '-'))
+                + '<input type="hidden" class="f-diminta" value="' + (head ? item.diminta : '') + '"></td>'
             + '<td><input type="number" class="form-control form-control-sm f-qty" min="0" step="1" value="' + (item.qty != null ? item.qty : '') + '"></td>'
-            + '<td><input type="number" class="form-control form-control-sm f-harga" min="0" step="0.01" value="' + (item.harga != null ? item.harga : '') + '"></td>'
+            + '<td><input type="number" class="form-control form-control-sm f-harga" min="0" step="0.01" value="' + (item.harga != null ? item.harga : '') + '">'
+                + (head ? '' : '<div class="custom-control custom-checkbox mt-1"><input type="checkbox" class="custom-control-input f-bonus" id="fk_bonus_' + uid + '"' + (bonus ? ' checked' : '') + '>'
+                    + '<label class="custom-control-label small" for="fk_bonus_' + uid + '" title="Barang gratis dari pemasok: harga 0, HPP tidak berubah">Bonus</label></div>')
+            + '</td>'
             + '<td><div class="input-group input-group-sm"><input type="number" class="form-control f-diskon" min="0" step="0.01" value="' + (item.diskon || 0) + '">'
                 + '<div class="input-group-append"><select class="custom-select f-diskon-type"><option value="nominal"' + (item.diskon_type === 'percent' ? '' : ' selected') + '>Rp</option><option value="percent"' + (item.diskon_type === 'percent' ? ' selected' : '') + '>%</option></select></div></div></td>'
             + '<td><div class="input-group input-group-sm"><input type="number" class="form-control f-tax" min="0" step="0.01" value="' + (item.tax || 0) + '">'
@@ -185,7 +209,8 @@ window.FakturForm = (function () {
             + '<td><input type="date" class="form-control form-control-sm f-ed" value="' + esc(item.expiration_date || '') + '"></td>'
             + '<td class="text-center align-middle"><button type="button" class="btn btn-sm btn-link text-danger p-0 f-remove" title="Hapus baris"><i class="fas fa-times"></i></button></td>'
             + '</tr>');
-        $tbody.append($tr);
+        $tr.data('nama', item.obat_nama || '').toggleClass('fk-head', head).toggleClass('fk-split', !!item.split);
+        if ($after && $after.length) $after.after($tr); else $tbody.append($tr);
 
         if (!fixed) {
             $tr.find('.f-obat-select').select2({
@@ -200,6 +225,13 @@ window.FakturForm = (function () {
                 }
             }).on('select2:select', function (e) {
                 $tr.find('.f-obat').val(e.params.data.id);
+                $tr.data('nama', e.params.data.text);
+                $tr.find('.f-split').show();
+                // Its other batches follow the obat
+                var $others = $tbody.find('tr[data-grup="' + $tr.attr('data-grup') + '"]').not($tr);
+                $others.find('.f-obat').val(e.params.data.id);
+                $others.find('.f-nama').text(e.params.data.text);
+                $others.data('nama', e.params.data.text);
                 $tr.find('.f-qty').trigger('focus');
             });
         }
@@ -207,7 +239,35 @@ window.FakturForm = (function () {
         return $tr;
     }
 
+    // Another batch of the same obat, below the last row of its group
+    function splitRow($tr) {
+        var grup = $tr.attr('data-grup');
+        var copy = function (cls) { return $tr.find('.f-' + cls + '-type').val() === 'percent' ? $tr.find('.f-' + cls).val() : 0; };
+        var bonus = $tr.find('.f-bonus').is(':checked');
+        return addRow({
+            obat_id: $tr.find('.f-obat').val(),
+            obat_nama: $tr.data('nama'),
+            permintaan_item_id: bonus ? '' : $tr.find('.f-pi').val(),
+            split: true,
+            grup: grup,
+            harga: bonus ? '' : $tr.find('.f-harga').val(),
+            // A nominal discount / tax belongs to the line it was typed on; a percentage applies to every batch
+            diskon: copy('diskon'), diskon_type: $tr.find('.f-diskon-type').val(),
+            tax: copy('tax'), tax_type: $tr.find('.f-tax-type').val(),
+            gudang_id: $tr.find('.f-gudang').val()
+        }, $tbody.find('tr[data-grup="' + grup + '"]').last());
+    }
+
     function refreshRow($tr) {
+        var bonus = $tr.find('.f-bonus').is(':checked');
+        $tr.toggleClass('fk-bonus', bonus);
+        if (bonus) {
+            $tr.find('.f-harga, .f-diskon, .f-tax').val(0);
+            $tr.find('.f-diskon-type, .f-tax-type').val('nominal');
+        }
+        $tr.find('.f-harga, .f-diskon, .f-tax').prop('readonly', bonus);
+        $tr.find('.f-diskon-type, .f-tax-type').prop('disabled', bonus);
+
         var qty = num($tr.find('.f-qty').val());
         var harga = num($tr.find('.f-harga').val());
         var base = qty * harga;
@@ -219,12 +279,23 @@ window.FakturForm = (function () {
         $tr.data('total', total);
         $tr.find('.f-total').text(rupiah(total));
 
-        var diminta = num($tr.find('.f-diminta').val());
-        $tr.toggleClass('fk-kurang', diminta > 0 && qty > 0 && qty < diminta).toggleClass('fk-kosong', qty <= 0);
-        $tr.find('.f-qty').toggleClass('is-invalid', diminta > 0 && qty > diminta);
+        $tr.toggleClass('fk-kosong', qty <= 0);
         // batch / ED only matter for received lines
         $tr.find('.f-batch, .f-ed').prop('required', qty > 0);
+        refreshGroup($tr.attr('data-grup'));
         refreshTotals();
+    }
+
+    // Received qty of all batches of one obat line against its diminta
+    function refreshGroup(grup) {
+        var $rows = $tbody.find('tr[data-grup="' + grup + '"]').not('.fk-bonus');
+        var $head = $rows.filter('.fk-head');
+        var diminta = num($head.find('.f-diminta').val());
+        var sum = 0;
+        $rows.each(function () { sum += num($(this).find('.f-qty').val()); });
+        $head.toggleClass('fk-kurang', diminta > 0 && sum > 0 && sum < diminta);
+        $rows.find('.f-qty').toggleClass('is-invalid', diminta > 0 && sum > diminta);
+        $head.find('.f-grup-sum').text($rows.length > 1 ? 'diterima ' + sum.toLocaleString('id-ID') : '');
     }
 
     function refreshTotals() {
@@ -277,7 +348,6 @@ window.FakturForm = (function () {
         $('#fk_pemasok_id').val(d.pemasok ? d.pemasok.id : '');
 
         $('#fk_gudang_default').html(gudangOptions(state.defaultGudang));
-        $('#fk_add_item').toggle(d.mode === 'baru' || d.mode === 'edit');
         $('#fk_terima_semua').toggle((d.items || []).some(function (i) { return i.diminta > 0; }));
 
         // Global amounts: stored as Rupiah; a faktur without them starts with PPN in percent
@@ -292,7 +362,15 @@ window.FakturForm = (function () {
         }
 
         $tbody.empty();
-        (d.items || []).forEach(function (item) { addRow(item); });
+        state.seq = 0;
+        state.hasPermintaan = !!d.permintaan_id || (d.items || []).some(function (i) { return !!i.permintaan_item_id; });
+        // Split rows come right after the row of their obat
+        var lastGrup = null;
+        (d.items || []).forEach(function (item) {
+            if (item.split && lastGrup) item.grup = lastGrup;
+            var $tr = addRow(item);
+            if (!item.split) lastGrup = $tr.attr('data-grup');
+        });
         if (!(d.items || []).length) addRow({ baru: true });
         refreshTotals();
     }
@@ -314,9 +392,13 @@ window.FakturForm = (function () {
         $tbody.find('tr').each(function (i) {
             var $tr = $(this);
             var put = function (k, v) { fd.append('items[' + i + '][' + k + ']', v == null ? '' : v); };
+            var bonus = $tr.find('.f-bonus').is(':checked');
             put('obat_id', $tr.find('.f-obat').val());
-            put('permintaan_item_id', $tr.find('.f-pi').val());
-            put('diminta', $tr.find('.f-diminta').val());
+            put('grup', $tr.attr('data-grup'));
+            put('bonus', bonus ? 1 : 0);
+            // Free goods do not count toward the permintaan
+            put('permintaan_item_id', bonus ? '' : $tr.find('.f-pi').val());
+            put('diminta', bonus ? '' : $tr.find('.f-diminta').val());
             put('qty', $tr.find('.f-qty').val() || 0);
             put('harga', $tr.find('.f-harga').val() || 0);
             put('diskon', $tr.find('.f-diskon').val() || 0);
@@ -336,18 +418,25 @@ window.FakturForm = (function () {
         if (!$('#fk_pemasok_id').val()) problems.push('Pilih pemasok.');
         if (!$.trim($('#fk_no_faktur').val())) problems.push('Isi nomor faktur.');
         var received = 0;
+        var groups = {};
         $tbody.find('tr').each(function () {
             var $tr = $(this);
-            var nama = $tr.find('.fk-obat .font-weight-bold').text() || $tr.find('.f-obat-select option:selected').text() || 'Baris baru';
+            var nama = $tr.data('nama') || 'Baris baru';
             var qty = num($tr.find('.f-qty').val());
-            var diminta = num($tr.find('.f-diminta').val());
+            var bonus = $tr.find('.f-bonus').is(':checked');
             if (!$tr.find('.f-obat').val()) { problems.push('Ada baris tanpa obat.'); return; }
-            if (diminta > 0 && qty > diminta) problems.push(nama + ': diterima melebihi diminta (' + diminta + ').');
             if (qty > 0) {
                 received++;
                 if (!$.trim($tr.find('.f-batch').val()) || !$tr.find('.f-ed').val()) problems.push(nama + ': batch dan kadaluarsa wajib diisi.');
-                if (num($tr.find('.f-harga').val()) <= 0) problems.push(nama + ': harga satuan belum diisi.');
+                if (!bonus && num($tr.find('.f-harga').val()) <= 0) problems.push(nama + ': harga satuan belum diisi (centang Bonus bila gratis).');
             }
+            if (bonus) return;
+            var g = groups[$tr.attr('data-grup')] = groups[$tr.attr('data-grup')] || { nama: nama, diminta: 0, qty: 0 };
+            g.diminta = Math.max(g.diminta, num($tr.find('.f-diminta').val()));
+            g.qty += qty;
+        });
+        $.each(groups, function (k, g) {
+            if (g.diminta > 0 && g.qty > g.diminta) problems.push(g.nama + ': total diterima (' + g.qty + ') melebihi diminta (' + g.diminta + ').');
         });
         if (!received) problems.push('Isi qty diterima minimal untuk satu obat.');
         return problems.filter(function (v, i, a) { return a.indexOf(v) === i; });
@@ -371,17 +460,29 @@ window.FakturForm = (function () {
 
         $tbody.on('input change', 'input, select', function () { refreshRow($(this).closest('tr')); });
         $('#fk_global_diskon, #fk_global_pajak, #fk_global_diskon_type, #fk_global_pajak_type').on('input change', refreshTotals);
+        // Removing an obat line removes its other batches too
         $tbody.on('click', '.f-remove', function () {
-            if ($tbody.find('tr').length <= 1) return;
-            $(this).closest('tr').remove();
+            var $tr = $(this).closest('tr');
+            var grup = $tr.attr('data-grup');
+            var $target = $tr.hasClass('fk-head') ? $tbody.find('tr[data-grup="' + grup + '"]') : $tr;
+            if ($tbody.find('tr').length - $target.length < 1) return;
+            $target.remove();
+            refreshGroup(grup);
             refreshTotals();
+        });
+        $tbody.on('click', '.f-split', function () {
+            splitRow($(this).closest('tr')).find('.f-qty').trigger('focus');
         });
         $('#fk_add_item').on('click', function () { addRow({ baru: true }).find('.f-obat-select').select2('open'); });
         $('#fk_gudang_default').on('change', function () { $tbody.find('.f-gudang').val($(this).val()); });
+        // The head row takes what its other batches have not received yet
         $('#fk_terima_semua').on('click', function () {
-            $tbody.find('tr').each(function () {
-                var d = num($(this).find('.f-diminta').val());
-                if (d > 0) { $(this).find('.f-qty').val(d); refreshRow($(this)); }
+            $tbody.find('tr.fk-head').each(function () {
+                var $head = $(this);
+                var others = 0;
+                $tbody.find('tr[data-grup="' + $head.attr('data-grup') + '"]').not('.fk-bonus').not($head).each(function () { others += num($(this).find('.f-qty').val()); });
+                $head.find('.f-qty').val(Math.max(num($head.find('.f-diminta').val()) - others, 0));
+                refreshRow($head);
             });
         });
         $('.btn-due').on('click', function () {

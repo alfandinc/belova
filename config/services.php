@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // SATUSEHAT_SSL_VERIFY=false disables TLS verification (development only);
+    // SATUSEHAT_CACERT_PATH points to a custom CA bundle.
+    'satusehat' => [
+        'ssl_verify' => env('SATUSEHAT_SSL_VERIFY', true),
+        'cacert_path' => env('SATUSEHAT_CACERT_PATH'),
+    ],
+
 ];

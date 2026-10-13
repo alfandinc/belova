@@ -205,7 +205,7 @@
                     <div class="col">
                         <h4 class="page-title mb-1">Before After Gallery</h4>
                         <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('marketing.dashboard') }}">Marketing</a></li>
+                            <li class="breadcrumb-item">Marketing</li>
                             <li class="breadcrumb-item active">Before After Gallery</li>
                         </ol>
                     </div>
@@ -416,7 +416,7 @@
                 dataType: 'json',
                 delay: 250,
                 data: function(params) {
-                    return { q: params.term };
+                    return { q: params.term, include_inactive: 1 };
                 },
                 processResults: function(data) {
                     return { results: data.results || [] };

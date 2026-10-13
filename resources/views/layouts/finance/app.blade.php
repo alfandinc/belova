@@ -49,10 +49,7 @@
     @endunless
 
     <!-- Theme CSS -->
-    <link id="bootstrap-dark" href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" />
-    <link id="app-dark" href="{{ asset('dastone/default/assets/css/app-dark.min.css') }}" rel="stylesheet" />
-    <link id="bootstrap-light" href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" disabled />
-    <link id="app-light" href="{{ asset('dastone/default/assets/css/app.min.css') }}" rel="stylesheet" disabled />
+    @include('layouts.shared.theme_styles')
 
     <!-- ======= Early theme bootstrap (critical for LCP) =======
          Apply saved theme immediately to avoid body hide + JS-delayed paint.
@@ -72,10 +69,7 @@
                 const bootstrapLight = document.getElementById('bootstrap-light');
                 const appLight = document.getElementById('app-light');
 
-                if (bootstrapDark) bootstrapDark.disabled = !isDark;
-                if (appDark) appDark.disabled = !isDark;
-                if (bootstrapLight) bootstrapLight.disabled = isDark;
-                if (appLight) appLight.disabled = isDark;
+                if (window.belovaSetThemeSheets) window.belovaSetThemeSheets(isDark);
             } catch (e) {
                 // fail open: default CSS stays as authored (dark)
             }
@@ -164,10 +158,7 @@
 
             html.classList.add('no-transition');
 
-            bootstrapDark.disabled = !isDark;
-            appDark.disabled = !isDark;
-            bootstrapLight.disabled = isDark;
-            appLight.disabled = isDark;
+            window.belovaSetThemeSheets(isDark);
 
             // Force style recalculation
             void bootstrapDark.offsetWidth;

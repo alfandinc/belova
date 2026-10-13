@@ -31,7 +31,6 @@ class DatabaseSeeder extends Seeder
         // $this->call(MigrasiAsesmenSarafSeeder::class);
         // $this->call(MigrasiAsesmenAnakSeeder::class);
         // $this->call(MigrasiCpptSeeder::class);        
-        // $this->call(SOPSeeder::class);
         // $this->call(DivisionSeeder::class);
         // $this->call(PositionSeeder::class);
         // $this->call(EmployeeSeeder::class);
@@ -41,8 +40,6 @@ class DatabaseSeeder extends Seeder
         // $this->call(RadiologiKategoriSeeder::class);
         // $this->call(RadiologiTestSeeder::class);
         // $this->call(TindakanEstetikaSeeder::class);
-        $this->call(SopTindakanSeeder::class);
-        $this->call(\Database\Seeders\UpdateKodeTindakanPricesSeeder::class);
 
     }
 }

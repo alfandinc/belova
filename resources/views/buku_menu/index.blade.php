@@ -2,6 +2,10 @@
 
 @section('title', 'Buku Menu')
 
+@section('navbar')
+    @include('layouts.shared.sidebar')
+@endsection
+
 @section('content')
 <div class="container-fluid">
     <div class="row">

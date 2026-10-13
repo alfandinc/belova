@@ -7,7 +7,7 @@
 @php
     $isCeoSlipView = auth()->check()
         && method_exists(auth()->user(), 'hasAnyRole')
-        && auth()->user()->hasAnyRole(['Ceo', 'CEO']);
+        && auth()->user()->hasRole('Ceo');
 @endphp
 <div class="container-fluid">
     @unless($isCeoSlipView)

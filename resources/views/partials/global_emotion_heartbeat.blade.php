@@ -36,17 +36,22 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
+            // The shared topbar already sends heartbeats (and renders who is online)
+            if (document.getElementById('user-emotion-board')) {
+                return;
+            }
+
             sendHeartbeat();
             window.setInterval(sendHeartbeat, heartbeatIntervalMs);
-        });
 
-        document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'visible') {
-                sendHeartbeat();
-            }
-        });
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') {
+                    sendHeartbeat();
+                }
+            });
 
-        window.addEventListener('focus', sendHeartbeat);
+            window.addEventListener('focus', sendHeartbeat);
+        });
     })();
 </script>
 @endauth

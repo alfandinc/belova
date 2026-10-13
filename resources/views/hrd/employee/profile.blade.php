@@ -2,6 +2,10 @@
 @extends('layouts.hrd.app')
 @section('title', 'HRD | Profil Karyawan')
 
+@section('navbar')
+    @include('layouts.shared.sidebar')
+@endsection
+
 @section('content')
 {{-- @include('hrd.partials.modal-edit-profile') --}}
 
@@ -166,7 +170,7 @@
                     </div>
                     <h4 class="mb-2">Data Karyawan Tidak Ditemukan</h4>
                     <p class="text-muted mb-4">Akun ini belum terhubung dengan data karyawan.</p>
-                    <a href="/" class="btn btn-primary">Kembali ke Main Menu</a>
+                    <a href="/" class="btn btn-primary">Kembali ke Dashboard</a>
                 </div>
             </div>
         </div>

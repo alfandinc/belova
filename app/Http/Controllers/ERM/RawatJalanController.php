@@ -89,19 +89,7 @@ class RawatJalanController extends Controller
     {
         $referralType = (string) ($v->referral_type ?? Pasien::REFERRAL_TYPE_WALK_IN);
 
-        $typeLabel = match ($referralType) {
-            Pasien::REFERRAL_TYPE_WALK_IN => 'Walk-in',
-            Pasien::REFERRAL_TYPE_PASIEN => 'Pasien',
-            Pasien::REFERRAL_TYPE_DOKTER => 'Dokter',
-            Pasien::REFERRAL_TYPE_EMPLOYEE => 'Karyawan',
-            Pasien::REFERRAL_TYPE_SOCIAL_MEDIA => 'Social Media',
-            Pasien::REFERRAL_TYPE_MARKETPLACE => 'Marketplace',
-            Pasien::REFERRAL_TYPE_EVENT => 'Event',
-            Pasien::REFERRAL_TYPE_WEBSITE => 'Website',
-            Pasien::REFERRAL_TYPE_PARTNERSHIP => 'B2B Partnership',
-            Pasien::REFERRAL_TYPE_GOOGLE_MAPS => 'Google Maps',
-            default => 'Walk-in',
-        };
+        $typeLabel = Pasien::referralTypeLabel($referralType);
 
         $detail = null;
 
@@ -853,10 +841,21 @@ class RawatJalanController extends Controller
                         // Dokter view: only show Konsultasi (jenis_kunjungan = 1)
                         $q->where('erm_visitations.jenis_kunjungan', 1);
                     }, function($q) {
-                        // Non-dokter view: show Konsultasi + Produk/Obat + Event
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 4, 5]);
+                        // Non-dokter view: show Konsultasi + Produk/Obat + Lab + Event
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 3, 4, 5]);
                     })
-                    ->where('erm_visitations.status_kunjungan', '!=', 7);
+                    ->where('erm_visitations.status_kunjungan', '!=', 7)
+                    // Lab staff only need visits with lab work: lab visits, or any visit with a lab request
+                    ->when($this->isLabOnlyUser($user), function ($q) {
+                        $q->where(function ($labQuery) {
+                            $labQuery->where('erm_visitations.jenis_kunjungan', 3)
+                                ->orWhereExists(function ($sub) {
+                                    $sub->select(DB::raw(1))
+                                        ->from('erm_lab_permintaan')
+                                        ->whereColumn('erm_lab_permintaan.visitation_id', 'erm_visitations.id');
+                                });
+                        });
+                    });
 
             $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
             $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
@@ -1011,10 +1010,18 @@ class RawatJalanController extends Controller
                         $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                     }
 
-                    if (intval($v->lab_permintaan_count ?? 0) > 0) {
-                        $allLabCompleted = intval($v->lab_permintaan_completed_count ?? 0) === intval($v->lab_permintaan_count ?? 0);
-                        $labButtonClass = $allLabCompleted ? 'btn-success' : 'btn-warning blinking';
-                        $labTitle = $allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
+                    $labCount = intval($v->lab_permintaan_count ?? 0);
+                    $allLabCompleted = $labCount > 0 && intval($v->lab_permintaan_completed_count ?? 0) === $labCount;
+                    $labButtonClass = $allLabCompleted ? 'btn-success' : 'btn-warning blinking';
+                    $labTitle = $allLabCompleted ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
+                    if ($user->hasAnyRole(['Lab', 'Admin']) && ($labCount > 0 || (int) $v->jenis_kunjungan === 3)) {
+                        // Lab staff open the E-Lab page directly (replaces the old E-Lab visit list)
+                        $labBadge = $labCount > 0
+                            ? '<span class="position-absolute badge badge-danger" style="top:-6px; right:-6px; min-width:18px; height:18px; line-height:18px; padding:0 4px; font-size:10px; border-radius:999px;">' . $labCount . '</span>'
+                            : '';
+                        $labLinkClass = $labCount > 0 ? $labButtonClass : 'btn-info';
+                        $actionButtons[] = '<a href="' . route('erm.elab.create', $v->id) . '" class="btn btn-sm ' . $labLinkClass . ' position-relative" style="font-weight:bold; overflow:visible;" title="' . e($labCount > 0 ? $labTitle : 'Buka E-Lab') . '"><i class="fas fa-flask mr-1"></i>Lab' . $labBadge . '</a>';
+                    } elseif ($labCount > 0) {
                         $actionButtons[] = '<button class="btn btn-sm ' . $labButtonClass . ' lab-icon" style="font-weight:bold;" title="' . e($labTitle) . '" data-visitation-id="' . e($v->id) . '"><i class="fas fa-flask mr-1"></i>Lab</button>';
                     }
 
@@ -1089,6 +1096,14 @@ class RawatJalanController extends Controller
             }
         }
         return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats', 'defaultDokterId', 'isDokter'));
+    }
+
+    /** Lab staff without a clinical / front-desk role: their list is narrowed to visits with lab work. */
+    private function isLabOnlyUser($user): bool
+    {
+        return $user
+            && $user->hasRole('Lab')
+            && !$user->hasAnyRole(['Dokter', 'Perawat', 'Admin', 'Pendaftaran']);
     }
 
     /**
@@ -1194,7 +1209,7 @@ class RawatJalanController extends Controller
                         SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                         SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                     )
-                    ->whereIn('jenis_kunjungan', [1, 2, 4, 5])
+                    ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5])
                     ->whereDate('tanggal_visitation', '>=', $start)
                     ->whereDate('tanggal_visitation', '<=', $end);
 
@@ -1689,8 +1704,8 @@ class RawatJalanController extends Controller
         ]);
 
         $user = Auth::user();
-        // Allow Admin, Pendaftaran or Perawat to perform force delete
-        if (!$user || (! $user->hasRole('Admin') && ! $user->hasRole('Pendaftaran') && ! $user->hasRole('Perawat'))) {
+        // Allow Admin, Pendaftaran, Perawat or Lab to perform force delete
+        if (!$user || ! $user->hasAnyRole(['Admin', 'Pendaftaran', 'Perawat', 'Lab'])) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -2281,7 +2296,7 @@ class RawatJalanController extends Controller
 
         $query = Visitation::query()
             ->with(['pasien', 'dokter'])
-            ->whereIn('jenis_kunjungan', [1, 2, 4, 5]);
+            ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5]);
 
         // Status filter
         if ($status && $status !== 'total') {

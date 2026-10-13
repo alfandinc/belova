@@ -8,12 +8,15 @@ class RndMasterVendor extends BaseRndMaster
 
     protected $casts = [
         'tipe_vendor' => 'array',
+        'cpkb_berlaku_sampai' => 'date:Y-m-d',
     ];
 
     protected $fillable = [
         'nama_vendor',
         'tipe_vendor',
         'no_hp',
+        'no_cpkb',
+        'cpkb_berlaku_sampai',
         'notes',
     ];
 
@@ -42,6 +45,18 @@ class RndMasterVendor extends BaseRndMaster
                 'name' => 'no_hp',
                 'label' => 'No. HP',
                 'type' => 'text',
+                'required' => false,
+            ],
+            [
+                'name' => 'no_cpkb',
+                'label' => 'No. Sertifikat CPKB',
+                'type' => 'text',
+                'required' => false,
+            ],
+            [
+                'name' => 'cpkb_berlaku_sampai',
+                'label' => 'CPKB Berlaku s/d',
+                'type' => 'date',
                 'required' => false,
             ],
             [

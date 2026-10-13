@@ -6,103 +6,165 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\LabTest;
 use App\Models\ERM\LabKategori;
-use App\Models\ERM\Obat;
+use App\Models\ERM\LabPaket;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ERM\LabTestsExport;
+use App\Support\LabDataChecks;
 
 class LabTestController extends Controller
 {
     public function index(Request $request)
     {
-        // returns blade view containing DataTables for tests & categories
-        return view('erm.elab.master');
+        return view('erm.elab.master', [
+            'kategoris' => LabKategori::orderBy('nama')->get(['id', 'nama']),
+            'counts' => $this->counts(),
+            'actionCounts' => LabDataChecks::counts(),
+        ]);
     }
 
+    /** Tab badges and the Tersedia / Tidak tersedia buttons */
+    private function counts(): array
+    {
+        $row = LabTest::query()->selectRaw("COUNT(*) as semua, COALESCE(SUM(available = 'no'), 0) as tidak")->first();
+
+        return [
+            'test' => ['all' => (int) $row->semua, 'yes' => (int) $row->semua - (int) $row->tidak, 'no' => (int) $row->tidak],
+            'paket' => LabPaket::count(),
+            'kategori' => LabKategori::count(),
+        ];
+    }
+
+    /**
+     * Lab test list for the DataTable: plain data, the page renders it. Search covers nama, kategori and obat.
+     * Counts are only sent when asked (?counts=1: after a change).
+     */
     public function data(Request $request)
     {
-        $query = LabTest::query()->with('labKategori:id,nama');
-        return DataTables::of($query)
-            ->addIndexColumn()
-            ->addColumn('kategori', function($row){ return $row->labKategori?->nama; })
-            ->addColumn('actions', function($row){
-                $btn = '<button class="btn btn-sm btn-warning edit-test" data-id="'.$row->id.'" data-nama="'.e($row->nama).'" data-harga="'.$row->harga.'" data-lab_kategori_id="'.$row->lab_kategori_id.'">Edit</button> ';
-                $btn .= '<button class="btn btn-sm btn-danger delete-test" data-id="'.$row->id.'">Delete</button> ';
-                if ($row->available === 'yes') {
-                    $btn .= '<button class="btn btn-sm btn-success btn-toggle-availability" data-id="'.$row->id.'">Available</button>';
-                } else {
-                    $btn .= '<button class="btn btn-sm btn-dark btn-toggle-availability" data-id="'.$row->id.'">Unavailable</button>';
-                }
-                return $btn;
-            })
-            ->editColumn('harga', function($row){ return $row->harga; })
-            ->rawColumns(['actions'])
-            ->make(true);
+        $query = LabTest::query()
+            ->with([
+                'labKategori:id,nama',
+                // Inactive obat stay visible: the test still uses them
+                'obats' => fn ($q) => $q->withoutGlobalScope('active')->select('erm_obat.id', 'erm_obat.nama', 'erm_obat.satuan'),
+                'labPakets:id,nama',
+            ])
+            ->select('erm_lab_test.*')
+            ->withCount('labPermintaan');
+
+        if (in_array($request->input('available'), ['yes', 'no'], true)) {
+            $query->where('available', $request->input('available'));
+        }
+        if ($request->filled('kategori_id')) {
+            $query->where('lab_kategori_id', $request->input('kategori_id'));
+        }
+        // "Data yang perlu action" card filter
+        LabDataChecks::apply($query, $request->input('action'), 'test');
+        $q = trim((string) $request->input('search.value'));
+        if ($q !== '') {
+            $query->where(function ($w) use ($q) {
+                $w->where('erm_lab_test.nama', 'like', "%{$q}%")
+                    ->orWhereHas('labKategori', fn ($k) => $k->where('nama', 'like', "%{$q}%"))
+                    ->orWhereHas('obats', fn ($o) => $o->withoutGlobalScope('active')->where('erm_obat.nama', 'like', "%{$q}%"));
+            });
+        }
+
+        $table = DataTables::eloquent($query)
+            ->only(['id', 'nama', 'kategori', 'harga', 'available', 'obat', 'paket', 'dipakai'])
+            ->addColumn('kategori', fn ($row) => optional($row->labKategori)->nama)
+            ->addColumn('obat', fn ($row) => $row->obats->map(fn ($o) => [
+                'nama' => $o->nama,
+                'dosis' => rtrim(rtrim(number_format((float) $o->pivot->dosis, 2, '.', ''), '0'), '.'),
+                'satuan' => strtolower((string) $o->satuan),
+            ])->values()->all())
+            ->addColumn('paket', fn ($row) => $row->labPakets->pluck('nama')->sort()->values()->all())
+            ->addColumn('dipakai', fn ($row) => (int) $row->lab_permintaan_count)
+            ->editColumn('harga', fn ($row) => $row->harga !== null ? (float) $row->harga : null)
+            ->orderColumn('nama', 'erm_lab_test.nama $1')
+            ->orderColumn('kategori', '(SELECT nama FROM erm_lab_kategori WHERE erm_lab_kategori.id = erm_lab_test.lab_kategori_id) $1')
+            ->orderColumn('harga', 'erm_lab_test.harga $1')
+            ->orderColumn('available', 'erm_lab_test.available $1')
+            // Rendered and escaped by the page
+            ->escapeColumns([]);
+
+        if ($request->boolean('counts')) {
+            $table->with('counts', $this->counts())->with('action_counts', LabDataChecks::counts());
+        }
+
+        return $table->make(true);
+    }
+
+    private function rules(): array
+    {
+        return [
+            'nama' => 'required|string|max:255',
+            'lab_kategori_id' => 'required|exists:erm_lab_kategori,id',
+            'harga' => 'nullable|numeric|min:0',
+            'deskripsi' => 'nullable|string',
+            'obat' => 'nullable|array',
+            'obat.*.obat_id' => 'required|exists:erm_obat,id',
+            'obat.*.dosis' => 'nullable|numeric|min:0',
+        ];
+    }
+
+    private const MESSAGES = [
+        'nama.required' => 'Nama test wajib diisi.',
+        'lab_kategori_id.required' => 'Pilih kategori.',
+        'obat.*.obat_id.exists' => 'Obat tidak ditemukan.',
+        'obat.*.dosis.numeric' => 'Dosis obat harus berupa angka.',
+    ];
+
+    /** Obat rows from the form as pivot data; a repeated obat keeps its last dosis */
+    private function obatSync(Request $request): array
+    {
+        $sync = [];
+        foreach ((array) $request->input('obat', []) as $item) {
+            if (!empty($item['obat_id'])) {
+                $sync[$item['obat_id']] = ['dosis' => (float) ($item['dosis'] ?? 0)];
+            }
+        }
+
+        return $sync;
+    }
+
+    private function namaTerpakai(array $validated, ?int $ignoreId = null): bool
+    {
+        return LabTest::where('lab_kategori_id', $validated['lab_kategori_id'])
+            ->where('nama', $validated['nama'])
+            ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
+            ->exists();
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'lab_kategori_id' => 'required|exists:erm_lab_kategori,id',
-            'harga' => 'nullable|numeric|min:0',
-            'deskripsi' => 'nullable|string'
-        ]);
-
-        // uniqueness per kategori (nama + kategori)
-        $exists = LabTest::where('lab_kategori_id', $validated['lab_kategori_id'])
-            ->where('nama', $validated['nama'])->exists();
-        if ($exists) {
-            return response()->json(['message' => 'Nama test sudah ada di kategori ini'], 422);
-        }
-        $test = LabTest::create($validated);
-
-        // handle associated obats (optional)
-        $obats = $request->input('obat', []);
-        if (is_array($obats) && count($obats)) {
-            $sync = [];
-            foreach ($obats as $item) {
-                if (empty($item['obat_id'])) continue;
-                $dosis = isset($item['dosis']) ? (float) $item['dosis'] : 0;
-                $sync[$item['obat_id']] = ['dosis' => $dosis];
-            }
-            if (count($sync)) $test->obats()->sync($sync);
+        $validated = $request->validate($this->rules(), self::MESSAGES);
+        if ($this->namaTerpakai($validated)) {
+            return response()->json(['message' => 'Nama test sudah ada di kategori ini', 'errors' => ['nama' => ['Nama test sudah ada di kategori ini']]], 422);
         }
 
-        return response()->json(['message' => 'Lab test created', 'data' => $test->load('obats')]);
+        $test = DB::transaction(function () use ($request, $validated) {
+            $test = LabTest::create(collect($validated)->except('obat')->all());
+            $test->obats()->sync($this->obatSync($request));
+            return $test;
+        });
+
+        return response()->json(['message' => 'Lab test ditambahkan', 'data' => $test]);
     }
 
     public function update(Request $request, $id)
     {
         $test = LabTest::findOrFail($id);
-        $validated = $request->validate([
-            'nama' => 'required|string|max:255',
-            'lab_kategori_id' => 'required|exists:erm_lab_kategori,id',
-            'harga' => 'nullable|numeric|min:0',
-            'deskripsi' => 'nullable|string'
-        ]);
-        $exists = LabTest::where('lab_kategori_id', $validated['lab_kategori_id'])
-            ->where('nama', $validated['nama'])
-            ->where('id', '!=', $test->id)
-            ->exists();
-        if ($exists) {
-            return response()->json(['message' => 'Nama test sudah ada di kategori ini'], 422);
+        $validated = $request->validate($this->rules(), self::MESSAGES);
+        if ($this->namaTerpakai($validated, $test->id)) {
+            return response()->json(['message' => 'Nama test sudah ada di kategori ini', 'errors' => ['nama' => ['Nama test sudah ada di kategori ini']]], 422);
         }
-        $test->update($validated);
 
-        // handle associated obats
-        $obats = $request->input('obat', []);
-        $sync = [];
-        if (is_array($obats) && count($obats)) {
-            foreach ($obats as $item) {
-                if (empty($item['obat_id'])) continue;
-                $dosis = isset($item['dosis']) ? (float) $item['dosis'] : 0;
-                $sync[$item['obat_id']] = ['dosis' => $dosis];
-            }
-        }
-        $test->obats()->sync($sync);
+        DB::transaction(function () use ($request, $validated, $test) {
+            $test->update(collect($validated)->except('obat')->all());
+            $test->obats()->sync($this->obatSync($request));
+        });
 
-        return response()->json(['message' => 'Lab test updated', 'data' => $test->load('obats')]);
+        return response()->json(['message' => 'Lab test disimpan', 'data' => $test]);
     }
 
     /**
@@ -110,15 +172,34 @@ class LabTestController extends Controller
      */
     public function show($id)
     {
-        $test = LabTest::with('obats')->findOrFail($id);
+        $test = LabTest::with(['obats' => fn ($q) => $q->withoutGlobalScope('active')])->findOrFail($id);
         return response()->json($test);
     }
 
+    /**
+     * A test that was ever requested, billed or is in a paket keeps its history: it can only be made unavailable.
+     */
     public function destroy($id)
     {
         $test = LabTest::findOrFail($id);
-        $test->delete();
-        return response()->json(['message' => 'Lab test deleted']);
+        $usage = [
+            'permintaan lab' => $test->labPermintaan()->count(),
+            'billing' => DB::table('finance_billing')->where('billable_type', LabTest::class)->where('billable_id', $test->id)->count(),
+            'paket lab' => $test->labPakets()->count(),
+        ];
+        $usedIn = collect($usage)->filter()->map(fn ($n, $label) => "{$n} {$label}")->values();
+        if ($usedIn->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Lab test sudah dipakai di ' . $usedIn->implode(', ') . '. Ubah menjadi tidak tersedia saja agar riwayat pasien tetap utuh.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($test) {
+            $test->obats()->detach();
+            $test->delete();
+        });
+
+        return response()->json(['message' => 'Lab test dihapus']);
     }
 
     /**
@@ -156,7 +237,7 @@ class LabTestController extends Controller
             $query->where('nama', 'like', "%$q%");
         }
 
-        $results = $query->get(['id', 'nama', 'lab_kategori_id', 'harga']);
+        $results = $query->get(['id', 'nama', 'lab_kategori_id', 'harga', 'available']);
 
         return response()->json($results->map(function ($test) {
             return [
@@ -164,6 +245,7 @@ class LabTestController extends Controller
                 'nama' => $test->nama,
                 'harga' => $test->harga,
                 'kategori' => optional($test->labKategori)->nama,
+                'available' => $test->available,
             ];
         })->values());
     }

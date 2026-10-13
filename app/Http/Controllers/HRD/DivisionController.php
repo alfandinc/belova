@@ -24,14 +24,14 @@ class DivisionController extends Controller
         $employee = Auth::user()->employee;
 
         if (!$employee) {
-            return redirect()->route('hrd.dashboard')
+            return redirect()->route('dashboard.index')
                 ->with('error', 'Data karyawan tidak ditemukan');
         }
 
         $divisionId = $this->getEmployeeDivisionId($employee);
 
         if (!$divisionId) {
-            return redirect()->route('hrd.dashboard')
+            return redirect()->route('dashboard.index')
                 ->with('error', 'Divisi karyawan belum ditentukan dari posisi');
         }
 
@@ -53,7 +53,7 @@ class DivisionController extends Controller
         $employee = Auth::user()->employee;
 
         if (!$employee) {
-            return redirect()->route('hrd.dashboard')
+            return redirect()->route('dashboard.index')
                 ->with('error', 'Data karyawan tidak ditemukan');
         }
 

@@ -34,6 +34,7 @@ class AppServiceProvider extends ServiceProvider
             'employee' => Employee::class,
             'dokter' => Dokter::class,
             'marketing_event' => MarketingEvent::class,
+            'follow_up' => \App\Models\Marketing\FollowUp::class,
         ]);
 
         View::composer('erm.rawatjalans.partials.modal-daftar-kunjungan', DaftarKunjunganModalComposer::class);

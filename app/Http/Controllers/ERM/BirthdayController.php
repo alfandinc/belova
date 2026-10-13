@@ -5,8 +5,8 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Pasien;
 use App\Models\ERM\Visitation;
-use App\Models\ERM\Klinik;
 use App\Models\ERM\BirthdayGreeting;
+use App\Models\Marketing\FollowUp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -20,120 +20,99 @@ class BirthdayController extends Controller
 {
     public function index()
     {
-        $today = Carbon::now()->format('Y-m-d');
-        
-        // Get list of clinics for the filter
-        $kliniks = Klinik::all();
-        
-        return view('erm.birthday.index', compact('today', 'kliniks'));
+        // The page itself is the "Ulang Tahun" tab of Pasien & Follow Up
+        return redirect()->route('marketing.pasien-data', ['tab' => 'ulang-tahun']);
     }
 
     public function getData(Request $request)
     {
-        $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now();
-        $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now();
-        $klinikId = $request->klinik_id;
-        $currentYear = Carbon::now()->year;
+        $today = Carbon::today();
+        $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : $today->copy();
+        $endDate = $request->end_date ? Carbon::parse($request->end_date)->startOfDay() : $today->copy();
+        if ($endDate->lt($startDate)) {
+            [$startDate, $endDate] = [$endDate, $startDate];
+        }
+        $currentYear = $today->year;
 
-        // Base query for patients with birthdays in the date range
-        $query = Pasien::whereRaw("(MONTH(tanggal_lahir) * 100 + DAY(tanggal_lahir)) BETWEEN (? * 100 + ?) AND (? * 100 + ?)",
-            [
-                $startDate->month,
-                $startDate->day,
-                $endDate->month,
-                $endDate->day
-            ]
-        );
+        // Birthdays (month*100 + day) inside the range; a range crossing new year (e.g. 28 Des - 5 Jan) wraps around
+        $from = $startDate->month * 100 + $startDate->day;
+        $to = $endDate->month * 100 + $endDate->day;
+        $monthDay = '(MONTH(tanggal_lahir) * 100 + DAY(tanggal_lahir))';
+        $query = Pasien::whereNotNull('tanggal_lahir');
+        if ($startDate->diffInDays($endDate) >= 364) {
+            // whole year: every birthday
+        } elseif ($from <= $to) {
+            $query->whereRaw("$monthDay BETWEEN ? AND ?", [$from, $to]);
+        } else {
+            $query->whereRaw("($monthDay >= ? OR $monthDay <= ?)", [$from, $to]);
+        }
 
-        // Filter by klinik if specified
-        if ($klinikId) {
-            $query->whereExists(function($query) use ($klinikId) {
-                $query->select(DB::raw(1))
+        // Patients who ever visited the clinic
+        if ($request->klinik_id) {
+            $query->whereExists(function ($q) use ($request) {
+                $q->select(DB::raw(1))
                     ->from('erm_visitations')
-                    ->whereRaw('erm_visitations.pasien_id = erm_pasiens.id')
-                    ->where('erm_visitations.klinik_id', $klinikId);
+                    ->whereColumn('erm_visitations.pasien_id', 'erm_pasiens.id')
+                    ->where('erm_visitations.klinik_id', $request->klinik_id);
             });
         }
 
-        // Order by month and day
-        $query->orderByRaw("MONTH(tanggal_lahir), DAY(tanggal_lahir)");
+        $lastVisitKlinik = Visitation::select('klinik_id')
+            ->whereColumn('pasien_id', 'erm_pasiens.id')
+            ->orderByDesc('tanggal_visitation')
+            ->limit(1);
+        $pasiens = $query->select('id', 'nama', 'no_hp', 'gender', 'tanggal_lahir')
+            ->addSelect(['last_klinik_id' => $lastVisitKlinik])
+            ->get();
 
-        $pasiens = $query->get();
+        $greetings = BirthdayGreeting::with('user:id,name')
+            ->whereIn('pasien_id', $pasiens->pluck('id'))
+            ->where('greeting_year', $currentYear)
+            ->get()
+            ->keyBy('pasien_id');
+        $klinikNames = \App\Models\ERM\Klinik::pluck('nama', 'id');
+        $monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-        return DataTables::of($pasiens)
-            ->addColumn('usia', function($pasien) {
-                return Carbon::parse($pasien->tanggal_lahir)->age;
-            })
-            ->addColumn('tanggal', function($pasien) {
-                $date = Carbon::parse($pasien->tanggal_lahir);
-                $monthNames = [
-                    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-                    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-                ];
-                return $date->format('j') . ' ' . $monthNames[$date->month - 1] . ' ' . $date->format('Y');
-            })
-            ->addColumn('klinik', function($pasien) {
-                $latestVisitation = Visitation::where('pasien_id', $pasien->id)
-                    ->orderBy('tanggal_visitation', 'desc')
-                    ->first();
-                    
-                return $latestVisitation ? $latestVisitation->klinik->nama ?? '-' : '-';
-            })
-            ->addColumn('status', function($pasien) {
-                $currentYear = Carbon::now()->year;
-                $greeting = BirthdayGreeting::where('pasien_id', $pasien->id)
-                    ->where('greeting_year', $currentYear)
-                    ->first();
-                    
-                if ($greeting) {
-                    $user = $greeting->user ? $greeting->user->name : 'Unknown';
-                    $date = $greeting->greeting_date->format('d/m/Y');
-                    return '<span class="badge badge-success">Sudah diucapkan</span><br>
-                            <small class="text-muted">oleh: ' . $user . '<br>' . $date . '</small>';
-                } else {
-                    return '<span class="badge badge-warning">Belum diucapkan</span>';
-                }
-            })
-            ->addColumn('action', function($pasien) {
-    $age = Carbon::parse($pasien->tanggal_lahir)->age;
-    $gender = strtolower($pasien->gender);
-    $currentYear = Carbon::now()->year;
-    $klinikId = null;
-    
-    // Get klinik_id from latest visitation
-    $latestVisitation = Visitation::where('pasien_id', $pasien->id)
-        ->orderBy('tanggal_visitation', 'desc')
-        ->first();
-    
-    if ($latestVisitation && $latestVisitation->klinik) {
-        $klinikId = $latestVisitation->klinik->id;
-    }
-    
-    // Determine prefix based on age and gender
-    $prefix = $this->getGreetingPrefix($age, $gender);
-    
-    // Check if greeting has been sent this year
-    $greeting = BirthdayGreeting::where('pasien_id', $pasien->id)
-        ->where('greeting_year', $currentYear)
-        ->first();
-    
-    if ($greeting) {
-        // If already greeted, show a disabled button or a different action
-        return '<button type="button" class="btn btn-sm btn-secondary" disabled>Sudah Diucapkan</button>';
-    } else {
-        return '<button type="button" class="btn btn-sm btn-success send-greeting" 
-            data-id="'.$pasien->id.'" 
-            data-name="'.$pasien->nama.'" 
-            data-phone="'.$pasien->no_hp.'"
-            data-prefix="'.$prefix.'"
-            data-age="'.$age.'"
-            data-klinik="'.$klinikId.'">
-            Ucapkan
-        </button>';
-    }
-})
-            ->rawColumns(['status', 'action'])
-            ->make(true);
+        $rows = $pasiens->map(function ($pasien) use ($startDate, $today, $greetings, $klinikNames, $monthNames) {
+            $born = Carbon::parse($pasien->tanggal_lahir);
+            // The birthday as it falls inside the range (29 Feb moves to 28 Feb in other years)
+            $occurs = $born->copy()->year($startDate->year);
+            if ($born->month === 2 && $born->day === 29 && !$occurs->isLeapYear()) {
+                $occurs = Carbon::create($startDate->year, 2, 28);
+            }
+            if ($occurs->lt($startDate)) {
+                $occurs->addYear();
+            }
+            $daysAway = (int) round($today->diffInDays($occurs, false));
+            $greeting = $greetings->get($pasien->id);
+            $turning = $occurs->year - $born->year;
+
+            return [
+                'id' => $pasien->id,
+                'nama' => $pasien->nama,
+                'no_hp' => $pasien->no_hp,
+                'tanggal' => $born->day . ' ' . $monthNames[$born->month - 1] . ' ' . $born->year,
+                'occurs' => $occurs->toDateString(),
+                'kapan' => $daysAway === 0 ? 'Hari ini' : ($daysAway === 1 ? 'Besok' : ($daysAway === -1 ? 'Kemarin'
+                    : $occurs->day . ' ' . $monthNames[$occurs->month - 1])),
+                'is_today' => $daysAway === 0,
+                'usia' => $turning,
+                'prefix' => $this->getGreetingPrefix($turning, $pasien->gender),
+                'klinik_id' => $pasien->last_klinik_id,
+                'klinik' => $klinikNames[$pasien->last_klinik_id] ?? '-',
+                'greeted' => (bool) $greeting,
+                'greeted_by' => $greeting ? ($greeting->user->name ?? '-') : null,
+                'greeted_at' => $greeting && $greeting->greeting_date ? $greeting->greeting_date->format('d/m/Y') : null,
+            ];
+        })->sortBy('occurs')->values();
+
+        if ($request->status === 'belum') {
+            $rows = $rows->where('greeted', false)->values();
+        } elseif ($request->status === 'sudah') {
+            $rows = $rows->where('greeted', true)->values();
+        }
+
+        return DataTables::of($rows)->make(true);
     }
     
     /**
@@ -141,10 +120,12 @@ class BirthdayController extends Controller
      */
     private function getGreetingPrefix($age, $gender)
     {
+        // gender is stored as "Laki-laki" / "Perempuan" (older rows may hold "L" / "P")
+        $male = str_starts_with(strtolower((string) $gender), 'l');
         if ($age >= 40) {
-            return $gender == 'l' ? 'Bapak' : 'Ibu';
+            return $male ? 'Bapak' : 'Ibu';
         } elseif ($age >= 17) {
-            return $gender == 'l' ? 'Kakak' : 'Kakak';
+            return 'Kakak';
         } else {
             return 'Adik';
         }
@@ -163,7 +144,7 @@ class BirthdayController extends Controller
         $currentYear = Carbon::now()->year;
         
         // Create or update the greeting record
-        BirthdayGreeting::updateOrCreate(
+        $greeting = BirthdayGreeting::updateOrCreate(
             [
                 'pasien_id' => $request->pasien_id,
                 'greeting_year' => $currentYear,
@@ -174,7 +155,18 @@ class BirthdayController extends Controller
                 'greeting_message' => $request->message,
             ]
         );
-        
+
+        // The first greeting of the year also lands in the patient's follow up history
+        if ($greeting->wasRecentlyCreated) {
+            FollowUp::create([
+                'pasien_id' => $request->pasien_id,
+                'kategori' => json_encode([FollowUp::KATEGORI_ULANG_TAHUN]),
+                'sales_id' => Auth::user()->employee->id ?? null,
+                'status_respon' => 'Menunggu', // greeting sent, reply not in yet
+                'catatan' => 'Ucapan ulang tahun dikirim via WhatsApp',
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Greeting marked as sent'

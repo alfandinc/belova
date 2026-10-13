@@ -196,10 +196,31 @@
         clearInterval(window.__rawatjalanPerawatNotifTimer);
     }
 
-    window.__rawatjalanPerawatNotifTimer = setInterval(function() {
+    // One poller per browser, shared with the global perawat notifier (public/js/belova-tab-leader.js):
+    // the tab the user is looking at polls; other tabs stay idle.
+    var rawatjalanNotifPollBusy = false;
+    var runRawatjalanNotifPoll = window.BelovaTabLeader
+        ? function(task) {
+            if (window.__rawatjalanNotifPollStarted) return; // script evaluated twice: keep a single poller
+            window.__rawatjalanNotifPollStarted = true;
+            window.BelovaTabLeader.run('erm-get-notif', 2000, task);
+        }
+        : function(task) { window.__rawatjalanPerawatNotifTimer = setInterval(task, 2000); };
+
+    runRawatjalanNotifPoll(function() {
+        if (rawatjalanNotifPollBusy) return;
+        rawatjalanNotifPollBusy = true;
+
+        // Continue from the previous leader tab's last poll (server de-duplicates delivered notifications per session)
+        var requestStartedMs = Date.now();
+        var ownSinceMs = getRealtimeNotificationSinceMs();
+        var sharedSinceMs = window.BelovaTabLeader ? parseInt(window.BelovaTabLeader.shared('erm-get-notif'), 10) : 0;
+        var sinceMs = sharedSinceMs && ownSinceMs ? Math.min(ownSinceMs, sharedSinceMs) : ownSinceMs;
+
         $.get('/erm/get-notif', {
-            since_ms: getRealtimeNotificationSinceMs()
+            since_ms: sinceMs
         }, function(data) {
+            if (window.BelovaTabLeader) window.BelovaTabLeader.share('erm-get-notif', requestStartedMs);
             updateNotificationBadge(data.unread_count || 0);
             if (
                 data.new &&
@@ -268,8 +289,10 @@
                     audio.play();
                 }
             }
+        }).always(function() {
+            rawatjalanNotifPollBusy = false;
         });
-    }, 2000);
+    });
     @endif
 
     // Ensure Moment.js uses Indonesian locale and set default value to today for date inputs
@@ -3360,6 +3383,10 @@ $(document).on('click', '.edit-referral-link', function(e){
         $('#referral_employee_id_modal').val(referralType === 'employee' ? referralableId : '').trigger('change');
         $('#referral_dokter_id_modal').val(referralType === 'dokter' ? referralableId : '').trigger('change');
         $('#referral_event_id_modal').val(referralType === 'event' ? referralableId : '').trigger('change');
+        // "Follow Up CRM" keeps the visit's own follow up; it cannot be picked for other visits here
+        $('#referral_follow_up_id_modal').val(referralType === 'follow_up' ? referralableId : '');
+        $('#referral-type-select option[value="follow_up"]').prop('disabled', referralType !== 'follow_up');
+        $('#referral-type-select').trigger('change.select2');
 
         var referralPasienInput = $('#referral_target_pasien_id_modal');
         referralPasienInput.empty().trigger('change');
@@ -3391,7 +3418,8 @@ $(document).on('submit', '#form-referral', function(e){
         referral_target_pasien_id: $('#referral_target_pasien_id_modal').val() || '',
         referral_employee_id: $('#referral_employee_id_modal').val() || '',
         referral_dokter_id: $('#referral_dokter_id_modal').val() || '',
-        referral_event_id: $('#referral_event_id_modal').val() || ''
+        referral_event_id: $('#referral_event_id_modal').val() || '',
+        referral_follow_up_id: referralType === 'follow_up' ? ($('#referral_follow_up_id_modal').val() || '') : ''
     }, function(res){
         if (res.success) {
             $('#modalReferral').modal('hide');

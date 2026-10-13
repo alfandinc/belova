@@ -10,7 +10,7 @@
     <div class="card">
         <div class="card-body">
             <div class="d-flex align-items-center justify-content-between mb-0 mt-2">
-                <h3 class="mb-0">SPK & CUCI TANGAN</h3>
+                <h3 class="mb-0">SPK</h3>
                 
                 @if(isset($allRiwayat) && $allRiwayat->count() > 1)
                 <div class="tindakan-navigation d-flex align-items-center">
@@ -22,7 +22,7 @@
                             @foreach($allRiwayat as $index => $item)
                                 <a class="dropdown-item {{ $index == $currentIndex ? 'active' : '' }}" 
                                    href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => $index]) }}">
-                                   {{ $index + 1 }}. {{ $item->tindakan->nama ?? $item->paketTindakan->nama ?? 'Tindakan' }}
+                                   {{ $index + 1 }}. {{ $item->tindakan->nama ?? 'Tindakan' }}
                                 </a>
                             @endforeach
                         </div>
@@ -95,7 +95,7 @@
                         <div class="form-group">
                             <label>Jam Mulai</label>
                             <div class="input-group">
-                                <input type="time" class="form-control" id="globalJamMulai">
+                                <input type="time" class="form-control" id="globalJamMulai" name="waktu_mulai">
                                 <div class="input-group-append">
                                     <button type="button" class="btn btn-secondary" id="btnNowJamMulai">Now</button>
                                 </div>
@@ -106,33 +106,13 @@
                         <div class="form-group">
                             <label>Jam Selesai</label>
                             <div class="input-group">
-                                <input type="time" class="form-control" id="globalJamSelesai">
+                                <input type="time" class="form-control" id="globalJamSelesai" name="waktu_selesai">
                                 <div class="input-group-append">
                                     <button type="button" class="btn btn-secondary" id="btnNowJamSelesai">Now</button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="table-responsive mt-4">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th style="width: 2%">NO</th>
-                                <th style="width: 10%">TINDAKAN</th>
-                                <th style="width: 12%">PJ</th>
-                                <th style="width: 4%">SBK</th>
-                                <th style="width: 4%">SBA</th>
-                                <th style="width: 4%">SDC</th>
-                                <th style="width: 4%">SDK</th>
-                                <th style="width: 4%">SDL</th>
-                                <th style="width: 30%">NOTES</th>
-                            </tr>
-                        </thead>
-                        <tbody id="spkTableBody">
-                            <!-- Will be populated dynamically -->
-                        </tbody>
-                    </table>
                 </div>
                 <input type="hidden" id="spkInformConsentId" name="inform_consent_id">
                 <input type="hidden" id="spkRiwayatTindakanId" name="riwayat_tindakan_id" value="{{ $riwayat->id ?? '' }}">
@@ -162,48 +142,6 @@
 @endsection
 @section('scripts')
 <script>
-const renderSpkTable = (sopList, spk, users) =>
-    sopList.map((sop, index) => {
-        const existingDetail = spk?.details?.find(d => d.sop_id == sop.id);
-        // Remove per-row time input, use hidden fields
-        return `<tr>
-            <td>${index + 1}</td>
-            <td>${sop.nama_sop}</td>
-            <td>
-                <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
-                    <option value="">Pilih PJ</option>
-                </select>
-            </td>
-            <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail?.sbk ? 'checked' : ''}></td>
-            <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail?.sba ? 'checked' : ''}></td>
-            <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail?.sdc ? 'checked' : ''}></td>
-            <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail?.sdk ? 'checked' : ''}></td>
-            <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail?.sdl ? 'checked' : ''}></td>
-            <td class="d-flex align-items-center">
-                <textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail?.notes || ''}</textarea>
-                <button type="button" class="btn btn-sm btn-primary mt-2 check-all-btn" data-checked="0">Check All</button>
-            </td>
-            <input type="hidden" class="spk-mulai" name="details[${index}][waktu_mulai]" value="${existingDetail?.waktu_mulai?.substring(0,5) || ''}">
-            <input type="hidden" class="spk-selesai" name="details[${index}][waktu_selesai]" value="${existingDetail?.waktu_selesai?.substring(0,5) || ''}">
-            <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
-        </tr>`;
-    }).join('');
-
-const populateSelect2 = (users, spk) => {
-    document.querySelectorAll('.select2-spk').forEach(select => {
-        const sopId = select.dataset.sopId;
-        const existingDetail = spk?.details?.find(d => d.sop_id == sopId);
-        users.forEach(user => {
-            const option = document.createElement('option');
-            option.value = user.name;
-            option.textContent = user.name;
-            if (existingDetail?.penanggung_jawab === user.name) option.selected = true;
-            select.appendChild(option);
-        });
-        $(select).select2({ width: '100%' });
-    });
-};
-
 document.addEventListener('DOMContentLoaded', () => {
     const riwayatTindakanId = document.getElementById('spkRiwayatTindakanId')?.value;
     if (riwayatTindakanId) {
@@ -222,32 +160,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         tanggalTindakan = new Date(tanggalTindakan).toISOString().split('T')[0];
                     }
                     document.getElementById('spkTanggalTindakan').value = tanggalTindakan || new Date().toISOString().split('T')[0];
-                    document.getElementById('spkTableBody').innerHTML = renderSpkTable(data.sop_list, data.spk, data.users);
-                    // Set globalJamMulai and globalJamSelesai from first detail if available
-                    if (data.spk && data.spk.details && data.spk.details.length > 0) {
-                        const firstDetail = data.spk.details[0];
-                        if (firstDetail.waktu_mulai) {
-                            document.getElementById('globalJamMulai').value = firstDetail.waktu_mulai.substring(0,5);
-                        }
-                        if (firstDetail.waktu_selesai) {
-                            document.getElementById('globalJamSelesai').value = firstDetail.waktu_selesai.substring(0,5);
-                        }
+                    // Jam mulai/selesai are stored on the SPK itself
+                    if (data.spk && data.spk.waktu_mulai) {
+                        document.getElementById('globalJamMulai').value = data.spk.waktu_mulai.substring(0,5);
                     }
-                    populateSelect2(data.users, data.spk);
+                    if (data.spk && data.spk.waktu_selesai) {
+                        document.getElementById('globalJamSelesai').value = data.spk.waktu_selesai.substring(0,5);
+                    }
                 }
             })
             .catch(() => Swal.fire('Error', 'Failed to load SPK data', 'error'));
     }
     document.getElementById('saveSpk').addEventListener('click', () => {
-        // Before submit, set all waktu_mulai and waktu_selesai per row from global input
-        const jamMulai = document.getElementById('globalJamMulai').value;
-        const jamSelesai = document.getElementById('globalJamSelesai').value;
-        document.querySelectorAll('input.spk-mulai').forEach(input => {
-            input.value = jamMulai;
-        });
-        document.querySelectorAll('input.spk-selesai').forEach(input => {
-            input.value = jamSelesai;
-        });
         const form = document.getElementById('spkForm');
         const formData = new FormData(form);
         
@@ -306,16 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(error => {
             Swal.fire('Error', 'Failed to save SPK data', 'error');
         });
-    });
-    document.getElementById('spkTableBody').addEventListener('click', function(e) {
-        if (e.target.classList.contains('check-all-btn')) {
-            const row = e.target.closest('tr');
-            const checkboxes = row.querySelectorAll('input[type="checkbox"]');
-            const isChecked = e.target.getAttribute('data-checked') === '1';
-            checkboxes.forEach(cb => cb.checked = !isChecked);
-            e.target.setAttribute('data-checked', isChecked ? '0' : '1');
-            e.target.textContent = isChecked ? 'Check All' : 'Uncheck All';
-        }
     });
     document.getElementById('btnNowJamMulai').addEventListener('click', function() {
         const now = new Date();
