@@ -5,9 +5,11 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatHargaPengajuan;
+use App\Services\ERM\HnaFakturService;
 use App\Services\ERM\MasterPembelianService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
@@ -19,7 +21,11 @@ class HargaJualController extends Controller
     public const PENGAJU_ROLES = ['Admin', 'Farmasi'];
     public const APPROVER_ROLES = ['Admin', 'Finance'];
 
-    public const FILTERS = ['semua', 'menunggu', 'rugi', 'bawah_target', 'aman', 'tanpa_harga', 'tanpa_hpp'];
+    public const FILTERS = ['semua', 'menunggu', 'rugi', 'bawah_target', 'aman', 'tanpa_harga', 'tanpa_hpp', 'mencurigakan'];
+
+    // Margin outside this range usually means a wrong satuan / isi per box, not a real price
+    public const MARGIN_EKSTREM_MAX = 500;
+    public const MARGIN_EKSTREM_MIN = -50;
 
     private function targetMargin(): float
     {
@@ -53,6 +59,63 @@ class HargaJualController extends Controller
         return $modal > 0 ? round($modal, 2) : null;
     }
 
+    /**
+     * Active obat whose HNA / HPP look wrong, with the reasons: HPP is not HNA + PPN (or only one is filled), HNA
+     * differs from the latest approved faktur by more than the purchase tolerance, or an extreme margin.
+     * Computed once per request.
+     *
+     * @return array<int, array{alasan: string[], faktur: ?object}>
+     */
+    private function hnaMencurigakan(): array
+    {
+        static $hasil = null;
+        if ($hasil !== null) {
+            return $hasil;
+        }
+
+        $factor = 1 + Obat::PPN_PERCENT / 100;
+        $toleransi = (float) config('pembelian.toleransi_harga_persen', 10);
+        $faktur = app(HnaFakturService::class)->terakhir();
+        $fmt = fn ($n) => 'Rp ' . number_format((float) $n, 0, ',', '.');
+
+        $hasil = [];
+        $obats = DB::table('erm_obat')->where('status_aktif', 1)->get(['id', 'hna', 'hpp', 'harga_nonfornas']);
+        foreach ($obats as $o) {
+            $hna = (float) $o->hna;
+            $hpp = (float) $o->hpp;
+            $alasan = [];
+
+            if (($hna > 0) !== ($hpp > 0)) {
+                $alasan[] = $hna > 0 ? 'HPP kosong' : 'HNA kosong';
+            } elseif ($hna > 0 && abs($hpp - $hna * $factor) > 0.01 + $hna * 0.0005) {
+                $alasan[] = 'HPP ≠ HNA + PPN (seharusnya ' . $fmt($hna * $factor) . ')';
+            }
+
+            $f = $faktur->get((int) $o->id);
+            if ($f && $f->hna > 0) {
+                $selisih = $hna > 0 ? ($hna - $f->hna) / $f->hna * 100 : null;
+                if ($selisih === null || abs($selisih) > $toleransi) {
+                    $alasan[] = 'Beda dari faktur ' . $f->no_faktur . ' (HNA ' . $fmt($f->hna) . ($selisih !== null ? ', ' . ($selisih > 0 ? '+' : '') . round($selisih, 1) . '%' : '') . ')';
+                }
+            }
+
+            $modal = $hpp > 0 ? $hpp : $hna * $factor;
+            $harga = (float) $o->harga_nonfornas;
+            if ($modal > 0 && $harga > 0) {
+                $margin = ($harga - $modal) / $modal * 100;
+                if ($margin > self::MARGIN_EKSTREM_MAX || $margin < self::MARGIN_EKSTREM_MIN) {
+                    $alasan[] = 'Margin ekstrem ' . round($margin, 1) . '% (cek satuan / isi per box)';
+                }
+            }
+
+            if ($alasan) {
+                $hasil[(int) $o->id] = ['alasan' => $alasan, 'faktur' => $f];
+            }
+        }
+
+        return $hasil;
+    }
+
     private function saran(?float $modal): ?float
     {
         if (!$modal) {
@@ -80,6 +143,8 @@ class HargaJualController extends Controller
             'ppn' => Obat::PPN_PERCENT,
             'canPropose' => $this->canPropose(),
             'canApprove' => $this->canApprove(),
+            // Recalculating HNA / HPP from the faktur (Daftar Harga, "HNA/HPP mencurigakan")
+            'isAdmin' => auth()->user()->hasRole('Admin'),
             'menunggu' => ObatHargaPengajuan::where('status', 'menunggu')->count(),
             // Finance does not work in the farmasi menu
             'navbar' => auth()->user()->hasAnyRole(['Admin', 'Farmasi']) ? 'layouts.erm.navbar-farmasi' : 'layouts.finance.navbar',
@@ -115,8 +180,10 @@ class HargaJualController extends Controller
         $this->applyFilter($query, $filter, $modal, $margin, $target);
 
         return DataTables::eloquent($query)
-            ->only(['id', 'kode_obat', 'nama', 'kategori', 'hna', 'modal', 'harga_nonfornas', 'margin', 'saran', 'pengajuan_id', 'pengajuan_harga', 'pengajuan_margin', 'pengajuan_oleh'])
+            ->only(['id', 'kode_obat', 'nama', 'kategori', 'hna', 'modal', 'harga_nonfornas', 'margin', 'saran', 'pengajuan_id', 'pengajuan_harga', 'pengajuan_margin', 'pengajuan_oleh', 'curiga'])
             ->addColumn('saran', fn ($o) => $this->saran($o->modal !== null ? (float) $o->modal : null))
+            // Why the HNA / HPP look wrong (empty when they look fine)
+            ->addColumn('curiga', fn ($o) => $this->hnaMencurigakan()[(int) $o->id]['alasan'] ?? [])
             ->editColumn('hna', fn ($o) => $o->hna !== null ? (float) $o->hna : null)
             ->editColumn('modal', fn ($o) => $o->modal !== null ? round((float) $o->modal, 2) : null)
             ->editColumn('harga_nonfornas', fn ($o) => $o->harga_nonfornas !== null ? (float) $o->harga_nonfornas : null)
@@ -158,6 +225,9 @@ class HargaJualController extends Controller
             case 'tanpa_hpp':
                 $query->whereRaw("({$modal} IS NULL OR {$modal} <= 0)");
                 break;
+            case 'mencurigakan':
+                $query->whereIn('erm_obat.id', array_keys($this->hnaMencurigakan()) ?: [0]);
+                break;
         }
     }
 
@@ -174,6 +244,7 @@ class HargaJualController extends Controller
             ->first();
 
         $counts = array_map('intval', (array) $row);
+        $counts['mencurigakan'] = count($this->hnaMencurigakan());
         $counts['menunggu'] = ObatHargaPengajuan::query()
             ->where('status', 'menunggu')
             ->whereHas('obat', fn ($q) => $q->where('status_aktif', 1))
@@ -332,6 +403,57 @@ class HargaJualController extends Controller
     /**
      * Approve one or more proposals: the new price is written to the obat.
      */
+    /**
+     * Admin: recalculate HNA / HPP of the chosen obat from their latest approved faktur (HNA = harga + ongkir share,
+     * HPP = HNA + PPN). An obat without a faktur only gets HPP = HNA + PPN, when it has an HNA; otherwise it is skipped.
+     */
+    public function hitungUlang(Request $request)
+    {
+        $data = $request->validate([
+            'obat_ids' => 'required|array|min:1|max:500',
+            'obat_ids.*' => 'integer',
+        ]);
+
+        $ids = array_values(array_unique(array_map('intval', $data['obat_ids'])));
+        $faktur = app(HnaFakturService::class)->terakhir($ids);
+        $diubah = 0;
+        $sama = 0;
+        $dilewati = [];
+        $log = [];
+
+        DB::transaction(function () use ($ids, $faktur, &$diubah, &$sama, &$dilewati, &$log) {
+            foreach (Obat::withInactive()->whereIn('id', $ids)->lockForUpdate()->get() as $obat) {
+                $lama = ['hna' => (float) $obat->hna, 'hpp' => (float) $obat->hpp];
+                $f = $faktur->get($obat->id);
+                if ($f) {
+                    $obat->hna = $f->hna;
+                } elseif ((float) $obat->hna > 0) {
+                    $obat->hpp = Obat::hppFromHna((float) $obat->hna);
+                } else {
+                    $dilewati[] = $obat->nama . ': belum ada faktur dan HNA kosong';
+                    continue;
+                }
+                // Obat::saving makes HPP = HNA + PPN
+                $obat->save();
+                $baru = ['hna' => (float) $obat->hna, 'hpp' => (float) $obat->hpp];
+                if (abs($baru['hna'] - $lama['hna']) < 0.005 && abs($baru['hpp'] - $lama['hpp']) < 0.005) {
+                    $sama++;
+                    continue;
+                }
+                $diubah++;
+                $log[] = ['obat_id' => $obat->id, 'lama' => $lama, 'baru' => $baru, 'sumber' => $f ? 'faktur ' . $f->no_faktur : 'HNA + PPN'];
+            }
+        });
+
+        Log::info('Harga jual: HNA/HPP dihitung ulang', ['user_id' => auth()->id(), 'obat' => $log]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$diubah} obat diperbarui" . ($sama ? ", {$sama} sudah sesuai" : '') . ($dilewati ? ', ' . count($dilewati) . ' dilewati' : '') . '.',
+            'dilewati' => $dilewati,
+        ]);
+    }
+
     public function approve(Request $request)
     {
         $data = $request->validate(['ids' => 'required|array|min:1', 'ids.*' => 'integer']);

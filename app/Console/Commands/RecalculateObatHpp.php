@@ -2,6 +2,7 @@
 namespace App\Console\Commands;
 
 use App\Models\ERM\Obat;
+use App\Services\ERM\HnaFakturService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,27 +31,8 @@ class RecalculateObatHpp extends Command
         $factor = 1 + Obat::PPN_PERCENT / 100;
         $hasOngkir = Schema::hasColumn('erm_fakturbeli', 'ongkir');
 
-        // Value of each faktur's priced, received lines: the base the ongkir is split over
-        $nilai = DB::table('erm_fakturbeli_items')
-            ->where('qty', '>', 0)
-            ->where('harga', '>', 0)
-            ->groupBy('fakturbeli_id')
-            ->select('fakturbeli_id', DB::raw('SUM(qty * harga) as nilai'));
-
-        // Latest received item per obat from approved faktur (received_date, then newest faktur/item)
-        $latest = DB::table('erm_fakturbeli_items as i')
-            ->join('erm_fakturbeli as f', 'f.id', '=', 'i.fakturbeli_id')
-            ->leftJoinSub($nilai, 'n', 'n.fakturbeli_id', '=', 'f.id')
-            ->whereIn('f.status', ['diapprove', 'diretur'])
-            ->where('i.qty', '>', 0)
-            ->where('i.harga', '>', 0) // bonus/free lines carry no price
-            ->whereNotNull('i.obat_id')
-            ->orderByRaw('COALESCE(f.received_date, f.created_at) DESC')
-            ->orderByDesc('f.id')
-            ->orderByDesc('i.id')
-            ->get(array_merge(['i.obat_id', 'i.harga', 'f.no_faktur', 'n.nilai'], $hasOngkir ? ['f.ongkir'] : []))
-            ->unique('obat_id')
-            ->keyBy('obat_id');
+        // Latest approved faktur line per obat, with its HNA (harga + ongkir share)
+        $latest = app(HnaFakturService::class)->terakhir();
 
         $obats = DB::table('erm_obat')->orderBy('id')->get(['id', 'kode_obat', 'nama', 'hpp', 'hna']);
 
@@ -63,10 +45,7 @@ class RecalculateObatHpp extends Command
             if (isset($latest[$obat->id])) {
                 $row = $latest[$obat->id];
                 $source = 'faktur ' . $row->no_faktur;
-                // Ongkir per unit = faktur ongkir x (line value / faktur value) / qty = ongkir x harga / faktur value
-                $ongkir = (float) ($row->ongkir ?? 0);
-                $ongkirPerUnit = $ongkir > 0 && (float) $row->nilai > 0 ? $ongkir * (float) $row->harga / (float) $row->nilai : 0;
-                $newHna = round((float) $row->harga + $ongkirPerUnit, 2);
+                $newHna = $row->hna;
                 $newHpp = Obat::hppFromHna($newHna);
                 $rule = 'faktur';
             } elseif ($oldHpp > 0 && $oldHna > 0 && abs($oldHpp - $oldHna * $factor) < 0.01 + $oldHna * 0.0005) {

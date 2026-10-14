@@ -45,6 +45,7 @@
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="aman"><div class="hj-lbl"><span class="badge badge-success">Sesuai target</span></div><div class="hj-num text-success" data-count="aman">-</div><div class="hj-hint">margin ≥ target</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="tanpa_harga"><div class="hj-lbl">Belum ada harga jual</div><div class="hj-num text-dark" data-count="tanpa_harga">-</div><div class="hj-hint">tidak bisa dijual dengan benar</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="tanpa_hpp"><div class="hj-lbl">Belum ada HPP</div><div class="hj-num text-muted" data-count="tanpa_hpp">-</div><div class="hj-hint">margin belum bisa dihitung</div></div></div>
+                <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="mencurigakan" title="HPP ≠ HNA + PPN, HNA beda dari faktur terakhir, atau margin ekstrem"><div class="hj-lbl"><span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> HNA/HPP mencurigakan</span></div><div class="hj-num text-warning" data-count="mencurigakan">-</div><div class="hj-hint">cek & hitung ulang dari faktur</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="menunggu"><div class="hj-lbl"><span class="badge badge-primary">Menunggu approval</span></div><div class="hj-num text-primary" data-count="menunggu">-</div><div class="hj-hint">obat dengan pengajuan</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="semua"><div class="hj-lbl">Semua obat aktif</div><div class="hj-num text-muted" data-count="semua">-</div><div class="hj-hint">&nbsp;</div></div></div>
             </div>
@@ -57,6 +58,9 @@
                         <div class="ml-auto d-flex align-items-center" style="gap:6px">
                             <span class="small text-muted" id="hjSelectedInfo"></span>
                             <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="hjClearSelected">Batal pilih</button>
+                            @if($isAdmin)
+                            <button type="button" class="btn btn-sm btn-warning" id="hjHitungUlang" disabled title="HNA = harga faktur approve terakhir + ongkir, HPP = HNA + PPN"><i class="fas fa-sync-alt"></i> Hitung ulang HNA/HPP dari faktur</button>
+                            @endif
                             <button type="button" class="btn btn-sm btn-primary" id="hjAjukanTerpilih" disabled><i class="fas fa-paper-plane"></i> Ajukan harga untuk terpilih</button>
                         </div>
                         @endif
@@ -206,6 +210,7 @@ $(function () {
     var CSRF = '{{ csrf_token() }}';
     var CAN_PROPOSE = @json($canPropose);
     var CAN_APPROVE = @json($canApprove);
+    var IS_ADMIN = @json($isAdmin);
     var TARGET = {{ (float) $target }};
     var STEP = {{ max((int) config('pembelian.pembulatan_harga_jual', 100), 1) }};
     var URLS = {
@@ -213,6 +218,7 @@ $(function () {
         pengajuan: '{{ route('erm.harga-jual.pengajuan') }}',
         store: '{{ route('erm.harga-jual.store') }}',
         approve: '{{ route('erm.harga-jual.approve') }}',
+        hitungUlang: '{{ $isAdmin ? route('erm.harga-jual.hitung-ulang') : '' }}',
         base: '{{ url('/erm/harga-jual') }}'
     };
     var state = { filter: null, selected: {}, pjStatus: 'menunggu', pjSelected: {}, riwayatObat: null };
@@ -255,7 +261,8 @@ $(function () {
             {
                 data: 'nama',
                 render: function (d, t, r) {
-                    return '<div class="hj-name">' + esc(d) + '</div><div class="small text-muted">' + esc(r.kode_obat || '-') + (r.kategori ? ' · ' + esc(r.kategori) : '') + '</div>';
+                    var curiga = (r.curiga || []).map(function (a) { return '<div class="small text-warning"><i class="fas fa-exclamation-triangle"></i> ' + esc(a) + '</div>'; }).join('');
+                    return '<div class="hj-name">' + esc(d) + '</div><div class="small text-muted">' + esc(r.kode_obat || '-') + (r.kategori ? ' · ' + esc(r.kategori) : '') + '</div>' + curiga;
                 }
             },
             { data: 'hna', className: 'text-right text-nowrap', searchable: false, render: function (d) { return d > 0 ? rupiah(d) : '<span class="text-muted">-</span>'; } },
@@ -323,6 +330,7 @@ $(function () {
         $('#hjSelectedInfo').text(n ? n + ' obat dipilih' : '');
         $('#hjClearSelected').toggleClass('d-none', !n);
         $('#hjAjukanTerpilih').prop('disabled', !n);
+        $('#hjHitungUlang').prop('disabled', !n);
     }
     $('#hargaTable').on('change', '.hj-check', function () {
         var id = this.value;
@@ -334,6 +342,38 @@ $(function () {
         $('#hargaTable .hj-check').each(function () { if (this.checked !== on) $(this).prop('checked', on).trigger('change'); });
     });
     $('#hjClearSelected').on('click', function () { state.selected = {}; $('#hargaTable .hj-check').prop('checked', false); refreshSelectedInfo(); });
+
+    // Admin: recalculate HNA / HPP of the selected obat from their latest approved faktur
+    $('#hjHitungUlang').on('click', function () {
+        var ids = Object.keys(state.selected);
+        if (!ids.length || !IS_ADMIN) return;
+        Swal.fire({
+            icon: 'question',
+            title: 'Hitung ulang ' + ids.length + ' obat?',
+            html: '<div class="text-left small">HNA = harga faktur approve terakhir + bagian ongkir (tanpa PPN), HPP = HNA + PPN.<br>'
+                + 'Obat tanpa faktur: hanya HPP disesuaikan menjadi HNA + PPN (bila HNA ada).<br>Harga jual tidak berubah.</div>',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hitung ulang',
+            cancelButtonText: 'Batal',
+            reverseButtons: true
+        }).then(function (res) {
+            if (!res.value) return;
+            var $btn = $('#hjHitungUlang').prop('disabled', true);
+            $.post(URLS.hitungUlang, { _token: CSRF, obat_ids: ids }).done(function (r) {
+                state.selected = {};
+                refreshSelectedInfo();
+                hargaTable.ajax.reload(null, false);
+                Swal.fire({
+                    icon: r.dilewati && r.dilewati.length ? 'warning' : 'success',
+                    title: 'Selesai',
+                    html: esc(r.message) + (r.dilewati && r.dilewati.length ? '<div class="text-left small mt-2">' + r.dilewati.map(esc).join('<br>') + '</div>' : '')
+                });
+            }).fail(function (xhr) {
+                fail(xhr, 'Gagal menghitung ulang HNA/HPP.');
+                refreshSelectedInfo();
+            });
+        });
+    });
 
     // ================= Propose modal =================
     function itemRow(o) {

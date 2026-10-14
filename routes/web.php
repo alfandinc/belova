@@ -758,6 +758,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('/pengajuan', [App\Http\Controllers\ERM\HargaJualController::class, 'store'])->middleware('role:Admin|Farmasi')->name('erm.harga-jual.store');
         Route::post('/pengajuan/{id}/batal', [App\Http\Controllers\ERM\HargaJualController::class, 'batal'])->middleware('role:Admin|Farmasi')->name('erm.harga-jual.batal');
         Route::post('/pengajuan/approve', [App\Http\Controllers\ERM\HargaJualController::class, 'approve'])->middleware('role:Admin|Finance')->name('erm.harga-jual.approve');
+        // HNA / HPP that look wrong: recalculated from the latest faktur, Admin only
+        Route::post('/hitung-ulang', [App\Http\Controllers\ERM\HargaJualController::class, 'hitungUlang'])->middleware('role:Admin')->name('erm.harga-jual.hitung-ulang');
         Route::post('/pengajuan/{id}/reject', [App\Http\Controllers\ERM\HargaJualController::class, 'reject'])->middleware('role:Admin|Finance')->name('erm.harga-jual.reject');
     });
         // Inline update stok fisik for hasil stok opname
