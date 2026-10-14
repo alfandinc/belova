@@ -134,10 +134,11 @@ class RawatJalanController extends Controller
         }
 
         $metodeBayar = MetodeBayar::cachedList();
+        $kliniks = Cache::remember('erm_kliniks', 300, fn () => Klinik::select('id', 'nama')->get());
 
         [$employees, $dokters, $events] = DaftarKunjunganModalComposer::referralOptions();
 
-        return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar', 'employees', 'dokters', 'events'));
+        return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar', 'kliniks', 'employees', 'dokters', 'events'));
     }
 
     /**
@@ -816,6 +817,7 @@ class RawatJalanController extends Controller
 
                         'mb.nama as metode_bayar_nama',
                         'u.name as dokter_user_name',
+                        's.id as spesialisasi_id',
                         's.nama as spesialisasi_nama',
 
                         'av.name as village_name',
@@ -1938,7 +1940,9 @@ class RawatJalanController extends Controller
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
+            'klinik_id' => 'nullable|exists:erm_klinik,id',
             'dokter_id' => 'required|exists:erm_dokters,id',
+            'spesialisasi_id' => 'nullable|exists:erm_spesialisasis,id',
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required|exists:erm_metode_bayar,id',
             'no_antrian' => 'required|integer|min:1',
@@ -1946,7 +1950,14 @@ class RawatJalanController extends Controller
         ]);
 
         $visitation = Visitation::findOrFail($request->visitation_id);
+        if ($request->filled('klinik_id')) {
+            $visitation->klinik_id = $request->klinik_id;
+        }
         $visitation->dokter_id = $request->dokter_id;
+        // The saving hook falls back to the dokter's first spesialisasi in the klinik when this one doesn't fit
+        if (Visitation::tracksSpesialisasi() && $request->has('spesialisasi_id')) {
+            $visitation->spesialisasi_id = $request->spesialisasi_id ?: null;
+        }
         $visitation->tanggal_visitation = $request->tanggal_visitation;
         $visitation->metode_bayar_id = $request->metode_bayar_id;
         $visitation->no_antrian = $request->no_antrian;

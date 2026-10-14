@@ -1254,6 +1254,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                             tanggal_visitation: row.tanggal_visitation || '',
                             klinik_id: row.klinik_id || '',
                             dokter_id: row.dokter_id || '',
+                            spesialisasi_id: row.spesialisasi_id || '',
                             metode_bayar_id: row.metode_bayar_id || ''
                         };
                             var editTanggalButtonHtml = '<a href="#" class="btn btn-xs btn-outline-primary ml-2 btn-edit-antrian"'
@@ -1263,6 +1264,7 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                                 + ' data-tanggal-visitation="' + $('<div>').text(editPayload.tanggal_visitation).html() + '"'
                                 + ' data-klinik-id="' + $('<div>').text(editPayload.klinik_id).html() + '"'
                                 + ' data-dokter-id="' + $('<div>').text(editPayload.dokter_id).html() + '"'
+                                + ' data-spesialisasi-id="' + $('<div>').text(editPayload.spesialisasi_id).html() + '"'
                                 + ' data-metode-bayar-id="' + $('<div>').text(editPayload.metode_bayar_id).html() + '"'
                                 + ' title="Edit kunjungan" style="padding:1px 6px; font-size:10px; line-height:1.4; flex:0 0 auto;"><i class="fas fa-pen"></i></a>';
                         tanggalHtml = '<div class="d-flex align-items-start justify-content-between">'
@@ -1892,17 +1894,48 @@ function editAntrian(payload) {
         payload = payload || {};
         initializeEditAntrianSelect2();
         $('#edit-antrian-visitation-id').val(payload.visitation_id || '');
-        $('#edit-antrian-klinik-id').val(payload.klinik_id || '');
+        $('#edit-antrian-klinik-id').val(payload.klinik_id || '').trigger('change.select2');
         $('#edit-antrian-tanggal').val(payload.tanggal_visitation || '');
         $('#edit-antrian-metode-bayar').val(payload.metode_bayar_id || '').trigger('change.select2');
         $('#edit-antrian-no').val(payload.no_antrian || '');
         $('#edit-antrian-waktu').val(payload.waktu_kunjungan || '');
 
-        loadEditAntrianDokters(payload.klinik_id, payload.dokter_id).always(function () {
+        loadEditAntrianDokters(payload.klinik_id, payload.dokter_id, payload.spesialisasi_id).always(function () {
             $('#modalEditAntrian').modal('show');
         });
     });
 }
+
+// dokter id => spesialisasi [{id, nama}] in the klinik picked in the edit modal
+var editAntrianDokterSpesialisasis = {};
+
+function renderEditAntrianSpesialisasi(selectedSpesialisasiId) {
+    var options = editAntrianDokterSpesialisasis[$('#edit-antrian-dokter').val()] || [];
+    var $select = $('#edit-antrian-spesialisasi').empty();
+
+    if (!options.length) {
+        $select.append('<option value="">' + ($('#edit-antrian-dokter').val() ? '-' : 'Pilih dokter dulu') + '</option>').prop('disabled', true);
+        return;
+    }
+
+    $.each(options, function (index, s) {
+        $select.append($('<option>').val(s.id).text(s.nama));
+    });
+    var selected = options.some(function (s) { return String(s.id) === String(selectedSpesialisasiId); })
+        ? selectedSpesialisasiId
+        : options[0].id;
+    // Only a choice to make when the dokter holds several spesialisasi in this klinik
+    $select.val(String(selected)).prop('disabled', options.length < 2);
+}
+
+$(document).on('change', '#edit-antrian-klinik-id', function () {
+    // Keeps the dokter when they also practise in the new klinik
+    loadEditAntrianDokters($(this).val(), $('#edit-antrian-dokter').val(), $('#edit-antrian-spesialisasi').val());
+});
+
+$(document).on('change', '#edit-antrian-dokter', function () {
+    renderEditAntrianSpesialisasi($('#edit-antrian-spesialisasi').val());
+});
 
 function initializeEditAntrianSelect2() {
     var $modal = $('#modalEditAntrian');
@@ -1923,7 +1956,7 @@ function initializeEditAntrianSelect2() {
     });
 }
 
-function loadEditAntrianDokters(klinikId, selectedDokterId) {
+function loadEditAntrianDokters(klinikId, selectedDokterId, selectedSpesialisasiId) {
     var $dokterSelect = $('#edit-antrian-dokter');
 
     function escapeOptionValue(value) {
@@ -1931,6 +1964,8 @@ function loadEditAntrianDokters(klinikId, selectedDokterId) {
     }
 
     $dokterSelect.empty().append('<option value="">Pilih Dokter</option>').trigger('change.select2');
+    editAntrianDokterSpesialisasis = {};
+    renderEditAntrianSpesialisasi();
 
     if (!klinikId) {
         return $.Deferred().resolve().promise();
@@ -1950,13 +1985,18 @@ function loadEditAntrianDokters(klinikId, selectedDokterId) {
                     ? dokter.spesialisasis.map(function (s) { return s.nama; }).join(' / ')
                     : (dokter && dokter.spesialisasi && dokter.spesialisasi.nama ? dokter.spesialisasi.nama : '');
                 var spesialis = spesialisNama ? ' - ' + spesialisNama : '';
+                editAntrianDokterSpesialisasis[dokter.id] = Array.isArray(dokter.spesialisasis) && dokter.spesialisasis.length
+                    ? dokter.spesialisasis
+                    : (dokter.spesialisasi ? [dokter.spesialisasi] : []);
                 $dokterSelect.append('<option value="' + escapeOptionValue(dokter.id) + '">' + escapeOptionValue(dokterName + spesialis) + '</option>');
             });
         }
 
         $dokterSelect.val(selectedDokterId || '').trigger('change.select2');
+        renderEditAntrianSpesialisasi(selectedSpesialisasiId);
     }).fail(function () {
         $dokterSelect.empty().append('<option value="">Pilih Dokter</option>').trigger('change.select2');
+        renderEditAntrianSpesialisasi();
         Swal.fire('Error', 'Gagal mengambil daftar dokter untuk klinik ini.', 'error');
     });
 }
@@ -2089,6 +2129,7 @@ $(document).on('click', '.btn-edit-antrian', function(e) {
         tanggal_visitation: $(this).attr('data-tanggal-visitation') || '',
         klinik_id: $(this).attr('data-klinik-id') || '',
         dokter_id: $(this).attr('data-dokter-id') || '',
+        spesialisasi_id: $(this).attr('data-spesialisasi-id') || '',
         metode_bayar_id: $(this).attr('data-metode-bayar-id') || ''
     });
 });
@@ -2241,13 +2282,20 @@ $(document).on('submit', '#form-edit-antrian', function(e){
 
     var visitationId = $('#edit-antrian-visitation-id').val();
     var tanggalKunjungan = $('#edit-antrian-tanggal').val();
+    var klinikId = $('#edit-antrian-klinik-id').val();
     var dokterId = $('#edit-antrian-dokter').val();
+    var spesialisasiId = $('#edit-antrian-spesialisasi').val() || '';
     var metodeBayarId = $('#edit-antrian-metode-bayar').val();
     var noAntrian = $('#edit-antrian-no').val();
     var waktuKunjungan = $('#edit-antrian-waktu').val();
 
     if (!tanggalKunjungan) {
         Swal.fire('Error', 'Tanggal kunjungan wajib diisi', 'warning');
+        return;
+    }
+
+    if (!klinikId) {
+        Swal.fire('Error', 'Klinik wajib dipilih', 'warning');
         return;
     }
 
@@ -2273,7 +2321,9 @@ $(document).on('submit', '#form-edit-antrian', function(e){
             _token: '{{ csrf_token() }}',
             visitation_id: visitationId,
             tanggal_visitation: tanggalKunjungan,
+            klinik_id: klinikId,
             dokter_id: dokterId,
+            spesialisasi_id: spesialisasiId,
             metode_bayar_id: metodeBayarId,
             no_antrian: noAntrian,
             waktu_kunjungan: waktuKunjungan

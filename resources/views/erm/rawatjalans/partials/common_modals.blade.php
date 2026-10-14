@@ -588,15 +588,29 @@ Terima kasih.
             <form id="form-edit-antrian">
                 <div class="modal-body">
                     <input type="hidden" id="edit-antrian-visitation-id" name="visitation_id">
-                    <input type="hidden" id="edit-antrian-klinik-id" name="klinik_id">
                     <div class="form-group">
                         <label for="edit-antrian-tanggal">Tanggal Kunjungan</label>
                         <input type="date" class="form-control" id="edit-antrian-tanggal" name="tanggal_visitation" required>
                     </div>
                     <div class="form-group">
+                        <label for="edit-antrian-klinik-id">Klinik</label>
+                        <select class="form-control select2-edit-antrian" id="edit-antrian-klinik-id" name="klinik_id" required>
+                            <option value="">Pilih Klinik</option>
+                            @foreach($kliniks as $klinik)
+                                <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="edit-antrian-dokter">Dokter</label>
                         <select class="form-control select2-edit-antrian" id="edit-antrian-dokter" name="dokter_id" required>
                             <option value="">Pilih Dokter</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-antrian-spesialisasi">Spesialisasi</label>
+                        <select class="form-control" id="edit-antrian-spesialisasi" name="spesialisasi_id" disabled>
+                            <option value="">Pilih dokter dulu</option>
                         </select>
                     </div>
                     <div class="form-group">
