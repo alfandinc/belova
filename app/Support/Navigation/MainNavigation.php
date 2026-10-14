@@ -148,11 +148,13 @@ class MainNavigation
     private function farmasiStok(): array
     {
         $stok = $this->can('Farmasi', 'Admin', 'Beautician', 'Lab');
+        // Marketing: everything except Stok Opname
+        $stokMarketing = $stok || $this->can('Marketing');
 
         return $this->module('farmasi-stok', 'Stok', 'archive', [
-            $stok ? $this->item('Manajemen Stok', 'package', url('/erm/stok-gudang')) : null,
-            $stok ? $this->item('Transfer Antar Gudang', 'truck', url('/erm/mutasi-gudang')) : null,
-            $stok ? $this->item('Penyesuaian Stok', 'sliders', url('/erm/mutasi-stok')) : null,
+            $stokMarketing ? $this->item('Manajemen Stok', 'package', url('/erm/stok-gudang')) : null,
+            $stokMarketing ? $this->item('Transfer Antar Gudang', 'truck', url('/erm/mutasi-gudang')) : null,
+            $stokMarketing ? $this->item('Penyesuaian Stok', 'sliders', url('/erm/mutasi-stok')) : null,
             $stok ? $this->item('Stok Opname', 'check-square', url('/erm/stokopname')) : null,
         ]);
     }

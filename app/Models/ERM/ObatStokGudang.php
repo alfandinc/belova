@@ -96,6 +96,17 @@ class ObatStokGudang extends Model
         });
     }
 
+    // Kebalikan layakPakai sebagai ekspresi SQL (1 = batch sudah lewat ED); untuk SUM / ORDER BY
+    public static function sqlSudahEd(): string
+    {
+        $table = (new static)->getTable();
+
+        return "CASE WHEN {$table}.expiration_date IS NOT NULL"
+            . " AND {$table}.expiration_date < '" . now()->toDateString() . "'"
+            . " AND ({$table}.batch IS NULL OR {$table}.batch NOT LIKE '" . self::MIGRASI_BATCH_PREFIX . "%')"
+            . " THEN 1 ELSE 0 END";
+    }
+
     // Hanya batch dengan ED asli (bukan migrasi); dipakai untuk daftar akan expired / karantina
     public function scopeEdTerverifikasi($query)
     {

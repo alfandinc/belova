@@ -34,8 +34,8 @@ class MutasiStokController extends Controller
         'masuk' => ['Koreksi hitung', 'Ditemukan saat cek fisik', 'Lainnya'],
     ];
 
-    // Stock appearing without a source document needs more authority than taking it out
-    private const MASUK_ROLES = ['Admin', 'Farmasi'];
+    // Every Penyesuaian Stok role may create masuk too; masuk always waits for approval (config stok.penyesuaian)
+    public const MASUK_ROLES = ['Admin', 'Farmasi', 'Beautician', 'Lab', 'Marketing'];
 
     // Form value for the stok row without a batch name (an empty value means "no batch chosen")
     public const BATCH_NULL = '__null__';
@@ -273,7 +273,7 @@ class MutasiStokController extends Controller
         if ($request->jenis_mutasi === 'masuk' && !$this->canMasuk()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Penyesuaian masuk (menambah stok tanpa dokumen pembelian) hanya bisa dibuat Admin atau Farmasi.',
+                'message' => 'Penyesuaian masuk (menambah stok tanpa dokumen pembelian) tidak diizinkan untuk role Anda.',
             ], 403);
         }
 

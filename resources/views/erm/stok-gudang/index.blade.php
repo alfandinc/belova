@@ -1427,6 +1427,54 @@ $(document).ready(function() {
         });
     });
 
+    // Fix a wrong ED from the expiring list; quantities do not change
+    $(document).on('click', '.btn-edit-exp-ed', function() {
+        var button = $(this);
+        var oldEd = button.data('ed') || '';
+        Swal.fire({
+            title: 'Edit ED',
+            html: '<strong>' + escapeHtml(button.data('obat') || '') + '</strong><br>'
+                + '<span class="small">Batch <strong>' + escapeHtml(button.data('batch') || '-') + '</strong> di ' + escapeHtml(button.data('gudang') || '-') + '</span>'
+                + '<input type="date" id="swal-edit-ed" class="form-control mt-3" value="' + escapeHtml(oldEd) + '">'
+                + '<div class="small text-muted mt-2">Isi ED sesuai kemasan. Jumlah stok tidak berubah.</div>',
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+            focusConfirm: false,
+            preConfirm: function() {
+                var newEd = $('#swal-edit-ed').val();
+                if (!newEd) {
+                    Swal.showValidationMessage('Tanggal ED wajib diisi.');
+                    return false;
+                }
+                if (newEd === oldEd) {
+                    Swal.showValidationMessage('ED belum diubah.');
+                    return false;
+                }
+                return newEd;
+            }
+        }).then(function(result) {
+            if (!result.value) return;
+            button.prop('disabled', true);
+            $.post('{{ route('erm.stok-gudang.update-batch-exp') }}', { _token: '{{ csrf_token() }}', id: button.data('stok-id'), expiration_date: result.value })
+                .done(function(res) {
+                    StokUi.success(res.message || 'ED disimpan.');
+                    if ($.fn.DataTable.isDataTable('#expiring-table')) {
+                        $('#expiring-table').DataTable().ajax.reload(null, false);
+                    }
+                    table.ajax.reload(null, false);
+                    refreshSummary();
+                })
+                .fail(function(xhr) {
+                    StokUi.error(StokUi.xhrMessage(xhr, 'Gagal menyimpan ED.'));
+                })
+                .always(function() {
+                    button.prop('disabled', false);
+                });
+        });
+    });
+
     function moveBatchToExpired(button, stokId) {
         button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Pindah...');
 

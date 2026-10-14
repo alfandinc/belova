@@ -607,6 +607,77 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/queue-calendar', [RawatJalanController::class, 'queueCalendar'])->name('erm.rawatjalans.queueCalendar');
 });
 
+// Manajemen Stok, Transfer Antar Gudang & Penyesuaian Stok: the ERM roles plus Marketing
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Marketing')->group(function () {
+    // AJAX endpoint for nilai stok gudang & keseluruhan
+    Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
+    // Export stok gudang to Excel
+    Route::get('/stok-gudang/export', [\App\Http\Controllers\ERM\StokGudangController::class, 'exportToExcel'])->name('erm.stok-gudang.export');
+    // Warehouse Stock Management
+    Route::prefix('stok-gudang')->group(function () {
+        Route::get('/', [StokGudangController::class, 'index'])->name('erm.stok-gudang.index');
+        Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
+        Route::get('/low-stock', [StokGudangController::class, 'getLowStockData'])->name('erm.stok-gudang.low-stock');
+        Route::get('/low-stock/count', [StokGudangController::class, 'getLowStockCount'])->name('erm.stok-gudang.low-stock.count');
+        Route::get('/expiring', [StokGudangController::class, 'getExpiringData'])->name('erm.stok-gudang.expiring');
+        Route::get('/expiring/count', [StokGudangController::class, 'getExpiringCount'])->name('erm.stok-gudang.expiring.count');
+        // Karantina & tindak lanjut stok expired: farmasi / admin only
+        Route::middleware('role:Admin|Farmasi')->group(function () {
+            Route::post('/expiring/move-to-expired', [StokGudangController::class, 'moveBatchToExpiredGudang'])->name('erm.stok-gudang.expiring.move');
+            Route::post('/expiring/move-all-to-expired', [StokGudangController::class, 'moveAllExpiredToGudangExpired'])->name('erm.stok-gudang.expiring.move-all');
+            Route::post('/expired-follow-up', [StokGudangController::class, 'storeExpiredFollowUp'])->name('erm.stok-gudang.expired-follow-up');
+        });
+        Route::get('/expired-follow-up/riwayat', [StokGudangController::class, 'riwayatTindakLanjut'])->name('erm.stok-gudang.expired-follow-up.riwayat');
+        Route::get('/berita-acara/{nomor}', [StokGudangController::class, 'beritaAcara'])->name('erm.stok-gudang.berita-acara');
+        Route::get('/expiring/batches', [StokGudangController::class, 'getExpiringBatches'])->name('erm.stok-gudang.expiring.batches');
+        Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
+        // Batch master data (ED, batch name) corrections: stock-managing roles. Quantities change only via Mutasi Stok
+        Route::middleware('role:Admin|Farmasi|Beautician|Lab|Marketing')->group(function () {
+            Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
+        });
+        Route::get('/audit', [StokGudangController::class, 'auditData'])->name('erm.stok-gudang.audit');
+        Route::post('/update-batch-name', [StokGudangController::class, 'updateBatchName'])
+            ->middleware('role:Admin|Farmasi|Beautician|Lab|Marketing')
+            ->name('erm.stok-gudang.update-batch-name');
+        Route::get('/summary', [StokGudangController::class, 'getSummary'])->name('erm.stok-gudang.summary');
+    });
+
+    // Kartu stok detail modal on Manajemen Stok
+    Route::get('/kartu-stok/detail', [App\Http\Controllers\ERM\KartuStokController::class, 'detail'])->name('erm.kartustok.detail');
+
+    // Mutasi Gudang Routes
+    // Transfer Antar Gudang: same roles as the menu; stok enters only via faktur, hibah or penyesuaian
+    Route::prefix('mutasi-gudang')->middleware('role:Admin|Farmasi|Beautician|Lab|Marketing')->group(function () {
+    Route::get('/', [MutasiGudangController::class, 'index'])->name('erm.mutasi-gudang.index');
+    Route::get('/data', [MutasiGudangController::class, 'data'])->name('erm.mutasi-gudang.data');
+    Route::post('/', [MutasiGudangController::class, 'store'])->name('erm.mutasi-gudang.store');
+    // Route baru: get data obat sesuai stok di gudang asal
+    Route::get('/obat', [MutasiGudangController::class, 'getObatGudang'])->name('erm.mutasi-gudang.obat');
+    
+    // Cetak/print mutasi (PDF)
+    Route::get('/{id}/print', [MutasiGudangController::class, 'print'])->name('erm.mutasi-gudang.print');
+    
+    // Route dengan parameter {id} HARUS DI AKHIR
+    Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
+    Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');
+    Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
+    });
+
+    // Mutasi Stok = stock adjustment document (masuk always waits for approval)
+    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician|Lab|Marketing')->group(function () {
+        Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
+        Route::get('/data', [MutasiStokController::class, 'data'])->name('erm.mutasi-stok.data');
+        Route::get('/obat', [MutasiStokController::class, 'getObatGudang'])->name('erm.mutasi-stok.obat');
+        Route::get('/batches', [MutasiStokController::class, 'batches'])->name('erm.mutasi-stok.batches');
+        Route::post('/', [MutasiStokController::class, 'store'])->name('erm.mutasi-stok.store');
+        Route::get('/{id}/print', [MutasiStokController::class, 'print'])->name('erm.mutasi-stok.print');
+        Route::post('/{id}/cancel', [MutasiStokController::class, 'cancel'])->name('erm.mutasi-stok.cancel');
+        Route::post('/{id}/approve', [MutasiStokController::class, 'approve'])->name('erm.mutasi-stok.approve');
+        Route::post('/{id}/reject', [MutasiStokController::class, 'reject'])->name('erm.mutasi-stok.reject');
+        Route::get('/{id}', [MutasiStokController::class, 'show'])->name('erm.mutasi-stok.show');
+    });
+});
+
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir')->group(function () {
     // Dokter to Perawat notification
     Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
@@ -622,10 +693,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('fakturretur/{id}/reject', [\App\Http\Controllers\ERM\FakturReturController::class, 'reject'])->name('erm.fakturretur.reject')->middleware('role:Admin|Farmasi');
     
 
-    // AJAX endpoint for nilai stok gudang & keseluruhan
-    Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
-    // Export stok gudang to Excel
-    Route::get('/stok-gudang/export', [\App\Http\Controllers\ERM\StokGudangController::class, 'exportToExcel'])->name('erm.stok-gudang.export');
     // Export FakturBeli items to CSV/Excel-compatible file
     Route::get('/fakturbeli/items/export', [\App\Http\Controllers\ERM\FakturBeliController::class, 'exportItemsExcel'])->name('erm.fakturbeli.items.export')->middleware('role:Admin|Farmasi');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
@@ -653,67 +720,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // AJAX: Get allow_post value for InformConsent
     Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
-    
-    // Warehouse Stock Management
-    Route::prefix('stok-gudang')->group(function () {
-        Route::get('/', [StokGudangController::class, 'index'])->name('erm.stok-gudang.index');
-        Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
-        Route::get('/low-stock', [StokGudangController::class, 'getLowStockData'])->name('erm.stok-gudang.low-stock');
-        Route::get('/low-stock/count', [StokGudangController::class, 'getLowStockCount'])->name('erm.stok-gudang.low-stock.count');
-        Route::get('/expiring', [StokGudangController::class, 'getExpiringData'])->name('erm.stok-gudang.expiring');
-        Route::get('/expiring/count', [StokGudangController::class, 'getExpiringCount'])->name('erm.stok-gudang.expiring.count');
-        // Karantina & tindak lanjut stok expired: farmasi / admin only
-        Route::middleware('role:Admin|Farmasi')->group(function () {
-            Route::post('/expiring/move-to-expired', [StokGudangController::class, 'moveBatchToExpiredGudang'])->name('erm.stok-gudang.expiring.move');
-            Route::post('/expiring/move-all-to-expired', [StokGudangController::class, 'moveAllExpiredToGudangExpired'])->name('erm.stok-gudang.expiring.move-all');
-            Route::post('/expired-follow-up', [StokGudangController::class, 'storeExpiredFollowUp'])->name('erm.stok-gudang.expired-follow-up');
-        });
-        Route::get('/expired-follow-up/riwayat', [StokGudangController::class, 'riwayatTindakLanjut'])->name('erm.stok-gudang.expired-follow-up.riwayat');
-        Route::get('/berita-acara/{nomor}', [StokGudangController::class, 'beritaAcara'])->name('erm.stok-gudang.berita-acara');
-        Route::get('/expiring/batches', [StokGudangController::class, 'getExpiringBatches'])->name('erm.stok-gudang.expiring.batches');
-        Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
-        // Batch master data (ED, batch name) corrections: stock-managing roles. Quantities change only via Mutasi Stok
-        Route::middleware('role:Admin|Farmasi|Beautician|Lab')->group(function () {
-            Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
-        });
-        Route::get('/audit', [StokGudangController::class, 'auditData'])->name('erm.stok-gudang.audit');
-        Route::post('/update-batch-name', [StokGudangController::class, 'updateBatchName'])
-            ->middleware('role:Admin|Farmasi|Beautician|Lab')
-            ->name('erm.stok-gudang.update-batch-name');
-        Route::get('/summary', [StokGudangController::class, 'getSummary'])->name('erm.stok-gudang.summary');
-    });
-    
-    // Mutasi Gudang Routes
-    // Transfer Antar Gudang: same roles as the menu; stok enters only via faktur, hibah or penyesuaian
-    Route::prefix('mutasi-gudang')->middleware('role:Admin|Farmasi|Beautician|Lab')->group(function () {
-    Route::get('/', [MutasiGudangController::class, 'index'])->name('erm.mutasi-gudang.index');
-    Route::get('/data', [MutasiGudangController::class, 'data'])->name('erm.mutasi-gudang.data');
-    Route::post('/', [MutasiGudangController::class, 'store'])->name('erm.mutasi-gudang.store');
-    // Route baru: get data obat sesuai stok di gudang asal
-    Route::get('/obat', [MutasiGudangController::class, 'getObatGudang'])->name('erm.mutasi-gudang.obat');
-    
-    // Cetak/print mutasi (PDF)
-    Route::get('/{id}/print', [MutasiGudangController::class, 'print'])->name('erm.mutasi-gudang.print');
-    
-    // Route dengan parameter {id} HARUS DI AKHIR
-    Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
-    Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');
-    Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
-    });
 
-    // Mutasi Stok = stock adjustment document; masuk is further limited to Admin/Farmasi in the controller
-    Route::prefix('mutasi-stok')->middleware('role:Farmasi|Admin|Beautician|Lab')->group(function () {
-        Route::get('/', [MutasiStokController::class, 'index'])->name('erm.mutasi-stok.index');
-        Route::get('/data', [MutasiStokController::class, 'data'])->name('erm.mutasi-stok.data');
-        Route::get('/obat', [MutasiStokController::class, 'getObatGudang'])->name('erm.mutasi-stok.obat');
-        Route::get('/batches', [MutasiStokController::class, 'batches'])->name('erm.mutasi-stok.batches');
-        Route::post('/', [MutasiStokController::class, 'store'])->name('erm.mutasi-stok.store');
-        Route::get('/{id}/print', [MutasiStokController::class, 'print'])->name('erm.mutasi-stok.print');
-        Route::post('/{id}/cancel', [MutasiStokController::class, 'cancel'])->name('erm.mutasi-stok.cancel');
-        Route::post('/{id}/approve', [MutasiStokController::class, 'approve'])->name('erm.mutasi-stok.approve');
-        Route::post('/{id}/reject', [MutasiStokController::class, 'reject'])->name('erm.mutasi-stok.reject');
-        Route::get('/{id}', [MutasiStokController::class, 'show'])->name('erm.mutasi-stok.show');
-    });
+
 
     // Gudang Routes
     Route::prefix('gudang')->group(function () {
@@ -773,7 +781,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         // Kartu Stok
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
         Route::get('/kartu-stok/data', [App\Http\Controllers\ERM\KartuStokController::class, 'data'])->name('erm.kartustok.data');
-        Route::get('/kartu-stok/detail', [App\Http\Controllers\ERM\KartuStokController::class, 'detail'])->name('erm.kartustok.detail');
         Route::get('/kartu-stok/analytics', [App\Http\Controllers\ERM\KartuStokController::class, 'analytics'])->name('erm.kartustok.analytics');
     Route::get('/kartu-stok/export', [App\Http\Controllers\ERM\KartuStokController::class, 'export'])->name('erm.kartustok.export');
     Route::get('/kartu-stok/export-stok-terakhir', [App\Http\Controllers\ERM\KartuStokController::class, 'exportStokTerakhir'])->name('erm.kartustok.export_stok_terakhir');

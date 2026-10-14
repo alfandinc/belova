@@ -106,9 +106,9 @@ class StokGudangController extends Controller {
         $stokOpnames = StokOpname::with('gudang')->orderBy('tanggal_opname', 'desc')->get();
 
         $metodePemusnahan = \App\Services\ERM\GudangExpiredService::METODE_PEMUSNAHAN;
-        // Quantities change only through Penyesuaian Stok documents (same roles as that menu); masuk needs Admin/Farmasi
-        $canMutasi = (bool) optional(Auth::user())->hasAnyRole(['Admin', 'Farmasi', 'Beautician', 'Lab']);
-        $canMasuk = (bool) optional(Auth::user())->hasAnyRole(['Admin', 'Farmasi']);
+        // Quantities change only through Penyesuaian Stok documents (same roles as that menu, masuk included)
+        $canMutasi = (bool) optional(Auth::user())->hasAnyRole(MutasiStokController::MASUK_ROLES);
+        $canMasuk = $canMutasi;
         $expiredGudangId = app(\App\Services\ERM\GudangExpiredService::class)->gudangId();
 
         return view('erm.stok-gudang.index', compact('gudangs', 'defaultGudang', 'kategoris', 'stokOpnames', 'metodePemusnahan', 'canMutasi', 'canMasuk', 'expiredGudangId'));
@@ -849,6 +849,8 @@ class StokGudangController extends Controller {
         $expiredGudangMapping = GudangMapping::getActiveMapping('expired');
         $expiredGudangId = $expiredGudangMapping ? $expiredGudangMapping->gudang_id : null;
         $expiredGudangName = $expiredGudangMapping && $expiredGudangMapping->gudang ? $expiredGudangMapping->gudang->nama : null;
+        // Same roles as the update-batch-exp route
+        $canEditEd = (bool) optional(Auth::user())->hasAnyRole(MutasiStokController::MASUK_ROLES);
 
         $table = (new ObatStokGudang())->getTable();
         $expThreshold = $threshold->format('Y-m-d H:i:s');
@@ -977,7 +979,7 @@ class StokGudangController extends Controller {
                 $html .= '</tbody></table>';
                 return $html;
             })
-            ->addColumn('exp_actions', function ($row) use ($expiredGudangId, $expiredGudangName) {
+            ->addColumn('exp_actions', function ($row) use ($expiredGudangId, $expiredGudangName, $canEditEd) {
                 if (empty($row->exp_batches)) return '-';
                 $parts = explode(';;', $row->exp_batches);
                 $items = array_filter(array_map('trim', $parts));
@@ -988,7 +990,11 @@ class StokGudangController extends Controller {
                 foreach ($items as $it) {
                     $cols = explode('||', $it);
                     $stokId = isset($cols[0]) ? $cols[0] : null;
-                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">';
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle; white-space:nowrap;">';
+                    // A wrong ED (typo, placeholder) is fixed here instead of moving the batch
+                    if ($canEditEd) {
+                        $html .= '<button type="button" class="btn btn-sm btn-outline-primary btn-edit-exp-ed mr-1" data-stok-id="' . e($stokId) . '" data-batch="' . e($cols[1] ?? '-') . '" data-gudang="' . e($cols[4] ?? '-') . '" data-obat="' . e($row->obat_nama) . '" data-ed="' . e($cols[3] ?? '') . '" title="Ubah tanggal ED batch ini"><i class="fas fa-calendar-alt"></i> Edit ED</button>';
+                    }
                     if (!$expiredGudangId) {
                         $html .= '<button type="button" class="btn btn-sm btn-secondary" disabled title="Mapping gudang expired belum diset">Belum di-map</button>';
                     } else {

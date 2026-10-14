@@ -124,7 +124,7 @@
                         <button type="button" id="add-item" class="btn btn-sm btn-outline-primary mb-2"><i class="fas fa-plus"></i> Tambah Obat</button>
                         <small class="text-muted mb-2" id="item-summary"></small>
                     </div>
-                    <small class="text-muted d-block">Tips: tekan <kbd>Enter</kbd> di kolom jumlah untuk menambah baris obat berikutnya. Stok yang tampil adalah stok layak pakai di gudang asal; batch kadaluarsa tidak ikut ditransfer.</small>
+                    <small class="text-muted d-block">Tips: tekan <kbd>Enter</kbd> di kolom jumlah untuk menambah baris obat berikutnya. Stok yang tampil adalah semua stok di gudang asal; obat dengan stok ED diberi tanda <span class="badge badge-danger">ED</span>. Batch layak pakai diambil dulu, batch ED hanya bila jumlahnya melebihi stok layak pakai.</small>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
@@ -360,7 +360,21 @@ $(document).ready(function() {
     function formatObat(obat) {
         if (obat.loading) return obat.text;
         var satuan = obat.satuan ? ' ' + escapeHtml(obat.satuan) : '';
-        return $('<div><div>' + escapeHtml(obat.nama) + '</div><small class="text-muted">Stok layak pakai: ' + fmt(obat.stok) + satuan + '</small></div>');
+        var stokEd = Number(obat.stok_ed || 0);
+        var ed = stokEd > 0
+            ? '<br><small class="text-danger font-weight-bold"><i class="fas fa-exclamation-triangle"></i> ' + fmt(stokEd) + satuan + ' sudah ED'
+                + (obat.ed_terlama ? ' (ED ' + escapeHtml(obat.ed_terlama) + ')' : '') + '</small>'
+            : '';
+        return $('<div><div>' + escapeHtml(obat.nama) + (stokEd > 0 ? ' <span class="badge badge-danger">ED</span>' : '') + '</div>'
+            + '<small class="text-muted">Stok: ' + fmt(obat.stok) + satuan + (stokEd > 0 ? ' (layak pakai ' + fmt(obat.stok - stokEd) + satuan + ')' : '') + '</small>' + ed + '</div>');
+    }
+
+    // Expired stok in this row that the jumlah would take (usable batches are used first)
+    function rowEdTerpakai($row, jumlah) {
+        var stok = Number($row.data('stok') || 0);
+        var stokEd = Number($row.data('stok-ed') || 0);
+        if (!stokEd || jumlah === null) return 0;
+        return Math.max(0, Math.min(stokEd, jumlah - (stok - stokEd)));
     }
 
     function formatObatSelection(obat) {
@@ -394,7 +408,12 @@ $(document).ready(function() {
         } else {
             var jumlah = normalizeDecimalInput($input.val());
             var lebih = jumlah !== null && jumlah > stok;
-            $hint.text((lebih ? 'Melebihi stok! ' : '') + 'Tersedia ' + fmt(stok) + (satuan ? ' ' + satuan : '')).toggleClass('text-danger', lebih).toggleClass('text-muted', !lebih);
+            var edTerpakai = lebih ? 0 : rowEdTerpakai($row, jumlah);
+            var stokEd = Number($row.data('stok-ed') || 0);
+            var text = (lebih ? 'Melebihi stok! ' : '') + 'Tersedia ' + fmt(stok) + (satuan ? ' ' + satuan : '');
+            if (edTerpakai > 0) text += ' · ' + fmt(edTerpakai) + (satuan ? ' ' + satuan : '') + ' diambil dari stok ED!';
+            else if (stokEd > 0) text += ' (termasuk ' + fmt(stokEd) + ' ED)';
+            $hint.text(text).toggleClass('text-danger', lebih || edTerpakai > 0).toggleClass('text-muted', !lebih && !edTerpakai);
             $input.toggleClass('is-invalid', lebih);
         }
         updateItemSummary();
@@ -418,7 +437,7 @@ $(document).ready(function() {
             },
             placeholder: 'Cari obat...',
             minimumInputLength: 1,
-            language: { inputTooShort: function () { return 'Ketik nama obat'; }, noResults: function () { return $('#gudang_asal_id').val() ? 'Tidak ada obat dengan stok layak pakai' : 'Pilih gudang asal dulu'; } },
+            language: { inputTooShort: function () { return 'Ketik nama obat'; }, noResults: function () { return $('#gudang_asal_id').val() ? 'Tidak ada obat dengan stok di gudang ini' : 'Pilih gudang asal dulu'; } },
             templateResult: formatObat,
             templateSelection: formatObatSelection
         });
@@ -441,22 +460,35 @@ $(document).ready(function() {
             });
             if (duplicate) {
                 $(this).val(null).trigger('change');
-                $row.removeData('stok').removeData('satuan');
+                $row.removeData('stok').removeData('stok-ed').removeData('satuan');
                 $row.find('.item-satuan').text('');
                 refreshRowStock($row);
                 notifyWarning(obat.nama + ' sudah ada di daftar. Ubah jumlah di baris tersebut.');
                 return;
             }
 
-            $row.data('stok', obat ? Number(obat.stok) : null).data('satuan', obat && obat.satuan ? obat.satuan : '');
+            $row.data('stok', obat ? Number(obat.stok) : null).data('stok-ed', obat ? Number(obat.stok_ed || 0) : 0).data('satuan', obat && obat.satuan ? obat.satuan : '');
             $row.find('.item-satuan').text(obat && obat.satuan ? obat.satuan : '');
             refreshRowStock($row);
-            $row.find('.item-jumlah').trigger('focus').trigger('select');
+            var $jumlah = $row.find('.item-jumlah');
+            if (obat && Number(obat.stok_ed) > 0) {
+                var satuan = obat.satuan ? ' ' + obat.satuan : '';
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Obat ini punya stok ED',
+                    html: '<strong>' + escapeHtml(obat.nama) + '</strong>: ' + fmt(obat.stok_ed) + escapeHtml(satuan) + ' dari ' + fmt(obat.stok) + escapeHtml(satuan)
+                        + ' sudah lewat ED' + (obat.ed_terlama ? ' (ED ' + escapeHtml(obat.ed_terlama) + ')' : '') + '.'
+                        + '<div class="small text-muted mt-2">Batch layak pakai diambil dulu. Bila jumlah melebihi stok layak pakai ('
+                        + fmt(obat.stok - obat.stok_ed) + escapeHtml(satuan) + '), batch ED ikut ditransfer beserta tanggal ED-nya.</div>'
+                }).then(function () { $jumlah.trigger('focus').trigger('select'); });
+            } else {
+                $jumlah.trigger('focus').trigger('select');
+            }
         });
 
         $select.on('select2:clear', function() {
             var $row = $(this).closest('tr');
-            $row.removeData('stok').removeData('satuan');
+            $row.removeData('stok').removeData('stok-ed').removeData('satuan');
             $row.find('.item-satuan').text('');
             refreshRowStock($row);
         });
@@ -554,6 +586,7 @@ $(document).ready(function() {
         if (gudangAsal === gudangTujuan) return notifyWarning('Gudang tujuan tidak boleh sama dengan gudang asal.');
 
         var items = [];
+        var edItems = [];
         var problem = null;
         $('#mutasi-items-table tbody tr').each(function() {
             var $row = $(this);
@@ -567,12 +600,36 @@ $(document).ready(function() {
                 problem = $row.find('.item-obat').select2('data')[0].nama + ': jumlah melebihi stok tersedia (' + fmt(stok) + ').';
                 return false;
             }
+            var edTerpakai = rowEdTerpakai($row, jumlah);
+            if (edTerpakai > 0) {
+                edItems.push('<li>' + escapeHtml($row.find('.item-obat').select2('data')[0].nama) + ': <strong>' + fmt(edTerpakai) + ' ' + escapeHtml($row.data('satuan') || '') + '</strong> dari stok ED</li>');
+            }
             items.push({ obat_id: obatId, jumlah: jumlah, keterangan: $row.find('.item-keterangan').val() });
         });
 
         if (problem) return notifyWarning(problem);
         if (!items.length) return notifyWarning('Tambahkan minimal satu obat.');
 
+        if (edItems.length) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Transfer stok yang sudah ED?',
+                html: '<ul class="text-left small mb-2">' + edItems.join('') + '</ul>'
+                    + '<div class="small text-muted">Batch ED ikut pindah ke gudang tujuan beserta tanggal ED-nya.</div>',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, tetap ajukan',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: '#dc3545',
+                reverseButtons: true
+            }).then(function (result) {
+                if (result.value) kirimTransfer(form, gudangAsal, gudangTujuan, items);
+            });
+            return;
+        }
+        kirimTransfer(form, gudangAsal, gudangTujuan, items);
+    });
+
+    function kirimTransfer(form, gudangAsal, gudangTujuan, items) {
         var $btn = $('#btn-simpan-mutasi').prop('disabled', true);
         $.ajax({
             url: form.attr('action'),
@@ -598,7 +655,7 @@ $(document).ready(function() {
         }).always(function () {
             $btn.prop('disabled', false);
         });
-    });
+    }
 
     // ---------- Detail & approval ----------
     function openDetail(id) {
@@ -628,14 +685,16 @@ $(document).ready(function() {
         if (!currentDetail) return;
         var d = currentDetail;
         var list = d.items.map(function (it) {
-            return '<li>' + escapeHtml(it.nama) + ': <strong>' + escapeHtml(it.jumlah) + ' ' + escapeHtml(it.satuan) + '</strong></li>';
+            return '<li>' + escapeHtml(it.nama) + ': <strong>' + escapeHtml(it.jumlah) + ' ' + escapeHtml(it.satuan) + '</strong>'
+                + (it.jumlah_ed ? ' <span class="badge badge-danger">' + escapeHtml(it.jumlah_ed) + ' ' + escapeHtml(it.satuan) + ' sudah ED</span>' : '') + '</li>';
         }).join('');
         Swal.fire({
-            icon: 'question',
+            icon: d.jumlah_obat_ed > 0 ? 'warning' : 'question',
             title: 'Setujui ' + escapeHtml(d.nomor_mutasi) + '?',
             html: '<div class="mb-2"><strong>' + escapeHtml(d.gudang_asal) + '</strong> &rarr; <strong>' + escapeHtml(d.gudang_tujuan) + '</strong></div>'
                 + '<ul class="text-left small mb-2">' + list + '</ul>'
-                + '<div class="small text-muted">Stok langsung berpindah (batch layak pakai, ED terdekat dulu) dan tercatat di kartu stok kedua gudang.</div>',
+                + (d.jumlah_obat_ed > 0 ? '<div class="small text-danger mb-1"><i class="fas fa-exclamation-triangle"></i> ' + d.jumlah_obat_ed + ' obat ikut memindahkan batch yang sudah ED.</div>' : '')
+                + '<div class="small text-muted">Stok langsung berpindah (batch layak pakai dengan ED terdekat dulu, batch ED paling akhir) dan tercatat di kartu stok kedua gudang.</div>',
             showCancelButton: true,
             confirmButtonText: 'Ya, setujui',
             cancelButtonText: 'Batal',

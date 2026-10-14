@@ -16,14 +16,14 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Transfer Antar Gudang: a request (pending) moves stok only when approved, batch by batch (FEFO,
- * usable batches only). Stok enters the system through Faktur Pembelian, Obat Hibah or
+ * Transfer Antar Gudang: a request (pending) moves stok only when approved, batch by batch (usable
+ * batches FEFO first, expired batches last; the user is warned about expired stok). Stok enters the system through Faktur Pembelian, Obat Hibah or
  * Penyesuaian Stok; never from here.
  */
 class MutasiGudangController extends Controller
 {
     // Roles that see the menu may also approve or reject; the requester may approve their own request
-    private const APPROVER_ROLES = ['Admin', 'Farmasi', 'Beautician', 'Lab'];
+    private const APPROVER_ROLES = ['Admin', 'Farmasi', 'Beautician', 'Lab', 'Marketing'];
 
     // Inactive obat keep their name on old transfers (the Obat model hides them by default)
     private function relations(): array
@@ -50,7 +50,7 @@ class MutasiGudangController extends Controller
     }
 
     /**
-     * Obat with usable stok in the gudang asal, stok summed over batches
+     * Obat with stok in the gudang asal, stok summed over batches; stok_ed = the expired part (shown with a warning)
      */
     public function getObatGudang(Request $request)
     {
@@ -60,10 +60,10 @@ class MutasiGudangController extends Controller
             return response()->json(['results' => []]);
         }
 
-        // Only batches that are still usable can be moved; expired stok goes through the gudang expired
         $query = ObatStokGudang::where('gudang_id', $gudangId)
             ->where('stok', '>', 0)
-            ->layakPakai()
+            ->select('erm_obat_stok_gudang.*')
+            ->selectRaw(ObatStokGudang::sqlSudahEd() . ' as sudah_ed')
             ->whereHas('obat', function ($q) use ($search) {
                 $q->where('status_aktif', 1);
                 if ($search) {
@@ -86,14 +86,25 @@ class MutasiGudangController extends Controller
                     'id' => $stokGudang->obat->id,
                     'nama' => $stokGudang->obat->nama,
                     'stok' => 0,
+                    'stok_ed' => 0,
+                    'ed_terlama' => null,
                     'satuan' => $stokGudang->obat->satuan_stok_label,
                 ];
             }
             $grouped[$obatId]['stok'] += (float) $stokGudang->stok;
+            if ((int) $stokGudang->sudah_ed === 1) {
+                $grouped[$obatId]['stok_ed'] += (float) $stokGudang->stok;
+                $ed = \Carbon\Carbon::parse($stokGudang->expiration_date)->format('Y-m-d');
+                if ($grouped[$obatId]['ed_terlama'] === null || $ed < $grouped[$obatId]['ed_terlama']) {
+                    $grouped[$obatId]['ed_terlama'] = $ed;
+                }
+            }
         }
 
         $results = collect($grouped)->sortBy('nama')->values()->map(function ($row) {
             $row['stok'] = round($row['stok'], 2);
+            $row['stok_ed'] = round($row['stok_ed'], 2);
+            $row['ed_terlama'] = $row['ed_terlama'] ? \Carbon\Carbon::parse($row['ed_terlama'])->format('d/m/Y') : null;
             return $row;
         });
 
@@ -242,8 +253,8 @@ class MutasiGudangController extends Controller
                 [$item->stok_asal_sebelum, $item->stok_asal_setelah] = $this->stokSekitarMutasi($mutasi, $item->obat_id, $mutasi->gudang_asal_id);
                 [$item->stok_tujuan_sebelum, $item->stok_tujuan_setelah] = $this->stokSekitarMutasi($mutasi, $item->obat_id, $mutasi->gudang_tujuan_id);
             } elseif ($mutasi->status === 'pending') {
-                // Current usable stok and the expected result
-                $asal = (float) ObatStokGudang::where('obat_id', $item->obat_id)->where('gudang_id', $mutasi->gudang_asal_id)->layakPakai()->sum('stok');
+                // Current stok (expired batches included) and the expected result
+                $asal = (float) ObatStokGudang::where('obat_id', $item->obat_id)->where('gudang_id', $mutasi->gudang_asal_id)->where('stok', '>', 0)->sum('stok');
                 $tujuan = (float) ObatStokGudang::where('obat_id', $item->obat_id)->where('gudang_id', $mutasi->gudang_tujuan_id)->sum('stok');
                 $item->stok_asal_sebelum = $asal;
                 $item->stok_asal_setelah = $asal - (float) $item->jumlah;
@@ -345,11 +356,11 @@ class MutasiGudangController extends Controller
                 }
             }
 
-            // Expired batches are never moved
+            // Expired batches count too (the user was warned when picking the obat)
             foreach ($merged as $it) {
                 $stok = (float) ObatStokGudang::where('obat_id', $it['obat_id'])
                     ->where('gudang_id', $request->gudang_asal_id)
-                    ->layakPakai()
+                    ->where('stok', '>', 0)
                     ->sum('stok');
                 if (round($stok, 4) < round($it['jumlah'], 4)) {
                     $nama = optional(Obat::withInactive()->find($it['obat_id']))->nama ?? "ID {$it['obat_id']}";
@@ -417,26 +428,43 @@ class MutasiGudangController extends Controller
 
         $items = $mutasi->items->count() ? $mutasi->items : collect([(object) ['obat' => $mutasi->obat, 'obat_id' => $mutasi->obat_id, 'jumlah' => $mutasi->jumlah, 'keterangan' => null]]);
 
-        // Pending: usable stok in the gudang asal now, so the approver sees what will fail
+        // Pending: stok in the gudang asal now, so the approver sees what will fail and what is expired
         $stokTersedia = null;
+        $stokEd = collect();
         if ($mutasi->status === 'pending') {
-            $stokTersedia = ObatStokGudang::where('gudang_id', $mutasi->gudang_asal_id)
+            $rows = ObatStokGudang::where('gudang_id', $mutasi->gudang_asal_id)
                 ->whereIn('obat_id', $items->pluck('obat_id')->filter()->all())
-                ->layakPakai()
-                ->select('obat_id', DB::raw('SUM(stok) as stok'))
+                ->where('stok', '>', 0)
+                ->select('obat_id', DB::raw('SUM(stok) as stok'), DB::raw('SUM(stok * ' . ObatStokGudang::sqlSudahEd() . ') as stok_ed'))
                 ->groupBy('obat_id')
-                ->pluck('stok', 'obat_id')
-                ->map(function ($v) {
-                    return (float) $v;
-                });
+                ->get()
+                ->keyBy('obat_id');
+            $stokTersedia = $rows->map(function ($r) {
+                return (float) $r->stok;
+            });
+            $stokEd = $rows->map(function ($r) {
+                return (float) $r->stok_ed;
+            });
         }
+        // Expired stok each item will take: usable batches go first, so only what they cannot cover
+        $edTerpakai = $items->mapWithKeys(function ($it) use ($stokTersedia, $stokEd) {
+            if ($stokTersedia === null) {
+                return [$it->obat_id => 0.0];
+            }
+            $ed = (float) ($stokEd[$it->obat_id] ?? 0);
+            $layak = (float) ($stokTersedia[$it->obat_id] ?? 0) - $ed;
+            return [$it->obat_id => max(0.0, min($ed, (float) $it->jumlah - $layak))];
+        });
+        $jumlahEd = $edTerpakai->filter(function ($v) {
+            return $v > 0;
+        })->count();
         $kurang = $stokTersedia ? $items->filter(function ($it) use ($stokTersedia) {
             return round((float) ($stokTersedia[$it->obat_id] ?? 0), 4) < round((float) $it->jumlah, 4);
         })->count() : 0;
 
         $alasanTolak = $mutasi->status === 'rejected' ? $mutasi->rejected_reason : null;
         $statusBadge = $this->statusBadge($mutasi->status);
-        $html = view('erm.mutasi-gudang._detail', compact('mutasi', 'items', 'alasanTolak', 'statusBadge', 'stokTersedia', 'kurang'))->render();
+        $html = view('erm.mutasi-gudang._detail', compact('mutasi', 'items', 'alasanTolak', 'statusBadge', 'stokTersedia', 'kurang', 'edTerpakai', 'jumlahEd'))->render();
 
         return response()->json([
             'html' => $html,
@@ -444,14 +472,16 @@ class MutasiGudangController extends Controller
             'nomor_mutasi' => $mutasi->nomor_mutasi,
             'gudang_asal' => optional($mutasi->gudangAsal)->nama,
             'gudang_tujuan' => optional($mutasi->gudangTujuan)->nama,
-            'items' => $items->map(function ($it) {
+            'items' => $items->map(function ($it) use ($edTerpakai) {
                 return [
                     'nama' => $it->obat->nama ?? ('Obat ID ' . $it->obat_id),
                     'jumlah' => $this->fmt($it->jumlah),
                     'satuan' => $it->obat->satuan_stok_label ?? '',
+                    'jumlah_ed' => ($edTerpakai[$it->obat_id] ?? 0) > 0 ? $this->fmt($edTerpakai[$it->obat_id]) : null,
                 ];
             })->values(),
             'stok_kurang' => $kurang,
+            'jumlah_obat_ed' => $jumlahEd,
             'can_approve' => $mutasi->status === 'pending' && $this->canDecide(),
         ]);
     }
@@ -489,11 +519,11 @@ class MutasiGudangController extends Controller
             }
 
             foreach ($items as $item) {
-                // FEFO over usable batches only; expired batches stay put until moved to the gudang expired
+                // Usable batches first (FEFO), expired batches only for what they cannot cover
                 $stokGudangList = ObatStokGudang::where('obat_id', $item->obat_id)
                     ->where('gudang_id', $mutasi->gudang_asal_id)
                     ->where('stok', '>', 0)
-                    ->layakPakai()
+                    ->orderByRaw(ObatStokGudang::sqlSudahEd())
                     ->urutFefo()
                     ->lockForUpdate()
                     ->get();
@@ -502,7 +532,7 @@ class MutasiGudangController extends Controller
                 $stokTersedia = (float) $stokGudangList->sum('stok');
                 if (round($stokTersedia, 4) < round($jumlahMutasi, 4)) {
                     $namaObat = optional(Obat::withInactive()->find($item->obat_id))->nama ?? "ID {$item->obat_id}";
-                    throw new \Exception("Stok layak pakai {$namaObat} di {$gudangAsal} tidak mencukupi (tersedia " . $this->fmt($stokTersedia) . ', diminta ' . $this->fmt($jumlahMutasi) . ').');
+                    throw new \Exception("Stok {$namaObat} di {$gudangAsal} tidak mencukupi (tersedia " . $this->fmt($stokTersedia) . ', diminta ' . $this->fmt($jumlahMutasi) . ').');
                 }
 
                 foreach ($stokGudangList as $stokGudang) {
