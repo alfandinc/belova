@@ -33,14 +33,14 @@ class Obat extends Model
     public const KATEGORI_LIST = ['Obat', 'Produk', 'Racikan', 'Bhp', 'Bhp Alat', 'Lainnya'];
 
     /**
-     * HPP is WITHOUT PPN, HNA is WITH PPN: both are set from the faktur price on approval
-     * (hpp = harga, hna = harga * (1 + PPN_PERCENT / 100)).
+     * HNA = harga beli asli per unit (faktur, before diskon) + its share of the faktur ongkir / biaya lain,
+     * WITHOUT PPN. HPP = HNA + PPN: the cost used for margin and nilai stok. Both are set on faktur approval.
      */
     public const PPN_PERCENT = 11;
 
-    public static function hnaFromHpp(float $hpp): float
+    public static function hppFromHna(float $hna): float
     {
-        return round($hpp * (1 + self::PPN_PERCENT / 100), 2);
+        return round($hna * (1 + self::PPN_PERCENT / 100), 2);
     }
 
     /**
@@ -244,9 +244,9 @@ class Obat extends Model
 
         // Give a kode as soon as the obat has a kategori (on create, or when kategori is first set)
         static::saving(function (Obat $obat) {
-            // HNA is never entered: whenever HPP or HNA is written, HNA becomes HPP + PPN
-            if (($obat->isDirty('hpp') || $obat->isDirty('hna')) && (float) $obat->hpp > 0) {
-                $obat->hna = self::hnaFromHpp((float) $obat->hpp);
+            // HPP is never entered: whenever HNA or HPP is written, HPP becomes HNA + PPN
+            if (($obat->isDirty('hpp') || $obat->isDirty('hna')) && (float) $obat->hna > 0) {
+                $obat->hpp = self::hppFromHna((float) $obat->hna);
             }
 
             $prefix = self::KODE_PREFIX[$obat->kategori] ?? null;

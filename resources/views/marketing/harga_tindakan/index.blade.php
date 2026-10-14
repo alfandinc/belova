@@ -26,7 +26,7 @@
             <h4 class="page-title mb-0">Harga Paket Tindakan</h4>
             <small class="text-muted">
                 Harga jual hanya ada di <strong>Paket Tindakan</strong>; tindakan di dalamnya hanya membawa obat/BHP.
-                <strong>Biaya bahan</strong> = jumlah obat/BHP semua tindakan di paket × HNA obat.
+                <strong>Biaya bahan</strong> = jumlah obat/BHP semua tindakan di paket × HPP obat (HNA + PPN).
                 Perubahan harga (normal, diskon, on/off diskon, multi-visit) diajukan Marketing / Admin dan baru berlaku setelah disetujui <strong>Admin / Finance</strong>.
             </small>
         </div>
@@ -65,7 +65,7 @@
                             <tr>
                                 <th style="width:24px">@if($canPropose)<input type="checkbox" id="hjCheckAll" title="Pilih semua di halaman ini">@endif</th>
                                 <th>Paket Tindakan</th>
-                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HNA obat">Biaya bahan</th>
+                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HPP obat (HNA + PPN)">Biaya bahan</th>
                                 <th class="text-right">Harga normal</th>
                                 <th class="text-right">Harga diskon</th>
                                 <th class="text-right">Harga multi-visit</th>
@@ -104,8 +104,8 @@
                             <tr>
                                 <th style="width:24px">@if($canApprove)<input type="checkbox" id="pjCheckAll" title="Pilih semua yang bisa disetujui di halaman ini">@endif</th>
                                 <th>Paket Tindakan</th>
-                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HPP obat (tanpa PPN), saat ini">HPP bahan</th>
-                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HNA obat (HPP + PPN), saat ini">HNA bahan</th>
+                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HNA obat (tanpa PPN), saat ini">HNA bahan</th>
+                                <th class="text-right" title="Obat/BHP semua tindakan di paket × HPP obat (HNA + PPN), saat ini">HPP bahan</th>
                                 <th>Perubahan</th>
                                 <th class="text-right" title="Saat diajukan">Biaya bahan</th>
                                 <th>Alasan</th>
@@ -520,7 +520,7 @@ $(function () {
             },
             { data: 'tindakan', name: 'tindakan', render: function (d) { return '<div class="hj-name">' + esc(d) + '</div>'; } },
             {
-                data: 'bahan_hpp', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                data: 'bahan_hna', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
                     var html = d > 0 ? rupiah(d) : '<span class="text-muted">-</span>';
                     // Obat in the paket that were never bought: their cost is the Master Pembelian price
@@ -530,7 +530,7 @@ $(function () {
                 }
             },
             {
-                data: 'bahan_hna', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                data: 'bahan_hpp', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) { return (d > 0 ? rupiah(d) : '<span class="text-muted">-</span>') + (r.bahan_estimasi > 0 ? '<div><span class="badge badge-warning">estimasi</span></div>' : ''); }
             },
             {

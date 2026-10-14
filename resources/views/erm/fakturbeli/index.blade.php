@@ -314,7 +314,7 @@ $(function() {
         $('#modalExportItems').modal('hide');
     });
 
-    // Approve: show what will happen (qty, batch, ED, price vs Master Pembelian, HPP) before confirming
+    // Approve: show what will happen (qty, batch, ED, price vs Master Pembelian, HNA / HPP) before confirming
     $('#fakturbeli-table').on('click', '.btn-approve-faktur', function() {
         openApprove($(this).data('id'));
     });
@@ -333,6 +333,8 @@ $(function() {
                     + '<td>' + qty + '</td>'
                     + '<td class="text-left">' + (it.batch ? esc(it.batch) : '<span class="text-danger">-</span>') + '<br><small>' + (it.expiration_date || '<span class="text-danger">ED -</span>') + '</small></td>'
                     + '<td>' + (it.bonus ? '<span class="text-muted">gratis</span>' : rupiah(it.harga) + '<br><small>' + selisih + '</small>') + '</td>'
+                    + '<td>' + (it.bonus ? '<span class="text-muted">tidak berubah</span>' : rupiah(it.hna_lama) + ' → <strong>' + rupiah(it.hna_baru) + '</strong>'
+                        + (it.ongkir_per_unit > 0 ? '<br><small class="text-muted">termasuk ongkir ' + rupiah(it.ongkir_per_unit) + '</small>' : '')) + '</td>'
                     + '<td>' + (it.bonus ? '<span class="text-muted">tidak berubah</span>' : rupiah(it.hpp_lama) + ' → <strong>' + rupiah(it.hpp_baru) + '</strong>') + '</td>'
                     + '</tr>';
             }).join('');
@@ -346,10 +348,10 @@ $(function() {
             if (p.sisa > 0) {
                 warnings += '<div class="small text-muted text-left mb-2">' + p.sisa + ' obat belum diterima penuh; sisanya otomatis dibuat sebagai faktur lanjutan (status diminta).</div>';
             }
-            var html = '<div class="text-left small mb-2">' + esc(p.pemasok) + ' · total <strong>' + rupiah(p.total) + '</strong></div>'
+            var html = '<div class="text-left small mb-2">' + esc(p.pemasok) + ' · total <strong>' + rupiah(p.total) + '</strong>' + (p.ongkir > 0 ? ' (termasuk ongkir/biaya lain ' + rupiah(p.ongkir) + ', dibagi ke obat sesuai nilainya)' : '') + '</div>'
                 + warnings
                 + '<div class="table-responsive"><table class="table table-bordered fb-approve-table mb-0"><thead class="thead-light"><tr>'
-                + '<th class="text-left">Obat</th><th>Qty</th><th class="text-left">Batch / ED</th><th>Harga<br><small>vs master</small></th><th>HPP</th>'
+                + '<th class="text-left">Obat</th><th>Qty</th><th class="text-left">Batch / ED</th><th>Harga<br><small>vs master</small></th><th title="Harga per satuan + bagian ongkir, tanpa PPN">HNA</th><th title="HNA + PPN">HPP</th>'
                 + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
                 + '<div class="small text-muted mt-2 text-left">Stok masuk ke gudang per batch dan harga menjadi harga Master Pembelian berikutnya.</div>';
 

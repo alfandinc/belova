@@ -54,10 +54,13 @@
                     </div>
                 </div>
             </div>
-            @if ($isCurrent)
+            @if ($isCurrent && $source === ($target ?? $source))
                 {{-- copying the open visit into itself would only duplicate it --}}
                 <span class="rr-badge">Kunjungan saat ini</span>
             @else
+                @if ($isCurrent)
+                    <span class="rr-badge">Kunjungan saat ini</span>
+                @endif
                 <button type="button" class="btn btn-sm rr-copy btn-copy-resep" data-visitation-id="{{ $visitationId }}" data-source="{{ $source }}">
                     <i class="fas fa-copy mr-1"></i>Salin
                 </button>

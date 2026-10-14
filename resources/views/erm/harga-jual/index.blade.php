@@ -24,7 +24,7 @@
         <div>
             <h4 class="page-title mb-0">Harga Jual Obat</h4>
             <small class="text-muted">
-                Margin dihitung dari <strong>HNA</strong> (HPP + PPN {{ $ppn }}%), yaitu modal yang benar-benar dibayar.
+                Margin dihitung dari <strong>HPP</strong> (HNA + PPN {{ $ppn }}%), yaitu modal yang benar-benar dibayar.
                 Target margin <strong>{{ rtrim(rtrim(number_format($target, 2, ',', '.'), '0'), ',') }}%</strong>.
                 Perubahan harga jual diajukan Farmasi / Admin dan baru berlaku setelah disetujui <strong>Admin / Finance</strong>.
             </small>
@@ -40,7 +40,7 @@
         {{-- ================= Daftar harga ================= --}}
         <div class="tab-pane fade {{ $canPropose ? 'show active' : '' }}" id="paneHarga" role="tabpanel">
             <div class="row mb-2" id="hjCards">
-                <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="rugi"><div class="hj-lbl"><span class="badge badge-danger">Rugi</span></div><div class="hj-num text-danger" data-count="rugi">-</div><div class="hj-hint">harga jual di bawah HNA</div></div></div>
+                <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="rugi"><div class="hj-lbl"><span class="badge badge-danger">Rugi</span></div><div class="hj-num text-danger" data-count="rugi">-</div><div class="hj-hint">harga jual di bawah HPP</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="bawah_target"><div class="hj-lbl"><span class="badge badge-warning">Di bawah target</span></div><div class="hj-num text-warning" data-count="bawah_target">-</div><div class="hj-hint">margin 0 – {{ rtrim(rtrim(number_format($target, 2, ',', '.'), '0'), ',') }}%</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="aman"><div class="hj-lbl"><span class="badge badge-success">Sesuai target</span></div><div class="hj-num text-success" data-count="aman">-</div><div class="hj-hint">margin ≥ target</div></div></div>
                 <div class="col-6 col-md-3 col-xl mb-2"><div class="hj-card" data-filter="tanpa_harga"><div class="hj-lbl">Belum ada harga jual</div><div class="hj-num text-dark" data-count="tanpa_harga">-</div><div class="hj-hint">tidak bisa dijual dengan benar</div></div></div>
@@ -66,11 +66,11 @@
                             <tr>
                                 <th style="width:24px">@if($canPropose)<input type="checkbox" id="hjCheckAll" title="Pilih semua di halaman ini">@endif</th>
                                 <th>Obat</th>
-                                <th class="text-right" title="Harga beli tanpa PPN, dari faktur terakhir">HPP</th>
-                                <th class="text-right" title="HPP + PPN {{ $ppn }}%: dasar perhitungan margin">HNA</th>
+                                <th class="text-right" title="Harga beli + ongkir, tanpa PPN, dari faktur terakhir">HNA</th>
+                                <th class="text-right" title="HNA + PPN {{ $ppn }}%: dasar perhitungan margin">HPP</th>
                                 <th class="text-right">Harga Jual</th>
-                                <th class="text-right" title="(Harga Jual − HNA) / HNA">Margin</th>
-                                <th class="text-right" title="HNA × (1 + target margin), dibulatkan ke atas">Saran harga</th>
+                                <th class="text-right" title="(Harga Jual − HPP) / HPP">Margin</th>
+                                <th class="text-right" title="HPP × (1 + target margin), dibulatkan ke atas">Saran harga</th>
                                 <th>Pengajuan</th>
                                 <th class="text-right">Aksi</th>
                             </tr>
@@ -105,10 +105,10 @@
                             <tr>
                                 <th style="width:24px">@if($canApprove)<input type="checkbox" id="pjCheckAll" title="Pilih semua yang bisa disetujui di halaman ini">@endif</th>
                                 <th>Obat</th>
-                                <th class="text-right" title="Harga beli tanpa PPN saat ini, dari faktur terakhir">HPP</th>
-                                <th class="text-right" title="HPP + PPN {{ $ppn }}% saat ini">HNA</th>
+                                <th class="text-right" title="Harga beli + ongkir tanpa PPN saat ini, dari faktur terakhir">HNA</th>
+                                <th class="text-right" title="HNA + PPN {{ $ppn }}% saat ini">HPP</th>
                                 <th class="text-right">Harga lama → baru</th>
-                                <th class="text-right" title="Terhadap HNA saat diajukan">Margin lama → baru</th>
+                                <th class="text-right" title="Terhadap HPP saat diajukan">Margin lama → baru</th>
                                 <th>Alasan</th>
                                 <th>Diajukan</th>
                                 <th>Status</th>
@@ -116,7 +116,7 @@
                             </tr>
                         </thead>
                     </table>
-                    <small class="text-muted d-block"><span class="badge badge-warning">estimasi</span> obat baru yang belum pernah dibeli: HPP / HNA diambil dari harga Master Pembelian, belum real dari faktur.</small>
+                    <small class="text-muted d-block"><span class="badge badge-warning">estimasi</span> obat baru yang belum pernah dibeli: HNA / HPP diambil dari harga Master Pembelian, belum real dari faktur.</small>
                     @if($canApprove)
                     <small class="text-muted">Admin bisa langsung menyetujui pengajuannya sendiri. Harga baru langsung berlaku di e-resep dan kasir setelah disetujui.</small>
                     @endif
@@ -143,7 +143,7 @@
                         <thead class="thead-light">
                             <tr>
                                 <th>Obat</th>
-                                <th class="text-right">HNA</th>
+                                <th class="text-right">HPP</th>
                                 <th class="text-right">Harga sekarang</th>
                                 <th>Harga baru (Rp)</th>
                                 <th>Margin (%)</th>
@@ -258,7 +258,7 @@ $(function () {
                     return '<div class="hj-name">' + esc(d) + '</div><div class="small text-muted">' + esc(r.kode_obat || '-') + (r.kategori ? ' · ' + esc(r.kategori) : '') + '</div>';
                 }
             },
-            { data: 'hpp', className: 'text-right text-nowrap', searchable: false, render: function (d) { return d > 0 ? rupiah(d) : '<span class="text-muted">-</span>'; } },
+            { data: 'hna', className: 'text-right text-nowrap', searchable: false, render: function (d) { return d > 0 ? rupiah(d) : '<span class="text-muted">-</span>'; } },
             { data: 'modal', className: 'text-right text-nowrap', searchable: false, render: function (d) { return d > 0 ? rupiah(d) : '<span class="text-muted">-</span>'; } },
             { data: 'harga_nonfornas', className: 'text-right text-nowrap', searchable: false, render: function (d) { return d > 0 ? '<strong>' + rupiah(d) + '</strong>' : '<span class="badge badge-dark">belum ada</span>'; } },
             { data: 'margin', className: 'text-right text-nowrap', searchable: false, render: function (d) { return marginHtml(d); } },
@@ -365,7 +365,7 @@ $(function () {
             html += '<span class="' + (d >= 0 ? 'text-danger' : 'text-success') + '">' + (d >= 0 ? '▲ ' : '▼ ') + pct(Math.abs(d)) + '</span><br>';
         }
         html += m === null ? '' : 'margin ' + marginHtml(m);
-        if (m !== null && m < 0) html += '<br><span class="text-danger">di bawah HNA (rugi)</span>';
+        if (m !== null && m < 0) html += '<br><span class="text-danger">di bawah HPP (rugi)</span>';
         $tr.find('.aj-preview').html(html);
     }
 
@@ -439,7 +439,7 @@ $(function () {
         };
         if (!rugi) { kirim(); return; }
         Swal.fire({
-            icon: 'warning', title: rugi + ' obat di bawah HNA',
+            icon: 'warning', title: rugi + ' obat di bawah HPP',
             text: 'Harga jual lebih rendah dari modal (rugi). Tetap kirim pengajuan?',
             showCancelButton: true, confirmButtonText: 'Tetap kirim', cancelButtonText: 'Periksa lagi', reverseButtons: true
         }).then(function (r) { if (r.value) kirim(); });
@@ -464,7 +464,7 @@ $(function () {
             if (pending) { state.riwayatObat.pengajuan_id = 1; state.riwayatObat.pengajuan_harga = pending.harga_baru; }
             if (thenAjukan) { openAjukan([state.riwayatObat]); return; }
             $('#riwayatTitle').text('Riwayat Harga: ' + o.nama);
-            $('#riwayatInfo').html('HPP ' + rupiah(o.hpp) + ' · HNA ' + rupiah(o.modal) + ' · harga jual ' + rupiah(o.harga) + ' · margin ' + marginHtml(o.margin));
+            $('#riwayatInfo').html('HNA ' + rupiah(o.hna) + ' · HPP ' + rupiah(o.modal) + ' · harga jual ' + rupiah(o.harga) + ' · margin ' + marginHtml(o.margin));
             var badge = { menunggu: 'badge-primary', disetujui: 'badge-success', ditolak: 'badge-danger', dibatalkan: 'badge-secondary' };
             $('#riwayatBody').html((res.rows || []).map(function (r) {
                 return '<tr><td class="text-nowrap">' + esc(r.tanggal) + '<div class="small text-muted">' + esc(r.pengaju || '-') + '</div></td>'
@@ -507,18 +507,18 @@ $(function () {
             },
             { data: 'obat', name: 'obat', render: function (d, t, r) { return '<div class="hj-name">' + esc(d) + '</div><div class="small text-muted">' + esc(r.kode_obat || '') + '</div>'; } },
             {
-                data: 'hpp_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                data: 'hna_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
-                    if (!(d > 0)) return '<span class="text-muted">-</span><div class="small text-muted">belum ada HPP</div>';
+                    if (!(d > 0)) return '<span class="text-muted">-</span><div class="small text-muted">belum pernah dibeli</div>';
                     return rupiah(d) + (r.estimasi ? '<div><span class="badge badge-warning" title="Obat baru, belum pernah dibeli: dari harga Master Pembelian, belum real dari faktur">estimasi</span></div><div class="small text-muted">Master Pembelian</div>' : '');
                 }
             },
             {
-                data: 'hna_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
+                data: 'hpp_tampil', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
                     if (!(d > 0)) return '<span class="text-muted">-</span>';
                     var html = rupiah(d) + (r.estimasi ? '<div><span class="badge badge-warning">estimasi</span></div>' : '');
-                    // HNA at proposal time, when it differs from today's
+                    // HPP (modal) at proposal time, when it differs from today's
                     if (!r.estimasi && r.hna > 0 && Math.abs(r.hna - d) >= 1) html += '<div class="small text-muted">saat diajukan ' + rupiah(r.hna) + '</div>';
                     return html;
                 }
@@ -537,11 +537,11 @@ $(function () {
                 data: 'margin_baru', orderable: false, searchable: false, className: 'text-right text-nowrap',
                 render: function (d, t, r) {
                     var html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(d);
-                    // New obat: margin against the estimated HNA
-                    if (d === null && r.margin_estimasi !== null) html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(r.margin_estimasi) + '<div class="small text-warning">dari HNA estimasi</div>';
-                    // HNA changed since the proposal (new faktur): show the margin on today's HNA
+                    // New obat: margin against the estimated HPP
+                    if (d === null && r.margin_estimasi !== null) html = pct(r.margin_lama) + '<span class="hj-arrow">→</span>' + marginHtml(r.margin_estimasi) + '<div class="small text-warning">dari HPP estimasi</div>';
+                    // HPP changed since the proposal (new faktur): show the margin on today's HPP
                     if (r.margin_sekarang_hna !== null && r.margin_baru !== null && Math.abs(r.margin_sekarang_hna - r.margin_baru) >= 0.5) {
-                        html += '<div class="small text-warning" title="HNA berubah setelah pengajuan dibuat">dengan HNA sekarang: ' + pct(r.margin_sekarang_hna) + '</div>';
+                        html += '<div class="small text-warning" title="HPP berubah setelah pengajuan dibuat">dengan HPP sekarang: ' + pct(r.margin_sekarang_hna) + '</div>';
                     }
                     return html;
                 }

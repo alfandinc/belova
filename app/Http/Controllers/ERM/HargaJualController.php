@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 /**
- * Harga jual obat: margin over HNA (HPP + PPN) per obat, and price changes that only take effect
+ * Harga jual obat: margin over HPP (HNA + PPN) per obat, and price changes that only take effect
  * after approval. Farmasi / Admin propose, Admin / Finance approve; only Admin may approve their own proposal.
  */
 class HargaJualController extends Controller
@@ -26,12 +26,12 @@ class HargaJualController extends Controller
         return (float) config('pembelian.target_margin_persen', 30);
     }
 
-    /** Cost the margin is measured against: HNA, or HPP + PPN when HNA was never stored */
+    /** Cost the margin is measured against: HPP (HNA + PPN), or HNA + PPN when HPP was never stored */
     private function modalSql(string $table = 'erm_obat'): string
     {
         $ppn = 1 + Obat::PPN_PERCENT / 100;
 
-        return "COALESCE(NULLIF({$table}.hna, 0), {$table}.hpp * {$ppn})";
+        return "COALESCE(NULLIF({$table}.hpp, 0), {$table}.hna * {$ppn})";
     }
 
     private function marginSql(string $table = 'erm_obat'): string
@@ -48,7 +48,7 @@ class HargaJualController extends Controller
 
     public static function modal(Obat $obat): ?float
     {
-        $modal = (float) $obat->hna ?: (float) $obat->hpp * (1 + Obat::PPN_PERCENT / 100);
+        $modal = (float) $obat->hpp ?: Obat::hppFromHna((float) $obat->hna);
 
         return $modal > 0 ? round($modal, 2) : null;
     }
@@ -105,7 +105,7 @@ class HargaJualController extends Controller
             ->leftJoin('erm_obat_harga_pengajuan as p', 'p.id', '=', 'pj.pengajuan_id')
             ->leftJoin('users as pu', 'pu.id', '=', 'p.diajukan_by')
             ->select([
-                'erm_obat.id', 'erm_obat.kode_obat', 'erm_obat.nama', 'erm_obat.kategori', 'erm_obat.hpp', 'erm_obat.harga_nonfornas',
+                'erm_obat.id', 'erm_obat.kode_obat', 'erm_obat.nama', 'erm_obat.kategori', 'erm_obat.hna', 'erm_obat.harga_nonfornas',
                 'p.id as pengajuan_id', 'p.harga_baru as pengajuan_harga', 'p.margin_baru as pengajuan_margin', 'pu.name as pengajuan_oleh',
             ])
             ->selectRaw("{$modal} as modal")
@@ -115,9 +115,9 @@ class HargaJualController extends Controller
         $this->applyFilter($query, $filter, $modal, $margin, $target);
 
         return DataTables::eloquent($query)
-            ->only(['id', 'kode_obat', 'nama', 'kategori', 'hpp', 'modal', 'harga_nonfornas', 'margin', 'saran', 'pengajuan_id', 'pengajuan_harga', 'pengajuan_margin', 'pengajuan_oleh'])
+            ->only(['id', 'kode_obat', 'nama', 'kategori', 'hna', 'modal', 'harga_nonfornas', 'margin', 'saran', 'pengajuan_id', 'pengajuan_harga', 'pengajuan_margin', 'pengajuan_oleh'])
             ->addColumn('saran', fn ($o) => $this->saran($o->modal !== null ? (float) $o->modal : null))
-            ->editColumn('hpp', fn ($o) => $o->hpp !== null ? (float) $o->hpp : null)
+            ->editColumn('hna', fn ($o) => $o->hna !== null ? (float) $o->hna : null)
             ->editColumn('modal', fn ($o) => $o->modal !== null ? round((float) $o->modal, 2) : null)
             ->editColumn('harga_nonfornas', fn ($o) => $o->harga_nonfornas !== null ? (float) $o->harga_nonfornas : null)
             ->editColumn('margin', fn ($o) => $o->margin !== null ? round((float) $o->margin, 2) : null)
@@ -127,7 +127,7 @@ class HargaJualController extends Controller
                 });
             })
             ->orderColumn('nama', 'erm_obat.nama $1')
-            ->orderColumn('hpp', 'erm_obat.hpp $1')
+            ->orderColumn('hna', 'erm_obat.hna $1')
             ->orderColumn('modal', "{$modal} \$1")
             ->orderColumn('harga_nonfornas', 'erm_obat.harga_nonfornas $1')
             // Obat without a margin go last in both directions
@@ -227,31 +227,33 @@ class HargaJualController extends Controller
             // Price or cost changed after the proposal was made: the approver should know
             ->addColumn('harga_berubah', fn ($p) => $p->status === 'menunggu' && round((float) $p->harga_sekarang, 2) !== round((float) $p->harga_lama, 2))
             ->addColumn('margin_sekarang_hna', function ($p) {
-                $modal = (float) $p->hna_sekarang ?: (float) $p->hpp_sekarang * (1 + Obat::PPN_PERCENT / 100);
+                $modal = (float) $p->hpp_sekarang ?: (float) $p->hna_sekarang * (1 + Obat::PPN_PERCENT / 100);
 
                 return $p->status === 'menunggu' ? self::margin((float) $p->harga_baru, $modal ?: null) : null;
             })
-            // Today's HPP / HNA; an obat never bought shows the Master Pembelian price as an estimate
+            // Today's HNA / HPP; an obat never bought shows the Master Pembelian price (excl PPN) as an estimated HNA
             ->addColumn('estimasi', fn ($p) => (float) $p->hpp_sekarang <= 0 && (float) $p->hpp_estimasi > 0)
-            ->addColumn('hpp_tampil', function ($p) {
-                $hpp = (float) $p->hpp_sekarang ?: (float) $p->hpp_estimasi;
-
-                return $hpp > 0 ? round($hpp, 2) : null;
-            })
-            // HNA follows the HPP shown: both real, or both from the estimate
             ->addColumn('hna_tampil', function ($p) {
                 $hna = (float) $p->hpp_sekarang <= 0 && (float) $p->hpp_estimasi > 0
-                    ? Obat::hnaFromHpp((float) $p->hpp_estimasi)
-                    : ((float) $p->hna_sekarang ?: Obat::hnaFromHpp((float) $p->hpp_sekarang));
+                    ? (float) $p->hpp_estimasi
+                    : (float) $p->hna_sekarang;
 
                 return $hna > 0 ? round($hna, 2) : null;
+            })
+            // HPP follows the HNA shown: both real, or both from the estimate
+            ->addColumn('hpp_tampil', function ($p) {
+                $hpp = (float) $p->hpp_sekarang <= 0 && (float) $p->hpp_estimasi > 0
+                    ? Obat::hppFromHna((float) $p->hpp_estimasi)
+                    : ((float) $p->hpp_sekarang ?: Obat::hppFromHna((float) $p->hna_sekarang));
+
+                return $hpp > 0 ? round($hpp, 2) : null;
             })
             ->addColumn('margin_estimasi', function ($p) {
                 if ((float) $p->hpp_sekarang > 0 || (float) $p->hpp_estimasi <= 0) {
                     return null;
                 }
 
-                return self::margin((float) $p->harga_baru, Obat::hnaFromHpp((float) $p->hpp_estimasi));
+                return self::margin((float) $p->harga_baru, Obat::hppFromHna((float) $p->hpp_estimasi));
             })
             ->addColumn('bisa_setujui', fn ($p) => $p->status === 'menunggu' && $canApprove && ((int) $p->diajukan_by !== (int) $me || $isAdmin))
             ->addColumn('bisa_batal', fn ($p) => $p->status === 'menunggu' && ((int) $p->diajukan_by === (int) $me || $isAdmin))
@@ -304,8 +306,8 @@ class HargaJualController extends Controller
                     'obat_id' => $obat->id,
                     'harga_lama' => $lama,
                     'harga_baru' => $harga,
-                    'hpp' => $obat->hpp !== null ? (float) $obat->hpp : null,
-                    'hna' => $modal,
+                    'hpp' => $obat->hna !== null ? (float) $obat->hna : null, // HNA (excl PPN) at proposal time
+                    'hna' => $modal, // modal = HPP (incl PPN) at proposal time
                     'margin_lama' => self::margin($lama, $modal),
                     'margin_baru' => self::margin($harga, $modal),
                     'alasan' => trim($data['alasan']),
@@ -436,7 +438,7 @@ class HargaJualController extends Controller
                 'id' => $obat->id,
                 'nama' => $obat->nama,
                 'kode_obat' => $obat->kode_obat,
-                'hpp' => $obat->hpp !== null ? (float) $obat->hpp : null,
+                'hna' => $obat->hna !== null ? (float) $obat->hna : null,
                 'modal' => $modal,
                 'harga' => $obat->harga_nonfornas !== null ? (float) $obat->harga_nonfornas : null,
                 'margin' => self::margin($obat->harga_nonfornas !== null ? (float) $obat->harga_nonfornas : null, $modal),

@@ -265,16 +265,16 @@
 
                     <h6 class="form-section">Harga</h6>
                     <div class="form-row">
+                        {{-- No names: HNA and HPP come from the faktur and are not sent with the form --}}
                         <div class="form-group col-md-4">
-                            <label for="hpp_display">HPP <small class="text-muted">(tanpa PPN)</small></label>
-                            <input type="text" class="form-control bg-light" id="hpp_display" readonly tabindex="-1">
-                            <small class="form-text text-muted">Otomatis dari faktur beli terakhir.</small>
+                            <label for="hna">HNA <small class="text-muted">(tanpa PPN)</small></label>
+                            <input type="text" class="form-control bg-light" id="hna" readonly tabindex="-1">
+                            <small class="form-text text-muted">Otomatis dari faktur beli terakhir: harga per satuan + ongkir/biaya lain.</small>
                         </div>
                         <div class="form-group col-md-4">
-                            <label for="hna">HNA <small class="text-muted">(termasuk PPN)</small></label>
-                            {{-- No name: HNA is always HPP + PPN and is not sent with the form --}}
-                            <input type="text" class="form-control bg-light" id="hna" readonly tabindex="-1">
-                            <small class="form-text text-muted">Otomatis = HPP + PPN {{ \App\Models\ERM\Obat::PPN_PERCENT }}%.</small>
+                            <label for="hpp_display">HPP <small class="text-muted">(termasuk PPN)</small></label>
+                            <input type="text" class="form-control bg-light" id="hpp_display" readonly tabindex="-1">
+                            <small class="form-text text-muted">Otomatis = HNA + PPN {{ \App\Models\ERM\Obat::PPN_PERCENT }}%.</small>
                         </div>
                         <div class="form-group col-md-4">
                             <label for="harga_nonfornas">Harga Jual</label>
@@ -863,14 +863,15 @@
     }
 
     function updateHargaJualHint() {
-        const hpp = parseFloat($('#hpp_display').data('raw')) || 0;
-        const hna = parseFloat($('#hna').data('raw')) || hpp * (1 + {{ \App\Models\ERM\Obat::PPN_PERCENT }} / 100);
+        // Margin is measured against HPP (HNA + PPN)
+        const hna = parseFloat($('#hna').data('raw')) || 0;
+        const hpp = parseFloat($('#hpp_display').data('raw')) || hna * (1 + {{ \App\Models\ERM\Obat::PPN_PERCENT }} / 100);
         const jual = parseFloat(normalizeNumericInput($('#harga_nonfornas').val())) || 0;
         const $hint = $('#harga_jual_hint').removeClass('text-danger text-success text-muted');
-        if (!hna || !jual) { $hint.addClass('text-muted').html('&nbsp;'); return; }
-        const margin = ((jual - hna) / hna) * 100;
+        if (!hpp || !jual) { $hint.addClass('text-muted').html('&nbsp;'); return; }
+        const margin = ((jual - hpp) / hpp) * 100;
         $hint.addClass(margin < 0 ? 'text-danger' : 'text-success')
-            .text((margin < 0 ? 'Rugi, di bawah HNA: ' : 'Margin dari HNA: ') + margin.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%');
+            .text((margin < 0 ? 'Rugi, di bawah HPP: ' : 'Margin dari HPP: ') + margin.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '%');
     }
 
     // Harga jual of an existing obat changes only through an approved pengajuan

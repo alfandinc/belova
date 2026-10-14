@@ -254,6 +254,7 @@ class FakturBeliController extends Controller
                 // Stored global amounts are nominal; a faktur that never had them starts at the PPN rate
                 'global_diskon' => (float) $faktur->global_diskon,
                 'global_pajak' => $faktur->global_pajak !== null ? (float) $faktur->global_pajak : null,
+                'ongkir' => (float) $faktur->ongkir,
                 'items' => $this->formItems($faktur->items, $mapItem),
             ]);
         }
@@ -281,6 +282,7 @@ class FakturBeliController extends Controller
                 'notes' => 'Faktur pengganti dari retur ' . $retur->no_retur,
                 'global_diskon' => 0,
                 'global_pajak' => null,
+                'ongkir' => 0,
                 'items' => $retur->items->map(function ($returItem) use ($mapItem) {
                     $source = $returItem->fakturbeliitem;
                     $row = $source ? $mapItem($source) : [];
@@ -306,6 +308,7 @@ class FakturBeliController extends Controller
             'received_date' => now()->toDateString(),
             'global_diskon' => 0,
             'global_pajak' => null,
+            'ongkir' => 0,
             'items' => [],
         ]);
     }
@@ -348,6 +351,7 @@ class FakturBeliController extends Controller
             'items.*.bonus' => 'nullable|boolean',
             'global_diskon' => 'nullable|numeric|min:0',
             'global_pajak' => 'nullable|numeric|min:0',
+            'ongkir' => 'nullable|numeric|min:0',
         ];
     }
 
@@ -450,19 +454,40 @@ class FakturBeliController extends Controller
             ->values();
     }
 
-    // Header amounts computed here, not taken from the browser: subtotal of the lines, minus global diskon, plus global pajak
+    // Header amounts computed here, not taken from the browser: subtotal of the lines, minus global diskon,
+    // plus global pajak, plus ongkir / biaya lain
     private function hitungTotal(array $lines, array $validated): array
     {
         $subtotal = round(array_sum(array_column($lines, '_total')), 2);
         $globalDiskon = round((float) ($validated['global_diskon'] ?? 0), 2);
         $globalPajak = round((float) ($validated['global_pajak'] ?? 0), 2);
+        $ongkir = round((float) ($validated['ongkir'] ?? 0), 2);
 
         return [
             'subtotal' => $subtotal,
             'global_diskon' => $globalDiskon,
             'global_pajak' => $globalPajak,
-            'total' => round(max($subtotal - $globalDiskon + $globalPajak, 0), 2),
+            'ongkir' => $ongkir,
+            'total' => round(max($subtotal - $globalDiskon + $globalPajak, 0) + $ongkir, 2),
         ];
+    }
+
+    /**
+     * Ongkir / biaya lain per unit for each received, non-bonus line: the faktur ongkir split by line value
+     * (qty x harga), then divided by the line qty. Keyed by item id. Part of the HNA on approval.
+     */
+    private function ongkirPerUnit(FakturBeli $faktur): array
+    {
+        $ongkir = (float) $faktur->ongkir;
+        $lines = $faktur->items->filter(fn ($item) => !$item->is_bonus && (int) $item->qty > 0 && (float) $item->harga > 0);
+        $nilai = $lines->sum(fn ($item) => (int) $item->qty * (float) $item->harga);
+        if ($ongkir <= 0 || $nilai <= 0) {
+            return [];
+        }
+
+        return $lines->mapWithKeys(fn ($item) => [
+            $item->id => $ongkir * ((int) $item->qty * (float) $item->harga / $nilai) / (int) $item->qty,
+        ])->all();
     }
 
     private function simpanItems(FakturBeli $faktur, array $lines, array $oldPrincipal = []): void
@@ -707,7 +732,8 @@ class FakturBeliController extends Controller
         $grups = $faktur->items->groupBy($grupKey);
 
         $problems = [];
-        $items = $faktur->items->sortBy('id')->filter(fn ($item) => (int) $item->qty > 0)->map(function ($item) use ($masters, $tolerance, &$problems, $grups, $grupKey) {
+        $ongkirPerUnit = $this->ongkirPerUnit($faktur);
+        $items = $faktur->items->sortBy('id')->filter(fn ($item) => (int) $item->qty > 0)->map(function ($item) use ($masters, $tolerance, &$problems, $grups, $grupKey, $ongkirPerUnit) {
             $nama = optional($item->obat)->nama ?? 'Obat #' . $item->obat_id;
             if (trim((string) $item->batch) === '' || !$item->expiration_date) {
                 $problems[] = "{$nama}: batch / ED belum diisi.";
@@ -733,9 +759,12 @@ class FakturBeliController extends Controller
                 'harga_master' => $master ? (float) $master->harga : null,
                 'selisih_persen' => $selisih,
                 'selisih_besar' => $selisih !== null && abs($selisih) > $tolerance,
+                'ongkir_per_unit' => round($ongkirPerUnit[$item->id] ?? 0, 2),
+                // HNA = price before discount + ongkir share, excl. PPN; HPP = HNA + PPN; a free line leaves both as is
+                'hna_lama' => (float) optional($item->obat)->hna,
+                'hna_baru' => $bonus ? (float) optional($item->obat)->hna : round((float) $item->harga + ($ongkirPerUnit[$item->id] ?? 0), 2),
                 'hpp_lama' => (float) optional($item->obat)->hpp,
-                // master HPP = price before discount, excl. PPN; a free line leaves it as is
-                'hpp_baru' => $bonus ? (float) optional($item->obat)->hpp : (float) $item->harga,
+                'hpp_baru' => $bonus ? (float) optional($item->obat)->hpp : Obat::hppFromHna((float) $item->harga + ($ongkirPerUnit[$item->id] ?? 0)),
             ];
         })->values();
 
@@ -745,6 +774,7 @@ class FakturBeliController extends Controller
             'pemasok' => optional($faktur->pemasok)->nama,
             'status' => $faktur->status,
             'total' => (float) $faktur->total,
+            'ongkir' => (float) $faktur->ongkir,
             'items' => $items,
             'sisa' => $faktur->items->filter(fn ($item) => (int) $item->diminta > (int) $item->qty)->count(),
             'toleransi_persen' => $tolerance,
@@ -806,7 +836,9 @@ class FakturBeliController extends Controller
             }
 
             // Proses item yang diterima (qty > 0)
-            // HPP is defined WITHOUT PPN: item tax and global pajak are never part of HPP.
+            // HNA = harga before diskon + ongkir share, WITHOUT PPN (item tax and global pajak are never part of it);
+            // the Obat model makes HPP = HNA + PPN.
+            $ongkirPerUnit = $this->ongkirPerUnit($faktur);
             foreach ($itemsDiterima as $item) {
                 $qty = $item->qty ?? 0;
                 $harga = $item->harga ?? 0;
@@ -815,7 +847,7 @@ class FakturBeliController extends Controller
                 $base = $qty * $harga;
                 $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
                 $hppPerUnit = $qty > 0 ? ($base - $diskonValue) / $qty : 0; // after diskon, excl PPN (fallback only)
-                $hppJualPerUnit = $qty > 0 ? $base / $qty : 0; // before diskon, excl PPN -> master HPP
+                $hppJualPerUnit = $qty > 0 ? $base / $qty + ($ongkirPerUnit[$item->id] ?? 0) : 0; // before diskon + ongkir, excl PPN -> master HNA
 
                 // Update stock using StokService
                 $this->stokService->masukViaFaktur(
@@ -827,7 +859,7 @@ class FakturBeliController extends Controller
                     $item->batch,
                     $item->expiration_date,
                     $hppPerUnit, // hargaBeli (after diskon, excl PPN)
-                    $hppJualPerUnit, // hargaBeliJual (before diskon, excl PPN)
+                    $hppJualPerUnit, // hargaBeliJual = HNA (before diskon + ongkir, excl PPN)
                     $faktur->pemasok->nama ?? null
                 );
             }
@@ -859,6 +891,7 @@ class FakturBeliController extends Controller
                     'subtotal' => null,
                     'global_diskon' => null,
                     'global_pajak' => null,
+                    'ongkir' => 0,
                     'total' => null,
                     'status' => 'diminta',
                     'created_by' => Auth::id(),

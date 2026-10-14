@@ -162,7 +162,7 @@ class MasterFakturController extends Controller
             'qty_per_box' => 'qty_per_box',
             'harga' => 'harga',
             'harga_box' => DB::raw('harga * qty_per_box'),
-            'hpp' => DB::raw('(SELECT hpp FROM erm_obat WHERE erm_obat.id = erm_master_faktur.obat_id)'),
+            'hpp' => DB::raw('(SELECT hna FROM erm_obat WHERE erm_obat.id = erm_master_faktur.obat_id)'),
             'updated_at' => 'updated_at',
         ];
         $orderIdx = (int) $request->input('order.0.column', -1);
@@ -184,12 +184,12 @@ class MasterFakturController extends Controller
                 'is_generik' => (bool) ($mf->obat->is_generik ?? false),
                 'satuan' => $mf->obat->satuan_stok ?? null,
                 'obat_aktif' => (bool) ($mf->obat->status_aktif ?? false),
-                'hpp' => $mf->obat && $mf->obat->hpp !== null ? (float) $mf->obat->hpp : null,
+                'hna_obat' => $mf->obat && $mf->obat->hna !== null ? (float) $mf->obat->hna : null,
                 'pemasok' => $mf->pemasok->nama ?? '-',
                 'principal' => $mf->obat->principal->nama ?? null,
                 'harga' => $harga,
                 'harga_box' => round($harga * (int) $mf->qty_per_box, 2),
-                'hna' => Obat::hnaFromHpp($harga),
+                'hpp_ppn' => Obat::hppFromHna($harga),
                 'qty_per_box' => (int) $mf->qty_per_box,
                 'diskon' => (float) $mf->diskon,
                 'diskon_type' => $mf->diskon_type,
@@ -239,7 +239,7 @@ class MasterFakturController extends Controller
                     'diskon' => (float) $m->diskon,
                     'diskon_type' => $m->diskon_type,
                     'netto' => self::nettoPerSatuan($harga, (float) $m->diskon, $m->diskon_type),
-                    'hna' => Obat::hnaFromHpp($harga),
+                    'hpp_ppn' => Obat::hppFromHna($harga),
                     'updated_at' => optional($m->updated_at)->format('Y-m-d'),
                 ];
             })->sortBy('netto')->values();

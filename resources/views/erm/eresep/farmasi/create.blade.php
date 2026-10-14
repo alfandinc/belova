@@ -155,10 +155,10 @@
             <button type="button" class="btn btn-sm btn-erm-ghost btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-tag mr-1 text-primary"></i>Etiket Biru</button>
             <span class="eresep-toolbar-sep"></span>
             <span class="eresep-toolbar-label">Riwayat</span>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id]) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
                 <i class="fas fa-user-md mr-1"></i>Dokter
             </button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id]) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
                 <i class="fas fa-clinic-medical mr-1"></i>Farmasi
             </button>
             <span class="eresep-toolbar-sep"></span>

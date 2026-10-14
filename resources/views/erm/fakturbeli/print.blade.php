@@ -67,6 +67,12 @@
             <td class="right bold">Global Pajak:</td>
             <td class="right">{{ number_format($faktur->global_pajak, 2, ',', '.') }}</td>
         </tr>
+        @if((float) $faktur->ongkir > 0)
+        <tr>
+            <td class="right bold">Ongkir / Biaya Lain:</td>
+            <td class="right">{{ number_format($faktur->ongkir, 2, ',', '.') }}</td>
+        </tr>
+        @endif
         <tr>
             <td class="right bold">Total:</td>
             <td class="right">{{ number_format($faktur->total, 2, ',', '.') }}</td>

@@ -74,11 +74,11 @@
                         <th title="Diambil dari Master Obat, ubah di sana">Principal</th>
                         <th class="text-right" title="Berapa satuan dalam 1 box">Isi per Box</th>
                         <th class="text-right" title="Harga per satuan × isi per box, belum termasuk PPN, sebelum diskon">Harga per Box</th>
-                        <th class="text-right" title="Belum termasuk PPN, sebelum diskon. Ini yang menjadi HPP saat faktur di-approve">Harga per Satuan</th>
+                        <th class="text-right" title="Belum termasuk PPN, sebelum diskon. Ini yang menjadi HNA (+ ongkir) saat faktur di-approve">Harga per Satuan</th>
                         <th class="text-right">Diskon</th>
-                        <th class="text-right" title="Harga per satuan dikurangi diskon persen. Hanya info: HPP tidak dihitung dari harga ini">Setelah Diskon</th>
-                        <th class="text-right" title="Harga per satuan + PPN {{ \App\Models\ERM\Obat::PPN_PERCENT }}%">HNA (+PPN)</th>
-                        <th class="text-right" title="HPP obat saat ini di Master Obat (dari faktur terakhir yang di-approve), untuk pembanding">HPP Saat Ini</th>
+                        <th class="text-right" title="Harga per satuan dikurangi diskon persen. Hanya info: HNA/HPP tidak dihitung dari harga ini">Setelah Diskon</th>
+                        <th class="text-right" title="Harga per satuan + PPN {{ \App\Models\ERM\Obat::PPN_PERCENT }}% (perkiraan HPP, belum termasuk ongkir)">HPP (+PPN)</th>
+                        <th class="text-right" title="HNA obat saat ini di Master Obat (dari faktur terakhir yang di-approve, tanpa PPN), untuk pembanding">HNA Saat Ini</th>
                         <th>Catatan</th>
                         <th>Terakhir Diperbarui</th>
                         <th class="text-center">Aksi</th>
@@ -87,8 +87,8 @@
                 <tbody></tbody>
             </table>
             <small class="text-muted d-block mt-1">
-                Harga per box dan per satuan <strong>belum termasuk PPN</strong> dan sebelum diskon. HNA = harga per satuan + PPN.
-                <strong>HPP Saat Ini</strong> adalah HPP obat sekarang di Master Obat, sebagai pembanding harga per satuan.
+                Harga per box dan per satuan <strong>belum termasuk PPN</strong> dan sebelum diskon. Saat faktur di-approve: HNA = harga per satuan + ongkir, HPP = HNA + PPN.
+                <strong>HNA Saat Ini</strong> adalah HNA obat sekarang di Master Obat (tanpa PPN), sebagai pembanding harga per satuan.
                 Klik baris untuk mengubah.
             </small>
         </div>
@@ -420,17 +420,17 @@
         return rupiah(d);
     }
 
-    // HPP is the faktur price before diskon (FakturBeliController::approveFaktur), so it is compared with harga, not netto.
+    // HNA is the faktur price before diskon (+ ongkir share) (FakturBeliController::approveFaktur), so it is compared with harga, not netto.
     function renderHpp(d, t, r) {
         if (t !== 'display') return d;
         if (!d) return MISSING('Belum ada');
         const diff = pctDiff(r.harga, d);
         const same = Math.abs(diff) < 0.5;
         const label = same ? 'sama' : (diff > 0 ? 'harga per satuan lebih mahal ' : 'harga per satuan lebih murah ') + num(Math.abs(diff)) + '%';
-        // Very large gaps usually mean the HPP or the satuan is wrong, not the price
-        const warn = Math.abs(diff) >= 200 ? ' <i class="fas fa-exclamation-triangle text-warning" title="Jauh berbeda dari harga per satuan: cek HPP, isi per box atau satuan obat"></i>' : '';
+        // Very large gaps usually mean the HNA or the satuan is wrong, not the price
+        const warn = Math.abs(diff) >= 200 ? ' <i class="fas fa-exclamation-triangle text-warning" title="Jauh berbeda dari harga per satuan: cek HNA, isi per box atau satuan obat"></i>' : '';
         const badge = same ? '' : ' <span class="badge ' + (diff > 0 ? 'badge-naik' : 'badge-turun') + '">' + (diff > 0 ? '+' : '−') + num(Math.abs(diff)) + '%</span>';
-        return '<span class="mf-harga" title="HPP saat ini di Master Obat (' + escapeHtml(label) + ')">' + rupiah(d) + '</span>' + badge + warn;
+        return '<span class="mf-harga" title="HNA saat ini di Master Obat (' + escapeHtml(label) + ')">' + rupiah(d) + '</span>' + badge + warn;
     }
 
     function renderUpdated(d, t) {
@@ -485,8 +485,8 @@
                 { data: 'harga', name: 'harga', className: 'text-right font-weight-bold', render: renderRupiah },
                 { data: 'diskon', orderable: false, className: 'text-right', render: renderDiskon },
                 { data: 'netto', orderable: false, className: 'text-right', render: renderNetto },
-                { data: 'hna', name: 'harga', className: 'text-right', render: renderRupiah },
-                { data: 'hpp', name: 'hpp', className: 'text-right', render: renderHpp },
+                { data: 'hpp_ppn', name: 'harga', className: 'text-right', render: renderRupiah },
+                { data: 'hna_obat', name: 'hpp', className: 'text-right', render: renderHpp },
                 { data: 'notes', orderable: false, className: 'col-notes', render: textCell },
                 { data: 'updated_at', name: 'updated_at', render: renderUpdated },
                 { data: null, orderable: false, className: 'text-center', render: renderAksi }
@@ -609,8 +609,8 @@
             row('Metode Bayar', text(A.metode_bayar), text(B.metode_bayar)) +
             row('Stok Total', stok(A), stok(B)) +
             section('Harga per Satuan Stok') +
-            '<tr><th class="bd-label">HPP Saat Ini</th>' + bdPriceCells(A.hpp, B.hpp) + '</tr>' +
-            '<tr><th class="bd-label">HNA (+PPN)</th>' + bdPriceCells(A.hna, B.hna) + '</tr>' +
+            '<tr><th class="bd-label">HNA Saat Ini (tanpa PPN)</th>' + bdPriceCells(A.hna, B.hna) + '</tr>' +
+            '<tr><th class="bd-label">HPP Saat Ini (+PPN)</th>' + bdPriceCells(A.hpp, B.hpp) + '</tr>' +
             '<tr><th class="bd-label">Harga Beli Termurah<div class="mf-meta font-weight-normal">setelah diskon, belum PPN</div></th>' +
                 bdPriceCells(termurah(A), termurah(B), termurahNote(A), termurahNote(B)) + '</tr>' +
             row('Harga Jual', A.harga_jual ? rupiah(A.harga_jual) : DASH, B.harga_jual ? rupiah(B.harga_jual) : DASH) +
@@ -782,7 +782,7 @@
         } else {
             badge = v.obat_id ? '<span class="badge badge-baru">Baru</span>' : '';
         }
-        details.push('HNA (+PPN): ' + rupiah(Math.round(v.harga * PPN_FACTOR * 100) / 100));
+        details.push('HPP (+PPN): ' + rupiah(Math.round(v.harga * PPN_FACTOR * 100) / 100));
         if (v.diskon_type === 'percent' && v.diskon > 0) details.push('Setelah diskon: ' + rupiah(v.netto));
         if (info && info.hpp) details.push('HPP sekarang: ' + rupiah(info.hpp));
         let warn = '';

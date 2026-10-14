@@ -1291,7 +1291,9 @@ class EresepController extends Controller
 
     /**
      * Riwayat resep of a patient, newest visit first, RIWAYAT_PER_PAGE visits at a time (?page=2 ... for
-     * "Muat lebih banyak"). ?current=<visitation_id> marks the open visit (no "Salin Resep" on it).
+     * "Muat lebih banyak"). ?current=<visitation_id> marks the open visit; ?target=dokter|farmasi is the resep the
+     * page copies into. The open visit gets no "Salin" only when source and target are the same resep (it would
+     * copy into itself); farmasi may copy the dokter resep of the open visit.
      *
      * @param class-string<\Illuminate\Database\Eloquent\Model> $model ResepDokter or ResepFarmasi
      */
@@ -1330,6 +1332,8 @@ class EresepController extends Controller
             'racikanPaketNames' => $this->racikanPaketNames($reseps),
             'source' => $source,
             'currentVisitationId' => $request->query('current'),
+            // Resep the page copies into (dokter / farmasi); the open visit can be copied only into the other one
+            'target' => in_array($request->query('target'), ['dokter', 'farmasi'], true) ? $request->query('target') : $source,
             'page' => $page,
             'nextUrl' => $hasMore ? $request->fullUrlWithQuery(['page' => $page + 1]) : null,
             'totalVisits' => $page === 1

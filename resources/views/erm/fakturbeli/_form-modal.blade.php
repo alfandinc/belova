@@ -32,6 +32,7 @@
                 <input type="hidden" name="requested_date" id="fk_requested_date">
                 <input type="hidden" name="global_diskon" id="fk_global_diskon_value">
                 <input type="hidden" name="global_pajak" id="fk_global_pajak_value">
+                <input type="hidden" name="ongkir" id="fk_ongkir_value">
 
                 <div class="alert alert-info small py-2 d-none" id="fakturInfo"></div>
 
@@ -109,7 +110,8 @@
                         <button type="button" class="btn btn-sm btn-outline-primary" id="fk_add_item" title="Obat yang ikut di faktur tapi tidak ada di permintaan, termasuk bonus"><i class="fas fa-plus"></i> Tambah Obat</button>
                         <div class="small text-muted mt-2">Batch dan tanggal kadaluarsa wajib untuk baris dengan qty diterima lebih dari 0.<br>
                             Satu obat datang dalam beberapa batch? Klik <strong>+ batch lain</strong> di baris obatnya.<br>
-                            Barang gratis dari pemasok: centang <strong>Bonus</strong> (stok masuk, HPP tidak berubah).<br>
+                            Barang gratis dari pemasok: centang <strong>Bonus</strong> (stok masuk, HNA/HPP tidak berubah).<br>
+                            <strong>HNA</strong> = harga per satuan + bagian ongkir/biaya lain (tanpa PPN); <strong>HPP</strong> = HNA + PPN {{ \App\Models\ERM\Obat::PPN_PERCENT }}%.<br>
                             Baris dengan qty 0 dianggap belum datang dan dibuat faktur lanjutan saat approve.</div>
                     </div>
                     {{-- 3. Totals --}}
@@ -127,6 +129,13 @@
                             <div class="input-group input-group-sm" style="width:160px">
                                 <input type="number" id="fk_global_pajak" class="form-control" step="0.01" min="0" value="0">
                                 <div class="input-group-append"><select id="fk_global_pajak_type" class="custom-select custom-select-sm"><option value="nominal">Rp</option><option value="percent">%</option></select></div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1">
+                            <span class="small" title="Dibagi ke tiap obat sesuai nilainya (qty x harga) dan masuk ke HNA saat approve">Ongkir / biaya lain</span>
+                            <div class="input-group input-group-sm" style="width:160px">
+                                <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                <input type="number" id="fk_ongkir" class="form-control" step="0.01" min="0" value="0">
                             </div>
                         </div>
                         <div class="d-flex justify-content-between mt-2 pt-2 border-top"><span class="font-weight-bold">Total faktur</span><strong class="h5 mb-0" id="fk_total">Rp 0</strong></div>
@@ -197,7 +206,7 @@ window.FakturForm = (function () {
             + '<td><input type="number" class="form-control form-control-sm f-qty" min="0" step="1" value="' + (item.qty != null ? item.qty : '') + '"></td>'
             + '<td><input type="number" class="form-control form-control-sm f-harga" min="0" step="0.01" value="' + (item.harga != null ? item.harga : '') + '">'
                 + (head ? '' : '<div class="custom-control custom-checkbox mt-1"><input type="checkbox" class="custom-control-input f-bonus" id="fk_bonus_' + uid + '"' + (bonus ? ' checked' : '') + '>'
-                    + '<label class="custom-control-label small" for="fk_bonus_' + uid + '" title="Barang gratis dari pemasok: harga 0, HPP tidak berubah">Bonus</label></div>')
+                    + '<label class="custom-control-label small" for="fk_bonus_' + uid + '" title="Barang gratis dari pemasok: harga 0, HNA/HPP tidak berubah">Bonus</label></div>')
             + '</td>'
             + '<td><div class="input-group input-group-sm"><input type="number" class="form-control f-diskon" min="0" step="0.01" value="' + (item.diskon || 0) + '">'
                 + '<div class="input-group-append"><select class="custom-select f-diskon-type"><option value="nominal"' + (item.diskon_type === 'percent' ? '' : ' selected') + '>Rp</option><option value="percent"' + (item.diskon_type === 'percent' ? ' selected' : '') + '>%</option></select></div></div></td>'
@@ -306,10 +315,12 @@ window.FakturForm = (function () {
         var gdValue = $('#fk_global_diskon_type').val() === 'percent' ? subtotal * gd / 100 : gd;
         var gpValue = $('#fk_global_pajak_type').val() === 'percent' ? subtotal * gp / 100 : gp;
         $('#fk_subtotal').text(rupiah(subtotal));
-        $('#fk_total').text(rupiah(Math.max(subtotal - gdValue + gpValue, 0)));
+        var ongkir = num($('#fk_ongkir').val());
+        $('#fk_total').text(rupiah(Math.max(subtotal - gdValue + gpValue, 0) + ongkir));
         // The server stores the global amounts as Rupiah
         $('#fk_global_diskon_value').val(gdValue.toFixed(2));
         $('#fk_global_pajak_value').val(gpValue.toFixed(2));
+        $('#fk_ongkir_value').val(ongkir.toFixed(2));
     }
 
     function fill(d) {
@@ -353,6 +364,7 @@ window.FakturForm = (function () {
         // Global amounts: stored as Rupiah; a faktur without them starts with PPN in percent
         $('#fk_global_diskon').val(d.global_diskon || 0);
         $('#fk_global_diskon_type').val('nominal');
+        $('#fk_ongkir').val(d.ongkir || 0);
         if (d.global_pajak === null || d.global_pajak === undefined) {
             $('#fk_global_pajak').val(d.ppn_persen);
             $('#fk_global_pajak_type').val('percent');
@@ -459,7 +471,7 @@ window.FakturForm = (function () {
         }).on('change', function () { $('#fk_pemasok_id').val($(this).val() || ''); });
 
         $tbody.on('input change', 'input, select', function () { refreshRow($(this).closest('tr')); });
-        $('#fk_global_diskon, #fk_global_pajak, #fk_global_diskon_type, #fk_global_pajak_type').on('input change', refreshTotals);
+        $('#fk_global_diskon, #fk_global_pajak, #fk_global_diskon_type, #fk_global_pajak_type, #fk_ongkir').on('input change', refreshTotals);
         // Removing an obat line removes its other batches too
         $tbody.on('click', '.f-remove', function () {
             var $tr = $(this).closest('tr');

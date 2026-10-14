@@ -50,8 +50,8 @@ class StokService {
      * @param string|null $expDate
      * @param string|null $rak
      * @param string|null $lokasi
-     * @param float|null $hargaBeli HPP include diskon
-     * @param float|null $hargaBeliJual HPP exclude diskon
+     * @param float|null $hargaBeli harga per unit after diskon, excl PPN (fallback only)
+     * @param float|null $hargaBeliJual HNA: harga per unit before diskon + ongkir share, excl PPN
      * @return ObatStokGudang
      */
     public function tambahStok($obatId, $gudangId, $jumlah, $batch = null, $expDate = null, $rak = null, $lokasi = null, $hargaBeli = null, $hargaBeliJual = null, $refType = null, $refId = null, $keterangan = null, $tanggal = null)
@@ -100,15 +100,14 @@ class StokService {
                 ]);
             }
 
-            // Update HPP (tanpa PPN) dan HNA (termasuk PPN) di master obat jika ada harga beli baru (hanya pembelian).
-            // Use the price that excludes discounts (`hargaBeliJual`) when available. No averaging.
-            // Zero-price lines (bonus/free goods) never overwrite HPP.
+            // Update HNA (harga beli + ongkir, tanpa PPN) di master obat jika ada harga beli baru (hanya pembelian);
+            // the Obat model sets HPP = HNA + PPN. Use the price before discounts (`hargaBeliJual`) when available.
+            // No averaging. Zero-price lines (bonus/free goods) never overwrite it.
             $hargaMaster = (float) ($hargaBeliJual ?? $hargaBeli ?? 0);
             if ($hargaMaster > 0) {
                 $obat = Obat::withInactive()->find($obatId);
                 if ($obat) {
-                    $obat->hpp = $hargaMaster;
-                    $obat->hna = Obat::hnaFromHpp((float) $obat->hpp);
+                    $obat->hna = round($hargaMaster, 2);
                     $obat->save();
                 }
             }

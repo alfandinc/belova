@@ -37,7 +37,7 @@ class HargaTindakanController extends Controller
     }
 
     /**
-     * Obat/BHP cost per paket: sum over its tindakan of obat qty × modal obat (HNA, or HPP + PPN).
+     * Obat/BHP cost per paket: sum over its tindakan of obat qty × modal obat (HPP, or HNA + PPN).
      */
     private static function bahanQuery()
     {
@@ -48,20 +48,21 @@ class HargaTindakanController extends Controller
             ->join('erm_obat as o', 'o.id', '=', 'ko.obat_id')
             ->groupBy('tk.tindakan_id')
             ->select('tk.tindakan_id')
-            ->selectRaw("SUM(ko.qty * COALESCE(NULLIF(o.hna, 0), o.hpp * {$ppn}, 0)) as bahan");
+            ->selectRaw("SUM(ko.qty * COALESCE(NULLIF(o.hpp, 0), o.hna * {$ppn}, 0)) as bahan");
     }
 
     /**
-     * Obat/BHP cost per paket at HPP and at HNA, for the pengajuan list. Obat never bought take the
-     * Master Pembelian price as an estimate; bahan_estimasi counts them, bahan_tanpa_hpp counts obat without any cost.
+     * Obat/BHP cost per paket at HNA (excl PPN) and at HPP (HNA + PPN, the modal), for the pengajuan list. Obat never
+     * bought take the Master Pembelian price (excl PPN) as an estimated HNA; bahan_estimasi counts them,
+     * bahan_tanpa_hpp counts obat without any cost.
      */
     private static function bahanModalQuery()
     {
         $ppn = 1 + Obat::PPN_PERCENT / 100;
-        // HPP and HNA both come from the estimate when the obat has no HPP yet, never mixed
+        // HNA and HPP both come from the estimate when the obat has no HPP yet, never mixed
         $estimasi = 'COALESCE(o.hpp, 0) <= 0 AND est.hpp_estimasi > 0';
-        $hpp = "(CASE WHEN {$estimasi} THEN est.hpp_estimasi ELSE COALESCE(o.hpp, 0) END)";
-        $hna = "(CASE WHEN {$estimasi} THEN est.hpp_estimasi * {$ppn} ELSE COALESCE(NULLIF(o.hna, 0), o.hpp * {$ppn}, 0) END)";
+        $hna = "(CASE WHEN {$estimasi} THEN est.hpp_estimasi ELSE COALESCE(o.hna, 0) END)";
+        $hpp = "(CASE WHEN {$estimasi} THEN est.hpp_estimasi * {$ppn} ELSE COALESCE(NULLIF(o.hpp, 0), o.hna * {$ppn}, 0) END)";
 
         return DB::table('erm_tindakan_kode_tindakan as tk')
             ->join('erm_kode_tindakan_obat as ko', 'ko.kode_tindakan_id', '=', 'tk.kode_tindakan_id')
