@@ -149,20 +149,20 @@
         {{-- Tools: cetak, riwayat, paket --}}
         <div class="eresep-toolbar">
             <span class="eresep-toolbar-label">Cetak</span>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetakresep"><i class="fas fa-print mr-1"></i>Resep</button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetakedukasi"><i class="fas fa-book-medical mr-1"></i>Edukasi</button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetaketiket"><i class="fas fa-tag mr-1"></i>Etiket</button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-tag mr-1 text-primary"></i>Etiket Biru</button>
+            <button type="button" class="btn btn-erm-tool tone-blue btn-cetakresep"><i class="fas fa-print mr-1"></i>Resep</button>
+            <button type="button" class="btn btn-erm-tool tone-teal btn-cetakedukasi"><i class="fas fa-book-medical mr-1"></i>Edukasi</button>
+            <button type="button" class="btn btn-erm-tool tone-amber btn-cetaketiket"><i class="fas fa-tag mr-1"></i>Etiket</button>
+            <button type="button" class="btn btn-erm-tool tone-indigo btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-tag mr-1"></i>Etiket Biru</button>
             <span class="eresep-toolbar-sep"></span>
             <span class="eresep-toolbar-label">Riwayat</span>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
+            <button type="button" class="btn btn-erm-tool tone-green btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
                 <i class="fas fa-user-md mr-1"></i>Dokter
             </button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
+            <button type="button" class="btn btn-erm-tool tone-purple btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'farmasi']) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
                 <i class="fas fa-clinic-medical mr-1"></i>Farmasi
             </button>
             <span class="eresep-toolbar-sep"></span>
-            <button type="button" id="paket-racikan" class="btn btn-sm btn-erm-ghost"><i class="fas fa-box-open mr-1"></i>Paket Racikan</button>
+            <button type="button" id="paket-racikan" class="btn btn-erm-tool tone-orange"><i class="fas fa-box-open mr-1"></i>Paket Racikan</button>
         </div>
 
         {{-- 1. Catatan dokter --}}
@@ -1574,31 +1574,7 @@
                 return Swal.fire('Peringatan', submitBlockReason, 'warning');
             }
 
-            // Pre-submit stock validation for non-racikan items
-            const stockProblems = [];
-            $('#resep-table-body tr').each(function () {
-                const row = $(this);
-                if (row.hasClass('no-data')) return;
-                // jumlah is in td[1], stok in td[4]
-                const jumlahText = row.find('td').eq(1).text().trim();
-                const stokText = row.find('td').eq(4).text().trim();
-                const jumlahVal = parseInt((jumlahText || '0').replace(/[^0-9-]/g, ''), 10) || 0;
-                const stokVal = parseInt((stokText || '0').replace(/[^0-9-]/g, ''), 10);
-                // If stokVal is NaN (unknown), skip check
-                if (!isNaN(stokVal) && jumlahVal > stokVal) {
-                    const nama = row.find('td').eq(0).text().trim();
-                    stockProblems.push({ nama, jumlah: jumlahVal, stok: stokVal });
-                }
-            });
-
-            if (stockProblems.length > 0) {
-                const lines = stockProblems.map(p => `${p.nama}: diminta ${p.jumlah}, stok ${p.stok}`);
-                return Swal.fire({
-                    title: 'Stok Tidak Cukup',
-                    html: `Beberapa obat memiliki jumlah yang lebih besar dari stok tersedia:<br><ul style="text-align:left">${lines.map(l => `<li>${l}</li>`).join('')}</ul>Harap koreksi sebelum submit.`,
-                    icon: 'error'
-                });
-            }
+            // Stock (non racikan + racikan, resep gudang and the other gudangs) is checked by the server on submit
 
             // Check if already submitted
             const isSubmitted = $btn.hasClass('btn-secondary');
@@ -1631,7 +1607,8 @@
                 });
             }
             
-            function doSubmit(force = false) {
+            // abaikanStok: the user accepted that the stok is only enough in another gudang
+            function doSubmit(force = false, abaikanStok = false) {
                 $btn.data('processing', true);
                 $btn.prop('disabled', true).text('Memproses...');
                 
@@ -1641,10 +1618,26 @@
                     data: {
                         _token: "{{ csrf_token() }}",
                         visitation_id: visitationId,
-                        force: force ? 1 : 0
+                        force: force ? 1 : 0,
+                        abaikan_stok: abaikanStok ? 1 : 0
                     },
                     success: function (res) {
-                        if (res.status === 'warning' && res.need_confirm) {
+                        if (res.status === 'warning' && res.stok_warning) {
+                            Swal.fire({
+                                title: 'Memakai stok ED',
+                                html: res.message,
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Ya, tetap submit',
+                                cancelButtonText: 'Batal'
+                            }).then((result) => {
+                                if (result.value) {
+                                    doSubmit(force, true);
+                                } else {
+                                    resetButton();
+                                }
+                            });
+                        } else if (res.status === 'warning' && res.need_confirm) {
                             Swal.fire({
                                 title: 'Konfirmasi',
                                 text: res.message,
@@ -1654,7 +1647,7 @@
                                 cancelButtonText: 'Batal'
                             }).then((result) => {
                                 if (result.value) {
-                                    doSubmit(true); // Resubmit with force
+                                    doSubmit(true, abaikanStok); // Resubmit with force
                                 } else {
                                     resetButton();
                                 }
@@ -1665,7 +1658,7 @@
                             $btn.text('Sudah Disubmit').addClass('btn-secondary').removeClass('btn-success').prop('disabled', false);
                             refreshSubmitButtonState();
                         } else if (res.status === 'error') {
-                            Swal.fire('Error', res.message, 'error');
+                            Swal.fire({ icon: 'error', title: 'Belum bisa submit', html: res.message });
                             resetButton();
                         }
                     },

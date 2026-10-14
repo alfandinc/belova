@@ -1891,6 +1891,9 @@
                                 if (typeof item.is_out_of_stock === 'undefined' && typeof existingItem.is_out_of_stock !== 'undefined') {
                                     item.is_out_of_stock = existingItem.is_out_of_stock;
                                 }
+                                if (typeof item.pakai_stok_ed === 'undefined' && typeof existingItem.pakai_stok_ed !== 'undefined') {
+                                    item.pakai_stok_ed = existingItem.pakai_stok_ed;
+                                }
                                 if (typeof item.selected_gudang_id === 'undefined' && existingItem.selected_gudang_id) {
                                     item.selected_gudang_id = existingItem.selected_gudang_id;
                                 }
@@ -1958,13 +1961,18 @@
                         }
 
                         const isOut = !!(row && (row.is_out_of_stock === true || row.is_out_of_stock === 1 || row.is_out_of_stock === '1'));
+                        const isEd = !isOut && !!(row && (row.pakai_stok_ed === true || row.pakai_stok_ed === 1 || row.pakai_stok_ed === '1'));
                         const linkClass = 'stock-info-link text-decoration-none' + (isOut ? ' text-danger' : '');
                         const iconClass = 'stock-warning-icon' + (isOut ? '' : ' d-none');
+                        const edClass = 'stock-ed-icon' + (isEd ? '' : ' d-none');
                         return (
                             '<a href="#" class="' + linkClass + '" data-id="' + row.id + '">' +
                                 label +
                                 ' <span class="' + iconClass + '" data-id="' + row.id + '" title="Stok tidak cukup">' +
                                     '<i class="fas fa-exclamation-triangle text-danger stock-warning-blink"></i>' +
+                                '</span>' +
+                                ' <span class="' + edClass + '" data-id="' + row.id + '" title="Stok layak pakai kurang: sebagian diambil dari batch yang sudah ED">' +
+                                    '<i class="fas fa-calendar-times text-warning"></i> <small class="text-warning font-weight-bold">stok ED</small>' +
                                 '</span>' +
                             '</a>'
                         );
@@ -2178,7 +2186,10 @@
         const tindakanObatRowsCache = new Map(); // riwayatId -> { rows, suggestedGudangId, at }
         const TINDAKAN_ROWS_TTL_MS = 60000;
 
-        function setStockWarningIcon(itemId, shouldShow) {
+        // state: 'kurang' (or true) = not enough stok, 'ed' = enough only with expired batches, false = fine
+        function setStockWarningIcon(itemId, state) {
+            const shouldShow = state === true || state === 'kurang';
+            $('#billingTable').find('.stock-ed-icon[data-id="' + itemId + '"]').toggleClass('d-none', state !== 'ed');
             const $el = $('#billingTable').find('.stock-warning-icon[data-id="' + itemId + '"]');
             if (!$el.length) return;
             const $link = $('#billingTable').find('.stock-info-link[data-id="' + itemId + '"]');
@@ -2271,6 +2282,23 @@
             });
         }
 
+        // 'kurang' / 'ed' / false for obat rows and their stok results (see loadStockTotal). Expired batches count;
+        // payment takes them after the usable ones.
+        function stockStateFor(rows, results) {
+            let state = false;
+            rows.forEach(function(r, idx) {
+                if (state === 'kurang') return;
+                const res = results[idx] || {};
+                const usable = Number(res.total) || 0;
+                const avail = usable + (Number(res.expiredQty) || 0);
+                const needed = Number(r.needed) || 0;
+                if (needed <= 0) return;
+                if (avail < needed) state = 'kurang';
+                else if (usable < needed) state = 'ed';
+            });
+            return state;
+        }
+
         function isItemOutOfStock(itemId, item) {
             if (!itemId || !item) {
                 return $.Deferred().resolve(false).promise();
@@ -2303,11 +2331,7 @@
                     });
                     return $.when.apply($, requests).then(function() {
                         const normalized = (requests.length === 1) ? [arguments[0]] : Array.prototype.slice.call(arguments);
-                        return labRows.some(function(r, idx) {
-                            const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
-                            const needed = Number(r.needed) || 0;
-                            return needed > 0 && stok < needed;
-                        });
+                        return stockStateFor(labRows, normalized);
                     }, function() {
                         return false;
                     });
@@ -2340,13 +2364,7 @@
                             .then(function() {
                                 const args = Array.prototype.slice.call(arguments);
                                 const normalized = (requests.length === 1) ? [arguments[0]] : args;
-                                let out = false;
-                                pivotRows.forEach(function(r, idx) {
-                                    const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
-                                    const needed = Number(r.needed) || 0;
-                                    if (needed > 0 && stok < needed) out = true;
-                                });
-                                return out;
+                                return stockStateFor(pivotRows, normalized);
                             }, function() {
                                 return false;
                             });
@@ -2381,13 +2399,7 @@
                         .then(function() {
                             const args = Array.prototype.slice.call(arguments);
                             const normalized = (requests.length === 1) ? [arguments[0]] : args;
-                            let out = false;
-                            tindakanRows.forEach(function(r, idx) {
-                                const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
-                                const needed = Number(r.needed) || 0;
-                                if (needed > 0 && stok < needed) out = true;
-                            });
-                            return out;
+                            return stockStateFor(tindakanRows, normalized);
                         }, function() {
                             return false;
                         });
@@ -2420,13 +2432,7 @@
                 .then(function() {
                     const args = Array.prototype.slice.call(arguments);
                     const normalized = (requests.length === 1) ? [arguments[0]] : args;
-                    let out = false;
-                    baseRows.forEach(function(r, idx) {
-                        const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
-                        const needed = Number(r.needed) || 0;
-                        if (needed > 0 && stok < needed) out = true;
-                    });
-                    return out;
+                    return stockStateFor(baseRows, normalized);
                 }, function() {
                     return false;
                 });
@@ -2454,7 +2460,10 @@
                     hintVal === true || hintVal === false
                 );
                 if (stockWarningServerHintsValid && hasHint) {
-                    const hinted = !!(hintVal === true || hintVal === 1 || hintVal === '1');
+                    const edVal = row.pakai_stok_ed;
+                    const hinted = (hintVal === true || hintVal === 1 || hintVal === '1')
+                        ? 'kurang'
+                        : ((edVal === true || edVal === 1 || edVal === '1') ? 'ed' : false);
                     itemStockWarningCache.set(String(itemId), { outOfStock: hinted, at: Date.now() });
                     setStockWarningIcon(itemId, hinted);
                     return;
@@ -2462,7 +2471,7 @@
 
                 const cached = itemStockWarningCache.get(String(itemId));
                 if (cached && cached.at && (now - cached.at) <= ITEM_STOCK_WARN_TTL_MS) {
-                    setStockWarningIcon(itemId, !!cached.outOfStock);
+                    setStockWarningIcon(itemId, cached.outOfStock || false);
                     return;
                 }
 
@@ -2471,8 +2480,8 @@
 
                 isItemOutOfStock(itemId, item)
                     .then(function(out) {
-                        itemStockWarningCache.set(String(itemId), { outOfStock: !!out, at: Date.now() });
-                        setStockWarningIcon(itemId, !!out);
+                        itemStockWarningCache.set(String(itemId), { outOfStock: out || false, at: Date.now() });
+                        setStockWarningIcon(itemId, out || false);
                     })
                     .always(function() {
                         stockWarningInFlight.delete(String(itemId));

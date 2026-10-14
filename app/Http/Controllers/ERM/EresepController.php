@@ -47,6 +47,77 @@ class EresepController extends Controller
         return $rows->isEmpty() ? null : PaketRacikan::racikanNameResolver()($rows);
     }
 
+    /**
+     * Stok check before submit. Need per obat = non racikan jumlah + racikan stock reduction (same numbers payment
+     * takes out). Payment takes resep stok from the resep gudang, usable batches first and expired ones last, so:
+     *  - 'mutasi': the resep gudang is short but the other gudangs (not the gudang ED) have the rest: transfer it first;
+     *  - 'kosong': not enough in all gudangs together;
+     *  - 'ed': the resep gudang has enough only by also taking expired batches (warning, the user may go on).
+     * Expired batches count everywhere and are named in the lines. All empty when no resep gudang is mapped.
+     */
+    private function stokKurangUntukResep($visitationId): array
+    {
+        $hasil = ['mutasi' => [], 'kosong' => [], 'ed' => [], 'gudang_resep' => null];
+        $gudangId = (int) \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        if (!$gudangId) {
+            return $hasil;
+        }
+
+        $butuh = [];
+        $nama = [];
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with(['obat' => fn ($q) => $q->withInactive(), 'wadah'])->get();
+        foreach ($reseps as $resep) {
+            $jumlah = $resep->racikan_ke ? $this->calculateRacikanStockReduction($resep) : (float) ($resep->jumlah ?? 0);
+            $butuh[$resep->obat_id] = ($butuh[$resep->obat_id] ?? 0) + $jumlah;
+            $nama[$resep->obat_id] = optional($resep->obat)->nama ?? 'Obat #' . $resep->obat_id;
+        }
+        $butuh = array_filter($butuh, fn ($jumlah) => $jumlah > 0);
+        if (!$butuh) {
+            return $hasil;
+        }
+
+        // Stok per obat per gudang (all batches, the expired part separately), the gudang ED left out
+        $gudangEd = app(\App\Services\ERM\GudangExpiredService::class)->gudangId();
+        $stok = \App\Models\ERM\ObatStokGudang::whereIn('obat_id', array_keys($butuh))
+            ->when($gudangEd, fn ($q) => $q->where('gudang_id', '!=', $gudangEd))
+            ->where('stok', '>', 0)
+            ->selectRaw('obat_id, gudang_id, SUM(stok) as stok, SUM(stok * ' . \App\Models\ERM\ObatStokGudang::sqlSudahEd() . ') as stok_ed')
+            ->groupBy('obat_id', 'gudang_id')
+            ->get()
+            ->groupBy('obat_id');
+        $namaGudang = \App\Models\ERM\Gudang::pluck('nama', 'id');
+        $hasil['gudang_resep'] = $namaGudang[$gudangId] ?? 'gudang resep';
+
+        $fmt = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, ',', '.'), '0'), ',');
+        $denganEd = fn ($total, $ed) => $fmt($total) . ($ed > 0 ? ' (' . $fmt($ed) . ' sudah ED)' : '');
+        foreach ($butuh as $obatId => $jumlah) {
+            $rows = collect($stok->get($obatId, []))->keyBy(fn ($r) => (int) $r->gudang_id);
+            $resepRow = $rows->get($gudangId);
+            $total = (float) ($resepRow->stok ?? 0);
+            $ed = (float) ($resepRow->stok_ed ?? 0);
+
+            if (round($total, 4) >= round($jumlah, 4)) {
+                $dariEd = $jumlah - ($total - $ed);
+                if ($dariEd > 0.0001) {
+                    $hasil['ed'][] = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, layak pakai {$fmt($total - $ed)}; {$fmt($dariEd)} diambil dari batch yang sudah ED";
+                }
+                continue;
+            }
+
+            $kurang = $jumlah - $total;
+            $lain = $rows->except($gudangId)->filter(fn ($r) => (float) $r->stok > 0);
+            $baris = "{$nama[$obatId]}: butuh {$fmt($jumlah)}, stok {$hasil['gudang_resep']} {$denganEd($total, $ed)}";
+            if (round((float) $lain->sum('stok'), 4) >= round($kurang, 4)) {
+                $hasil['mutasi'][] = $baris . "; mutasikan {$fmt($kurang)} dari "
+                    . $lain->map(fn ($r, $id) => ($namaGudang[$id] ?? "Gudang #{$id}") . ' ' . $denganEd((float) $r->stok, (float) $r->stok_ed))->implode(', ');
+            } else {
+                $hasil['kosong'][] = $baris . ($lain->isNotEmpty() ? '; gudang lain total ' . $fmt($lain->sum('stok')) : '; tidak ada di gudang lain');
+            }
+        }
+
+        return $hasil;
+    }
+
     private function calculateRacikanStockReduction(ResepFarmasi $resep): float
     {
         $prescribedDosis = 0.0;
@@ -1162,6 +1233,37 @@ class EresepController extends Controller
     $force = $request->input('force', false);
 
         if ($resp = $this->guardInvoiceNotLocked($visitationId)) return $resp;
+
+    // Payment takes the stok out of the resep gudang and fails when it is short, so check here: stok that is only in
+    // another gudang must be transferred first, not enough anywhere stops the submit; taking expired batches is a
+    // warning to confirm (abaikan_stok=1)
+    $cek = $this->stokKurangUntukResep($visitationId);
+    $daftar = fn (array $baris) => '<ul style="text-align:left;margin:6px 0 10px 18px;">'
+        . implode('', array_map(fn ($b) => '<li>' . e($b) . '</li>', $baris)) . '</ul>';
+    if ($cek['mutasi'] || $cek['kosong']) {
+        $html = '';
+        if ($cek['mutasi']) {
+            $html .= '<div style="text-align:left"><strong>Mutasikan stok dulu ke ' . e($cek['gudang_resep']) . '</strong> lewat Transfer Antar Gudang, lalu submit lagi:</div>'
+                . $daftar($cek['mutasi'])
+                . '<div style="margin-bottom:10px"><a href="' . e(url('/erm/mutasi-gudang')) . '" target="_blank" class="btn btn-sm btn-primary">Buka Transfer Antar Gudang</a></div>';
+        }
+        if ($cek['kosong']) {
+            $html .= '<div style="text-align:left"><strong>Stok tidak cukup di semua gudang:</strong></div>' . $daftar($cek['kosong']);
+        }
+        if ($cek['ed']) {
+            $html .= '<div style="text-align:left"><strong>Memakai stok ED:</strong></div>' . $daftar($cek['ed']);
+        }
+
+        return response()->json(['status' => 'error', 'message' => $html]);
+    }
+    if ($cek['ed'] && !$request->boolean('abaikan_stok')) {
+        return response()->json([
+            'status' => 'warning',
+            'stok_warning' => true,
+            'message' => '<div style="text-align:left">Stok layak pakai di ' . e($cek['gudang_resep']) . ' tidak cukup, sebagian akan diambil dari <strong>batch yang sudah ED</strong> saat pembayaran:</div>'
+                . $daftar($cek['ed']) . '<div>Tetap submit?</div>',
+        ]);
+    }
 
     // Check if resep already submitted
     $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->first();

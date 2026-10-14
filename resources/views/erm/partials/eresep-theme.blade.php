@@ -5,6 +5,7 @@
       .racikan-card (+ -head)          one racikan inside the Racikan section
       .eresep-subcard                  inline "tambah obat" box inside a racikan
       .btn-erm-accent / -soft / -ghost / -danger, .racikan-save-btn
+      .btn-erm-tool.tone-*             coloured toolbar buttons (blue, teal, amber, indigo, green, purple, orange)
       .stok-low / .stok-mid / .stok-ok stock colours (readable in light + dark)
       .row-in-farmasi                  dokter rows that farmasi already has
       .eresep-total                    total harga in the action bar
@@ -21,6 +22,29 @@
     }
     .eresep-toolbar-label { font-size: .7rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--sb-muted, #8a94ad); margin-right: 2px; }
     .eresep-toolbar-sep { width: 1px; align-self: stretch; background: var(--sb-line, #e2e8f0); margin: 2px 6px; }
+
+    /* Toolbar buttons: one tint per action (--t = tone rgb, --t-text = label colour, lighter in dark mode) */
+    .eresep-page .btn-erm-tool {
+        --t: 37, 99, 235; --t-text: #1d4ed8;
+        padding: .45rem .9rem; font-size: .875rem; line-height: 1.3;
+        background: rgba(var(--t), .1); border: 1px solid rgba(var(--t), .3); color: var(--t-text);
+    }
+    .eresep-page .btn-erm-tool i { opacity: .9; }
+    .eresep-page .btn-erm-tool:hover, .eresep-page .btn-erm-tool:focus { background: rgba(var(--t), .2); border-color: rgba(var(--t), .5); color: var(--t-text); }
+    .eresep-page .btn-erm-tool.tone-blue   { --t: 37, 99, 235;  --t-text: #1d4ed8; }
+    .eresep-page .btn-erm-tool.tone-teal   { --t: 13, 148, 136; --t-text: #0f766e; }
+    .eresep-page .btn-erm-tool.tone-amber  { --t: 217, 119, 6;  --t-text: #b45309; }
+    .eresep-page .btn-erm-tool.tone-indigo { --t: 79, 70, 229;  --t-text: #4338ca; }
+    .eresep-page .btn-erm-tool.tone-green  { --t: 5, 150, 105;  --t-text: #047857; }
+    .eresep-page .btn-erm-tool.tone-purple { --t: 147, 51, 234; --t-text: #7e22ce; }
+    .eresep-page .btn-erm-tool.tone-orange { --t: 234, 88, 12;  --t-text: #c2410c; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-blue   { --t-text: #93c5fd; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-teal   { --t-text: #5eead4; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-amber  { --t-text: #fcd34d; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-indigo { --t-text: #a5b4fc; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-green  { --t-text: #6ee7b7; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-purple { --t-text: #d8b4fe; }
+    html.theme-dark .eresep-page .btn-erm-tool.tone-orange { --t-text: #fdba74; }
 
     /* Buttons */
     .eresep-page .btn { border-radius: 9px; font-weight: 600; }

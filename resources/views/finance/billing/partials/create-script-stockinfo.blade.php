@@ -18,7 +18,7 @@ function loadStockTotal(obatId, gudangId) {
     const cached = stockCache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.at && (now - cached.at) <= STOCK_CACHE_TTL_MS) {
-        return $.Deferred().resolve({ total: cached.total, expired: cached.expired || [], gudangName: cached.gudangName, cached: true }).promise();
+        return $.Deferred().resolve({ total: cached.total, expired: cached.expired || [], expiredQty: cached.expiredQty || 0, gudangName: cached.gudangName, cached: true }).promise();
     }
 
     return $.getJSON("{{ $billingUrls['batchDetails'] }}", { obat_id: obatId, gudang_id: gudangId })
@@ -33,8 +33,8 @@ function loadStockTotal(obatId, gudangId) {
                 } else if (d.stok_display) {
                     stok = parseFloat(d.stok_display.toString().replace(/[^0-9\-]/g, '')) || 0;
                 }
-                // Expired batches cannot be sold; the server-side stock check skips them too.
-                // Kept aside so the modal can explain the gap and offer an ED correction.
+                // Expired batches kept aside: payment still takes them, after the usable ones (with a warning).
+                // The modal lists them and offers an ED correction.
                 if (d.is_expired) {
                     if (stok > 0) {
                         expired.push({ id: d.id, batch: d.batch, stok: stok, ed: d.expiration_date, edRaw: d.expiration_date_raw });
@@ -45,8 +45,9 @@ function loadStockTotal(obatId, gudangId) {
             });
             const gudangName = getGudangNameById(gudangId);
             const resolvedTotal = (data.length === 0) ? 0 : total;
-            stockCache.set(cacheKey, { total: resolvedTotal, expired: expired, gudangName: gudangName, at: Date.now() });
-            return { total: resolvedTotal, expired: expired, gudangName: gudangName, cached: false };
+            const expiredQty = expired.reduce(function(sum, b) { return sum + (Number(b.stok) || 0); }, 0);
+            stockCache.set(cacheKey, { total: resolvedTotal, expired: expired, expiredQty: expiredQty, gudangName: gudangName, at: Date.now() });
+            return { total: resolvedTotal, expired: expired, expiredQty: expiredQty, gudangName: gudangName, cached: false };
         });
 }
 
@@ -234,6 +235,7 @@ function buildObatRowsForStockModal(item) {
     return rows;
 }
 
+// Expired batches count as available (taken after the usable ones)
 function renderStockRowsToHtml(rows, stockResults) {
     // stockResults index-aligned with rows
     function formatQty(value) {
@@ -245,6 +247,7 @@ function renderStockRowsToHtml(rows, stockResults) {
 
     const canKoreksiEd = !!(window.billingPage && window.billingPage.canKoreksiEd);
     let hasExpired = false;
+    let pakaiEd = false;
 
     let html = '<div class="table-responsive">' +
         '<table class="table table-sm table-bordered mb-0">' +
@@ -258,8 +261,11 @@ function renderStockRowsToHtml(rows, stockResults) {
 
         const stokNum = isNaN(Number(stok)) ? 0 : Number(stok);
         const neededNum = isNaN(Number(row.needed)) ? 0 : Number(row.needed);
-        const isLow = (neededNum > 0) && (stokNum < neededNum);
-        const trClass = isLow ? ' class="table-danger"' : '';
+        const availNum = stokNum + expiredQty;
+        const isLow = (neededNum > 0) && (availNum < neededNum);
+        const usesEd = !isLow && (neededNum > 0) && (stokNum < neededNum);
+        if (usesEd) pakaiEd = true;
+        const trClass = isLow ? ' class="table-danger"' : (usesEd ? ' class="table-warning"' : '');
 
         html += '<tr' + trClass + '>' +
             '<td>' + escapeHtml(row.name) + '</td>' +
@@ -291,11 +297,15 @@ function renderStockRowsToHtml(rows, stockResults) {
 
     html += '</tbody></table></div>';
 
+    if (pakaiEd) {
+        html += '<div class="alert alert-warning small py-2 mt-2 mb-0"><i class="fas fa-calendar-times mr-1"></i>' +
+            'Stok layak pakai kurang untuk baris kuning: saat pembayaran, sisanya diambil dari <strong>batch yang sudah ED</strong> (setelah batch layak pakai habis).</div>';
+    }
     if (hasExpired) {
         html += '<div class="small text-muted mt-2">' +
-            'Batch yang sudah lewat ED tidak dihitung sebagai stok tersedia. ' +
+            'Batch yang sudah lewat ED ikut dihitung, tapi baru dipakai setelah batch layak pakai habis. ' +
             (canKoreksiEd
-                ? 'Jika ED tercatat salah, cocokkan dengan kemasan/faktur lalu klik <strong>Koreksi ED</strong>. Jika barang memang expired, jangan dijual; pindahkan ke gudang expired.'
+                ? 'Jika ED tercatat salah, cocokkan dengan kemasan/faktur lalu klik <strong>Koreksi ED</strong>.'
                 : 'Jika ED tercatat salah, minta Farmasi/Admin mengoreksi ED batch tersebut.') +
             '</div>';
     }

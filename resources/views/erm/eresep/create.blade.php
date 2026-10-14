@@ -55,14 +55,14 @@
         {{-- Tools: riwayat + paket --}}
         <div class="eresep-toolbar">
             <span class="eresep-toolbar-label">Riwayat</span>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'dokter']) }}" data-title="Riwayat Resep Dokter">
+            <button type="button" class="btn btn-erm-tool tone-green btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'dokter']) }}" data-title="Riwayat Resep Dokter">
                 <i class="fas fa-user-md mr-1"></i>Resep Dokter
             </button>
-            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'dokter']) }}" data-title="Riwayat Resep Farmasi">
+            <button type="button" class="btn btn-erm-tool tone-purple btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id, 'target' => 'dokter']) }}" data-title="Riwayat Resep Farmasi">
                 <i class="fas fa-clinic-medical mr-1"></i>Resep Farmasi
             </button>
             <span class="eresep-toolbar-sep"></span>
-            <button type="button" id="paket-racikan" class="btn btn-sm btn-erm-ghost">
+            <button type="button" id="paket-racikan" class="btn btn-erm-tool tone-orange">
                 <i class="fas fa-box-open mr-1"></i>Paket Racikan
             </button>
         </div>

@@ -1359,7 +1359,9 @@ class BillingController extends Controller
             ->get();
         try {
             $billings->loadMorph('billable', [
-                \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
+                // All columns: a missing column in a select list (harga_diskon is not on every erm_obat) fails the
+                // eager load, and Laravel has already set every row's obat to null by then
+                \App\Models\ERM\ResepFarmasi::class => ['obat'],
                 \App\Models\ERM\LabPermintaan::class => ['labTest:id,nama'],
                 \App\Models\ERM\LabPaket::class => ['labTests:id,nama'],
                 \App\Models\ERM\RadiologiPermintaan::class => ['radiologiTest:id,nama'],
@@ -2053,7 +2055,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
 
                 $billingsCount = method_exists($billings, 'count') ? intval($billings->count()) : 0;
-                $cacheKey = 'billing:create:oos:' . intval($visitation_id) . ':' . $billingsCount . ':' . $maxUpdatedAt;
+                $cacheKey = 'billing:create:oos2:' . intval($visitation_id) . ':' . $billingsCount . ':' . $maxUpdatedAt;
 
                 $outOfStockByBillingId = Cache::remember($cacheKey, now()->addSeconds(10), function() use ($processedBillings, $visitation_id) {
                     $out = [];
@@ -2263,11 +2265,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $allObatIds = array_values(array_unique(array_filter($allObatIds)));
                         $allGudangIds = array_values(array_unique(array_filter($allGudangIds)));
 
+                        // Usable stok and all stok (expired batches included) per obat + gudang
                         $stockTotals = [];
+                        $stockTotalsAll = [];
                         if (!empty($allObatIds) && !empty($allGudangIds)) {
                             $rows = ObatStokGudang::query()
-                                ->select(['obat_id', 'gudang_id', DB::raw('SUM(stok) as total')])
-                                ->layakPakai()
+                                ->select(['obat_id', 'gudang_id', DB::raw('SUM(stok) as total_all'), DB::raw('SUM(stok * (1 - ' . ObatStokGudang::sqlSudahEd() . ')) as total')])
+                                ->where('stok', '>', 0)
                                 ->whereIn('obat_id', $allObatIds)
                                 ->whereIn('gudang_id', $allGudangIds)
                                 ->groupBy('obat_id', 'gudang_id')
@@ -2275,23 +2279,32 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             foreach ($rows as $r) {
                                 $key = intval($r->obat_id) . '|' . intval($r->gudang_id);
                                 $stockTotals[$key] = floatval($r->total ?? 0);
+                                $stockTotalsAll[$key] = floatval($r->total_all ?? 0);
                             }
                         }
 
+                        // 'kurang' = not enough even with expired batches; 'ed' = enough only by
+                        // also taking expired batches (payment takes them last; shown as a warning)
+                        $gudangEdId = app(\App\Services\ERM\GudangExpiredService::class)->gudangId();
                         foreach ($requirementsByBillingId as $billingId => $reqs) {
-                            $isLow = false;
+                            $state = null;
                             foreach ($reqs as $req) {
                                 $needed = floatval($req['needed'] ?? 0);
                                 if ($needed <= 0) continue;
                                 $key = intval($req['obat_id']) . '|' . intval($req['gudang_id']);
-                                $avail = floatval($stockTotals[$key] ?? 0);
+                                $usable = floatval($stockTotals[$key] ?? 0);
+                                $bolehEd = intval($req['gudang_id']) !== intval($gudangEdId);
+                                $avail = $bolehEd ? floatval($stockTotalsAll[$key] ?? 0) : $usable;
                                 if ($avail < $needed) {
-                                    $isLow = true;
+                                    $state = 'kurang';
                                     break;
                                 }
+                                if ($usable < $needed) {
+                                    $state = 'ed';
+                                }
                             }
-                            if ($isLow) {
-                                $out[intval($billingId)] = true;
+                            if ($state) {
+                                $out[intval($billingId)] = $state;
                             }
                         }
                     } catch (\Exception $e) {
@@ -2324,10 +2337,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $dt->addColumn('is_out_of_stock', function ($row) use ($outOfStockByBillingId) {
                     try {
                         $id = isset($row->id) ? intval($row->id) : null;
-                        return ($id && !empty($outOfStockByBillingId[$id])) ? 1 : 0;
+                        return ($id && ($outOfStockByBillingId[$id] ?? null) === 'kurang') ? 1 : 0;
                     } catch (\Exception $e) {
                         return 0;
                     }
+                });
+                // Enough only by also taking expired batches (warning)
+                $dt->addColumn('pakai_stok_ed', function ($row) use ($outOfStockByBillingId) {
+                    $id = isset($row->id) ? intval($row->id) : null;
+                    return ($id && ($outOfStockByBillingId[$id] ?? null) === 'ed') ? 1 : 0;
                 });
             }
 
@@ -3284,13 +3302,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $selectedGudangId = $this->getGudangForItem($request, $resep->obat->id, 'resep', $item->id);
                         }
 
+                        // Resep may take expired batches too (after the usable ones), so they count here
                         if ($selectedGudangId) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
                                 ->where('gudang_id', $selectedGudangId)
-                                ->layakPakai()->sum('stok');
+                                ->where('stok', '>', 0)->sum('stok');
                         } else {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
-                                ->layakPakai()->sum('stok');
+                                ->where('stok', '>', 0)->sum('stok');
                         }
 
                         if ($qty > $currentStock) {
@@ -3318,13 +3337,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $selectedGudangId = $this->getGudangForItem($request, $obat->id, 'tindakan', $item->id);
                         }
 
+                        // Tindakan obat may take expired batches too (after the usable ones), so they count here
                         if ($selectedGudangId) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                 ->where('gudang_id', $selectedGudangId)
-                                ->layakPakai()->sum('stok');
+                                ->where('stok', '>', 0)->sum('stok');
                         } else {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                ->layakPakai()->sum('stok');
+                                ->where('stok', '>', 0)->sum('stok');
                         }
 
                         if ($qty > $currentStock) {
@@ -3347,13 +3367,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if ($obat) {
                                 $qty = floatval($kodeTindakanMed->qty ?? 1);
                                 $resolvedGudangId = $this->getGudangForItem($request, $obat->id, 'kode_tindakan', $item->id);
+                                // Kode tindakan obat may take expired batches too (after the usable ones)
                                 if ($resolvedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->where('gudang_id', $resolvedGudangId)
-                                        ->layakPakai()->sum('stok');
+                                        ->where('stok', '>', 0)->sum('stok');
                                 } else {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->layakPakai()->sum('stok');
+                                        ->where('stok', '>', 0)->sum('stok');
                                 }
 
                                 if ($qty > $currentStock) {
@@ -3394,7 +3415,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                     $labGudangId = $selectedGudangId ?: $this->getGudangForItem($request, $obatId, 'lab', $item->id);
 
-                    $stockQuery = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)->layakPakai();
+                    // Expired batches count too (taken after the usable ones)
+                    $stockQuery = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)->where('stok', '>', 0);
                     if ($labGudangId) {
                         $stockQuery->where('gudang_id', $labGudangId);
                     }
@@ -6020,6 +6042,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     /**
      * Reduce stock using StokService with FIFO logic
      */
+    /**
+     * Takes the stok out batch by batch: usable batches first (nearest ED first), expired batches last. The resep
+     * submit and the billing list warn when expired batches will be used. Never from the gudang ED.
+     */
     private function reduceGudangStock($obatId, $qty, $gudangId = null, $invoiceId = null, $invoiceNumber = null)
     {
         // Callers resolve the gudang via getGudangForItem(); never fall back to an arbitrary gudang here
@@ -6028,15 +6054,19 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             return false;
         }
 
+        // Quarantined stok in the gudang ED is never sold
+        $bolehEd = !app(\App\Services\ERM\GudangExpiredService::class)->isGudangExpired($gudangId);
+
         // Gunakan StokService untuk pengurangan stok dengan FIFO logic
         $stokService = new StokService();
 
         try {
-            // FEFO: ED terdekat dulu. Batch yang sudah lewat ED tidak pernah dijual (ada di gudang expired / karantina).
+            // FEFO: ED terdekat dulu. Batch yang sudah lewat ED baru dipakai setelah batch layak pakai habis.
             $stokList = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId)
                 ->where('stok', '>', 0)
-                ->layakPakai()
+                ->when(!$bolehEd, fn ($q) => $q->layakPakai())
+                ->when($bolehEd, fn ($q) => $q->orderByRaw(\App\Models\ERM\ObatStokGudang::sqlSudahEd()))
                 ->urutFefo()
                 ->get();
 
