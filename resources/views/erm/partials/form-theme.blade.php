@@ -118,8 +118,9 @@
     .erm-actionbar .btn-erm-primary { background: var(--ef-accent); border-color: var(--ef-accent); color: #fff; }
     .erm-actionbar .btn-erm-primary:hover, .erm-actionbar .btn-erm-primary:focus { filter: brightness(1.08); color: #fff; }
     .erm-actionbar .btn-erm-primary:disabled { opacity: .65; }
-    /* The internal chat launcher sits above the save bar instead of covering the save button */
-    body:has(.erm-actionbar) .belova-chat-widget { --belova-chat-bottom: 84px !important; }
+    /* Chat internal launcher normally sits in the sidebar; when the sidebar is hidden (mobile) it floats
+       bottom-left of the screen, so lift it above the save bar there */
+    body:not(.belova-chat-in-sidebar):has(.erm-actionbar) .belova-chat-widget { --belova-chat-bottom: 84px !important; }
     @media (max-width: 575.98px) {
         .erm-section { padding: 14px 14px 4px; }
         .erm-actionbar { padding: 10px 12px; }

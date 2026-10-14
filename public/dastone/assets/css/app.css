@@ -4838,7 +4838,7 @@ li.L9 {
     font-style: normal;
     font-weight: 300;
     font-display: swap;
-    src: url("../fonts/inter-light46a7.html?v=3.13") format("woff2"), url("../fonts/inter-light46a7.woff?v=3.13") format("woff");
+    src: url("../fonts/inter-light46a7.woff?v=3.13") format("woff");
 }
 
 @font-face {
@@ -4846,7 +4846,7 @@ li.L9 {
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url("../fonts/inter-regular46a7.html?v=3.13") format("woff2"), url("../fonts/inter-regular46a7.woff?v=3.13") format("woff");
+    src: url("../fonts/inter-regular46a7.woff?v=3.13") format("woff");
 }
 
 @font-face {
@@ -4854,7 +4854,7 @@ li.L9 {
     font-style: normal;
     font-weight: 500;
     font-display: swap;
-    src: url("../fonts/inter-medium46a7.html?v=3.13") format("woff2"), url("../fonts/inter-medium46a7.woff?v=3.13") format("woff");
+    src: url("../fonts/inter-medium46a7.woff?v=3.13") format("woff");
 }
 
 @font-face {
@@ -4862,7 +4862,7 @@ li.L9 {
     font-style: normal;
     font-weight: 700;
     font-display: swap;
-    src: url("../fonts/inter-bold46a7.html?v=3.13") format("woff2"), url("../fonts/iter-bold46a7.html?v=3.13") format("woff");
+    src: local("Inter Bold"),local("Inter-Bold");
 }
 
 .avatar-md {

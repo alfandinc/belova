@@ -5,23 +5,7 @@
 @endsection
 @section('content')
 
-<style>
-    /* Small badge used for section titles (match Dokter e-resep) */
-    .eresep-badge {
-        display: inline-block;
-        padding: .25rem .5rem;
-        font-size: 0.9rem;
-        font-weight: 700;
-        color: #212529;
-        background-color: #ffc107; /* yellow */
-        border-radius: .375rem;
-        vertical-align: middle;
-    }
-    .eresep-badge i {
-        margin-right: .4rem;
-        vertical-align: middle;
-    }
-</style>
+@include('erm.partials.eresep-theme')
 
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-resephistory')
@@ -147,191 +131,215 @@
 
     @include('erm.partials.card-identitaspasien')
 
-    <div class="card">
-        <div class="card-body">
-            <div class="container">                    <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div style="display: flex; align-items: center;">
-                        <h4 style="margin: 0;">Total Harga: <strong>Rp.</strong></h4>
-                        <h4 id="total-harga" style="margin: 0; "><strong>0</strong></h4>
-                        
-                    </div>
-                   
-                    <div class="mb-3">
-                        <div class="btn-group mr-2" role="group" aria-label="Cetak">
-                            <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
-                            <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
-                            <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
-                            <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
-                        </div>
-                        <button id="paket-racikan" class="btn btn-sm btn-warning mr-2">Paket Racikan</button>
-                        <div class="btn-group mr-2" role="group" aria-label="Riwayat">
-                            <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
-                                Riwayat Dokter
-                            </button>
-                            <button class="btn btn-sm btn-warning btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
-                                Riwayat Farmasi
-                            </button>
-                        </div>
-                        <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
-                        {{-- <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button> --}}
-                    </div>
-                </div>
+    @include('erm.partials.form-theme')
 
-                @if(!empty($isInvoiceLocked) && $isInvoiceLocked)
-                    <div class="alert alert-warning" role="alert">
-                        Resep dikunci karena Invoice sudah ditransaksikan. Tidak bisa tambah/edit/hapus/submit.
-                    </div>
-                @endif
+    @php
+        $gudangResepId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokClass = fn ($stok) => $stok < 10 ? 'stok-low' : ($stok < 100 ? 'stok-mid' : 'stok-ok');
+    @endphp
 
-                <div class="mb-3">
-                    <h5>Catatan Dokter :</h5>
-                    <textarea readonly class="form-control" rows="3" style="font-size: 1.5rem; font-weight: bold; color: red;">{{ $catatan_resep ?? '' }}</textarea>
+    <div id="eresep-area" class="erm-form eresep-page" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
+        @if(!empty($isInvoiceLocked) && $isInvoiceLocked)
+            <div class="eresep-lock" role="alert">
+                <i class="fas fa-lock"></i>
+                <div><strong>Resep dikunci.</strong> Invoice sudah ditransaksikan. Hanya aturan pakai yang masih bisa diubah (untuk cetak etiket).</div>
+            </div>
+        @endif
+
+        {{-- Tools: cetak, riwayat, paket --}}
+        <div class="eresep-toolbar">
+            <span class="eresep-toolbar-label">Cetak</span>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetakresep"><i class="fas fa-print mr-1"></i>Resep</button>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetakedukasi"><i class="fas fa-book-medical mr-1"></i>Edukasi</button>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetaketiket"><i class="fas fa-tag mr-1"></i>Etiket</button>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-tag mr-1 text-primary"></i>Etiket Biru</button>
+            <span class="eresep-toolbar-sep"></span>
+            <span class="eresep-toolbar-label">Riwayat</span>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historydokter', ['pasienId' => $pasien->id, 'current' => $visitation->id]) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
+                <i class="fas fa-user-md mr-1"></i>Dokter
+            </button>
+            <button type="button" class="btn btn-sm btn-erm-ghost btn-riwayat" data-url="{{ route('resep.historyfarmasi', ['pasienId' => $pasien->id, 'current' => $visitation->id]) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
+                <i class="fas fa-clinic-medical mr-1"></i>Farmasi
+            </button>
+            <span class="eresep-toolbar-sep"></span>
+            <button type="button" id="paket-racikan" class="btn btn-sm btn-erm-ghost"><i class="fas fa-box-open mr-1"></i>Paket Racikan</button>
+        </div>
+
+        {{-- 1. Catatan dokter --}}
+        <section class="erm-section">
+            <div class="erm-section-head">
+                <span class="erm-section-num">1</span>
+                <h4 class="erm-section-title">Catatan Dokter<span class="erm-section-sub">Ditulis dokter di E-Resep, baca sebelum menyiapkan obat</span></h4>
+            </div>
+            @if(filled($catatan_resep ?? null))
+                <div class="eresep-note">{{ $catatan_resep }}</div>
+            @else
+                <div class="eresep-note is-empty">Tidak ada catatan dari dokter.</div>
+            @endif
+            @if (!$nonRacikans->count() && !$racikans->count())
+                <div class="eresep-empty-racikan" id="empty-resep-message">
+                    <i class="fas fa-info-circle mr-1"></i>Belum ada resep farmasi. Tambahkan obat di bawah, atau salin dari <strong>Riwayat Dokter</strong>.
                 </div>
-                 @if (!$nonRacikans->count() && !$racikans->count())
-                    <div class="alert alert-info" id="empty-resep-message">
-                        Belum ada data dari dokter. Anda bisa menambahkan resep baru atau salin dari dokter.
-                    </div>
-                @endif
-<div id="resep-wrapper">
-                <!-- NON RACIKAN -->
-                <h5><span class="eresep-badge"><i class="fas fa-pills"></i>Resep Non Racikan</span></h5>
-                <div class="racikan-card mb-4 p-3 border rounded">
-                    <div class="row add-obat-row mb-3">
-                        <div class="col-md-4">
-                            <label>Nama Obat</label>
+            @endif
+        </section>
+
+        <div id="resep-wrapper">
+            {{-- 2. Non racikan --}}
+            <section class="erm-section">
+                <div class="erm-section-head">
+                    <span class="erm-section-num">2</span>
+                    <h4 class="erm-section-title">Resep Non Racikan<span class="erm-section-sub">Obat jadi; stok dari gudang resep</span></h4>
+                </div>
+                <div class="row add-obat-row eresep-add-row">
+                    <div class="col-lg-4 col-md-12">
+                        <div class="form-group">
+                            <label for="obat_id">Nama Obat</label>
                             <select class="form-control select2-obat" name="obat_id" id="obat_id">
-                                <option value="">Search and select an obat...</option>
+                                <option value="">Cari nama obat / zat aktif...</option>
                             </select>
                         </div>
-                        <div class="col-md-1">
-                            <label>Jumlah</label>
-                            <input type="number" id="jumlah" class="form-control" placeholder="0">
-                        </div>
-                        <div class="col-md-4">
-                            <label>Aturan Pakai</label>
-                            {{-- Free text with "sering dipakai" recommendations (erm.partials.aturan-pakai-builder) --}}
-                            <input type="text" id="aturan_pakai" name="aturan_pakai" class="form-control" placeholder="Ketik aturan pakai, mis. 2 X SEHARI 1 TABLET">
-                        </div>
-                        <div class="col-md-1">
-                            <label for="diskon">Disc (%)</label>
-                            <input type="number" class="form-control" id="diskon"  placeholder="0" min="0" max="100">
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button id="tambah-resep" class="btn btn-primary btn-block">Tambah</button>
+                    </div>
+                    <div class="col-lg-1 col-md-2 col-6">
+                        <div class="form-group">
+                            <label for="jumlah">Jumlah</label>
+                            <input type="number" id="jumlah" class="form-control" placeholder="0" min="1" step="1">
                         </div>
                     </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="form-group">
+                            <label for="aturan_pakai">Aturan Pakai</label>
+                            {{-- Free text with "sering dipakai" recommendations (erm.partials.aturan-pakai-builder) --}}
+                            <input type="text" id="aturan_pakai" name="aturan_pakai" class="form-control" placeholder="mis. 2 X SEHARI 1 TABLET">
+                        </div>
+                    </div>
+                    <div class="col-lg-1 col-md-2 col-6">
+                        <div class="form-group">
+                            <label for="diskon">Disc (%)</label>
+                            <input type="number" class="form-control" id="diskon" placeholder="0" min="0" max="100">
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-2">
+                        <div class="form-group">
+                            <label class="d-none d-md-block">&nbsp;</label>
+                            <button type="button" id="tambah-resep" class="btn btn-erm-accent btn-block"><i class="fas fa-plus mr-1"></i>Tambah</button>
+                        </div>
+                    </div>
+                </div>
 
-                    <table class="table table-bordered">
+                <div class="table-responsive">
+                    <table class="table table-bordered eresep-table">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
-                                <th>Jumlah</th>
-                                <th>Harga</th>
-                                <th>Disc</th>
-                                
-                                <th>Stok</th>
+                                <th class="text-center">Jumlah</th>
+                                <th class="text-right">Harga</th>
+                                <th class="text-center">Disc</th>
+                                <th class="text-center">Stok</th>
                                 <th>Aturan Pakai</th>
-                                <th>Aksi</th>
+                                <th class="eresep-col-aksi">Aksi</th>
                             </tr>
                         </thead>
                         <tbody id="resep-table-body">
                             @forelse ($nonRacikans as $resep)
-                                <tr data-id="{{ $resep->id }}">
-                                    <td>{{ $resep->obat->nama ?? '-' }}</td>
-                                    <td>{{ $resep->jumlah }}</td>
-                                    <td>Rp. {{ $resep->harga ?? $resep->obat->harga_nonfornas ?? 0 }}</td>
-                                    <td>{{ $resep->diskon ?? '0'}} %</td>
-                                    
-                                    @php
-                                        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                                        $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
-                                    @endphp
-                                        <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
-                                        {{ (int) $stokGudang }}
-                                    </td>
+                                @php
+                                    $stokGudang = ($gudangResepId && $resep->obat) ? (int) $resep->obat->getStokByGudang($gudangResepId) : 0;
+                                @endphp
+                                <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}">
+                                    <td class="font-weight-bold">{{ $resep->obat->nama ?? '-' }}</td>
+                                    <td class="text-center">{{ $resep->jumlah }}</td>
+                                    <td class="text-right">Rp. {{ $resep->harga ?? $resep->obat->harga_nonfornas ?? 0 }}</td>
+                                    <td class="text-center">{{ $resep->diskon ?? '0'}} %</td>
+                                    <td class="text-center {{ $stokClass($stokGudang) }}">{{ $stokGudang }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
-                                    <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button>
-                                        <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
-                                    
+                                    <td class="eresep-col-aksi">
+                                        <button type="button" class="btn btn-sm btn-erm-soft edit" data-id="{{ $resep->id }}">Edit</button>
+                                        <button type="button" class="btn btn-sm btn-erm-danger hapus" data-id="{{ $resep->id }}">Hapus</button>
+                                    </td>
                                 </tr>
                             @empty
                                 <tr class="no-data">
-                                    <td colspan="6" class="text-center text-muted">Belum ada data</td>
+                                    <td colspan="7" class="text-center text-muted">Belum ada data</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
+            </section>
 
-                <!-- RACIKAN -->
-                <h5><span class="eresep-badge"><i class="fas fa-capsules"></i>Resep Racikan</span></h5>
-                
+            {{-- 3. Racikan --}}
+            <section class="erm-section">
+                <div class="erm-section-head">
+                    <span class="erm-section-num">3</span>
+                    <h4 class="erm-section-title">Resep Racikan<span class="erm-section-sub">Stok dikurangi = dosis racik x bungkus / dosis obat</span></h4>
+                    <button type="button" id="tambah-racikan" class="btn btn-sm btn-erm-accent ml-auto"><i class="fas fa-plus mr-1"></i>Tambah Racikan</button>
+                </div>
+
                 <div id="racikan-container">
                     @foreach ($racikans as $ke => $items)
-                    <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5><strong>Racikan {{ $ke }}</strong></h5>
+                    <div class="racikan-card" data-racikan-ke="{{ $ke }}">
+                        <div class="racikan-card-head">
+                            @php $racikanNama = $racikanNames[$ke] ?? null; @endphp
+                            <h5><strong class="racikan-title">{{ $racikanNama ?: 'Racikan ' . $ke }}</strong>@if($racikanNama)<span class="racikan-no">Racikan {{ $ke }}</span>@endif <span class="racikan-harga-detail"></span></h5>
                             <div>
-                                <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
-                                <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                                <button type="button" class="btn btn-sm btn-erm-soft edit-racikan">Edit Racikan</button>
+                                <button type="button" class="btn btn-sm btn-erm-danger hapus-racikan">Hapus Racikan</button>
                             </div>
                         </div>
-                        <table class="table table-bordered">
+                        <div class="table-responsive">
+                        <table class="table table-bordered eresep-table">
                             <thead>
                                 <tr>
-                                            <th>Nama Obat</th>
-                                            <th>Dosis</th>
-                                            <th>Stok</th>
-                                            <th>Stok Dikurangi</th>
-                                            <th>Aksi</th>
-                                        </tr>
+                                    <th>Nama Obat</th>
+                                    <th>Dosis</th>
+                                    <th class="text-center">Stok</th>
+                                    <th class="text-center">Stok Dikurangi</th>
+                                    <th class="eresep-col-aksi">Aksi</th>
+                                </tr>
                             </thead>
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
-                                    <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}" data-dosis="{{ $resep->dosis }}" data-jumlah="{{ $resep->jumlah }}">
-                                        <td>{{ $resep->obat->nama ?? '-' }}</td>
+                                    @php
+                                        $stokGudang = ($gudangResepId && $resep->obat) ? (int) $resep->obat->getStokByGudang($gudangResepId) : 0;
+                                        // compute stok dikurangi = (dosis_input * bungkus) / dosis_obat
+                                        $prescribedDosis = 0;
+                                        $baseDosis = 0;
+                                        if (preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis ?? '', $m)) {
+                                            $prescribedDosis = (float) str_replace(',', '.', $m[1]);
+                                        }
+                                        if (!empty($resep->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $resep->obat->dosis, $m2)) {
+                                            $baseDosis = (float) str_replace(',', '.', $m2[1]);
+                                        }
+                                        $bungkusGroup = $items->first()->bungkus ?? 1;
+                                        $stokDikurangi = ($baseDosis > 0) ? ($prescribedDosis * (float)$bungkusGroup) / $baseDosis : 0;
+                                        $wadahNama = strtolower(trim(optional($items->first()->wadah)->nama ?? ''));
+                                        $isFractionalWadah = in_array($wadahNama, ['botol', 'cream / lotion'], true);
+                                        if (!is_numeric($stokDikurangi)) {
+                                            $stokDikurangiDisplay = '0';
+                                        } elseif ($isFractionalWadah) {
+                                            $stokDikurangiDisplay = rtrim(rtrim(number_format($stokDikurangi, 3, '.', ''), '0'), '.');
+                                        } else {
+                                            $stokDikurangiDisplay = (string) ceil($stokDikurangi);
+                                        }
+                                    @endphp
+                                    <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}" data-dosis="{{ $resep->dosis }}" data-base-dosis="{{ $baseDosis }}" data-jumlah="{{ $resep->jumlah }}">
+                                        <td data-id="{{ $resep->obat_id }}" class="font-weight-bold">{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->dosis }}</td>
-                                        @php
-                                            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                                            $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
-                                            // compute stok dikurangi = (dosis_input * bungkus) / dosis_obat
-                                            $prescribedDosis = 0;
-                                            $baseDosis = 0;
-                                            if (preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis ?? '', $m)) {
-                                                $prescribedDosis = (float) str_replace(',', '.', $m[1]);
-                                            }
-                                            if (!empty($resep->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $resep->obat->dosis, $m2)) {
-                                                $baseDosis = (float) str_replace(',', '.', $m2[1]);
-                                            }
-                                            $bungkusGroup = $items->first()->bungkus ?? 1;
-                                            $stokDikurangi = ($baseDosis > 0) ? ($prescribedDosis * (float)$bungkusGroup) / $baseDosis : 0;
-                                            $wadahNama = strtolower(trim(optional($items->first()->wadah)->nama ?? ''));
-                                            $isFractionalWadah = in_array($wadahNama, ['botol', 'cream / lotion'], true);
-                                            if (!is_numeric($stokDikurangi)) {
-                                                $stokDikurangiDisplay = '0';
-                                            } elseif ($isFractionalWadah) {
-                                                $stokDikurangiDisplay = rtrim(rtrim(number_format($stokDikurangi, 3, '.', ''), '0'), '.');
-                                            } else {
-                                                $stokDikurangiDisplay = (string) ceil($stokDikurangi);
-                                            }
-                                        @endphp
-                                        <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
-                                            {{ (int) $stokGudang }}
-                                        </td>
-                                        <td class="stok-dikurangi" style="color: {{ ($stokDikurangi > $stokGudang ? 'red' : 'inherit') }};">{{ $stokDikurangiDisplay }}</td>
-                                        <td>
-                                            <button class="btn btn-warning btn-sm edit-obat" disabled>Edit</button>
-                                            <button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button>
+                                        <td class="text-center {{ $stokClass($stokGudang) }}">{{ $stokGudang }}</td>
+                                        <td class="text-center stok-dikurangi {{ $stokDikurangi > $stokGudang ? 'stok-low' : '' }}">{{ $stokDikurangiDisplay }}</td>
+                                        <td class="eresep-col-aksi">
+                                            <button type="button" class="btn btn-sm btn-erm-soft edit-obat" disabled>Edit</button>
+                                            <button type="button" class="btn btn-sm btn-erm-danger hapus-obat" disabled>Hapus</button>
                                         </td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
+                        </div>
 
                         <div class="row">
                             <div class="col-md-3">
                                 <label>Wadah</label>
-                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
+                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id" disabled>
                                 <option value="{{ $items->first()?->wadah?->id ?? '' }}">
                                     {{ $items->first()?->wadah?->nama ?? 'Pilih Wadah' }}
                                 </option>
@@ -339,22 +347,28 @@
                             </div>
                             <div class="col-md-3">
                                 <label>Bungkus</label>
-                                <input type="number" class="form-control jumlah_bungkus" value="{{ $items->first()->bungkus }}">
+                                <input type="number" class="form-control jumlah_bungkus" min="1" value="{{ $items->first()->bungkus }}" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label>Aturan Pakai</label>
-                                <input type="text" class="form-control aturan_pakai" value="{{ $items->first()->aturan_pakai }}">
+                                <input type="text" class="form-control aturan_pakai" value="{{ $items->first()->aturan_pakai }}" disabled>
                             </div>
                         </div>
-                        <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
-                        <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>
+                        <button type="button" class="btn btn-block racikan-save-btn tambah-resepracikan" disabled>Sudah Disimpan</button>
+                        <button type="button" class="btn btn-block racikan-save-btn is-primary update-resepracikan d-none">Update Racikan</button>
                     </div>
                     @endforeach
                 </div>
-                <button id="tambah-racikan" class="btn btn-primary mb-3">Tambah Racikan</button>
-</div>  
+                <div class="eresep-empty-racikan {{ count($racikans) ? 'd-none' : '' }}">Belum ada racikan. Klik <strong>Tambah Racikan</strong> atau gunakan <strong>Paket Racikan</strong>.</div>
+            </section>
+        </div>
 
+        <div class="erm-actionbar">
+            <div class="eresep-total">
+                <span class="eresep-total-label">Total Harga</span>
+                <span class="eresep-total-value">Rp <span id="total-harga"><strong>0</strong></span></span>
             </div>
+            <button type="button" id="submit-all" class="btn btn-success"><i class="fas fa-paper-plane mr-1"></i>Submit Resep</button>
         </div>
     </div>
 </div>
@@ -363,19 +377,209 @@
 
 @section('scripts')
 @include('erm.partials.aturan-pakai-builder')
+@include('erm.partials.obat-alternatif')
 
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
+    // Racikan card title: the paket name when the racikan is a paket (number as a small tag), else "Racikan N"
+    function racikanTitleHtml(ke, nama) {
+        const esc = v => $('<div>').text(v == null ? '' : String(v)).html();
+        return nama
+            ? `<strong class="racikan-title">${esc(nama)}</strong><span class="racikan-no">Racikan ${ke}</span>`
+            : `<strong class="racikan-title">Racikan ${ke}</strong>`;
+    }
+
+    // nama: undefined keeps the current name (e.g. only the number changed), null / '' = custom racikan
+    function setRacikanTitle(card, nama) {
+        if (nama === undefined) {
+            nama = card.find('.racikan-no').length ? card.find('.racikan-title').text() : null;
+        }
+        const h5 = card.find('.racikan-card-head h5').first();
+        h5.find('.racikan-title, .racikan-no').remove();
+        h5.prepend(racikanTitleHtml(card.attr('data-racikan-ke'), nama));
+    }
+
     // The server renumbers a racikan whose number was taken meanwhile; make the card follow it
     function adoptRacikanKe(card, racikanKe) {
         racikanKe = parseInt(racikanKe, 10);
         if (!racikanKe || racikanKe === parseInt(card.data('racikan-ke'), 10)) return;
         card.attr('data-racikan-ke', racikanKe).data('racikan-ke', racikanKe);
-        const title = card.find('h5 strong').first().contents().filter(function () { return this.nodeType === 3; }).first();
-        if (title.length) title[0].nodeValue = 'Racikan ' + racikanKe;
+        setRacikanTitle(card);
         racikanCount = Math.max(racikanCount, racikanKe);
     }
     let pendingResepMutationCount = 0;
+
+    function stokClass(stok) {
+        stok = parseInt(stok, 10) || 0;
+        return stok < 10 ? 'stok-low' : (stok < 100 ? 'stok-mid' : 'stok-ok');
+    }
+
+    function escapeHtml(value) {
+        return $('<div>').text(value == null ? '' : String(value)).html();
+    }
+
+    function escapeAttr(value) {
+        return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function ajaxErrorMessage(xhr, fallback) {
+        const json = xhr && xhr.responseJSON;
+        if (json && json.errors) return Object.values(json.errors).flat().join('\n');
+        return (json && json.message) || fallback;
+    }
+
+    function toggleEmptyRacikan() {
+        $('.eresep-empty-racikan').not('#empty-resep-message').toggleClass('d-none', $('#racikan-container .racikan-card').length > 0);
+    }
+
+    // Obat search: visitation_id makes obat.search drop obat the patient is allergic to
+    function initFarmasiObatSelect($select, extra) {
+        $select.select2(Object.assign({
+            width: '100%',
+            placeholder: 'Cari nama obat / zat aktif...',
+            minimumInputLength: 3,
+            ajax: {
+                url: '{{ route("obat.search") }}',
+                dataType: 'json',
+                delay: 150,
+                data: function (params) {
+                    return { q: params.term, visitation_id: $('#visitation_id').val() };
+                },
+                processResults: function (data) {
+                    const items = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
+                    return { results: items.map(mapFarmasiObatItem) };
+                },
+                cache: true
+            },
+            escapeMarkup: function (markup) { return markup; },
+            templateResult: renderFarmasiObatOption,
+            templateSelection: function (item) { return escapeHtml(item.text || ''); }
+        }, extra || {}));
+    }
+
+    // obat.search / obat.alternatif row -> Select2 item used by the farmasi handlers
+    function mapFarmasiObatItem(item) {
+        return {
+            id: item.id,
+            text: item.text || (item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : '')),
+            nama: item.nama,
+            dosis: item.dosis,
+            satuan: item.satuan,
+            harga: item.harga_nonfornas,
+            harga_nonfornas: item.harga_nonfornas,
+            stok: item.stok,
+            stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok
+        };
+    }
+
+    // Option row: name + harga + stok
+    function renderFarmasiObatOption(item) {
+        if (!item.id) return escapeHtml(item.text || '');
+        const harga = Number(item.harga_nonfornas);
+        const hargaText = Number.isFinite(harga) && harga > 0 ? 'Rp ' + new Intl.NumberFormat('id-ID').format(harga) : 'Harga jual belum diatur';
+        const stok = parseInt(item.stok_gudang !== undefined ? item.stok_gudang : item.stok, 10) || 0;
+        return `${escapeHtml(item.text)} - ${hargaText} · Stok ${stok}`;
+    }
+
+    function initWadahSelect($select) {
+        $select.select2({
+            placeholder: 'Pilih wadah...',
+            ajax: {
+                url: '{{ route("wadah.search") }}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) { return { q: params.term, visitation_id: $('#visitation_id').val() }; },
+                processResults: function (data) { return { results: (data || []).map(item => ({ id: item.id, text: item.text })) }; },
+                cache: true
+            }
+        });
+    }
+
+    // One obat row of a racikan table (stok dikurangi is filled in by updateTotalPrice)
+    function racikanRowHtml(o) {
+        const stok = parseInt(o.stok, 10) || 0;
+        return `
+            <tr ${o.id ? `data-id="${o.id}"` : ''} data-obat-id="${o.obatId}" data-dosis="${escapeAttr(o.dosis)}" data-base-dosis="${escapeAttr(o.baseDosis || '')}" data-jumlah="${o.jumlah || 1}">
+                <td data-id="${o.obatId}" class="font-weight-bold">${escapeHtml(o.nama || '-')}</td>
+                <td>${escapeHtml(o.dosisLabel || o.dosis)}</td>
+                <td class="text-center ${stokClass(stok)}">${stok}</td>
+                <td class="text-center stok-dikurangi">-</td>
+                <td class="eresep-col-aksi">
+                    <button type="button" class="btn btn-sm btn-erm-soft edit-obat"${o.editable ? '' : ' disabled'}>Edit</button>
+                    <button type="button" class="btn btn-sm btn-erm-danger hapus-obat"${o.editable ? '' : ' disabled'}>Hapus</button>
+                </td>
+            </tr>`;
+    }
+
+    // A racikan card; saved = already in the database (fields locked until "Edit Racikan")
+    function racikanCardHtml(o) {
+        const ke = o.ke;
+        const dis = o.saved ? ' disabled' : '';
+        return `
+            <div class="racikan-card" data-racikan-ke="${ke}">
+                <div class="racikan-card-head">
+                    <h5>${racikanTitleHtml(ke, o.nama)} <span class="racikan-harga-detail"></span></h5>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-erm-soft edit-racikan${o.saved ? '' : ' d-none'}">Edit Racikan</button>
+                        <button type="button" class="btn btn-sm btn-erm-danger hapus-racikan">Hapus Racikan</button>
+                    </div>
+                </div>
+                ${o.saved ? '' : racikanAddRowHtml()}
+                <div class="table-responsive">
+                    <table class="table table-bordered eresep-table">
+                        <thead>
+                            <tr>
+                                <th>Nama Obat</th><th>Dosis</th><th class="text-center">Stok</th>
+                                <th class="text-center">Stok Dikurangi</th><th class="eresep-col-aksi">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="resep-table-body">
+                            ${o.rows || '<tr class="no-data"><td colspan="5" class="text-center text-muted">Belum ada obat</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <label>Wadah</label>
+                        <select class="form-control select2-wadah-racikan wadah" name="wadah_id"${dis}>
+                            ${o.wadahId ? `<option value="${escapeAttr(o.wadahId)}" selected>${escapeHtml(o.wadahNama || '')}</option>` : '<option value="">Pilih wadah...</option>'}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Bungkus</label>
+                        <input type="number" class="form-control bungkus" min="1" value="${escapeAttr(o.bungkus)}"${dis}>
+                    </div>
+                    <div class="col-md-6">
+                        <label>Aturan Pakai</label>
+                        <input type="text" class="form-control aturan_pakai" placeholder="Ketik aturan pakai" value="${escapeAttr(o.aturan)}"${dis}>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-block racikan-save-btn tambah-resepracikan"${dis}>${o.saved ? 'Sudah Disimpan' : 'Simpan Racikan ' + ke}</button>
+                <button type="button" class="btn btn-block racikan-save-btn is-primary update-resepracikan d-none">Update Racikan</button>
+            </div>`;
+    }
+
+    function racikanAddRowHtml() {
+        return `
+                <div class="row add-obat-row">
+                    <div class="col-md-6"><div class="form-group">
+                        <label>Nama Obat</label>
+                        <select class="form-control select2-obat-racikan" name="obat_id"><option value="">Cari nama obat / zat aktif...</option></select>
+                    </div></div>
+                    <div class="col-md-2 col-6"><div class="form-group">
+                        <label>Dosis</label>
+                        <input type="number" class="form-control dosis_input" min="0" step="0.01">
+                    </div></div>
+                    <div class="col-md-2 col-6"><div class="form-group">
+                        <label>Satuan Dosis</label>
+                        <select class="form-control mode_dosis"><option value="normal">Normal</option><option value="tablet">Tablet</option></select>
+                    </div></div>
+                    <div class="col-md-2"><div class="form-group">
+                        <label class="d-none d-md-block">&nbsp;</label>
+                        <button type="button" class="btn btn-erm-accent btn-block tambah-obat">Tambah</button>
+                    </div></div>
+                </div>`;
+    }
 
     let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
     const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
@@ -522,7 +726,7 @@
         if (rowStokCell.length) {
             const stokAvailable = extractDoseNumber(row.find('td').eq(2).text());
             rowStokCell.text(formatStockReductionValue(stokDikurangi, allowFractional));
-            rowStokCell.css('color', stokDikurangi > stokAvailable ? 'red' : 'inherit');
+            rowStokCell.toggleClass('stok-low', stokDikurangi > stokAvailable);
         }
 
         return {
@@ -630,70 +834,16 @@
     }
 
     $(document).ready(function () {
+        // Handlers outside this ready block (edit racikan, fetchFarmasiResep) use it too
+        window.updateTotalPrice = updateTotalPrice;
         $('.select2').select2({ width: '100%' });
-        $('.select2-obat').select2({
-            width: '100%',
-            minimumInputLength: 3,
-            placeholder: 'Search obat...',
-            ajax: {
-                url: '{{ route("obat.search") }}',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return { q: params.term };
-                },
-                processResults: function (data) {
-                    // If your endpoint returns {results: [...]}, use that
-                    if (Array.isArray(data.results)) {
-                        return {
-                            results: data.results.map(function(item) {
-                                return {
-                                    id: item.id,
-                                    text: item.text,
-                                    harga: item.harga_nonfornas,
-                                    stok: item.stok
-                                };
-                            })
-                        };
-                    } else {
-                        // fallback for array response
-                        return {
-                            results: data.map(function(item) {
-                                return {
-                                    id: item.id,
-                                    text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
-                                    harga: item.harga_nonfornas,
-                                    stok: item.stok
-                                };
-                            })
-                        };
-                    }
-                },
-                cache: true
-            }
-        });
-        $('.select2-wadah-racikan').select2({
-            placeholder: 'Search wadah...',
-            ajax: {
-                url: '{{ route("wadah.search") }}', // Use the wadah.search route
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return {
-                        q: params.term // Search term
-                    };
-                },
-                processResults: function (data) {
-                    return {
-                        results: data.map(item => ({
-                            id: item.id,
-                            text: item.text // Adjust based on your API response structure
-                        }))
-                    };
-                },
-                cache: true
-            },
+        initFarmasiObatSelect($('.select2-obat'));
+        initWadahSelect($('.select2-wadah-racikan'));
 
+        // ALTERNATIF: after an obat is chosen, offer obat with kandungan in common (separate request, search stays fast)
+        ObatAlternatif.bind('#eresep-area #obat_id, #eresep-area .select2-obat-racikan', {
+            params: () => ({ visitation_id: $('#visitation_id').val() }),
+            mapItem: mapFarmasiObatItem
         });
 
         // ATURAN PAKAI: free text with "sering dipakai" recommendations from resep history
@@ -722,6 +872,11 @@
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
 
             if (!obatId || !jumlah || !aturanPakai) return Swal.fire('Peringatan', "Semua field wajib diisi.", "warning");
+            if (jumlah < 1) return Swal.fire('Peringatan', 'Jumlah minimal 1.', 'warning');
+            if (diskon < 0 || diskon > 100) return Swal.fire('Peringatan', 'Diskon harus antara 0 dan 100%.', 'warning');
+            if (harga === null) return Swal.fire('Harga Belum Diatur', 'Obat ini belum punya harga jual. Atur harga jual di master obat dulu.', 'warning');
+            const $btn = $(this);
+            if ($btn.prop('disabled')) return;
 
             // If stok info is available, block adding when requested jumlah > stok
             if (stokAvailable !== null && !isNaN(stokAvailable) && jumlah > stokAvailable) {
@@ -732,8 +887,9 @@
             submitTambahResep({obatId, jumlah, harga, diskon, aturanPakai, visitationId});
 
             function submitTambahResep(payload) {
+                $btn.prop('disabled', true);
                 $.ajax({
-                    url: "{{ route('resepfarmasi.nonracikan.store') }}", // disesuaikan nanti
+                    url: "{{ route('resepfarmasi.nonracikan.store') }}",
                     method: "POST",
                     data: {
                         _token: "{{ csrf_token() }}",
@@ -746,34 +902,37 @@
                         visitation_id: payload.visitationId
                     },
                     success: function (res) {
-                        // const resep = res.data;
+                        const d = res.data;
                         $('#resep-table-body .no-data').remove();
-                        const stokGudang = res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0;
-                        const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
+                        const stokGudang = d.obat.stok_gudang !== undefined ? parseInt(d.obat.stok_gudang, 10) : 0;
                         $('#resep-table-body').append(`
-                            <tr data-id="${res.data.id}" data-obat-id="${res.data.obat.id}">
-                                <td>${res.data.obat.nama}</td>
-                                <td>${res.data.jumlah}</td>
-                                <td>${res.data.harga}</td>
-                                <td>${res.data.diskon} %</td>                           
-                                <td style="color: ${stokColor};">${stokGudang}</td>
-                                <td>${res.data.aturan_pakai}</td>
-                                <td>
-                                    <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
-                                    <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
+                            <tr data-id="${d.id}" data-obat-id="${d.obat.id}">
+                                <td class="font-weight-bold">${escapeHtml(d.obat.nama)}</td>
+                                <td class="text-center">${d.jumlah}</td>
+                                <td class="text-right">Rp. ${d.harga}</td>
+                                <td class="text-center">${d.diskon} %</td>
+                                <td class="text-center ${stokClass(stokGudang)}">${stokGudang}</td>
+                                <td>${escapeHtml(d.aturan_pakai)}</td>
+                                <td class="eresep-col-aksi">
+                                    <button type="button" class="btn btn-sm btn-erm-soft edit" data-id="${d.id}">Edit</button>
+                                    <button type="button" class="btn btn-sm btn-erm-danger hapus" data-id="${d.id}">Hapus</button>
                                 </td>
                             </tr>
                         `);
+                        $('#empty-resep-message').hide();
                         updateTotalPrice();
 
                         // Clear the input fields
                         $('#obat_id').val(null).trigger('change');
                         $('#jumlah').val('');
+                        $('#diskon').val('');
                         AturanPakai.get('#aturan_pakai').reset();
                     },
                     error: function (xhr) {
-                        const msg = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unknown error';
-                        Swal.fire('Error', 'Gagal menambahkan resep: ' + msg, 'error');
+                        Swal.fire('Error', 'Gagal menambahkan resep: ' + ajaxErrorMessage(xhr, 'Unknown error'), 'error');
+                    },
+                    complete: function () {
+                        $btn.prop('disabled', IS_INVOICE_LOCKED);
                     }
                 });
             }
@@ -807,7 +966,7 @@
                 success: function () {
                     row.remove();
                     if ($('#resep-table-body tr').length === 0) {
-                        $('#resep-table-body').append(`<tr class="no-data"><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>`);
+                        $('#resep-table-body').append(`<tr class="no-data"><td colspan="7" class="text-center text-muted">Belum ada data</td></tr>`);
                     }
                     updateTotalPrice();
                 },
@@ -857,8 +1016,16 @@
             return isNaN(n) ? 0 : n;
         }
 
-        // UPDATE TOTAL HARGA
+        // UPDATE TOTAL HARGA (debounced: typing in Bungkus used to fire one JSON request per key stroke)
+        let totalPriceTimer = null;
+        let totalPriceSeq = 0;
         function updateTotalPrice() {
+            clearTimeout(totalPriceTimer);
+            totalPriceTimer = setTimeout(computeTotalPrice, 200);
+        }
+
+        function computeTotalPrice() {
+            const seq = ++totalPriceSeq;
             let total = 0;
             // Sum Non-Racikan (table layout: td[0]=nama, td[1]=jumlah, td[2]=harga, td[3]=diskon ...)
             const nonRacikanBreakdown = [];
@@ -890,7 +1057,6 @@
                 });
             });
 
-            if (nonRacikanBreakdown.length) console.table(nonRacikanBreakdown);
 
             // Collect unique obat ids present in all racikan cards
             const obatIds = new Set();
@@ -911,11 +1077,12 @@
             // Fetch visitation JSON which contains obat details (harga_nonfornas and dosis)
             const visitationId = $('#visitation_id').val();
             $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
+                if (seq !== totalPriceSeq) return; // a newer calculation is running
                 try {
                     // Build a lookup map obat_id -> { harga_nonfornas, dosis }
                     const priceMap = {};
-                    if (res.non_racikans && Array.isArray(res.non_racikans)) {
-                        res.non_racikans.forEach(item => {
+                    if (Array.isArray(res.nonRacikans)) {
+                        res.nonRacikans.forEach(item => {
                             if (item.obat && item.obat.id) {
                                 priceMap[item.obat.id] = {
                                     harga: parseFloat(item.obat.harga_nonfornas) || 0,
@@ -993,7 +1160,6 @@
                         total += racikanTotal * bungkus;
                     });
 
-                    if (racikanBreakdown.length) console.log('Racikan breakdown:', racikanBreakdown);
 
                     // Finally update the total price display
                     $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
@@ -1011,326 +1177,157 @@
         // TAMBAH RACIKAN BARU
         $('#tambah-racikan').on('click', function () {
             racikanCount++;
-
-            const racikanCard = `
-                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5><strong>Racikan ${racikanCount}</strong></h5>
-                        <div>
-                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
-                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label>Nama Obat</label>
-                            <select class="form-control select2-obat-racikan" name="obat_id">
-                                <option value="">Search and select an obat...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label>Dosis</label>
-                            <input type="number" class="form-control dosis_input">
-                        </div>
-                        <div class="col-md-2">
-                            <label>Satuan Dosis</label>
-                            <select class="form-control mode_dosis">
-                                <option value="normal">Normal</option>
-                                <option value="tablet">Tablet</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary btn-block tambah-obat">Tambah ke Racikan</button>
-                        </div>
-                    </div>
-
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Nama Obat</th>
-                                <th>Dosis</th>
-                                <th>Stok</th>
-                                <th>Stok Dikurangi</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="resep-table-body">
-                            <tr class="no-data">
-                                <td colspan="5" class="text-center text-muted">Belum ada data</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label>Racikan</label>
-                            <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
-                                <option value="">Search and select wadah...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label>Bungkus</label>
-                            <input type="number" class="form-control bungkus">
-                        </div>
-                        <div class="col-md-6">
-                            <label>Aturan Pakai</label>
-                            <input type="text" class="form-control aturan_pakai" placeholder="Ketik aturan pakai">
-                        </div>
-                    </div>
-
-                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan">Simpan Racikan ${racikanCount}</button>
-                </div>
-            `;
-
-            // Append the new racikan card to the container
-            $('#racikan-container').append(racikanCard);
-
-            // Reinitialize select2 for the dynamically added "Nama Obat" field
-            $('.select2-obat-racikan').last().select2({
-                placeholder: 'Search obat...',
-                ajax: {
-                    url: '{{ route("obat.search") }}', // Define this route in your controller
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            q: params.term // Search term
-                        };
-                    },
-                        processResults: function (data) {
-                            // Support both {results: [...]} and [...] response
-                            let items = Array.isArray(data.results) ? data.results : data;
-                            return {
-                                results: items.map(function(item) {
-                                    return {
-                                        id: item.id,
-                                        text: item.text || (item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : '')),
-                                        nama: item.nama,
-                                        dosis: item.dosis,
-                                        satuan: item.satuan,
-                                        stok: item.stok,
-                                        stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok,
-                                        harga_nonfornas: item.harga_nonfornas
-                                    };
-                                })
-                            };
-                        },
-                    cache: true
-                },
-                minimumInputLength: 3
-            });
-            $('.select2-wadah-racikan').last().select2({
-                placeholder: 'Search wadah...',
-                ajax: {
-                    url: '{{ route("wadah.search") }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function (params) {
-                        return {
-                            q: params.term // Search term
-                        };
-                    },
-                    processResults: function (data) {
-                        return {
-                            results: data.map(item => ({
-                                id: item.id,
-                                text: item.text // Use the text property directly from the server response
-                            }))
-                        };
-                    },
-                    cache: true
-                },
-            });
-
+            $('#racikan-container').append(racikanCardHtml({ ke: racikanCount, saved: false }));
+            const card = $('#racikan-container .racikan-card').last();
+            initFarmasiObatSelect(card.find('.select2-obat-racikan'));
+            initWadahSelect(card.find('.select2-wadah-racikan'));
             // Aturan pakai field is picked up by AturanPakai.autoMount('#racikan-container')
-
-            // Update totals when a new (empty) racikan card is added
+            toggleEmptyRacikan();
             updateTotalPrice();
             refreshSubmitButtonState();
-
-
         });
+
+        // Saved card: lock its fields again (unlocked by "Edit Racikan")
+        function lockRacikanCard(card) {
+            card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
+            card.find('.select2-wadah-racikan').trigger('change.select2');
+            card.find('.add-obat-row, .obat-alt').remove();
+            card.find('.update-resepracikan').addClass('d-none').prop('disabled', false);
+            card.find('.tambah-resepracikan').removeClass('d-none').prop('disabled', true).text('Sudah Disimpan');
+            card.find('.edit-racikan').removeClass('d-none');
+            card.find('.hapus-obat, .edit-obat').prop('disabled', true);
+        }
+
         // UPDATE RACIKAN
         $('#racikan-container').on('click', '.update-resepracikan', function () {
-            const card = $(this).closest('.racikan-card');
-            const racikanKe = card.data('racikan-ke');
+            const $btn = $(this);
+            const card = $btn.closest('.racikan-card');
+            const racikanKe = parseInt(card.attr('data-racikan-ke'), 10);
             const visitationId = $('#visitation_id').val();
             const wadah = card.find('.wadah').val();
-            
-            // Find bungkus value - check both possible class names
-            const bungkus = card.find('.bungkus').val() || card.find('.jumlah_bungkus').val();
-            
-            const aturanPakai = card.find('.aturan_pakai').val();
-            
-            console.log('Debug - racikanKe:', racikanKe);
-            console.log('Debug - bungkus:', bungkus);
-            console.log('Debug - aturanPakai:', aturanPakai);
-            
-            // Validate required fields
-            if (typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED) {
-                if (!aturanPakai) {
-                    Swal.fire('Peringatan', 'Aturan pakai harus diisi!', 'warning');
-                    return;
-                }
-            } else {
-                if (!bungkus || !aturanPakai) {
-                    Swal.fire('Peringatan', 'Jumlah bungkus dan aturan pakai harus diisi!', 'warning');
-                    return;
-                }
-            }
-            
-            // Store the original racikanKe before any updates
-            const originalRacikanKe = racikanKe;
-            
-            console.log('Original racikanKe before update:', originalRacikanKe);
-            
-            if (originalRacikanKe === 0 || originalRacikanKe === '0') {
-                Swal.fire('Error', 'Invalid racikan ID (0). Cannot update this racikan.', 'error');
+            const bungkus = parseInt(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val(), 10);
+            const aturanPakai = (card.find('.aturan_pakai').val() || '').trim();
+            const locked = typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED;
+
+            if (!racikanKe) {
+                Swal.fire('Error', 'Nomor racikan tidak valid. Muat ulang halaman.', 'error');
                 return;
             }
-            
-            // Collect all obat rows in this racikan (skip when locked; only aturan pakai update is allowed)
-            const obats = [];
-            if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
-                card.find('.resep-table-body tr').each(function () {
-                    const row = $(this);
-                    if (!row.hasClass('no-data')) {
-                        // Only use the persisted resep row id here.
-                        let id = row.attr('data-id') || null;
-                        const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
-                        const dosis = row.attr('data-dosis') || row.find('td').eq(1).text();
-                        const jumlah = row.attr('data-jumlah') || 1;
-
-                        const entry = {
-                            obat_id: obatId,
-                            dosis: dosis,
-                            jumlah: jumlah
-                        };
-
-                        // Only include id if it's truthy (existing DB row)
-                        if (id) entry.id = id;
-
-                        obats.push(entry);
-                    }
-                });
+            if (!aturanPakai) {
+                Swal.fire('Peringatan', 'Aturan pakai harus diisi!', 'warning');
+                return;
+            }
+            if (!locked && (!wadah || !bungkus || bungkus < 1)) {
+                Swal.fire('Peringatan', 'Wadah dan jumlah bungkus (minimal 1) harus diisi!', 'warning');
+                return;
             }
 
-            // Build payload
-            let payload = {
+            // Locked invoice: only aturan pakai may change, so no item list is sent
+            const obats = [];
+            if (!locked) {
+                card.find('.resep-table-body tr[data-obat-id]').each(function () {
+                    const row = $(this);
+                    const entry = {
+                        obat_id: row.attr('data-obat-id'),
+                        dosis: row.attr('data-dosis') || row.find('td').eq(1).text().trim(),
+                        jumlah: row.attr('data-jumlah') || 1
+                    };
+                    // Only the persisted resep row id (new rows have none)
+                    if (row.attr('data-id')) entry.id = row.attr('data-id');
+                    obats.push(entry);
+                });
+                if (obats.length === 0) {
+                    Swal.fire('Peringatan', 'Racikan tanpa obat tidak bisa disimpan. Gunakan "Hapus Racikan" untuk menghapusnya.', 'warning');
+                    return;
+                }
+            }
+
+            const payload = {
                 _method: 'PUT',
                 visitation_id: visitationId,
                 aturan_pakai: aturanPakai,
                 _token: '{{ csrf_token() }}'
             };
-
-            if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
+            if (!locked) {
                 payload.wadah = wadah;
                 payload.bungkus = bungkus;
                 payload.obats = obats;
             }
 
-            // Debug payload before sending
-            console.log('Updating racikan payload:', payload);
-
-            // Send AJAX request to update the racikan
             beginResepMutation();
+            $btn.prop('disabled', true);
             $.ajax({
-                url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`,
+                url: "{{ route('resepfarmasi.racikan.update', '') }}/" + racikanKe,
                 type: 'POST',
                 data: payload,
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire('Sukses', response.message, 'success');
-                        // Always lock fields again after save
-                        card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
-                        card.find('.update-resepracikan').addClass('d-none');
-                        card.find('.tambah-resepracikan').removeClass('d-none');
-                        card.find('.hapus-obat, .edit-obat').prop('disabled', true);
-                        if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
-                            card.find('.jumlah_bungkus, .bungkus').val(bungkus);
-                        }
-                        card.find('.aturan_pakai').val(aturanPakai);
-                        card.attr('data-racikan-ke', originalRacikanKe);
-                        // Refresh the resaep list for this visitation to reflect DB state
-                        fetchFarmasiResep();
-                        // If controller returned obats, patch newly created rows with returned ids
-                        if ((typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) && response.obats && Array.isArray(response.obats)) {
-                            // Replace rows inside this card with server data to ensure ids are present
-                            const tbody = card.find('.resep-table-body');
-                            tbody.empty();
-                            response.obats.forEach(function(ob){
-                                const stokColor = ob.stok_gudang < 10 ? 'red' : (ob.stok_gudang < 100 ? 'yellow' : 'green');
-                                tbody.append(`<tr data-id="${ob.id}" data-obat-id="${ob.obat_id}" data-dosis="${ob.dosis}" data-jumlah="${ob.jumlah}"><td data-id="${ob.obat_id}">${ob.obat_nama ?? ''}</td><td>${ob.dosis}</td><td><span style=\"color: ${stokColor};\">${ob.stok_gudang}</span></td><td class=\"stok-dikurangi\">-</td><td><button class=\"btn btn-danger btn-sm hapus-obat\">Hapus</button></td></tr>`);
-                            });
-                            // Ensure totals updated after injecting server-side obat rows
-                            updateTotalPrice();
-                        }
-                    } else {
+                success: function (response) {
+                    if (!response.success) {
                         Swal.fire('Error', 'Terjadi kesalahan: ' + response.message, 'error');
+                        return;
                     }
+                    Swal.fire({ icon: 'success', title: response.message || 'Racikan berhasil diupdate', timer: 1500, showConfirmButton: false });
+                    lockRacikanCard(card);
+                    if ('racikan_nama' in response) setRacikanTitle(card, response.racikan_nama);
+                    // Rows from the server carry the new resep ids, so a next update edits instead of re-creating
+                    if (!locked && Array.isArray(response.obats)) {
+                        card.find('.resep-table-body').html(response.obats.map(function (ob) {
+                            return racikanRowHtml({
+                                id: ob.id,
+                                obatId: ob.obat_id,
+                                nama: ob.obat_nama,
+                                dosis: ob.dosis,
+                                baseDosis: extractDoseNumber(ob.obat_dosis),
+                                jumlah: ob.jumlah,
+                                stok: ob.stok_gudang
+                            });
+                        }).join(''));
+                    }
+                    updateTotalPrice();
                 },
-                error: function(xhr, status, error) {
-                    console.error('Update failed:', xhr, status, error);
-                    Swal.fire('Error', 'Gagal menyimpan perubahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.responseText), 'error');
+                error: function (xhr) {
+                    Swal.fire('Error', 'Gagal menyimpan perubahan: ' + ajaxErrorMessage(xhr, xhr.responseText || 'Error'), 'error');
                 },
-                complete: function() {
+                complete: function () {
+                    $btn.prop('disabled', false);
                     endResepMutation();
                 }
             });
         });
-        
-        // TAMBAH OBAT KE RACIKAN
+
+        // TAMBAH OBAT KE RACIKAN (new card, or a saved card in edit mode)
         $('#racikan-container').on('click', '.tambah-obat', function () {
             const card = $(this).closest('.racikan-card');
             const obatSelect = card.find('.select2-obat-racikan');
             const obatId = obatSelect.val();
-            const obatText = obatSelect.find('option:selected').text();
-
-            // Retrieve custom data attributes from the selected option
-            const selectedOption = obatSelect.select2('data')[0]; // Get the selected option's data
-            // Use stok_gudang if available, fallback to stok
-            const stokGudang = typeof selectedOption.stok_gudang !== 'undefined' ? parseInt(selectedOption.stok_gudang) : (selectedOption.stok || 0);
-            const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
-            const defaultDosis = extractDoseNumber(selectedOption.dosis);
-            const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
-
+            const selectedOption = obatSelect.hasClass('select2-hidden-accessible') ? (obatSelect.select2('data')[0] || {}) : {};
             const dosisInput = extractDoseNumber(card.find('.dosis_input').val());
-            const mode = card.find('.mode_dosis').val();
-
-            // Calculate the final dosis
-            let dosisAkhir = mode === 'tablet' ? defaultDosis * dosisInput : dosisInput;
 
             if (!obatId || !dosisInput) {
                 Swal.fire('Peringatan', 'Nama obat dan dosis harus diisi.', 'warning');
                 return;
             }
+            if (card.find('.resep-table-body tr[data-obat-id="' + obatId + '"]').length) {
+                Swal.fire('Obat Sudah Ada', 'Obat ini sudah ada dalam racikan ini.', 'warning');
+                return;
+            }
+
+            const baseDosis = extractDoseNumber(selectedOption.dosis);
+            // "Tablet": dosis is a number of tablets, so multiply by the obat's own dosis
+            const dosisAkhir = card.find('.mode_dosis').val() === 'tablet' ? baseDosis * dosisInput : dosisInput;
+            const dosisText = (dosisAkhir + ' ' + (selectedOption.satuan || '')).trim();
 
             const tbody = card.find('.resep-table-body');
             tbody.find('.no-data').remove();
-
-            // Determine current bungkus value for this card (may be empty yet)
-            const currentBungkus = getCurrentRacikanBungkus(card);
-            const baseDosis = extractDoseNumber(selectedOption.dosis);
-            const allowFractional = cardUsesFractionalStockReduction(card);
-            let stokDikurangi = 0;
-            if (baseDosis > 0) {
-                const rawReduction = (dosisAkhir * currentBungkus) / baseDosis;
-                stokDikurangi = allowFractional ? rawReduction : Math.ceil(rawReduction);
-            }
-            const stokDikurangiDisplay = formatStockReductionValue(stokDikurangi, allowFractional);
-
-            // Append the new row to the table (do NOT include empty data-id attribute)
-            tbody.append(`
-                <tr data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-base-dosis="${baseDosis}" data-jumlah="1">
-                    <td data-id="${obatId}">${obatText}</td>
-                    <td>${dosisAkhir} ${satuan}</td>
-                    <td><span style="color: ${stokColor};">${stokGudang}</span></td>
-                    <td class="stok-dikurangi" style="color: ${parseFloat(stokDikurangi) > stokGudang ? 'red' : 'inherit'};">${stokDikurangiDisplay}</td>
-                    <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
-                </tr>
-            `);
-            // Refresh totals after adding a racikan row
+            tbody.append(racikanRowHtml({
+                obatId: obatId,
+                nama: selectedOption.nama || selectedOption.text,
+                dosis: dosisText,
+                baseDosis: baseDosis,
+                stok: selectedOption.stok_gudang !== undefined ? selectedOption.stok_gudang : selectedOption.stok,
+                editable: true
+            }));
+            obatSelect.val(null).trigger('change');
+            card.find('.dosis_input').val('');
             updateTotalPrice();
             refreshSubmitButtonState();
         });
@@ -1342,30 +1339,29 @@
         $('#racikan-container').on('change', '.wadah, .select2-wadah-racikan', function () {
             updateTotalPrice();
         });
+
         // STORE RACIKAN
         $('#racikan-container').on('click', '.tambah-resepracikan', function () {
-            const card = $(this).closest('.racikan-card');
+            const $btn = $(this);
+            const card = $btn.closest('.racikan-card');
             const racikanKe = card.data('racikan-ke');
             const visitationId = $('#visitation_id').val();
             const wadah = card.find('.wadah').val();
-            const bungkus = card.find('.bungkus').val();
-            const aturanPakai = card.find('.aturan_pakai').val();
+            const bungkus = parseInt(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val(), 10);
+            const aturanPakai = (card.find('.aturan_pakai').val() || '').trim();
 
-                     // Validate required fields
-            if (!bungkus || !aturanPakai) {
-                Swal.fire('Peringatan', 'Field "Bungkus" dan "Aturan Pakai" wajib diisi.', 'warning');
+            if (!wadah || !bungkus || !aturanPakai) {
+                Swal.fire('Peringatan', 'Wadah, Bungkus dan Aturan Pakai wajib diisi.', 'warning');
+                return;
+            }
+            if (bungkus < 1) {
+                Swal.fire('Peringatan', 'Bungkus minimal 1.', 'warning');
                 return;
             }
 
             const obats = [];
-            card.find('.resep-table-body tr').each(function () {
-                if (!$(this).hasClass('no-data')) {
-                    const obatId = $(this).find('td').eq(0).data('id'); // sesuaikan jika perlu
-                    const dosis = $(this).find('td').eq(1).text();
-                    if (obatId) {
-                        obats.push({ obat_id: obatId, dosis: dosis });
-                    }
-                }
+            card.find('.resep-table-body tr[data-obat-id]').each(function () {
+                obats.push({ obat_id: $(this).attr('data-obat-id'), dosis: $(this).attr('data-dosis') || $(this).find('td').eq(1).text().trim() });
             });
 
             if (obats.length === 0) {
@@ -1374,6 +1370,7 @@
             }
 
             beginResepMutation();
+            $btn.prop('disabled', true).text('Menyimpan...');
             $.ajax({
                 url: "{{ route('resepfarmasi.racikan.store') }}",
                 method: "POST",
@@ -1388,98 +1385,61 @@
                 },
                 success: function (res) {
                     adoptRacikanKe(card, res.racikan_ke);
-                    Swal.fire('Sukses', res.message, 'success');
-                    card.find('.tambah-resepracikan').prop('disabled', true).text('Disimpan');
-                    // Disable inputs in the card after saving: wadah (select2), bungkus, jumlah_bungkus
-                    try {
-                        card.find('.wadah, .bungkus, .jumlah_bungkus').prop('disabled', true);
-                        const $wadahSel = card.find('.select2-wadah-racikan');
-                        if ($wadahSel.length) {
-                            $wadahSel.prop('disabled', true).trigger('change.select2');
-                        }
-                        card.find('.aturan_pakai').prop('disabled', true);
-                    } catch (e) {
-                        console.error('Error disabling racikan inputs after save', e);
-                    }
-                    // Disable per-row edit/hapus buttons for obat rows in this card
-                    try { card.find('.edit-obat, .hapus-obat').prop('disabled', true); } catch(e){}
-                    // Ensure Update button is present but hidden
-                    if (card.find('.update-resepracikan').length === 0) {
-                        card.append('<button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>');
-                    } else {
-                        card.find('.update-resepracikan').addClass('d-none');
-                    }
-                        // PATCH: Update each obat row with the correct data-id and stok_gudang from backend
-                        if (res.obats && Array.isArray(res.obats)) {
-                            let rows = card.find('.resep-table-body tr');
-                            res.obats.forEach(function(obat, idx) {
-                                let row = rows.eq(idx);
-                                row.attr('data-id', obat.id);
-                                row.attr('data-obat-id', obat.obat_id);
-                                row.attr('data-dosis', obat.dosis);
-                                row.attr('data-jumlah', obat.jumlah || 1);
-                                // Update stok column and color
-                                let stokGudang = typeof obat.stok_gudang !== 'undefined' ? parseInt(obat.stok_gudang) : 0;
-                                let stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
-                                row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
-                                // placeholder for stok dikurangi; will be recomputed by updateTotalPrice()
-                                if (row.find('td').eq(3).length) {
-                                    row.find('td').eq(3).html('-');
-                                }
-                            });
-                        }
-                        // Refresh totals after racikan saved
-            updateTotalPrice();
+                    Swal.fire({ icon: 'success', title: res.message || 'Racikan berhasil disimpan.', timer: 1500, showConfirmButton: false });
+                    lockRacikanCard(card);
+                    if ('racikan_nama' in res) setRacikanTitle(card, res.racikan_nama);
+                    // Store the new resep ids (same order as sent) + fresh stok
+                    const rows = card.find('.resep-table-body tr[data-obat-id]');
+                    (res.obats || []).forEach(function (obat, idx) {
+                        const row = rows.eq(idx);
+                        const stokGudang = parseInt(obat.stok_gudang, 10) || 0;
+                        row.attr('data-id', obat.id).attr('data-dosis', obat.dosis).attr('data-jumlah', obat.jumlah || 1);
+                        row.find('td').eq(2).removeClass('stok-low stok-mid stok-ok').addClass(stokClass(stokGudang)).text(stokGudang);
+                    });
+                    $('#empty-resep-message').hide();
+                    updateTotalPrice();
+                },
+                error: function (xhr) {
+                    $btn.prop('disabled', false).text('Simpan Racikan ' + card.data('racikan-ke'));
+                    Swal.fire('Gagal Menyimpan', ajaxErrorMessage(xhr, 'Gagal menyimpan racikan.'), 'error');
                 },
                 complete: function () {
                     endResepMutation();
                 }
             });
-            });
+        });
 
         // EDIT OBAT RACIKAN (open modal)
         $('#racikan-container').on('click', '.edit-obat', function () {
             const row = $(this).closest('tr');
-            const dosis = row.data('dosis');
-            $('#edit-dosis-row-id').val(row.index()); // use row index for identification
-            $('#edit-dosis-value').val(dosis);
-            $('#editDosisModal').modal('show');
+            $('#edit-dosis-value').val(row.attr('data-dosis'));
+            // Keep the row itself: a row index alone matched the same row number in the first racikan card
+            $('#editDosisModal').data('row', row).modal('show');
         });
 
-        // SAVE DOSIS FROM MODAL
+        // SAVE DOSIS FROM MODAL (applied on "Update Racikan")
         $('#save-dosis-btn').on('click', function () {
-            const rowIndex = $('#edit-dosis-row-id').val();
-            const newDosis = $('#edit-dosis-value').val();
+            const row = $('#editDosisModal').data('row');
+            const newDosis = ($('#edit-dosis-value').val() || '').trim();
             if (!newDosis) {
                 Swal.fire('Peringatan', 'Dosis tidak boleh kosong!', 'warning');
                 return;
             }
-            // Find the row by index and update data + cell
-            const row = $('.racikan-card .resep-table-body tr').eq(rowIndex);
-            row.data('dosis', newDosis);
-            row.attr('data-dosis', newDosis);
-            row.find('td').eq(1).text(newDosis); // update cell display
-
-            // Recalculate stok dikurangi for this row if base dose and stok available
-            try {
-                const card = row.closest('.racikan-card');
-                recalculateRacikanRowStock(row, { card, dosis: newDosis });
-            } catch (e) {
-                console.error('Error recalculating stok dikurangi after dosis edit', e);
-            }
-
-            // Trigger a full price/stock recalculation as well
+            if (!row || !row.length) return;
+            row.attr('data-dosis', newDosis).data('dosis', newDosis);
+            row.find('td').eq(1).text(newDosis);
+            recalculateRacikanRowStock(row, { card: row.closest('.racikan-card'), dosis: newDosis });
             updateTotalPrice();
-
             $('#editDosisModal').modal('hide');
         });
 
-        // DELETE OBAT DARI RACIKAN
+        // DELETE OBAT DARI RACIKAN (saved on "Simpan" / "Update Racikan")
         $('#racikan-container').on('click', '.hapus-obat', function () {
-            $(this).closest('tr').remove();
-            const card = $(this).closest('.racikan-card');
-            if (card.find('.resep-table-body tr').length === 0) {
-                card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="5" class="text-center text-muted">Belum ada data</td></tr>`);
+            const row = $(this).closest('tr');
+            const card = row.closest('.racikan-card');
+            row.remove();
+            if (card.find('.resep-table-body tr[data-obat-id]').length === 0) {
+                card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="5" class="text-center text-muted">Belum ada obat</td></tr>`);
             }
             updateTotalPrice();
             refreshSubmitButtonState();
@@ -1490,20 +1450,21 @@
             const racikanKe = card.data('racikan-ke');
             const visitationId = $('#visitation_id').val();
 
-            // Cek apakah ada <tr> dengan class 'no data' dalam card
-            const isNoData = card.find('tr.no-data').length > 0;
+            if (IS_INVOICE_LOCKED) return;
 
-            // Jika ada <tr> dengan class 'no data', langsung dihapus
-            if (isNoData) {
+            // Not saved yet (its "Simpan" button is still active): nothing on the server to delete.
+            // A saved card whose obat were all removed in edit mode still exists on the server.
+            if (!card.find('.tambah-resepracikan').prop('disabled')) {
                 card.remove();
-                // Recompute totals after removing an empty racikan card
+                toggleEmptyRacikan();
                 updateTotalPrice();
+                refreshSubmitButtonState();
                 return;
             }
 
             Swal.fire({
                 title: 'Konfirmasi',
-                text: 'Yakin ingin menghapus racikan ini?',
+                text: 'Yakin ingin menghapus Racikan ' + racikanKe + '?',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, Hapus!',
@@ -1526,11 +1487,12 @@
                 success: function (res) {
                     Swal.fire('Sukses', res.message, 'success'); // Notifikasi
                     card.remove(); // Hapus card racikan dari tampilan
-                    // Update totals after successful racikan delete
+                    toggleEmptyRacikan();
                     updateTotalPrice();
+                    refreshSubmitButtonState();
                 },
-                error: function (err) {
-                    Swal.fire('Error', 'Gagal menghapus racikan', 'error');
+                error: function (xhr) {
+                    Swal.fire('Error', ajaxErrorMessage(xhr, 'Gagal menghapus racikan'), 'error');
                 }
                 });
             }
@@ -1730,93 +1692,147 @@
 
 
         $(document).on('click', '.btn-riwayat', function () {
-            console.log('Button clicked'); // Debugging
-            let url = $(this).data('url');
-            // Set modal title dynamically from data-title attribute (fallback to generic)
-            const title = $(this).data('title') || 'Riwayat Resep';
-            $('#riwayatModalTitle').text(title);
-
-            // Set header color based on data-type (dokter => blue, farmasi => yellow)
-            const type = $(this).data('type') || '';
-            const header = $('#riwayatModal .modal-header');
-            // remove any previously applied bg/text classes
-            header.removeClass('bg-primary bg-warning text-white text-dark');
-            if (type === 'dokter') {
-                header.addClass('bg-primary text-white');
-            } else if (type === 'farmasi') {
-                header.addClass('bg-warning text-dark');
-            }
-
+            const url = $(this).data('url');
+            $('#riwayatModalTitle').text($(this).data('title') || 'Riwayat Resep');
             $('#riwayatModal').modal('show');
-            $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
+            $('#riwayatModalContent').html('<div class="rr-loading"><i class="fas fa-spinner fa-spin mr-1"></i>Memuat riwayat...</div>');
 
             $.get(url, function (data) {
                 $('#riwayatModalContent').html(data);
             }).fail(function () {
-                $('#riwayatModalContent').html('<p class="text-center text-danger">Gagal memuat data.</p>');
+                $('#riwayatModalContent').html('<div class="rr-empty text-danger">Gagal memuat riwayat. Coba lagi.</div>');
             });
         });
 
 
 
-                // Handle Copy Resep button click
+        // SALIN RESEP dari riwayat: adds to the current resep (no reload). Obat / racikan that are already in it
+        // need a choice first: copy only what is new, or copy them again too.
         $(document).on('click', '.btn-copy-resep', function() {
-            const sourceVisitationId = $(this).data('visitation-id');
-            const sourceType = $(this).data('source');
-            const targetVisitationId = $('#visitation_id').val();
-            
-            // Show SweetAlert confirmation
+            const $button = $(this);
+            if (IS_INVOICE_LOCKED) {
+                showInvoiceLockedMessage();
+                return;
+            }
+
             Swal.fire({
-                title: 'Konfirmasi',
-                text: 'Yakin ingin menyalin resep ini ke kunjungan saat ini?',
+                title: 'Salin Resep?',
+                text: 'Obat dari resep ini ditambahkan ke resep saat ini.',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, Salin!',
                 cancelButtonText: 'Batal'
             }).then((result) => {
-                if (result.value) {
-                    copyResep();
-                }
+                if (result.value) copyResepFromHistory($button, '');
             });
-            
-            function copyResep() {
-                // Show loading state
-                const $button = $('.btn-copy-resep');
-                $button.html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
-                
-                // Send AJAX request to copy prescriptions
-                $.ajax({
+        });
+
+        function copyResepFromHistory($button, onDuplicate) {
+            const label = $button.html();
+            $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
+            beginResepMutation();
+            $.ajax({
                 url: "{{ route('erm.eresepfarmasi.copyfromhistory') }}",
                 method: "POST",
                 data: {
                     _token: "{{ csrf_token() }}",
-                    source_visitation_id: sourceVisitationId,
-                    target_visitation_id: targetVisitationId,
-                    source_type: sourceType
-                },
-                success: function(response) {
-                    if (response.status === 'success') {
-                        Swal.fire({
-                            title: 'Sukses',
-                            text: response.message,
-                            icon: 'success',
-                            confirmButtonText: 'OK'
-                        }).then(() => {
-                            location.reload(); // Reload to show the copied prescriptions
-                        });
-                    } else {
-                        Swal.fire('Peringatan', response.message, 'warning');
-                    }
-                },
-                error: function() {
-                    Swal.fire('Error', 'Gagal menyalin resep. Silakan coba lagi.', 'error');
-                },
-                complete: function() {
-                    $button.html('<i class="fas fa-copy"></i> Salin Resep');
+                    source_visitation_id: $button.data('visitation-id'),
+                    target_visitation_id: $('#visitation_id').val(),
+                    source_type: $button.data('source'),
+                    on_duplicate: onDuplicate
                 }
+            }).done(function (res) {
+                if (res.status === 'confirm') {
+                    askCopyDuplicates(res).then(function (choice) {
+                        if (choice) copyResepFromHistory($button, choice);
+                    });
+                    return;
+                }
+                if (res.status === 'success') {
+                    renderCopiedResep(res.added || {});
+                    $('#riwayatModal').modal('hide');
+                    Swal.fire({ icon: 'success', title: 'Resep disalin', text: res.message });
+                    return;
+                }
+                Swal.fire({ icon: res.status === 'error' ? 'error' : 'info', title: res.message });
+            }).fail(function (xhr) {
+                Swal.fire('Error', ajaxErrorMessage(xhr, 'Gagal menyalin resep. Silakan coba lagi.'), 'error');
+            }).always(function () {
+                $button.prop('disabled', false).html(label);
+                endResepMutation();
             });
-            } // End of copyResep function
-        });
+        }
+
+        // Resolves 'skip' (only what is new), 'include' (also the ones already there) or null (cancelled)
+        function askCopyDuplicates(res) {
+            const list = (res.duplicates || []).map(nama => `<li>${escapeHtml(nama)}</li>`).join('');
+            return Swal.fire({
+                icon: 'question',
+                title: 'Sebagian obat sudah ada',
+                html: `<div style="text-align:left;font-size:.95rem;">Sudah ada di resep saat ini:<ul style="margin:6px 0 10px 18px;">${list}</ul>`
+                    + `${res.new_count ? `<strong>${res.new_count}</strong> obat/racikan lainnya belum ada dan akan disalin.` : 'Tidak ada obat lain yang belum ada.'}</div>`,
+                input: 'checkbox',
+                inputValue: 0,
+                inputPlaceholder: 'Tetap salin juga yang sudah ada (jadi dobel)',
+                showCancelButton: true,
+                confirmButtonText: 'Salin',
+                cancelButtonText: 'Batal'
+            }).then(function (r) {
+                if (r.dismiss) return null;
+                return r.value ? 'include' : 'skip';
+            });
+        }
+
+        // Show the copied rows like the ones added by hand
+        function renderCopiedResep(added) {
+            (added.non_racikan || []).forEach(function (d) {
+                $('#resep-table-body .no-data').remove();
+                const stok = parseInt(d.stok_gudang, 10) || 0;
+                $('#resep-table-body').append(`
+                    <tr data-id="${d.id}" data-obat-id="${d.obat_id}">
+                        <td class="font-weight-bold">${escapeHtml(d.obat_nama)}</td>
+                        <td class="text-center">${d.jumlah}</td>
+                        <td class="text-right">Rp. ${d.harga ?? d.harga_nonfornas ?? 0}</td>
+                        <td class="text-center">${d.diskon ?? 0} %</td>
+                        <td class="text-center ${stokClass(stok)}">${stok}</td>
+                        <td>${escapeHtml(d.aturan_pakai)}</td>
+                        <td class="eresep-col-aksi">
+                            <button type="button" class="btn btn-sm btn-erm-soft edit" data-id="${d.id}">Edit</button>
+                            <button type="button" class="btn btn-sm btn-erm-danger hapus" data-id="${d.id}">Hapus</button>
+                        </td>
+                    </tr>
+                `);
+            });
+
+            (added.racikans || []).forEach(function (r) {
+                const rows = (r.items || []).map(it => racikanRowHtml({
+                    id: it.id,
+                    obatId: it.obat_id,
+                    nama: it.obat_nama,
+                    dosis: it.dosis,
+                    baseDosis: extractDoseNumber(it.obat_dosis),
+                    jumlah: it.jumlah,
+                    stok: it.stok_gudang
+                })).join('');
+                $('#racikan-container').append(racikanCardHtml({
+                    ke: r.racikan_ke,
+                    nama: r.nama,
+                    saved: true,
+                    rows: rows,
+                    wadahId: r.wadah_id,
+                    wadahNama: r.wadah_nama,
+                    bungkus: r.bungkus,
+                    aturan: r.aturan_pakai
+                }));
+                initWadahSelect($('#racikan-container .select2-wadah-racikan').last());
+                racikanCount = Math.max(racikanCount, parseInt(r.racikan_ke, 10) || 0);
+            });
+
+            $('#empty-resep-message').hide();
+            toggleEmptyRacikan();
+            updateTotalPrice();
+            refreshSubmitButtonState();
+        }
 
         $('.btn-cetakresep').on('click', function() {
             const visitationId = $('#visitation_id').val();
@@ -2014,9 +2030,9 @@
                         render: function (row) {
                             const nama = row && row.nama_paket ? row.nama_paket : '';
                             const wadahNama = row && row.wadah && row.wadah.nama ? row.wadah.nama : '';
-                            const wadahHtml = wadahNama ? `<div style="font-size:12px; opacity:.75;">${$('<div>').text(wadahNama).html()}</div>` : '';
-                            const paketJson = JSON.stringify(row).replace(/'/g, "\\'");
-                            return `<div class="edit-paket" data-paket='${paketJson}' role="button" style="cursor:pointer;"><strong>${$('<div>').text(nama).html()}</strong>${wadahHtml}</div>`;
+                            const wadahHtml = wadahNama ? `<div class="pr-sub">${$('<div>').text(wadahNama).html()}</div>` : '';
+                            const paketJson = JSON.stringify(row).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+                            return `<div class="edit-paket" data-paket="${paketJson}" role="button" title="Klik untuk mengubah paket ini"><strong>${$('<div>').text(nama).html()}</strong>${wadahHtml}</div>`;
                         }
                     },
                     {
@@ -2058,10 +2074,10 @@
                     {
                         data: null,
                         render: function (row) {
-                            const paketJson = JSON.stringify(row).replace(/'/g, "\\'");
+                            const paketJson = JSON.stringify(row).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
                             return `
-                                <button class="btn btn-sm btn-primary copy-paket" data-id="${row.id}" data-paket='${paketJson}'>Gunakan</button>
-                                <button class="btn btn-sm btn-danger delete-paket" data-id="${row.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
+                                <button type="button" class="btn btn-sm pr-btn-use copy-paket" data-id="${row.id}" data-paket="${paketJson}">Gunakan</button>
+                                <button type="button" class="btn btn-sm pr-btn-del delete-paket" data-id="${row.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
                             `;
                         }
                     }
@@ -2135,9 +2151,9 @@
                             tbody.append('<tr><td colspan="4" class="text-center">Belum ada paket racikan</td></tr>');
                         } else {
                             paketList.forEach(function(paket, index) {
-                                const paketJson = JSON.stringify(paket).replace(/'/g, "\\'");
+                                const paketJson = JSON.stringify(paket).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
                                 let wadahNama = paket.wadah ? paket.wadah.nama : '';
-                                let wadahHtml = wadahNama ? `<div style="font-size:12px; opacity:.75;">${$('<div>').text(wadahNama).html()}</div>` : '';
+                                let wadahHtml = wadahNama ? `<div class="pr-sub">${$('<div>').text(wadahNama).html()}</div>` : '';
 
                                 const details = Array.isArray(paket.details) ? paket.details : [];
                                 const obatLines = details.map(function(d){
@@ -2171,11 +2187,11 @@
                                 tbody.append(`
                                     <tr>
                                         <td>${index + 1}</td>
-                                        <td><div class="edit-paket" data-paket='${paketJson}' role="button" style="cursor:pointer;"><strong>${$('<div>').text(paket.nama_paket || '').html()}</strong>${wadahHtml}</div></td>
+                                        <td><div class="edit-paket" data-paket="${paketJson}" role="button" title="Klik untuk mengubah paket ini"><strong>${$('<div>').text(paket.nama_paket || '').html()}</strong>${wadahHtml}</div></td>
                                         <td>${obatHtml}</td>
                                         <td>
-                                            <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${paketJson}'>Gunakan</button>
-                                            <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
+                                            <button type="button" class="btn btn-sm pr-btn-use copy-paket" data-id="${paket.id}" data-paket="${paketJson}">Gunakan</button>
+                                            <button type="button" class="btn btn-sm pr-btn-del delete-paket" data-id="${paket.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
                                         </td>
                                     </tr>
                                 `);
@@ -2376,7 +2392,6 @@
                                     const tbody = card.find('.resep-table-body');
                                     response.obats.forEach(function(ob){
                                         const stokGudang = parseInt(ob.stok_gudang || 0, 10);
-                                        const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
                                         // Find the existing row rendered from paket data and patch it
                                         const row = tbody.find('tr[data-obat-id="' + ob.obat_id + '"]').first();
                                         if (row.length) {
@@ -2384,7 +2399,7 @@
                                             row.attr('data-obat-id', ob.obat_id);
                                             row.attr('data-dosis', ob.dosis);
                                             row.attr('data-jumlah', ob.jumlah || 1);
-                                            row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
+                                            row.find('td').eq(2).removeClass('stok-low stok-mid stok-ok').addClass(stokClass(stokGudang)).text(stokGudang);
                                         }
                                     });
                                 }
@@ -2400,7 +2415,7 @@
                     } else {
                         Swal.fire({ icon: 'error', title: 'Gagal', text: response.message || 'Gagal menerapkan paket racikan', confirmButtonColor: '#3085d6' });
                     }
-                }, error: function(xhr) { let errorMessage = 'Gagal menerapkan paket racikan'; if (xhr.responseJSON && xhr.responseJSON.message) { errorMessage = xhr.responseJSON.message; } Swal.fire({ icon: 'error', title: 'Gagal', text: errorMessage, confirmButtonColor: '#3085d6' }); }, complete: function() { endResepMutation(); $('#konfirmasiGunakanPaketFarmasi').html('OK').prop('disabled', false); $('#gunakanPaketModalFarmasi').modal('hide'); }
+                }, error: function(xhr) { let errorMessage = 'Gagal menerapkan paket racikan'; if (xhr.responseJSON && xhr.responseJSON.message) { errorMessage = xhr.responseJSON.message; } Swal.fire({ icon: 'error', title: 'Gagal', text: errorMessage, confirmButtonColor: '#3085d6' }); }, complete: function() { endResepMutation(); $('#konfirmasiGunakanPaketFarmasi').html('Gunakan Paket').prop('disabled', false); $('#gunakanPaketModalFarmasi').modal('hide'); }
             });
         });
 
@@ -2409,112 +2424,37 @@
             if (!$(e.target).hasClass('reload-after-close')) {
                 setTimeout(function() { $('#paketRacikanModalFarmasi').modal('show'); }, 300);
             }
+            // one-shot flag: the next cancel must reopen the list again
+            $(e.target).removeClass('reload-after-close');
         });
 
-        // Function to create racikan card from paket data (reused functions from dokter page)
-        function createRacikanCardFromPaket(paket, racikanKe) {
-            // Delegate to the unified builder so paket-created cards match manual "Tambah Racikan"
-            const bungkus = paket.bungkus_default || 1;
-            const aturan = paket.aturan_pakai_default || '';
-            createRacikanCardFromPaketWithCustomData(paket, racikanKe, bungkus, aturan);
-        }
-
+        // Racikan card for a paket that was just applied (already saved on the server)
         function createRacikanCardFromPaketWithCustomData(paket, racikanKe, customBungkus, customAturanPakai) {
-            // Build obat rows compatible with the manual "Tambah Racikan" template
-            let obatRows = '';
             const details = paket.details || paket.obats || paket.items || [];
-            details.forEach(function(detail) {
+            const rows = details.map(function (detail) {
                 const obat = detail.obat || {};
-                const nama = obat.nama || '-';
-                const dosisRacik = detail.dosis || '-';
-                const satuan = obat.satuan || '';
-                // prefer stok_gudang if present (server may provide it)
-                const stokGudang = typeof obat.stok_gudang !== 'undefined' ? obat.stok_gudang : (obat.stok || 0);
-                const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'inherit');
-                obatRows += `
-                    <tr data-obat-id="${obat.id || ''}" data-dosis="${dosisRacik}" data-base-dosis="${obat.dosis || ''}" data-jumlah="1">
-                        <td data-id="${obat.id || ''}">${nama}</td>
-                        <td>${dosisRacik} ${satuan}</td>
-                        <td><span style="color: ${stokColor};">${stokGudang}</span></td>
-                        <td class="stok-dikurangi">-</td>
-                        <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
-                    </tr>
-                `;
-            });
+                return racikanRowHtml({
+                    obatId: obat.id || '',
+                    nama: obat.nama,
+                    dosis: detail.dosis,
+                    baseDosis: extractDoseNumber(obat.dosis),
+                    stok: typeof obat.stok_gudang !== 'undefined' ? obat.stok_gudang : obat.stok
+                });
+            }).join('');
 
-            // Use the exact same card structure as manual add, but with controls disabled (saved state)
-            let racikanCard = `
-                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanKe}">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5><strong>Racikan ${racikanKe}</strong></h5>
-                        <div>
-                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
-                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label>Nama Obat</label>
-                            <select class="form-control select2-obat-racikan" name="obat_id">
-                                <option value="">Search and select an obat...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label>Dosis</label>
-                            <input type="number" class="form-control dosis_input" disabled>
-                        </div>
-                        <div class="col-md-2">
-                            <label>Satuan Dosis</label>
-                            <select class="form-control mode_dosis" disabled>
-                                <option value="normal">Normal</option>
-                                <option value="tablet">Tablet</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-primary btn-block tambah-obat" disabled>Tambah ke Racikan</button>
-                        </div>
-                    </div>
-
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Nama Obat</th>
-                                <th>Dosis</th>
-                                <th>Stok</th>
-                                <th>Stok Dikurangi</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="resep-table-body">
-                            ${obatRows || '<tr class="no-data"><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>'}
-                        </tbody>
-                    </table>
-
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label>Racikan</label>
-                            <select class="form-control select2-wadah-racikan wadah" name="wadah_id" disabled>
-                                <option value="">Search and select wadah...</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label>Bungkus</label>
-                            <input type="number" class="form-control bungkus" value="${customBungkus}" disabled>
-                        </div>
-                        <div class="col-md-6">
-                            <label>Aturan Pakai</label>
-                            <input type="text" class="form-control aturan_pakai" value="${String(customAturanPakai || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" disabled>
-                        </div>
-                    </div>
-
-                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
-                </div>
-            `;
-
-            $('#racikan-container').append(racikanCard);
-            // initialize select2 for the appended wadah so UI remains consistent
-            $('#racikan-container .select2-wadah-racikan').last().select2({ placeholder: 'Search wadah...', ajax: { url: '{{ route("wadah.search") }}', dataType: 'json', delay: 250, data: function (params) { return { q: params.term }; }, processResults: function (data) { return { results: data }; }, cache: true } });
+            $('#racikan-container').append(racikanCardHtml({
+                ke: racikanKe,
+                nama: paket.nama_paket || null,
+                saved: true,
+                rows: rows,
+                // keep the paket's wadah: an empty wadah would be saved as NULL on the next "Update Racikan"
+                wadahId: paket.wadah ? paket.wadah.id : (paket.wadah_id || ''),
+                wadahNama: paket.wadah ? paket.wadah.nama : '',
+                bungkus: customBungkus,
+                aturan: customAturanPakai
+            }));
+            initWadahSelect($('#racikan-container .select2-wadah-racikan').last());
+            toggleEmptyRacikan();
         }
 
         // Edit Paket (populate form for editing)
@@ -2528,12 +2468,14 @@
             $('#paketIdFarmasi').val(paket.id || '');
             // populate fields
             $('#formPaketRacikanFarmasi input[name="nama_paket"]').val(paket.nama_paket || '');
-            // wadah (select2) - set value then trigger change
+            // wadah (ajax select2): the option must exist before it can be selected, else the paket loses its wadah on save
+            $('.select2-wadah-paket').find('option').not('[value=""]').remove();
             if (paket.wadah && paket.wadah.id) {
-                $('.select2-wadah-paket').val(paket.wadah.id).trigger('change');
+                $('.select2-wadah-paket').append(new Option(paket.wadah.nama, paket.wadah.id, true, true)).trigger('change');
             } else {
                 $('.select2-wadah-paket').val('').trigger('change');
             }
+            setPaketFormMode(paket.nama_paket);
             $('#formPaketRacikanFarmasi input[name="bungkus_default"]').val(paket.bungkus_default || 10);
             $('#formPaketRacikanFarmasi input[name="aturan_pakai_default"]').val(paket.aturan_pakai_default || '');
 
@@ -2602,7 +2544,17 @@
         });
 
         // Reset Form Paket
+        // The form both creates and edits (clicking a paket name): say which, so "Simpan" does not
+        // overwrite a paket someone meant to copy as a new one
+        function setPaketFormMode(editingNama) {
+            const $modal = $('#paketRacikanModal, #paketRacikanModalFarmasi');
+            $modal.find('.paket-form-title strong').text(editingNama ? 'Edit Paket: ' + editingNama : 'Buat Paket Racikan Baru');
+            $modal.find('form button[type="submit"]').text(editingNama ? 'Update Paket' : 'Simpan Paket');
+        }
+
         function resetFormPaket() {
+            setPaketFormMode(null);
+            $('.select2-wadah-paket').find('option').not('[value=""]').remove();
             $('.select2-wadah-paket').each(function() { if ($(this).hasClass('select2-hidden-accessible')) { $(this).select2('destroy'); } });
             $('.select2-obat-paket').each(function() { if ($(this).hasClass('select2-hidden-accessible')) { $(this).select2('destroy'); } });
             $('#formPaketRacikanFarmasi')[0].reset();
@@ -2631,178 +2583,86 @@
 
     });
 
+    // Rebuild the racikan cards from the database (fallback after applying a paket).
+    // The non racikan table is left alone: nothing there changed, and its stok column comes from the server render.
     function fetchFarmasiResep() {
-    const visitationId = $('#visitation_id').val();
-    console.log('Fetching resep data for visitation:', visitationId);
+        const visitationId = $('#visitation_id').val();
 
-    $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
-        $('#resep-wrapper').show();
-        $('#empty-resep-message').hide();
+        $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
+            $('#resep-wrapper').show();
+            $('#empty-resep-message').hide();
 
-        // ==== NON RACIKAN ====
-        const tbody = $('#resep-table-body');
-        tbody.empty();
+            const racikanWrapper = $('#racikan-container');
+            racikanWrapper.empty();
+            // reset the page counter (not a local copy), so new cards continue after the loaded racikan
+            racikanCount = 0;
 
-    res.non_racikans.forEach(item => {
-            tbody.append(`
-                <tr data-id="${item.id}">
-                    <td>${item.obat?.nama ?? '-'}</td>
-                    <td>${item.jumlah}</td>
-                    <td>${item.harga ?? item.obat?.harga_nonfornas ?? 0}</td>
-                    <td>${item.diskon ?? 0}</td>                   
-                    <td>${item.obat?.stok ?? 0}</td>
-                    <td>${item.aturan_pakai}</td>
-                    <td>
-                        <button class="btn btn-success btn-sm edit" data-id="${item.id}">Edit</button>
-                        <button class="btn btn-danger btn-sm hapus" data-id="${item.id}">Hapus</button>
-                    </td>
-                </tr>
-            `);
+            // res.racikans is a list of groups; the racikan number is on the items themselves
+            Object.values(res.racikans || {}).forEach(function (items) {
+                const first = (items || [])[0];
+                if (!first) return;
+                const ke = parseInt(first.racikan_ke, 10);
+                const rows = items.map(function (item) {
+                    const obat = item.obat || {};
+                    return racikanRowHtml({
+                        id: item.id,
+                        obatId: item.obat_id,
+                        nama: obat.nama,
+                        dosis: item.dosis,
+                        baseDosis: extractDoseNumber(obat.dosis),
+                        jumlah: item.jumlah,
+                        stok: obat.stok_gudang
+                    });
+                }).join('');
+
+                racikanWrapper.append(racikanCardHtml({
+                    nama: first.paket_racikan_nama || null,
+                    ke: ke,
+                    saved: true,
+                    rows: rows,
+                    wadahId: first.wadah ? first.wadah.id : (first.wadah_id || ''),
+                    wadahNama: first.wadah ? first.wadah.nama : '',
+                    bungkus: first.bungkus || 1,
+                    aturan: first.aturan_pakai || ''
+                }));
+                initWadahSelect(racikanWrapper.find('.select2-wadah-racikan').last());
+                racikanCount = Math.max(racikanCount, ke || 0);
+            });
+            toggleEmptyRacikan();
+            updateTotalPrice();
+            refreshSubmitButtonState();
         });
+    }
 
-        // ==== RACIKAN ====
-        const racikanWrapper = $('#racikan-container');
-        racikanWrapper.empty(); // clear old data
-        // reset the page counter (not a local copy), so new cards continue after the loaded racikan
-        racikanCount = 0;
-
-        console.log('Racikan data from server:', res.racikans);
-
-    Object.entries(res.racikans).forEach(([ke, items]) => {
-            console.log(`Processing racikan with ke=${ke}, items:`, items);
-
-            if (ke === '0' || ke === 0) {
-                console.warn('WARNING: Found racikan with key 0, this will cause update problems!');
-            }
-
-            // Build a paket-like object so we can reuse the unified card builder
-            const first = items[0] || {};
-            const bungkus = first.bungkus ?? (first.bungkus_default || 1);
-            const aturan = first.aturan_pakai ?? (first.aturan_pakai_default || '');
-            const paketObj = {
-                wadah: first.wadah ? { id: first.wadah_id || '', nama: first.wadah } : null,
-                bungkus_default: bungkus,
-                aturan_pakai_default: aturan,
-                details: items.map(item => ({ obat: item.obat || {}, dosis: item.dosis }))
-            };
-
-            // Use the same DOM builder used by paket and manual add -> ensures identical markup
-            createRacikanCardFromPaketWithCustomData(paketObj, ke, bungkus, aturan);
-            racikanCount = Math.max(racikanCount, parseInt(ke, 10) || 0);
-        });
-        // After rebuilding the DOM from server response, update totals
-        updateTotalPrice();
-        refreshSubmitButtonState();
-    });
-}
-
-// DEBUG: Global handler for edit-racikan to ensure it always works
+// EDIT RACIKAN. Locked invoice: only aturan pakai (for etiket); otherwise all fields + obat rows.
 $(document).on('click', '.edit-racikan', function () {
     const card = $(this).closest('.racikan-card');
-    // In locked mode, ONLY enable aturan pakai edit.
-    if (typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED) {
-        // Keep wadah/bungkus locked
-        card.find('.wadah, .jumlah_bungkus, .bungkus').prop('disabled', true);
-        // Allow editing aturan pakai
-        card.find('.aturan_pakai').prop('disabled', false);
+    const locked = typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED;
 
-        // Hide create button, show update button
-        card.find('.tambah-resepracikan').addClass('d-none');
-        card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
-
-        // Do not allow adding/removing/editing obat rows
-        card.find('.hapus-obat, .edit-obat').prop('disabled', true);
-        card.find('.tambah-obat').prop('disabled', true);
-        console.log('Edit racikan (locked) - only aturan pakai enabled');
-    } else {
-        // Enable all possible field classes to handle different naming conventions in the HTML
-        card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
-        card.find('.tambah-resepracikan').addClass('d-none');
-        // Always show and enable Update button
-        card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
-        // Enable all Hapus and Edit buttons in this racikan card
-        card.find('.hapus-obat, .edit-obat').prop('disabled', false);
-        console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
-    }
-
-    // If the add-obat form doesn't exist in this card, insert it so user can add obat while editing
-    // Prevent duplicate add-rows: if a select2 for obat already exists, don't insert another
-    if ((typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) && card.find('.select2-obat-racikan').length === 0) {
-        // remove any stray add-obat-row remnants to avoid duplicates
-        card.find('.add-obat-row').not(':first').remove();
-        const addRow = `
-            <div class="row add-obat-row mb-3">
-                <div class="col-md-6">
-                    <label>Nama Obat</label>
-                    <select class="form-control select2-obat-racikan" name="obat_id">
-                        <option value="">Search and select an obat...</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label>Dosis</label>
-                    <input type="number" class="form-control dosis_input">
-                </div>
-                <div class="col-md-2">
-                    <label>Satuan Dosis</label>
-                    <select class="form-control mode_dosis">
-                        <option value="normal">Normal</option>
-                        <option value="tablet">Tablet</option>
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-primary btn-block tambah-obat">Tambah ke Racikan</button>
-                </div>
-            </div>
-        `;
-
-        // Insert the add row right above the table inside the card
-        card.find('table').before(addRow);
-
-        // Initialize select2 for the newly inserted select (only on the last one)
-        card.find('.select2-obat-racikan').last().select2({
-            placeholder: 'Search obat...',
-            ajax: {
-                url: '{{ route("obat.search") }}',
-                dataType: 'json',
-                delay: 250,
-                data: function (params) {
-                    return { q: params.term };
-                },
-                processResults: function (data) {
-                    let items = Array.isArray(data.results) ? data.results : data;
-                    return {
-                        results: items.map(function(item) {
-                            return {
-                                id: item.id,
-                                text: item.text || (item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : '')),
-                                nama: item.nama,
-                                dosis: item.dosis,
-                                satuan: item.satuan,
-                                stok: item.stok,
-                                stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok,
-                                harga_nonfornas: item.harga_nonfornas
-                            };
-                        })
-                    };
-                },
-                cache: true
-            },
-            minimumInputLength: 3
-        });
-
-        // Enable the tambah-obat button we just inserted
-        card.find('.tambah-obat').prop('disabled', false);
-    } else {
-        // If the form exists, just ensure the add button is enabled
-        if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
-            card.find('.tambah-obat').prop('disabled', false);
-        } else {
-            card.find('.tambah-obat').prop('disabled', true);
-        }
-    }
-
-    // Aturan pakai stays a free-text field (with "sering dipakai" suggestions); just make it editable
+    card.find('.tambah-resepracikan').addClass('d-none');
+    card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
     card.find('.aturan_pakai').prop('disabled', false);
+
+    if (locked) {
+        card.find('.wadah, .jumlah_bungkus, .bungkus').prop('disabled', true);
+        card.find('.hapus-obat, .edit-obat').prop('disabled', true);
+        refreshSubmitButtonState();
+        return;
+    }
+
+    card.find('.wadah, .jumlah_bungkus, .bungkus').prop('disabled', false);
+    card.find('.select2-wadah-racikan').trigger('change.select2');
+    card.find('.hapus-obat, .edit-obat').prop('disabled', false);
+
+    // "Tambah obat" row above the table (saved cards don't carry one)
+    if (card.find('.add-obat-row').length === 0) {
+        card.find('.table-responsive').first().before(racikanAddRowHtml());
+    }
+    const obatSelect = card.find('.select2-obat-racikan');
+    if (!obatSelect.hasClass('select2-hidden-accessible')) {
+        initFarmasiObatSelect(obatSelect);
+    }
+    card.find('.add-obat-row').find('input, select, button').prop('disabled', false);
 
     refreshSubmitButtonState();
 });

@@ -41,6 +41,14 @@
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
+    /* Docked in the sidebar foot: full sidebar width, a little lower */
+    .belova-chat-widget.is-in-sidebar { bottom: 14px; }
+    .belova-chat-widget.is-in-sidebar .belova-chat-launcher { width: var(--belova-chat-launcher-width, auto); height: 44px; border-radius: 12px; }
+    .belova-chat-widget.is-compact .belova-chat-launcher { padding: 0; }
+    .belova-chat-widget.is-compact .belova-chat-launcher-text { display: none; }
+    /* Keep the last menu items scrollable above the docked launcher */
+    body.belova-chat-in-sidebar #belovaSidenav .left-sidenav-menu { padding-bottom: 72px; }
+
     .belova-chat-launcher:hover {
         transform: translateY(-2px);
         box-shadow: 0 18px 36px -10px rgba(var(--chat-accent-rgb, 37, 99, 235), 0.7);
@@ -856,17 +864,26 @@
 
         const $ = window.jQuery;
 
-        // Bottom-left, just right of the sidebar while it is shown (hidden / collapsed / mobile: the screen edge)
+        // Launcher sits in the bottom-left corner of the sidebar while the sidebar is shown, so it never
+        // covers page content (save bars, tables). Sidebar hidden (mobile): bottom-left of the screen.
         const placeChatWidget = function () {
             let left = 24;
+            let inSidebar = false;
             const sidenav = document.querySelector('.left-sidenav');
             if (sidenav) {
                 const style = window.getComputedStyle(sidenav);
                 const rect = sidenav.getBoundingClientRect();
                 if (style.display !== 'none' && style.visibility !== 'hidden' && style.position === 'fixed' && rect.width > 0 && rect.right > 0) {
-                    left = Math.round(rect.right) + 24;
+                    inSidebar = true;
+                    left = Math.max(0, Math.round(rect.left)) + 12;
+                    widget.style.setProperty('--belova-chat-launcher-width', Math.max(48, Math.round(rect.width) - 24) + 'px');
+                    // Collapsed sidebar (icons only): icon-only launcher
+                    widget.classList.toggle('is-compact', rect.width < 140);
                 }
             }
+            widget.classList.toggle('is-in-sidebar', inSidebar);
+            if (!inSidebar) widget.classList.remove('is-compact');
+            document.body.classList.toggle('belova-chat-in-sidebar', inSidebar);
             widget.style.setProperty('--belova-chat-left', left + 'px');
         };
         placeChatWidget();

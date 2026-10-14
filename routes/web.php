@@ -1971,6 +1971,8 @@ Route::post('/erm/ic-pendaftaran/store', [IcPendaftaranController::class, 'store
 Route::post('/erm/ic-pendaftaran/check', [IcPendaftaranController::class, 'check'])->name('erm.ic_pendaftaran.check');
 Route::get('/erm/ic-pendaftaran/{pasien}/pdf', [IcPendaftaranController::class, 'pdf'])->name('erm.ic_pendaftaran.pdf');
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
+// Obat with kandungan in common with a chosen obat (E-Resep recommendations)
+Route::get('/obat/alternatif', [ObatController::class, 'alternatif'])->name('obat.alternatif');
 // Import CSV to update obat by ID (handled inside ERM route group)
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');

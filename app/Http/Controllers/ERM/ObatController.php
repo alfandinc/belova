@@ -1086,48 +1086,103 @@ class ObatController extends Controller
     public function search(Request $request)
     {
         $query = trim((string) $request->get('q'));
-        $metodeBayarId = $request->get('metode_bayar_id');
-        $visitationId = $request->get('visitation_id');
         $searchTerms = $this->buildObatSearchTerms($query);
-        $relatedZatAktifIds = $this->findRelatedZatAktifIds($searchTerms);
 
-        // Search by obat name, dosis, satuan, or zat aktif name, and filter by metode_bayar_id if provided
-        $obatsQuery = Obat::where('status_aktif', 1)
-            ->where(function($q) use ($searchTerms, $relatedZatAktifIds) {
+        // Search by obat name, dosis, satuan, or zat aktif name (allergy / metode bayar filtered).
+        // Names starting with the query come first. Alternatives are a separate call (alternatif()) so this stays fast.
+        $obatsQuery = $this->applyObatSearchFilters(Obat::query(), $request)
+            ->with('zatAktifs')
+            ->where(function ($q) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
                     $q->orWhere('nama', 'LIKE', "%{$term}%")
                       ->orWhere('dosis', 'LIKE', "%{$term}%")
                       ->orWhere('satuan', 'LIKE', "%{$term}%")
-                      ->orWhereHas('zatAktifs', function($z) use ($term) {
+                      ->orWhereHas('zatAktifs', function ($z) use ($term) {
                           $z->where('nama', 'LIKE', "%{$term}%");
                       });
                 }
-
-                if (!empty($relatedZatAktifIds)) {
-                    $q->orWhereHas('zatAktifs', function ($z) use ($relatedZatAktifIds) {
-                        $z->whereIn('erm_zataktif.id', $relatedZatAktifIds);
-                    });
-                }
             });
-        // If visitation_id provided, exclude obat that contain any zat aktif the patient is allergic to
-        if ($visitationId) {
-            $visitation = Visitation::find($visitationId);
-            if ($visitation && $visitation->pasien_id) {
-                $zatAlergi = DB::table('erm_alergi')
-                    ->where('pasien_id', $visitation->pasien_id)
-                    ->whereNotNull('zataktif_id')
-                    ->pluck('zataktif_id')
-                    ->filter()
-                    ->toArray();
+        if ($query !== '') {
+            $obatsQuery->orderByRaw('CASE WHEN nama LIKE ? THEN 0 WHEN nama LIKE ? THEN 1 ELSE 2 END', [$query . '%', '%' . $query . '%']);
+        }
+        $obats = $obatsQuery->orderBy('nama')->limit(20)->get();
 
-                if (!empty($zatAlergi)) {
-                    $obatsQuery->whereDoesntHave('zatAktifs', function ($q) use ($zatAlergi) {
-                        $q->whereIn('erm_zataktif.id', $zatAlergi);
-                    });
-                }
+        // Return the data in Select2 format (with 'results' key)
+        return response()->json(['results' => $this->obatSearchResults($obats)]);
+    }
+
+    /**
+     * Alternatives for a chosen obat: other obat sharing at least one zat aktif (same filters as search()),
+     * exact same kandungan first, then most shared kandungan, then the ones with stok.
+     * Returns the chosen obat too ('obat') so the page can compare harga / kandungan against it.
+     */
+    public function alternatif(Request $request)
+    {
+        $obatId = $request->get('obat_id');
+        $zatIds = $obatId
+            ? DB::table('erm_kandungan_obat')->where('obat_id', $obatId)->pluck('zataktif_id')->filter()->unique()->values()->all()
+            : [];
+        $obat = $obatId ? Obat::with('zatAktifs')->find($obatId) : null;
+        if (!$obat || empty($zatIds)) {
+            return response()->json(['obat' => null, 'results' => []]);
+        }
+
+        $shared = DB::table('erm_kandungan_obat')
+            ->select('obat_id', DB::raw('COUNT(DISTINCT zataktif_id) as shared'))
+            ->whereIn('zataktif_id', $zatIds)
+            ->where('obat_id', '!=', $obatId)
+            ->groupBy('obat_id')
+            ->pluck('shared', 'obat_id');
+
+        $obats = $shared->isEmpty() ? collect() : $this->applyObatSearchFilters(Obat::query(), $request)
+            ->with('zatAktifs')
+            ->whereIn('id', $shared->keys()->all())
+            ->get();
+
+        // Each zat aktif flagged "sama" when the chosen obat has it too
+        $withKandungan = function ($row, $model) use ($zatIds) {
+            $row['kandungan'] = $model->zatAktifs->map(fn ($z) => [
+                'nama' => ucwords(strtolower($z->nama)),
+                'sama' => in_array($z->id, $zatIds),
+            ])->values()->all();
+            return $row;
+        };
+
+        $byId = $obats->keyBy('id');
+        $results = $this->obatSearchResults($obats)
+            ->map(function ($row) use ($shared, $zatIds, $byId, $withKandungan) {
+                $row['kandungan_sama'] = (int) ($shared[$row['id']] ?? 0);
+                $row['kandungan_persis'] = $row['kandungan_sama'] === count($zatIds) && $row['kandungan_count'] === count($zatIds);
+                return $withKandungan($row, $byId[$row['id']]);
+            })
+            ->sort(function ($a, $b) {
+                return [$b['kandungan_persis'], $b['kandungan_sama'], $b['stok'] > 0, $a['nama']]
+                    <=> [$a['kandungan_persis'], $a['kandungan_sama'], $a['stok'] > 0, $b['nama']];
+            })
+            ->take(50)
+            ->values();
+
+        $chosen = $withKandungan($this->obatSearchResults(collect([$obat]))->first(), $obat);
+
+        return response()->json(['obat' => $chosen, 'results' => $results]);
+    }
+
+    /** Active obat, without zat aktif the visit's patient is allergic to, allowed for the metode bayar. */
+    private function applyObatSearchFilters($query, Request $request)
+    {
+        $query->where('status_aktif', 1);
+
+        if ($visitationId = $request->get('visitation_id')) {
+            $pasienId = Visitation::whereKey($visitationId)->value('pasien_id');
+            $zatAlergi = $pasienId
+                ? DB::table('erm_alergi')->where('pasien_id', $pasienId)->whereNotNull('zataktif_id')->pluck('zataktif_id')->filter()->all()
+                : [];
+            if (!empty($zatAlergi)) {
+                $query->whereDoesntHave('zatAktifs', fn ($z) => $z->whereIn('erm_zataktif.id', $zatAlergi));
             }
         }
-        if ($metodeBayarId) {
+
+        if ($metodeBayarId = $request->get('metode_bayar_id')) {
             // Allow obat for the same metode_bayar_id OR obat whose metode_bayar_id
             // is mapped to this visitation metode_bayar via `erm_obat_mappings`.
             $mapped = ObatMapping::where('visitation_metode_bayar_id', $metodeBayarId)
@@ -1137,19 +1192,25 @@ class ObatController extends Controller
                 ->unique()
                 ->values()
                 ->toArray();
-
-            // Include the visitation metode bayars itself
-            $allowedMetodeBayarIds = array_merge([$metodeBayarId], $mapped);
-
-            $obatsQuery->whereIn('metode_bayar_id', $allowedMetodeBayarIds);
+            $query->whereIn('metode_bayar_id', array_merge([$metodeBayarId], $mapped));
         }
-        $obats = $obatsQuery->limit(20)->get();
 
-        // Return the data in Select2 format (with 'results' key)
-        // Get mapped gudang for resep
+        return $query;
+    }
+
+    /** Select2 rows for obat search / alternatif; stok of the resep gudang in one query for all rows. */
+    private function obatSearchResults($obats)
+    {
         $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokByObat = ($gudangId && $obats->isNotEmpty())
+            ? \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
+                ->whereIn('obat_id', $obats->pluck('id')->all())
+                ->groupBy('obat_id')
+                ->selectRaw('obat_id, SUM(stok) as stok_sum')
+                ->pluck('stok_sum', 'obat_id')
+            : collect();
 
-        $results = $obats->map(function ($obat) use ($gudangId) {
+        return $obats->map(function ($obat) use ($stokByObat) {
             $zatAktifNames = $obat->zatAktifs->pluck('nama')->map(function($nama) {
                 return ucwords(strtolower($nama));
             })->implode(', ');
@@ -1159,14 +1220,16 @@ class ObatController extends Controller
             }
             $text .= ' - ' . $obat->dosis . ' ' . $obat->satuan;
 
-            // Get stok for mapped gudang (guard against missing relation)
-            $stokGudang = ($gudangId && $obat) ? (int) $obat->getStokByGudang($gudangId) : 0;
+            // Same value as Obat::getStokByGudang() for the resep gudang
+            $stokGudang = (int) ($stokByObat[$obat->id] ?? 0);
 
             return [
                 'id' => $obat->id,
                 'text' => $text,
                 'nama' => $obat->nama,
                 'zat_aktif' => $zatAktifNames,
+                'kandungan_count' => $obat->zatAktifs->count(),
+                'is_generik' => (bool) $obat->is_generik,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
                 'satuan_stok' => $obat->satuan_stok,
@@ -1179,7 +1242,6 @@ class ObatController extends Controller
                     : null,
             ];
         })->values();
-        return response()->json(['results' => $results]);
     }
 
     private function buildObatSearchTerms(string $query): array
@@ -1198,45 +1260,6 @@ class ObatController extends Controller
             Str::endsWith($normalized, 'ine') ? substr($normalized, 0, -1) : null,
         ])
             ->filter(fn ($term) => filled($term))
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function findRelatedZatAktifIds(array $searchTerms): array
-    {
-        if (empty($searchTerms)) {
-            return [];
-        }
-
-        $matchedObatIds = Obat::query()
-            ->where(function ($query) use ($searchTerms) {
-                foreach ($searchTerms as $term) {
-                    $query->orWhere('nama', 'LIKE', "%{$term}%")
-                        ->orWhere('dosis', 'LIKE', "%{$term}%")
-                        ->orWhere('satuan', 'LIKE', "%{$term}%");
-                }
-            })
-            ->pluck('id');
-
-        $zatAktifIds = ZatAktif::query()
-            ->where(function ($query) use ($searchTerms) {
-                foreach ($searchTerms as $term) {
-                    $query->orWhere('nama', 'LIKE', "%{$term}%");
-                }
-            })
-            ->pluck('id');
-
-        if ($matchedObatIds->isNotEmpty()) {
-            $obatZatAktifIds = DB::table('erm_kandungan_obat')
-                ->whereIn('obat_id', $matchedObatIds)
-                ->pluck('zataktif_id');
-
-            $zatAktifIds = $zatAktifIds->merge($obatZatAktifIds);
-        }
-
-        return $zatAktifIds
-            ->filter()
             ->unique()
             ->values()
             ->all();

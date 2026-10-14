@@ -39,6 +39,14 @@ class EresepController extends Controller
         return in_array($normalized, ['botol', 'cream / lotion'], true);
     }
 
+    /** Nama shown for a racikan: its paket (stored on the rows, or the paket with exactly this isi), null for a custom one. */
+    private function racikanNama(string $resepModel, $visitationId, $racikanKe): ?string
+    {
+        $rows = $resepModel::where('visitation_id', $visitationId)->where('racikan_ke', $racikanKe)->get(['obat_id', 'dosis', 'paket_racikan_nama']);
+
+        return $rows->isEmpty() ? null : PaketRacikan::racikanNameResolver()($rows);
+    }
+
     private function calculateRacikanStockReduction(ResepFarmasi $resep): float
     {
         $prescribedDosis = 0.0;
@@ -377,55 +385,8 @@ class EresepController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        // Ambil pasien id
-        $pasienId = $visitation->pasien_id;
-
-        // Ambil zat aktif yang pasien alergi
-        $zatAlergi = DB::table('erm_alergi')
-            ->where('pasien_id', $pasienId)
-            ->pluck('zataktif_id')
-            ->toArray();
-
-        // Ambil obat yang tidak punya zat aktif dari alergi
-        $obats = Obat::whereDoesntHave('zatAktifs', function ($query) use ($zatAlergi) {
-            $query->whereIn('erm_zataktif.id', $zatAlergi);
-        })->get();
-
-        // Map obat collection to include per-gudang stock used by farmasi operations
-        // Optimize: avoid N+1 by fetching stok sums for all obat in one query
-        $gudangIdForResep = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-        if ($gudangIdForResep) {
-            // Get obat IDs list
-            $obatIds = $obats->pluck('id')->toArray();
-            // Aggregate stok per obat for the target gudang in one query
-            // Expired batches cannot be dispensed, so they do not count as available
-            $stokRows = \App\Models\ERM\ObatStokGudang::selectRaw('obat_id, SUM(stok) as stok_sum')
-                ->layakPakai()
-                ->whereIn('obat_id', $obatIds)
-                ->where('gudang_id', $gudangIdForResep)
-                ->groupBy('obat_id')
-                ->get()
-                ->keyBy('obat_id');
-
-            $obats = $obats->map(function ($obat) use ($stokRows) {
-                $stokGudang = 0;
-                if ($obat && isset($stokRows[$obat->id])) {
-                    $stokGudang = (int) $stokRows[$obat->id]->stok_sum;
-                }
-                $obat->setAttribute('stok', $stokGudang);
-                $obat->setAttribute('stok_gudang', $stokGudang);
-                return $obat;
-            });
-        } else {
-            // If no mapped gudang, still expose total_stok as stok_gudang
-            $obats = $obats->map(function ($obat) {
-                $stokGudang = (int) $obat->getTotalStokAttribute();
-                $obat->setAttribute('stok_gudang', $stokGudang);
-                return $obat;
-            });
-        }
-
-        // $obats = Obat::all();
+        // Obat are picked through the obat.search endpoint (allergy + metode bayar filtered there), so the
+        // page does not load the whole obat list.
 
         // Ambil semua resep berdasarkan visitation_id
         $reseps = ResepDokter::where('visitation_id', $visitationId)->with('obat', 'wadah')->get();
@@ -450,21 +411,20 @@ class EresepController extends Controller
 
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
+        // Card title: paket name of each racikan (null = custom racikan, shown as "Racikan N")
+        $resolveNama = PaketRacikan::racikanNameResolver();
+        $racikanNames = $racikans->map(fn ($items) => $resolveNama($items));
 
-        $wadah = WadahObat::all();
-
-        // dd($racikans);
- $catatan_resep = ResepDetail::where('visitation_id', $visitationId)->value('catatan_dokter');
+        $catatan_resep = ResepDetail::where('visitation_id', $visitationId)->value('catatan_dokter');
 
         return view('erm.eresep.create', array_merge([
             'visitation' => $visitation,
             'invoicePaymentMethod' => $invoicePaymentMethod,
             'isInvoiceLocked' => $isInvoiceLocked,
-            'obats' => $obats,
-            'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
+            'racikanNames' => $racikanNames,
             'catatan_resep' => $catatan_resep,
             'farmasiObatIds' => $farmasiObatIds,
             'farmasiRacikanObatIds' => $farmasiRacikanObatIds,
@@ -477,7 +437,7 @@ class EresepController extends Controller
         $validated = $request->validate([
             'visitation_id' => 'required',
             'obat_id' => 'required',
-            'jumlah' => 'required',
+            'jumlah' => 'required|integer|min:1',
             'aturan_pakai' => 'required',
         ]);
         $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
@@ -518,7 +478,7 @@ class EresepController extends Controller
             'visitation_id' => 'required',
             'racikan_ke' => 'required|integer',
             'wadah' => 'required',
-            'bungkus' => 'required|integer',
+            'bungkus' => 'required|integer|min:1',
             'aturan_pakai' => 'required|string',
             'obats' => 'required|array|min:1',
             'obats.*.obat_id' => 'required',
@@ -553,7 +513,12 @@ class EresepController extends Controller
             return $racikanKe;
         });
 
-        return response()->json(['success' => true, 'message' => 'Racikan berhasil disimpan.', 'racikan_ke' => $racikanKe]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Racikan berhasil disimpan.',
+            'racikan_ke' => $racikanKe,
+            'racikan_nama' => $this->racikanNama(ResepDokter::class, $validated['visitation_id'], $racikanKe),
+        ]);
     }
 
     public function destroyNonRacikan($id)
@@ -700,6 +665,7 @@ class EresepController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Racikan berhasil diupdate',
+                'racikan_nama' => $this->racikanNama(ResepDokter::class, $visitationId, $racikanKe),
                 'created_ids' => $createdIds ?? [],
                 'updated_ids' => $updatedIds ?? [],
                 'obats' => $updatedRows
@@ -729,24 +695,10 @@ class EresepController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        // Ambil pasien id
-        $pasienId = $visitation->pasien_id;
-
-        // Ambil zat aktif yang pasien alergi
-        $zatAlergi = DB::table('erm_alergi')
-            ->where('pasien_id', $pasienId)
-            ->pluck('zataktif_id')
-            ->toArray();
-
-        // Ambil obat yang tidak punya zat aktif dari alergi
-        $obats = Obat::whereDoesntHave('zatAktifs', function ($query) use ($zatAlergi) {
-            $query->whereIn('erm_zataktif.id', $zatAlergi);
-        })->get();
-
-        // $obats = Obat::all();
+        // Obat are picked through the obat.search endpoint (allergy filtered there by visitation_id)
 
         // Ambil semua resep berdasarkan visitation_id
-        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat', 'wadah')->get();
 
 
         // Kelompokkan racikan berdasarkan racikan_ke
@@ -757,8 +709,9 @@ class EresepController extends Controller
 
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
-
-        $wadah = WadahObat::all();
+        // Card title: paket name of each racikan (null = custom racikan, shown as "Racikan N")
+        $resolveNama = PaketRacikan::racikanNameResolver();
+        $racikanNames = $racikans->map(fn ($items) => $resolveNama($items));
 
         // Ambil catatan resep dari erm_resepdetail
         $catatan_resep = ResepDetail::where('visitation_id', $visitationId)->value('catatan_dokter');
@@ -767,11 +720,10 @@ class EresepController extends Controller
             'visitation' => $visitation,
             'invoicePaymentMethod' => $invoicePaymentMethod,
             'isInvoiceLocked' => $isInvoiceLocked,
-            'obats' => $obats,
-            'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
+            'racikanNames' => $racikanNames,
             'catatan_resep' => $catatan_resep,
         ], $pasienData, $createKunjunganData));
     }
@@ -817,10 +769,25 @@ class EresepController extends Controller
     }
     public function getFarmasiResepJson($visitationId)
     {
-        $reseps = ResepFarmasi::with('obat')
+        $reseps = ResepFarmasi::with('obat', 'wadah')
             ->where('visitation_id', $visitationId)
             ->get();
 
+        // Stok in the resep gudang per obat (one query), for the farmasi page that rebuilds its racikan cards
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        if ($gudangId && $reseps->isNotEmpty()) {
+            $stokByObat = \App\Models\ERM\ObatStokGudang::selectRaw('obat_id, SUM(stok) as stok_sum')
+                ->layakPakai()
+                ->whereIn('obat_id', $reseps->pluck('obat_id')->unique()->all())
+                ->where('gudang_id', $gudangId)
+                ->groupBy('obat_id')
+                ->pluck('stok_sum', 'obat_id');
+            foreach ($reseps as $resep) {
+                $resep->obat?->setAttribute('stok_gudang', (int) ($stokByObat[$resep->obat_id] ?? 0));
+            }
+        }
+
+        // values(): keys become 0..n, so each item carries its own racikan_ke
         $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke')->values();
         $nonRacikans = $reseps->whereNull('racikan_ke')->values();
 
@@ -837,7 +804,7 @@ class EresepController extends Controller
         $validated = $request->validate([
             'visitation_id' => 'required',
             'obat_id' => 'required',
-            'jumlah' => 'required',
+            'jumlah' => 'required|integer|min:1',
             'aturan_pakai' => 'required',
 
             'diskon' => 'required',
@@ -884,7 +851,7 @@ class EresepController extends Controller
         'visitation_id' => 'required',
         'racikan_ke' => 'required|integer',
         'wadah' => 'required',
-        'bungkus' => 'required|integer',
+        'bungkus' => 'required|integer|min:1',
         'aturan_pakai' => 'required|string',
         'obats' => 'required|array|min:1',
         'obats.*.obat_id' => 'required',
@@ -933,6 +900,7 @@ class EresepController extends Controller
         'success' => true,
         'message' => 'Racikan berhasil disimpan.',
         'racikan_ke' => $racikanKe,
+        'racikan_nama' => $this->racikanNama(ResepFarmasi::class, $validated['visitation_id'], $racikanKe),
         'obats' => $createdObats
     ]);
 }
@@ -1009,7 +977,7 @@ class EresepController extends Controller
 
         $data = $request->validate([
             'jumlah'       => 'required|integer|min:1',
-            'diskon'       => 'integer|max:100',
+            'diskon'       => 'integer|min:0|max:100',
             'aturan_pakai' => 'required|string|max:255',
         ]);
 
@@ -1061,7 +1029,7 @@ class EresepController extends Controller
             $validated = $request->validate([
                 'visitation_id' => 'required',
                 'wadah' => 'nullable',
-                'bungkus' => 'required|integer',
+                'bungkus' => 'required|integer|min:1',
                 'aturan_pakai' => 'required|string',
                 'obats' => 'required|array',
                 'obats.*.obat_id' => 'nullable',
@@ -1155,9 +1123,27 @@ class EresepController extends Controller
 
             DB::commit();
 
+            // Current rows of this racikan (ids + stok) so the page can sync without reloading
+            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+            $rows = ResepFarmasi::with('obat')
+                ->where('visitation_id', $visitationId)
+                ->where('racikan_ke', $racikanKe)
+                ->get()
+                ->map(fn ($r) => [
+                    'id' => $r->id,
+                    'obat_id' => $r->obat_id,
+                    'obat_nama' => $r->obat->nama ?? '',
+                    'obat_dosis' => $r->obat->dosis ?? '',
+                    'dosis' => $r->dosis,
+                    'jumlah' => $r->jumlah ?? 1,
+                    'stok_gudang' => ($gudangId && $r->obat) ? (int) $r->obat->getStokByGudang($gudangId) : 0,
+                ]);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Racikan berhasil diupdate'
+                'message' => 'Racikan berhasil diupdate',
+                'racikan_nama' => $this->racikanNama(ResepFarmasi::class, $visitationId, $racikanKe),
+                'obats' => $rows,
             ]);
         } catch (\Exception $e) {
             if (DB::transactionLevel() > 0) {
@@ -1293,41 +1279,64 @@ class EresepController extends Controller
 
     // RIWAYAT DOKTER & FARMASI
 
-    public function getRiwayatDokter($pasienId)
+    public function getRiwayatDokter(Request $request, $pasienId)
     {
-        $reseps = ResepDokter::with([
-            'obat' => function($q) { $q->withInactive(); },
-            'visitation'
-        ])
-            ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
-            ->orderByDesc(
-                \App\Models\ERM\Visitation::select('tanggal_visitation')
-                    ->whereColumn('erm_visitations.id', 'erm_resepdokter.visitation_id')
-                    ->limit(1)
-            )
-            ->get()
-            ->groupBy('visitation_id');
-
-        $racikanPaketNames = $this->racikanPaketNames($reseps);
-
-        return view('erm.partials.resep-riwayatdokter', compact('reseps', 'racikanPaketNames'));
+        return $this->riwayatResep($request, ResepDokter::class, 'dokter', $pasienId);
     }
 
-    public function getRiwayatFarmasi($pasienId)
+    public function getRiwayatFarmasi(Request $request, $pasienId)
     {
-        $reseps = ResepFarmasi::with(['obat', 'visitation'])
-            ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
-            ->orderByDesc(
-                \App\Models\ERM\Visitation::select('tanggal_visitation')
-                    ->whereColumn('erm_visitations.id', 'erm_resepfarmasi.visitation_id')
-                    ->limit(1)
-            )
-            ->get()
-            ->groupBy('visitation_id');
+        return $this->riwayatResep($request, ResepFarmasi::class, 'farmasi', $pasienId);
+    }
 
-        $racikanPaketNames = $this->racikanPaketNames($reseps);
+    /**
+     * Riwayat resep of a patient, newest visit first, RIWAYAT_PER_PAGE visits at a time (?page=2 ... for
+     * "Muat lebih banyak"). ?current=<visitation_id> marks the open visit (no "Salin Resep" on it).
+     *
+     * @param class-string<\Illuminate\Database\Eloquent\Model> $model ResepDokter or ResepFarmasi
+     */
+    private function riwayatResep(Request $request, string $model, string $source, $pasienId)
+    {
+        $perPage = 8;
+        $page = max(1, (int) $request->query('page', 1));
+        $table = (new $model)->getTable();
 
-        return view('erm.partials.resep-riwayatfarmasi', compact('reseps', 'racikanPaketNames'));
+        // Visits with a resep of this kind: one cheap query on ids, the rows are loaded for this page only
+        $visits = DB::table($table . ' as r')
+            ->join('erm_visitations as v', 'v.id', '=', 'r.visitation_id')
+            ->where('v.pasien_id', $pasienId)
+            ->groupBy('v.id', 'v.tanggal_visitation')
+            ->orderByDesc('v.tanggal_visitation')
+            ->orderByDesc('v.id')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage + 1)
+            ->get(['v.id', 'v.tanggal_visitation']);
+        $hasMore = $visits->count() > $perPage;
+        $visitIds = $visits->take($perPage)->pluck('id')->all();
+
+        $rows = $model::with([
+            // withInactive: an obat made nonaktif later must show as "nonaktif", not as deleted
+            'obat' => fn ($q) => $q->withInactive(),
+            'visitation.dokter.user',
+            'visitation.dokter.spesialisasi',
+            'wadah',
+        ])->whereIn('visitation_id', $visitIds)->orderBy('created_at')->get()->groupBy('visitation_id');
+
+        // keep the visit order of the id query
+        $reseps = collect($visitIds)->mapWithKeys(fn ($id) => [$id => $rows->get($id, collect())]);
+
+        return view('erm.partials.resep-riwayat', [
+            'reseps' => $reseps,
+            'racikanPaketNames' => $this->racikanPaketNames($reseps),
+            'source' => $source,
+            'currentVisitationId' => $request->query('current'),
+            'page' => $page,
+            'nextUrl' => $hasMore ? $request->fullUrlWithQuery(['page' => $page + 1]) : null,
+            'totalVisits' => $page === 1
+                ? DB::table($table . ' as r')->join('erm_visitations as v', 'v.id', '=', 'r.visitation_id')
+                    ->where('v.pasien_id', $pasienId)->distinct()->count('v.id')
+                : null,
+        ]);
     }
 
     /**
@@ -1591,115 +1600,39 @@ class EresepController extends Controller
 
     public function copyFromHistory(Request $request)
     {
-        $validated = $request->validate([
-            'source_visitation_id' => 'required',
-            'target_visitation_id' => 'required',
-            'source_type' => 'required|in:dokter,farmasi',
-        ]);
-
-        $targetVisitationId = $validated['target_visitation_id'];
-        $sourceVisitationId = $validated['source_visitation_id'];
-        $sourceType = $validated['source_type'];
-
-        // Check if prescription already exists for target visitation
-        if (ResepDokter::where('visitation_id', $targetVisitationId)->exists()) {
-            return response()->json([
-                'status' => 'info',
-                'message' => 'Resep sudah ada untuk kunjungan ini. Harap hapus resep yang ada sebelum menyalin yang baru.'
-            ]);
-        }
-
-        // Fetch source prescriptions based on source type
-        $sourceReseps = $sourceType === 'dokter'
-            ? ResepDokter::where('visitation_id', $sourceVisitationId)->get()
-            : ResepFarmasi::where('visitation_id', $sourceVisitationId)->get();
-
-        if ($sourceReseps->isEmpty()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Tidak ada resep yang ditemukan untuk disalin.'
-            ]);
-        }
-
-        // Copy each prescription item
-        foreach ($sourceReseps as $resep) {
-            // Generate unique ID
-            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
-
-            // Get obat information if needed
-            $obat = Obat::find($resep->obat_id);
-            $baseHarga = $obat ? $obat->harga_nonfornas : 0;
-            // Extract numeric value from dosis strings
-            preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis, $inputMatches);
-            preg_match('/(\d+(?:[.,]\d+)?)/', $obat->dosis ?? '', $baseMatches);
-            $inputDosis = isset($inputMatches[1]) ? floatval(str_replace(',', '.', $inputMatches[1])) : 0;
-            $baseDosis = isset($baseMatches[1]) ? floatval(str_replace(',', '.', $baseMatches[1])) : 0;
-            $dosisRatio = ($baseDosis > 0 && $inputDosis > 0) ? ($inputDosis / $baseDosis) : 1;
-            $harga = $baseHarga * $dosisRatio;
-            Log::info('COPY FROM HISTORY DEBUG', [
-                'resep_id' => $resep->id ?? null,
-                'obat_id' => $resep->obat_id ?? null,
-                'base_harga' => $baseHarga,
-                'input_dosis' => $inputDosis,
-                'base_dosis' => $baseDosis,
-                'dosis_ratio' => $dosisRatio,
-                'harga' => $harga,
-                'jumlah' => $resep->jumlah ?? null,
-                'total' => $harga * ($resep->jumlah ?? 1),
-            ]);
-
-            // Create new ResepFarmasi record
-            ResepDokter::create([
-                'id' => $customId,
-                'visitation_id' => $targetVisitationId,
-                'obat_id' => $resep->obat_id,
-                'jumlah' => $resep->jumlah,
-                'dosis' => $resep->dosis,
-                'bungkus' => $resep->bungkus,
-                'racikan_ke' => $resep->racikan_ke,
-                'paket_racikan_id' => $resep->paket_racikan_id,
-                'paket_racikan_nama' => $resep->paket_racikan_nama,
-                'aturan_pakai' => $resep->aturan_pakai,
-                'wadah_id' => $resep->wadah_id,
-                'harga' => $harga,
-                'diskon' => 0, // Default value
-                'total' => $harga * ($resep->jumlah ?? 1),
-                'created_at' => now(),
-                'user_id' => Auth::id(),
-            ]);
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Resep berhasil disalin ke farmasi.',
-            'redirect' => route('erm.eresepfarmasi.create', ['visitation_id' => $targetVisitationId])
-        ]);
+        return $this->copyResepFromHistory($request, ResepDokter::class);
     }
+
     public function copyFromHistoryFarmasi(Request $request)
+    {
+        return $this->copyResepFromHistory($request, ResepFarmasi::class);
+    }
+
+    /**
+     * Copy a past visit's resep (dokter or farmasi) into the current visit's resep dokter / farmasi, next to
+     * what is already there: non racikan rows are added, every racikan becomes a new racikan (next free number).
+     * Skips obat that are nonaktif / deleted now (no price) or that the patient is allergic to, and says which.
+     *
+     * Obat (non racikan) or racikan (same isi) the current resep already has: without on_duplicate the answer is
+     * status "confirm" with their names and nothing is written; on_duplicate=skip leaves them out, include copies them too.
+     * The created rows come back ("added") so the page can show them without reloading.
+     *
+     * @param class-string<\Illuminate\Database\Eloquent\Model> $targetModel ResepDokter or ResepFarmasi
+     */
+    private function copyResepFromHistory(Request $request, string $targetModel)
     {
         $validated = $request->validate([
             'source_visitation_id' => 'required',
             'target_visitation_id' => 'required',
             'source_type' => 'required|in:dokter,farmasi',
+            'on_duplicate' => 'nullable|in:skip,include',
         ]);
 
         $targetVisitationId = $validated['target_visitation_id'];
-        $sourceVisitationId = $validated['source_visitation_id'];
-        $sourceType = $validated['source_type'];
+        if ($resp = $this->guardInvoiceNotLocked($targetVisitationId)) return $resp;
 
-        // Check if prescription already exists for target visitation
-        if (ResepFarmasi::where('visitation_id', $targetVisitationId)->exists()) {
-            return response()->json([
-                'status' => 'info',
-                'message' => 'Resep sudah ada untuk kunjungan ini. Harap hapus resep yang ada sebelum menyalin yang baru.'
-            ]);
-        }
-
-        // Fetch source prescriptions based on source type
-        $sourceReseps = $sourceType === 'dokter'
-            ? ResepDokter::where('visitation_id', $sourceVisitationId)->get()
-            : ResepFarmasi::where('visitation_id', $sourceVisitationId)->get();
-
+        $sourceModel = $validated['source_type'] === 'dokter' ? ResepDokter::class : ResepFarmasi::class;
+        $sourceReseps = $sourceModel::where('visitation_id', $validated['source_visitation_id'])->get();
         if ($sourceReseps->isEmpty()) {
             return response()->json([
                 'status' => 'error',
@@ -1707,64 +1640,200 @@ class EresepController extends Controller
             ]);
         }
 
-        // Copy each prescription item
-        foreach ($sourceReseps as $resep) {
-            // Generate unique ID
-            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+        $obatIds = $sourceReseps->pluck('obat_id')->unique()->all();
+        $obats = Obat::whereIn('id', $obatIds)->get()->keyBy('id'); // active only (global scope)
+        $allergic = $this->allergicObats($targetVisitationId, $obatIds);
+        $namaObat = Obat::withInactive()->whereIn('id', $obatIds)->pluck('nama', 'id');
+        $toFarmasi = $targetModel === ResepFarmasi::class;
 
-            // Get obat information if needed
-            $obat = Obat::find($resep->obat_id);
-            $baseHarga = $obat ? $obat->harga_nonfornas : 0;
-            // Extract numeric value from dosis strings
-            preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis, $inputMatches);
-            preg_match('/(\d+(?:[.,]\d+)?)/', $obat->dosis ?? '', $baseMatches);
-            $inputDosis = isset($inputMatches[1]) ? floatval(str_replace(',', '.', $inputMatches[1])) : 0;
-            $baseDosis = isset($baseMatches[1]) ? floatval(str_replace(',', '.', $baseMatches[1])) : 0;
-            $dosisRatio = ($baseDosis > 0 && $inputDosis > 0) ? ($inputDosis / $baseDosis) : 1;
-            $harga = $baseHarga * $dosisRatio;
-            Log::info('COPY FROM HISTORY FARMASI DEBUG', [
-                'resep_id' => $resep->id ?? null,
-                'obat_id' => $resep->obat_id ?? null,
-                'base_harga' => $baseHarga,
-                'input_dosis' => $inputDosis,
-                'base_dosis' => $baseDosis,
-                'dosis_ratio' => $dosisRatio,
-                'harga' => $harga,
-                'jumlah' => $resep->jumlah ?? null,
-                'total' => $harga * ($resep->jumlah ?? 1),
+        // What can be copied at all (active, not allergic), per non racikan row / per racikan
+        $skipped = [];
+        $copyable = function ($resep) use ($obats, $allergic, $namaObat, &$skipped) {
+            $obat = $obats->get($resep->obat_id);
+            if ($obat && !isset($allergic[$resep->obat_id])) {
+                return true;
+            }
+            $skipped[] = ($namaObat[$resep->obat_id] ?? 'Obat dihapus') . ($obat ? ' (alergi pasien)' : ' (nonaktif)');
+            return false;
+        };
+        $nonRacikans = $sourceReseps->whereNull('racikan_ke')->filter($copyable)->values();
+        $racikans = $sourceReseps->whereNotNull('racikan_ke')->groupBy('racikan_ke')
+            ->map(fn ($items) => $items->filter($copyable)->values())
+            ->filter(fn ($items) => $items->isNotEmpty());
+
+        // Already in the current resep: same obat (non racikan) / same isi (racikan)
+        $existing = $targetModel::where('visitation_id', $targetVisitationId)->get(['obat_id', 'dosis', 'racikan_ke']);
+        $existingObat = $existing->whereNull('racikan_ke')->pluck('obat_id')->map(fn ($id) => (string) $id)->all();
+        $existingIsi = $existing->whereNotNull('racikan_ke')->groupBy('racikan_ke')
+            ->map(fn ($items) => PaketRacikan::compositionKey($items))->values()->all();
+        $dupNonRacikan = $nonRacikans->filter(fn ($r) => in_array((string) $r->obat_id, $existingObat, true));
+        $dupRacikan = $racikans->filter(fn ($items) => in_array(PaketRacikan::compositionKey($items), $existingIsi, true));
+
+        if (($dupNonRacikan->isNotEmpty() || $dupRacikan->isNotEmpty()) && empty($validated['on_duplicate'])) {
+            $racikanNames = PaketRacikan::racikanNameResolver();
+            return response()->json([
+                'status' => 'confirm',
+                'message' => 'Sebagian obat sudah ada di resep saat ini.',
+                // toBase: names, not models (an empty Eloquent collection would stay one and break unique())
+                'duplicates' => $dupNonRacikan->toBase()->map(fn ($r) => $namaObat[$r->obat_id] ?? 'Obat')
+                    ->concat($dupRacikan->map(fn ($items) => 'Racikan: ' . ($racikanNames($items) ?: $items->map(fn ($r) => $namaObat[$r->obat_id] ?? 'Obat')->implode(' + '))))
+                    ->unique()->values(),
+                'new_count' => ($nonRacikans->count() - $dupNonRacikan->count()) + ($racikans->count() - $dupRacikan->count()),
             ]);
+        }
+        if (($validated['on_duplicate'] ?? null) === 'skip') {
+            $dupIds = $dupNonRacikan->pluck('id')->all();
+            $nonRacikans = $nonRacikans->reject(fn ($r) => in_array($r->id, $dupIds, true));
+            $racikans = $racikans->diffKeys($dupRacikan);
+        }
 
-            // Get obat for satuan information
-            $obat = Obat::find($resep->obat_id);
-            
-            // Create new ResepFarmasi record
-            ResepFarmasi::create([
-                'id' => $customId,
-                'visitation_id' => $targetVisitationId,
-                'obat_id' => $resep->obat_id,
-                'jumlah' => $resep->jumlah,
-                'dosis' => $resep->dosis . ($obat && !str_contains($resep->dosis, $obat->satuan) ? ' ' . $obat->satuan : ''),
-                'bungkus' => $resep->bungkus,
-                'racikan_ke' => $resep->racikan_ke,
-                'paket_racikan_id' => $resep->paket_racikan_id,
-                'paket_racikan_nama' => $resep->paket_racikan_nama,
-                'aturan_pakai' => $resep->aturan_pakai,
-                'wadah_id' => $resep->wadah_id,
-                'harga' => $harga,
-                'diskon' => 0, // Default value
-                'total' => $harga * ($resep->jumlah ?? 1),
-                'created_at' => now(),
-                'user_id' => Auth::id(),
+        $skippedText = $skipped ? ' Tidak disalin: ' . implode(', ', array_unique($skipped)) . '.' : '';
+        if ($nonRacikans->isEmpty() && $racikans->isEmpty()) {
+            return response()->json([
+                'status' => 'info',
+                'message' => ($dupNonRacikan->isNotEmpty() || $dupRacikan->isNotEmpty() ? 'Semua obat dari resep ini sudah ada di resep saat ini.' : 'Tidak ada obat yang bisa disalin.') . $skippedText,
             ]);
         }
 
+        $makeRow = function ($resep, $racikanKe) use ($obats, $toFarmasi, $targetVisitationId) {
+            $obat = $obats->get($resep->obat_id);
+            $row = [
+                'visitation_id' => $targetVisitationId,
+                'obat_id' => $resep->obat_id,
+                'jumlah' => $resep->jumlah,
+                'dosis' => $resep->dosis,
+                'bungkus' => $resep->bungkus,
+                'racikan_ke' => $racikanKe,
+                'paket_racikan_id' => $racikanKe ? $resep->paket_racikan_id : null,
+                'paket_racikan_nama' => $racikanKe ? $resep->paket_racikan_nama : null,
+                'aturan_pakai' => $resep->aturan_pakai,
+                'wadah_id' => $resep->wadah_id,
+                'created_at' => now(),
+                'user_id' => Auth::id(),
+            ];
+            if ($toFarmasi) {
+                // racikan dosis carries the satuan on the farmasi side ("500 mg"); non racikan has no dosis
+                if ($racikanKe && $resep->dosis !== null && $obat->satuan && !str_contains((string) $resep->dosis, $obat->satuan)) {
+                    $row['dosis'] = $resep->dosis . ' ' . $obat->satuan;
+                }
+                // same pricing as copyFromDokter: racikan prorated by dosis, non racikan the harga jual
+                $row['harga'] = $racikanKe ? ResepFarmasi::hargaRacikan($obat, $resep->dosis) : (float) $obat->harga_nonfornas;
+                $row['diskon'] = 0;
+                $row['total'] = $row['harga'] * ($resep->jumlah ?? 1);
+            }
+            return $row;
+        };
+
+        [$createdIds, $newRacikanKes] = DB::transaction(function () use ($nonRacikans, $racikans, $makeRow, $targetModel, $targetVisitationId) {
+            $createdIds = [];
+            $create = function (array $row) use ($targetModel, &$createdIds) {
+                do {
+                    $row['id'] = now()->format('YmdHis') . strtoupper(Str::random(7));
+                } while ($targetModel::where('id', $row['id'])->exists());
+                $targetModel::create($row);
+                $createdIds[] = $row['id'];
+            };
+
+            foreach ($nonRacikans as $resep) {
+                $create($makeRow($resep, null));
+            }
+            $newRacikanKes = [];
+            foreach ($racikans as $items) {
+                // a new racikan next to the ones already in the resep
+                $ke = PaketRacikan::freeRacikanKe($targetModel, $targetVisitationId);
+                foreach ($items as $resep) {
+                    $create($makeRow($resep, $ke));
+                }
+                // keeps the paket name only while the isi is still the whole paket (a component may have been skipped)
+                PaketRacikan::syncRacikanLink($targetModel, $targetVisitationId, $ke);
+                $newRacikanKes[] = $ke;
+            }
+
+            return [$createdIds, $newRacikanKes];
+        });
+
+        $count = count($createdIds);
+
         return response()->json([
             'status' => 'success',
-            'message' => 'Resep berhasil disalin ke farmasi.',
-            'redirect' => route('erm.eresepfarmasi.create', ['visitation_id' => $targetVisitationId])
+            'message' => "{$count} obat disalin ke " . ($toFarmasi ? 'resep farmasi' : 'resep dokter') . '.' . $skippedText,
+            'skipped' => array_values(array_unique($skipped)),
+            'added' => $this->copiedResepPayload($targetModel, $targetVisitationId, $createdIds, $newRacikanKes),
         ]);
     }
-    
+
+    /** Rows just copied, shaped for the e-resep pages to render (obat info + stok of the resep gudang). */
+    private function copiedResepPayload(string $targetModel, $visitationId, array $ids, array $racikanKes): array
+    {
+        $rows = $targetModel::with(['obat' => fn ($q) => $q->withInactive(), 'wadah'])->whereIn('id', $ids)->get();
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stok = $gudangId
+            ? \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)->whereIn('obat_id', $rows->pluck('obat_id')->unique()->all())
+                ->groupBy('obat_id')->selectRaw('obat_id, SUM(stok) as stok_sum')->pluck('stok_sum', 'obat_id')
+            : collect();
+
+        $item = fn ($r) => [
+            'id' => $r->id,
+            'obat_id' => $r->obat_id,
+            'obat_nama' => $r->obat->nama ?? '-',
+            'obat_dosis' => $r->obat->dosis ?? '',
+            'harga_nonfornas' => (float) ($r->obat->harga_nonfornas ?? 0),
+            'stok_gudang' => (int) ($stok[$r->obat_id] ?? 0),
+            'jumlah' => $r->jumlah,
+            'dosis' => $r->dosis,
+            'aturan_pakai' => $r->aturan_pakai,
+            'harga' => $r->harga ?? null,
+            'diskon' => $r->diskon ?? 0,
+        ];
+
+        return [
+            'non_racikan' => $rows->whereNull('racikan_ke')->map($item)->values(),
+            'racikans' => collect($racikanKes)->map(function ($ke) use ($rows, $item, $targetModel, $visitationId) {
+                $items = $rows->where('racikan_ke', $ke);
+                $first = $items->first();
+                return [
+                    'racikan_ke' => $ke,
+                    'nama' => $this->racikanNama($targetModel, $visitationId, $ke),
+                    'wadah_id' => $first->wadah_id,
+                    'wadah_nama' => $first->wadah->nama ?? '',
+                    'bungkus' => $first->bungkus,
+                    'aturan_pakai' => $first->aturan_pakai,
+                    'items' => $items->map($item)->values(),
+                ];
+            })->values(),
+        ];
+    }
+
+    /** [obat_id => nama] of the given obat that contain a zat aktif the visit's patient is allergic to. */
+    private function allergicObats($visitationId, array $obatIds): array
+    {
+        $pasienId = $visitationId ? Visitation::whereKey($visitationId)->value('pasien_id') : null;
+        if (!$pasienId || empty($obatIds)) {
+            return [];
+        }
+        $zatAlergi = DB::table('erm_alergi')->where('pasien_id', $pasienId)->whereNotNull('zataktif_id')->pluck('zataktif_id');
+        if ($zatAlergi->isEmpty()) {
+            return [];
+        }
+        $ids = DB::table('erm_kandungan_obat')->whereIn('obat_id', $obatIds)->whereIn('zataktif_id', $zatAlergi)->pluck('obat_id')->unique()->all();
+
+        return empty($ids) ? [] : Obat::withInactive()->whereIn('id', $ids)->pluck('nama', 'id')->all();
+    }
+
+    /** 422 when a paket holds obat the patient is allergic to (the obat search hides those, a paket must not slip them in). */
+    private function paketAllergyBlock(PaketRacikan $paket, $visitationId)
+    {
+        $allergic = $this->allergicObats($visitationId, $paket->details->pluck('obat_id')->all());
+        if (empty($allergic)) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => "Paket racikan '{$paket->nama_paket}' tidak bisa dipakai: pasien alergi terhadap kandungan " . implode(', ', $allergic) . '.',
+        ], 422);
+    }
+
     // PAKET RACIKAN METHODS
     public function getPaketRacikanList(\Illuminate\Http\Request $request)
     {
@@ -1803,7 +1872,7 @@ class EresepController extends Controller
 
         $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
             ->findOrFail($validated['paket_racikan_id']);
-        if ($resp = $this->paketNotApplicable($paketRacikan)) {
+        if ($resp = $this->paketNotApplicable($paketRacikan) ?? $this->paketAllergyBlock($paketRacikan, $validated['visitation_id'])) {
             return $resp;
         }
 
@@ -1906,7 +1975,7 @@ class EresepController extends Controller
 
         $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
             ->findOrFail($validated['paket_racikan_id']);
-        if ($resp = $this->paketNotApplicable($paketRacikan)) {
+        if ($resp = $this->paketNotApplicable($paketRacikan) ?? $this->paketAllergyBlock($paketRacikan, $validated['visitation_id'])) {
             return $resp;
         }
 
@@ -1973,87 +2042,35 @@ class EresepController extends Controller
         ]);
     }
 
+    /**
+     * Paket racikan saved from the e-resep modal: same rules as Master Data > Paket Racikan (active obat only,
+     * numeric dosis, no obat twice, unique isi, one transaction), so both screens store the same kind of paket.
+     */
     public function storePaketRacikan(Request $request)
     {
-        $validated = $request->validate([
-            'nama_paket' => 'required|string|max:255',
-            'deskripsi' => 'nullable|string',
-            'wadah_id' => 'nullable|exists:erm_wadah_obat,id',
-            'bungkus_default' => 'required|integer|min:1',
-            'aturan_pakai_default' => 'nullable|string',
-            'obats' => 'required|array|min:1',
-            'obats.*.obat_id' => 'required|exists:erm_obat,id',
-            'obats.*.dosis' => 'required|string',
-        ]);
-
-        // Same isi under another name makes resep/billing history ambiguous
-        PaketRacikan::assertUniqueComposition($validated['obats']);
-
-        $paketRacikan = PaketRacikan::create([
-            'nama_paket' => $validated['nama_paket'],
-            'deskripsi' => $validated['deskripsi'] ?? null,
-            'wadah_id' => $validated['wadah_id'],
-            'bungkus_default' => $validated['bungkus_default'],
-            'aturan_pakai_default' => $validated['aturan_pakai_default'],
-            'created_by' => Auth::id(),
-        ]);
-
-        foreach ($validated['obats'] as $obat) {
-            PaketRacikanDetail::create([
-                'paket_racikan_id' => $paketRacikan->id,
-                'obat_id' => $obat['obat_id'],
-                'dosis' => $obat['dosis'],
-            ]);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Paket racikan berhasil disimpan.',
-            'data' => $paketRacikan
-        ]);
+        return app(PaketRacikanController::class)->store($this->paketModalRequest($request));
     }
 
     public function updatePaketRacikan(Request $request, $id)
     {
-        $paketRacikan = PaketRacikan::findOrFail($id);
+        $paket = PaketRacikan::findOrFail($id);
 
-        $validated = $request->validate([
-            'nama_paket' => 'required|string|max:255',
-            'deskripsi' => 'nullable|string',
-            'wadah_id' => 'nullable|exists:erm_wadah_obat,id',
-            'bungkus_default' => 'required|integer|min:1',
-            'aturan_pakai_default' => 'nullable|string',
-            'obats' => 'required|array|min:1',
-            'obats.*.obat_id' => 'required|exists:erm_obat,id',
-            'obats.*.dosis' => 'required|string',
-        ]);
+        return app(PaketRacikanController::class)->update($this->paketModalRequest($request, $paket), $paket->id);
+    }
 
-        PaketRacikan::assertUniqueComposition($validated['obats'], $paketRacikan->id);
-
-        $paketRacikan->update([
-            'nama_paket' => $validated['nama_paket'],
-            'deskripsi' => $validated['deskripsi'] ?? $paketRacikan->deskripsi,
-            'wadah_id' => $validated['wadah_id'] ?? null,
-            'bungkus_default' => $validated['bungkus_default'],
-            'aturan_pakai_default' => $validated['aturan_pakai_default'] ?? null,
-            'updated_by' => Auth::id(),
-        ]);
-
-        // Replace details: delete existing and recreate
-        PaketRacikanDetail::where('paket_racikan_id', $paketRacikan->id)->delete();
-        foreach ($validated['obats'] as $obat) {
-            PaketRacikanDetail::create([
-                'paket_racikan_id' => $paketRacikan->id,
-                'obat_id' => $obat['obat_id'],
-                'dosis' => $obat['dosis'],
-            ]);
+    /** The modal sends dosis as typed ("500 mg") and the farmasi modal no deskripsi: adapt to the master's rules. */
+    private function paketModalRequest(Request $request, ?PaketRacikan $paket = null): Request
+    {
+        $obats = collect($request->input('obats', []))->map(fn ($o) => [
+            'obat_id' => $o['obat_id'] ?? null,
+            'dosis' => PaketRacikanDetail::normalizeDosis($o['dosis'] ?? ''),
+        ])->values()->all();
+        $request->merge(['obats' => $obats]);
+        if ($paket && !$request->has('deskripsi')) {
+            $request->merge(['deskripsi' => $paket->deskripsi]);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Paket racikan berhasil diperbarui.',
-            'data' => $paketRacikan->fresh()->load('details.obat')
-        ]);
+        return $request;
     }
 
     public function deletePaketRacikan($id)

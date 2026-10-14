@@ -67,7 +67,6 @@
 <script src="{{ asset('dastone/plugins/flatpickr/flatpickr.min.js') }}"></script>
 <script src="{{ asset('dastone/plugins/timepicker/bootstrap-material-datetimepicker.js') }}"></script>
 <script src="{{ asset('dastone/plugins/jquery-steps/jquery.steps.min.js') }}"></script>
-<script src="{{ asset('dastone/assets/pages/jquery.form-wizard.init.js') }}"></script>
 <script src="{{ asset('dastone/plugins/datatables/jquery.dataTables.min.js') }}"></script>
 <script src="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.js') }}"></script>
 <script src="{{ asset('dastone/plugins/datatables/dataTables.responsive.min.js') }}"></script>
