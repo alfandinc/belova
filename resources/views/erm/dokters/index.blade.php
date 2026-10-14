@@ -678,10 +678,32 @@ $(function() {
                 $row.find('.df-utama-badge').toggle(isUtama);
                 $row.toggleClass('is-checked', $check.is(':checked'));
                 $row.find('.df-klinik-spesialisasi').prop('disabled', !$check.is(':checked'));
+                updateKlinikPrimary($row);
             });
         }
+
+        // Primary spesialisasi per klinik: one of the picked ones, only a choice when there are several
+        function updateKlinikPrimary($row) {
+            var $primary = $row.find('.df-klinik-primary');
+            if (!$primary.length) return;
+            var $spesialisasi = $row.find('.df-klinik-spesialisasi');
+            var current = $primary.val() || $primary.data('selected') || '';
+            var picked = $spesialisasi.find('option:selected');
+            $primary.empty();
+            picked.each(function() {
+                $primary.append($('<option>').val(this.value).text($(this).text()));
+            });
+            if (picked.length) {
+                $primary.val(picked.filter(function() { return String(this.value) === String(current); }).length ? String(current) : picked.first().val());
+            }
+            var show = picked.length > 1 && !$spesialisasi.prop('disabled');
+            $primary.prop('disabled', !show);
+            $row.find('.df-klinik-primary-group').toggle(show);
+        }
+
         $('#df-klinik_id').on('change', updateKlinik);
         $form.on('change', '.df-klinik-check', updateKlinik);
+        $form.on('change', '.df-klinik-spesialisasi', function() { updateKlinikPrimary($(this).closest('.df-klinik-row')); });
         updateKlinik();
 
         // Masa berlaku SIP / STR next to the date

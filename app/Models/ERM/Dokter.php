@@ -101,18 +101,27 @@ class Dokter extends Model
         return $exists ??= \Illuminate\Support\Facades\Schema::hasTable('erm_dokter_klinik_spesialisasis');
     }
 
+    /** erm_dokter_klinik_spesialisasis.is_primary exists once its migration ran (prod schema may lag behind the code). */
+    public static function tracksPrimarySpesialisasi(): bool
+    {
+        static $exists = null;
+
+        return $exists ??= self::tracksKlinikSpesialisasi()
+            && \Illuminate\Support\Facades\Schema::hasColumn('erm_dokter_klinik_spesialisasis', 'is_primary');
+    }
+
     /**
-     * Spesialisasi the dokter practises as, per klinik (pivot klinik_id). A klinik can have several.
+     * Spesialisasi the dokter practises as, per klinik (pivot klinik_id). A klinik can have several, one of them primary.
      */
     public function klinikSpesialisasis(): BelongsToMany
     {
         return $this->belongsToMany(Spesialisasi::class, 'erm_dokter_klinik_spesialisasis', 'dokter_id', 'spesialisasi_id')
-            ->withPivot('klinik_id')
+            ->withPivot(self::tracksPrimarySpesialisasi() ? ['klinik_id', 'is_primary'] : ['klinik_id'])
             ->withTimestamps();
     }
 
     /**
-     * Spesialisasi ids the dokter can be registered as in the given klinik:
+     * Spesialisasi ids the dokter can be registered as in the given klinik, primary first:
      * the ones set for that klinik, or the dokter's default spesialisasi when none are set.
      *
      * @return int[]
@@ -121,9 +130,14 @@ class Dokter extends Model
     {
         $ids = [];
         if ($klinikId && self::tracksKlinikSpesialisasi()) {
+            $primary = self::tracksPrimarySpesialisasi();
             $ids = $this->relationLoaded('klinikSpesialisasis')
-                ? $this->klinikSpesialisasis->filter(fn ($s) => (int) $s->pivot->klinik_id === (int) $klinikId)->pluck('id')->sort()->all()
-                : $this->klinikSpesialisasis()->wherePivot('klinik_id', $klinikId)->orderBy('erm_spesialisasis.id')->pluck('erm_spesialisasis.id')->all();
+                ? $this->klinikSpesialisasis->filter(fn ($s) => (int) $s->pivot->klinik_id === (int) $klinikId)
+                    ->sortBy(fn ($s) => [$primary && $s->pivot->is_primary ? 0 : 1, (int) $s->id])
+                    ->pluck('id')->all()
+                : $this->klinikSpesialisasis()->wherePivot('klinik_id', $klinikId)
+                    ->when($primary, fn ($q) => $q->orderByDesc('erm_dokter_klinik_spesialisasis.is_primary'))
+                    ->orderBy('erm_spesialisasis.id')->pluck('erm_spesialisasis.id')->all();
         }
 
         if (empty($ids) && $this->spesialisasi_id) {
@@ -134,7 +148,7 @@ class Dokter extends Model
     }
 
     /**
-     * Default spesialisasi in the given klinik (the first one when the dokter holds several there).
+     * Default spesialisasi in the given klinik (the primary one, else the first, when the dokter holds several there).
      */
     public function spesialisasiIdForKlinik($klinikId): ?int
     {
@@ -142,10 +156,11 @@ class Dokter extends Model
     }
 
     /**
-     * Replace the per-klinik spesialisasi list: [klinik_id => [spesialisasi_id, ...]].
+     * Replace the per-klinik spesialisasi list: [klinik_id => [spesialisasi_id, ...]],
+     * with the primary one per klinik in $primaryMap: [klinik_id => spesialisasi_id].
      * A klinik without ids keeps no rows (= the dokter's default spesialisasi).
      */
-    public function syncKlinikSpesialisasis(array $map): void
+    public function syncKlinikSpesialisasis(array $map, array $primaryMap = []): void
     {
         if (!self::tracksKlinikSpesialisasi()) {
             return;
@@ -155,8 +170,13 @@ class Dokter extends Model
 
         foreach ($map as $klinikId => $spesialisasiIds) {
             $ids = array_unique(array_filter(array_map('intval', (array) $spesialisasiIds)));
+            $primaryId = (int) ($primaryMap[$klinikId] ?? 0);
             foreach ($ids as $spesialisasiId) {
-                $this->klinikSpesialisasis()->attach($spesialisasiId, ['klinik_id' => (int) $klinikId]);
+                $pivot = ['klinik_id' => (int) $klinikId];
+                if (self::tracksPrimarySpesialisasi()) {
+                    $pivot['is_primary'] = $spesialisasiId === $primaryId;
+                }
+                $this->klinikSpesialisasis()->attach($spesialisasiId, $pivot);
             }
         }
     }

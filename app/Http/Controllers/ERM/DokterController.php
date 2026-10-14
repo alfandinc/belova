@@ -324,6 +324,8 @@ class DokterController extends Controller
             'klinik_spesialisasi' => 'nullable|array',
             'klinik_spesialisasi.*' => 'nullable|array',
             'klinik_spesialisasi.*.*' => 'nullable|exists:erm_spesialisasis,id',
+            'klinik_spesialisasi_primary' => 'nullable|array',
+            'klinik_spesialisasi_primary.*' => 'nullable|exists:erm_spesialisasis,id',
             'due_date_sip' => 'nullable|date',
             'photo' => 'nullable|file|image|max:5120',
             'ttd' => 'nullable|file|image|max:5120',
@@ -395,12 +397,14 @@ class DokterController extends Controller
         $klinikSpesialisasi = collect($klinikIds)
             ->mapWithKeys(fn ($klinikId) => [$klinikId => (array) $request->input("klinik_spesialisasi.$klinikId", [])])
             ->all();
+        // Primary per klinik: the default choice at pendaftaran
+        $klinikSpesialisasiPrimary = (array) $request->input('klinik_spesialisasi_primary', []);
 
         // Dokter and its klinik list together: no dokter without klinik when the sync fails
-        $dokter = DB::transaction(function () use ($request, $data, $klinikIds, $klinikSpesialisasi) {
+        $dokter = DB::transaction(function () use ($request, $data, $klinikIds, $klinikSpesialisasi, $klinikSpesialisasiPrimary) {
             $dokter = Dokter::updateOrCreate(['id' => $request->id], $data);
             $dokter->kliniks()->sync($klinikIds);
-            $dokter->syncKlinikSpesialisasis($klinikSpesialisasi);
+            $dokter->syncKlinikSpesialisasis($klinikSpesialisasi, $klinikSpesialisasiPrimary);
             return $dokter;
         });
 

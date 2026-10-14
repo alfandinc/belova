@@ -9,7 +9,12 @@
     $klinikSpesialisasiIds = $isEdit && $dokter->relationLoaded('klinikSpesialisasis')
         ? $dokter->klinikSpesialisasis->groupBy('pivot.klinik_id')->map(fn ($rows) => $rows->pluck('id')->map(fn ($id) => (int) $id)->all())->all()
         : [];
-    $req = '<span class="text-danger">*</span>';
+    // klinik_id => primary spesialisasi_id (the default choice at pendaftaran)
+    $tracksPrimary = \App\Models\ERM\Dokter::tracksPrimarySpesialisasi();
+    $klinikPrimaryIds = $isEdit && $tracksPrimary && $dokter->relationLoaded('klinikSpesialisasis')
+        ? $dokter->klinikSpesialisasis->filter(fn ($s) => $s->pivot->is_primary)->mapWithKeys(fn ($s) => [(int) $s->pivot->klinik_id => (int) $s->id])->all()
+        : [];
+    $req ='<span class="text-danger">*</span>';
     // Card per group: icon, title, what it is used for
     $block = fn($icon, $title, $desc) => '<div class="df-block-head"><span class="df-block-icon"><i class="fas ' . $icon . '"></i></span>'
         . '<div><div class="df-block-title">' . e($title) . '</div><div class="df-block-desc">' . e($desc) . '</div></div></div>';
@@ -187,7 +192,7 @@
                     </div>
                 </div>
                 <div class="df-block">
-                    {!! $block('fa-clinic-medical', 'Klinik Praktik', 'Centang semua klinik tempat dokter praktik. Spesialisasi per klinik (boleh lebih dari satu) menentukan form asesmen; bila lebih dari satu, spesialisasi dipilih saat pendaftaran.') !!}
+                    {!! $block('fa-clinic-medical', 'Klinik Praktik', 'Centang semua klinik tempat dokter praktik. Spesialisasi per klinik (boleh lebih dari satu) menentukan form asesmen; bila lebih dari satu, yang utama jadi pilihan awal saat pendaftaran.') !!}
                     <div class="df-block-body pb-2">
                         @foreach($kliniks as $klinik)
                             @php $checked = in_array((int) $klinik->id, $selectedKlinikIds, true); @endphp
@@ -202,6 +207,13 @@
                                             <option value="{{ $s->id }}" {{ in_array((int) $s->id, $klinikSpesialisasiIds[$klinik->id] ?? [], true) ? 'selected' : '' }}>{{ $s->nama }}</option>
                                         @endforeach
                                     </select>
+                                    @if($tracksPrimary)
+                                        {{-- Filled from the spesialisasi picked above; shown when there are several --}}
+                                        <div class="input-group input-group-sm mt-1 df-klinik-primary-group" style="display:none;">
+                                            <div class="input-group-prepend"><span class="input-group-text">Utama</span></div>
+                                            <select name="klinik_spesialisasi_primary[{{ $klinik->id }}]" class="form-control form-control-sm df-klinik-primary" data-selected="{{ $klinikPrimaryIds[$klinik->id] ?? '' }}"></select>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         @endforeach
