@@ -11,7 +11,7 @@
             <div class="page-title-box">
                 <h4 class="page-title">Penyesuaian Stok</h4>
                 <small class="text-muted">Satu-satunya dokumen koreksi stok di luar pembelian, penjualan, transfer, dan retur. Setiap item wajib beralasan dan tercatat di kartu stok.
-                    Dokumen bernilai &ge; Rp {{ number_format($approvalThreshold, 0, ',', '.') }} dan semua penyesuaian masuk menunggu approval Admin sebelum stok berubah.</small>
+                    Dokumen bernilai &ge; Rp {{ number_format($approvalThreshold, 0, ',', '.') }} dan semua penyesuaian masuk menunggu approval Admin/Farmasi sebelum stok berubah.</small>
             </div>
         </div>
     </div>
@@ -281,10 +281,10 @@ $(function () {
         var jenis = $('#jenis_mutasi').val();
         var message = 'Pilih gudang dan jenis penyesuaian terlebih dahulu.';
         if (jenis === 'keluar') {
-            message = 'Keluar mengurangi stok. Pilih batch tertentu (mis. batch yang rusak), atau biarkan "Otomatis" untuk mengambil batch dengan ED terdekat. Alasan dan keterangan wajib diisi dan dicatat di kartu stok. Dokumen bernilai ' + THRESHOLD_LABEL + ' atau lebih menunggu approval Admin.';
+            message = 'Keluar mengurangi stok. Pilih batch tertentu (mis. batch yang rusak), atau biarkan "Otomatis" untuk mengambil batch dengan ED terdekat. Alasan dan keterangan wajib diisi dan dicatat di kartu stok. Dokumen bernilai ' + THRESHOLD_LABEL + ' atau lebih menunggu approval Admin/Farmasi.';
         }
         if (jenis === 'masuk') {
-            message = 'Masuk menambah stok tanpa dokumen pembelian, jadi hanya untuk koreksi. Pilih batch tujuan yang sudah ada, atau buat batch baru beserta tanggal kadaluarsanya. Penerimaan barang dari supplier tetap lewat Faktur Pembelian. Penyesuaian masuk selalu menunggu approval Admin.';
+            message = 'Masuk menambah stok tanpa dokumen pembelian, jadi hanya untuk koreksi. Pilih batch tujuan yang sudah ada, atau buat batch baru beserta tanggal kadaluarsanya. Penerimaan barang dari supplier tetap lewat Faktur Pembelian. Penyesuaian masuk selalu menunggu approval Admin/Farmasi.';
         }
         $('#mutasi-info-box').text(message);
     }
@@ -511,7 +511,7 @@ $(function () {
             title: (isEditMode ? 'Simpan perubahan' : 'Simpan') + ' penyesuaian ' + jenis + '?',
             html: 'Gudang: <strong>' + escapeHtml($('#gudang_id option:selected').text()) + '</strong>'
                 + '<ul class="text-left small mt-2 mb-0">' + summary + '</ul>'
-                + '<div class="small text-muted mt-2">' + (jenis === 'masuk' ? 'Penyesuaian masuk menunggu approval Admin sebelum stok bertambah.' : 'Stok langsung berkurang, kecuali nilai dokumen ' + THRESHOLD_LABEL + ' atau lebih (menunggu approval).') + '</div>',
+                + '<div class="small text-muted mt-2">' + (jenis === 'masuk' ? 'Penyesuaian masuk menunggu approval Admin/Farmasi sebelum stok bertambah.' : 'Stok langsung berkurang, kecuali nilai dokumen ' + THRESHOLD_LABEL + ' atau lebih (menunggu approval).') + '</div>',
             showCancelButton: true,
             confirmButtonText: 'Ya, simpan',
             cancelButtonText: 'Batal',
@@ -586,7 +586,7 @@ $(function () {
 
             var approval = '';
             if (response.status === 'pending') {
-                approval = '<div class="alert alert-warning small mb-3"><i class="fas fa-hourglass-half"></i> Menunggu approval Admin. <strong>Stok belum berubah</strong> sampai dokumen di-approve.'
+                approval = '<div class="alert alert-warning small mb-3"><i class="fas fa-hourglass-half"></i> Menunggu approval Admin/Farmasi. <strong>Stok belum berubah</strong> sampai dokumen di-approve.'
                     + (response.is_own_pending ? ' Dokumen ini tidak bisa Anda approve sendiri.' : '') + '</div>';
             } else if (response.approved_by) {
                 approval = '<div class="small text-muted mb-3">Disetujui oleh <strong>' + escapeHtml(response.approved_by) + '</strong> pada ' + escapeHtml(response.approved_at) + '</div>';

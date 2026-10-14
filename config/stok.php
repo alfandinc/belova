@@ -6,12 +6,12 @@ return [
      * A document whose value (sum of qty x HPP) reaches the threshold waits for approval before the
      * stok changes. Penyesuaian masuk (stock without a purchase document) always needs approval.
      * With boleh_approve_sendiri an approver may also approve documents they created themselves
-     * (Admin keeps full control); set it to false to require a second person.
+     * (Admin/Farmasi keep full control); set it to false to require a second person.
      */
     'penyesuaian' => [
         'approval_threshold' => (float) env('STOK_PENYESUAIAN_APPROVAL_THRESHOLD', 1000000),
         'masuk_selalu_approval' => true,
-        'approver_roles' => ['Admin'],
+        'approver_roles' => ['Admin', 'Farmasi'],
         'boleh_approve_sendiri' => (bool) env('STOK_PENYESUAIAN_BOLEH_APPROVE_SENDIRI', true),
     ],
 

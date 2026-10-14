@@ -529,7 +529,7 @@ class MutasiStokController extends Controller
         return $total >= (float) config('stok.penyesuaian.approval_threshold', 1000000);
     }
 
-    // An approver; approving one's own document depends on config (Admin keeps full control by default)
+    // An approver (Admin/Farmasi); approving one's own document depends on config (allowed by default)
     private function canDecide(MutasiStok $mutasi): bool
     {
         if (!$this->isApprover()) {
