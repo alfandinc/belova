@@ -9,12 +9,13 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The cashier's day: payments received today by method, invoices not paid yet, and open receivables.
- * Received / unpaid amounts are also split per clinic (the invoice's visit clinic).
+ * The cashier's day: totals over all clinics (received today, invoices not paid yet, open receivables),
+ * then one section per clinic (the invoice's visit clinic) with its payments by method and unpaid invoices.
  */
 class KasirWidget implements Widget
 {
-    private const LIST_LIMIT = 6;
+    /** Latest unpaid invoices listed per clinic */
+    private const LIST_LIMIT = 3;
 
     private const METHODS = [
         'cash' => 'Tunai',
@@ -29,64 +30,83 @@ class KasirWidget implements Widget
         $yesterday = $today->copy()->subDay();
 
         $paid = fn (Carbon $day) => DB::table('finance_invoices as fi')
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
             ->whereNotNull('fi.payment_date')
             ->whereIn('fi.status', ['paid', 'partial'])
             ->whereBetween('fi.payment_date', [$day->copy()->startOfDay(), $day->copy()->endOfDay()]);
 
-        $todayTotals = $paid($today)->selectRaw('COALESCE(SUM(fi.total_amount), 0) as total, COUNT(*) as invoices')->first();
-        $yesterdayTotal = (float) $paid($yesterday)->sum('fi.total_amount');
-
-        $byMethod = $paid($today)
-            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            ->selectRaw("COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices")
-            ->groupBy('method', 'v.klinik_id')
+        // klinik_id × method
+        $todayRows = $paid($today)
+            ->selectRaw("v.klinik_id, COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, SUM(fi.total_amount) as total, COUNT(*) as invoices")
+            ->groupBy('v.klinik_id', 'method')
             ->get();
-
-        $methods = $byMethod->groupBy('method')
-            ->map(fn ($rows, $method) => [
-                'label' => self::METHODS[$method] ?? ucwords(str_replace('_', ' ', $method)),
-                'total' => (float) $rows->sum('total'),
-                'invoices' => (int) $rows->sum('invoices'),
-                'clinics' => Clinics::split($rows->mapWithKeys(fn ($r) => [(string) $r->klinik_id => $r->total]), fn ($v) => Fmt::rpShort($v)),
-            ])
-            ->sortByDesc('total')
-            ->values();
-
-        $todayByKlinik = $byMethod->groupBy(fn ($r) => (string) $r->klinik_id)->map(fn ($rows) => $rows->sum('total'));
+        $yesterdayByKlinik = $paid($yesterday)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total')
+            ->get()
+            ->groupBy(fn ($r) => Clinics::find($r->klinik_id)->id ?? 'none')
+            ->map(fn ($rows) => (float) $rows->sum('total'));
 
         // Rp 0 invoices (fully discounted / empty) have nothing to collect
-        $unpaidQuery = DB::table('finance_invoices as fi')->where('fi.status', 'issued')->where('fi.total_amount', '>', 0);
-        $unpaid = (clone $unpaidQuery)
+        $unpaidQuery = DB::table('finance_invoices as fi')
             ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+            ->where('fi.status', 'issued')
+            ->where('fi.total_amount', '>', 0);
+        $unpaidRows = (clone $unpaidQuery)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, COUNT(*) as invoices, SUM(fi.total_amount) as total')
+            ->get();
+        $unpaidLatest = (clone $unpaidQuery)
             ->leftJoin('erm_pasiens as p', 'p.id', '=', 'v.pasien_id')
             ->orderByDesc('fi.created_at')
-            ->limit(self::LIST_LIMIT)
-            ->get(['fi.invoice_number', 'fi.total_amount', 'fi.created_at', 'p.nama as pasien', 'v.klinik_id']);
-
-        $unpaidByKlinik = (clone $unpaidQuery)
-            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            ->groupBy('v.klinik_id')
-            ->selectRaw('v.klinik_id, COUNT(*) as total')
-            ->pluck('total', 'klinik_id');
+            ->limit(60)
+            ->get(['v.klinik_id', 'fi.invoice_number', 'fi.total_amount', 'fi.created_at', 'p.nama as pasien'])
+            ->groupBy(fn ($r) => Clinics::find($r->klinik_id)->id ?? 'none');
 
         $piutang = DB::table('finance_piutangs')
             ->where('payment_status', '!=', 'paid')
             ->selectRaw('COUNT(*) as total, COALESCE(SUM(amount - COALESCE(paid_amount, 0)), 0) as sisa')
             ->first();
 
+        $total = (float) $todayRows->sum('total');
+
+        // Every row source of the sections carries klinik_id; tag them so one section gets all three
+        $rows = $todayRows->map(fn ($r) => (object) ['klinik_id' => $r->klinik_id, 'kind' => 'paid', 'row' => $r])
+            ->concat($unpaidRows->map(fn ($r) => (object) ['klinik_id' => $r->klinik_id, 'kind' => 'unpaid', 'row' => $r]));
+
         return [
             'todayLabel' => $today->translatedFormat('l, d M Y'),
-            'total' => (float) $todayTotals->total,
-            'invoices' => (int) $todayTotals->invoices,
-            'trend' => Fmt::trend((float) $todayTotals->total, $yesterdayTotal),
-            'totalClinics' => Clinics::split($todayByKlinik, fn ($v) => Fmt::rp($v)),
-            'methods' => $methods->all(),
-            'unpaidCount' => (clone $unpaidQuery)->count(),
-            'unpaidAmount' => (float) (clone $unpaidQuery)->sum('fi.total_amount'),
-            'unpaidClinics' => Clinics::split($unpaidByKlinik),
-            'unpaid' => $unpaid->all(),
+            'total' => $total,
+            'invoices' => (int) $todayRows->sum('invoices'),
+            'trend' => Fmt::trend($total, (float) $yesterdayByKlinik->sum()),
+            'unpaidCount' => (int) $unpaidRows->sum('invoices'),
+            'unpaidAmount' => (float) $unpaidRows->sum('total'),
             'piutangCount' => (int) $piutang->total,
             'piutangSisa' => (float) $piutang->sisa,
+            'clinics' => Clinics::sections($rows, function ($rows, $klinik) use ($yesterdayByKlinik, $unpaidLatest) {
+                $paid = $rows->where('kind', 'paid')->pluck('row');
+                $unpaid = $rows->where('kind', 'unpaid')->pluck('row');
+                $key = $klinik->id ?? 'none';
+                $received = (float) $paid->sum('total');
+
+                return [
+                    'total' => $received,
+                    'invoices' => (int) $paid->sum('invoices'),
+                    'trend' => Fmt::trend($received, $yesterdayByKlinik->get($key, 0)),
+                    'methods' => $paid->groupBy('method')
+                        ->map(fn ($m, $method) => [
+                            'label' => self::METHODS[$method] ?? ucwords(str_replace('_', ' ', $method)),
+                            'total' => (float) $m->sum('total'),
+                            'invoices' => (int) $m->sum('invoices'),
+                        ])
+                        ->sortByDesc('total')
+                        ->values()
+                        ->all(),
+                    'unpaidCount' => (int) $unpaid->sum('invoices'),
+                    'unpaidAmount' => (float) $unpaid->sum('total'),
+                    'unpaid' => $unpaidLatest->get($key, collect())->take(self::LIST_LIMIT)->all(),
+                ];
+            }),
         ];
     }
 }

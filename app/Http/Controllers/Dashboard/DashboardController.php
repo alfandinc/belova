@@ -50,22 +50,37 @@ class DashboardController extends Controller
     }
 
     /**
-     * Every sold item of one revenue category in the period, with its clinic split (Sumber Omset's
-     * "Lihat semua"). Only for users who can see the Sumber Omset widget.
+     * Every sold item of one revenue category in the period (Sumber Omset's "Lihat semua"): of one clinic
+     * when klinik_id is given, otherwise all clinics with a column per clinic. Only for users who can see
+     * the Sumber Omset widget.
      */
     public function omsetItems(Request $request)
     {
         abort_unless(DashboardWidgets::forUser(Auth::user())->firstWhere('key', 'sumber_omset'), 403);
 
         $category = array_key_exists($request->input('category'), Revenue::CATEGORIES) ? $request->input('category') : 'tindakan';
+        $klinik = Clinics::all()->get((int) $request->input('klinik_id'));
         $filter = $this->filter($request);
         $items = Revenue::items($filter['period_start']->copy()->startOfDay(), $filter['period_end']->copy()->endOfDay(), $category, null);
+
+        if ($klinik) {
+            $key = (string) $klinik->id;
+            $items = $items->filter(fn ($item) => ($item->byKlinik[$key] ?? 0) > 0)
+                ->map(fn ($item) => (object) [
+                    'name' => $item->name,
+                    'total' => (float) $item->byKlinik[$key],
+                    'qty' => (float) ($item->qtyByKlinik[$key] ?? 0),
+                ])
+                ->sortByDesc('total')
+                ->values();
+        }
 
         return response()->json([
             'html' => view('dashboard.partials.omset_items', [
                 'items' => $items,
                 'category' => $category,
-                'clinics' => Clinics::all(),
+                'klinik' => $klinik,
+                'clinics' => $klinik ? collect() : Clinics::all(),
                 'total' => (float) $items->sum('total'),
                 'periodLabel' => $filter['period_start']->translatedFormat('d M Y') . ' – ' . $filter['period_end']->translatedFormat('d M Y'),
             ])->render(),

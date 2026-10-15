@@ -931,52 +931,118 @@
         to { background-position: -100% 0; }
     }
 
-    /* Per-clinic split (x-dash.split): thin bar + every clinic with its value */
-    .dw-split {
-        margin-top: 10px;
+    /* One clinic's section (x-dash.clinic): logo + name, the clinic color as a left stripe and a faint tint */
+    .dw-clinics {
+        display: grid;
+        gap: 10px;
     }
 
-    .dw-stack.is-thin {
-        height: 6px;
-        border-radius: 3px;
+    .dw-clinics.is-columns {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
     }
 
-    .dw-split-list {
-        list-style: none;
-        margin: 6px 0 0;
-        padding: 0;
+    .dw-clinic {
+        border: 1px solid var(--dsh-line-soft);
+        border-left: 4px solid var(--dw-clinic);
+        border-radius: 12px;
+        background: linear-gradient(90deg, color-mix(in srgb, var(--dw-clinic) 7%, transparent), transparent 60%), var(--dsh-surface-2);
+        padding: 10px 14px 12px;
+        min-width: 0;
+    }
+
+    .dw-clinic-head {
         display: flex;
-        flex-wrap: wrap;
-        gap: 2px 12px;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
     }
 
-    .dw-split-list li {
+    .dw-clinic-logo {
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        border-radius: 7px;
+        object-fit: contain;
+        background: #fff;
+        padding: 2px;
+    }
+
+    .dw-clinic-logo.is-initial {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        font-size: 0.74rem;
+        justify-content: center;
+        padding: 0;
+        background: var(--dw-clinic);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+
+    .dw-clinic-name {
+        font-size: 0.86rem;
+        font-weight: 700;
+        color: var(--dw-clinic);
         white-space: nowrap;
     }
 
-    .dw-split-list .dw-dot {
-        width: 8px;
-        height: 8px;
-        flex-basis: 8px;
+    html.theme-dark .dsh .dw-clinic-name {
+        filter: brightness(1.15);
     }
 
-    .dw-split-label {
+    .dw-clinic-meta {
+        font-size: 0.75rem;
         color: var(--dsh-muted);
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
-    .dw-split-value {
-        font-weight: 700;
-        color: var(--dsh-ink);
-        font-variant-numeric: tabular-nums;
+    .dw-clinic-aside {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
     }
 
-    .dw-split-list li.is-zero .dw-split-value {
+    .dw-clinic .dw-stat {
+        background: var(--dsh-surface);
+        padding: 8px 12px;
+    }
+
+    .dw-clinic .dw-stat-value {
+        font-size: 1.1rem;
+    }
+
+    .dw-clinic .dw-section-label {
+        margin: 12px 0 6px;
+    }
+
+    .dw-clinic .dw-section-row {
+        margin: 12px 0 6px;
+    }
+
+    .dw-clinics.is-compact {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .dw-clinics.is-compact .dw-clinic-head {
+        margin-bottom: 4px;
+    }
+
+    .dw-clinic-banner {
+        padding-bottom: 10px;
+    }
+
+    .dw-clinic-banner .dw-clinic-head {
+        margin-bottom: 0;
+    }
+
+    .dw-clinic-empty {
+        font-size: 0.8rem;
         color: var(--dsh-faint);
-        font-weight: 600;
     }
 
     /* "Lihat semua" modal (dashboard/index): the .dsh tokens on .modal-content, without the page padding */

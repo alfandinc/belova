@@ -8,7 +8,6 @@ use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
 use App\Support\Dashboard\RevenueTargets;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Omset per clinic as of the end of the selected period: MTD with growth vs last month (same days),
@@ -39,7 +38,8 @@ class RevenueKlinikWidget implements Widget
         $pace = $ref->day / $ref->daysInMonth * 100;
         $totalMtd = (float) $mtd->sum();
 
-        $rows = DB::table('erm_klinik')->orderBy('nama')->get(['id', 'nama'])
+        // Fixed clinic order (Premiere, Skin, Dental) so each clinic's card keeps its place
+        $rows = Clinics::all()
             ->map(function ($klinik) use ($mtd, $mtdPrev, $ytd, $ytdPrev, $monthTargets, $ytdTargets, $totalMtd) {
                 $m = (float) ($mtd[$klinik->id] ?? 0);
                 $y = (float) ($ytd[$klinik->id] ?? 0);
@@ -47,8 +47,7 @@ class RevenueKlinikWidget implements Widget
                 $yt = (float) ($ytdTargets['byKlinik'][$klinik->id] ?? 0);
 
                 return (object) [
-                    'nama' => $klinik->nama,
-                    'color' => Clinics::color((int) $klinik->id),
+                    'klinik' => $klinik,
                     'mtd' => $m,
                     'share' => Fmt::share($m, $totalMtd),
                     'mom' => Fmt::trend($m, (float) ($mtdPrev[$klinik->id] ?? 0)),
@@ -60,7 +59,6 @@ class RevenueKlinikWidget implements Widget
                     'ytdPct' => $yt > 0 ? Fmt::share($y, $yt) : null,
                 ];
             })
-            ->sortByDesc('mtd')
             ->values();
 
         $sumMonthTarget = (float) $monthTargets->sum();

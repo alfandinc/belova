@@ -8,10 +8,10 @@
     :href="route('finance.billing.index')" href-label="Buka Billing">
     <div class="dw-stats">
         <x-dash.stat class="is-hero" :label="'Omset bulan ini (MTD) · ' . $data['monthLabel']" :value="Fmt::rp($data['mtd'])"
-            :trend="$data['mtdMoM']" :clinics="$data['mtdClinics']" :trend-label="'vs ' . $data['mtdMoMLabel']"
+            :trend="$data['mtdMoM']" :trend-label="'vs ' . $data['mtdMoMLabel']"
             :meta="$data['mtdYoY']['dir'] === 'new' ? 'Belum ada data bulan yang sama tahun lalu' : 'YoY ' . ($data['mtdYoY']['dir'] === 'down' ? '−' : ($data['mtdYoY']['dir'] === 'up' ? '+' : '')) . $data['mtdYoY']['label'] . ' vs bulan yang sama tahun lalu'" />
         <x-dash.stat class="is-hero" label="Omset tahun ini (YTD)" :value="Fmt::rp($data['ytd'])"
-            :trend="$data['ytdYoY']" :clinics="$data['ytdClinics']" :trend-label="'vs ' . $data['ytdLastYearLabel']" />
+            :trend="$data['ytdYoY']" :trend-label="'vs ' . $data['ytdLastYearLabel']" />
     </div>
 
     <div class="dw-section-label">Target {{ $data['monthLabel'] }}</div>

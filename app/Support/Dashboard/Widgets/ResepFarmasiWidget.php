@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\DB;
 /**
  * Today's pharmacy prescriptions: examined visits (as on E-Resep Farmasi) that have farmasi resep items.
  * "Diproses" = submitted to billing (erm_resepdetail.status 1); the rest still wait for the pharmacy.
+ * Totals over all clinics, then one section per clinic with its own queue.
  */
 class ResepFarmasiWidget implements Widget
 {
-    private const LIST_LIMIT = 8;
+    /** Waiting prescriptions listed per clinic */
+    private const LIST_LIMIT = 4;
 
     public function data(User $user, array $filter): array
     {
@@ -31,41 +33,44 @@ class ResepFarmasiWidget implements Widget
                     ->whereNull('rf.deleted_at');
             });
 
-        $counts = (clone $visits)
-            ->selectRaw('COUNT(DISTINCT v.id) as total,
+        $perKlinik = (clone $visits)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, COUNT(DISTINCT v.id) as total,
                 COUNT(DISTINCT CASE WHEN rd.status = 1 THEN v.id END) as diproses')
-            ->first();
+            ->get();
 
         $waiting = (clone $visits)
             ->where(fn ($q) => $q->whereNull('rd.status')->orWhere('rd.status', '!=', 1))
             ->leftJoin('erm_pasiens as p', 'p.id', '=', 'v.pasien_id')
             ->leftJoin('erm_dokters as d', 'd.id', '=', 'v.dokter_id')
             ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
-            ->leftJoin('erm_klinik as k', 'k.id', '=', 'v.klinik_id')
-            ->selectRaw('DISTINCT v.id, p.nama as pasien, u.name as dokter, k.nama as klinik, v.no_antrian, v.updated_at,
+            ->selectRaw('DISTINCT v.id, v.klinik_id, p.nama as pasien, u.name as dokter, v.no_antrian, v.updated_at,
                 (SELECT COUNT(*) FROM erm_resepfarmasi rf2 WHERE rf2.visitation_id = v.id AND rf2.deleted_at IS NULL) as items')
             ->orderBy('v.updated_at')
-            ->limit(self::LIST_LIMIT)
-            ->get();
-
-        $perKlinik = (clone $visits)
-            ->groupBy('v.klinik_id')
-            ->selectRaw('v.klinik_id, COUNT(DISTINCT v.id) as total,
-                COUNT(DISTINCT CASE WHEN rd.status = 1 THEN v.id END) as diproses')
             ->get()
-            ->keyBy(fn ($r) => (string) $r->klinik_id);
+            ->groupBy(fn ($r) => Clinics::find($r->klinik_id)->id ?? 'none');
 
-        $total = (int) $counts->total;
-        $processed = (int) $counts->diproses;
+        $total = (int) $perKlinik->sum('total');
+        $processed = (int) $perKlinik->sum('diproses');
 
         return [
             'todayLabel' => Carbon::today()->translatedFormat('l, d M Y'),
             'total' => $total,
             'processed' => $processed,
             'pending' => $total - $processed,
-            'pendingClinics' => Clinics::split($perKlinik->map(fn ($r) => $r->total - $r->diproses)),
-            'processedClinics' => Clinics::split($perKlinik->map(fn ($r) => $r->diproses)),
-            'waiting' => $waiting->all(),
+            'clinics' => Clinics::sections($perKlinik, function ($rows, $klinik) use ($waiting) {
+                $total = (int) $rows->sum('total');
+                $processed = (int) $rows->sum('diproses');
+                $queue = $waiting->get($klinik->id ?? 'none', collect());
+
+                return [
+                    'total' => $total,
+                    'processed' => $processed,
+                    'pending' => $total - $processed,
+                    'waiting' => $queue->take(self::LIST_LIMIT)->all(),
+                    'more' => max(0, $queue->count() - self::LIST_LIMIT),
+                ];
+            }),
         ];
     }
 }

@@ -863,10 +863,11 @@
                 }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
             }
 
-            // Sumber Omset > "Lihat semua": every item of a category for the widget's period, with search and sorting
+            // Sumber Omset > "Lihat semua": every item of a category for the widget's period (and clinic), with search and sorting
             var itemsModal = $('#dashboard-items-modal');
             var itemsUrl = null;
             var itemsRequest = null;
+            var itemsKlinik = null; // set when opened from a clinic's section: the list is that clinic's only
 
             function loadItems(category) {
                 itemsModal.find('[data-items-tab]').removeClass('active').filter('[data-items-tab="' + category + '"]').addClass('active');
@@ -874,7 +875,7 @@
                 if (itemsRequest) {
                     itemsRequest.abort();
                 }
-                itemsRequest = $.get(itemsUrl, { category: category }).done(function (response) {
+                itemsRequest = $.get(itemsUrl, { category: category, klinik_id: itemsKlinik || '' }).done(function (response) {
                     body.html(response.html || '');
                     body.find('[data-dash-items-table] thead th').each(function (i) {
                         $(this).attr('data-sort-col', i);
@@ -899,6 +900,7 @@
 
             $(document).on('click', '#dashboard-widgets-container [data-dash-items]', function () {
                 itemsUrl = $(this).data('dash-items');
+                itemsKlinik = $(this).data('klinik') || null;
                 itemsModal.find('.js-items-search').val('');
                 loadItems($(this).data('category'));
                 itemsModal.modal('show');

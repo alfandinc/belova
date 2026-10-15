@@ -5,53 +5,36 @@
 @endphp
 
 <x-dash.card :widget="$widget" :subtitle="'Per ' . $data['refLabel'] . ' · garis tipis pada bar = posisi target seharusnya hari ini'">
-    <div class="dw-table-wrap">
-        <table class="dw-grid-table">
-            <thead>
-                <tr>
-                    <th>Klinik</th>
-                    <th class="text-right">Omset {{ $data['monthLabel'] }} (MTD)</th>
-                    <th>Target {{ $data['monthLabel'] }}</th>
-                    <th class="text-right">Omset YTD</th>
-                    <th>Target {{ $data['ytdTargetLabel'] }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach ($data['rows'] as $row)
-                    <tr>
-                        <td>
-                            <div class="dw-cell-title"><i class="dw-dot" style="background: {{ $row->color }}"></i> {{ $row->nama }}</div>
-                            <div class="dw-stat-meta mt-0">{{ Fmt::pct($row->share) }} omset bulan ini</div>
-                        </td>
-                        <td class="text-right">
-                            <div class="dw-cell-num">{{ Fmt::rp($row->mtd) }}</div>
-                            <x-dash.delta :trend="$row->mom" label="vs bln lalu" />
-                        </td>
-                        <td><x-dash.meter :pct="$row->monthPct" :pace="$data['pace']" /></td>
-                        <td class="text-right">
-                            <div class="dw-cell-num">{{ Fmt::rp($row->ytd) }}</div>
-                            <x-dash.delta :trend="$row->yoy" label="vs thn lalu" />
-                        </td>
-                        <td><x-dash.meter :pct="$row->ytdPct" /></td>
-                    </tr>
-                @endforeach
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td><div class="dw-cell-title">Total</div></td>
-                    <td class="text-right">
-                        <div class="dw-cell-num">{{ Fmt::rp($t->mtd) }}</div>
-                        <x-dash.delta :trend="$t->mom" label="vs bln lalu" />
-                    </td>
-                    <td><x-dash.meter :pct="$t->monthPct" :pace="$data['pace']" /></td>
-                    <td class="text-right">
-                        <div class="dw-cell-num">{{ Fmt::rp($t->ytd) }}</div>
-                        <x-dash.delta :trend="$t->yoy" label="vs thn lalu" />
-                    </td>
-                    <td><x-dash.meter :pct="$t->ytdPct" /></td>
-                </tr>
-            </tfoot>
-        </table>
+    <div class="dw-clinics is-columns">
+        @foreach ($data['rows'] as $row)
+            <x-dash.clinic :klinik="$row->klinik" :meta="Fmt::pct($row->share) . ' omset bulan ini'">
+                <div class="dw-stats">
+                    <x-dash.stat :label="'Omset ' . $data['monthLabel'] . ' (MTD)'" :value="Fmt::rp($row->mtd)" :trend="$row->mom" trend-label="vs bln lalu" />
+                </div>
+                <div class="dw-section-label">Target {{ $data['monthLabel'] }}</div>
+                <x-dash.meter :pct="$row->monthPct" :pace="$data['pace']" />
+                @if ($row->monthTarget > 0)
+                    <div class="dw-stat-meta">{{ Fmt::rpShort($row->mtd) }} / {{ Fmt::rpShort($row->monthTarget) }}</div>
+                @endif
+
+                <div class="dw-stats mt-3">
+                    <x-dash.stat label="Omset YTD" :value="Fmt::rp($row->ytd)" :trend="$row->yoy" trend-label="vs thn lalu" />
+                </div>
+                <div class="dw-section-label">Target {{ $data['ytdTargetLabel'] }}</div>
+                <x-dash.meter :pct="$row->ytdPct" />
+                @if ($row->ytdTarget > 0)
+                    <div class="dw-stat-meta">{{ Fmt::rpShort($row->ytd) }} / {{ Fmt::rpShort($row->ytdTarget) }}</div>
+                @endif
+            </x-dash.clinic>
+        @endforeach
+    </div>
+
+    <div class="dw-section-label">Semua klinik</div>
+    <div class="dw-stats">
+        <x-dash.stat :label="'Omset ' . $data['monthLabel'] . ' (MTD)'" :value="Fmt::rp($t->mtd)" :trend="$t->mom" trend-label="vs bln lalu"
+            :meta="$t->monthPct !== null ? 'Target ' . Fmt::pct($t->monthPct) . ' tercapai' : null" />
+        <x-dash.stat label="Omset YTD" :value="Fmt::rp($t->ytd)" :trend="$t->yoy" trend-label="vs thn lalu"
+            :meta="$t->ytdPct !== null ? 'Target ' . Fmt::pct($t->ytdPct) . ' tercapai' : null" />
     </div>
     <p class="dw-note">MTD dibanding tanggal yang sama bulan lalu; YTD dibanding tanggal yang sama tahun lalu. Omset = invoice lunas/sebagian berdasarkan tanggal bayar.</p>
 </x-dash.card>

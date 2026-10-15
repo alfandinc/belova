@@ -1,12 +1,16 @@
-{{-- Sumber Omset > "Lihat semua": every sold item of one category, omset and qty per clinic (DashboardController@omsetItems) --}}
+{{-- Sumber Omset > "Lihat semua": every sold item of one category, of one clinic ($klinik) or with omset and qty per clinic (DashboardController@omsetItems) --}}
 @php
     use App\Support\Dashboard\Fmt;
     $qty = fn ($v) => Fmt::num($v, floor($v) == $v ? 0 : 1);
 @endphp
 
-<div class="dw-note mt-0 mb-2">
-    {{ $periodLabel }} · {{ Fmt::num($items->count()) }} item · total {{ Fmt::rp($total) }}
-</div>
+@if ($klinik)
+    <x-dash.clinic :klinik="$klinik" :meta="$periodLabel . ' · ' . Fmt::num($items->count()) . ' item · total ' . Fmt::rp($total)" class="dw-clinic-banner mb-3"></x-dash.clinic>
+@else
+    <div class="dw-note mt-0 mb-2">
+        Semua klinik · {{ $periodLabel }} · {{ Fmt::num($items->count()) }} item · total {{ Fmt::rp($total) }}
+    </div>
+@endif
 
 @if ($items->isEmpty())
     <x-dash.empty icon="inbox" title="Belum ada penjualan pada periode ini" />
