@@ -1915,10 +1915,11 @@ $(document).ready(function() {
             $(this).closest('tr').find('.realisasi-item-selisih').html(selisihHtml(Number($(this).data('diajukan')) - val));
         });
         var sisa = Math.round((realisasiDibayar - total) * 100) / 100;
-        var hasDiff = Math.abs(sisa) >= 0.01;
+        // Rp 1 tolerance: dibayar may carry sen while realisasi is typed in whole rupiah
+        var hasDiff = Math.abs(sisa) >= 1;
         $('#realisasi_total').text(formatNominal(total));
         $('#realisasi_note_required').toggle(hasDiff);
-        $('#realisasi_pengembalian_group').toggle(sisa > 0);
+        $('#realisasi_pengembalian_group').toggle(hasDiff && sisa > 0);
         // one plain-language result: what happens after saving
         var $result = $('#realisasi_result').removeClass('alert-success alert-info alert-danger');
         if (!hasDiff) {
@@ -1993,7 +1994,7 @@ $(document).ready(function() {
         fd.append('note', $('#realisasi_note').val() || '');
         $.each($('#realisasi_nota')[0].files, function(i, f) { fd.append('nota[]', f); });
         var pengembalian = $('#realisasi_pengembalian')[0].files[0];
-        if (pengembalian && totals.sisa > 0) fd.append('bukti_pengembalian', pengembalian);
+        if (pengembalian && totals.hasDiff && totals.sisa > 0) fd.append('bukti_pengembalian', pengembalian);
         var $btn = $('#realisasi_submit').prop('disabled', true);
         $.ajax({
             url: '/finance/pengajuan-dana/' + id + '/realisasi',
@@ -2746,7 +2747,7 @@ $(document).ready(function() {
             }
             if (hasRealisasi) {
                 var sisaDana = Math.round((dibayar - sumRealisasi) * 100) / 100;
-                if (Math.abs(sisaDana) >= 0.01) {
+                if (Math.abs(sisaDana) >= 1) {
                     $tfoot.append('<tr class="tf-extra"><th colspan="7" class="text-right">' +
                         (sisaDana > 0 ? 'Sisa uang yang dikembalikan (dibayar - terpakai)' : 'Uang kurang (terpakai - dibayar)') + '</th>' +
                         '<th class="text-right text-nowrap ' + (sisaDana > 0 ? 'text-primary' : 'text-danger') + '">' + formatNominal(Math.abs(sisaDana)) + '</th></tr>');

@@ -1609,7 +1609,11 @@ class FinancePengajuanDanaController extends Controller
             $dibayar = (float) $pengajuan->payments()->sum('nominal');
             $total = round(array_sum(array_intersect_key($amounts, array_flip($items->pluck('id')->all()))), 2);
             $sisa = round($dibayar - $total, 2);
-            $hasDiff = abs($sisa) >= 0.01;
+            // Rp 1 tolerance (same as payment): dibayar may carry sen, realisasi is whole rupiah
+            $hasDiff = abs($sisa) >= 1;
+            if (!$hasDiff) {
+                $sisa = 0;
+            }
             $note = trim((string) ($validated['note'] ?? ''));
             if ($hasDiff && $note === '') {
                 return response()->json(['success' => false, 'message' => 'Catatan wajib diisi jika realisasi berbeda dengan yang dibayar.'], 422);
