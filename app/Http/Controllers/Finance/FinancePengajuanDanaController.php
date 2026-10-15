@@ -1422,7 +1422,7 @@ class FinancePengajuanDanaController extends Controller
         }
 
         $validated = $request->validate([
-            'nominal' => 'required|numeric|min:1',
+            'nominal' => 'required|numeric|min:0',
             'tanggal_bayar' => 'nullable|date',
             'note' => 'nullable|string|max:1000',
             'mode' => 'nullable|in:partial,close',
@@ -1453,11 +1453,26 @@ class FinancePengajuanDanaController extends Controller
             $sudahDibayar = (float) $pengajuan->payments()->sum('nominal');
             $sisa = round((float) $pengajuan->grand_total - $sudahDibayar, 2);
             $nominal = round((float) $validated['nominal'], 2);
-            if ($nominal - $sisa > 0.009) {
+
+            // grand_total can carry sen while transfers are whole rupiah: a leftover under Rp 1
+            // (e.g. from an earlier partial payment) cannot be paid, so just close the pengajuan
+            if ($sisa < 1) {
+                $pengajuan->payment_status = 'paid';
+                $pengajuan->save();
+                return response()->json(['success' => true, 'message' => 'Sisa kurang dari Rp 1, pengajuan ditandai lunas']);
+            }
+            if ($nominal < 1) {
+                return response()->json(['success' => false, 'message' => 'Nominal dibayar harus lebih dari 0'], 422);
+            }
+            // tolerance of Rp 1 both ways, since the form shows sisa rounded to whole rupiah
+            if ($nominal - $sisa >= 1) {
                 return response()->json(['success' => false, 'message' => 'Nominal melebihi sisa yang disetujui (' . $this->rupiah($sisa) . '). Untuk menambah dana, revisi pengajuan dan ajukan ulang.'], 422);
             }
 
-            $isFull = ($sisa - $nominal) < 0.01;
+            $isFull = ($sisa - $nominal) < 1;
+            if ($isFull) {
+                $nominal = $sisa; // record the exact sisa so total dibayar matches grand_total
+            }
             $mode = $validated['mode'] ?? null;
             $note = trim((string) ($validated['note'] ?? ''));
             if (!$isFull) {

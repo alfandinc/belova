@@ -1808,7 +1808,8 @@ $(document).ready(function() {
 
     function updateBayarKurang() {
         var nominal = parseRupiah($('#bayar_nominal').val());
-        var kurang = nominal > 0 && (bayarSisa - nominal) >= 0.01;
+        // Rp 1 tolerance: grand_total may carry sen but sisa is shown/typed in whole rupiah
+        var kurang = nominal > 0 && (bayarSisa - nominal) >= 1;
         $('#bayar_kurang_box').toggle(kurang);
         $('#bayar_note_required').toggle(kurang);
         if (kurang) $('#bayar_selisih').text(formatNominal(bayarSisa - nominal));
@@ -1845,15 +1846,18 @@ $(document).ready(function() {
         e.preventDefault();
         var id = $('#bayar_id').val();
         var nominal = parseRupiah($('#bayar_nominal').val());
-        if (!(nominal > 0)) {
+        // leftover under Rp 1 (sen only) cannot be transferred: the server just closes the pengajuan
+        var lunasSen = bayarSisa < 1;
+        if (lunasSen) nominal = 0;
+        if (!lunasSen && !(nominal > 0)) {
             Swal.fire('Validasi', 'Isi nominal dibayar', 'warning');
             return;
         }
-        if (nominal - bayarSisa > 0.009) {
+        if (nominal - bayarSisa >= 1) {
             Swal.fire('Validasi', 'Nominal melebihi sisa yang disetujui (' + formatNominal(bayarSisa) + ')', 'warning');
             return;
         }
-        var kurang = (bayarSisa - nominal) >= 0.01;
+        var kurang = !lunasSen && (bayarSisa - nominal) >= 1;
         if (kurang && !$.trim($('#bayar_note').val())) {
             Swal.fire('Validasi', 'Catatan wajib diisi jika nominal kurang dari sisa', 'warning');
             return;
