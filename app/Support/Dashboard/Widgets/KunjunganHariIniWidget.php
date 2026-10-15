@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -36,14 +37,17 @@ class KunjunganHariIniWidget implements Widget
                 SUM(CASE WHEN v.status_kunjungan = 7 THEN 1 ELSE 0 END) as batal')
             ->first();
 
+        // Status counts per clinic: the clinic split under each stat and the per-clinic bars
         $perKlinik = (clone $base)
-            ->leftJoin('erm_klinik as k', 'k.id', '=', 'v.klinik_id')
-            ->where('v.status_kunjungan', '!=', 7)
-            ->groupBy('k.nama')
-            ->selectRaw("COALESCE(k.nama, 'Tanpa klinik') as nama, COUNT(*) as total,
-                SUM(CASE WHEN v.status_kunjungan = 2 THEN 1 ELSE 0 END) as selesai")
-            ->orderByDesc('total')
-            ->get();
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id,
+                SUM(CASE WHEN v.status_kunjungan = 0 THEN 1 ELSE 0 END) as belum_datang,
+                SUM(CASE WHEN v.status_kunjungan = 1 THEN 1 ELSE 0 END) as menunggu,
+                SUM(CASE WHEN v.status_kunjungan = 2 THEN 1 ELSE 0 END) as selesai,
+                SUM(CASE WHEN v.status_kunjungan != 7 THEN 1 ELSE 0 END) as total')
+            ->get()
+            ->keyBy(fn ($r) => (string) $r->klinik_id);
+        $split = fn (string $column) => Clinics::split($perKlinik->map(fn ($r) => (int) $r->{$column}));
 
         $waiting = (clone $base)
             ->leftJoin('erm_pasiens as p', 'p.id', '=', 'v.pasien_id')
@@ -67,7 +71,21 @@ class KunjunganHariIniWidget implements Widget
             'selesai' => (int) $status->selesai,
             'batal' => (int) $status->batal,
             'progress' => $active > 0 ? (int) $status->selesai / $active * 100 : 0,
-            'perKlinik' => $perKlinik->all(),
+            'clinics' => [
+                'menunggu' => $split('menunggu'),
+                'selesai' => $split('selesai'),
+                'belumDatang' => $split('belum_datang'),
+            ],
+            'perKlinik' => $perKlinik->filter(fn ($r) => $r->total > 0)
+                ->map(fn ($r, $id) => (object) [
+                    'nama' => Clinics::short($id),
+                    'color' => Clinics::color($id),
+                    'total' => (int) $r->total,
+                    'selesai' => (int) $r->selesai,
+                ])
+                ->sortByDesc('total')
+                ->values()
+                ->all(),
             'waiting' => $waiting->all(),
         ];
     }

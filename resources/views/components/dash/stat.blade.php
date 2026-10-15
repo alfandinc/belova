@@ -1,5 +1,8 @@
-{{-- One headline number. $trend comes from App\Support\Dashboard\Fmt::trend(). --}}
-@props(['label', 'value', 'meta' => null, 'trend' => null, 'trendLabel' => null, 'tone' => null])
+{{--
+    One headline number. $trend comes from App\Support\Dashboard\Fmt::trend().
+    $clinics (from App\Support\Dashboard\Clinics::split) adds the number split per clinic in the clinic colors.
+--}}
+@props(['label', 'value', 'meta' => null, 'trend' => null, 'trendLabel' => null, 'tone' => null, 'clinics' => null])
 
 @php
     $trendClass = $trend ? match ($trend['good']) { true => 'is-good', false => 'is-bad', default => 'is-flat' } : null;
@@ -21,5 +24,8 @@
     @endif
     @if ($meta)
         <div class="dw-stat-meta">{{ $meta }}</div>
+    @endif
+    @if ($clinics)
+        <x-dash.split :items="$clinics" />
     @endif
 </div>

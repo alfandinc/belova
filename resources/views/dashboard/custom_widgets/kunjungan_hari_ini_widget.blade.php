@@ -10,9 +10,9 @@
         <x-dash.empty icon="calendar" title="Belum ada kunjungan hari ini" />
     @else
         <div class="dw-stats">
-            <x-dash.stat label="Menunggu diperiksa" :value="Fmt::num($data['menunggu'])" :tone="$data['menunggu'] > 0 ? 'warning' : null" meta="sudah datang" />
-            <x-dash.stat label="Selesai" :value="Fmt::num($data['selesai'])" :meta="Fmt::pct($data['progress']) . ' dari ' . Fmt::num($data['total'])" />
-            <x-dash.stat label="Belum datang" :value="Fmt::num($data['belumDatang'])" :meta="$data['batal'] > 0 ? Fmt::num($data['batal']) . ' dibatalkan' : 'terdaftar'" />
+            <x-dash.stat label="Menunggu diperiksa" :value="Fmt::num($data['menunggu'])" :tone="$data['menunggu'] > 0 ? 'warning' : null" meta="sudah datang" :clinics="$data['clinics']['menunggu']" />
+            <x-dash.stat label="Selesai" :value="Fmt::num($data['selesai'])" :meta="Fmt::pct($data['progress']) . ' dari ' . Fmt::num($data['total'])" :clinics="$data['clinics']['selesai']" />
+            <x-dash.stat label="Belum datang" :value="Fmt::num($data['belumDatang'])" :meta="$data['batal'] > 0 ? Fmt::num($data['batal']) . ' dibatalkan' : 'terdaftar'" :clinics="$data['clinics']['belumDatang']" />
         </div>
 
         @if (count($data['perKlinik']) > 1)
@@ -20,7 +20,7 @@
             <div class="dw-bars">
                 @foreach ($data['perKlinik'] as $klinik)
                     <x-dash.bar :label="$klinik->nama" :value="Fmt::num($klinik->total) . ' pasien'"
-                        :pct="$klinik->total / $maxKlinik * 100"
+                        :pct="$klinik->total / $maxKlinik * 100" :color="$klinik->color"
                         :sub="Fmt::num($klinik->selesai) . ' selesai, ' . Fmt::num($klinik->total - $klinik->selesai) . ' belum'" />
                 @endforeach
             </div>

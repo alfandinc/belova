@@ -32,6 +32,8 @@ class FinancePengajuanDanaController extends Controller
     {
         $user = Auth::user();
         $isAdmin = $user && method_exists($user, 'hasRole') && $user->hasRole('Admin');
+        // Finance staff see every pengajuan and may fill realisasi; approve/pay stay approver-only
+        $isFinance = $user && method_exists($user, 'hasRole') && $user->hasRole('Finance');
         $isApprover = $user
             ? FinanceDanaApprover::where('user_id', $user->id)->where('aktif', 1)->exists()
             : false;
@@ -44,7 +46,7 @@ class FinancePengajuanDanaController extends Controller
             'is_admin' => $isAdmin,
             'is_approver' => $isApprover,
             'employee_id' => $employeeId,
-            'has_global_access' => $isAdmin || $isApprover,
+            'has_global_access' => $isAdmin || $isFinance || $isApprover,
         ];
     }
 
@@ -73,6 +75,17 @@ class FinancePengajuanDanaController extends Controller
             $context['employee_id'] && (int) $pengajuan->employee_id === (int) $context['employee_id'],
             403,
             'Unauthorized access to pengajuan dana.'
+        );
+    }
+
+    /** Edit/delete: only the pengaju themself, even for admin/finance/approver (who can only view). */
+    private function authorizePengajuanOwner(FinancePengajuanDana $pengajuan): void
+    {
+        $employeeId = $this->getPengajuanVisibilityContext()['employee_id'];
+        abort_unless(
+            $employeeId && (int) $pengajuan->employee_id === (int) $employeeId,
+            403,
+            'Hanya pengaju yang dapat mengubah atau menghapus pengajuan ini.'
         );
     }
 
@@ -718,7 +731,7 @@ class FinancePengajuanDanaController extends Controller
                     $btns .= '<button class="btn btn-sm btn-success pay-pengajuan ms-1" data-id="' . $row->id . '" title="' . $payLabel . '"><i class="fa fa-wallet mr-1"></i>' . $payLabel . '</button>';
                 }
 
-                // Realisasi: once paid, the pengaju (or admin/approver) reports what was actually spent
+                // Realisasi: once paid, the pengaju (or admin/finance/approver) reports what was actually spent
                 $realisasi = $row->realisasi;
                 if ($this->requiresRealisasi($row) && ($isOwner || $currentUserHasGlobalAccess) && (!$realisasi || $realisasi->status !== 'selesai')) {
                     $realLabel = $realisasi ? 'Edit Realisasi' : 'Realisasi';
@@ -1286,7 +1299,7 @@ class FinancePengajuanDanaController extends Controller
             $result = DB::transaction(function() use ($id, $data, $items, $newPaths) {
                 // row lock: an approval or another edit of this pengajuan waits until we are done
                 $pengajuan = FinancePengajuanDana::whereKey($id)->lockForUpdate()->firstOrFail();
-                $this->authorizePengajuanAccess($pengajuan);
+                $this->authorizePengajuanOwner($pengajuan);
 
                 // editable only while nobody has approved yet, or after it was declined (resubmission)
                 if ($pengajuan->payment_status === 'paid' || !$this->pengajuanIsEditable($pengajuan)) {
@@ -1341,7 +1354,7 @@ class FinancePengajuanDanaController extends Controller
     {
         return DB::transaction(function() use ($id) {
             $pengajuan = FinancePengajuanDana::whereKey($id)->lockForUpdate()->firstOrFail();
-            $this->authorizePengajuanAccess($pengajuan);
+            $this->authorizePengajuanOwner($pengajuan);
 
             // same lock as edit: deletable only before any approval, or after it was declined; never once paid
             if ($pengajuan->payment_status === 'paid' || !$this->pengajuanIsEditable($pengajuan)) {

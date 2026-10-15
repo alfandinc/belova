@@ -15,10 +15,10 @@
                         <span class="dw-bar-label">{{ $row->nama }}</span>
                         <span class="dw-bar-value">{{ Fmt::rp($row->total) }}</span>
                     </div>
-                    <div class="dw-bar-track"><div class="dw-bar-fill" style="width: {{ $row->total / $max * 100 }}%"></div></div>
+                    <div class="dw-bar-track"><div class="dw-bar-fill" style="width: {{ $row->total / $max * 100 }}%; background: {{ $row->color }};"></div></div>
                     <div class="d-flex justify-content-between align-items-center mt-1" style="gap: 8px;">
                         <span class="dw-item-meta">
-                            {{ $row->klinik ? $row->klinik . ' · ' : '' }}{{ Fmt::num($row->patients) }} pasien · {{ Fmt::num($row->visits) }} kunjungan · rata-rata {{ Fmt::rpShort($row->average) }}/kunjungan
+                            @if ($row->klinik)<i class="dw-dot" style="background: {{ $row->color }}"></i> {{ $row->klinik }} · @endif{{ Fmt::num($row->patients) }} pasien · {{ Fmt::num($row->visits) }} kunjungan · rata-rata {{ Fmt::rpShort($row->average) }}/kunjungan
                         </span>
                         <x-dash.delta :trend="$row->trend" class="mt-0" />
                     </div>

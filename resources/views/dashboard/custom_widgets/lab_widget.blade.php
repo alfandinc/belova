@@ -5,9 +5,9 @@
 
 <x-dash.card :widget="$widget" subtitle="Permintaan pemeriksaan yang belum selesai" :href="route('erm.rawatjalans.index')" href-label="Buka Rawat Jalan">
     <div class="dw-stats">
-        <x-dash.stat label="Menunggu" :value="Fmt::num($data['requested'])" :tone="$data['requested'] > 0 ? 'warning' : null" meta="belum diproses" />
-        <x-dash.stat label="Diproses" :value="Fmt::num($data['processing'])" meta="sedang dikerjakan" />
-        <x-dash.stat label="Selesai hari ini" :value="Fmt::num($data['completedToday'])" meta="pemeriksaan" />
+        <x-dash.stat label="Menunggu" :value="Fmt::num($data['requested'])" :tone="$data['requested'] > 0 ? 'warning' : null" meta="belum diproses" :clinics="$data['clinics']['requested']" />
+        <x-dash.stat label="Diproses" :value="Fmt::num($data['processing'])" meta="sedang dikerjakan" :clinics="$data['clinics']['processing']" />
+        <x-dash.stat label="Selesai hari ini" :value="Fmt::num($data['completedToday'])" meta="pemeriksaan" :clinics="$data['clinics']['completedToday']" />
     </div>
 
     <div class="dw-section-label">Antrian lab · terlama dulu</div>

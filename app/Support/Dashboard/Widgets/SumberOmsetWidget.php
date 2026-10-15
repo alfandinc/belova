@@ -3,13 +3,14 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Where the period's omset comes from (invoice items): category split with growth vs the previous
- * period of the same length, the split per clinic, best-selling tindakan / products, and payment methods.
+ * period of the same length, every category split per clinic, best-selling tindakan / products (with
+ * their clinic split and a "Lihat semua" list), and payment methods.
  */
 class SumberOmsetWidget implements Widget
 {
@@ -33,6 +34,9 @@ class SumberOmsetWidget implements Widget
         $previous = Revenue::byCategory($prevStart, $prevEnd);
         $total = (float) $current->sum();
 
+        // klinik_id => category => omset
+        $perKlinik = Clinics::all()->map(fn ($k) => Revenue::byCategory($start, $end, $k->id));
+
         $categories = collect(Revenue::CATEGORIES)->map(fn ($label, $key) => [
             'key' => $key,
             'label' => $label,
@@ -40,15 +44,20 @@ class SumberOmsetWidget implements Widget
             'pct' => Fmt::share($current[$key], $total),
             'trend' => Fmt::trend($current[$key], $previous[$key]),
             'color' => Revenue::CATEGORY_COLORS[$key],
+            'clinics' => Clinics::split(
+                $perKlinik->map(fn ($split) => $split[$key])->put('', max(0, $current[$key] - $perKlinik->sum(fn ($split) => $split[$key]))),
+                fn ($v) => Fmt::rpShort($v)
+            ),
         ])->values();
 
-        $clinics = DB::table('erm_klinik')->orderBy('nama')->get(['id', 'nama'])
-            ->map(function ($klinik) use ($start, $end) {
-                $split = Revenue::byCategory($start, $end, (int) $klinik->id);
+        $clinics = Clinics::all()
+            ->map(function ($klinik) use ($perKlinik) {
+                $split = $perKlinik[$klinik->id];
                 $sum = (float) $split->sum();
 
                 return [
-                    'nama' => $klinik->nama,
+                    'nama' => $klinik->short,
+                    'color' => $klinik->color,
                     'total' => $sum,
                     'segments' => collect(Revenue::CATEGORIES)->map(fn ($label, $key) => [
                         'label' => $label,
@@ -59,20 +68,27 @@ class SumberOmsetWidget implements Widget
                 ];
             })
             ->filter(fn ($c) => $c['total'] > 0)
-            ->sortByDesc('total')
             ->values();
 
         $methods = Revenue::between($start, $end)
-            ->selectRaw("COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, SUM(fi.total_amount) as total, COUNT(*) as invoices")
-            ->groupBy('method')
-            ->orderByDesc('total')
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+            ->selectRaw("COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices")
+            ->groupBy('method', 'v.klinik_id')
             ->get()
-            ->map(fn ($m) => [
-                'label' => self::PAYMENT_METHODS[$m->method] ?? ucwords(str_replace('_', ' ', $m->method)),
-                'total' => (float) $m->total,
-                'pct' => Fmt::share($m->total, $total),
-                'invoices' => (int) $m->invoices,
-            ]);
+            ->groupBy('method')
+            ->map(fn ($rows, $method) => [
+                'label' => self::PAYMENT_METHODS[$method] ?? ucwords(str_replace('_', ' ', $method)),
+                'total' => (float) $rows->sum('total'),
+                'pct' => Fmt::share($rows->sum('total'), $total),
+                'invoices' => (int) $rows->sum('invoices'),
+                'clinics' => Clinics::split($rows->mapWithKeys(fn ($r) => [(string) $r->klinik_id => $r->total]), fn ($v) => Fmt::rpShort($v)),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
+        $top = fn (string $category) => Revenue::items($start, $end, $category, 5)
+            ->each(fn ($item) => $item->clinics = Clinics::split($item->byKlinik, fn ($v) => Fmt::rpShort($v)))
+            ->all();
 
         return [
             'periodLabel' => $start->translatedFormat('d M Y') . ' – ' . $end->translatedFormat('d M Y'),
@@ -80,9 +96,10 @@ class SumberOmsetWidget implements Widget
             'total' => $total,
             'categories' => $categories->all(),
             'clinics' => $clinics->all(),
-            'topTindakan' => Revenue::topItems($start, $end, 'tindakan')->all(),
-            'topObat' => Revenue::topItems($start, $end, 'obat')->all(),
+            'topTindakan' => $top('tindakan'),
+            'topObat' => $top('obat'),
             'methods' => $methods->all(),
+            'itemsUrl' => route('dashboard.omset-items', ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString()]),
         ];
     }
 }

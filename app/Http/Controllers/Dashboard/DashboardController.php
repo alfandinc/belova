@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\DashboardWidgets;
 use App\Support\Dashboard\QuickLinks;
+use App\Support\Dashboard\Revenue;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +46,29 @@ class DashboardController extends Controller
 
         return response()->json([
             'html' => view('dashboard.partials.widget', compact('widget', 'dashboardFilter'))->render(),
+        ]);
+    }
+
+    /**
+     * Every sold item of one revenue category in the period, with its clinic split (Sumber Omset's
+     * "Lihat semua"). Only for users who can see the Sumber Omset widget.
+     */
+    public function omsetItems(Request $request)
+    {
+        abort_unless(DashboardWidgets::forUser(Auth::user())->firstWhere('key', 'sumber_omset'), 403);
+
+        $category = array_key_exists($request->input('category'), Revenue::CATEGORIES) ? $request->input('category') : 'tindakan';
+        $filter = $this->filter($request);
+        $items = Revenue::items($filter['period_start']->copy()->startOfDay(), $filter['period_end']->copy()->endOfDay(), $category, null);
+
+        return response()->json([
+            'html' => view('dashboard.partials.omset_items', [
+                'items' => $items,
+                'category' => $category,
+                'clinics' => Clinics::all(),
+                'total' => (float) $items->sum('total'),
+                'periodLabel' => $filter['period_start']->translatedFormat('d M Y') . ' – ' . $filter['period_end']->translatedFormat('d M Y'),
+            ])->render(),
         ]);
     }
 

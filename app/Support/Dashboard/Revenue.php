@@ -51,11 +51,11 @@ class Revenue
         return (float) self::between($from, $to)->sum('fi.total_amount');
     }
 
-    /** klinik_id => omset */
+    /** klinik_id => omset ('' = invoice without a visit) */
     public static function byKlinik(Carbon $from, Carbon $to): Collection
     {
         return self::between($from, $to)
-            ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
             ->groupBy('v.klinik_id')
             ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total')
             ->pluck('total', 'klinik_id')
@@ -109,19 +109,31 @@ class Revenue
     }
 
     /**
-     * Top items of one category by allocated omset: name, omset, qty.
+     * Items of one category by allocated omset, best first: (object) [name, total, qty, byKlinik
+     * (klinik_id => omset), qtyByKlinik]. $limit null = all items.
      */
-    public static function topItems(Carbon $from, Carbon $to, string $categoryKey, int $limit = 5): Collection
+    public static function items(Carbon $from, Carbon $to, string $categoryKey, ?int $limit = 5): Collection
     {
         $category = self::categorySql();
 
-        return self::itemShares($from, $to)
+        $rows = self::itemShares($from, $to)
+            ->leftJoin('erm_visitations as vk', 'vk.id', '=', 'fi.visitation_id')
             ->whereRaw("{$category} = ?", [$categoryKey])
-            ->groupBy('fii.name')
-            ->selectRaw('fii.name, SUM(fi.total_amount * fii.final_amount / it.items_total) as total, SUM(fii.quantity) as qty')
-            ->orderByDesc('total')
-            ->limit($limit)
+            ->groupBy('fii.name', 'vk.klinik_id')
+            ->selectRaw('fii.name, vk.klinik_id, SUM(fi.total_amount * fii.final_amount / it.items_total) as total, SUM(fii.quantity) as qty')
             ->get();
+
+        return $rows->groupBy('name')
+            ->map(fn ($perKlinik, $name) => (object) [
+                'name' => $name,
+                'total' => (float) $perKlinik->sum('total'),
+                'qty' => (float) $perKlinik->sum('qty'),
+                'byKlinik' => $perKlinik->mapWithKeys(fn ($r) => [(string) $r->klinik_id => (float) $r->total]),
+                'qtyByKlinik' => $perKlinik->mapWithKeys(fn ($r) => [(string) $r->klinik_id => (float) $r->qty]),
+            ])
+            ->sortByDesc('total')
+            ->when($limit, fn ($c) => $c->take($limit))
+            ->values();
     }
 
     /** Invoice items joined to their paid invoice and the invoice's item total (allocation base). */

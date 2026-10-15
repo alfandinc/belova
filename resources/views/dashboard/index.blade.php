@@ -516,6 +516,30 @@
             @include('dashboard.partials.widgets_grid', ['dashboardWidgets' => $dashboardWidgets, 'employeePosition' => $employeePosition, 'dashboardFilter' => $dashboardFilter])
         </div>
     </div>
+
+    {{-- Sumber Omset > "Lihat semua": all sold items per category, loaded from dashboard.omset-items --}}
+    <div class="modal fade" id="dashboard-items-modal" tabindex="-1" role="dialog" aria-labelledby="dashboard-items-title" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+            <div class="modal-content dsh dw-modal">
+                <div class="modal-header">
+                    <h5 class="modal-title dw-title" id="dashboard-items-title">Penjualan per item</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <nav class="dw-tabs" role="tablist">
+                        @foreach (\App\Support\Dashboard\Revenue::CATEGORIES as $categoryKey => $categoryLabel)
+                            <a href="#" data-items-tab="{{ $categoryKey }}" role="tab">{{ $categoryLabel }}</a>
+                        @endforeach
+                    </nav>
+                    <div class="dw-search">
+                        <i data-feather="search"></i>
+                        <input type="search" class="js-items-search" placeholder="Cari item…" aria-label="Cari item">
+                    </div>
+                    <div class="js-items-body"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 
@@ -838,6 +862,74 @@
                     }
                 }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
             }
+
+            // Sumber Omset > "Lihat semua": every item of a category for the widget's period, with search and sorting
+            var itemsModal = $('#dashboard-items-modal');
+            var itemsUrl = null;
+            var itemsRequest = null;
+
+            function loadItems(category) {
+                itemsModal.find('[data-items-tab]').removeClass('active').filter('[data-items-tab="' + category + '"]').addClass('active');
+                var body = itemsModal.find('.js-items-body').html('<div class="dw-note mt-0">Memuat…</div>');
+                if (itemsRequest) {
+                    itemsRequest.abort();
+                }
+                itemsRequest = $.get(itemsUrl, { category: category }).done(function (response) {
+                    body.html(response.html || '');
+                    body.find('[data-dash-items-table] thead th').each(function (i) {
+                        $(this).attr('data-sort-col', i);
+                    });
+                    filterItems();
+                    if (window.feather) {
+                        window.feather.replace();
+                    }
+                }).fail(function (xhr) {
+                    if (xhr.statusText !== 'abort') {
+                        body.html('<div class="dw-note mt-0">Data gagal dimuat.</div>');
+                    }
+                });
+            }
+
+            function filterItems() {
+                var term = (itemsModal.find('.js-items-search').val() || '').toLowerCase();
+                itemsModal.find('[data-dash-items-table] tbody tr').each(function () {
+                    $(this).toggle($(this).children().eq(1).text().toLowerCase().indexOf(term) !== -1);
+                });
+            }
+
+            $(document).on('click', '#dashboard-widgets-container [data-dash-items]', function () {
+                itemsUrl = $(this).data('dash-items');
+                itemsModal.find('.js-items-search').val('');
+                loadItems($(this).data('category'));
+                itemsModal.modal('show');
+            });
+
+            itemsModal.on('click', '[data-items-tab]', function (e) {
+                e.preventDefault();
+                loadItems($(this).data('items-tab'));
+            });
+
+            itemsModal.on('input', '.js-items-search', filterItems);
+
+            // Text columns sort A–Z, number columns (data-order) largest first; clicking again reverses
+            itemsModal.on('click', '[data-sort-col]', function () {
+                var th = $(this);
+                var col = +th.data('sort-col');
+                var desc = th.hasClass('is-sorted') ? !th.data('desc') : col > 1;
+                var tbody = th.closest('table').find('tbody');
+                var key = function (row) {
+                    var cell = $(row).children().eq(col);
+                    var order = cell.attr('data-order');
+                    return order !== undefined ? parseFloat(order) : cell.text().trim().toLowerCase();
+                };
+                var rows = tbody.children('tr').get().sort(function (a, b) {
+                    var x = key(a), y = key(b);
+                    return (x < y ? -1 : x > y ? 1 : 0) * (desc ? -1 : 1);
+                });
+                th.siblings().removeClass('is-sorted');
+                th.addClass('is-sorted').data('desc', desc);
+                tbody.append(rows);
+            });
 
             showRange(initialStart, initialEnd);
             initWidgets(container);

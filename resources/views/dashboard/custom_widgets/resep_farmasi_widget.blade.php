@@ -8,8 +8,8 @@
         <x-dash.empty icon="file-text" title="Belum ada resep hari ini" />
     @else
         <div class="dw-stats">
-            <x-dash.stat label="Perlu diproses" :value="Fmt::num($data['pending'])" :tone="$data['pending'] > 0 ? 'warning' : 'good'" meta="belum dikirim ke billing" />
-            <x-dash.stat label="Sudah diproses" :value="Fmt::num($data['processed'])" :meta="'dari ' . Fmt::num($data['total']) . ' resep'" />
+            <x-dash.stat label="Perlu diproses" :value="Fmt::num($data['pending'])" :tone="$data['pending'] > 0 ? 'warning' : 'good'" meta="belum dikirim ke billing" :clinics="$data['pendingClinics']" />
+            <x-dash.stat label="Sudah diproses" :value="Fmt::num($data['processed'])" :meta="'dari ' . Fmt::num($data['total']) . ' resep'" :clinics="$data['processedClinics']" />
         </div>
 
         <div class="mt-3">

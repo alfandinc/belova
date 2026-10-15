@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -15,11 +16,17 @@ class LabWidget implements Widget
     {
         $today = Carbon::today();
 
-        $counts = DB::table('erm_lab_permintaan')
-            ->selectRaw("SUM(CASE WHEN status = 'requested' THEN 1 ELSE 0 END) as requested,
-                SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
-                SUM(CASE WHEN status = 'completed' AND DATE(completed_at) = ? THEN 1 ELSE 0 END) as completed_today", [$today->toDateString()])
-            ->first();
+        // Per clinic of the request's visit; the headline numbers are the sums
+        $perKlinik = DB::table('erm_lab_permintaan as lp')
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'lp.visitation_id')
+            ->groupBy('v.klinik_id')
+            ->selectRaw("v.klinik_id,
+                SUM(CASE WHEN lp.status = 'requested' THEN 1 ELSE 0 END) as requested,
+                SUM(CASE WHEN lp.status = 'processing' THEN 1 ELSE 0 END) as processing,
+                SUM(CASE WHEN lp.status = 'completed' AND DATE(lp.completed_at) = ? THEN 1 ELSE 0 END) as completed_today", [$today->toDateString()])
+            ->get()
+            ->keyBy(fn ($r) => (string) $r->klinik_id);
+        $split = fn (string $column) => Clinics::split($perKlinik->map(fn ($r) => (int) $r->{$column}));
 
         // One row per visit: a visit usually orders several tests at once
         $open = DB::table('erm_lab_permintaan as lp')
@@ -50,9 +57,14 @@ class LabWidget implements Widget
             });
 
         return [
-            'requested' => (int) $counts->requested,
-            'processing' => (int) $counts->processing,
-            'completedToday' => (int) $counts->completed_today,
+            'requested' => (int) $perKlinik->sum('requested'),
+            'processing' => (int) $perKlinik->sum('processing'),
+            'completedToday' => (int) $perKlinik->sum('completed_today'),
+            'clinics' => [
+                'requested' => $split('requested'),
+                'processing' => $split('processing'),
+                'completedToday' => $split('completed_today'),
+            ],
             'open' => $open->all(),
         ];
     }

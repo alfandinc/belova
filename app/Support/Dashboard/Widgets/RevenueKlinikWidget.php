@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
 use App\Support\Dashboard\RevenueTargets;
@@ -47,6 +48,7 @@ class RevenueKlinikWidget implements Widget
 
                 return (object) [
                     'nama' => $klinik->nama,
+                    'color' => Clinics::color((int) $klinik->id),
                     'mtd' => $m,
                     'share' => Fmt::share($m, $totalMtd),
                     'mom' => Fmt::trend($m, (float) ($mtdPrev[$klinik->id] ?? 0)),

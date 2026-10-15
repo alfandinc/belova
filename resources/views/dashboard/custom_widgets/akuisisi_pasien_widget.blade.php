@@ -5,7 +5,7 @@
 
 <x-dash.card :widget="$widget" :subtitle="$data['periodLabel'] . ' · pasien yang pertama kali diperiksa'">
     <div class="dw-stats">
-        <x-dash.stat label="Pasien baru" :value="Fmt::num($data['newCount'])" :trend="$data['trend']" :trend-label="'vs ' . $data['previousLabel']" />
+        <x-dash.stat label="Pasien baru" :value="Fmt::num($data['newCount'])" :trend="$data['trend']" :trend-label="'vs ' . $data['previousLabel']" :clinics="$data['newCount'] > 0 ? $data['newClinics'] : null" />
         <x-dash.stat label="Lewat referral" :value="Fmt::pct($data['referredPct'])" meta="selain datang langsung" />
     </div>
     <div class="dw-stats mt-2">

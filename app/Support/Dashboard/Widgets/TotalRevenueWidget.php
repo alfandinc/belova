@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
 use App\Support\Dashboard\RevenueTargets;
@@ -46,10 +47,12 @@ class TotalRevenueWidget implements Widget
             'refLabel' => $ref->translatedFormat('d M Y'),
             'monthLabel' => $ref->translatedFormat('F Y'),
             'mtd' => $mtd,
+            'mtdClinics' => Clinics::split(Revenue::byKlinik($monthStart, $ref), fn ($v) => Fmt::rpShort($v)),
             'mtdMoM' => Fmt::trend($mtd, $mtdPrevMonth),
             'mtdMoMLabel' => '1–' . $prevMonthRef->day . ' ' . $prevMonthStart->translatedFormat('M'),
             'mtdYoY' => Fmt::trend($mtd, $mtdLastYear),
             'ytd' => $ytd,
+            'ytdClinics' => Clinics::split(Revenue::byKlinik($ref->copy()->startOfYear(), $ref), fn ($v) => Fmt::rpShort($v)),
             'ytdYoY' => Fmt::trend($ytd, $ytdLastYear),
             'ytdLastYearLabel' => 's/d ' . $ref->copy()->subYearNoOverflow()->translatedFormat('d M Y'),
             'day' => $day,

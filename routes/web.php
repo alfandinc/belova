@@ -181,6 +181,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', fn (\Illuminate\Http\Request $request) => redirect()->route('dashboard.index', $request->query()));
     // One home widget's HTML, loaded by the dashboard after the page is shown (access checked per widget)
     Route::get('/dashboard/widget/{key}', [\App\Http\Controllers\Dashboard\DashboardController::class, 'widget'])->name('dashboard.widget');
+    // Sumber Omset > "Lihat semua": every sold item of one category with its clinic split (AJAX)
+    Route::get('/dashboard/omset-items', [\App\Http\Controllers\Dashboard\DashboardController::class, 'omsetItems'])->name('dashboard.omset-items');
 
     // Dashboard widgets/settings admin area
     Route::prefix('dashboard')->middleware('role:Admin|Ceo|Head Manager')->group(function () {

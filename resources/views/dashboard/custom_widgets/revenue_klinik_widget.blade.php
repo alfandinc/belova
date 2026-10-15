@@ -20,7 +20,7 @@
                 @foreach ($data['rows'] as $row)
                     <tr>
                         <td>
-                            <div class="dw-cell-title">{{ $row->nama }}</div>
+                            <div class="dw-cell-title"><i class="dw-dot" style="background: {{ $row->color }}"></i> {{ $row->nama }}</div>
                             <div class="dw-stat-meta mt-0">{{ Fmt::pct($row->share) }} omset bulan ini</div>
                         </td>
                         <td class="text-right">

@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -47,6 +48,13 @@ class ResepFarmasiWidget implements Widget
             ->limit(self::LIST_LIMIT)
             ->get();
 
+        $perKlinik = (clone $visits)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, COUNT(DISTINCT v.id) as total,
+                COUNT(DISTINCT CASE WHEN rd.status = 1 THEN v.id END) as diproses')
+            ->get()
+            ->keyBy(fn ($r) => (string) $r->klinik_id);
+
         $total = (int) $counts->total;
         $processed = (int) $counts->diproses;
 
@@ -55,6 +63,8 @@ class ResepFarmasiWidget implements Widget
             'total' => $total,
             'processed' => $processed,
             'pending' => $total - $processed,
+            'pendingClinics' => Clinics::split($perKlinik->map(fn ($r) => $r->total - $r->diproses)),
+            'processedClinics' => Clinics::split($perKlinik->map(fn ($r) => $r->diproses)),
             'waiting' => $waiting->all(),
         ];
     }

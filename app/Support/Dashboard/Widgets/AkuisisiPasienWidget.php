@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
 use Carbon\Carbon;
@@ -34,7 +35,7 @@ class AkuisisiPasienWidget implements Widget
         $end = $filter['period_end']->copy()->endOfDay();
 
         // First-visit lookups scan the whole visit history; the result is the same for everyone, so keep it 10 minutes
-        return Cache::remember('dashboard:akuisisi:' . $start->toDateString() . ':' . $end->toDateString(), 600, fn () => $this->compute($start, $end));
+        return Cache::remember('dashboard:akuisisi:v2:' . $start->toDateString() . ':' . $end->toDateString(), 600, fn () => $this->compute($start, $end));
     }
 
     private function compute(Carbon $start, Carbon $end): array
@@ -48,6 +49,14 @@ class AkuisisiPasienWidget implements Widget
             ->whereBetween('fv.first_visit', [$from->toDateString(), $to->toDateString()]);
 
         $newCount = $newIn($start, $end)->count();
+
+        // Clinic of the first visit (a patient seen at two clinics that day counts at both)
+        $newByKlinik = $newIn($start, $end)
+            ->join('erm_visitations as v', fn ($join) => $join->on('v.pasien_id', '=', 'fv.pasien_id')->on('v.tanggal_visitation', '=', 'fv.first_visit'))
+            ->where('v.status_kunjungan', 2)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, COUNT(DISTINCT fv.pasien_id) as total')
+            ->pluck('total', 'klinik_id');
         $prevCount = $newIn($prevStart, $prevEnd)->count();
 
         // Omset per patient in the period, split into new (first visit in period) and returning
@@ -79,6 +88,7 @@ class AkuisisiPasienWidget implements Widget
             'periodLabel' => $start->translatedFormat('d M Y') . ' – ' . $end->translatedFormat('d M Y'),
             'previousLabel' => $prevStart->translatedFormat('d M') . ' – ' . $prevEnd->translatedFormat('d M Y'),
             'newCount' => $newCount,
+            'newClinics' => Clinics::split($newByKlinik),
             'trend' => Fmt::trend($newCount, $prevCount),
             'perDay' => $newCount / max(1, $days),
             'referredPct' => Fmt::share($sources->where('label', '!=', self::SOURCES['walk_in'])->sum('count'), $newCount),

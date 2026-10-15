@@ -22,6 +22,10 @@
         --dw-critical-line: #f3c4c4;
         --dw-info-line: #bfdbfe;
         --dw-grid: #eef0f3;
+        /* One fixed color per clinic (AppSupportDashboardClinics), same hues as the login page / sidebar accent */
+        --dw-klinik-premiere: #2563eb;
+        --dw-klinik-skin: #db2777;
+        --dw-klinik-dental: #16a34a;
     }
 
     /* Dark theme (html.theme-dark, set by the layout's theme toggle): same hues, stepped for the dark surface */
@@ -56,6 +60,9 @@
         --dw-critical-line: rgba(208, 59, 59, 0.45);
         --dw-info-line: rgba(57, 135, 229, 0.45);
         --dw-grid: #383f58;
+        --dw-klinik-premiere: #5b93f2;
+        --dw-klinik-skin: #ea5d9e;
+        --dw-klinik-dental: #32b768;
     }
 
     html.theme-dark .dsh .dw-select,
@@ -922,6 +929,120 @@
     @keyframes dw-skel {
         from { background-position: 100% 0; }
         to { background-position: -100% 0; }
+    }
+
+    /* Per-clinic split (x-dash.split): thin bar + every clinic with its value */
+    .dw-split {
+        margin-top: 10px;
+    }
+
+    .dw-stack.is-thin {
+        height: 6px;
+        border-radius: 3px;
+    }
+
+    .dw-split-list {
+        list-style: none;
+        margin: 6px 0 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 12px;
+    }
+
+    .dw-split-list li {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.74rem;
+        white-space: nowrap;
+    }
+
+    .dw-split-list .dw-dot {
+        width: 8px;
+        height: 8px;
+        flex-basis: 8px;
+    }
+
+    .dw-split-label {
+        color: var(--dsh-muted);
+    }
+
+    .dw-split-value {
+        font-weight: 700;
+        color: var(--dsh-ink);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .dw-split-list li.is-zero .dw-split-value {
+        color: var(--dsh-faint);
+        font-weight: 600;
+    }
+
+    /* "Lihat semua" modal (dashboard/index): the .dsh tokens on .modal-content, without the page padding */
+    .dw-modal.dsh {
+        padding: 0;
+        background: var(--dsh-surface);
+        border: 1px solid var(--dsh-line);
+        border-radius: 14px;
+    }
+
+    .dw-modal .modal-header {
+        border-bottom-color: var(--dsh-line);
+    }
+
+    .dw-modal .close {
+        color: var(--dsh-ink);
+        text-shadow: none;
+    }
+
+    .dw-modal [data-sort-col] {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .dw-modal [data-sort-col].is-sorted {
+        color: var(--dsh-accent);
+    }
+
+        /* Small "Lihat semua" button next to a section label */
+    .dw-section-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 16px 0 8px;
+    }
+
+    .dw-section-row .dw-section-label {
+        margin: 0;
+    }
+
+    .dw-more-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--dsh-line);
+        background: var(--dsh-surface);
+        color: var(--dsh-accent);
+        font-size: 0.74rem;
+        font-weight: 600;
+        line-height: 1.4;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .dw-more-btn:hover,
+    .dw-more-btn:focus-visible {
+        background: var(--dsh-accent-soft);
+        border-color: var(--dsh-accent);
+    }
+
+    .dw-more-btn .feather {
+        width: 13px;
+        height: 13px;
     }
 
     @media (prefers-reduced-motion: reduce) {

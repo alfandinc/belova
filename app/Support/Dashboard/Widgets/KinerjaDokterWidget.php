@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard\Widgets;
 
 use App\Models\User;
+use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
 
@@ -37,7 +38,8 @@ class KinerjaDokterWidget implements Widget
         $rows = $current
             ->map(fn ($r, $key) => (object) [
                 'nama' => $r->dokter_id ? ($r->nama ?? 'Dokter #' . $r->dokter_id) : 'Tanpa dokter (penjualan langsung)',
-                'klinik' => $r->klinik,
+                'klinik' => $r->klinik ? Clinics::short($r->klinik) : null,
+                'color' => Clinics::color($r->klinik),
                 'total' => (float) $r->total,
                 'share' => Fmt::share($r->total, $total),
                 'visits' => (int) $r->visits,
