@@ -72,6 +72,44 @@ class Revenue
             ->map(fn ($v) => (float) $v);
     }
 
+    /**
+     * Adds the visit's metode bayar (erm_metode_bayar: Umum or an insurer) to an invoice query that
+     * already joins erm_visitations as v; select / group by mb_nama and mb_asuransi.
+     */
+    public static function withMetodeBayar(Builder $query): Builder
+    {
+        return $query->leftJoin('erm_metode_bayar as mb', 'mb.id', '=', 'v.metode_bayar_id')
+            ->addSelect(DB::raw("COALESCE(mb.nama, 'Tanpa metode bayar') as mb_nama, COALESCE(mb.is_asuransi, 0) as mb_asuransi"))
+            ->groupBy('mb_nama', 'mb_asuransi');
+    }
+
+    /**
+     * Rows with mb_nama, mb_asuransi, total, invoices => Umum vs Asuransi (nominal, percent of $total)
+     * and every insurer, largest first.
+     *
+     * @return array{umum: array, asuransi: array, insurers: list<array>}
+     */
+    public static function metodeBayarSplit(iterable $rows, float $total): array
+    {
+        $rows = collect($rows);
+        $part = fn ($rows) => [
+            'total' => (float) $rows->sum('total'),
+            'pct' => Fmt::share($rows->sum('total'), $total),
+            'invoices' => (int) $rows->sum('invoices'),
+        ];
+        $insurance = $rows->where('mb_asuransi', 1);
+
+        return [
+            'umum' => $part($rows->where('mb_asuransi', '!=', 1)),
+            'asuransi' => $part($insurance),
+            'insurers' => $insurance->groupBy('mb_nama')
+                ->map(fn ($r, $nama) => ['label' => $nama] + $part($r))
+                ->sortByDesc('total')
+                ->values()
+                ->all(),
+        ];
+    }
+
     /** SQL CASE that maps an invoice item to a category key. */
     public static function categorySql(string $alias = 'fii'): string
     {

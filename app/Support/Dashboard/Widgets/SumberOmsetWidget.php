@@ -11,19 +11,11 @@ use Illuminate\Support\Facades\Route;
 /**
  * Where the period's omset comes from (invoice items): the category split over all clinics with growth vs
  * the previous period of the same length, then one section per clinic with its own category split,
- * best-selling tindakan / products ("Lihat semua" lists every item) and payment methods.
+ * best-selling tindakan / products ("Lihat semua" lists every item) and the visit metode bayar (Umum / Asuransi).
  */
 class SumberOmsetWidget implements Widget
 {
     private const TOP = 5;
-
-    private const PAYMENT_METHODS = [
-        'cash' => 'Tunai',
-        'qris' => 'QRIS',
-        'transfer' => 'Transfer',
-        'piutang' => 'Piutang',
-        'lainnya' => 'Lainnya',
-    ];
 
     public function data(User $user, array $filter): array
     {
@@ -51,10 +43,11 @@ class SumberOmsetWidget implements Widget
             'obat' => Revenue::items($start, $end, 'obat', null),
         ];
 
-        $methods = Revenue::between($start, $end)
+        // Omset by the visit's metode bayar (Umum / insurer), per clinic
+        $metodeBayar = Revenue::withMetodeBayar(Revenue::between($start, $end)
             ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            ->selectRaw("v.klinik_id, COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, SUM(fi.total_amount) as total, COUNT(*) as invoices")
-            ->groupBy('v.klinik_id', 'method')
+            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices')
+            ->groupBy('v.klinik_id'))
             ->get();
 
         // null (no "Lihat semua") while a stale route cache does not know the route yet
@@ -62,10 +55,11 @@ class SumberOmsetWidget implements Widget
             ? route('dashboard.omset-items', ['start_date' => $start->toDateString(), 'end_date' => $end->toDateString()])
             : null;
 
-        $clinics = Clinics::all()->map(function ($klinik) use ($start, $end, $items, $methods) {
+        $clinics = Clinics::all()->map(function ($klinik) use ($start, $end, $items, $metodeBayar) {
             $split = Revenue::byCategory($start, $end, $klinik->id);
             $sum = (float) $split->sum();
             $key = (string) $klinik->id;
+            $klinikMetode = $metodeBayar->filter(fn ($m) => (string) $m->klinik_id === $key);
 
             $top = fn (string $category) => $items[$category]
                 ->filter(fn ($item) => ($item->byKlinik[$key] ?? 0) > 0)
@@ -90,16 +84,7 @@ class SumberOmsetWidget implements Widget
                 ])->values()->all(),
                 'topTindakan' => $top('tindakan'),
                 'topObat' => $top('obat'),
-                'methods' => $methods->filter(fn ($m) => (string) $m->klinik_id === $key)
-                    ->map(fn ($m) => [
-                        'label' => self::PAYMENT_METHODS[$m->method] ?? ucwords(str_replace('_', ' ', $m->method)),
-                        'total' => (float) $m->total,
-                        'pct' => Fmt::share($m->total, $sum),
-                        'invoices' => (int) $m->invoices,
-                    ])
-                    ->sortByDesc('total')
-                    ->values()
-                    ->all(),
+                'metodeBayar' => $klinikMetode->isNotEmpty() ? Revenue::metodeBayarSplit($klinikMetode, (float) $klinikMetode->sum('total')) : null,
             ];
         })->values();
 
@@ -108,6 +93,7 @@ class SumberOmsetWidget implements Widget
             'previousLabel' => $prevStart->translatedFormat('d M') . ' – ' . $prevEnd->translatedFormat('d M Y'),
             'total' => $total,
             'categories' => $categories->all(),
+            'metodeBayar' => Revenue::metodeBayarSplit($metodeBayar, (float) $metodeBayar->sum('total')),
             'clinics' => $clinics->all(),
             'itemsUrl' => $itemsUrl,
         ];

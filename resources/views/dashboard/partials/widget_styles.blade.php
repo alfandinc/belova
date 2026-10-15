@@ -1024,6 +1024,12 @@
         margin: 12px 0 6px;
     }
 
+    /* Insurers under "Asuransi" (x-dash.metode-bayar) */
+    .dw-bars-nested {
+        padding-left: 14px;
+        border-left: 2px solid var(--dsh-line);
+    }
+
     .dw-clinics.is-compact {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }

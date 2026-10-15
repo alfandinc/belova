@@ -14,11 +14,14 @@
             :meta="Fmt::rpShort($data['unpaidAmount'])" />
         <x-dash.stat label="Piutang berjalan" :value="Fmt::num($data['piutangCount'])" :meta="'sisa ' . Fmt::rpShort($data['piutangSisa'])" />
     </div>
+    @if ($data['metodeBayar'])
+        <div class="dw-section-label">Metode bayar hari ini · Umum / Asuransi</div>
+        <x-dash.metode-bayar :split="$data['metodeBayar']" />
+    @endif
 
     <div class="dw-section-label">Per klinik</div>
     <div class="dw-clinics">
         @foreach ($data['clinics'] as $c)
-            @php($maxMethod = max(1, collect($c['methods'])->max('total')))
             <x-dash.clinic :klinik="$c['klinik']">
                 <x-slot:aside><x-dash.delta :trend="$c['trend']" label="vs kemarin" class="mt-0" /></x-slot:aside>
                 <div class="dw-stats">
@@ -27,14 +30,9 @@
                         :meta="Fmt::rpShort($c['unpaidAmount'])" />
                 </div>
 
-                @if (!empty($c['methods']))
-                    <div class="dw-section-label">Metode pembayaran</div>
-                    <div class="dw-bars">
-                        @foreach ($c['methods'] as $method)
-                            <x-dash.bar :label="$method['label']" :value="Fmt::rp($method['total'])" :pct="$method['total'] / $maxMethod * 100"
-                                :color="$c['klinik']->color" :sub="Fmt::num($method['invoices']) . ' invoice'" />
-                        @endforeach
-                    </div>
+                @if ($c['metodeBayar'])
+                    <div class="dw-section-label">Metode bayar · Umum / Asuransi</div>
+                    <x-dash.metode-bayar :split="$c['metodeBayar']" :color="$c['klinik']->color" />
                 @endif
 
                 @if (!empty($c['unpaid']))

@@ -5,24 +5,19 @@ namespace App\Support\Dashboard\Widgets;
 use App\Models\User;
 use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
+use App\Support\Dashboard\Revenue;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
  * The cashier's day: totals over all clinics (received today, invoices not paid yet, open receivables),
- * then one section per clinic (the invoice's visit clinic) with its payments by method and unpaid invoices.
+ * then one section per clinic (the invoice's visit clinic) with its omset by the visit metode bayar
+ * (Umum / Asuransi) and unpaid invoices.
  */
 class KasirWidget implements Widget
 {
     /** Latest unpaid invoices listed per clinic */
     private const LIST_LIMIT = 3;
-
-    private const METHODS = [
-        'cash' => 'Tunai',
-        'qris' => 'QRIS',
-        'transfer' => 'Transfer',
-        'piutang' => 'Piutang',
-    ];
 
     public function data(User $user, array $filter): array
     {
@@ -35,10 +30,10 @@ class KasirWidget implements Widget
             ->whereIn('fi.status', ['paid', 'partial'])
             ->whereBetween('fi.payment_date', [$day->copy()->startOfDay(), $day->copy()->endOfDay()]);
 
-        // klinik_id × method
-        $todayRows = $paid($today)
-            ->selectRaw("v.klinik_id, COALESCE(NULLIF(fi.payment_method, ''), 'lainnya') as method, SUM(fi.total_amount) as total, COUNT(*) as invoices")
-            ->groupBy('v.klinik_id', 'method')
+        // klinik_id × the visit's metode bayar (Umum / insurer)
+        $todayRows = Revenue::withMetodeBayar($paid($today)
+            ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices')
+            ->groupBy('v.klinik_id'))
             ->get();
         $yesterdayByKlinik = $paid($yesterday)
             ->groupBy('v.klinik_id')
@@ -78,6 +73,7 @@ class KasirWidget implements Widget
             'todayLabel' => $today->translatedFormat('l, d M Y'),
             'total' => $total,
             'invoices' => (int) $todayRows->sum('invoices'),
+            'metodeBayar' => $total > 0 ? Revenue::metodeBayarSplit($todayRows, $total) : null,
             'trend' => Fmt::trend($total, (float) $yesterdayByKlinik->sum()),
             'unpaidCount' => (int) $unpaidRows->sum('invoices'),
             'unpaidAmount' => (float) $unpaidRows->sum('total'),
@@ -93,15 +89,7 @@ class KasirWidget implements Widget
                     'total' => $received,
                     'invoices' => (int) $paid->sum('invoices'),
                     'trend' => Fmt::trend($received, $yesterdayByKlinik->get($key, 0)),
-                    'methods' => $paid->groupBy('method')
-                        ->map(fn ($m, $method) => [
-                            'label' => self::METHODS[$method] ?? ucwords(str_replace('_', ' ', $method)),
-                            'total' => (float) $m->sum('total'),
-                            'invoices' => (int) $m->sum('invoices'),
-                        ])
-                        ->sortByDesc('total')
-                        ->values()
-                        ->all(),
+                    'metodeBayar' => $received > 0 ? Revenue::metodeBayarSplit($paid, $received) : null,
                     'unpaidCount' => (int) $unpaid->sum('invoices'),
                     'unpaidAmount' => (float) $unpaid->sum('total'),
                     'unpaid' => $unpaidLatest->get($key, collect())->take(self::LIST_LIMIT)->all(),

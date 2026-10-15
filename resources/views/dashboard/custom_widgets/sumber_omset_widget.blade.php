@@ -30,6 +30,13 @@
             @endforeach
         </ul>
 
+        <div class="dw-section-label">Semua klinik · metode bayar · Umum / Asuransi</div>
+        <div class="row">
+            <div class="col-lg-6">
+                <x-dash.metode-bayar :split="$data['metodeBayar']" />
+            </div>
+        </div>
+
         <div class="dw-section-label">Per klinik</div>
         <div class="dw-clinics is-columns">
             @foreach ($data['clinics'] as $c)
@@ -50,6 +57,11 @@
                             @endforeach
                         </ul>
 
+                        @if ($c['metodeBayar'])
+                            <div class="dw-section-label">Metode bayar · Umum / Asuransi</div>
+                            <x-dash.metode-bayar :split="$c['metodeBayar']" :color="$c['klinik']->color" />
+                        @endif
+
                         @foreach ([['Tindakan terlaris', 'tindakan', $c['topTindakan'], 'x', 'Belum ada tindakan terjual.'], ['Obat & produk terlaris', 'obat', $c['topObat'], ' terjual', 'Belum ada obat/produk terjual.']] as [$title, $category, $items, $unit, $emptyText])
                             @php($max = max(1, collect($items)->max('total')))
                             <div class="dw-section-row">
@@ -68,16 +80,6 @@
                                 <p class="dw-note mt-0">{{ $emptyText }}</p>
                             @endforelse
                         @endforeach
-
-                        @if (!empty($c['methods']))
-                            <div class="dw-section-label">Metode pembayaran</div>
-                            <div class="dw-bars">
-                                @foreach ($c['methods'] as $method)
-                                    <x-dash.bar :label="$method['label']" :value="Fmt::rpShort($method['total']) . ' · ' . Fmt::pct($method['pct'])"
-                                        :pct="$method['pct']" :sub="Fmt::num($method['invoices']) . ' invoice'" />
-                                @endforeach
-                            </div>
-                        @endif
                     @endif
                 </x-dash.clinic>
             @endforeach
