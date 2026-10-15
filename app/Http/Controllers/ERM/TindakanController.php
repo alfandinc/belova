@@ -158,7 +158,16 @@ class TindakanController extends Controller
 
         $tindakan = $tindakanQuery->get();
 
+        // Remaining multi visit package per tindakan for this patient (same rule as getMultiVisitStatus)
+        $pasienId = $request->filled('visitation_id') ? Visitation::whereKey($request->query('visitation_id'))->value('pasien_id') : null;
+        $openUsages = $pasienId
+            ? MultiVisitUsage::where('pasien_id', $pasienId)->whereColumn('used', '<', 'total')
+                ->orderByDesc('created_at')->get(['tindakan_id', 'used', 'total'])->unique('tindakan_id')->keyBy('tindakan_id')
+            : collect();
+
         return datatables()->of($tindakan)
+            ->addColumn('multi_used', fn ($row) => isset($openUsages[$row->id]) ? (int) $openUsages[$row->id]->used : null)
+            ->addColumn('multi_total', fn ($row) => isset($openUsages[$row->id]) ? (int) $openUsages[$row->id]->total : null)
             ->addColumn('action', function ($row) {
                 return '
                 <button class="btn btn-success btn-sm buat-tindakan" data-id="' . $row->id . '" data-type="tindakan">Buat Tindakan</button>
@@ -249,7 +258,29 @@ class TindakanController extends Controller
         return response()->json(['success' => true, 'exists' => (bool) $exists]);
     }
 
+    /**
+     * Save a tindakan (riwayat, inform consent PDF, SPK, billing, obat) all or nothing: a failure never leaves
+     * a riwayat without its billing, nor a PDF without its record.
+     */
     public function saveInformConsent(Request $request)
+    {
+        $storedPdf = null;
+        DB::beginTransaction();
+        try {
+            $response = $this->storeInformConsent($request, $storedPdf);
+            DB::commit();
+
+            return $response;
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            if ($storedPdf) {
+                Storage::disk('public')->delete($storedPdf);
+            }
+            throw $e;
+        }
+    }
+
+    private function storeInformConsent(Request $request, ?string &$storedPdf)
     {
         // Map field names from JavaScript to what controller expects
         if ($request->has('signatureData') && !$request->has('signature')) {
@@ -347,45 +378,25 @@ class TindakanController extends Controller
             }
             $perawatName = optional(Auth::user())->name ?? '';
 
-            // Helper to generate QR data URI via Google Chart API (fallback to empty string on failure)
+            // QR data URI generated locally (PNG, or SVG when PNG needs an extension the server lacks)
             $generateQrDataUri = function ($text) {
-                $dataUri = '';
-                if (empty($text)) return $dataUri;
-                $url = 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . urlencode($text) . '&choe=UTF-8';
-
-                // Try file_get_contents first
-                $img = false;
-                if (ini_get('allow_url_fopen')) {
-                    $img = @file_get_contents($url);
+                if (empty($text)) {
+                    return '';
                 }
-
-                // If file_get_contents failed, try curl
-                if ($img === false) {
-                    if (function_exists('curl_init')) {
-                        $ch = curl_init($url);
-                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-                        $img = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        curl_close($ch);
-                        if ($img === false || $httpCode >= 400) {
-                            $img = false;
-                        }
+                try {
+                    return 'data:image/png;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size(200)->generate($text));
+                } catch (\Throwable $e) {
+                    try {
+                        return 'data:image/svg+xml;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(200)->generate($text));
+                    } catch (\Throwable $e) {
+                        return '';
                     }
                 }
-
-                if ($img !== false && $img !== null) {
-                    $dataUri = 'data:image/png;base64,' . base64_encode($img);
-                }
-
-                return $dataUri;
             };
 
-            // Prefer client-submitted QR data URIs (from browser) if provided
-            $dokterQr = $request->input('dokter_qr') ?? $generateQrDataUri('Dokter: ' . $dokterName);
-            $perawatQr = $request->input('perawat_qr') ?? $generateQrDataUri('Perawat: ' . $perawatName);
+            // Prefer client-submitted QR data URIs (from browser); an empty one (QR library not loaded) falls back
+            $dokterQr = $request->input('dokter_qr') ?: $generateQrDataUri('Dokter: ' . $dokterName);
+            $perawatQr = $request->input('perawat_qr') ?: $generateQrDataUri('Perawat: ' . $perawatName);
 
             // Generate PDF using the generic template
             $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
@@ -403,6 +414,7 @@ class TindakanController extends Controller
             $timestamp = now()->format('YmdHis');
             $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
             Storage::disk('public')->put($pdfPath, $pdf->output());
+            $storedPdf = $pdfPath;
             $informConsent = InformConsent::create([
                 'visitation_id' => $data['visitation_id'],
                 'tindakan_id' => $data['tindakan_id'],
@@ -1211,32 +1223,43 @@ class TindakanController extends Controller
         try {
             $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
 
-            DB::beginTransaction();
-
-            $relatedRiwayat = $this->resolveRiwayatGroupForDeletion($riwayat);
-            $removedRiwayatIds = $relatedRiwayat->pluck('id')->map(function ($riwayatId) {
-                return (int) $riwayatId;
-            })->values()->all();
-            $removedMultiVisitUsageId = $riwayat->multi_visit_usage_id ? (int) $riwayat->multi_visit_usage_id : null;
-
-            foreach ($relatedRiwayat as $groupedRiwayat) {
-                $this->deleteSingleRiwayatTindakanGraph($groupedRiwayat);
+            // A multi visit session is cancelled on its own and gives its quota back. The first (paid) session
+            // carries the package charge, so it goes only once no later session is left.
+            $usageId = $riwayat->multi_visit_usage_id ? (int) $riwayat->multi_visit_usage_id : null;
+            $otherSessions = $usageId
+                ? RiwayatTindakan::where('multi_visit_usage_id', $usageId)->where('id', '!=', $riwayat->id)->get(['id'])
+                : collect();
+            if ($otherSessions->isNotEmpty() && (int) $riwayat->id === (int) $otherSessions->pluck('id')->push($riwayat->id)->min()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ini sesi pertama paket (yang ditagih). Batalkan dulu ' . $otherSessions->count() . ' sesi lanjutannya.',
+                ], 422);
             }
 
-            if ($removedMultiVisitUsageId) {
-                MultiVisitUsage::where('id', $removedMultiVisitUsageId)->delete();
+            DB::beginTransaction();
+
+            $this->deleteSingleRiwayatTindakanGraph($riwayat);
+
+            $removedMultiVisitUsageId = null;
+            if ($usageId) {
+                if ($otherSessions->isEmpty()) {
+                    MultiVisitUsage::where('id', $usageId)->delete();
+                    $removedMultiVisitUsageId = $usageId;
+                } else {
+                    MultiVisitUsage::where('id', $usageId)->where('used', '>', 0)->decrement('used');
+                }
             }
 
             DB::commit();
 
-            $message = $removedMultiVisitUsageId
-                ? 'Riwayat tindakan slimming dan seluruh sesi paketnya berhasil dibatalkan.'
-                : 'Riwayat tindakan slimming berhasil dibatalkan.';
+            $message = $usageId && $otherSessions->isNotEmpty()
+                ? 'Sesi tindakan berhasil dibatalkan, kuota paket dikembalikan 1 sesi.'
+                : 'Riwayat tindakan berhasil dibatalkan.';
 
             return response()->json([
                 'success' => true,
                 'message' => $message,
-                'removed_riwayat_ids' => $removedRiwayatIds,
+                'removed_riwayat_ids' => [(int) $riwayat->id],
                 'removed_multi_visit_usage_id' => $removedMultiVisitUsageId,
             ]);
         } catch (\Throwable $e) {
@@ -1244,17 +1267,6 @@ class TindakanController extends Controller
             Log::error('Error deleting riwayat tindakan in destroyRiwayatTindakan: ' . $e->getMessage(), ['riwayat_id' => $id]);
             return response()->json(['success' => false, 'message' => 'Failed to remove riwayat tindakan.'], 500);
         }
-    }
-
-    private function resolveRiwayatGroupForDeletion(RiwayatTindakan $riwayat)
-    {
-        if (!$riwayat->multi_visit_usage_id) {
-            return collect([$riwayat]);
-        }
-
-        return RiwayatTindakan::where('multi_visit_usage_id', $riwayat->multi_visit_usage_id)
-            ->orderByDesc('tanggal_tindakan')
-            ->get();
     }
 
     private function deleteSingleRiwayatTindakanGraph(RiwayatTindakan $riwayat): void

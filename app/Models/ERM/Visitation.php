@@ -242,6 +242,19 @@ class Visitation extends Model
         ]));
     }
 
+    /**
+     * SQL condition for a Konsultasi visit the perawat finished without the dokter ("Tindakan saja"):
+     * done (status 2) from the asesmen perawat, with no CPPT and no jasa konsultasi billed by the dokter's asesmen.
+     */
+    public static function dokterDilewatiSql(string $alias = 'erm_visitations'): string
+    {
+        return "({$alias}.jenis_kunjungan = " . self::TYPE_KONSULTASI
+            . " AND {$alias}.status_kunjungan = 2 AND {$alias}.status_dokumen = 'asesmen'"
+            . " AND NOT EXISTS (SELECT 1 FROM finance_billing fb WHERE fb.visitation_id = {$alias}.id"
+            . " AND fb.billable_type = " . \Illuminate\Support\Facades\DB::getPdo()->quote(Konsultasi::class)
+            . " AND fb.deleted_at IS NULL))";
+    }
+
     /** masuk_ruangan_at exists once its migration ran (prod schema may lag behind the code). */
     public static function tracksMasukRuangan(): bool
     {

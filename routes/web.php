@@ -1404,6 +1404,12 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
         Route::get('/retur-pembelian/invoice/{id}/items', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoiceItems'])->name('finance.retur-pembelian.invoice-items');
         
+    });
+    }
+);
+
+// Pengajuan Dana (company-wide fund request): same roles as the finance group above, plus Ceo
+Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd|Ceo')->group(function () {
     // Pengajuan paid history (AJAX DataTable)
     Route::get('/pengajuan/paid-data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'paidData'])->name('finance.pengajuan.paid.data');
 
@@ -1441,9 +1447,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::put('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'update'])->name('finance.pengajuan.approver.update');
         Route::delete('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'destroy'])->name('finance.pengajuan.approver.destroy');
     });
-    });
-    }
-);
+});
 
 Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function () {
         // Existing Item routes

@@ -43,7 +43,7 @@ class QuickLinks
             $can('Hrd', 'Admin', 'Ceo', 'Head Manager') ? self::link('Data Pegawai', 'Karyawan & dokter', 'users', $route('hrd.employee.index')) : null,
             $can('Hrd', 'Admin') ? self::link('Jadwal Karyawan', 'Atur shift', 'calendar', $route('hrd.schedule.index')) : null,
             $can('Hrd', 'Admin', 'Manager', 'Head Manager') ? self::link('Jadwal Dokter', 'Praktik dokter', 'user-check', $route('hrd.dokter-schedule.index')) : null,
-            $can('Kasir', 'Admin', 'Farmasi', 'Finance', 'Employee', 'Manager', 'Head Manager', 'Hrd') ? self::link('Pengajuan Dana', 'Ajukan & pantau dana', 'send', $route('finance.pengajuan.index')) : null,
+            $can('Kasir', 'Admin', 'Farmasi', 'Finance', 'Employee', 'Manager', 'Head Manager', 'Hrd', 'Ceo') ? self::link('Pengajuan Dana', 'Ajukan & pantau dana', 'send', $route('finance.pengajuan.index')) : null,
 
             // Everyone
             self::link('Cuti & Libur', 'Ajukan cuti', 'sun', $route('hrd.libur.index'), $count('libur_hrd', 'libur_manager')),

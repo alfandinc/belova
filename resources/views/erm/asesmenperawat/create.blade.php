@@ -393,6 +393,22 @@
 
         <div class="erm-actionbar">
             <span class="erm-actionbar-hint"><i class="fas fa-info-circle mr-1"></i>Pastikan tanda vital dan masalah keperawatan sudah terisi.</span>
+            @if ((int) $visitation->jenis_kunjungan === \App\Models\ERM\Visitation::TYPE_KONSULTASI)
+                {{-- "Tindakan saja": the visit is done on save and the perawat continues to the Tindakan page --}}
+                <style>
+                    .erm-skip-dokter { display: flex; align-items: center; padding: 6px 14px; border: 1px solid var(--sb-border, #e2e8f0); border-radius: 10px; }
+                    .erm-skip-dokter:has(input:checked) { border-color: var(--ef-accent); background: rgba(var(--ef-accent-rgb), .08); }
+                    .erm-skip-dokter .custom-control-label { font-size: .95rem; font-weight: 700; text-transform: none; letter-spacing: normal; color: var(--sb-text-strong, #1e2538); cursor: pointer; }
+                    .erm-skip-dokter .erm-skip-info { margin-left: 8px; color: var(--sb-muted, #8a94ad); cursor: help; }
+                </style>
+                <div class="erm-skip-dokter">
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" name="lewati_asesmen_dokter" value="1" id="lewati_asesmen_dokter">
+                        <label class="custom-control-label" for="lewati_asesmen_dokter">Lewati Asesmen Dokter</label>
+                    </div>
+                    <i class="fas fa-info-circle erm-skip-info" data-toggle="tooltip" title="Untuk pasien yang hanya datang tindakan. Kunjungan langsung selesai dan dilanjutkan ke halaman Tindakan."></i>
+                </div>
+            @endif
             <button type="submit" class="btn btn-erm-primary" id="btn-simpan-asesmen-perawat">
                 <i class="fas fa-save mr-1"></i>Simpan Asesmen
             </button>
@@ -408,6 +424,7 @@
    $(document).ready(function () {
     // One page form (was a 2-step wizard); saved with the save bar at the bottom
     $('.select2').select2({ width: '100%' });
+    $('.erm-skip-info').tooltip();
 
 
     // Append selected value to Keluhan Utama textarea
@@ -566,6 +583,27 @@
         e.preventDefault();
 
         let form = $(this);
+
+        // Skipping the dokter finishes the visit: ask once before saving
+        let skipBox = $('#lewati_asesmen_dokter');
+        if (skipBox.length && skipBox.is(':checked') && !form.data('skipConfirmed')) {
+            Swal.fire({
+                title: 'Lewati Asesmen Dokter?',
+                html: 'Kunjungan langsung selesai tanpa pemeriksaan dokter, lalu dilanjutkan ke halaman Tindakan.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Lewati',
+                cancelButtonText: 'Batal'
+            }).then(function (result) {
+                if (result.isConfirmed || result.value) {
+                    form.data('skipConfirmed', true);
+                    form.trigger('submit');
+                }
+            });
+            return;
+        }
+        form.removeData('skipConfirmed');
+
         let formData = new FormData(this);
         // Guard against double submit while saving
         let saveBtn = $('#btn-simpan-asesmen-perawat');
@@ -586,6 +624,17 @@
                 saveBtn.prop('disabled', false).html(saveBtnHtml);
             },
             success: function (response) {
+                if (response.tindakan_url) {
+                    Swal.fire({
+                        title: 'Sukses!',
+                        html: response.message + '<br>Asesmen dokter dilewati, lanjut ke halaman Tindakan.',
+                        icon: 'success',
+                        confirmButtonText: 'Lanjut ke Tindakan'
+                    }).then(function () {
+                        window.location.href = response.tindakan_url;
+                    });
+                    return;
+                }
                 Swal.fire({
                     title: 'Sukses!',
                      html: response.message,

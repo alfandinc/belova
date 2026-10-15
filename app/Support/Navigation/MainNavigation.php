@@ -170,7 +170,7 @@ class MainNavigation
             $akuntansi ? $this->item('Target Revenue', 'target', $this->route('finance.revenue-targets.index')) : null,
             $this->can('Admin', 'Finance', 'Kasir') ? $this->item('Laporan Keuangan', 'pie-chart', $this->route('finance.laporan-keuangan.index')) : null,
             // Company-wide fund request: open to more roles than the accounting pages above
-            $this->can('Kasir', 'Admin', 'Farmasi', 'Finance', 'Employee', 'Manager', 'Head Manager', 'Hrd')
+            $this->can('Kasir', 'Admin', 'Farmasi', 'Finance', 'Employee', 'Manager', 'Head Manager', 'Hrd', 'Ceo')
                 ? $this->item('Pengajuan Dana', 'send', $this->route('finance.pengajuan.index'))
                 : null,
         ]);

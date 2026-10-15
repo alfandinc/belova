@@ -87,6 +87,15 @@ class AsesmenPerawatController extends Controller
         // must not send the visit back (it would drop out of Billing).
         $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 1);
         $visitation->status_dokumen = $visitation->status_dokumen ?: 'asesmen';
+
+        // "Tindakan saja" (Konsultasi only): the perawat skips the dokter's asesmen, so the visit is done
+        // here and reaches Billing. Not stored anywhere, so it is never undone here: the dokter can still
+        // fill the asesmen of a skipped visit.
+        $lewatiDokter = (int) $visitation->jenis_kunjungan === Visitation::TYPE_KONSULTASI
+            && $request->boolean('lewati_asesmen_dokter');
+        if ($lewatiDokter) {
+            $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 2);
+        }
         $visitation->save(); // Save the updated visitation
 
         $asesmenperawat = AsesmenPerawat::updateOrCreate(
@@ -130,7 +139,8 @@ class AsesmenPerawatController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => $message
+            'message' => $message,
+            'tindakan_url' => $lewatiDokter ? route('erm.tindakan.create', $visitation->id) : null,
         ]);
     }
 }

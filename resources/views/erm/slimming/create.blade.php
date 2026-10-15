@@ -2302,7 +2302,7 @@
             const $item = $button.closest('.slimming-tindakan-history-item');
             const tindakanName = $.trim($item.find('.slimming-list-item-title').text()) || 'tindakan ini';
             const confirmText = multiVisitUsageId
-                ? 'Tindakan ini terhubung ke paket multi visit. Jika dibatalkan, seluruh riwayat dalam paket yang sama juga akan dihapus.'
+                ? 'Tindakan ini terhubung ke paket multi visit. Hanya sesi ini yang dibatalkan dan kuota paket dikembalikan 1 sesi. Sesi pertama paket baru bisa dibatalkan setelah sesi lanjutannya dibatalkan.'
                 : 'Riwayat tindakan ini akan dibatalkan.';
 
             const performCancel = function () {
