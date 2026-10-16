@@ -167,7 +167,7 @@ class MainNavigation
             
             $akuntansi ? $this->item('Daftar Akun', 'list', $this->route('finance.akun.index')) : null,
             $akuntansi ? $this->item('Jurnal Umum', 'edit-3', $this->route('finance.jurnal.index')) : null,
-            $akuntansi ? $this->item('Laporan Omset', 'trending-up', $this->route('finance.omset.index')) : null,
+            $this->can('Admin', 'Finance', 'Manager', 'Ceo') ? $this->item('Laporan Omset', 'trending-up', $this->route('finance.omset.index')) : null,
             $akuntansi ? $this->item('Target Revenue', 'target', $this->route('finance.revenue-targets.index')) : null,
             $this->can('Admin', 'Finance', 'Kasir') ? $this->item('Laporan Keuangan', 'pie-chart', $this->route('finance.laporan-keuangan.index')) : null,
             // Company-wide fund request: open to more roles than the accounting pages above
