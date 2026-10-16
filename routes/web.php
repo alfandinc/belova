@@ -1421,7 +1421,7 @@ Route::prefix('finance')->middleware('role:Admin|Finance|Manager|Ceo')->group(fu
     Route::get('/omset/data', [\App\Http\Controllers\Finance\OmsetController::class, 'data'])->name('finance.omset.data');
     Route::get('/omset/invoices', [\App\Http\Controllers\Finance\OmsetController::class, 'invoices'])->name('finance.omset.invoices');
     Route::put('/omset/invoices/{id}/transaction-date', [\App\Http\Controllers\Finance\OmsetController::class, 'updateTransactionDate'])
-        ->whereNumber('id')->middleware('role:Admin')->name('finance.omset.transaction-date');
+        ->whereNumber('id')->middleware('role:Admin|Finance')->name('finance.omset.transaction-date');
 });
 
 // Pengajuan Dana (company-wide fund request): same roles as the finance group above, plus Ceo

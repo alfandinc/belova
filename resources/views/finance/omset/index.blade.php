@@ -190,7 +190,7 @@
     </div>
 </div>
 
-@role('Admin')
+@hasanyrole('Admin|Finance')
 <div class="modal fade" id="omz-date-modal" tabindex="-1" role="dialog" aria-labelledby="omz-date-title" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -216,7 +216,7 @@
         </div>
     </div>
 </div>
-@endrole
+@endhasanyrole
 @endsection
 
 @section('scripts')
@@ -225,7 +225,7 @@ $(function() {
     var dataUrl = '{{ route('finance.omset.data') }}';
     var invoicesUrl = '{{ route('finance.omset.invoices') }}';
     var dateUrlBase = '{{ url('/finance/omset/invoices') }}/';
-    var isAdmin = @json(auth()->user()->hasRole('Admin'));
+    var canEditDate = @json(auth()->user()->hasAnyRole(['Admin', 'Finance']));
     var startDate = moment().startOf('month').format('YYYY-MM-DD');
     var endDate = moment().format('YYYY-MM-DD');
     var klinikId = '';
@@ -443,7 +443,7 @@ $(function() {
                 var omsetDay = (r.tanggal_omset && String(v).substr(0, 10) !== r.tanggal_omset)
                     ? '<br><small class="text-muted" title="Lewat jam cut off klinik">omset ' + esc(moment(r.tanggal_omset).format('D MMM YYYY')) + '</small>'
                     : '';
-                if (!isAdmin) return esc(v) + omsetDay;
+                if (!canEditDate) return esc(v) + omsetDay;
                 return esc(v) + omsetDay + ' <button type="button" class="btn btn-sm btn-link p-0 ml-1 omz-edit-date" data-id="' + r.id + '" data-date="' + esc(v) + '" data-invoice="' + esc(r.invoice_number) + '" title="Ubah tanggal transaksi" aria-label="Ubah tanggal transaksi"><i class="fas fa-pen"></i></button>';
             } },
             { data: 'invoice_number', name: 'invoice_number', render: function(v) { return '<span class="font-weight-bold">' + esc(v) + '</span>'; } },

@@ -96,7 +96,7 @@ class OmsetController extends Controller
     }
 
     /**
-     * Admin: move an invoice's transaction date (which day its omset counts on). Logged with a reason
+     * Admin / Finance: move an invoice's transaction date (which day its omset counts on). Logged with a reason
      * in the invoice edit log, next to the price / discount edits.
      */
     public function updateTransactionDate(Request $request, $id)
