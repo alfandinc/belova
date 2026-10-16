@@ -5572,12 +5572,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         // Stats cards above the table (invoice count + total nominal of the filtered rows)
-        $stats = (is_array($cachedCounts) && isset($cachedCounts[2])) ? $cachedCounts[2] : $this->billingInvoiceStats($request);
+        $stats = (is_array($cachedCounts) && isset($cachedCounts[2]['status'])) ? $cachedCounts[2] : $this->billingInvoiceStats($request);
         $dataTable->with('stats', $stats);
 
         $response = $dataTable->make(true);
 
-        if (!is_array($cachedCounts) || !isset($cachedCounts[2])) {
+        if (!is_array($cachedCounts) || !isset($cachedCounts[2]['status'])) {
             $payload = $response->getData(true);
             Cache::put($countsKey, [(int) $payload['recordsTotal'], (int) $payload['recordsFiltered'], $stats], now()->addMinutes(5));
         }
@@ -5586,19 +5586,40 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     /**
-     * Invoice count and total nominal for the billing index rows matching the current filters / search.
+     * Stats strip of the billing index: invoice count / total nominal for the current filters, plus a
+     * per-status breakdown (same date / dokter / klinik / tab / search, each status filter applied in turn).
      */
     private function billingInvoiceStats(Request $request): array
+    {
+        $stats = $this->billingStatsFor($request);
+
+        $stats['status'] = [];
+        foreach (['belum', 'belum_lunas', 'sudah', 'piutang'] as $status) {
+            $statusRequest = clone $request;
+            $statusRequest->merge(['status_filter' => $status]);
+            $stats['status'][$status] = $this->billingStatsFor($statusRequest);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Row count, invoice count and invoice total of the billing index rows for one request's filters / search.
+     */
+    private function billingStatsFor(Request $request): array
     {
         $visitationIds = $this->buildVisitationsQuery($request);
         $this->applyVisitationsSearch($visitationIds, $request->get('search')['value'] ?? null);
         $visitationIds->setEagerLoads([])->select('erm_visitations.id');
 
-        $row = Invoice::whereIn('visitation_id', $visitationIds->toBase())
-            ->selectRaw('COUNT(*) as jumlah, COALESCE(SUM(total_amount), 0) as total')
+        $row = DB::table('erm_visitations as v')
+            ->leftJoin('finance_invoices as i', 'i.visitation_id', '=', 'v.id')
+            ->whereIn('v.id', $visitationIds->toBase())
+            ->selectRaw('COUNT(DISTINCT v.id) as kunjungan, COUNT(i.id) as jumlah, COALESCE(SUM(i.total_amount), 0) as total')
             ->first();
 
         return [
+            'kunjungan' => (int) ($row->kunjungan ?? 0),
             'jumlah_invoice' => (int) ($row->jumlah ?? 0),
             'total_nominal' => (float) ($row->total ?? 0),
         ];

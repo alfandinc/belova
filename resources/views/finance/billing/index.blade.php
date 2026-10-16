@@ -34,27 +34,42 @@
             </div>
         </div>
     </div>
-    <div class="row">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card shadow-sm mb-3">
-                <div class="card-body py-3 d-flex align-items-center">
-                    <div class="mr-3 text-primary" style="font-size:1.6rem;"><i class="fas fa-file-invoice"></i></div>
-                    <div>
-                        <div class="text-muted small">Jumlah Invoice</div>
-                        <h4 class="mb-0 font-weight-bold" id="billing-stat-jumlah">-</h4>
-                    </div>
-                </div>
+    <style>
+        .billing-stats { display: flex; flex-wrap: wrap; }
+        .billing-stats .bstat { flex: 1 1 150px; padding: .4rem .9rem; border-left: 3px solid transparent; }
+        .billing-stats .bstat + .bstat { box-shadow: inset 1px 0 0 rgba(128,128,128,.2); }
+        .billing-stats .bstat[data-status] { cursor: pointer; }
+        .billing-stats .bstat[data-status]:hover, .billing-stats .bstat.active { background: rgba(128,128,128,.1); }
+        .billing-stats .bstat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; opacity: .75; }
+        .billing-stats .bstat-value { font-weight: 700; font-size: 1rem; line-height: 1.3; white-space: nowrap; }
+        .billing-stats .bstat-sub { font-size: 12px; opacity: .75; white-space: nowrap; }
+    </style>
+    <div class="card shadow-sm mb-2">
+        <div class="billing-stats">
+            <div class="bstat" style="border-left-color:#007bff;">
+                <div class="bstat-label">Invoice (filter aktif)</div>
+                <div class="bstat-value" id="billing-stat-total">-</div>
+                <div class="bstat-sub"><span id="billing-stat-jumlah">-</span> invoice</div>
             </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card shadow-sm mb-3">
-                <div class="card-body py-3 d-flex align-items-center">
-                    <div class="mr-3 text-success" style="font-size:1.6rem;"><i class="fas fa-money-bill-wave"></i></div>
-                    <div>
-                        <div class="text-muted small">Total Nominal Invoice</div>
-                        <h4 class="mb-0 font-weight-bold" id="billing-stat-total">-</h4>
-                    </div>
-                </div>
+            <div class="bstat" data-status="belum" style="border-left-color:#dc3545;" title="Tampilkan Belum Transaksi">
+                <div class="bstat-label">Belum Transaksi</div>
+                <div class="bstat-value"><span data-stat="kunjungan">-</span> kunjungan</div>
+                <div class="bstat-sub">belum diproses kasir</div>
+            </div>
+            <div class="bstat" data-status="belum_lunas" style="border-left-color:#ffc107;" title="Tampilkan Belum Lunas">
+                <div class="bstat-label">Belum Lunas</div>
+                <div class="bstat-value" data-stat="total">-</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
+            </div>
+            <div class="bstat" data-status="piutang" style="border-left-color:#17a2b8;" title="Tampilkan Piutang">
+                <div class="bstat-label">Piutang</div>
+                <div class="bstat-value" data-stat="total">-</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
+            </div>
+            <div class="bstat" data-status="sudah" style="border-left-color:#28a745;" title="Tampilkan Lunas">
+                <div class="bstat-label">Lunas</div>
+                <div class="bstat-value" data-stat="total">-</div>
+                <div class="bstat-sub"><span data-stat="jumlah">-</span> invoice</div>
             </div>
         </div>
     </div>
@@ -395,6 +410,11 @@
             fetchTabCounts();
         });
 
+        // Clicking a status stat sets the status filter
+        $(document).on('click', '.billing-stats .bstat[data-status]', function() {
+            $('#filter-status').val($(this).data('status')).trigger('change');
+        });
+
        $('#filter-status').on('change', function() {
            statusFilter = $(this).val();
            reloadBillingTables(true);
@@ -450,8 +470,17 @@
             $selector.on('xhr.dt', function(e, settings, json) {
                 if (!json || !json.stats) return;
                 if (window.billingTable && window.billingTable.table().node() !== this) return;
-                $('#billing-stat-jumlah').text(Number(json.stats.jumlah_invoice || 0).toLocaleString('id-ID'));
+                var fmtNum = function(n) { return Number(n || 0).toLocaleString('id-ID'); };
+                $('#billing-stat-jumlah').text(fmtNum(json.stats.jumlah_invoice));
                 $('#billing-stat-total').text(formatRupiah(json.stats.total_nominal || 0));
+                $.each(json.stats.status || {}, function(status, s) {
+                    var $box = $('.billing-stats .bstat[data-status="' + status + '"]');
+                    $box.find('[data-stat="total"]').text(formatRupiah(s.total_nominal || 0));
+                    $box.find('[data-stat="jumlah"]').text(fmtNum(s.jumlah_invoice));
+                    $box.find('[data-stat="kunjungan"]').text(fmtNum(s.kunjungan));
+                });
+                $('.billing-stats .bstat[data-status]').removeClass('active')
+                    .filter('[data-status="' + statusFilter + '"]').addClass('active');
             });
 
             return $selector.DataTable({
