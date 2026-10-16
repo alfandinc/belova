@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Omset definitions shared by the executive widgets, so every number agrees:
- * omset = finance_invoices.total_amount of paid / partial invoices, dated by payment_date.
+ * omset = finance_invoices.total_amount of transacted invoices (payment first processed: paid, piutang or
+ * asuransi), dated by transaction_date, the day it was transacted.
  *
  * Breakdowns by category split each invoice's total over its items in proportion to the items'
  * final_amount, so invoice-level discount / tax is spread fairly and the categories add up to omset.
@@ -34,16 +35,15 @@ class Revenue
         'lain' => 'var(--dw-other)',
     ];
 
-    public static function paid(): Builder
+    public static function transacted(): Builder
     {
         return DB::table('finance_invoices as fi')
-            ->whereNotNull('fi.payment_date')
-            ->whereIn('fi.status', ['paid', 'partial']);
+            ->whereNotNull('fi.transaction_date');
     }
 
     public static function between(Carbon $from, Carbon $to): Builder
     {
-        return self::paid()->whereBetween('fi.payment_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
+        return self::transacted()->whereBetween('fi.transaction_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
     }
 
     public static function total(Carbon $from, Carbon $to): float
@@ -66,7 +66,7 @@ class Revenue
     public static function daily(Carbon $from, Carbon $to): Collection
     {
         return self::between($from, $to)
-            ->selectRaw('DATE(fi.payment_date) as day, SUM(fi.total_amount) as total')
+            ->selectRaw('DATE(fi.transaction_date) as day, SUM(fi.total_amount) as total')
             ->groupBy('day')
             ->pluck('total', 'day')
             ->map(fn ($v) => (float) $v);

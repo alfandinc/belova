@@ -28,6 +28,7 @@ class Invoice extends Model
         'status',
         'transaction_type',
         'payment_date',
+        'transaction_date',
         'notes',
         'user_id',
         'discount_type',
@@ -37,6 +38,7 @@ class Invoice extends Model
 
     protected $casts = [
         'payment_date' => 'datetime',
+        'transaction_date' => 'datetime',
         'subtotal' => 'decimal:2',
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
@@ -47,6 +49,25 @@ class Invoice extends Model
         'retur_amount' => 'decimal:2',
         'transaction_type' => 'string',
     ];
+
+    protected static function booted(): void
+    {
+        // Transaction date = first time the payment is processed (paid / piutang / asuransi; stock cut).
+        // Set once and never moved: omset is dated by it.
+        static::saving(function (Invoice $invoice) {
+            if (!empty($invoice->payment_method) && empty($invoice->transaction_date) && self::hasTransactionDateColumn()) {
+                $invoice->transaction_date = now();
+            }
+        });
+    }
+
+    private static ?bool $hasTransactionDate = null;
+
+    /** Guard for servers that haven't run the transaction_date migration yet. */
+    public static function hasTransactionDateColumn(): bool
+    {
+        return self::$hasTransactionDate ??= \Illuminate\Support\Facades\Schema::hasColumn('finance_invoices', 'transaction_date');
+    }
 
     public function items()
     {
