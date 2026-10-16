@@ -83,6 +83,9 @@
                     <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
                 @endforeach
             </select>
+            <button type="button" id="omz-toggle-stats" class="btn btn-sm btn-light" aria-controls="omz-body" aria-expanded="true">
+                <i class="fas fa-eye-slash mr-1"></i><span>Sembunyikan Ringkasan</span>
+            </button>
         </div>
     </div>
 
@@ -172,6 +175,34 @@
         </div>
     </div>
 </div>
+
+@role('Admin')
+<div class="modal fade" id="omz-date-modal" tabindex="-1" role="dialog" aria-labelledby="omz-date-title" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="omz-date-title">Ubah Tanggal Transaksi</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2">Invoice <strong id="omz-date-invoice"></strong>: omset invoice ini dihitung pada tanggal transaksi.</div>
+                <div class="form-group">
+                    <label class="small mb-1" for="omz-date-input">Tanggal transaksi</label>
+                    <input type="datetime-local" class="form-control form-control-sm" id="omz-date-input">
+                </div>
+                <div class="form-group mb-0">
+                    <label class="small mb-1" for="omz-date-reason">Alasan perubahan <span class="text-danger">*</span></label>
+                    <textarea class="form-control form-control-sm" id="omz-date-reason" rows="2" maxlength="1000" placeholder="Wajib diisi, minimal 5 karakter"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning" id="omz-date-save"><i class="fas fa-save mr-1"></i> Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endrole
 @endsection
 
 @section('scripts')
@@ -179,6 +210,8 @@
 $(function() {
     var dataUrl = '{{ route('finance.omset.data') }}';
     var invoicesUrl = '{{ route('finance.omset.invoices') }}';
+    var dateUrlBase = '{{ url('/finance/omset/invoices') }}/';
+    var isAdmin = @json(auth()->user()->hasRole('Admin'));
     var startDate = moment().startOf('month').format('YYYY-MM-DD');
     var endDate = moment().format('YYYY-MM-DD');
     var klinikId = '';
@@ -337,7 +370,31 @@ $(function() {
         .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     var xhr = null;
+    var summaryHidden = false;
+    var summaryStale = true; // filters changed while the summary was hidden
+    try { summaryHidden = localStorage.getItem('omset.hideSummary') === '1'; } catch (e) {}
+
+    function applySummaryVisibility(animate) {
+        var $body = $('#omz-body');
+        if (summaryHidden) { animate ? $body.slideUp(150) : $body.hide(); } else { animate ? $body.slideDown(150) : $body.show(); }
+        $('#omz-toggle-stats').attr('aria-expanded', summaryHidden ? 'false' : 'true')
+            .find('i').attr('class', (summaryHidden ? 'fas fa-eye' : 'fas fa-eye-slash') + ' mr-1').end()
+            .find('span').text(summaryHidden ? 'Tampilkan Ringkasan' : 'Sembunyikan Ringkasan');
+    }
+
+    $('#omz-toggle-stats').on('click', function() {
+        summaryHidden = !summaryHidden;
+        try { localStorage.setItem('omset.hideSummary', summaryHidden ? '1' : '0'); } catch (e) {}
+        applySummaryVisibility(true);
+        if (!summaryHidden && summaryStale) loadSummary();
+        // the chart can't measure itself while hidden: redraw once visible
+        if (!summaryHidden && !summaryStale && lastData) setTimeout(function() { renderChart(lastData.chart); }, 160);
+    });
+
     function loadSummary() {
+        // hidden summary: skip its queries until it is shown again
+        if (summaryHidden) { summaryStale = true; return; }
+        summaryStale = false;
         var params = { start_date: startDate, end_date: endDate, klinik_id: klinikId };
         $('#omz-body').addClass('omz-loading');
         if (xhr && xhr.readyState !== 4) xhr.abort();
@@ -361,7 +418,10 @@ $(function() {
             data: function(d) { d.start_date = startDate; d.end_date = endDate; d.klinik_id = klinikId; }
         },
         columns: [
-            { data: 'transaction_date', name: 'transaction_date', searchable: false },
+            { data: 'transaction_date', name: 'transaction_date', searchable: false, className: 'text-nowrap', render: function(v, t, r) {
+                if (t !== 'display' || !isAdmin) return esc(v);
+                return esc(v) + ' <button type="button" class="btn btn-sm btn-link p-0 ml-1 omz-edit-date" data-id="' + r.id + '" data-date="' + esc(v) + '" data-invoice="' + esc(r.invoice_number) + '" title="Ubah tanggal transaksi" aria-label="Ubah tanggal transaksi"><i class="fas fa-pen"></i></button>';
+            } },
             { data: 'invoice_number', name: 'invoice_number', render: function(v) { return '<span class="font-weight-bold">' + esc(v) + '</span>'; } },
             { data: 'pasien_nama', name: 'pasien_nama', render: function(v, t, r) { return esc(v || '-') + (r.pasien_id ? '<br><small class="text-muted">' + esc(r.pasien_id) + '</small>' : ''); } },
             { data: 'klinik_nama', name: 'klinik_nama', render: function(v, t, r) { return esc(r.klinik_short || v || '-'); } },
@@ -377,6 +437,39 @@ $(function() {
         }
     });
 
+    // ---- Admin: change an invoice's transaction date ----
+    var editingId = null;
+    $(document).on('click', '.omz-edit-date', function() {
+        var $b = $(this);
+        editingId = $b.data('id');
+        $('#omz-date-invoice').text($b.data('invoice'));
+        $('#omz-date-input').val(String($b.data('date')).replace(' ', 'T')).attr('max', moment().format('YYYY-MM-DDTHH:mm'));
+        $('#omz-date-reason').val('');
+        $('#omz-date-modal').modal('show');
+    });
+    $('#omz-date-save').on('click', function() {
+        var date = $('#omz-date-input').val();
+        var reason = $.trim($('#omz-date-reason').val());
+        if (!date) { Swal.fire('Tanggal wajib diisi', '', 'warning'); return; }
+        if (reason.length < 5) { Swal.fire('Alasan wajib diisi', 'Tulis alasan perubahan (minimal 5 karakter).', 'warning'); return; }
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: dateUrlBase + editingId + '/transaction-date',
+            method: 'PUT',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            data: { transaction_date: date, reason: reason }
+        }).done(function(res) {
+            $('#omz-date-modal').modal('hide');
+            Swal.fire('Tersimpan', res.message, 'success');
+            reload();
+        }).fail(function(x) {
+            var r = x.responseJSON || {};
+            var msg = r.errors ? $.map(r.errors, function(v) { return v; }).join('\n') : (r.message || 'Gagal menyimpan.');
+            Swal.fire('Gagal', msg, 'error');
+        }).always(function() { $btn.prop('disabled', false); });
+    });
+
+    applySummaryVisibility(false);
     loadSummary();
 });
 </script>

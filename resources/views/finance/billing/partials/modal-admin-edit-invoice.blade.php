@@ -177,8 +177,11 @@ $(function() {
 
         var logs = '';
         $.each(inv.logs || [], function(i, log) {
+            var change = log.new_transaction_date
+                ? 'tanggal transaksi ' + esc(log.old_transaction_date) + ' &rarr; ' + esc(log.new_transaction_date)
+                : 'total ' + rupiah(log.old_total) + ' &rarr; ' + rupiah(log.new_total);
             logs += '<div class="aei-log"><div><strong>' + esc(log.user) + '</strong> &middot; ' + esc(log.tanggal)
-                + ' &middot; total ' + rupiah(log.old_total) + ' &rarr; ' + rupiah(log.new_total) + '</div>'
+                + ' &middot; ' + change + '</div>'
                 + '<div class="text-muted">Alasan: ' + esc(log.reason) + '</div>';
             $.each(log.items || [], function(j, it) {
                 logs += '<div>&bull; ' + esc(it.name) + ': ' + rupiah(it.old_final) + ' &rarr; ' + rupiah(it.new_final) + '</div>';

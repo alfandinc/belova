@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\Invoice;
+use App\Models\Finance\InvoiceEditLog;
 use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
@@ -10,6 +12,7 @@ use App\Support\Dashboard\RevenueTargets;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -83,6 +86,49 @@ class OmsetController extends Controller
             ->addColumn('sisa', fn ($row) => max(0, (float) $row->total_amount - (float) $row->diterima))
             ->addColumn('klinik_short', fn ($row) => Clinics::find($row->klinik_id)->short)
             ->make(true);
+    }
+
+    /**
+     * Admin: move an invoice's transaction date (which day its omset counts on). Logged with a reason
+     * in the invoice edit log, next to the price / discount edits.
+     */
+    public function updateTransactionDate(Request $request, $id)
+    {
+        $data = $request->validate([
+            'transaction_date' => 'required|date_format:Y-m-d\TH:i|before_or_equal:now',
+            'reason' => 'required|string|min:5|max:1000',
+        ], [
+            'transaction_date.before_or_equal' => 'Tanggal transaksi tidak boleh di masa depan.',
+        ]);
+
+        $invoice = Invoice::findOrFail($id);
+        if (empty($invoice->transaction_date)) {
+            return response()->json(['success' => false, 'message' => 'Invoice belum ditransaksikan.'], 422);
+        }
+
+        $old = $invoice->transaction_date->format('Y-m-d H:i');
+        $new = Carbon::createFromFormat('Y-m-d\TH:i', $data['transaction_date']);
+        if ($old === $new->format('Y-m-d H:i')) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada perubahan.'], 422);
+        }
+
+        DB::transaction(function () use ($invoice, $new, $old, $data) {
+            $invoice->transaction_date = $new;
+            $invoice->save();
+
+            InvoiceEditLog::create([
+                'invoice_id' => $invoice->id,
+                'user_id' => Auth::id(),
+                'reason' => $data['reason'],
+                'old_values' => ['transaction_date' => $old],
+                'new_values' => ['transaction_date' => $new->format('Y-m-d H:i')],
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tanggal transaksi ' . $invoice->invoice_number . ' diubah ke ' . $new->translatedFormat('j F Y H:i') . '.',
+        ]);
     }
 
     /** [from, to, klinik_id|null]; default: this month. */

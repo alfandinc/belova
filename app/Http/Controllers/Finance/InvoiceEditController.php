@@ -36,6 +36,9 @@ class InvoiceEditController extends Controller
                 'old_total' => $log->old_values['total_amount'] ?? null,
                 'new_total' => $log->new_values['total_amount'] ?? null,
                 'items' => $this->changedItemsSummary($log->old_values['items'] ?? [], $log->new_values['items'] ?? []),
+                // set when the log is a transaction date change (Laporan Omset)
+                'old_transaction_date' => $log->old_values['transaction_date'] ?? null,
+                'new_transaction_date' => $log->new_values['transaction_date'] ?? null,
             ]);
 
         return response()->json([

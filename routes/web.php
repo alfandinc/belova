@@ -1344,6 +1344,8 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/omset', [\App\Http\Controllers\Finance\OmsetController::class, 'index'])->name('finance.omset.index');
             Route::get('/omset/data', [\App\Http\Controllers\Finance\OmsetController::class, 'data'])->name('finance.omset.data');
             Route::get('/omset/invoices', [\App\Http\Controllers\Finance\OmsetController::class, 'invoices'])->name('finance.omset.invoices');
+            Route::put('/omset/invoices/{id}/transaction-date', [\App\Http\Controllers\Finance\OmsetController::class, 'updateTransactionDate'])
+                ->whereNumber('id')->middleware('role:Admin')->name('finance.omset.transaction-date');
         });
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
