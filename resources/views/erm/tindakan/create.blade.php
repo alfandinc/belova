@@ -58,8 +58,39 @@
         .tindakan-badge.is-paket { background: rgba(13, 148, 136, .12); color: #0d9488; }
         .tindakan-date { font-size: .78rem; color: var(--sb-muted, #8a94ad); margin-top: 2px; }
         .tindakan-spec { font-size: .75rem; color: var(--sb-muted, #8a94ad); }
-        .tindakan-actions .btn { border-radius: 8px; }
+        /* Riwayat: name, then one meta line (date + badges) */
+        .tindakan-name { font-weight: 600; color: var(--sb-text-strong, #1e2538); line-height: 1.35; }
+        .tindakan-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 3px; }
+        .tindakan-meta .tindakan-date { margin: 0; }
+        .tindakan-meta .tindakan-badge { margin-left: 0; }
+        .tindakan-dokter { font-size: .85rem; line-height: 1.35; }
+        /* Missing inform consent: the badge itself is the button to fill it */
+        .tindakan-ic-missing {
+            display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 3px 10px; border-radius: 999px;
+            border: 1px solid rgba(220, 38, 38, .45); background: rgba(220, 38, 38, .1); color: #dc2626;
+            font-size: .74rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+        }
+        .tindakan-ic-missing:hover { background: #dc2626; color: #fff; }
+        html.theme-dark .tindakan-ic-missing { color: #fca5a5; }
+        html.theme-dark .tindakan-ic-missing:hover { color: #fff; }
+        /* Aksi: same-size icon buttons in one row */
+        .tindakan-actions { display: flex; flex-wrap: nowrap; gap: 4px; }
+        .tindakan-actions .btn { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
+        /* DataTables controls keep their normal look inside the themed form */
+        .tindakan-page .dataTables_wrapper label { text-transform: none; letter-spacing: normal; font-size: .82rem; font-weight: 500; color: var(--sb-muted, #8a94ad); }
+        .tindakan-page .dataTables_length select.form-control { min-width: 72px; min-height: 32px; height: 32px; padding: 2px 24px 2px 10px; display: inline-block; width: auto; }
+        .tindakan-page .dataTables_filter input.form-control { min-height: 32px; height: 32px; }
+        .tindakan-page table.dataTable thead th { white-space: nowrap; }
+        .ic-warning-banner { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(220, 38, 38, .35); background: rgba(220, 38, 38, .08); color: #b91c1c; }
+        html.theme-dark .ic-warning-banner { color: #fca5a5; }
+        .ic-warning-banner i { font-size: 1.2rem; }
     </style>
+
+    {{-- Filled by the Riwayat Tindakan table (pending_consent of this visit) --}}
+    <div id="icWarningBanner" class="ic-warning-banner" style="display:none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div><strong id="icWarningCount"></strong> di kunjungan ini belum diisi inform consent. Klik <strong>Isi Inform Consent</strong> di Riwayat Tindakan.</div>
+    </div>
 
     <div class="row tindakan-page erm-form" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
         <!-- Left: Daftar Paket Tindakan -->
@@ -272,11 +303,12 @@
                     orderable: false,
                     searchable: false,
                     render: function (data, type, row) {
+                        const nama = escapeHtml(row.nama);
                         let out = '<div class="price-block">';
-                        out += `<div class="price-row"><button class="btn btn-success btn-sm buat-tindakan" title="Buat Tindakan (Normal)" data-id="${row.id}" data-type="tindakan" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button></div>`;
+                        out += `<div class="price-row"><button class="btn btn-success btn-sm buat-tindakan" title="Tambah Tindakan (Normal)" data-id="${row.id}" data-nama="${nama}" data-harga-label="Normal" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button></div>`;
                         if (hasPaketVisit(row)) {
                             const label = (row.multi_visit_total || 3) + 'x Visit';
-                            out += `<div class="price-row"><button class="btn btn-primary btn-sm buat-tindakan" title="Buat Tindakan (${label})" data-id="${row.id}" data-type="tindakan" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>${label}</button></div>`;
+                            out += `<div class="price-row"><button class="btn btn-primary btn-sm buat-tindakan" title="Tambah Tindakan (${label})" data-id="${row.id}" data-nama="${nama}" data-harga-label="${label}" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>${label}</button></div>`;
                         }
                         return out + '</div>';
                     }
@@ -294,19 +326,23 @@
             columns: [
                 { data: 'tanggal', name: 'tanggal', visible: false },
                 { data: 'tindakan', name: 'tindakan', render: function (data, type, row) {
-                        let name = escapeHtml(data);
+                        let meta = row.tanggal ? `<span class="tindakan-date">${escapeHtml(row.tanggal)}</span>` : '';
                         if (parseInt(row.duplicate_count || 1) > 1) {
-                            name += `<span class="tindakan-badge is-count">${parseInt(row.duplicate_count)}x</span>`;
+                            meta += `<span class="tindakan-badge is-count">${parseInt(row.duplicate_count)}x</span>`;
                         }
                         if (row.current) {
-                            name += '<span class="tindakan-badge is-current">Kunjungan ini</span>';
+                            meta += '<span class="tindakan-badge is-current">Kunjungan ini</span>';
                         }
-                        return `<div>${name}${row.tanggal ? `<div class="tindakan-date">${escapeHtml(row.tanggal)}</div>` : ''}</div>`;
+                        // Missing inform consent: the warning is the button to fill it
+                        const icMissing = (row.current && row.pending_consent_id)
+                            ? `<div><span class="tindakan-ic-missing isi-inform-consent-btn" role="button" title="Klik untuk mengisi inform consent" data-riwayat-id="${row.pending_consent_id}" data-tindakan-id="${row.tindakan_id}"><i class="fas fa-exclamation-triangle"></i>Inform consent belum diisi &middot; Isi</span></div>`
+                            : '';
+                        return `<div class="tindakan-name">${escapeHtml(data)}</div><div class="tindakan-meta">${meta}</div>${icMissing}`;
                     }
                 },
                 { data: 'dokter', name: 'dokter', render: function (data, type, row) {
                         const spec = row.spesialisasi && row.spesialisasi !== '-' ? `<div class="tindakan-spec">${escapeHtml(row.spesialisasi)}</div>` : '';
-                        return `<div>${escapeHtml(data)}</div>${spec}`;
+                        return `<div class="tindakan-dokter">${escapeHtml(data)}</div>${spec}`;
                     }
                 },
                 {
@@ -315,15 +351,12 @@
                     orderable: false,
                     searchable: false,
                     render: function (data, type, row) {
-                        let group = '<div class="btn-group tindakan-actions" role="group">';
+                        let group = '<div class="tindakan-actions">';
                         if (row.inform_consent) {
                             const ic = row.inform_consent;
                             const hasFoto = (ic.before_image_path || '').trim() !== '' && (ic.after_image_path || '').trim() !== '';
-                            group += `<a href="/storage/${escapeHtml(ic.file_path)}" target="_blank" class="btn btn-info btn-sm" title="Inform Consent"><i class="fas fa-file-alt"></i></a>`;
+                            group += `<a href="/storage/${escapeHtml(ic.file_path)}" target="_blank" class="btn btn-info btn-sm" title="Lihat Inform Consent"><i class="fas fa-file-alt"></i></a>`;
                             group += `<button class="btn ${hasFoto ? 'btn-primary' : 'btn-success'} btn-sm foto-hasil-btn" title="${hasFoto ? 'Lihat Foto' : 'Upload Foto'}" data-id="${ic.id}" data-before="${escapeHtml(ic.before_image_path || '')}" data-after="${escapeHtml(ic.after_image_path || '')}"><i class="fas ${hasFoto ? 'fa-eye' : 'fa-upload'}"></i></button>`;
-                        } else {
-                            group += '<button class="btn btn-secondary btn-sm" disabled title="Belum ada inform consent"><i class="fas fa-file-alt"></i></button>';
-                            group += '<button class="btn btn-secondary btn-sm" disabled title="Belum ada inform consent"><i class="fas fa-upload"></i></button>';
                         }
                         if (row.visitation_id) {
                             group += `<a href="/erm/tindakan/history/${row.visitation_id}/print-detail" target="_blank" class="btn btn-outline-primary btn-sm" title="Print Detail"><i class="fas fa-print"></i></a>`;
@@ -331,7 +364,7 @@
                         // Obat / BHP and Batalkan only for this visit's tindakan
                         if (row.current) {
                             group += `<button class="btn btn-outline-secondary btn-sm detail-riwayat-btn" title="Obat & BHP" data-id="${row.id}"><i class="fas fa-pills"></i></button>`;
-                            group += `<button class="btn btn-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
+                            group += `<button class="btn btn-outline-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
                         }
                         return group + '</div>';
                     }
@@ -340,6 +373,13 @@
                 { data: 'tanggal_raw', name: 'tanggal_raw', visible: false },
             ],
             order: [[4, 'desc']]
+        });
+
+        // Warning banner: tindakan of this visit still without inform consent
+        $('#historyTindakanTable').on('xhr.dt', function (e, settings, json) {
+            const pending = parseInt(json && json.pending_consent ? json.pending_consent : 0);
+            $('#icWarningCount').text(pending + ' tindakan');
+            $('#icWarningBanner').toggle(pending > 0);
         });
 
         // Foto hasil
@@ -466,26 +506,16 @@
             setTimeout(function () { initializeSignaturePads(1); }, 300);
         });
 
-        function loadInformConsentModal(tindakanId, visitationId) {
-            $.get(`/erm/tindakan/inform-consent/${tindakanId}?visitation_id=${visitationId}`)
+        // Inform consent form of an already added tindakan (riwayat): the save only adds its consent PDF
+        let consentRiwayatId = null;
+
+        function loadInformConsentModal(tindakanId, riwayatId) {
+            consentRiwayatId = riwayatId;
+            signaturePads = {};
+            $.get(`/erm/tindakan/inform-consent/${tindakanId}?visitation_id=${currentVisitationId}`)
                 .done(function (html) {
                     $('#modalInformConsentBody').html(html);
-                    // Price choice (normal / multi visit) on top of the form
-                    $.get(`/erm/tindakan/${tindakanId}/prices`).done(function (res) {
-                        if (!res.success) return;
-                        const $form = $('#modalInformConsentBody').find('#informConsentForm');
-                        if (!$form.length) return;
-                        const preferred = window.preferredHargaType || 'normal';
-                        const hargaPaketVisit = res.harga_paket_visit;
-                        let html = '<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>';
-                        html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${preferred === 'normal' ? 'checked' : ''}><label class="form-check-label" for="harga_normal">Normal - ${formatRupiah(res.harga || 0)}</label></div>`;
-                        if (hasPaketVisit({ harga_paket_visit: hargaPaketVisit })) {
-                            html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${preferred === '3x' ? 'checked' : ''}><label class="form-check-label" for="harga_3x">${res.multi_visit_total || 3}x Visit - ${formatRupiah(hargaPaketVisit)}</label></div>`;
-                        }
-                        $form.prepend(html + '</div></div>');
-                        window.preferredHargaType = null;
-                    });
-                    $('#modalInformConsentBody').append('<div class="text-center mt-4"><button id="saveInformConsent" class="btn btn-success">Simpan</button></div>');
+                    $('#modalInformConsentBody').append('<div class="text-center mt-4"><button id="saveInformConsent" class="btn btn-success">Simpan Inform Consent</button></div>');
                     $('#modalInformConsent').modal('show');
                 })
                 .fail(function () {
@@ -493,13 +523,21 @@
                 });
         }
 
-        function saveDuplicateTindakanDirectly(tindakanId, visitationId) {
+        function reloadTindakanTables() {
+            $('#historyTindakanTable').DataTable().ajax.reload();
+            $('#tindakanTable').DataTable().ajax.reload(null, false);
+        }
+
+        // Add the tindakan right away (riwayat + billing); its inform consent can be filled later
+        function addTindakan(tindakanId, hargaType, reuseInformConsent) {
             const formData = new FormData();
             formData.append('tindakan_id', tindakanId);
-            formData.append('visitation_id', visitationId);
+            formData.append('visitation_id', currentVisitationId);
             formData.append('tanggal', todayLocal());
-            formData.append('harga_type', window.preferredHargaType || 'normal');
-            formData.append('reuse_existing_inform_consent', '1');
+            formData.append('harga_type', hargaType || 'normal');
+            if (reuseInformConsent) {
+                formData.append('reuse_existing_inform_consent', '1');
+            }
 
             Swal.fire({ title: 'Menyimpan...', text: 'Mohon tunggu, data sedang disimpan.', icon: 'info', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false });
             $.ajax({
@@ -509,18 +547,30 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    window.preferredHargaType = null;
-                    if (response.success) {
-                        Swal.fire('Berhasil', 'Tindakan berhasil ditambahkan.', 'success').then(function () {
-                            $('#historyTindakanTable').DataTable().ajax.reload();
-                            $('#tindakanTable').DataTable().ajax.reload(null, false);
-                        });
-                    } else {
+                    if (!response.success) {
                         Swal.fire('Gagal', 'Tindakan gagal disimpan.', 'error');
+                        return;
                     }
+                    reloadTindakanTables();
+                    const riwayatId = response.riwayatTindakan ? response.riwayatTindakan.id : null;
+                    if (response.informConsent || !riwayatId) {
+                        Swal.fire('Berhasil', 'Tindakan berhasil ditambahkan.', 'success');
+                        return;
+                    }
+                    Swal.fire({
+                        title: 'Tindakan ditambahkan',
+                        text: 'Inform consent belum diisi. Isi sekarang?',
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'Isi Sekarang',
+                        cancelButtonText: 'Nanti'
+                    }).then(function (result) {
+                        if (result.isConfirmed || result.value) {
+                            loadInformConsentModal(tindakanId, riwayatId);
+                        }
+                    });
                 },
                 error: function (xhr) {
-                    window.preferredHargaType = null;
                     Swal.fire('Gagal', errorMessage(xhr, 'Tindakan gagal disimpan. Silakan coba lagi.'), 'error');
                 }
             });
@@ -528,94 +578,75 @@
 
         $(document).on('click', '.buat-tindakan', function () {
             const id = $(this).data('id');
-            window.lastTindakanIdClicked = id;
-            // Price chosen with the button (normal / 3x)
-            window.preferredHargaType = $(this).data('harga-type') || null;
-            signaturePads = {};
+            const nama = $(this).data('nama') || 'tindakan ini';
+            const hargaType = $(this).data('harga-type') || 'normal';
+            const hargaLabel = $(this).data('harga-label') || 'Normal';
 
-            if ($(this).data('type') !== 'tindakan') return;
             // The same tindakan again in this visit reuses its inform consent
             $.get(`/erm/tindakan/${id}/exists-in-visitation`, { visitation_id: currentVisitationId })
-                .done(function (check) {
-                    if (check && check.success && check.exists) {
-                        Swal.fire({
-                            title: 'Tindakan ini sudah ditambahkan',
-                            text: 'Tambahkan lagi?',
-                            icon: 'warning',
-                            showCancelButton: true,
-                            confirmButtonText: 'Ya, tambahkan',
-                            cancelButtonText: 'Batal'
-                        }).then(function (result) {
-                            if (result.isConfirmed || result.value) {
-                                saveDuplicateTindakanDirectly(id, currentVisitationId);
-                            } else {
-                                window.preferredHargaType = null;
-                            }
-                        });
-                        return;
-                    }
-                    loadInformConsentModal(id, currentVisitationId);
-                })
-                .fail(function () {
-                    loadInformConsentModal(id, currentVisitationId);
+                .always(function (check) {
+                    const exists = !!(check && check.success && check.exists);
+                    Swal.fire({
+                        title: exists ? 'Tindakan ini sudah ditambahkan' : 'Tambah Tindakan?',
+                        html: `<b>${escapeHtml(nama)}</b> &middot; ${escapeHtml(hargaLabel)}`
+                            + (exists ? '<br>Tambahkan lagi?' : '<br><small>Inform consent bisa diisi sekarang atau nanti.</small>'),
+                        icon: exists ? 'warning' : 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Ya, tambahkan',
+                        cancelButtonText: 'Batal'
+                    }).then(function (result) {
+                        if (result.isConfirmed || result.value) {
+                            addTindakan(id, hargaType, exists);
+                        }
+                    });
                 });
+        });
+
+        $(document).on('click', '.isi-inform-consent-btn', function () {
+            loadInformConsentModal($(this).data('tindakan-id'), $(this).data('riwayat-id'));
         });
 
         $(document).on('click', '#saveInformConsent', function () {
-            saveSingleInformConsent();
+            saveInformConsent();
         });
 
-        function saveSingleInformConsent() {
-            // One save at a time: a double click would add the tindakan and its billing twice
-            if (savingInformConsent) return;
+        function saveInformConsent() {
+            // One save at a time: a double click would make the PDF twice
+            if (savingInformConsent || !consentRiwayatId) return;
             const form = $('#informConsentForm');
-            const tindakanId = form.find('input[name="tindakan_id"]').val() || window.lastTindakanIdClicked || null;
-            const visitationId = form.find('input[name="visitation_id"]').val() || currentVisitationId;
-
-            const hasSignaturePad = signaturePads[1] && signaturePads[1].patient && signaturePads[1].witness;
-            if (form.length && hasSignaturePad) {
-                if (signaturePads[1].patient.isEmpty()) {
-                    Swal.fire('Tanda tangan kosong', 'Tanda tangan pasien wajib diisi.', 'error');
-                    return;
-                }
-                if (signaturePads[1].witness.isEmpty()) {
-                    Swal.fire('Tanda tangan kosong', 'Tanda tangan saksi wajib diisi.', 'error');
-                    return;
-                }
-                $('#signatureData').val(signaturePads[1].patient.toDataURL());
-                $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
+            const pads = signaturePads[1];
+            if (!form.length || !pads || !pads.patient || !pads.witness) {
+                Swal.fire('Gagal', 'Form tanda tangan inform consent tidak ditemukan.', 'error');
+                return;
             }
-
-            let formData;
-            let url;
-            if (form.length) {
-                // QR of dokter and perawat for the PDF
-                const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
-                const perawatNameForQr = @json(optional(auth()->user())->name ?? '');
-                ['dokter_qr', 'perawat_qr'].forEach(function (name) {
-                    if (!form.find(`input[name="${name}"]`).length) {
-                        form.append(`<input type="hidden" name="${name}" />`);
-                    }
-                });
-                form.find('input[name="dokter_qr"]').val(generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '');
-                form.find('input[name="perawat_qr"]').val(generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '');
-
-                formData = new FormData(form[0]);
-                url = form.attr('action');
-            } else {
-                formData = new FormData();
-                formData.append('tindakan_id', tindakanId);
-                formData.append('visitation_id', visitationId);
-                formData.append('tanggal', todayLocal());
-                url = '/erm/tindakan/inform-consent/save';
+            if (pads.patient.isEmpty()) {
+                Swal.fire('Tanda tangan kosong', 'Tanda tangan pasien wajib diisi.', 'error');
+                return;
             }
+            if (pads.witness.isEmpty()) {
+                Swal.fire('Tanda tangan kosong', 'Tanda tangan saksi wajib diisi.', 'error');
+                return;
+            }
+            $('#signatureData').val(pads.patient.toDataURL());
+            $('#witnessSignatureData').val(pads.witness.toDataURL());
+
+            // QR of dokter and perawat for the PDF
+            const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
+            const perawatNameForQr = @json(optional(auth()->user())->name ?? '');
+            ['dokter_qr', 'perawat_qr'].forEach(function (name) {
+                if (!form.find(`input[name="${name}"]`).length) {
+                    form.append(`<input type="hidden" name="${name}" />`);
+                }
+            });
+            form.find('input[name="dokter_qr"]').val(generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '');
+            form.find('input[name="perawat_qr"]').val(generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '');
 
             savingInformConsent = true;
-            Swal.fire({ title: 'Menyimpan...', text: 'Mohon tunggu, data sedang disimpan.', icon: 'info', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false });
+            Swal.fire({ title: 'Menyimpan...', text: 'Mohon tunggu, inform consent sedang disimpan.', icon: 'info', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false });
             $.ajax({
-                url: url,
+                url: `/erm/tindakan/riwayat/${consentRiwayatId}/inform-consent`,
                 method: 'POST',
-                data: formData,
+                data: new FormData(form[0]),
                 processData: false,
                 contentType: false,
                 complete: function () {
@@ -623,17 +654,18 @@
                 },
                 success: function (response) {
                     if (response.success) {
-                        Swal.fire('Berhasil', 'Tindakan dan billing berhasil disimpan.', 'success').then(function () {
+                        Swal.fire('Berhasil', 'Inform consent berhasil disimpan.', 'success').then(function () {
                             $('#modalInformConsent').modal('hide');
-                            $('#historyTindakanTable').DataTable().ajax.reload();
-                            $('#tindakanTable').DataTable().ajax.reload(null, false);
+                            consentRiwayatId = null;
+                            reloadTindakanTables();
                         });
                     } else {
-                        Swal.fire('Gagal', 'Inform consent gagal disimpan.', 'error');
+                        Swal.fire('Gagal', response.message || 'Inform consent gagal disimpan.', 'error');
                     }
                 },
                 error: function (xhr) {
-                    Swal.fire('Gagal', errorMessage(xhr, 'Data gagal disimpan. Silakan coba lagi.'), 'error');
+                    const errors = xhr.responseJSON && xhr.responseJSON.errors;
+                    Swal.fire('Gagal', errors ? Object.values(errors).flat().join('<br>') : errorMessage(xhr, 'Inform consent gagal disimpan. Silakan coba lagi.'), 'error');
                 }
             });
         }

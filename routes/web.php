@@ -1054,6 +1054,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/tindakan/{id}/multi-visit-status', [TindakanController::class, 'getMultiVisitStatus']);
     Route::get('/tindakan/{id}/exists-in-visitation', [TindakanController::class, 'existsInVisitation']);
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
+    // Inform consent filled after the tindakan was added (no new riwayat / billing)
+    Route::post('/tindakan/riwayat/{id}/inform-consent', [TindakanController::class, 'saveRiwayatInformConsent'])->name('erm.tindakan.riwayat.inform-consent');
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getRiwayatTindakanHistory'])->name('tindakan.history');
     // Print detail riwayat tindakan (grouped by visitation for the same patient)
     Route::get('/tindakan/history/{visitation}/print-detail', [TindakanController::class, 'printHistoryDetail'])->name('erm.tindakan.history.print');

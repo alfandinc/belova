@@ -280,16 +280,182 @@ class TindakanController extends Controller
         }
     }
 
-    private function storeInformConsent(Request $request, ?string &$storedPdf)
+    /**
+     * Inform consent PDF of a riwayat tindakan from the signed form ($data: visitation_id, tindakan_id, tanggal,
+     * signature, witness_signature, notes, nama_pasien, nama_saksi). $storedPdf gets the file so a failed save can remove it.
+     */
+    private function createInformConsentDocument(Request $request, array $data, Visitation $visitation, Tindakan $tindakan, RiwayatTindakan $riwayatTindakan, ?string &$storedPdf): InformConsent
     {
-        // Map field names from JavaScript to what controller expects
+        $pasien = $visitation->pasien;
+        $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
+        $bladeViewCandidate = "erm.tindakan.inform-consent.{$viewName}";
+        // Fallback to default view when tindakan-specific template doesn't exist
+        $bladeView = View::exists($bladeViewCandidate) ? $bladeViewCandidate : 'erm.tindakan.inform-consent.default';
+        $consentText = '';
+        // Render the Blade view to HTML
+        $html = View::make($bladeView, [
+            'tindakan' => $tindakan,
+            'pasien' => $pasien,
+            'visitation' => $visitation,
+            'data' => $data,
+        ])->render();
+            // Parse the HTML to extract .card-body before Catatan Tambahan
+            $dom = new \DOMDocument();
+            libxml_use_internal_errors(true);
+            $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+            libxml_clear_errors();
+            $finder = new \DOMXPath($dom);
+            $cardBodies = $finder->query("//div[contains(@class, 'card-body')]");
+            if ($cardBodies->length > 0) {
+                // Find the card-body that contains the consent text (the one with Catatan Tambahan inside)
+                /** @var \DOMElement $cardBody */
+                foreach ($cardBodies as $cardBody) {
+                    $hasCatatan = false;
+                    foreach ($cardBody->getElementsByTagName('label') as $label) {
+                        if (stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
+                            $hasCatatan = true;
+                            break;
+                        }
+                    }
+                    if ($hasCatatan) {
+                        // Only get content before Catatan Tambahan
+                        $content = '';
+                        foreach ($cardBody->childNodes as $child) {
+                            // Stop at the Catatan Tambahan label
+                            if ($child instanceof \DOMElement && $child->nodeName === 'div') {
+                                $label = $child->getElementsByTagName('label')->item(0);
+                                if ($label && stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
+                                    break;
+                                }
+                            }
+                            $content .= $dom->saveHTML($child);
+                        }
+                        $consentText = $content;
+                        break;
+                    }
+                }
+            }
+        // Prepare dokter and perawat (current user) names for QR
+        $dokterName = '';
+        if ($visitation->dokter) {
+            $dokterUser = $visitation->dokter->user ?? null;
+            $dokterName = $dokterUser ? ($dokterUser->name ?? '') : ($visitation->dokter->nama ?? '');
+        }
+        $perawatName = optional(Auth::user())->name ?? '';
+
+        // QR data URI generated locally (PNG, or SVG when PNG needs an extension the server lacks)
+        $generateQrDataUri = function ($text) {
+            if (empty($text)) {
+                return '';
+            }
+            try {
+                return 'data:image/png;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size(200)->generate($text));
+            } catch (\Throwable $e) {
+                try {
+                    return 'data:image/svg+xml;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(200)->generate($text));
+                } catch (\Throwable $e) {
+                    return '';
+                }
+            }
+        };
+
+        // Prefer client-submitted QR data URIs (from browser); an empty one (QR library not loaded) falls back
+        $dokterQr = $request->input('dokter_qr') ?: $generateQrDataUri('Dokter: ' . $dokterName);
+        $perawatQr = $request->input('perawat_qr') ?: $generateQrDataUri('Perawat: ' . $perawatName);
+
+        // Generate PDF using the generic template
+        $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
+            'data' => $data,
+            'pasien' => $pasien,
+            'visitation' => $visitation,
+            'tindakan' => $tindakan,
+            'klinik_id' => $visitation->klinik_id, // pass klinik_id for logo
+            'content' => $consentText,
+            'dokter_qr' => $dokterQr,
+            'perawat_qr' => $perawatQr,
+            'dokter_name' => $dokterName,
+            'perawat_name' => $perawatName,
+        ]);
+        $timestamp = now()->format('YmdHis');
+        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
+        Storage::disk('public')->put($pdfPath, $pdf->output());
+        $storedPdf = $pdfPath;
+        $informConsent = InformConsent::create([
+            'visitation_id' => $data['visitation_id'],
+            'tindakan_id' => $data['tindakan_id'],
+            'file_path' => $pdfPath,
+            'riwayat_tindakan_id' => $riwayatTindakan->id,
+            'created_at' => now(),
+        ]);
+
+        return $informConsent;
+    }
+
+    /** The consent form posts signatureData / witnessSignatureData; the controller reads signature / witness_signature. */
+    private function mapSignatureFields(Request $request): void
+    {
         if ($request->has('signatureData') && !$request->has('signature')) {
             $request->merge(['signature' => $request->signatureData]);
         }
-
         if ($request->has('witnessSignatureData') && !$request->has('witness_signature')) {
             $request->merge(['witness_signature' => $request->witnessSignatureData]);
         }
+    }
+
+    /**
+     * Inform consent filled after the tindakan was added: only the consent PDF for that riwayat,
+     * no new riwayat / billing.
+     */
+    public function saveRiwayatInformConsent(Request $request, $id)
+    {
+        $riwayat = RiwayatTindakan::findOrFail($id);
+        if (InformConsent::where('riwayat_tindakan_id', $riwayat->id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'Inform consent tindakan ini sudah diisi.'], 422);
+        }
+
+        $this->mapSignatureFields($request);
+        $data = $request->validate([
+            'signature' => 'required',
+            'witness_signature' => 'required',
+            'notes' => 'nullable|string',
+            'nama_pasien' => 'nullable|string',
+            'nama_saksi' => 'nullable|string',
+        ], [
+            'signature.required' => 'Tanda tangan pasien wajib diisi.',
+            'witness_signature.required' => 'Tanda tangan saksi wajib diisi.',
+        ]);
+        $data += [
+            'visitation_id' => $riwayat->visitation_id,
+            'tindakan_id' => $riwayat->tindakan_id,
+            'tanggal' => Carbon::parse($riwayat->tanggal_tindakan ?? now())->format('Y-m-d'),
+        ];
+
+        $visitation = Visitation::findOrFail($riwayat->visitation_id);
+        $tindakan = Tindakan::findOrFail($riwayat->tindakan_id);
+
+        $storedPdf = null;
+        DB::beginTransaction();
+        try {
+            $informConsent = $this->createInformConsentDocument($request, $data, $visitation, $tindakan, $riwayat, $storedPdf);
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            if ($storedPdf) {
+                Storage::disk('public')->delete($storedPdf);
+            }
+            throw $e;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Inform consent berhasil disimpan.',
+            'informConsent' => $informConsent,
+        ]);
+    }
+
+    private function storeInformConsent(Request $request, ?string &$storedPdf)
+    {
+        $this->mapSignatureFields($request);
 
         // Make signature fields optional
         $rules = [
@@ -322,106 +488,7 @@ class TindakanController extends Controller
         $informConsent = null;
         // Only create InformConsent and PDF if signatures are present
         if (!empty($data['signature']) && !empty($data['witness_signature'])) {
-            $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-            $bladeViewCandidate = "erm.tindakan.inform-consent.{$viewName}";
-            // Fallback to default view when tindakan-specific template doesn't exist
-            $bladeView = View::exists($bladeViewCandidate) ? $bladeViewCandidate : 'erm.tindakan.inform-consent.default';
-            $consentText = '';
-            // Render the Blade view to HTML
-            $html = View::make($bladeView, [
-                'tindakan' => $tindakan,
-                'pasien' => $pasien,
-                'visitation' => $visitation,
-                'data' => $data,
-            ])->render();
-                // Parse the HTML to extract .card-body before Catatan Tambahan
-                $dom = new \DOMDocument();
-                libxml_use_internal_errors(true);
-                $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
-                libxml_clear_errors();
-                $finder = new \DOMXPath($dom);
-                $cardBodies = $finder->query("//div[contains(@class, 'card-body')]");
-                if ($cardBodies->length > 0) {
-                    // Find the card-body that contains the consent text (the one with Catatan Tambahan inside)
-                    /** @var \DOMElement $cardBody */
-                    foreach ($cardBodies as $cardBody) {
-                        $hasCatatan = false;
-                        foreach ($cardBody->getElementsByTagName('label') as $label) {
-                            if (stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
-                                $hasCatatan = true;
-                                break;
-                            }
-                        }
-                        if ($hasCatatan) {
-                            // Only get content before Catatan Tambahan
-                            $content = '';
-                            foreach ($cardBody->childNodes as $child) {
-                                // Stop at the Catatan Tambahan label
-                                if ($child instanceof \DOMElement && $child->nodeName === 'div') {
-                                    $label = $child->getElementsByTagName('label')->item(0);
-                                    if ($label && stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
-                                        break;
-                                    }
-                                }
-                                $content .= $dom->saveHTML($child);
-                            }
-                            $consentText = $content;
-                            break;
-                        }
-                    }
-                }
-            // Prepare dokter and perawat (current user) names for QR
-            $dokterName = '';
-            if ($visitation->dokter) {
-                $dokterUser = $visitation->dokter->user ?? null;
-                $dokterName = $dokterUser ? ($dokterUser->name ?? '') : ($visitation->dokter->nama ?? '');
-            }
-            $perawatName = optional(Auth::user())->name ?? '';
-
-            // QR data URI generated locally (PNG, or SVG when PNG needs an extension the server lacks)
-            $generateQrDataUri = function ($text) {
-                if (empty($text)) {
-                    return '';
-                }
-                try {
-                    return 'data:image/png;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size(200)->generate($text));
-                } catch (\Throwable $e) {
-                    try {
-                        return 'data:image/svg+xml;base64,' . base64_encode(\SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(200)->generate($text));
-                    } catch (\Throwable $e) {
-                        return '';
-                    }
-                }
-            };
-
-            // Prefer client-submitted QR data URIs (from browser); an empty one (QR library not loaded) falls back
-            $dokterQr = $request->input('dokter_qr') ?: $generateQrDataUri('Dokter: ' . $dokterName);
-            $perawatQr = $request->input('perawat_qr') ?: $generateQrDataUri('Perawat: ' . $perawatName);
-
-            // Generate PDF using the generic template
-            $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
-                'data' => $data,
-                'pasien' => $pasien,
-                'visitation' => $visitation,
-                'tindakan' => $tindakan,
-                'klinik_id' => $visitation->klinik_id, // pass klinik_id for logo
-                'content' => $consentText,
-                'dokter_qr' => $dokterQr,
-                'perawat_qr' => $perawatQr,
-                'dokter_name' => $dokterName,
-                'perawat_name' => $perawatName,
-            ]);
-            $timestamp = now()->format('YmdHis');
-            $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
-            Storage::disk('public')->put($pdfPath, $pdf->output());
-            $storedPdf = $pdfPath;
-            $informConsent = InformConsent::create([
-                'visitation_id' => $data['visitation_id'],
-                'tindakan_id' => $data['tindakan_id'],
-                'file_path' => $pdfPath,
-                'riwayat_tindakan_id' => $riwayatTindakan->id,
-                'created_at' => now(),
-            ]);
+            $informConsent = $this->createInformConsentDocument($request, $data, $visitation, $tindakan, $riwayatTindakan, $storedPdf);
         } elseif ($request->boolean('reuse_existing_inform_consent')) {
             $existingInformConsent = InformConsent::where('visitation_id', $data['visitation_id'])
                 ->where('tindakan_id', $data['tindakan_id'])
@@ -727,6 +794,10 @@ class TindakanController extends Controller
                     'spesialisasi' => $representative->visitation->listSpesialisasiNama() ?? '-',
                     'inform_consent' => $informConsentSource->informConsent,
                     'duplicate_count' => $group->count(),
+                    // A riwayat of this row still without its inform consent (added without filling it)
+                    'pending_consent_id' => optional($group->sortByDesc('id')->first(function ($candidate) {
+                        return empty($candidate->informConsent);
+                    }))->id,
                     'current' => ($representative->visitation_id == $visitationId)
                 ];
             })
@@ -737,6 +808,8 @@ class TindakanController extends Controller
             ->values();
 
         return datatables()->of($history)
+            // Tindakan of this visit still without inform consent (warning banner)
+            ->with('pending_consent', RiwayatTindakan::where('visitation_id', $visitationId)->whereDoesntHave('informConsent')->count())
             ->addColumn('dokumen', function ($row) {
                 $buttons = '';
                 

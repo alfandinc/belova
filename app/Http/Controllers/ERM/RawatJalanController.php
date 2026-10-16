@@ -831,6 +831,7 @@ class RawatJalanController extends Controller
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
                     ->selectRaw(Visitation::dokterDilewatiSql() . ' as dokter_dilewati')
+                    ->selectRaw(Visitation::tindakanTanpaInformConsentSql() . ' as tindakan_tanpa_ic')
                     // Isi kunjungan strip (resep / rujuk / surat diagnosa) in the Dokumen column
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_resepdokter rd WHERE rd.visitation_id = erm_visitations.id) as has_resep')
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_rujuks rj WHERE rj.visitation_id = erm_visitations.id) as has_rujuk')
@@ -1173,6 +1174,7 @@ class RawatJalanController extends Controller
                     if ($tindakanCount > 0) {
                         $isiItems[] = ['fas fa-procedures', 'Tindakan', $tindakanCount, 'tindakan'];
                     }
+                    $tanpaInformConsent = intval($v->tindakan_tanpa_ic ?? 0);
                     $labCount = intval($v->lab_permintaan_count ?? 0);
                     if ($labCount > 0) {
                         $allLabCompleted = intval($v->lab_permintaan_completed_count ?? 0) === $labCount;
@@ -1205,6 +1207,11 @@ class RawatJalanController extends Controller
                     foreach ($isiItems as [$icon, $label, $count, $kind]) {
                         $html .= '<span class="rj-isi-chip rj-isi-' . $kind . '"><i class="' . $icon . '"></i>' . e($label)
                             . ($count > 0 ? ' <b>' . $count . '</b>' : '') . '</span>';
+                    }
+                    if ($tanpaInformConsent > 0) {
+                        $html .= '<a href="' . route('erm.tindakan.create', $v->id) . '" class="rj-isi-chip rj-isi-ic-warning" title="' . $tanpaInformConsent
+                            . ' tindakan belum diisi inform consent. Klik untuk mengisi."><i class="fas fa-exclamation-triangle"></i>Inform consent belum diisi <b>'
+                            . $tanpaInformConsent . '</b></a>';
                     }
                     return $html . '</div>';
                 })

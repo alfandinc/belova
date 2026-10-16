@@ -255,6 +255,13 @@ class Visitation extends Model
             . " AND fb.deleted_at IS NULL))";
     }
 
+    /** SQL count of this visit's tindakan added without their inform consent filled yet. */
+    public static function tindakanTanpaInformConsentSql(string $alias = 'erm_visitations'): string
+    {
+        return "(SELECT COUNT(*) FROM erm_riwayat_tindakan rt WHERE rt.visitation_id = {$alias}.id"
+            . " AND NOT EXISTS (SELECT 1 FROM erm_inform_consent ic WHERE ic.riwayat_tindakan_id = rt.id))";
+    }
+
     /** masuk_ruangan_at exists once its migration ran (prod schema may lag behind the code). */
     public static function tracksMasukRuangan(): bool
     {

@@ -839,3 +839,7 @@
 :root.theme-dark .rj-isi-resep { --isi: #22d3ee; }
 :root.theme-dark .rj-isi-rujuk { --isi: #a78bfa; }
 :root.theme-dark .rj-isi-surat { --isi: #60a5fa; }
+/* Tindakan added without its inform consent: filled red chip linking to the Tindakan page */
+.rj-isi-chip.rj-isi-ic-warning { --isi: #dc2626; background: var(--isi); color: #fff; text-decoration: none; }
+.rj-isi-chip.rj-isi-ic-warning:hover { filter: brightness(1.1); color: #fff; }
+:root.theme-dark .rj-isi-chip.rj-isi-ic-warning { --isi: #ef4444; }
