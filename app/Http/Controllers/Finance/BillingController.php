@@ -5571,14 +5571,37 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $dataTable->setTotalRecords($cachedCounts[0])->setFilteredRecords($cachedCounts[1]);
         }
 
+        // Stats cards above the table (invoice count + total nominal of the filtered rows)
+        $stats = (is_array($cachedCounts) && isset($cachedCounts[2])) ? $cachedCounts[2] : $this->billingInvoiceStats($request);
+        $dataTable->with('stats', $stats);
+
         $response = $dataTable->make(true);
 
-        if (!is_array($cachedCounts)) {
+        if (!is_array($cachedCounts) || !isset($cachedCounts[2])) {
             $payload = $response->getData(true);
-            Cache::put($countsKey, [(int) $payload['recordsTotal'], (int) $payload['recordsFiltered']], now()->addMinutes(5));
+            Cache::put($countsKey, [(int) $payload['recordsTotal'], (int) $payload['recordsFiltered'], $stats], now()->addMinutes(5));
         }
 
         return $response;
+    }
+
+    /**
+     * Invoice count and total nominal for the billing index rows matching the current filters / search.
+     */
+    private function billingInvoiceStats(Request $request): array
+    {
+        $visitationIds = $this->buildVisitationsQuery($request);
+        $this->applyVisitationsSearch($visitationIds, $request->get('search')['value'] ?? null);
+        $visitationIds->setEagerLoads([])->select('erm_visitations.id');
+
+        $row = Invoice::whereIn('visitation_id', $visitationIds->toBase())
+            ->selectRaw('COUNT(*) as jumlah, COALESCE(SUM(total_amount), 0) as total')
+            ->first();
+
+        return [
+            'jumlah_invoice' => (int) ($row->jumlah ?? 0),
+            'total_nominal' => (float) ($row->total ?? 0),
+        ];
     }
 
     /**

@@ -35,6 +35,30 @@
         </div>
     </div>
     <div class="row">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body py-3 d-flex align-items-center">
+                    <div class="mr-3 text-primary" style="font-size:1.6rem;"><i class="fas fa-file-invoice"></i></div>
+                    <div>
+                        <div class="text-muted small">Jumlah Invoice</div>
+                        <h4 class="mb-0 font-weight-bold" id="billing-stat-jumlah">-</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm mb-3">
+                <div class="card-body py-3 d-flex align-items-center">
+                    <div class="mr-3 text-success" style="font-size:1.6rem;"><i class="fas fa-money-bill-wave"></i></div>
+                    <div>
+                        <div class="text-muted small">Total Nominal Invoice</div>
+                        <h4 class="mb-0 font-weight-bold" id="billing-stat-total">-</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
         <div class="col-12">
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
@@ -421,6 +445,14 @@
             // A page click only changes the offset: tell the server so it can reuse the row counts
             var pageOnly = false;
             $selector.on('page.dt', function() { pageOnly = true; });
+
+            // Stats cards follow the visible tab's latest response (filters + search)
+            $selector.on('xhr.dt', function(e, settings, json) {
+                if (!json || !json.stats) return;
+                if (window.billingTable && window.billingTable.table().node() !== this) return;
+                $('#billing-stat-jumlah').text(Number(json.stats.jumlah_invoice || 0).toLocaleString('id-ID'));
+                $('#billing-stat-total').text(formatRupiah(json.stats.total_nominal || 0));
+            });
 
             return $selector.DataTable({
             processing: true,
