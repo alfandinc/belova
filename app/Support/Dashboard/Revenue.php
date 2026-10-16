@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Omset definitions shared by the executive widgets, so every number agrees:
  * omset = finance_invoices.total_amount of transacted invoices (payment first processed: paid, piutang or
- * asuransi), dated by transaction_date, the day it was transacted.
+ * asuransi), dated by transaction_date shifted by the clinic cut off (reportDateSql).
  *
  * Breakdowns by category split each invoice's total over its items in proportion to the items'
  * final_amount, so invoice-level discount / tax is spread fairly and the categories add up to omset.
@@ -41,9 +41,49 @@ class Revenue
             ->whereNotNull('fi.transaction_date');
     }
 
+    /**
+     * Invoices whose omset date (reportDateSql) falls in [$from, $to]. The plain transaction_date range
+     * (widened by the largest clinic cutoff) keeps the index usable; the omset date does the exact cut.
+     */
     public static function between(Carbon $from, Carbon $to): Builder
     {
-        return self::transacted()->whereBetween('fi.transaction_date', [$from->copy()->startOfDay(), $to->copy()->endOfDay()]);
+        $start = $from->copy()->startOfDay();
+        $end = $to->copy()->addDay()->startOfDay()->addSeconds(self::maxCutoffSeconds());
+
+        return self::transacted()
+            ->where('fi.transaction_date', '>=', $start)
+            ->where('fi.transaction_date', '<', $end)
+            ->whereRaw(self::reportDateSql() . ' BETWEEN ? AND ?', [$from->toDateString(), $to->toDateString()]);
+    }
+
+    /**
+     * SQL for the day an invoice's omset counts on: the transaction date shifted back by its clinic's
+     * cut off (erm_klinik.report_cutoff_time, e.g. 05:00 = service after midnight still counts for the day
+     * before). Same rule as the finance report (FinanceReportController::buildReportDateExpression).
+     */
+    public static function reportDateSql(string $alias = 'fi'): string
+    {
+        return "DATE(SUBTIME({$alias}.transaction_date, COALESCE((
+            SELECT rk.report_cutoff_time FROM erm_visitations rv
+            JOIN erm_klinik rk ON rk.id = rv.klinik_id
+            WHERE rv.id = {$alias}.visitation_id
+        ), '00:00:00')))";
+    }
+
+    private static ?int $maxCutoffSeconds = null;
+
+    /** Largest clinic cut off in seconds (0 when none / the column is missing). */
+    private static function maxCutoffSeconds(): int
+    {
+        if (self::$maxCutoffSeconds === null) {
+            try {
+                self::$maxCutoffSeconds = (int) DB::table('erm_klinik')->max(DB::raw('TIME_TO_SEC(report_cutoff_time)'));
+            } catch (\Throwable $e) {
+                self::$maxCutoffSeconds = 0;
+            }
+        }
+
+        return self::$maxCutoffSeconds;
     }
 
     public static function total(Carbon $from, Carbon $to): float
@@ -66,7 +106,7 @@ class Revenue
     public static function daily(Carbon $from, Carbon $to): Collection
     {
         return self::between($from, $to)
-            ->selectRaw('DATE(fi.transaction_date) as day, SUM(fi.total_amount) as total')
+            ->selectRaw(self::reportDateSql() . ' as day, SUM(fi.total_amount) as total')
             ->groupBy('day')
             ->pluck('total', 'day')
             ->map(fn ($v) => (float) $v);

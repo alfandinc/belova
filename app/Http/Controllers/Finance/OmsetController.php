@@ -18,7 +18,7 @@ use Yajra\DataTables\Facades\DataTables;
 
 /**
  * Laporan Omset: omset = total of invoices transacted in the period (paid / piutang / asuransi), dated by
- * finance_invoices.transaction_date. Same definition as the dashboard widgets (App\Support\Dashboard\Revenue).
+ * finance_invoices.transaction_date shifted back by the clinic cut off (erm_klinik.report_cutoff_time). Same definition as the dashboard widgets (App\Support\Dashboard\Revenue).
  */
 class OmsetController extends Controller
 {
@@ -73,7 +73,9 @@ class OmsetController extends Controller
                 'fi.payment_method', 'fi.status', 'v.klinik_id', 'p.nama as pasien_nama', 'p.id as pasien_id',
                 'k.nama as klinik_nama', 'mb.nama as metode_bayar_nama',
             ])
-            ->selectRaw('LEAST(COALESCE(fi.amount_paid, 0), fi.total_amount) as diterima');
+            ->selectRaw('LEAST(COALESCE(fi.amount_paid, 0), fi.total_amount) as diterima')
+            // the day the omset counts on (differs from the transaction date for service after midnight)
+            ->selectRaw(Revenue::reportDateSql() . ' as tanggal_omset');
 
         return DataTables::of($query)
             ->filterColumn('pasien_nama', fn ($q, $kw) => $q->where(fn ($w) => $w->where('p.nama', 'like', "%{$kw}%")->orWhere('p.id', 'like', "%{$kw}%")))
@@ -182,7 +184,8 @@ class OmsetController extends Controller
     private function chart(Carbon $from, Carbon $to, ?int $klinikId): array
     {
         $monthly = (int) $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1 > self::DAILY_MAX_DAYS;
-        $bucketSql = $monthly ? "DATE_FORMAT(fi.transaction_date, '%Y-%m')" : 'DATE(fi.transaction_date)';
+        $reportDate = Revenue::reportDateSql();
+        $bucketSql = $monthly ? "DATE_FORMAT({$reportDate}, '%Y-%m')" : $reportDate;
 
         $rows = $this->base($from, $to, $klinikId)
             ->selectRaw("{$bucketSql} as bucket, SUM(fi.total_amount) as total, COUNT(*) as invoices")

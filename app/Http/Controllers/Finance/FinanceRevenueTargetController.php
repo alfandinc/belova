@@ -128,11 +128,9 @@ class FinanceRevenueTargetController extends Controller
             ->get()
             ->keyBy('klinik_id');
 
-        $revenueByClinic = DB::table('finance_invoices as fi')
+        // omset: transacted invoices dated by transaction date + clinic cut off, see Dashboard\Revenue
+        $revenueByClinic = \App\Support\Dashboard\Revenue::between($periodStart, $periodEnd)
             ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            // omset: dated by when the invoice was transacted (paid / piutang / asuransi), see Dashboard\Revenue
-            ->whereNotNull('fi.transaction_date')
-            ->whereBetween('fi.transaction_date', [$periodStart, $periodEnd])
             ->groupBy('v.klinik_id')
             ->selectRaw('v.klinik_id, COALESCE(SUM(fi.total_amount), 0) as revenue_total')
             ->get()

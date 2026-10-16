@@ -419,8 +419,13 @@ $(function() {
         },
         columns: [
             { data: 'transaction_date', name: 'transaction_date', searchable: false, className: 'text-nowrap', render: function(v, t, r) {
-                if (t !== 'display' || !isAdmin) return esc(v);
-                return esc(v) + ' <button type="button" class="btn btn-sm btn-link p-0 ml-1 omz-edit-date" data-id="' + r.id + '" data-date="' + esc(v) + '" data-invoice="' + esc(r.invoice_number) + '" title="Ubah tanggal transaksi" aria-label="Ubah tanggal transaksi"><i class="fas fa-pen"></i></button>';
+                if (t !== 'display') return v;
+                // after-midnight service before the clinic cut off counts for the previous day
+                var omsetDay = (r.tanggal_omset && String(v).substr(0, 10) !== r.tanggal_omset)
+                    ? '<br><small class="text-muted" title="Lewat jam cut off klinik">omset ' + esc(moment(r.tanggal_omset).format('D MMM YYYY')) + '</small>'
+                    : '';
+                if (!isAdmin) return esc(v) + omsetDay;
+                return esc(v) + omsetDay + ' <button type="button" class="btn btn-sm btn-link p-0 ml-1 omz-edit-date" data-id="' + r.id + '" data-date="' + esc(v) + '" data-invoice="' + esc(r.invoice_number) + '" title="Ubah tanggal transaksi" aria-label="Ubah tanggal transaksi"><i class="fas fa-pen"></i></button>';
             } },
             { data: 'invoice_number', name: 'invoice_number', render: function(v) { return '<span class="font-weight-bold">' + esc(v) + '</span>'; } },
             { data: 'pasien_nama', name: 'pasien_nama', render: function(v, t, r) { return esc(v || '-') + (r.pasien_id ? '<br><small class="text-muted">' + esc(r.pasien_id) + '</small>' : ''); } },
