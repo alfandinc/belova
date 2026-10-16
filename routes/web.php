@@ -1340,6 +1340,10 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::delete('/jurnal/{jurnal}', [FinanceJurnalController::class, 'destroy'])->name('finance.jurnal.destroy');
             Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.revenue-targets.index');
             Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
+            // Laporan Omset (transacted invoices by transaction_date)
+            Route::get('/omset', [\App\Http\Controllers\Finance\OmsetController::class, 'index'])->name('finance.omset.index');
+            Route::get('/omset/data', [\App\Http\Controllers\Finance\OmsetController::class, 'data'])->name('finance.omset.data');
+            Route::get('/omset/invoices', [\App\Http\Controllers\Finance\OmsetController::class, 'invoices'])->name('finance.omset.invoices');
         });
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
