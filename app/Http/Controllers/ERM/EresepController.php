@@ -1437,7 +1437,10 @@ class EresepController extends Controller
             // Resep the page copies into (dokter / farmasi); the open visit can be copied only into the other one
             'target' => in_array($request->query('target'), ['dokter', 'farmasi'], true) ? $request->query('target') : $source,
             'page' => $page,
-            'nextUrl' => $hasMore ? $request->fullUrlWithQuery(['page' => $page + 1]) : null,
+            // relative: fullUrlWithQuery() keeps the raw request scheme (http behind the proxy), which an https page blocks
+            'nextUrl' => $hasMore
+                ? $request->getBaseUrl() . $request->getPathInfo() . '?' . \Illuminate\Support\Arr::query(array_merge($request->query(), ['page' => $page + 1]))
+                : null,
             'totalVisits' => $page === 1
                 ? DB::table($table . ' as r')->join('erm_visitations as v', 'v.id', '=', 'r.visitation_id')
                     ->where('v.pasien_id', $pasienId)->distinct()->count('v.id')
