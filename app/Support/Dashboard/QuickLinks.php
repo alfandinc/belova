@@ -24,9 +24,9 @@ class QuickLinks
 
         $links = [
             // Klinik
-            $can('Dokter', 'Perawat', 'Admin', 'Lab') ? self::link('Rawat Jalan', 'Rekam medis & antrian pasien', 'activity', url('/erm/rawatjalans')) : null,
-            $can('Pendaftaran', 'Perawat', 'Farmasi', 'Admin', 'Beautician', 'Lab') ? self::link('Data Pasien', 'Cari & daftarkan pasien', 'user', url('/erm/pasiens')) : null,
-            $can('Farmasi', 'Admin') ? self::link('E-Resep', 'Resep masuk dari dokter', 'file-text', url('/erm/eresepfarmasi')) : null,
+            $can('Dokter', 'Perawat', 'Admin', 'Lab', 'Manager') ? self::link('Rawat Jalan', 'Rekam medis & antrian pasien', 'activity', url('/erm/rawatjalans')) : null,
+            $can('Pendaftaran', 'Perawat', 'Farmasi', 'Admin', 'Beautician', 'Lab', 'Manager') ? self::link('Data Pasien', 'Cari & daftarkan pasien', 'user', url('/erm/pasiens')) : null,
+            $can('Farmasi', 'Admin', 'Manager') ? self::link('E-Resep', 'Resep masuk dari dokter', 'file-text', url('/erm/eresepfarmasi')) : null,
             $can('Kasir', 'Admin', 'Finance', 'Marketing') ? self::link('Billing', 'Tagihan & pembayaran', 'credit-card', url('/finance/billing')) : null,
             $can('Farmasi', 'Admin', 'Beautician', 'Lab') ? self::link('Stok Obat', 'Stok per gudang', 'package', url('/erm/stok-gudang')) : null,
             $can('Farmasi', 'Admin') ? self::link('Faktur Pembelian', 'Penerimaan barang', 'file-plus', url('/erm/fakturpembelian')) : null,

@@ -105,9 +105,9 @@ class MainNavigation
     {
         // Daily patient-facing pages; each item keeps the roles it had in its old module
         return $this->module('erm', 'ERM', 'heart', [
-            $this->can('Pendaftaran', 'Perawat', 'Farmasi', 'Admin', 'Beautician', 'Lab') ? $this->item('Data Pasien', 'user', url('/erm/pasiens')) : null,
-            $this->can('Dokter', 'Perawat', 'Admin', 'Lab') ? $this->item('Rawat Jalan', 'activity', url('/erm/rawatjalans')) : null,
-            $this->can('Farmasi', 'Admin') ? $this->item('E-Resep', 'file-text', url('/erm/eresepfarmasi')) : null,
+            $this->can('Pendaftaran', 'Perawat', 'Farmasi', 'Admin', 'Beautician', 'Lab', 'Manager') ? $this->item('Data Pasien', 'user', url('/erm/pasiens')) : null,
+            $this->can('Dokter', 'Perawat', 'Admin', 'Lab', 'Manager') ? $this->item('Rawat Jalan', 'activity', url('/erm/rawatjalans')) : null,
+            $this->can('Farmasi', 'Admin', 'Manager') ? $this->item('E-Resep', 'file-text', url('/erm/eresepfarmasi')) : null,
         ]);
     }
 

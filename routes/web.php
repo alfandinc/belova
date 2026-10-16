@@ -163,7 +163,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Hanya user dengan role ERM yang bisa akses modul ERM
     Route::get('/erm', [ERMDashboardController::class, 'index'])
-        ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')
+        ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Manager')
         ->name('erm.dashboard');
 
     Route::get('/finance', [FinanceDashboardController::class, 'index'])
@@ -601,7 +601,7 @@ Route::post('/admin/visitations/preview', [\App\Http\Controllers\Admin\Visitatio
     ->middleware(['auth','role:Admin']);
 // ERM Routes
 // Shared "Daftarkan Kunjungan" modal: the ERM roles plus Marketing (registers visits from a CRM follow up)
-Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Marketing')->group(function () {
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Marketing|Manager')->group(function () {
     Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::get('/visitations/referral-context', [VisitationController::class, 'referralContext'])->name('erm.visitations.referral-context');
@@ -680,7 +680,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     });
 });
 
-Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir')->group(function () {
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Manager')->group(function () {
     // Dokter to Perawat notification
     Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
