@@ -59,6 +59,9 @@
     .omz .omz-row-name { display: flex; align-items: center; gap: .45rem; font-weight: 600; min-width: 0; }
     .omz .omz-row-name img { height: 20px; max-width: 48px; object-fit: contain; }
     .omz .omz-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+    .omz .omz-cutoffs { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .9rem; }
+    .omz .omz-cutoff { display: inline-flex; align-items: center; gap: .3rem; }
+    .omz .omz-cutoff.is-dim { opacity: .4; }
     .omz .omz-row-value { font-weight: 700; white-space: nowrap; }
     .omz .omz-row-meta { font-size: 12px; color: var(--omz-muted); display: flex; justify-content: space-between; gap: .5rem; margin-top: .15rem; }
     .omz .omz-loading { opacity: .5; transition: opacity .15s; }
@@ -71,6 +74,17 @@
         <div>
             <h3 class="mb-0 font-weight-bold">Laporan Omset</h3>
             <div class="text-muted small">Omset = total invoice yang ditransaksikan (dibayar / dipiutangkan / asuransi), dihitung pada tanggal transaksi.</div>
+            <div class="omz-cutoffs small mt-1">
+                <span class="text-muted" title="Transaksi setelah jam 00:00 dan sebelum jam cut off dihitung sebagai omset hari sebelumnya">
+                    <i class="far fa-clock mr-1"></i>Jam cut off:
+                </span>
+                @foreach ($kliniks as $klinik)
+                    <span class="omz-cutoff" data-klinik="{{ $klinik->id }}">
+                        <span class="omz-swatch" style="background: {{ $klinik->color }}"></span>{{ $klinik->short }}
+                        <strong>{{ $cutoffs[$klinik->id] ?? '00:00' }}</strong>
+                    </span>
+                @endforeach
+            </div>
         </div>
         <div class="omz-filters">
             <div class="input-group input-group-sm" style="width: 260px;">
@@ -256,7 +270,12 @@ $(function() {
         endDate = end.format('YYYY-MM-DD');
         reload();
     });
-    $('#omz-klinik').on('change', function() { klinikId = $(this).val(); reload(); });
+    $('#omz-klinik').on('change', function() {
+        klinikId = $(this).val();
+        // keep the selected clinic's cut off in focus
+        $('.omz-cutoff').each(function() { $(this).toggleClass('is-dim', !!klinikId && String($(this).data('klinik')) !== klinikId); });
+        reload();
+    });
 
     // ---- Summary / breakdowns ----
     function shareRow(o) {

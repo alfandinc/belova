@@ -27,8 +27,13 @@ class OmsetController extends Controller
 
     public function index()
     {
+        // klinik_id => 'HH:MM' (transactions before this hour count for the previous day)
+        $cutoffs = DB::table('erm_klinik')->pluck('report_cutoff_time', 'id')
+            ->map(fn ($time) => substr((string) ($time ?: '00:00:00'), 0, 5));
+
         return view('finance.omset.index', [
             'kliniks' => Clinics::all()->values(),
+            'cutoffs' => $cutoffs,
         ]);
     }
 
