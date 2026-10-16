@@ -1382,6 +1382,11 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/invoice', [InvoiceController::class, 'index'])->name('finance.invoice.index');
         Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
+        // Admin edit of a processed invoice (prices / discounts only, logged with a reason)
+        Route::middleware('role:Admin')->group(function () {
+            Route::get('/invoice/{id}/admin-edit', [\App\Http\Controllers\Finance\InvoiceEditController::class, 'show'])->whereNumber('id')->name('finance.invoice.admin-edit.show');
+            Route::put('/invoice/{id}/admin-edit', [\App\Http\Controllers\Finance\InvoiceEditController::class, 'update'])->whereNumber('id')->name('finance.invoice.admin-edit.update');
+        });
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
         Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
         Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->name('finance.invoice.print-nota-v2');

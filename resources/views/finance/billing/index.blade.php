@@ -274,6 +274,9 @@
 @hasanyrole('Admin|Finance|Manager|Head Manager')
     @include('finance.billing.partials.modal-download-invoice')
 @endhasanyrole
+@role('Admin')
+    @include('finance.billing.partials.modal-admin-edit-invoice')
+@endrole
 @endsection
 
 @section('scripts')

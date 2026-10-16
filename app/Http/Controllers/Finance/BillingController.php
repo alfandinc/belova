@@ -5537,6 +5537,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     if (!is_null($visitation->invoice->amount_paid) && (int) ($visitation->invoice->items_count ?? 1) > 0) {
                         $action .= ' <button type="button" data-no-icon="1" class="btn btn-sm btn-danger btn-retur-from-row" data-invoice-id="'.$visitation->invoice->id.'" title="Retur"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Retur</button>';
                     }
+
+                    // Admin: edit prices / discounts of a processed invoice
+                    if ($isAdmin && !empty($visitation->invoice->payment_method)) {
+                        $action .= ' <button type="button" data-no-icon="1" class="btn btn-sm btn-outline-warning btn-admin-edit-invoice" data-invoice-id="'.$visitation->invoice->id.'" title="Edit Invoice"><i class="fas fa-pen mr-1" aria-hidden="true"></i>Edit</button>';
+                    }
                 }
 
                 // Admin-only visitation actions: trash/restore/force delete
