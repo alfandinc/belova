@@ -87,6 +87,12 @@
     }
     .crm-paste-zone:hover, .crm-paste-zone:focus, .crm-paste-zone.is-over { border-color: #1e88e5; background: rgba(30, 136, 229, .06); }
     .crm-paste-zone img { max-width: 100%; max-height: 160px; border-radius: 6px; }
+    /* Template Kartu: live preview, click to place the name */
+    .crm-tpl-preview { min-height: 260px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(148, 163, 184, .3); border-radius: 8px; background: rgba(148, 163, 184, .08); overflow: hidden; transition: opacity .15s; }
+    .crm-tpl-preview img { display: block; width: 100%; height: auto; cursor: crosshair; }
+    .crm-tpl-preview.is-loading { opacity: .6; }
+    #tplTabs .btn { display: inline-flex; align-items: center; }
+    #tplTabs .crm-klinik-logo { width: 18px; height: 18px; flex-basis: 18px; border-radius: 5px; }
     @media (max-width: 575.98px) {
         .crm-toolbar .crm-field, .crm-toolbar .crm-field-chips { flex: 1 1 100%; }
         .crm-toolbar .crm-actions { margin-left: 0; }

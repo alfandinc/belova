@@ -209,6 +209,71 @@ public function generateImage(Request $request)
 }
 
 /**
+ * Template Kartu editor: every klinik's card template (and "default").
+ */
+public function templates()
+{
+    $kliniks = \App\Models\ERM\Klinik::orderBy('id')->get(['id', 'nama', 'color', 'logo']);
+    return response()->json([
+        'kliniks' => $kliniks->map(fn ($k) => [
+            'id' => (string) $k->id,
+            'nama' => \App\Models\ERM\Klinik::shortName($k->nama),
+            'color' => $k->color,
+            'logo' => \App\Models\ERM\Klinik::logoUrl($k->logo),
+        ]),
+        'templates' => $this->birthdayImageService->allTemplates($kliniks->pluck('id')->all()),
+    ]);
+}
+
+/** Card as it would look with the editor's (unsaved) settings and image. */
+public function previewTemplate(Request $request)
+{
+    $key = $this->templateKey($request->input('key'));
+    $request->validate(['image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120']);
+    $path = $request->hasFile('image')
+        ? $request->file('image')->getRealPath()
+        : $this->birthdayImageService->templateFor($key)['path'];
+
+    try {
+        $uri = $this->birthdayImageService->preview($this->birthdayImageService->cleanSettings($request->all()), $path);
+    } catch (\Throwable $e) {
+        report($e);
+        return response()->json(['message' => 'Gagal membuat preview: ' . $e->getMessage()], 422);
+    }
+    return response()->json(['image' => $uri]);
+}
+
+public function saveTemplate(Request $request, $key)
+{
+    $key = $this->templateKey($key);
+    $request->validate(['image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120'], [], ['image' => 'gambar template']);
+    if (!$request->hasFile('image') && !$this->birthdayImageService->hasImage($key)) {
+        return response()->json(['message' => 'Upload gambar template untuk klinik ini.'], 422);
+    }
+
+    $image = $request->hasFile('image')
+        ? $request->file('image')->store(BirthdayImageService::IMAGE_DIR, 'public')
+        : null;
+    $this->birthdayImageService->save($key, $this->birthdayImageService->cleanSettings($request->all()), $image);
+
+    return response()->json(['success' => true, 'message' => 'Template kartu disimpan']);
+}
+
+public function resetTemplate($key)
+{
+    $this->birthdayImageService->reset($this->templateKey($key));
+    return response()->json(['success' => true, 'message' => 'Template kembali ke bawaan']);
+}
+
+/** "default" or an existing klinik id. */
+private function templateKey($key): string
+{
+    $key = (string) $key;
+    abort_unless($key === 'default' || \App\Models\ERM\Klinik::whereKey($key)->exists(), 404);
+    return $key;
+}
+
+/**
  * Display birthday greeting image
  */
 public function showImage($filename)

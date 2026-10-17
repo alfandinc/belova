@@ -1719,6 +1719,11 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/birthday/data', [BirthdayController::class, 'getData'])->name('marketing.birthday.data');
     Route::post('/birthday/mark-sent', [BirthdayController::class, 'markAsSent'])->name('marketing.birthday.mark-sent');
     Route::post('/birthday/generate-image', [BirthdayController::class, 'generateImage'])->name('marketing.birthday.generate-image');
+    // Template Kartu: card template per klinik ("default" or a klinik id)
+    Route::get('/birthday/templates', [BirthdayController::class, 'templates'])->name('marketing.birthday.templates');
+    Route::post('/birthday/templates/preview', [BirthdayController::class, 'previewTemplate'])->name('marketing.birthday.templates.preview');
+    Route::post('/birthday/templates/{key}', [BirthdayController::class, 'saveTemplate'])->name('marketing.birthday.templates.save');
+    Route::delete('/birthday/templates/{key}', [BirthdayController::class, 'resetTemplate'])->name('marketing.birthday.templates.reset');
     Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'])->name('marketing.birthday.show-image');
 
     // Marketing Events moved to the Events module (main menu)

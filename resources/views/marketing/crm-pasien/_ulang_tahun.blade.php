@@ -32,6 +32,9 @@
                     @endforeach
                 </select>
             </div>
+            <div class="crm-actions">
+                <button type="button" class="btn btn-outline-primary" id="cardTemplateBtn"><i class="mdi mdi-image-edit-outline mr-1"></i>Template Kartu</button>
+            </div>
         </div>
 
         <table id="birthday-table" class="table table-hover crm-table w-100">
@@ -126,6 +129,83 @@
                 <button type="button" class="btn btn-success" id="send-whatsapp">
                     <i class="fab fa-whatsapp mr-1"></i>Kirim via WhatsApp
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Template Kartu: the card image per klinik and where the name / age / date go on it --}}
+<div class="modal fade" id="cardTemplateModal" tabindex="-1" role="dialog" aria-labelledby="cardTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cardTemplateModalLabel">Template Kartu Ulang Tahun</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="crm-chips mb-3" id="tplTabs" role="tablist"></div>
+                <div class="row">
+                    <div class="col-lg-7 mb-3 mb-lg-0">
+                        <div class="crm-tpl-preview" id="tplPreview" title="Klik untuk menaruh nama di titik ini">
+                            <div class="text-muted"><i class="mdi mdi-loading mdi-spin"></i> Memuat...</div>
+                        </div>
+                        <small class="text-muted d-block mt-1">Preview dengan contoh nama. Klik pada gambar untuk memindahkan posisi nama.</small>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="alert alert-info py-2 small d-none" id="tplUsesDefault">
+                            Klinik ini belum punya template sendiri, kartunya memakai template <b>Default</b>.
+                            Upload gambar untuk membuat template khusus klinik ini.
+                        </div>
+                        <div class="small text-muted mb-2" id="tplStatus"></div>
+                        <div class="form-group">
+                            <label class="d-block">Gambar template</label>
+                            <input type="file" id="tplImage" accept="image/jpeg,image/png,image/webp" class="d-none">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="tplImageBtn"><i class="mdi mdi-upload mr-1"></i>Upload / ganti gambar</button>
+                            <small class="text-muted d-block mt-1" id="tplImageInfo">JPG / PNG, maks 5 MB. Ukuran ideal 1600 × 900 px.</small>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-4">
+                                <label for="tplColor">Warna teks</label>
+                                <input type="color" class="form-control p-1" id="tplColor" value="#ffffff">
+                            </div>
+                            <div class="form-group col-8">
+                                <label class="d-block">Rata teks</label>
+                                <div class="btn-group btn-group-toggle w-100" data-toggle="buttons" id="tplAlign">
+                                    <label class="btn btn-outline-secondary btn-sm"><input type="radio" name="tplAlign" value="left">Kiri</label>
+                                    <label class="btn btn-outline-secondary btn-sm"><input type="radio" name="tplAlign" value="center">Tengah</label>
+                                    <label class="btn btn-outline-secondary btn-sm"><input type="radio" name="tplAlign" value="right">Kanan</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="tplX" class="d-flex">Posisi kiri–kanan <span class="ml-auto text-muted" id="tplXVal"></span></label>
+                            <input type="range" class="custom-range" id="tplX" min="0" max="100" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="tplY" class="d-flex">Posisi atas–bawah <span class="ml-auto text-muted" id="tplYVal"></span></label>
+                            <input type="range" class="custom-range" id="tplY" min="0" max="100" step="0.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="tplSize" class="d-flex">Ukuran nama <span class="ml-auto text-muted" id="tplSizeVal"></span></label>
+                            <input type="range" class="custom-range" id="tplSize" min="16" max="200" step="1">
+                        </div>
+                        <div class="d-flex flex-wrap" style="gap:16px;">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="tplShowAge">
+                                <label class="custom-control-label" for="tplShowAge">Tampilkan usia</label>
+                            </div>
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="tplShowDate">
+                                <label class="custom-control-label" for="tplShowDate">Tampilkan tanggal</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-danger mr-auto" id="tplReset"><i class="mdi mdi-restore mr-1"></i>Kembalikan ke bawaan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="tplSave">Simpan template</button>
             </div>
         </div>
     </div>
@@ -328,6 +408,177 @@ window.crmPasien.inits['ulang-tahun'] = function () {
             complete: function () {
                 $btn.prop('disabled', false);
             }
+        });
+    });
+
+    // ---- Template Kartu editor ----
+    var tpl = { data: null, key: 'default', file: null, timer: null, request: null };
+
+    function tplSettings() {
+        return {
+            color: $('#tplColor').val(),
+            x: $('#tplX').val(),
+            y: $('#tplY').val(),
+            size: $('#tplSize').val(),
+            align: $('input[name=tplAlign]:checked').val() || 'center',
+            show_age: $('#tplShowAge').is(':checked') ? 1 : 0,
+            show_date: $('#tplShowDate').is(':checked') ? 1 : 0
+        };
+    }
+
+    function tplLabels() {
+        $('#tplXVal').text($('#tplX').val() + '%');
+        $('#tplYVal').text($('#tplY').val() + '%');
+        $('#tplSizeVal').text($('#tplSize').val());
+    }
+
+    function tplTabs() {
+        var tabs = [{ id: 'default', html: '<i class="mdi mdi-star-outline mr-1"></i>Default' }].concat(tpl.data.kliniks.map(function (k) {
+            return { id: k.id, html: crm.klinikLabel(crm.esc(k.nama), k.color, k.logo) };
+        }));
+        $('#tplTabs').html(tabs.map(function (t) {
+            var on = t.id === tpl.key;
+            return '<button type="button" class="btn btn-sm ' + (on ? 'btn-primary' : 'btn-outline-secondary') + '" data-key="' + crm.esc(t.id) + '" role="tab" aria-selected="' + on + '">' + t.html + '</button>';
+        }).join(''));
+    }
+
+    // Loads the chosen template into the form; a klinik without its own starts from "default"
+    function tplSelect(key) {
+        tpl.key = key;
+        tpl.file = null;
+        $('#tplImage').val('');
+        var own = tpl.data.templates[key];
+        var t = own || tpl.data.templates['default'];
+        var s = t.settings;
+        $('#tplColor').val(s.color);
+        $('#tplX').val(s.x);
+        $('#tplY').val(s.y);
+        $('#tplSize').val(s.size);
+        $('#tplAlign input').each(function () {
+            var on = this.value === s.align;
+            $(this).prop('checked', on).closest('label').toggleClass('active', on);
+        });
+        $('#tplShowAge').prop('checked', !!s.show_age);
+        $('#tplShowDate').prop('checked', !!s.show_date);
+        $('#tplUsesDefault').toggleClass('d-none', !!own || key === 'default');
+        $('#tplStatus').text(own ? (own.custom ? 'Template yang sudah diatur.' : 'Template bawaan sistem.') : '');
+        $('#tplReset').toggle(!!(own && own.custom));
+        $('#tplImageInfo').text('JPG / PNG, maks 5 MB. Ukuran ideal 1600 × 900 px.');
+        tplLabels();
+        tplTabs();
+        tplPreview();
+    }
+
+    // Redraws the preview (debounced; a newer change cancels the running request)
+    function tplPreview(delay) {
+        clearTimeout(tpl.timer);
+        tpl.timer = setTimeout(function () {
+            if (tpl.request) tpl.request.abort();
+            var form = new FormData();
+            $.each(tplSettings(), function (k, v) { form.append(k, v); });
+            form.append('key', tpl.key);
+            if (tpl.file) form.append('image', tpl.file);
+            $('#tplPreview').addClass('is-loading');
+            tpl.request = $.ajax({
+                url: "{{ route('marketing.birthday.templates.preview') }}",
+                type: 'POST', data: form, processData: false, contentType: false,
+                success: function (res) {
+                    $('#tplPreview').html($('<img alt="Preview kartu">').attr('src', res.image));
+                },
+                error: function (xhr) {
+                    if (xhr.statusText === 'abort') return;
+                    $('#tplPreview').html($('<div class="text-danger small">').text((xhr.responseJSON && xhr.responseJSON.message) || 'Preview gagal dibuat.'));
+                },
+                complete: function () { $('#tplPreview').removeClass('is-loading'); }
+            });
+        }, delay || 0);
+    }
+
+    $('#cardTemplateBtn').on('click', function () {
+        $('#cardTemplateModal').modal('show');
+        $('#tplPreview').html('<div class="text-muted"><i class="mdi mdi-loading mdi-spin"></i> Memuat...</div>');
+        $.get("{{ route('marketing.birthday.templates') }}", function (res) {
+            tpl.data = res;
+            tplSelect('default');
+        }).fail(function () {
+            Swal.fire('Error', 'Gagal memuat template kartu', 'error');
+        });
+    });
+
+    $('#tplTabs').on('click', '.btn', function () { tplSelect(String($(this).data('key'))); });
+    $('#tplX, #tplY, #tplSize').on('input', function () { tplLabels(); tplPreview(350); });
+    $('#tplColor, #tplShowAge, #tplShowDate').on('change', function () { tplPreview(150); });
+    $('#tplAlign').on('change', 'input', function () { tplPreview(150); });
+    $('#tplImageBtn').on('click', function () { $('#tplImage').trigger('click'); });
+    $('#tplImage').on('change', function () {
+        var file = this.files && this.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            Swal.fire('Terlalu besar', 'Gambar maksimal 5 MB.', 'warning');
+            this.value = '';
+            return;
+        }
+        tpl.file = file;
+        $('#tplImageInfo').text('Gambar baru: ' + file.name + ' (belum disimpan)');
+        tplPreview();
+    });
+
+    // Click on the preview = put the name there
+    $('#tplPreview').on('click', 'img', function (e) {
+        var rect = this.getBoundingClientRect();
+        $('#tplX').val(((e.clientX - rect.left) / rect.width * 100).toFixed(1));
+        $('#tplY').val(((e.clientY - rect.top) / rect.height * 100).toFixed(1));
+        tplLabels();
+        tplPreview();
+    });
+
+    $('#tplSave').on('click', function () {
+        if (!tpl.data) return;
+        if (!tpl.data.templates[tpl.key] && !tpl.file) {
+            Swal.fire('Upload gambar', 'Klinik ini belum punya gambar template. Upload gambar dulu.', 'info');
+            return;
+        }
+        var form = new FormData();
+        $.each(tplSettings(), function (k, v) { form.append(k, v); });
+        if (tpl.file) form.append('image', tpl.file);
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: "{{ url('marketing/birthday/templates') }}/" + encodeURIComponent(tpl.key),
+            type: 'POST', data: form, processData: false, contentType: false,
+            success: function (res) {
+                Swal.fire({ icon: 'success', title: res.message, timer: 1300, showConfirmButton: false });
+                $.get("{{ route('marketing.birthday.templates') }}", function (data) {
+                    tpl.data = data;
+                    tplSelect(tpl.key);
+                });
+            },
+            error: function (xhr) {
+                var errors = xhr.responseJSON && xhr.responseJSON.errors;
+                Swal.fire('Gagal menyimpan', errors ? Object.values(errors).join('<br>') : ((xhr.responseJSON && xhr.responseJSON.message) || 'Terjadi kesalahan'), 'error');
+            },
+            complete: function () { $btn.prop('disabled', false); }
+        });
+    });
+
+    $('#tplReset').on('click', function () {
+        Swal.fire({
+            title: 'Kembalikan ke bawaan?',
+            text: tpl.key === 'default' ? 'Template Default kembali ke gambar bawaan sistem.' : 'Template klinik ini dihapus; kartunya kembali ke template bawaan.',
+            icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, kembalikan', cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.value) return;
+            $.ajax({
+                url: "{{ url('marketing/birthday/templates') }}/" + encodeURIComponent(tpl.key),
+                type: 'DELETE',
+                success: function (res) {
+                    Swal.fire({ icon: 'success', title: res.message, timer: 1300, showConfirmButton: false });
+                    $.get("{{ route('marketing.birthday.templates') }}", function (data) {
+                        tpl.data = data;
+                        tplSelect(tpl.key);
+                    });
+                },
+                error: function () { Swal.fire('Error', 'Gagal mengembalikan template', 'error'); }
+            });
         });
     });
 
