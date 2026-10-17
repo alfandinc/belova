@@ -53,68 +53,47 @@
             </div>
         </div>
 
-        {{-- Stats of the chosen dates (and klinik); clicking one filters the table --}}
-        <div class="row crm-stats-row mb-2">
-            <div class="col-6 col-md-4 col-xl">
-                <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label">Total follow up</div>
-                    <div class="crm-stat-value text-primary" id="followUpCount">0</div>
-                    <div class="crm-stat-sub" id="followUpRangeLabel">hari ini</div>
-                </div></div>
+        {{-- Stats of the chosen dates (and klinik); clicking a number or a row filters the table --}}
+        <div class="crm-kpis mb-2">
+            <div class="crm-kpi">
+                <div class="crm-stat-label">Total follow up</div>
+                <div><span class="crm-kpi-value text-primary" id="followUpCount">0</span> <span class="crm-stat-sub" id="followUpRangeLabel">hari ini</span></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
-                <div class="card crm-stat" data-filter="status_respon" data-value="Direspon"><div class="card-body">
-                    <div class="crm-stat-label">Direspon</div>
-                    <div class="crm-stat-value text-success" id="followUpDirespon">0</div>
-                    <div class="crm-stat-sub" id="followUpDiresponPercent">0%</div>
-                </div></div>
+            <div class="crm-kpi" data-filter="status_respon" data-value="Direspon" role="button" tabindex="0">
+                <div class="crm-stat-label">Direspon</div>
+                <div><span class="crm-kpi-value text-success" id="followUpDirespon">0</span> <span class="crm-stat-sub" id="followUpDiresponPercent">0%</span></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
-                <div class="card crm-stat" data-filter="status_respon" data-value="Tidak Direspon"><div class="card-body">
-                    <div class="crm-stat-label">Tidak direspon</div>
-                    <div class="crm-stat-value text-danger" id="followUpTidakDirespon">0</div>
-                    <div class="crm-stat-sub" id="followUpTidakDiresponPercent">0%</div>
-                </div></div>
+            <div class="crm-kpi" data-filter="status_respon" data-value="Tidak Direspon" role="button" tabindex="0">
+                <div class="crm-stat-label">Tidak direspon</div>
+                <div><span class="crm-kpi-value text-danger" id="followUpTidakDirespon">0</span> <span class="crm-stat-sub" id="followUpTidakDiresponPercent">0%</span></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
-                <div class="card crm-stat" data-filter="status_respon" data-value="Menunggu"><div class="card-body">
-                    <div class="crm-stat-label">Menunggu respon</div>
-                    <div class="crm-stat-value text-warning" id="followUpMenungguRespon">0</div>
-                    <div class="crm-stat-sub" id="followUpMenungguResponPercent">0%</div>
-                </div></div>
+            <div class="crm-kpi" data-filter="status_respon" data-value="Menunggu" role="button" tabindex="0">
+                <div class="crm-stat-label">Menunggu respon</div>
+                <div><span class="crm-kpi-value text-warning" id="followUpMenungguRespon">0</span> <span class="crm-stat-sub" id="followUpMenungguResponPercent">0%</span></div>
             </div>
-            <div class="col-12 col-md-8 col-xl">
-                <div class="card crm-stat" data-filter="status_booking" data-value="Sukses"><div class="card-body">
-                    <div class="crm-stat-label">Booking sukses</div>
-                    <div class="crm-stat-value text-success" id="bookingSukses">0</div>
-                    <div class="crm-stat-sub">Menunggu <b id="bookingMenunggu">0</b> · Batal <b id="bookingBatal">0</b></div>
-                </div></div>
+            <div class="crm-kpi" data-filter="status_booking" data-value="Sukses" role="button" tabindex="0">
+                <div class="crm-stat-label">Booking sukses</div>
+                <div><span class="crm-kpi-value text-success" id="bookingSukses">0</span> <span class="crm-stat-sub">menunggu <b id="bookingMenunggu">0</b> · batal <b id="bookingBatal">0</b></span></div>
             </div>
         </div>
 
-        {{-- Breakdowns: one row each, a bar shows the share of the total --}}
-        <div class="row crm-stats-row mb-3">
-            <div class="col-md-6 col-xl-4">
-                <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-2">Per klinik <span class="crm-stat-hint">klik untuk filter</span></div>
-                    <ul class="crm-breakdown" id="klinikStats"></ul>
-                </div></div>
+        {{-- Breakdowns: one line per item, the bar is its share of the total --}}
+        <div class="crm-breakdowns mb-3">
+            <div class="crm-breakdown-card">
+                <div class="crm-stat-label">Per klinik</div>
+                <ul class="crm-breakdown" id="klinikStats"></ul>
             </div>
-            <div class="col-md-6 col-xl-4">
-                <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-2">Per kategori <span class="crm-stat-hint">klik untuk filter</span></div>
-                    <ul class="crm-breakdown" id="kategoriStats"></ul>
-                </div></div>
+            <div class="crm-breakdown-card">
+                <div class="crm-stat-label">Per kategori</div>
+                <ul class="crm-breakdown" id="kategoriStats"></ul>
             </div>
-            <div class="col-md-12 col-xl-4">
-                <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-2 d-flex">
-                        <span class="mr-auto">Top sales</span>
-                        <span class="crm-breakdown-num">FU</span>
-                        <span class="crm-breakdown-num">Booking</span>
-                    </div>
-                    <ul class="crm-breakdown" id="topSalesList"></ul>
-                </div></div>
+            <div class="crm-breakdown-card">
+                <div class="crm-stat-label d-flex">
+                    <span class="mr-auto">Top sales</span>
+                    <span class="crm-breakdown-num">FU</span>
+                    <span class="crm-breakdown-num">Booking</span>
+                </div>
+                <ul class="crm-breakdown" id="topSalesList"></ul>
             </div>
         </div>
 
@@ -263,6 +242,7 @@ window.crmPasien.klinikLabel = function (nama, color, logo) {
         : '<span class="crm-klinik-logo is-initial" style="background:' + esc(color || '#94a3b8') + '">' + esc(text.charAt(0) || '?') + '</span>';
     return '<span class="crm-klinik" style="--klinik:' + esc(color || '#94a3b8') + '">' + icon + '<span class="crm-klinik-name">' + nama + '</span></span>';
 };
+window.crmPasien.klinikNone = '<span class="crm-klinik crm-muted"><span class="crm-klinik-logo is-initial is-empty">?</span><span class="crm-klinik-name">Belum ditentukan</span></span>';
 
 // Follow up form: set up on page load because the Pasien tab and the page header open it too
 $(function () {
@@ -554,12 +534,11 @@ window.crmPasien.inits.followup = function () {
         return { start_date: range.start.format('YYYY-MM-DD'), end_date: range.end.format('YYYY-MM-DD'), klinik_id: $('#klinikFilter').val() };
     }
 
-    // A row of the Per klinik / Per kategori / Top sales cards: label, number(s) and a bar of `percent` in `color`
+    // One line of the Per klinik / Per kategori / Top sales cards: label, a bar of `percent` in `color` (none when null), number(s)
     function breakdownRow(label, nums, percent, color, attrs, cls) {
+        var bar = percent === null ? '' : '<span class="crm-breakdown-bar"><span style="width:' + Math.min(100, percent || 0) + '%;background:' + crm.esc(color || '#94a3b8') + ';"></span></span>';
         return '<li class="crm-breakdown-row ' + (cls || '') + '" ' + (attrs || '') + '>'
-            + '<div class="crm-breakdown-head"><span class="crm-breakdown-name">' + label + '</span>' + nums + '</div>'
-            + '<div class="crm-breakdown-bar"><span style="width:' + Math.min(100, percent || 0) + '%;background:' + crm.esc(color || '#94a3b8') + ';"></span></div>'
-            + '</li>';
+            + '<span class="crm-breakdown-name">' + label + '</span>' + bar + nums + '</li>';
     }
 
     function rangeLabel() {
@@ -591,7 +570,8 @@ window.crmPasien.inits.followup = function () {
             var klinikTotal = (res.per_klinik || []).reduce(function (sum, k) { return sum + k.jumlah; }, 0);
             $('#klinikStats').html((res.per_klinik || []).map(function (k) {
                 var state = !selectedKlinik ? '' : (String(k.id) === selectedKlinik ? ' is-active' : ' is-dim');
-                return breakdownRow(crm.klinikLabel(crm.esc(k.nama), k.color, k.logo), num(k.jumlah),
+                var label = k.id === 'none' ? crm.klinikNone : crm.klinikLabel(crm.esc(k.nama), k.color, k.logo);
+                return breakdownRow(label, num(k.jumlah),
                     klinikTotal ? k.jumlah / klinikTotal * 100 : 0, k.color,
                     'data-klinik="' + crm.esc(k.id) + '" role="button" tabindex="0" title="Filter ' + crm.esc(k.nama) + '"', 'is-link' + state);
             }).join(''));
@@ -608,7 +588,7 @@ window.crmPasien.inits.followup = function () {
             var sales = (res.top_sales || []).map(function (sale, i) {
                 var nums = '<span class="crm-breakdown-num"><b>' + sale.jumlah + '</b></span>'
                     + '<span class="crm-breakdown-num ' + (sale.booking ? 'text-success' : 'crm-muted') + '"><b>' + sale.booking + '</b> <small>' + sale.persen + '%</small></span>';
-                return breakdownRow('<span class="crm-rank">' + (i + 1) + '</span><span title="' + crm.esc(sale.nama) + '">' + crm.esc(sale.nama) + '</span>', nums, sale.persen, '#22c55e');
+                return breakdownRow('<span class="crm-rank">' + (i + 1) + '</span><span title="' + crm.esc(sale.nama) + '">' + crm.esc(sale.nama) + '</span>', nums, null);
             });
             $('#topSalesList').html(sales.join('') || '<li class="crm-muted small">Belum ada</li>');
         });
@@ -651,7 +631,7 @@ window.crmPasien.inits.followup = function () {
             { data: 'klinik_nama', name: 'erm_klinik.nama', orderable: false, searchable: false, render: function (data, type, row) {
                 if (type !== 'display') return data;
                 return data ? crm.klinikLabel(data, row.klinik_color, $('<div>').html(row.klinik_logo || '').text())
-                    : '<span class="crm-klinik crm-muted"><span class="crm-klinik-logo is-initial is-empty">?</span><span class="crm-klinik-name">Belum ditentukan</span></span>';
+                    : crm.klinikNone;
             } },
             { data: 'kategori', name: 'marketing_follow_ups.kategori', orderable: false, searchable: false, render: function (data) {
                 var items = Array.isArray(data) ? data : (data ? [data] : []);
@@ -697,17 +677,22 @@ window.crmPasien.inits.followup = function () {
 
     // Clicking a stat toggles that filter
     function syncStatHighlight() {
-        $('#tab-followup .crm-stat[data-filter]').each(function () {
+        $('#tab-followup .crm-kpi[data-filter]').each(function () {
             var $stat = $(this);
             var $select = $stat.data('filter') === 'status_respon' ? $('#statusResponFilter') : $('#statusBookingFilter');
             $stat.toggleClass('is-active', $select.val() === $stat.data('value'));
         });
     }
-    $('#tab-followup').on('click', '.crm-stat[data-filter]', function () {
-        var $stat = $(this);
+    function toggleStat(stat) {
+        var $stat = $(stat);
         var $select = $stat.data('filter') === 'status_respon' ? $('#statusResponFilter') : $('#statusBookingFilter');
         $select.val($select.val() === $stat.data('value') ? '' : $stat.data('value')).trigger('change');
-    });
+    }
+    $('#tab-followup')
+        .on('click', '.crm-kpi[data-filter]', function () { toggleStat(this); })
+        .on('keydown', '.crm-kpi[data-filter]', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleStat(this); }
+        });
 
     $('#kategoriFilter').select2({ placeholder: 'Semua kategori', allowClear: true, width: '100%' });
     // Klinik options with their logo and color
@@ -720,7 +705,7 @@ window.crmPasien.inits.followup = function () {
     function klinikOption(opt) {
         if (!opt.id) return opt.text; // "Semua klinik"
         var $opt = $(opt.element);
-        if (opt.id === 'none') return $('<span class="crm-klinik crm-muted"><span class="crm-klinik-logo is-initial is-empty">?</span><span class="crm-klinik-name">Belum ditentukan</span></span>');
+        if (opt.id === 'none') return $(crm.klinikNone);
         return $(crm.klinikLabel(crm.esc(opt.text), $opt.data('color'), $opt.data('logo')));
     }
     $('#klinikFilter, #kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function () {

@@ -20,7 +20,6 @@
     .crm-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; align-content: flex-start; }
     .crm-chips .btn { border-radius: 999px; }
     .crm-chips .badge { font-size: 11px; padding: 4px 8px; }
-    .crm-stats-row { row-gap: 10px; }
     .crm-muted { opacity: .6; }
     /* Klinik: its logo (or a colored initial) + short name */
     .crm-klinik { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; vertical-align: middle; }
@@ -29,32 +28,50 @@
     .crm-klinik-logo.is-empty { background: rgba(148, 163, 184, .35); }
     .crm-klinik-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .crm-table .crm-klinik { max-width: 220px; }
-    /* Breakdown cards (Per klinik / Per kategori / Top sales): name, number(s), share bar */
-    .crm-stat-hint { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 4px; }
+    /* Stats strip: the 5 main numbers side by side in one box */
+    .crm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid rgba(148, 163, 184, .25); border-radius: 8px; overflow: hidden; }
+    .crm-kpi { padding: 7px 14px; border-left: 1px solid rgba(148, 163, 184, .2); outline: none; transition: background .15s, box-shadow .15s; }
+    .crm-kpi:first-child { border-left: 0; }
+    .crm-kpi[data-filter] { cursor: pointer; }
+    .crm-kpi[data-filter]:hover, .crm-kpi[data-filter]:focus { background: rgba(148, 163, 184, .1); }
+    .crm-kpi.is-active { background: rgba(30, 136, 229, .12); box-shadow: inset 0 -2px 0 #1e88e5; }
+    .crm-kpi-value { font-size: 1.3rem; font-weight: 800; line-height: 1.3; }
+    /* Breakdowns (Per klinik / Per kategori / Top sales): one line per item */
+    .crm-breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; }
+    .crm-breakdown-card { border: 1px solid rgba(148, 163, 184, .25); border-radius: 8px; padding: 7px 12px 6px; }
+    .crm-breakdown-card .crm-stat-label { margin-bottom: 3px; }
     .crm-breakdown { list-style: none; margin: 0; padding: 0; }
-    .crm-breakdown-row { padding: 5px 6px; margin: 0 -6px; border-radius: 6px; transition: background .15s, opacity .15s; }
-    .crm-breakdown-row + .crm-breakdown-row { margin-top: 2px; }
+    .crm-breakdown-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; line-height: 1.2; padding: 2px 6px; margin: 0 -6px; border-radius: 5px; min-height: 24px; transition: background .15s, opacity .15s; }
     .crm-breakdown-row.is-link { cursor: pointer; outline: none; }
     .crm-breakdown-row.is-link:hover, .crm-breakdown-row.is-link:focus { background: rgba(148, 163, 184, .12); }
     .crm-breakdown-row.is-active { background: rgba(30, 136, 229, .12); box-shadow: inset 0 0 0 1px rgba(30, 136, 229, .45); }
     .crm-breakdown-row.is-dim { opacity: .45; }
-    .crm-breakdown-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-    .crm-breakdown-name { display: flex; align-items: center; gap: 7px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .crm-breakdown-name { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; }
     .crm-breakdown-name > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-    .crm-breakdown-num { flex: 0 0 64px; text-align: right; white-space: nowrap; }
-    .crm-breakdown-bar { height: 4px; margin-top: 4px; border-radius: 2px; background: rgba(148, 163, 184, .2); overflow: hidden; }
-    .crm-breakdown-bar span { display: block; height: 100%; border-radius: 2px; transition: width .3s; }
-    .crm-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
-    .crm-rank { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; background: rgba(148, 163, 184, .2); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-    /* Select2 in the toolbar / form: same height and border as .form-control */
+    .crm-breakdown-num { flex: 0 0 auto; min-width: 34px; text-align: right; white-space: nowrap; }
+    .crm-breakdown-num + .crm-breakdown-num { min-width: 64px; }
+    .crm-breakdown-bar { flex: 0 0 28%; height: 5px; border-radius: 3px; background: rgba(148, 163, 184, .2); overflow: hidden; }
+    .crm-breakdown-bar span { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
+    .crm-breakdown-row .crm-klinik { gap: 6px; }
+    .crm-breakdown-row .crm-klinik-logo { width: 18px; height: 18px; flex-basis: 18px; border-radius: 5px; font-size: 10px; }
+    .crm-breakdown-row .crm-klinik-name { font-weight: 500; }
+    .crm-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+    .crm-rank { width: 17px; height: 17px; flex: 0 0 17px; border-radius: 50%; background: rgba(148, 163, 184, .2); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+    /* Toolbar: every control the same compact height (inputs, selects, select2, buttons) */
+    .crm-toolbar .form-control, .crm-toolbar .btn { height: 34px; padding-top: 4px; padding-bottom: 4px; font-size: 13px; }
     .crm-toolbar .select2-container .select2-selection--single,
-    #followupModal .select2-container .select2-selection--single { height: calc(1.5em + .75rem + 2px); display: flex; align-items: center; }
+    #followupModal .select2-container .select2-selection--single { height: 34px; display: flex; align-items: center; }
+    #followupModal .select2-container .select2-selection--single { height: calc(1.5em + .75rem + 2px); }
     .crm-toolbar .select2-container .select2-selection--single .select2-selection__rendered,
-    #followupModal .select2-container .select2-selection--single .select2-selection__rendered { line-height: normal; padding-left: 10px; flex: 1; min-width: 0; }
+    #followupModal .select2-container .select2-selection--single .select2-selection__rendered { line-height: normal; padding-left: 10px; flex: 1; min-width: 0; font-size: 13px; }
     .crm-toolbar .select2-container .select2-selection--single .select2-selection__arrow,
     #followupModal .select2-container .select2-selection--single .select2-selection__arrow { height: 100%; }
-    .crm-toolbar .select2-container .select2-selection--multiple { min-height: calc(1.5em + .75rem + 2px); }
-    .crm-toolbar .select2-container .select2-selection--multiple .select2-search__field { margin-top: 7px; }
+    .crm-toolbar .select2-container .select2-selection--multiple { min-height: 34px; display: flex; align-items: center; }
+    .crm-toolbar .select2-container .select2-selection--multiple .select2-selection__rendered { display: flex; flex-wrap: wrap; align-items: center; padding: 0 6px; margin: 0; font-size: 13px; }
+    .crm-toolbar .select2-container .select2-selection--multiple .select2-selection__choice { margin-top: 3px; margin-bottom: 3px; }
+    .crm-toolbar .select2-container .select2-selection--multiple .select2-search__field { margin: 0; height: 26px; font-size: 13px; }
+    .crm-toolbar .crm-klinik-logo { width: 18px; height: 18px; flex-basis: 18px; border-radius: 5px; }
+    .crm-toolbar .crm-klinik-name { font-weight: 500; }
     .select2-results__option .crm-klinik { max-width: 100%; }
     .theme-dark .crm-toolbar .select2-selection, .theme-dark #followupModal .select2-selection { background: #2c2f40; border-color: #555; }
     .theme-dark .crm-toolbar .select2-selection__rendered, .theme-dark #followupModal .select2-selection__rendered { color: #fff; }
@@ -74,13 +91,7 @@
         .crm-toolbar .crm-field, .crm-toolbar .crm-field-chips { flex: 1 1 100%; }
         .crm-toolbar .crm-actions { margin-left: 0; }
     }
-    .crm-stat { cursor: default; height: 100%; margin-bottom: 0; border: 1px solid rgba(148, 163, 184, .25); transition: border-color .15s, box-shadow .15s; }
-    .crm-stat[data-filter] { cursor: pointer; }
-    .crm-stat[data-filter]:hover { border-color: rgba(30, 136, 229, .6); }
-    .crm-stat.is-active { border-color: #1e88e5; box-shadow: 0 0 0 2px rgba(30, 136, 229, .25); }
-    .crm-stat .card-body { padding: .75rem 1rem; }
     .crm-stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; opacity: .65; }
-    .crm-stat-value { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
     .crm-stat-sub { font-size: 12px; opacity: .7; }
     .crm-table td { vertical-align: middle; }
     .crm-table .crm-actions-cell, .crm-table .crm-nowrap { white-space: nowrap; }
