@@ -16,6 +16,12 @@ class Klinik extends Model
         return preg_replace('/^Klinik\s+(Utama|Pratama)\s+/i', '', $nama);
     }
 
+    /** Public URL of a stored logo path (null when none). */
+    public static function logoUrl(?string $logo): ?string
+    {
+        return $logo ? asset('storage/' . $logo) : null;
+    }
+
     public function visitation()
     {
         return $this->hasMany(Visitation::class, 'klinik_id');

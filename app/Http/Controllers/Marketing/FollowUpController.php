@@ -21,7 +21,7 @@ class FollowUpController extends Controller
                 ->leftJoin('erm_pasiens', 'erm_pasiens.id', '=', 'marketing_follow_ups.pasien_id')
                 ->leftJoin('hrd_employee', 'hrd_employee.id', '=', 'marketing_follow_ups.sales_id')
                 ->leftJoin('erm_klinik', 'erm_klinik.id', '=', 'marketing_follow_ups.klinik_id')
-                ->select('marketing_follow_ups.*', 'erm_pasiens.nama as pasien_nama', 'hrd_employee.nama as sales_nama', 'erm_klinik.nama as klinik_nama', 'erm_klinik.color as klinik_color')
+                ->select('marketing_follow_ups.*', 'erm_pasiens.nama as pasien_nama', 'hrd_employee.nama as sales_nama', 'erm_klinik.nama as klinik_nama', 'erm_klinik.color as klinik_color', 'erm_klinik.logo as klinik_logo')
                 // Visit booked from this follow up (Daftarkan Kunjungan with referral "Follow Up")
                 ->addSelect(['visit_date' => \App\Models\ERM\Visitation::select('tanggal_visitation')
                     ->where('referral_type', \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP)
@@ -55,6 +55,7 @@ class FollowUpController extends Controller
                 ->orderColumn('sales_nama', 'hrd_employee.nama $1')
                 ->editColumn('kategori', fn ($row) => json_decode($row->kategori, true) ?: [])
                 ->editColumn('klinik_nama', fn ($row) => $row->klinik_nama ? Klinik::shortName($row->klinik_nama) : null)
+                ->editColumn('klinik_logo', fn ($row) => Klinik::logoUrl($row->klinik_logo))
                 ->addColumn('tanggal', fn ($row) => $row->created_at ? $row->created_at->format('d/m/Y H:i') : '-')
                 ->editColumn('visit_date', fn ($row) => $row->visit_date ? \Carbon\Carbon::parse($row->visit_date)->format('d/m/Y') : null)
                 ->make(true);
@@ -213,11 +214,12 @@ class FollowUpController extends Controller
             ->selectRaw('klinik_id, COUNT(*) as jumlah')
             ->groupBy('klinik_id')
             ->get();
-        $perKlinik = Klinik::orderBy('id')->get(['id', 'nama', 'color'])
+        $perKlinik = Klinik::orderBy('id')->get(['id', 'nama', 'color', 'logo'])
             ->map(fn ($k) => [
                 'id' => $k->id,
                 'nama' => Klinik::shortName($k->nama),
                 'color' => $k->color,
+                'logo' => Klinik::logoUrl($k->logo),
                 'jumlah' => (int) optional($klinikCounts->firstWhere('klinik_id', $k->id))->jumlah,
             ])->all();
         $tanpaKlinik = (int) optional($klinikCounts->whereNull('klinik_id')->first())->jumlah;

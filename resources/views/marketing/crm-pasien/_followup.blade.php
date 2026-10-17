@@ -2,23 +2,25 @@
 @php
     // Kategori => badge color; which klinik offers each one is in FollowUp::KATEGORI
     $followUpKategori = array_map(fn ($k) => $k['color'], \App\Models\Marketing\FollowUp::KATEGORI);
+    $kategoriHex = ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8'];
 @endphp
 <div class="card">
     <div class="card-body">
         <div class="crm-toolbar mb-3">
-            <div class="crm-field">
-                <label for="klinikFilter">Klinik</label>
-                <select id="klinikFilter" class="form-control">
-                    <option value="">Semua klinik</option>
-                    @foreach($kliniks as $klinik)
-                        <option value="{{ $klinik->id }}">{{ \App\Models\ERM\Klinik::shortName($klinik->nama) }}</option>
-                    @endforeach
-                    <option value="none">Belum ditentukan</option>
-                </select>
-            </div>
             <div class="crm-field crm-field-wide">
                 <label for="dateRange">Tanggal follow up</label>
                 <input type="text" id="dateRange" class="form-control" autocomplete="off" readonly>
+            </div>
+            <div class="crm-field crm-field-wide">
+                <label for="klinikFilter">Klinik</label>
+                {{-- select2 shows each klinik with its logo and color --}}
+                <select id="klinikFilter" class="form-control" style="width:100%">
+                    <option value="">Semua klinik</option>
+                    @foreach($kliniks as $klinik)
+                        <option value="{{ $klinik->id }}" data-logo="{{ \App\Models\ERM\Klinik::logoUrl($klinik->logo) }}" data-color="{{ $klinik->color }}">{{ \App\Models\ERM\Klinik::shortName($klinik->nama) }}</option>
+                    @endforeach
+                    <option value="none">Belum ditentukan</option>
+                </select>
             </div>
             <div class="crm-field crm-field-wide">
                 <label for="kategoriFilter">Kategori</label>
@@ -51,8 +53,8 @@
             </div>
         </div>
 
-        {{-- Stats of the chosen dates; clicking one filters the table --}}
-        <div class="row mb-3 crm-stats-row">
+        {{-- Stats of the chosen dates (and klinik); clicking one filters the table --}}
+        <div class="row crm-stats-row mb-2">
             <div class="col-6 col-md-4 col-xl">
                 <div class="card crm-stat"><div class="card-body">
                     <div class="crm-stat-label">Total follow up</div>
@@ -81,30 +83,37 @@
                     <div class="crm-stat-sub" id="followUpMenungguResponPercent">0%</div>
                 </div></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
+            <div class="col-12 col-md-8 col-xl">
                 <div class="card crm-stat" data-filter="status_booking" data-value="Sukses"><div class="card-body">
                     <div class="crm-stat-label">Booking sukses</div>
                     <div class="crm-stat-value text-success" id="bookingSukses">0</div>
                     <div class="crm-stat-sub">Menunggu <b id="bookingMenunggu">0</b> · Batal <b id="bookingBatal">0</b></div>
                 </div></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
+        </div>
+
+        {{-- Breakdowns: one row each, a bar shows the share of the total --}}
+        <div class="row crm-stats-row mb-3">
+            <div class="col-md-6 col-xl-4">
                 <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-1">Per klinik</div>
-                    {{-- Clicking a klinik filters the table by it --}}
-                    <div class="crm-chips" id="klinikStats"></div>
+                    <div class="crm-stat-label mb-2">Per klinik <span class="crm-stat-hint">klik untuk filter</span></div>
+                    <ul class="crm-breakdown" id="klinikStats"></ul>
                 </div></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
+            <div class="col-md-6 col-xl-4">
                 <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-1">Per kategori</div>
-                    <div class="crm-chips" id="kategoriStats"></div>
+                    <div class="crm-stat-label mb-2">Per kategori <span class="crm-stat-hint">klik untuk filter</span></div>
+                    <ul class="crm-breakdown" id="kategoriStats"></ul>
                 </div></div>
             </div>
-            <div class="col-6 col-md-4 col-xl">
+            <div class="col-md-12 col-xl-4">
                 <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-1">Top sales <span class="text-lowercase font-weight-normal">(fu · booking)</span></div>
-                    <ul id="topSalesList" class="list-unstyled mb-0 small crm-top-sales"></ul>
+                    <div class="crm-stat-label mb-2 d-flex">
+                        <span class="mr-auto">Top sales</span>
+                        <span class="crm-breakdown-num">FU</span>
+                        <span class="crm-breakdown-num">Booking</span>
+                    </div>
+                    <ul class="crm-breakdown" id="topSalesList"></ul>
                 </div></div>
             </div>
         </div>
@@ -151,10 +160,10 @@
             <div class="col-md-6">
               <div class="form-group">
                 <label for="klinikSelect">Klinik <span class="text-danger">*</span></label>
-                <select id="klinikSelect" name="klinik_id" class="form-control">
+                <select id="klinikSelect" name="klinik_id" class="form-control" style="width:100%">
                   <option value="">Pilih klinik</option>
                   @foreach($kliniks as $klinik)
-                      <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                      <option value="{{ $klinik->id }}" data-logo="{{ \App\Models\ERM\Klinik::logoUrl($klinik->logo) }}" data-color="{{ $klinik->color }}">{{ $klinik->nama }}</option>
                   @endforeach
                 </select>
                 <small class="form-text text-muted" id="klinikHint">Otomatis dari kunjungan terakhir pasien.</small>
@@ -167,7 +176,7 @@
                 <label class="d-block">Kategori <span class="text-danger">*</span> <small class="text-muted">(boleh lebih dari satu)</small></label>
                 <div class="btn-group-toggle crm-chips" data-toggle="buttons" id="kategoriGroup">
                   @foreach(\App\Models\Marketing\FollowUp::KATEGORI as $kategori => $opt)
-                      <label class="btn btn-sm crm-chip-toggle" style="--chip: {{ ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8'][$opt['color']] ?? '#6c757d' }};"
+                      <label class="btn btn-sm crm-chip-toggle" style="--chip: {{ $kategoriHex[$opt['color']] ?? '#6c757d' }};"
                              data-kliniks="{{ $opt['kliniks'] === null ? '' : implode(',', $opt['kliniks']) }}">
                           <input type="checkbox" name="kategori[]" value="{{ $kategori }}" autocomplete="off">{{ $kategori }}
                       </label>
@@ -243,6 +252,17 @@ if (!$('link[href*="select2.min.css"]').length) {
 }
 
 window.crmPasien.kategoriColors = @json($followUpKategori);
+window.crmPasien.kategoriHex = @json(array_map(fn ($c) => $kategoriHex[$c] ?? '#6c757d', $followUpKategori));
+
+// Klinik as its logo + name (`nama` already escaped); no logo = an initial in the klinik's color
+window.crmPasien.klinikLabel = function (nama, color, logo) {
+    var esc = window.crmPasien.esc;
+    var text = $('<div>').html(nama || '').text();
+    var icon = logo
+        ? '<img src="' + esc(logo) + '" alt="" class="crm-klinik-logo" loading="lazy">'
+        : '<span class="crm-klinik-logo is-initial" style="background:' + esc(color || '#94a3b8') + '">' + esc(text.charAt(0) || '?') + '</span>';
+    return '<span class="crm-klinik" style="--klinik:' + esc(color || '#94a3b8') + '">' + icon + '<span class="crm-klinik-name">' + nama + '</span></span>';
+};
 
 // Follow up form: set up on page load because the Pasien tab and the page header open it too
 $(function () {
@@ -333,8 +353,23 @@ $(function () {
 
     var klinikPicked = false; // the user chose the klinik: stop filling it from the pasien
 
+    // Klinik options with their logo and color
+    $('#klinikSelect').select2({
+        placeholder: 'Pilih klinik',
+        dropdownParent: $('#followupModal'),
+        minimumResultsForSearch: Infinity,
+        templateResult: klinikFormOption,
+        templateSelection: klinikFormOption
+    });
+    function klinikFormOption(opt) {
+        if (!opt.id) return opt.text;
+        var $opt = $(opt.element);
+        return $(crm.klinikLabel(crm.esc(opt.text), $opt.data('color'), $opt.data('logo')));
+    }
+
+    // Sets the klinik without counting as the user's pick ("change.select2" only redraws select2)
     function setKlinik(id, hint) {
-        $('#klinikSelect').val(id ? String(id) : '');
+        $('#klinikSelect').val(id ? String(id) : '').trigger('change.select2');
         $('#klinikHint').text(hint || '');
         syncKategoriForKlinik();
     }
@@ -519,10 +554,12 @@ window.crmPasien.inits.followup = function () {
         return { start_date: range.start.format('YYYY-MM-DD'), end_date: range.end.format('YYYY-MM-DD'), klinik_id: $('#klinikFilter').val() };
     }
 
-    // Badge in a klinik's own color; no color / no klinik = grey
-    function klinikBadge(nama, color, extra) {
-        var style = color ? ' style="background:' + crm.esc(color) + ';color:#fff;"' : '';
-        return '<span class="badge ' + (color ? '' : 'badge-secondary ') + (extra || '') + '"' + style + '>' + nama + '</span>';
+    // A row of the Per klinik / Per kategori / Top sales cards: label, number(s) and a bar of `percent` in `color`
+    function breakdownRow(label, nums, percent, color, attrs, cls) {
+        return '<li class="crm-breakdown-row ' + (cls || '') + '" ' + (attrs || '') + '>'
+            + '<div class="crm-breakdown-head"><span class="crm-breakdown-name">' + label + '</span>' + nums + '</div>'
+            + '<div class="crm-breakdown-bar"><span style="width:' + Math.min(100, percent || 0) + '%;background:' + crm.esc(color || '#94a3b8') + ';"></span></div>'
+            + '</li>';
     }
 
     function rangeLabel() {
@@ -546,28 +583,34 @@ window.crmPasien.inits.followup = function () {
             $('#bookingMenunggu').text(res.menunggu ?? 0);
             $('#bookingBatal').text(res.batal ?? 0);
 
-            $('#kategoriStats').html($.map(res.per_kategori || {}, function (count, kategori) {
-                return '<span class="badge badge-' + (crm.kategoriColors[kategori] || 'secondary') + '">' + crm.esc(kategori) + ' ' + (count || 0) + '</span>';
-            }).join(''));
+            var share = function (n) { return res.count ? n / res.count * 100 : 0; };
+            var num = function (n) { return '<span class="crm-breakdown-num"><b>' + (n || 0) + '</b></span>'; };
 
+            // Per klinik ignores the klinik filter; the filtered one is highlighted, the others dimmed
             var selectedKlinik = $('#klinikFilter').val();
+            var klinikTotal = (res.per_klinik || []).reduce(function (sum, k) { return sum + k.jumlah; }, 0);
             $('#klinikStats').html((res.per_klinik || []).map(function (k) {
-                var active = String(k.id) === selectedKlinik ? ' crm-klinik-chip-active' : '';
-                return '<a href="#" class="crm-klinik-chip' + active + '" data-klinik="' + crm.esc(k.id) + '" title="Filter klinik ini">'
-                    + klinikBadge(crm.esc(k.nama) + ' ' + k.jumlah, k.color) + '</a>';
+                var state = !selectedKlinik ? '' : (String(k.id) === selectedKlinik ? ' is-active' : ' is-dim');
+                return breakdownRow(crm.klinikLabel(crm.esc(k.nama), k.color, k.logo), num(k.jumlah),
+                    klinikTotal ? k.jumlah / klinikTotal * 100 : 0, k.color,
+                    'data-klinik="' + crm.esc(k.id) + '" role="button" tabindex="0" title="Filter ' + crm.esc(k.nama) + '"', 'is-link' + state);
             }).join(''));
 
-            // Follow ups sent · bookings won (conversion)
-            var $list = $('#topSalesList').empty();
-            (res.top_sales || []).forEach(function (sale, i) {
-                $list.append($('<li>')
-                    .append($('<span class="crm-top-sales-name">').text((i + 1) + '. ' + sale.nama).attr('title', sale.nama))
-                    .append($('<span class="text-nowrap">')
-                        .attr('title', sale.jumlah + ' follow up, ' + sale.booking + ' booking (' + sale.persen + '%)')
-                        .append($('<b>').text(sale.jumlah))
-                        .append($('<span class="text-success ml-1">').text('· ' + sale.booking + ' (' + sale.persen + '%)'))));
+            var selectedKategori = $('#kategoriFilter').val() || [];
+            $('#kategoriStats').html($.map(res.per_kategori || {}, function (count, kategori) {
+                var state = !selectedKategori.length ? '' : (selectedKategori.indexOf(kategori) !== -1 ? ' is-active' : ' is-dim');
+                var dot = '<span class="crm-dot" style="background:' + crm.kategoriHex[kategori] + '"></span>';
+                return breakdownRow(dot + crm.esc(kategori), num(count), share(count), crm.kategoriHex[kategori],
+                    'data-kategori="' + crm.esc(kategori) + '" role="button" tabindex="0"', 'is-link' + state);
+            }).join(''));
+
+            // Follow ups sent and bookings won; the bar is the conversion
+            var sales = (res.top_sales || []).map(function (sale, i) {
+                var nums = '<span class="crm-breakdown-num"><b>' + sale.jumlah + '</b></span>'
+                    + '<span class="crm-breakdown-num ' + (sale.booking ? 'text-success' : 'crm-muted') + '"><b>' + sale.booking + '</b> <small>' + sale.persen + '%</small></span>';
+                return breakdownRow('<span class="crm-rank">' + (i + 1) + '</span><span title="' + crm.esc(sale.nama) + '">' + crm.esc(sale.nama) + '</span>', nums, sale.persen, '#22c55e');
             });
-            if (!$list.children().length) $list.append('<li class="text-muted">Belum ada</li>');
+            $('#topSalesList').html(sales.join('') || '<li class="crm-muted small">Belum ada</li>');
         });
     }
 
@@ -607,7 +650,8 @@ window.crmPasien.inits.followup = function () {
             } },
             { data: 'klinik_nama', name: 'erm_klinik.nama', orderable: false, searchable: false, render: function (data, type, row) {
                 if (type !== 'display') return data;
-                return data ? klinikBadge(data, row.klinik_color, 'crm-wrap text-left') : '<span class="badge badge-light text-muted">Belum ditentukan</span>';
+                return data ? crm.klinikLabel(data, row.klinik_color, $('<div>').html(row.klinik_logo || '').text())
+                    : '<span class="crm-klinik crm-muted"><span class="crm-klinik-logo is-initial is-empty">?</span><span class="crm-klinik-name">Belum ditentukan</span></span>';
             } },
             { data: 'kategori', name: 'marketing_follow_ups.kategori', orderable: false, searchable: false, render: function (data) {
                 var items = Array.isArray(data) ? data : (data ? [data] : []);
@@ -666,23 +710,48 @@ window.crmPasien.inits.followup = function () {
     });
 
     $('#kategoriFilter').select2({ placeholder: 'Semua kategori', allowClear: true, width: '100%' });
+    // Klinik options with their logo and color
+    $('#klinikFilter').select2({
+        width: '100%',
+        minimumResultsForSearch: Infinity,
+        templateResult: klinikOption,
+        templateSelection: klinikOption
+    });
+    function klinikOption(opt) {
+        if (!opt.id) return opt.text; // "Semua klinik"
+        var $opt = $(opt.element);
+        if (opt.id === 'none') return $('<span class="crm-klinik crm-muted"><span class="crm-klinik-logo is-initial is-empty">?</span><span class="crm-klinik-name">Belum ditentukan</span></span>');
+        return $(crm.klinikLabel(crm.esc(opt.text), $opt.data('color'), $opt.data('logo')));
+    }
     $('#klinikFilter, #kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function () {
         table.ajax.reload();
     });
 
-    // Per klinik chip toggles the klinik filter
-    $('#klinikStats').on('click', '.crm-klinik-chip', function (e) {
-        e.preventDefault();
-        var id = String($(this).data('klinik'));
-        $('#klinikFilter').val($('#klinikFilter').val() === id ? '' : id).trigger('change');
-    });
+    // Per klinik / Per kategori rows toggle that filter
+    function toggleBreakdown(row) {
+        var $row = $(row);
+        if ($row.data('klinik') !== undefined) {
+            var id = String($row.data('klinik'));
+            $('#klinikFilter').val($('#klinikFilter').val() === id ? '' : id).trigger('change');
+        } else if ($row.data('kategori') !== undefined) {
+            var kategori = String($row.data('kategori'));
+            var current = $('#kategoriFilter').val() || [];
+            $('#kategoriFilter').val(current.length === 1 && current[0] === kategori ? [] : [kategori]).trigger('change');
+        }
+    }
+    $('#klinikStats, #kategoriStats')
+        .on('click', '.crm-breakdown-row.is-link', function () { toggleBreakdown(this); })
+        .on('keydown', '.crm-breakdown-row.is-link', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBreakdown(this); }
+        });
 
     $('#followupResetFilter').on('click', function () {
         range = { start: moment(), end: moment() };
         $('#dateRange').data('daterangepicker').setStartDate(range.start);
         $('#dateRange').data('daterangepicker').setEndDate(range.end);
         $('#kategoriFilter').val(null).trigger('change.select2');
-        $('#klinikFilter, #statusResponFilter, #statusBookingFilter').val('');
+        $('#klinikFilter').val('').trigger('change.select2');
+        $('#statusResponFilter, #statusBookingFilter').val('');
         table.search('').ajax.reload();
     });
 
