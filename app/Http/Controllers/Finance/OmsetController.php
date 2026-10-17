@@ -81,6 +81,10 @@ class OmsetController extends Controller
                 'k.nama as klinik_nama', 'mb.nama as metode_bayar_nama',
             ])
             ->selectRaw('LEAST(COALESCE(fi.amount_paid, 0), fi.total_amount) as diterima')
+            // approved returs of the invoice (any period: they come off omset on their own approval day)
+            ->selectRaw('COALESCE(fi.retur_amount, 0) as retur')
+            ->selectRaw("(SELECT MAX(COALESCE(rr.processed_date, rr.created_at)) FROM finance_retur_pembelian rr
+                WHERE rr.invoice_id = fi.id AND rr.deleted_at IS NULL AND rr.status = 'approved') as retur_date")
             // the day the omset counts on (differs from the transaction date for service after midnight)
             ->selectRaw(Revenue::reportDateSql() . ' as tanggal_omset');
 
@@ -93,6 +97,9 @@ class OmsetController extends Controller
             ->orderColumn('total_amount', 'fi.total_amount $1')
             ->editColumn('transaction_date', fn ($row) => Carbon::parse($row->transaction_date)->format('Y-m-d H:i'))
             ->addColumn('sisa', fn ($row) => max(0, (float) $row->total_amount - (float) $row->diterima))
+            // received after the refund went back to the patient
+            ->editColumn('diterima', fn ($row) => (float) $row->diterima - (float) $row->retur)
+            ->editColumn('retur_date', fn ($row) => $row->retur_date ? Carbon::parse($row->retur_date)->toDateString() : null)
             ->addColumn('klinik_short', fn ($row) => Clinics::find($row->klinik_id)->short)
             ->make(true);
     }

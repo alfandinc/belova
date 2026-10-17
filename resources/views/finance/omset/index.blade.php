@@ -193,7 +193,7 @@
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="omz-card-title">Daftar Invoice</div>
-            <div class="omz-card-sub">Invoice yang dihitung sebagai omset pada periode dan klinik terpilih (sebelum dikurangi retur)</div>
+            <div class="omz-card-sub">Invoice yang dihitung sebagai omset pada periode dan klinik terpilih (Omset = nilai jual; retur dikurangi dari omset pada tanggal approve-nya)</div>
             <table id="omz-invoices" class="table table-sm table-bordered table-hover nowrap" style="width:100%;">
                 <thead class="thead-light">
                     <tr>
@@ -203,6 +203,7 @@
                         <th>Klinik</th>
                         <th>Metode Bayar</th>
                         <th class="text-right">Omset</th>
+                        <th class="text-right">Retur</th>
                         <th class="text-right">Diterima</th>
                         <th class="text-right">Sisa</th>
                     </tr>
@@ -490,6 +491,12 @@ $(function() {
             { data: 'klinik_nama', name: 'klinik_nama', render: function(v, t, r) { return esc(r.klinik_short || v || '-'); } },
             { data: 'metode_bayar_nama', name: 'metode_bayar_nama', render: function(v) { return esc(v || '-'); } },
             { data: 'total_amount', name: 'total_amount', searchable: false, className: 'text-right', render: function(v) { return '<span class="font-weight-bold">' + rp(v) + '</span>'; } },
+            { data: 'retur', name: 'retur', searchable: false, orderable: false, className: 'text-right text-nowrap', render: function(v, t, r) {
+                if (!(v > 0)) return '-';
+                // the retur comes off omset on its approval day (may be another period than the invoice)
+                return '<span class="text-danger font-weight-bold">&minus; ' + rp(v) + '</span>'
+                    + (r.retur_date ? '<br><small class="text-muted">di-approve ' + esc(moment(r.retur_date).format('D MMM YYYY')) + '</small>' : '');
+            } },
             { data: 'diterima', name: 'diterima', searchable: false, orderable: false, className: 'text-right', render: function(v) { return rp(v); } },
             { data: 'sisa', name: 'sisa', searchable: false, orderable: false, className: 'text-right', render: function(v) { return v > 0 ? '<span class="text-danger font-weight-bold">' + rp(v) + '</span>' : '-'; } }
         ],
