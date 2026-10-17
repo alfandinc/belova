@@ -160,6 +160,7 @@ class BirthdayController extends Controller
         if ($greeting->wasRecentlyCreated) {
             FollowUp::create([
                 'pasien_id' => $request->pasien_id,
+                'klinik_id' => FollowUp::lastKlinikId($request->pasien_id),
                 'kategori' => json_encode([FollowUp::KATEGORI_ULANG_TAHUN]),
                 'sales_id' => Auth::user()->employee->id ?? null,
                 'status_respon' => 'Menunggu', // greeting sent, reply not in yet

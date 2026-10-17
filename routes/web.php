@@ -1846,6 +1846,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('followup/count-today', [\App\Http\Controllers\Marketing\FollowUpController::class, 'countToday'])->name('marketing.followup.count-today');
     Route::get('followup/{id}', [\App\Http\Controllers\Marketing\FollowUpController::class, 'show'])->name('marketing.followup.show');
     Route::put('followup/{id}', [\App\Http\Controllers\Marketing\FollowUpController::class, 'update'])->name('marketing.followup.update');
+    Route::patch('followup/{id}/respon', [\App\Http\Controllers\Marketing\FollowUpController::class, 'updateRespon'])->name('marketing.followup.update-respon');
     Route::delete('followup/{id}', [\App\Http\Controllers\Marketing\FollowUpController::class, 'destroy'])->name('marketing.followup.destroy');
     // Route::get('followup/count-today', [\App\Http\Controllers\Marketing\FollowUpController::class, 'countToday'])->name('marketing.followup.count-today');
     // AJAX: Riwayat RM by pasien

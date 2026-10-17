@@ -21,6 +21,10 @@
     .crm-chips .btn { border-radius: 999px; }
     .crm-chips .badge { font-size: 11px; padding: 4px 8px; }
     .crm-stats-row { row-gap: 10px; }
+    /* Per klinik stat: each klinik filters the table; the filtered one is ringed */
+    .crm-klinik-chip { border-radius: 4px; text-decoration: none !important; }
+    .crm-klinik-chip:not(.crm-klinik-chip-active) .badge { opacity: .85; }
+    .crm-klinik-chip-active .badge { box-shadow: 0 0 0 2px rgba(30, 136, 229, .55); }
     /* Kategori toggles: outlined until chosen, filled when chosen (--chip = the kategori colour) */
     .crm-chip-toggle { border: 1px solid var(--chip); color: var(--chip); background: transparent; font-weight: 600; }
     .crm-chip-toggle:hover { color: var(--chip); background: rgba(148, 163, 184, .12); }
@@ -80,7 +84,7 @@ window.crmPasien = {
         return '<a class="crm-wa" href="https://wa.me/' + number + '" target="_blank" rel="noopener" title="Chat WhatsApp">'
             + '<i class="fab fa-whatsapp mr-1"></i>' + phoneHtml + '</a>';
     },
-    // Opens the shared Daftarkan Kunjungan modal for a follow up ({id, pasien_id, pasien_nama, label})
+    // Opens the shared Daftarkan Kunjungan modal for a follow up ({id, pasien_id, pasien_nama, klinik_id, label})
     registerVisit: function (followUp) {
         if (typeof window.openDaftarKunjunganModal !== 'function') {
             Swal.fire('Tidak tersedia', 'Form pendaftaran kunjungan belum siap, muat ulang halaman.', 'error');
@@ -90,6 +94,7 @@ window.crmPasien = {
             jenis: 'konsultasi',
             pasienId: followUp.pasien_id,
             pasienNama: followUp.pasien_nama,
+            klinikId: followUp.klinik_id || '',
             followUpId: followUp.id,
             followUpLabel: followUp.label || ''
         });

@@ -1,10 +1,21 @@
 {{-- Tab "Follow Up": follow up log with stats; its form is also opened from the Pasien tab and the page header --}}
 @php
-    $followUpKategori = ['Produk' => 'primary', 'Perawatan' => 'pink', 'Reseller' => 'warning', 'Slimming' => 'purple', 'Ulang Tahun' => 'info'];
+    // Kategori => badge color; which klinik offers each one is in FollowUp::KATEGORI
+    $followUpKategori = array_map(fn ($k) => $k['color'], \App\Models\Marketing\FollowUp::KATEGORI);
 @endphp
 <div class="card">
     <div class="card-body">
         <div class="crm-toolbar mb-3">
+            <div class="crm-field">
+                <label for="klinikFilter">Klinik</label>
+                <select id="klinikFilter" class="form-control">
+                    <option value="">Semua klinik</option>
+                    @foreach($kliniks as $klinik)
+                        <option value="{{ $klinik->id }}">{{ \App\Models\ERM\Klinik::shortName($klinik->nama) }}</option>
+                    @endforeach
+                    <option value="none">Belum ditentukan</option>
+                </select>
+            </div>
             <div class="crm-field crm-field-wide">
                 <label for="dateRange">Tanggal follow up</label>
                 <input type="text" id="dateRange" class="form-control" autocomplete="off" readonly>
@@ -79,13 +90,20 @@
             </div>
             <div class="col-6 col-md-4 col-xl">
                 <div class="card crm-stat"><div class="card-body">
+                    <div class="crm-stat-label mb-1">Per klinik</div>
+                    {{-- Clicking a klinik filters the table by it --}}
+                    <div class="crm-chips" id="klinikStats"></div>
+                </div></div>
+            </div>
+            <div class="col-6 col-md-4 col-xl">
+                <div class="card crm-stat"><div class="card-body">
                     <div class="crm-stat-label mb-1">Per kategori</div>
                     <div class="crm-chips" id="kategoriStats"></div>
                 </div></div>
             </div>
             <div class="col-6 col-md-4 col-xl">
                 <div class="card crm-stat"><div class="card-body">
-                    <div class="crm-stat-label mb-1">Top sales</div>
+                    <div class="crm-stat-label mb-1">Top sales <span class="text-lowercase font-weight-normal">(fu · booking)</span></div>
                     <ul id="topSalesList" class="list-unstyled mb-0 small crm-top-sales"></ul>
                 </div></div>
             </div>
@@ -96,11 +114,12 @@
                 <tr>
                     <th>Tanggal</th>
                     <th>Pasien</th>
+                    <th>Klinik</th>
                     <th>Kategori</th>
                     <th>Sales</th>
                     <th>Respon</th>
                     <th>Booking</th>
-                    <th>Rencana / Catatan</th>
+                    <th>Catatan</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -131,24 +150,39 @@
             </div>
             <div class="col-md-6">
               <div class="form-group">
-                <label class="d-block">Kategori <span class="text-danger">*</span> <small class="text-muted">(boleh lebih dari satu)</small></label>
-                <div class="btn-group-toggle crm-chips" data-toggle="buttons" id="kategoriGroup">
-                  @foreach($followUpKategori as $kategori => $color)
-                      <label class="btn btn-sm crm-chip-toggle" style="--chip: {{ ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8'][$color] }};">
-                          <input type="checkbox" name="kategori[]" value="{{ $kategori }}" autocomplete="off">{{ $kategori }}
-                      </label>
+                <label for="klinikSelect">Klinik <span class="text-danger">*</span></label>
+                <select id="klinikSelect" name="klinik_id" class="form-control">
+                  <option value="">Pilih klinik</option>
+                  @foreach($kliniks as $klinik)
+                      <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
                   @endforeach
-                </div>
+                </select>
+                <small class="form-text text-muted" id="klinikHint">Otomatis dari kunjungan terakhir pasien.</small>
               </div>
             </div>
           </div>
           <div class="row">
             <div class="col-md-6">
               <div class="form-group">
+                <label class="d-block">Kategori <span class="text-danger">*</span> <small class="text-muted">(boleh lebih dari satu)</small></label>
+                <div class="btn-group-toggle crm-chips" data-toggle="buttons" id="kategoriGroup">
+                  @foreach(\App\Models\Marketing\FollowUp::KATEGORI as $kategori => $opt)
+                      <label class="btn btn-sm crm-chip-toggle" style="--chip: {{ ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8'][$opt['color']] ?? '#6c757d' }};"
+                             data-kliniks="{{ $opt['kliniks'] === null ? '' : implode(',', $opt['kliniks']) }}">
+                          <input type="checkbox" name="kategori[]" value="{{ $kategori }}" autocomplete="off">{{ $kategori }}
+                      </label>
+                  @endforeach
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
                 <label for="salesSelect">Sales</label>
                 <select id="salesSelect" name="sales_id" class="form-control" style="width:100%"></select>
               </div>
             </div>
+          </div>
+          <div class="row">
             <div class="col-md-6">
               <div class="form-group">
                 <label class="d-block">Status Respon <span class="text-danger">*</span></label>
@@ -158,17 +192,17 @@
                   <label class="btn btn-outline-warning"><input type="radio" name="status_respon" value="Menunggu" autocomplete="off">Menunggu</label>
                 </div>
               </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label class="d-block">Status Booking</label>
-                <div class="btn-group btn-group-toggle w-100" data-toggle="buttons" id="statusBookingGroup">
-                  <label class="btn btn-outline-success"><input type="radio" name="status_booking" value="Sukses" autocomplete="off">Sukses</label>
-                  <label class="btn btn-outline-warning"><input type="radio" name="status_booking" value="Menunggu" autocomplete="off">Menunggu</label>
-                  <label class="btn btn-outline-danger"><input type="radio" name="status_booking" value="Batal" autocomplete="off">Batal</label>
+              {{-- Edit only: booking turns Sukses by itself when the pasien's visit is registered; by hand only "Batal" --}}
+              <div class="form-group d-none" id="bookingEditWrap">
+                <label class="d-block mb-1">Booking: <span id="bookingCurrent"></span></label>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="bookingBatal" name="booking_batal" value="1">
+                  <label class="custom-control-label" for="bookingBatal">Pasien menolak / booking batal</label>
                 </div>
+              </div>
+              <div class="form-group mb-md-0">
+                <label for="catatan">Catatan</label>
+                <textarea class="form-control" name="catatan" id="catatan" rows="4" placeholder="Rencana tindak lanjut, hasil percakapan, dll."></textarea>
               </div>
             </div>
             <div class="col-md-6">
@@ -188,20 +222,6 @@
                   <small class="text-muted" id="buktiInfo"></small>
                   <button type="button" class="btn btn-link btn-sm text-danger p-0 d-none" id="buktiClear"><i class="fas fa-times mr-1"></i>Hapus gambar</button>
                 </div>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group mb-md-0">
-                <label for="rencana_tindak_lanjut">Rencana Tindak Lanjut</label>
-                <textarea class="form-control" name="rencana_tindak_lanjut" id="rencana_tindak_lanjut" rows="3"></textarea>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group mb-0">
-                <label for="catatan">Catatan</label>
-                <textarea class="form-control" name="catatan" id="catatan" rows="3"></textarea>
               </div>
             </div>
           </div>
@@ -296,7 +316,43 @@ $(function () {
         $('#followup_id').val('');
         clearBukti();
         setToggle($('#kategoriGroup'), null);
+        $('#bookingEditWrap').addClass('d-none');
+        klinikPicked = false;
+        setKlinik('', 'Otomatis dari kunjungan terakhir pasien.');
     }
+
+    // Kategori offered for the chosen klinik; a checked one stays visible (older follow ups)
+    function syncKategoriForKlinik() {
+        var klinikId = $('#klinikSelect').val();
+        $('#kategoriGroup label').each(function () {
+            var kliniks = String($(this).data('kliniks') || '');
+            var offered = !kliniks || !klinikId || kliniks.split(',').indexOf(klinikId) !== -1;
+            $(this).toggleClass('d-none', !offered && !$(this).find('input').prop('checked'));
+        });
+    }
+
+    var klinikPicked = false; // the user chose the klinik: stop filling it from the pasien
+
+    function setKlinik(id, hint) {
+        $('#klinikSelect').val(id ? String(id) : '');
+        $('#klinikHint').text(hint || '');
+        syncKategoriForKlinik();
+    }
+    $('#klinikSelect').on('change', function () {
+        klinikPicked = true;
+        $('#klinikHint').text('');
+        syncKategoriForKlinik();
+    });
+
+    // New follow up: default klinik = the pasien's last visit
+    $('#pasienSelect').on('change', function () {
+        var pasienId = $(this).val();
+        if (!pasienId || $('#followup_id').val() || klinikPicked) return;
+        $.get("{{ route('marketing.followup.pasien-search') }}", { id: pasienId }, function (res) {
+            if ($('#pasienSelect').val() !== pasienId || klinikPicked) return;
+            setKlinik(res.last_klinik_id, res.last_klinik_id ? 'Dari kunjungan terakhir pasien.' : 'Pasien belum pernah berkunjung, pilih klinik.');
+        });
+    });
 
     // ---- Bukti respon: paste / drop / pick ----
     var buktiInput = document.getElementById('bukti_respon');
@@ -378,7 +434,6 @@ $(function () {
         setSelectOption($('#pasienSelect'), pasien && pasien.id, pasien && (pasien.nama + ' (' + pasien.id + ')'));
         setSelectOption($('#salesSelect'), defaultSales && defaultSales.id, defaultSales && defaultSales.nama);
         setToggle($('#statusResponGroup'), 'Menunggu'); // just contacted, reply not in yet
-        setToggle($('#statusBookingGroup'), 'Menunggu');
         $('#followupModalLabel').text(pasien ? 'Follow Up: ' + pasien.nama : 'Tambah Follow Up');
         $('#followupModal').modal('show');
     };
@@ -394,10 +449,15 @@ $(function () {
                 try { kategori = JSON.parse(kategori); } catch (e) { kategori = [kategori]; }
             }
             setToggle($('#kategoriGroup'), kategori);
+            setKlinik(data.klinik_id, data.klinik_id ? '' : 'Follow up lama: klinik belum ditentukan, pilih klinik.');
             setToggle($('#statusResponGroup'), data.status_respon);
-            setToggle($('#statusBookingGroup'), data.status_booking);
-            $('#rencana_tindak_lanjut').val(data.rencana_tindak_lanjut);
-            $('#catatan').val(data.catatan);
+            // Booking: shown read-only, Batal is the only manual change (Sukses comes from the visit)
+            var booking = data.status_booking || 'Menunggu';
+            $('#bookingCurrent').html('<span class="badge badge-' + ({ 'Sukses': 'success', 'Batal': 'danger' }[booking] || 'warning') + '">' + crm.esc(booking) + '</span>');
+            $('#bookingBatal').prop('checked', booking === 'Batal');
+            $('#bookingEditWrap').toggleClass('d-none', booking === 'Sukses');
+            // Old follow ups had a separate Rencana; it is merged into Catatan when saved
+            $('#catatan').val([data.rencana_tindak_lanjut, data.catatan].filter(Boolean).join('\n'));
             if (data.bukti_respon) {
                 showBukti(data.bukti_respon, 'Bukti tersimpan. Tempel / pilih gambar lain untuk mengganti.');
             }
@@ -413,6 +473,7 @@ $(function () {
         // The same checks the server makes, without a round trip
         var missing = [];
         if (!$('#pasienSelect').val()) missing.push('Pasien');
+        if (!$('#klinikSelect').val()) missing.push('Klinik');
         if (!$('#kategoriGroup input:checked').length) missing.push('Kategori');
         if (!$('input[name=status_respon]:checked').length) missing.push('Status Respon');
         if (missing.length) {
@@ -431,32 +492,10 @@ $(function () {
             processData: false,
             contentType: false,
             success: function (res) {
-                var booked = $('input[name=status_booking]:checked').val() === 'Sukses';
-                var pasien = $('#pasienSelect').select2('data')[0] || {};
                 $('#followupModal').modal('hide');
                 crm.reload('followup');
                 crm.reload('pasien'); // FU 7 hari column
-                if (!booked || !res.id) {
-                    Swal.fire({ icon: 'success', title: res.message, timer: 1500, showConfirmButton: false });
-                    return;
-                }
-                // Booking Sukses: register the visit right away, referral = this follow up
-                Swal.fire({
-                    icon: 'success',
-                    title: res.message,
-                    text: 'Booking sukses. Daftarkan kunjungan pasien sekarang?',
-                    showCancelButton: true,
-                    confirmButtonText: 'Daftarkan Kunjungan',
-                    cancelButtonText: 'Nanti'
-                }).then(function (result) {
-                    if (!result.value) return;
-                    crm.registerVisit({
-                        id: res.id,
-                        pasien_id: $('#pasienSelect').val() || pasien.id,
-                        pasien_nama: (pasien.text || '').replace(/\s*\([^)]*\)\s*$/, ''),
-                        label: moment().format('DD/MM/YYYY') + ' (baru)'
-                    });
-                });
+                Swal.fire({ icon: 'success', title: res.message, timer: 1500, showConfirmButton: false });
             },
             error: function (xhr) {
                 var msg = 'Terjadi kesalahan';
@@ -477,7 +516,13 @@ window.crmPasien.inits.followup = function () {
     var range = { start: moment(), end: moment() };
 
     function dateParams() {
-        return { start_date: range.start.format('YYYY-MM-DD'), end_date: range.end.format('YYYY-MM-DD') };
+        return { start_date: range.start.format('YYYY-MM-DD'), end_date: range.end.format('YYYY-MM-DD'), klinik_id: $('#klinikFilter').val() };
+    }
+
+    // Badge in a klinik's own color; no color / no klinik = grey
+    function klinikBadge(nama, color, extra) {
+        var style = color ? ' style="background:' + crm.esc(color) + ';color:#fff;"' : '';
+        return '<span class="badge ' + (color ? '' : 'badge-secondary ') + (extra || '') + '"' + style + '>' + nama + '</span>';
     }
 
     function rangeLabel() {
@@ -501,19 +546,26 @@ window.crmPasien.inits.followup = function () {
             $('#bookingMenunggu').text(res.menunggu ?? 0);
             $('#bookingBatal').text(res.batal ?? 0);
 
-            var perKategori = {
-                'Produk': res.kategori_produk, 'Perawatan': res.kategori_perawatan, 'Reseller': res.kategori_reseller,
-                'Slimming': res.kategori_slimming, 'Ulang Tahun': res.kategori_ulang_tahun
-            };
-            $('#kategoriStats').html($.map(perKategori, function (count, kategori) {
-                return '<span class="badge badge-' + crm.kategoriColors[kategori] + '">' + crm.esc(kategori) + ' ' + (count || 0) + '</span>';
+            $('#kategoriStats').html($.map(res.per_kategori || {}, function (count, kategori) {
+                return '<span class="badge badge-' + (crm.kategoriColors[kategori] || 'secondary') + '">' + crm.esc(kategori) + ' ' + (count || 0) + '</span>';
             }).join(''));
 
+            var selectedKlinik = $('#klinikFilter').val();
+            $('#klinikStats').html((res.per_klinik || []).map(function (k) {
+                var active = String(k.id) === selectedKlinik ? ' crm-klinik-chip-active' : '';
+                return '<a href="#" class="crm-klinik-chip' + active + '" data-klinik="' + crm.esc(k.id) + '" title="Filter klinik ini">'
+                    + klinikBadge(crm.esc(k.nama) + ' ' + k.jumlah, k.color) + '</a>';
+            }).join(''));
+
+            // Follow ups sent · bookings won (conversion)
             var $list = $('#topSalesList').empty();
             (res.top_sales || []).forEach(function (sale, i) {
                 $list.append($('<li>')
                     .append($('<span class="crm-top-sales-name">').text((i + 1) + '. ' + sale.nama).attr('title', sale.nama))
-                    .append($('<b>').text(sale.jumlah)));
+                    .append($('<span class="text-nowrap">')
+                        .attr('title', sale.jumlah + ' follow up, ' + sale.booking + ' booking (' + sale.persen + '%)')
+                        .append($('<b>').text(sale.jumlah))
+                        .append($('<span class="text-success ml-1">').text('· ' + sale.booking + ' (' + sale.persen + '%)'))));
             });
             if (!$list.children().length) $list.append('<li class="text-muted">Belum ada</li>');
         });
@@ -523,6 +575,8 @@ window.crmPasien.inits.followup = function () {
         range = { start: start, end: end };
         table.ajax.reload();
     });
+
+    var responColors = { 'Direspon': 'success', 'Tidak Direspon': 'danger', 'Menunggu': 'warning' };
 
     function badge(value, colors) {
         if (!value) return '<span class="text-muted">-</span>';
@@ -551,6 +605,10 @@ window.crmPasien.inits.followup = function () {
                 if (type !== 'display') return data;
                 return '<div class="crm-person-name">' + (data || '-') + '</div><div class="crm-muted-id">' + row.pasien_id + '</div>';
             } },
+            { data: 'klinik_nama', name: 'erm_klinik.nama', orderable: false, searchable: false, render: function (data, type, row) {
+                if (type !== 'display') return data;
+                return data ? klinikBadge(data, row.klinik_color, 'crm-wrap text-left') : '<span class="badge badge-light text-muted">Belum ditentukan</span>';
+            } },
             { data: 'kategori', name: 'marketing_follow_ups.kategori', orderable: false, searchable: false, render: function (data) {
                 var items = Array.isArray(data) ? data : (data ? [data] : []);
                 return items.map(function (item) {
@@ -558,30 +616,34 @@ window.crmPasien.inits.followup = function () {
                 }).join('') || '<span class="text-muted">-</span>';
             } },
             { data: 'sales_nama', name: 'sales_nama', defaultContent: '-' },
-            { data: 'status_respon', name: 'marketing_follow_ups.status_respon', render: function (data) {
-                return badge(data, { 'Direspon': 'success', 'Tidak Direspon': 'danger', 'Menunggu': 'warning' });
+            { data: 'status_respon', name: 'marketing_follow_ups.status_respon', render: function (data, type) {
+                if (type !== 'display') return data;
+                // The badge is a button: one click to change the reply status
+                return '<button type="button" class="btn btn-link p-0 responBtn" title="Ubah status respon">'
+                    + badge(data || 'Menunggu', responColors) + ' <i class="fas fa-pen small text-muted"></i></button>';
             } },
             { data: 'status_booking', name: 'marketing_follow_ups.status_booking', render: function (data) {
                 return badge(data, { 'Sukses': 'success', 'Menunggu': 'warning', 'Batal': 'danger' });
             } },
-            { data: 'rencana_tindak_lanjut', name: 'marketing_follow_ups.rencana_tindak_lanjut', orderable: false, className: 'crm-wrap', render: function (data, type, row) {
+            // Catatan; old follow ups may still have a separate Rencana, shown above it
+            { data: 'catatan', name: 'marketing_follow_ups.catatan', orderable: false, className: 'crm-wrap', render: function (data, type, row) {
                 if (type !== 'display') return data;
-                var parts = [];
-                if (data) parts.push('<div>' + data + '</div>');
-                if (row.catatan) parts.push('<div class="small text-muted">' + row.catatan + '</div>');
-                return parts.join('') || '<span class="text-muted">-</span>';
+                var text = [row.rencana_tindak_lanjut, data].filter(Boolean).join('<br>');
+                return text ? '<div class="small">' + text.replace(/\n/g, '<br>') + '</div>' : '<span class="text-muted">-</span>';
             } },
             { data: null, orderable: false, searchable: false, className: 'crm-actions-cell', render: function (data, type, row) {
-                // Booked visit: show its date; otherwise offer to register one (referral = this follow up)
+                // Booked visit: show its date; booked another way (auto Sukses): say so; otherwise offer to register one
                 var visit = row.visit_date
                     ? '<span class="badge badge-success mr-1" title="Kunjungan terdaftar dari follow up ini"><i class="fas fa-calendar-check mr-1"></i>Terdaftar ' + row.visit_date + '</span><br class="d-xl-none">'
-                    : (row.status_booking === 'Batal' ? '' : '<button type="button" class="btn btn-sm btn-success registerVisitBtn"><i class="fas fa-calendar-plus mr-1"></i>Daftarkan</button> ');
+                    : row.status_booking === 'Sukses'
+                        ? '<span class="badge badge-success mr-1" title="Pasien sudah mendaftar kunjungan"><i class="fas fa-calendar-check mr-1"></i>Sudah booking</span><br class="d-xl-none">'
+                        : (row.status_booking === 'Batal' ? '' : '<button type="button" class="btn btn-sm btn-success registerVisitBtn"><i class="fas fa-calendar-plus mr-1"></i>Daftarkan</button> ');
                 return visit
                     + '<button type="button" class="btn btn-sm btn-outline-primary editBtn" data-id="' + row.id + '"><i class="fas fa-pen mr-1"></i>Edit</button> '
                     + '<button type="button" class="btn btn-sm btn-outline-danger deleteBtn" data-id="' + row.id + '"><i class="fas fa-trash mr-1"></i>Hapus</button>';
             } },
-            // Searchable only: lets the search box match catatan too
-            { data: 'catatan', name: 'marketing_follow_ups.catatan', visible: false, orderable: false }
+            // Searchable only: lets the search box match old Rencana text too
+            { data: 'rencana_tindak_lanjut', name: 'marketing_follow_ups.rencana_tindak_lanjut', visible: false, orderable: false }
         ],
         drawCallback: function () {
             updateStats();
@@ -604,8 +666,15 @@ window.crmPasien.inits.followup = function () {
     });
 
     $('#kategoriFilter').select2({ placeholder: 'Semua kategori', allowClear: true, width: '100%' });
-    $('#kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function () {
+    $('#klinikFilter, #kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function () {
         table.ajax.reload();
+    });
+
+    // Per klinik chip toggles the klinik filter
+    $('#klinikStats').on('click', '.crm-klinik-chip', function (e) {
+        e.preventDefault();
+        var id = String($(this).data('klinik'));
+        $('#klinikFilter').val($('#klinikFilter').val() === id ? '' : id).trigger('change');
     });
 
     $('#followupResetFilter').on('click', function () {
@@ -613,7 +682,7 @@ window.crmPasien.inits.followup = function () {
         $('#dateRange').data('daterangepicker').setStartDate(range.start);
         $('#dateRange').data('daterangepicker').setEndDate(range.end);
         $('#kategoriFilter').val(null).trigger('change.select2');
-        $('#statusResponFilter, #statusBookingFilter').val('');
+        $('#klinikFilter, #statusResponFilter, #statusBookingFilter').val('');
         table.search('').ajax.reload();
     });
 
@@ -625,7 +694,37 @@ window.crmPasien.inits.followup = function () {
             id: row.id,
             pasien_id: $('<div>').html(row.pasien_id).text(),
             pasien_nama: nama,
+            klinik_id: row.klinik_id,
             label: $('<div>').html(row.tanggal + (row.sales_nama ? ' · ' + row.sales_nama : '')).text()
+        });
+    });
+
+    $('#followupTable').on('click', '.responBtn', function () {
+        var row = table.row($(this).closest('tr')).data();
+        if (!row) return;
+        Swal.fire({
+            title: 'Status respon',
+            text: $('<div>').html(row.pasien_nama || '').text(),
+            input: 'radio',
+            inputOptions: { 'Direspon': 'Direspon', 'Tidak Direspon': 'Tidak Direspon', 'Menunggu': 'Menunggu' },
+            inputValue: row.status_respon || 'Menunggu',
+            showCancelButton: true,
+            confirmButtonText: 'Simpan',
+            cancelButtonText: 'Batal'
+        }).then(function (result) {
+            if (!result.value || result.value === row.status_respon) return;
+            $.ajax({
+                url: '/marketing/followup/' + row.id + '/respon',
+                type: 'POST',
+                data: { _method: 'PATCH', status_respon: result.value },
+                success: function (res) {
+                    table.ajax.reload(null, false);
+                    Swal.fire({ icon: 'success', title: res.message, timer: 1200, showConfirmButton: false });
+                },
+                error: function () {
+                    Swal.fire('Error', 'Gagal mengubah status respon', 'error');
+                }
+            });
         });
     });
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Marketing\FollowUp;
 use App\Models\ERM\Pasien;
+use App\Models\ERM\Klinik;
 use App\Models\HRD\Employee;
 use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\DataTables;
@@ -19,7 +20,8 @@ class FollowUpController extends Controller
             $data = $this->filtered(FollowUp::query(), $request)
                 ->leftJoin('erm_pasiens', 'erm_pasiens.id', '=', 'marketing_follow_ups.pasien_id')
                 ->leftJoin('hrd_employee', 'hrd_employee.id', '=', 'marketing_follow_ups.sales_id')
-                ->select('marketing_follow_ups.*', 'erm_pasiens.nama as pasien_nama', 'hrd_employee.nama as sales_nama')
+                ->leftJoin('erm_klinik', 'erm_klinik.id', '=', 'marketing_follow_ups.klinik_id')
+                ->select('marketing_follow_ups.*', 'erm_pasiens.nama as pasien_nama', 'hrd_employee.nama as sales_nama', 'erm_klinik.nama as klinik_nama', 'erm_klinik.color as klinik_color')
                 // Visit booked from this follow up (Daftarkan Kunjungan with referral "Follow Up")
                 ->addSelect(['visit_date' => \App\Models\ERM\Visitation::select('tanggal_visitation')
                     ->where('referral_type', \App\Models\ERM\Pasien::REFERRAL_TYPE_FOLLOW_UP)
@@ -52,6 +54,7 @@ class FollowUpController extends Controller
                 ->orderColumn('pasien_nama', 'erm_pasiens.nama $1')
                 ->orderColumn('sales_nama', 'hrd_employee.nama $1')
                 ->editColumn('kategori', fn ($row) => json_decode($row->kategori, true) ?: [])
+                ->editColumn('klinik_nama', fn ($row) => $row->klinik_nama ? Klinik::shortName($row->klinik_nama) : null)
                 ->addColumn('tanggal', fn ($row) => $row->created_at ? $row->created_at->format('d/m/Y H:i') : '-')
                 ->editColumn('visit_date', fn ($row) => $row->visit_date ? \Carbon\Carbon::parse($row->visit_date)->format('d/m/Y') : null)
                 ->make(true);
@@ -61,7 +64,7 @@ class FollowUpController extends Controller
     }
 
     /** Follow ups created within start_date..end_date (whole days, today when not given). */
-    private function filtered($query, Request $request)
+    private function inDateRange($query, Request $request)
     {
         $start = $request->input('start_date') ?: now()->toDateString();
         $end = $request->input('end_date') ?: $start;
@@ -72,20 +75,41 @@ class FollowUpController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    /** inDateRange plus the klinik filter: a klinik id, "none" (not set yet) or empty for every klinik. */
+    private function filtered($query, Request $request)
     {
-        $validated = $request->validate([
+        $this->inDateRange($query, $request);
+        $klinik = $request->input('klinik_id');
+        if ($klinik === 'none') {
+            $query->whereNull('marketing_follow_ups.klinik_id');
+        } elseif ($klinik) {
+            $query->where('marketing_follow_ups.klinik_id', $klinik);
+        }
+        return $query;
+    }
+
+    private function rules(): array
+    {
+        return [
             'pasien_id' => 'required|exists:erm_pasiens,id',
+            'klinik_id' => 'required|exists:erm_klinik,id',
             'kategori' => 'required|array|min:1',
-            'kategori.*' => 'string',
+            'kategori.*' => 'string|in:' . implode(',', array_keys(FollowUp::KATEGORI)),
             'sales_id' => 'nullable|exists:hrd_employee,id',
             'status_respon' => 'required|in:' . implode(',', FollowUp::STATUS_RESPON),
             'bukti_respon' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
-            'rencana_tindak_lanjut' => 'nullable|string',
-            'status_booking' => 'nullable|string',
             'catatan' => 'nullable|string',
-        ]);
+            'booking_batal' => 'nullable|boolean',
+        ];
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate($this->rules(), [], ['klinik_id' => 'klinik']);
         $validated['kategori'] = json_encode($validated['kategori']);
+        // A new follow up waits for its booking; the pasien's visit turns it Sukses (FollowUp::markBookedBy)
+        unset($validated['booking_batal']);
+        $validated['status_booking'] = 'Menunggu';
         if ($request->hasFile('bukti_respon')) {
             $file = $request->file('bukti_respon');
             $path = $file->store('marketing/followup', 'public');
@@ -97,25 +121,26 @@ class FollowUpController extends Controller
 
     public function show($id)
     {
-        $followup = FollowUp::with(['pasien', 'sales'])->findOrFail($id);
+        $followup = FollowUp::with(['pasien', 'sales', 'klinik'])->findOrFail($id);
         return response()->json($followup);
     }
 
     public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'pasien_id' => 'required|exists:erm_pasiens,id',
-            'kategori' => 'required|array|min:1',
-            'kategori.*' => 'string',
-            'sales_id' => 'nullable|exists:hrd_employee,id',
-            'status_respon' => 'required|in:' . implode(',', FollowUp::STATUS_RESPON),
-            'bukti_respon' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
-            'rencana_tindak_lanjut' => 'nullable|string',
-            'status_booking' => 'nullable|string',
-            'catatan' => 'nullable|string',
-        ]);
+        $validated = $request->validate($this->rules(), [], ['klinik_id' => 'klinik']);
         $validated['kategori'] = json_encode($validated['kategori']);
         $followup = FollowUp::findOrFail($id);
+
+        // Booking by hand is only Batal (or undoing it); Sukses is left to the visit
+        unset($validated['booking_batal']);
+        if ($request->boolean('booking_batal')) {
+            $validated['status_booking'] = 'Batal';
+        } elseif ($followup->status_booking === 'Batal' || !$followup->status_booking) {
+            $validated['status_booking'] = 'Menunggu';
+        }
+        // The form's one Catatan already holds the old Rencana text (merged when the form loaded)
+        $validated['rencana_tindak_lanjut'] = null;
+
         if ($request->hasFile('bukti_respon')) {
             $file = $request->file('bukti_respon');
             $path = $file->store('marketing/followup', 'public');
@@ -125,6 +150,14 @@ class FollowUpController extends Controller
         }
         $followup->update($validated);
         return response()->json(['success' => true, 'message' => 'Follow up berhasil diupdate', 'id' => $followup->id]);
+    }
+
+    /** Status respon only: the one-click change from the table's Respon badge. */
+    public function updateRespon(Request $request, $id)
+    {
+        $validated = $request->validate(['status_respon' => 'required|in:' . implode(',', FollowUp::STATUS_RESPON)]);
+        FollowUp::findOrFail($id)->update($validated);
+        return response()->json(['success' => true, 'message' => 'Respon: ' . $validated['status_respon']]);
     }
 
     public function destroy($id)
@@ -137,6 +170,11 @@ class FollowUpController extends Controller
     // AJAX search pasien for select2
     public function pasienSearch(Request $request)
     {
+        // One pasien by id: its last visit's klinik, the default klinik of a new follow up
+        if ($request->filled('id')) {
+            return response()->json(['last_klinik_id' => FollowUp::lastKlinikId($request->input('id'))]);
+        }
+
         // By name or No RM
         $search = $request->input('search');
         $query = Pasien::query();
@@ -165,30 +203,45 @@ class FollowUpController extends Controller
         $countSukses = (clone $baseQuery)->where('status_booking', 'Sukses')->count();
         
         // Kategori counts (JSON field)
-        $kategoriProduk = (clone $baseQuery)->whereJsonContains('kategori', 'Produk')->count();
-        $kategoriPerawatan = (clone $baseQuery)->whereJsonContains('kategori', 'Perawatan')->count();
-        $kategoriReseller = (clone $baseQuery)->whereJsonContains('kategori', 'Reseller')->count();
-        $kategoriSlimming = (clone $baseQuery)->whereJsonContains('kategori', 'Slimming')->count();
-        $kategoriUlangTahun = (clone $baseQuery)->whereJsonContains('kategori', FollowUp::KATEGORI_ULANG_TAHUN)->count();
+        $perKategori = [];
+        foreach (array_keys(FollowUp::KATEGORI) as $kategori) {
+            $perKategori[$kategori] = (clone $baseQuery)->whereJsonContains('kategori', $kategori)->count();
+        }
 
-        // Top 5 sales by count
+        // Per klinik ignores the klinik filter so every klinik stays visible; "none" = not set yet
+        $klinikCounts = $this->inDateRange(FollowUp::query(), $request)
+            ->selectRaw('klinik_id, COUNT(*) as jumlah')
+            ->groupBy('klinik_id')
+            ->get();
+        $perKlinik = Klinik::orderBy('id')->get(['id', 'nama', 'color'])
+            ->map(fn ($k) => [
+                'id' => $k->id,
+                'nama' => Klinik::shortName($k->nama),
+                'color' => $k->color,
+                'jumlah' => (int) optional($klinikCounts->firstWhere('klinik_id', $k->id))->jumlah,
+            ])->all();
+        $tanpaKlinik = (int) optional($klinikCounts->whereNull('klinik_id')->first())->jumlah;
+        if ($tanpaKlinik) {
+            $perKlinik[] = ['id' => 'none', 'nama' => 'Belum ditentukan', 'color' => null, 'jumlah' => $tanpaKlinik];
+        }
+
+        // Top 5 sales by bookings won, then by follow ups sent
         $topSales = (clone $baseQuery)
-            ->selectRaw('sales_id, COUNT(*) as jumlah')
+            ->selectRaw("sales_id, COUNT(*) as jumlah, SUM(status_booking = 'Sukses') as booking")
             ->whereNotNull('sales_id')
             ->groupBy('sales_id')
+            ->orderByDesc('booking')
             ->orderByDesc('jumlah')
             ->limit(5)
             ->get();
 
-        // Get sales names
-        $salesList = [];
-        foreach ($topSales as $row) {
-            $sales = \App\Models\HRD\Employee::withInactive()->find($row->sales_id);
-            $salesList[] = [
-                'nama' => $sales ? $sales->nama : '-',
-                'jumlah' => $row->jumlah
-            ];
-        }
+        $salesNames = \App\Models\HRD\Employee::withInactive()->whereIn('id', $topSales->pluck('sales_id'))->pluck('nama', 'id');
+        $salesList = $topSales->map(fn ($row) => [
+            'nama' => $salesNames[$row->sales_id] ?? '-',
+            'jumlah' => (int) $row->jumlah,
+            'booking' => (int) $row->booking,
+            'persen' => $row->jumlah > 0 ? round($row->booking / $row->jumlah * 100) : 0,
+        ])->all();
 
         return response()->json([
             'count' => $count,
@@ -201,11 +254,8 @@ class FollowUpController extends Controller
             'batal' => $countBatal,
             'menunggu' => $countMenunggu,
             'sukses' => $countSukses,
-            'kategori_produk' => $kategoriProduk,
-            'kategori_perawatan' => $kategoriPerawatan,
-            'kategori_reseller' => $kategoriReseller,
-            'kategori_slimming' => $kategoriSlimming,
-            'kategori_ulang_tahun' => $kategoriUlangTahun,
+            'per_kategori' => $perKategori,
+            'per_klinik' => $perKlinik,
             'top_sales' => $salesList
         ]);
     }

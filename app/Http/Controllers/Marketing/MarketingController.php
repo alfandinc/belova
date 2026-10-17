@@ -107,7 +107,7 @@ class MarketingController extends Controller
 
         return view('marketing.crm-pasien.index', [
             'activeTab' => in_array($tab, ['pasien', 'followup', 'ulang-tahun'], true) ? $tab : 'pasien',
-            'kliniks' => Klinik::orderBy('nama')->get(['id', 'nama']),
+            'kliniks' => Klinik::orderBy('nama')->get(['id', 'nama', 'color']),
             'today' => $today->format('Y-m-d'),
             // Tab badge: birthdays today not yet greeted
             'birthdayTodayCount' => Pasien::whereMonth('tanggal_lahir', $today->month)

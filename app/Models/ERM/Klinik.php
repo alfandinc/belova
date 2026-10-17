@@ -10,6 +10,12 @@ class Klinik extends Model
     protected $table = 'erm_klinik';
     protected $fillable = ['nama', 'logo', 'color', 'report_cutoff_time'];
 
+    /** Name without the "Klinik Utama / Pratama" licence prefix, for badges and chips. */
+    public static function shortName(string $nama): string
+    {
+        return preg_replace('/^Klinik\s+(Utama|Pratama)\s+/i', '', $nama);
+    }
+
     public function visitation()
     {
         return $this->hasMany(Visitation::class, 'klinik_id');

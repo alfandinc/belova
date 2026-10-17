@@ -138,12 +138,16 @@ class Visitation extends Model
             }
         });
 
-        // A visit booked from a CRM follow up turns that follow up's booking into Sukses
+        // A new visit is the booking of a CRM follow up (the one it was registered from, or the pasien's open one)
         static::saved(function (Visitation $visitation) {
-            if ($visitation->referral_type === Pasien::REFERRAL_TYPE_FOLLOW_UP
-                && $visitation->referralable_id
-                && ($visitation->wasRecentlyCreated || $visitation->wasChanged('referralable_id'))) {
-                \App\Models\Marketing\FollowUp::whereKey($visitation->referralable_id)->update(['status_booking' => 'Sukses']);
+            $newFollowUpReferral = $visitation->referral_type === Pasien::REFERRAL_TYPE_FOLLOW_UP && $visitation->wasChanged('referralable_id');
+            if ($visitation->wasRecentlyCreated || $newFollowUpReferral) {
+                // CRM bookkeeping must never block registering the visit
+                try {
+                    \App\Models\Marketing\FollowUp::markBookedBy($visitation);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
         });
     }
