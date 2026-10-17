@@ -43,12 +43,13 @@ class SumberOmsetWidget implements Widget
             'obat' => Revenue::items($start, $end, 'obat', null),
         ];
 
-        // Omset by the visit's metode bayar (Umum / insurer), per clinic
+        // Net omset by the visit's metode bayar (Umum / insurer), per clinic
         $metodeBayar = Revenue::withMetodeBayar(Revenue::between($start, $end)
             ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
             ->selectRaw('v.klinik_id, SUM(fi.total_amount) as total, COUNT(*) as invoices')
             ->groupBy('v.klinik_id'))
-            ->get();
+            ->get()
+            ->concat(Revenue::returByMetodeBayar($start, $end));
 
         // null (no "Lihat semua") while a stale route cache does not know the route yet
         $itemsUrl = Route::has('dashboard.omset-items')

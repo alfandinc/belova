@@ -18,7 +18,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 /**
  * Laporan Omset: omset = total of invoices transacted in the period (paid / piutang / asuransi), dated by
- * finance_invoices.transaction_date shifted back by the clinic cut off (erm_klinik.report_cutoff_time). Same definition as the dashboard widgets (App\Support\Dashboard\Revenue).
+ * finance_invoices.transaction_date shifted back by the clinic cut off (erm_klinik.report_cutoff_time), minus
+ * approved returs on their approval day. Same definition as the dashboard widgets (App\Support\Dashboard\Revenue).
  */
 class OmsetController extends Controller
 {
@@ -62,6 +63,7 @@ class OmsetController extends Controller
             'klinik' => $this->byKlinik($from, $to, $klinikId, $summary['total']),
             'kategori' => $this->byCategory($from, $to, $klinikId, $summary['total']),
             'metode_bayar' => $this->byMetodeBayar($from, $to, $klinikId, $summary['total']),
+            'returs' => $this->returs($from, $to, $klinikId),
         ]);
     }
 
@@ -164,21 +166,38 @@ class OmsetController extends Controller
             ->when($klinikId, fn ($q) => $q->where('v.klinik_id', $klinikId));
     }
 
+    /** Approved returs of the period (by approval day), joined to their invoice (fi) and visit (v). */
+    private function returBase(Carbon $from, Carbon $to, ?int $klinikId)
+    {
+        return Revenue::returBetween($from, $to)
+            ->leftJoin('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
+            ->when($klinikId, fn ($q) => $q->where('v.klinik_id', $klinikId));
+    }
+
     private function summary(Carbon $from, Carbon $to, ?int $klinikId): array
     {
         $row = $this->base($from, $to, $klinikId)
             ->selectRaw('COUNT(*) as invoices, COALESCE(SUM(fi.total_amount), 0) as total')
             ->selectRaw('COALESCE(SUM(LEAST(COALESCE(fi.amount_paid, 0), fi.total_amount)), 0) as diterima')
             ->first();
+        $retur = $this->returBase($from, $to, $klinikId)
+            ->selectRaw('COUNT(*) as returs, COALESCE(SUM(r.total_amount), 0) as total')
+            ->first();
 
-        $total = (float) $row->total;
+        $gross = (float) $row->total;
+        $returTotal = (float) $retur->total;
+        $total = $gross - $returTotal;
         $invoices = (int) $row->invoices;
-        $diterima = (float) $row->diterima;
+        // the refund went back to the patient, so it is no longer received either
+        $diterima = (float) $row->diterima - $returTotal;
 
         return [
             'total' => $total,
+            'gross' => $gross,
+            'retur' => $returTotal,
+            'returs' => (int) $retur->returs,
             'invoices' => $invoices,
-            'average' => $invoices > 0 ? $total / $invoices : 0,
+            'average' => $invoices > 0 ? $gross / $invoices : 0,
             'diterima' => $diterima,
             'belum_diterima' => max(0, $total - $diterima),
             'diterima_pct' => Fmt::share($diterima, $total),
@@ -198,6 +217,12 @@ class OmsetController extends Controller
             ->get()
             ->keyBy('bucket');
 
+        $returDate = Revenue::returDateSql();
+        $returs = $this->returBase($from, $to, $klinikId)
+            ->selectRaw(($monthly ? "DATE_FORMAT({$returDate}, '%Y-%m')" : $returDate) . ' as bucket, SUM(r.total_amount) as total')
+            ->groupBy('bucket')
+            ->pluck('total', 'bucket');
+
         $period = $monthly
             ? CarbonPeriod::create($from->copy()->startOfMonth(), '1 month', $to->copy()->startOfMonth())
             : CarbonPeriod::create($from->copy()->startOfDay(), '1 day', $to->copy()->startOfDay());
@@ -210,7 +235,8 @@ class OmsetController extends Controller
                 'key' => $key,
                 'label' => $monthly ? $date->translatedFormat('M Y') : $date->translatedFormat('j M'),
                 'title' => $monthly ? $date->translatedFormat('F Y') : $date->translatedFormat('l, j F Y'),
-                'total' => $row ? (float) $row->total : 0.0,
+                'total' => ($row ? (float) $row->total : 0.0) - (float) ($returs[$key] ?? 0),
+                'retur' => (float) ($returs[$key] ?? 0),
                 'invoices' => $row ? (int) $row->invoices : 0,
             ];
         }
@@ -226,12 +252,20 @@ class OmsetController extends Controller
             ->selectRaw('SUM(LEAST(COALESCE(fi.amount_paid, 0), fi.total_amount)) as diterima')
             ->get();
 
+        // klinik_id => retur ('' = invoice without a visit)
+        $returs = $this->returBase($from, $to, $klinikId)
+            ->groupBy('v.klinik_id')
+            ->selectRaw('v.klinik_id, SUM(r.total_amount) as total')
+            ->pluck('total', 'klinik_id')
+            ->map(fn ($v) => (float) $v);
+
         $targets = RevenueTargets::forPeriod($from, $to);
 
         $clinics = $klinikId ? collect([Clinics::find($klinikId)]) : Clinics::all()->values();
-        $result = $clinics->map(function ($klinik) use ($rows, $targets, $total) {
+        $result = $clinics->map(function ($klinik) use ($rows, $returs, $targets, $total) {
             $row = $rows->first(fn ($r) => (int) $r->klinik_id === (int) $klinik->id);
-            $omset = $row ? (float) $row->total : 0.0;
+            $retur = $returs[$klinik->id] ?? 0.0;
+            $omset = ($row ? (float) $row->total : 0.0) - $retur;
             $target = (float) ($targets['byKlinik'][$klinik->id] ?? 0);
 
             return [
@@ -241,7 +275,8 @@ class OmsetController extends Controller
                 'color' => $klinik->color,
                 'invoices' => $row ? (int) $row->invoices : 0,
                 'total' => $omset,
-                'diterima' => $row ? (float) $row->diterima : 0.0,
+                'retur' => $retur,
+                'diterima' => ($row ? (float) $row->diterima : 0.0) - $retur,
                 'pct' => Fmt::share($omset, $total),
                 'target' => $target,
                 'target_pct' => $target > 0 ? $omset / $target * 100 : null,
@@ -249,12 +284,16 @@ class OmsetController extends Controller
         });
 
         // invoices without a clinic (e.g. direct sales), only when showing every clinic
-        $none = $klinikId ? null : $rows->first(fn ($r) => $r->klinik_id === null || !Clinics::all()->has((int) $r->klinik_id));
-        if ($none) {
+        $isNone = fn ($id) => $id === null || $id === '' || !Clinics::all()->has((int) $id);
+        $none = $klinikId ? collect() : $rows->filter(fn ($r) => $isNone($r->klinik_id));
+        $noneRetur = $klinikId ? 0.0 : (float) $returs->filter(fn ($v, $id) => $isNone($id))->sum();
+        if ($none->isNotEmpty() || $noneRetur > 0) {
+            $noneTotal = (float) $none->sum('total') - $noneRetur;
             $result->push([
                 'id' => null, 'nama' => Clinics::none()->short, 'logo' => null, 'color' => Clinics::none()->color,
-                'invoices' => (int) $none->invoices, 'total' => (float) $none->total, 'diterima' => (float) $none->diterima,
-                'pct' => Fmt::share($none->total, $total), 'target' => 0, 'target_pct' => null,
+                'invoices' => (int) $none->sum('invoices'), 'total' => $noneTotal, 'retur' => $noneRetur,
+                'diterima' => (float) $none->sum('diterima') - $noneRetur,
+                'pct' => Fmt::share($noneTotal, $total), 'target' => 0, 'target_pct' => null,
             ]);
         }
 
@@ -281,9 +320,32 @@ class OmsetController extends Controller
     {
         $rows = Revenue::withMetodeBayar($this->base($from, $to, $klinikId)
             ->selectRaw('SUM(fi.total_amount) as total, COUNT(*) as invoices'))
-            ->get();
+            ->get()
+            ->concat(Revenue::returByMetodeBayar($from, $to, $klinikId));
 
         return Revenue::metodeBayarSplit($rows, $total);
+    }
+
+    /** The period's approved returs (they come off omset on their approval day), newest first. */
+    private function returs(Carbon $from, Carbon $to, ?int $klinikId): array
+    {
+        return $this->returBase($from, $to, $klinikId)
+            ->leftJoin('erm_pasiens as p', 'p.id', '=', 'v.pasien_id')
+            ->select(['r.retur_number', 'r.total_amount', 'fi.invoice_number', 'fi.transaction_date', 'v.klinik_id', 'p.nama as pasien_nama', 'p.id as pasien_id'])
+            ->selectRaw('COALESCE(r.processed_date, r.created_at) as retur_date')
+            ->orderByDesc('retur_date')
+            ->get()
+            ->map(fn ($r) => [
+                'retur_number' => $r->retur_number,
+                'retur_date' => Carbon::parse($r->retur_date)->format('Y-m-d H:i'),
+                'invoice_number' => $r->invoice_number,
+                'invoice_date' => $r->transaction_date ? Carbon::parse($r->transaction_date)->format('Y-m-d') : null,
+                'pasien_nama' => $r->pasien_nama,
+                'pasien_id' => $r->pasien_id,
+                'klinik_short' => Clinics::find($r->klinik_id)->short,
+                'total' => (float) $r->total_amount,
+            ])
+            ->all();
     }
 
     private function periodLabel(Carbon $from, Carbon $to): string

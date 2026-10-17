@@ -128,26 +128,20 @@ class FinanceRevenueTargetController extends Controller
             ->get()
             ->keyBy('klinik_id');
 
-        // omset: transacted invoices dated by transaction date + clinic cut off, see Dashboard\Revenue
-        $revenueByClinic = \App\Support\Dashboard\Revenue::between($periodStart, $periodEnd)
-            ->join('erm_visitations as v', 'v.id', '=', 'fi.visitation_id')
-            ->groupBy('v.klinik_id')
-            ->selectRaw('v.klinik_id, COALESCE(SUM(fi.total_amount), 0) as revenue_total')
-            ->get()
-            ->keyBy('klinik_id');
+        // omset (net of returs): klinik_id => total, see Dashboard\Revenue
+        $revenueByClinic = \App\Support\Dashboard\Revenue::byKlinik($periodStart, $periodEnd);
 
         $clinics = Klinik::query()
             ->orderBy('nama')
             ->get(['id', 'nama'])
             ->map(function (Klinik $clinic) use ($targetsByClinic, $revenueByClinic) {
                 $target = $targetsByClinic->get($clinic->id);
-                $revenue = $revenueByClinic->get($clinic->id);
 
                 $clinic->target_amount = $target ? (float) $target->target_amount : null;
                 $clinic->target_amount_input = $target ? number_format((float) $target->target_amount, 2, '.', '') : '';
                 $clinic->target_notes = $target->notes ?? '';
                 $clinic->target_updated_at = $target?->updated_at;
-                $clinic->actual_revenue = (float) ($revenue->revenue_total ?? 0);
+                $clinic->actual_revenue = (float) ($revenueByClinic[$clinic->id] ?? 0);
                 $clinic->achievement_percentage = ($clinic->target_amount ?? 0) > 0
                     ? ($clinic->actual_revenue / $clinic->target_amount) * 100
                     : null;

@@ -109,6 +109,7 @@
                 <div class="omz-kpi-label">Omset <span data-k="period"></span></div>
                 <div class="omz-kpi-value" data-k="total">-</div>
                 <div class="omz-kpi-sub"><span data-k="trend"></span> <span data-k="prev"></span></div>
+                <div class="omz-kpi-sub" data-k="retur-line" style="display:none;"></div>
             </div>
             <div class="card shadow-sm mb-0 omz-kpi">
                 <div class="omz-kpi-label">Jumlah Invoice</div>
@@ -165,12 +166,34 @@
                 </div>
             </div>
         </div>
+
+        <div class="card shadow-sm mb-3" data-k="retur-card" style="display:none;">
+            <div class="card-body">
+                <div class="omz-card-title">Retur Periode Ini</div>
+                <div class="omz-card-sub">Retur yang di-approve pada periode ini mengurangi omset di tanggal approve, bukan di tanggal invoice aslinya</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Tgl Retur</th>
+                                <th>No. Retur</th>
+                                <th>Invoice</th>
+                                <th>Pasien</th>
+                                <th>Klinik</th>
+                                <th class="text-right">Nominal</th>
+                            </tr>
+                        </thead>
+                        <tbody data-k="retur-rows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
             <div class="omz-card-title">Daftar Invoice</div>
-            <div class="omz-card-sub">Invoice yang dihitung sebagai omset pada periode dan klinik terpilih</div>
+            <div class="omz-card-sub">Invoice yang dihitung sebagai omset pada periode dan klinik terpilih (sebelum dikurangi retur)</div>
             <table id="omz-invoices" class="table table-sm table-bordered table-hover nowrap" style="width:100%;">
                 <thead class="thead-light">
                     <tr>
@@ -307,6 +330,21 @@ $(function() {
         $k('diterima-pct').text(pct(s.diterima_pct));
         $k('diterima-bar').css('width', Math.min(100, s.diterima_pct) + '%');
         $k('belum').text(rp(s.belum_diterima));
+        $k('retur-line').toggle(s.retur > 0)
+            .html(s.retur > 0 ? 'Kotor ' + rp(s.gross) + ' &minus; <span class="text-danger">retur ' + rp(s.retur) + '</span> (' + num(s.returs) + ')' : '');
+
+        // returs of the period
+        var rHtml = '';
+        $.each(d.returs || [], function(i, r) {
+            rHtml += '<tr><td class="text-nowrap">' + esc(r.retur_date) + '</td>'
+                + '<td class="font-weight-bold">' + esc(r.retur_number) + '</td>'
+                + '<td>' + esc(r.invoice_number) + (r.invoice_date ? '<br><small class="text-muted">' + esc(moment(r.invoice_date).format('D MMM YYYY')) + '</small>' : '') + '</td>'
+                + '<td>' + esc(r.pasien_nama || '-') + (r.pasien_id ? '<br><small class="text-muted">' + esc(r.pasien_id) + '</small>' : '') + '</td>'
+                + '<td>' + esc(r.klinik_short) + '</td>'
+                + '<td class="text-right text-danger font-weight-bold">&minus; ' + rp(r.total) + '</td></tr>';
+        });
+        $k('retur-rows').html(rHtml);
+        $k('retur-card').toggle(!!rHtml);
 
         // per klinik: each clinic in its own row with its logo + color
         $k('target-label').text(d.klinik.target_label);
@@ -375,7 +413,8 @@ $(function() {
                 custom: function(o) {
                     var p = points[o.dataPointIndex];
                     return '<div class="px-2 py-1"><div class="font-weight-bold">' + esc(p.title) + '</div>'
-                        + '<div>' + rp(p.total) + '</div><div class="small">' + num(p.invoices) + ' invoice</div></div>';
+                        + '<div>' + rp(p.total) + '</div><div class="small">' + num(p.invoices) + ' invoice'
+                        + (p.retur > 0 ? ' &middot; retur ' + rp(p.retur) : '') + '</div></div>';
                 }
             }
         };
