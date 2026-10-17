@@ -39,6 +39,10 @@ class InvoiceEditController extends Controller
                 // set when the log is a transaction date change (Laporan Omset)
                 'old_transaction_date' => $log->old_values['transaction_date'] ?? null,
                 'new_transaction_date' => $log->new_values['transaction_date'] ?? null,
+                // set when the log is a retur date change (Laporan Omset)
+                'retur_number' => $log->new_values['retur_number'] ?? null,
+                'old_retur_date' => $log->old_values['retur_date'] ?? null,
+                'new_retur_date' => $log->new_values['retur_date'] ?? null,
             ]);
 
         return response()->json([

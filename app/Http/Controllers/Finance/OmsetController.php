@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Finance\Invoice;
+use App\Models\Finance\FinanceTransaction;
 use App\Models\Finance\InvoiceEditLog;
+use App\Models\Finance\ReturPembelian;
 use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Fmt;
 use App\Support\Dashboard\Revenue;
@@ -144,6 +146,61 @@ class OmsetController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Tanggal transaksi ' . $invoice->invoice_number . ' diubah ke ' . $new->translatedFormat('j F Y H:i') . '.',
+        ]);
+    }
+
+    /**
+     * Admin / Finance: move an approved retur's date (processed_date: the day it comes off omset). The refund's
+     * cash-out transaction moves along so kas and omset agree. approved_at keeps when it was really approved.
+     * Logged with a reason in the invoice edit log.
+     */
+    public function updateReturDate(Request $request, $id)
+    {
+        $data = $request->validate([
+            'retur_date' => 'required|date_format:Y-m-d\TH:i|before_or_equal:now',
+            'reason' => 'required|string|min:5|max:1000',
+        ], [
+            'retur_date.before_or_equal' => 'Tanggal retur tidak boleh di masa depan.',
+        ]);
+
+        $retur = ReturPembelian::with('invoice')->findOrFail($id);
+        if ($retur->status !== ReturPembelian::STATUS_APPROVED) {
+            return response()->json(['success' => false, 'message' => 'Hanya retur yang sudah di-approve yang bisa diubah tanggalnya.'], 422);
+        }
+
+        $new = Carbon::createFromFormat('Y-m-d\TH:i', $data['retur_date']);
+        $soldAt = optional($retur->invoice)->transaction_date;
+        if ($soldAt && $new->lt($soldAt->copy()->startOfMinute())) {
+            return response()->json(['success' => false, 'message' => 'Tanggal retur tidak boleh sebelum tanggal transaksi invoice (' . $soldAt->format('Y-m-d H:i') . ').'], 422);
+        }
+
+        $old = ($retur->processed_date ?? $retur->created_at)->format('Y-m-d H:i');
+        if ($old === $new->format('Y-m-d H:i')) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada perubahan.'], 422);
+        }
+
+        DB::transaction(function () use ($retur, $new, $old, $data) {
+            $retur->processed_date = $new;
+            $retur->save();
+
+            // the refund's cash-out, recorded on approval as "No retur: <number> | ..."
+            FinanceTransaction::where('invoice_id', $retur->invoice_id)
+                ->where('jenis_transaksi', 'out')
+                ->where('deskripsi', 'like', 'No retur: ' . $retur->retur_number . '%')
+                ->update(['tanggal' => $new]);
+
+            InvoiceEditLog::create([
+                'invoice_id' => $retur->invoice_id,
+                'user_id' => Auth::id(),
+                'reason' => $data['reason'],
+                'old_values' => ['retur_number' => $retur->retur_number, 'retur_date' => $old],
+                'new_values' => ['retur_number' => $retur->retur_number, 'retur_date' => $new->format('Y-m-d H:i')],
+            ]);
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tanggal retur ' . $retur->retur_number . ' diubah ke ' . $new->translatedFormat('j F Y H:i') . '.',
         ]);
     }
 
@@ -338,11 +395,12 @@ class OmsetController extends Controller
     {
         return $this->returBase($from, $to, $klinikId)
             ->leftJoin('erm_pasiens as p', 'p.id', '=', 'v.pasien_id')
-            ->select(['r.retur_number', 'r.total_amount', 'fi.invoice_number', 'fi.transaction_date', 'v.klinik_id', 'p.nama as pasien_nama', 'p.id as pasien_id'])
+            ->select(['r.id', 'r.retur_number', 'r.total_amount', 'fi.invoice_number', 'fi.transaction_date', 'v.klinik_id', 'p.nama as pasien_nama', 'p.id as pasien_id'])
             ->selectRaw('COALESCE(r.processed_date, r.created_at) as retur_date')
             ->orderByDesc('retur_date')
             ->get()
             ->map(fn ($r) => [
+                'id' => $r->id,
                 'retur_number' => $r->retur_number,
                 'retur_date' => Carbon::parse($r->retur_date)->format('Y-m-d H:i'),
                 'invoice_number' => $r->invoice_number,

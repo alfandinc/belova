@@ -223,9 +223,9 @@
                 <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body">
-                <div class="small text-muted mb-2">Invoice <strong id="omz-date-invoice"></strong>: omset invoice ini dihitung pada tanggal transaksi.</div>
+                <div class="small text-muted mb-2" id="omz-date-hint"></div>
                 <div class="form-group">
-                    <label class="small mb-1" for="omz-date-input">Tanggal transaksi</label>
+                    <label class="small mb-1" for="omz-date-input" id="omz-date-label">Tanggal transaksi</label>
                     <input type="datetime-local" class="form-control form-control-sm" id="omz-date-input">
                 </div>
                 <div class="form-group mb-0">
@@ -249,6 +249,7 @@ $(function() {
     var dataUrl = '{{ route('finance.omset.data') }}';
     var invoicesUrl = '{{ route('finance.omset.invoices') }}';
     var dateUrlBase = '{{ url('/finance/omset/invoices') }}/';
+    var returDateUrlBase = '{{ url('/finance/omset/returs') }}/';
     var canEditDate = @json(auth()->user()->hasAnyRole(['Admin', 'Finance']));
     var startDate = moment().startOf('month').format('YYYY-MM-DD');
     var endDate = moment().format('YYYY-MM-DD');
@@ -337,7 +338,10 @@ $(function() {
         // returs of the period
         var rHtml = '';
         $.each(d.returs || [], function(i, r) {
-            rHtml += '<tr><td class="text-nowrap">' + esc(r.retur_date) + '</td>'
+            var editBtn = canEditDate
+                ? ' <button type="button" class="btn btn-sm btn-link p-0 ml-1 omz-edit-retur-date" data-id="' + r.id + '" data-date="' + esc(r.retur_date) + '" data-retur="' + esc(r.retur_number) + '" title="Ubah tanggal retur" aria-label="Ubah tanggal retur"><i class="fas fa-pen"></i></button>'
+                : '';
+            rHtml += '<tr><td class="text-nowrap">' + esc(r.retur_date) + editBtn + '</td>'
                 + '<td class="font-weight-bold">' + esc(r.retur_number) + '</td>'
                 + '<td>' + esc(r.invoice_number) + (r.invoice_date ? '<br><small class="text-muted">' + esc(moment(r.invoice_date).format('D MMM YYYY')) + '</small>' : '') + '</td>'
                 + '<td>' + esc(r.pasien_nama || '-') + (r.pasien_id ? '<br><small class="text-muted">' + esc(r.pasien_id) + '</small>' : '') + '</td>'
@@ -507,15 +511,33 @@ $(function() {
         }
     });
 
-    // ---- Admin: change an invoice's transaction date ----
-    var editingId = null;
-    $(document).on('click', '.omz-edit-date', function() {
-        var $b = $(this);
-        editingId = $b.data('id');
-        $('#omz-date-invoice').text($b.data('invoice'));
-        $('#omz-date-input').val(String($b.data('date')).replace(' ', 'T')).attr('max', moment().format('YYYY-MM-DDTHH:mm'));
+    // ---- Admin: change an invoice's transaction date / an approved retur's date (same modal) ----
+    var editingUrl = null, editingField = null;
+    function openDateModal(o) {
+        editingUrl = o.url;
+        editingField = o.field;
+        $('#omz-date-title').text(o.title);
+        $('#omz-date-label').text(o.label);
+        $('#omz-date-hint').html(o.hint);
+        $('#omz-date-input').val(String(o.date).replace(' ', 'T')).attr('max', moment().format('YYYY-MM-DDTHH:mm'));
         $('#omz-date-reason').val('');
         $('#omz-date-modal').modal('show');
+    }
+    $(document).on('click', '.omz-edit-date', function() {
+        var $b = $(this);
+        openDateModal({
+            url: dateUrlBase + $b.data('id') + '/transaction-date', field: 'transaction_date', date: $b.data('date'),
+            title: 'Ubah Tanggal Transaksi', label: 'Tanggal transaksi',
+            hint: 'Invoice <strong>' + esc($b.data('invoice')) + '</strong>: omset invoice ini dihitung pada tanggal transaksi.'
+        });
+    });
+    $(document).on('click', '.omz-edit-retur-date', function() {
+        var $b = $(this);
+        openDateModal({
+            url: returDateUrlBase + $b.data('id') + '/date', field: 'retur_date', date: $b.data('date'),
+            title: 'Ubah Tanggal Retur', label: 'Tanggal retur (approve)',
+            hint: 'Retur <strong>' + esc($b.data('retur')) + '</strong>: omset dikurangi pada tanggal ini. Transaksi kas refund ikut dipindah ke tanggal ini.'
+        });
     });
     $('#omz-date-save').on('click', function() {
         var date = $('#omz-date-input').val();
@@ -523,11 +545,13 @@ $(function() {
         if (!date) { Swal.fire('Tanggal wajib diisi', '', 'warning'); return; }
         if (reason.length < 5) { Swal.fire('Alasan wajib diisi', 'Tulis alasan perubahan (minimal 5 karakter).', 'warning'); return; }
         var $btn = $(this).prop('disabled', true);
+        var payload = { reason: reason };
+        payload[editingField] = date;
         $.ajax({
-            url: dateUrlBase + editingId + '/transaction-date',
+            url: editingUrl,
             method: 'PUT',
             headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-            data: { transaction_date: date, reason: reason }
+            data: payload
         }).done(function(res) {
             $('#omz-date-modal').modal('hide');
             Swal.fire('Tersimpan', res.message, 'success');
