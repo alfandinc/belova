@@ -408,6 +408,61 @@
             box-shadow: none;
         }
 
+        #dashboard-search {
+            min-width: 240px;
+            height: 38px;
+            border-radius: 10px;
+            border: 1px solid var(--dsh-line);
+            padding: 8px 12px 8px 36px;
+            font-size: 0.875rem;
+            color: var(--dsh-ink);
+            background: var(--dsh-surface);
+            box-shadow: none;
+        }
+
+        #dashboard-search:focus {
+            border-color: var(--dsh-accent);
+            box-shadow: 0 0 0 3px var(--dsh-accent-soft);
+        }
+
+        .dsh-search-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: -4px 0 14px;
+            font-size: 0.82rem;
+            color: var(--dsh-muted);
+        }
+
+        .dsh-search-status[hidden] {
+            display: none;
+        }
+
+        .dsh-search-status strong {
+            color: var(--dsh-ink);
+        }
+
+        .dsh-search-clear {
+            border: 0;
+            background: none;
+            padding: 0;
+            color: var(--dsh-accent);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .dsh [data-widget-slot].is-search-hidden {
+            display: none;
+        }
+
+        .dsh mark.dw-hit {
+            background: var(--dw-hit);
+            color: var(--dw-hit-ink);
+            padding: 0 1px;
+            border-radius: 3px;
+        }
+
         .dsh-widgets-empty {
             border: 1px dashed var(--dsh-faint);
             border-radius: var(--dsh-radius);
@@ -420,6 +475,7 @@
             .dsh-actions .dsh-btn,
             .dsh-filter,
             .dsh-filter-input,
+            #dashboard-search,
             #dashboard-daterange {
                 width: 100%;
             }
@@ -501,16 +557,25 @@
                     {{ $dashboardWidgets->contains('uses_period', true) ? 'Sesuai akses role Anda. Pilihan periode berlaku untuk widget yang menampilkan rentang tanggal.' : 'Sesuai akses role Anda.' }}
                 </div>
             </div>
-            @if ($dashboardWidgets->contains('uses_period', true))
+            @if ($dashboardWidgets->isNotEmpty())
                 <div class="dsh-filter">
+                    {{-- Keyword search over the loaded widgets (titles + content), client-side --}}
                     <div class="dsh-filter-input">
-                        <i data-feather="calendar"></i>
-                        <input type="text" id="dashboard-daterange" class="form-control" autocomplete="off" value="{{ $dashboardFormattedRange }}" aria-label="Periode widget">
+                        <i data-feather="search"></i>
+                        <input type="search" id="dashboard-search" class="form-control" autocomplete="off" placeholder="Cari di widget… ( / )" aria-label="Cari kata kunci di widget">
                     </div>
-                    <button type="button" id="dashboard-filter-reset" class="dsh-btn">Reset</button>
+                    @if ($dashboardWidgets->contains('uses_period', true))
+                        <div class="dsh-filter-input">
+                            <i data-feather="calendar"></i>
+                            <input type="text" id="dashboard-daterange" class="form-control" autocomplete="off" value="{{ $dashboardFormattedRange }}" aria-label="Periode widget">
+                        </div>
+                        <button type="button" id="dashboard-filter-reset" class="dsh-btn">Reset</button>
+                    @endif
                 </div>
             @endif
         </div>
+
+        <div id="dashboard-search-status" class="dsh-search-status" role="status" aria-live="polite" hidden></div>
 
         <div id="dashboard-widgets-container">
             @include('dashboard.partials.widgets_grid', ['dashboardWidgets' => $dashboardWidgets, 'employeePosition' => $employeePosition, 'dashboardFilter' => $dashboardFilter])
@@ -758,6 +823,7 @@
                     }
                     slot.html(response.html || '');
                     initWidgets(slot);
+                    applySearch(slot);
                 }).fail(function (xhr) {
                     if (slot.data('ticket') !== ticket || xhr.statusText === 'abort') {
                         return;
@@ -931,6 +997,143 @@
                 th.siblings().removeClass('is-sorted');
                 th.addClass('is-sorted').data('desc', desc);
                 tbody.append(rows);
+            });
+
+            /*
+             * Keyword search: a widget stays visible when its title or content contains every word typed,
+             * and the matches are highlighted. It works on what is loaded and runs again on each widget as it
+             * (re)loads; a widget still loading stays visible until its content is in.
+             */
+            var searchInput = $('#dashboard-search');
+            var searchStatus = $('#dashboard-search-status');
+            var SKIP_TAGS = /^(SCRIPT|STYLE|SVG|INPUT|SELECT|TEXTAREA|OPTION|MARK)$/i;
+
+            function searchTerms() {
+                return (searchInput.val() || '').toLowerCase().split(/\s+/).filter(Boolean);
+            }
+
+            function escapeRegex(text) {
+                return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function clearHighlights(scope) {
+                scope.find('mark.dw-hit').each(function () {
+                    var parent = this.parentNode;
+                    parent.replaceChild(document.createTextNode(this.textContent), this);
+                    parent.normalize();
+                });
+            }
+
+            // Wraps every match in <mark>; source is a pattern like "(foo|bar)"
+            function highlight(root, source) {
+                var test = new RegExp(source, 'i');
+                var split = new RegExp(source, 'gi');
+                var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                    acceptNode: function (node) {
+                        for (var el = node.parentNode; el && el !== root; el = el.parentNode) {
+                            if (SKIP_TAGS.test(el.nodeName) || el.hasAttribute('data-dash-chart')) {
+                                return NodeFilter.FILTER_REJECT;
+                            }
+                        }
+                        return test.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+                    }
+                });
+                var nodes = [];
+                while (walker.nextNode()) {
+                    nodes.push(walker.currentNode);
+                }
+                nodes.forEach(function (node) {
+                    var frag = document.createDocumentFragment();
+                    // split() with a capture group puts the matches at the odd indexes
+                    node.nodeValue.split(split).forEach(function (part, i) {
+                        if (!part) return;
+                        if (i % 2) {
+                            var mark = document.createElement('mark');
+                            mark.className = 'dw-hit';
+                            mark.textContent = part;
+                            frag.appendChild(mark);
+                        } else {
+                            frag.appendChild(document.createTextNode(part));
+                        }
+                    });
+                    node.parentNode.replaceChild(frag, node);
+                });
+            }
+
+            function slotText(slot) {
+                var clone = slot.find('.dw').first().clone();
+                clone.find('script, style, svg, select, [data-dash-chart]').remove();
+                return clone.text().replace(/\s+/g, ' ').toLowerCase();
+            }
+
+            function isLoadingSlot(slot) {
+                return slot.find('.dw-skeleton').length > 0;
+            }
+
+            function applySearch(slots) {
+                var terms = searchTerms();
+                var source = '(' + terms.map(escapeRegex).join('|') + ')';
+                slots.each(function () {
+                    var slot = $(this);
+                    clearHighlights(slot);
+                    if (!terms.length || isLoadingSlot(slot)) {
+                        slot.removeClass('is-search-hidden');
+                        return;
+                    }
+                    var text = slotText(slot);
+                    var match = terms.every(function (term) { return text.indexOf(term) !== -1; });
+                    slot.toggleClass('is-search-hidden', !match);
+                    if (match) {
+                        highlight(slot[0], source);
+                    }
+                });
+                updateSearchStatus(terms);
+            }
+
+            function updateSearchStatus(terms) {
+                if (!terms.length) {
+                    searchStatus.attr('hidden', true).empty();
+                    return;
+                }
+                var slots = container.find('[data-widget-slot]');
+                var loading = slots.filter(function () { return isLoadingSlot($(this)); }).length;
+                var shown = slots.not('.is-search-hidden').length - loading;
+                var keyword = '"' + $('<span>').text(searchInput.val().trim()).html() + '"';
+                var text = shown
+                    ? '<strong>' + shown + '</strong> widget cocok dengan ' + keyword
+                    : 'Tidak ada widget yang cocok dengan ' + keyword;
+                if (loading) {
+                    text += ' · ' + loading + ' widget masih dimuat';
+                }
+                searchStatus.html(text + ' <button type="button" class="dsh-search-clear">Hapus pencarian</button>').removeAttr('hidden');
+            }
+
+            var searchTimer = null;
+            searchInput.on('input search', function () {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    applySearch(container.find('[data-widget-slot]'));
+                    // Charts in widgets that were hidden need their size recomputed
+                    window.dispatchEvent(new Event('resize'));
+                }, 200);
+            });
+
+            searchInput.on('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    searchInput.val('').trigger('input');
+                }
+            });
+
+            searchStatus.on('click', '.dsh-search-clear', function () {
+                searchInput.val('').trigger('input').focus();
+            });
+
+            // "/" anywhere on the page (outside a field) jumps to the search box
+            $(document).on('keydown', function (e) {
+                if (e.key === '/' && searchInput.length && !$(e.target).is('input, textarea, select, [contenteditable]')) {
+                    e.preventDefault();
+                    searchInput.focus();
+                }
             });
 
             showRange(initialStart, initialEnd);

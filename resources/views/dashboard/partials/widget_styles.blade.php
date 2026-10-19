@@ -26,6 +26,8 @@
         --dw-klinik-premiere: #2563eb;
         --dw-klinik-skin: #db2777;
         --dw-klinik-dental: #16a34a;
+        --dw-hit: #fde68a; /* dashboard search: matched text */
+        --dw-hit-ink: #1e293b;
     }
 
     /* Dark theme (html.theme-dark, set by the layout's theme toggle): same hues, stepped for the dark surface */
@@ -63,6 +65,8 @@
         --dw-klinik-premiere: #5b93f2;
         --dw-klinik-skin: #ea5d9e;
         --dw-klinik-dental: #32b768;
+        --dw-hit: rgba(250, 178, 25, 0.38);
+        --dw-hit-ink: #fff7e0;
     }
 
     html.theme-dark .dsh .dw-select,
