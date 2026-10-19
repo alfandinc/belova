@@ -101,7 +101,7 @@ class ElabController extends Controller
             $query->orderBy('nama');
         }])->orderBy('nama')->get();
 
-        $labPakets = LabPaket::with(['labTests.labKategori:id,nama'])
+        $labPakets = LabPaket::with(['labTests:erm_lab_test.id,erm_lab_test.nama,erm_lab_test.harga'])
             ->orderBy('nama')
             ->get();
         $labPaketPayload = $labPakets->map(function ($paket) {
@@ -124,17 +124,41 @@ class ElabController extends Controller
         
         // Get existing lab requests for this visitation
         $existingLabRequests = LabPermintaan::where('visitation_id', $visitationId)
-                                ->with('labTest')
-                                ->get();
-        
-        // Get total estimated price
-        $totalHarga = $this->calculateVisitationTotalHarga($visitationId);
-        
+                                ->get(['lab_test_id', 'lab_paket_id', 'status']);
+
         // Get existing standalone lab test IDs for pre-checking checkboxes
         $existingLabTestIds = $existingLabRequests->whereNull('lab_paket_id')->pluck('lab_test_id')->toArray();
         $existingLabPaketIds = $existingLabRequests->pluck('lab_paket_id')->filter()->unique()->values()->toArray();
         // Map: lab_test_id => status
         $existingLabTestStatuses = $existingLabRequests->pluck('status', 'lab_test_id')->toArray();
+        // Map: lab_test_id => lab_paket_id (null = standalone), to lock what the lab already works on
+        $existingLabTestPaket = $existingLabRequests->pluck('lab_paket_id', 'lab_test_id')->toArray();
+
+        // Last earlier visit with lab requests, for "ulangi permintaan sebelumnya"
+        $previousLabVisit = Visitation::where('pasien_id', $visitation->pasien_id)
+            ->where('id', '!=', $visitation->id)
+            ->whereHas('labPermintaan')
+            ->orderByDesc('tanggal_visitation')
+            ->first(['id', 'tanggal_visitation']);
+        $previousLab = null;
+        if ($previousLabVisit) {
+            $previousRequests = LabPermintaan::where('visitation_id', $previousLabVisit->id)->get(['lab_test_id', 'lab_paket_id']);
+            $previousLab = [
+                'tanggal' => \Carbon\Carbon::parse($previousLabVisit->tanggal_visitation)->format('d-m-Y'),
+                'test_ids' => $previousRequests->whereNull('lab_paket_id')->pluck('lab_test_id')->values(),
+                'paket_ids' => $previousRequests->pluck('lab_paket_id')->filter()->unique()->values(),
+            ];
+        }
+
+        // Counts on the Hasil Lab / Riwayat buttons (their tables only load when the modal opens)
+        $pasienVisitIds = Visitation::select('id')->where('pasien_id', $visitation->pasien_id);
+        $lisVisitCount = HasilLis::whereIn('visitation_id', $pasienVisitIds)->distinct()->count('visitation_id');
+        $hasilLabCount = $lisVisitCount + HasilEksternal::whereIn('visitation_id', $pasienVisitIds)->count();
+        $riwayatLabCount = LabPermintaan::whereIn('visitation_id', $pasienVisitIds)->distinct()->count('visitation_id');
+
+        // LIS results of this visit already in (names, lower case, to mark the requested tests)
+        $hasilLisNames = HasilLis::where('visitation_id', $visitation->id)->pluck('nama_test')
+            ->filter()->map(fn ($n) => mb_strtolower(trim($n)))->unique()->values();
 
         // Get last assessment with diagnosa kerja for this patient
         $lastAsesmen = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($visitation) {
@@ -152,10 +176,16 @@ class ElabController extends Controller
             'labPakets' => $labPakets,
             'labPaketPayload' => $labPaketPayload,
             'labTests' => $labTests,
-            'totalHarga' => $totalHarga,
             'existingLabTestIds' => $existingLabTestIds,
             'existingLabPaketIds' => $existingLabPaketIds,
             'existingLabTestStatuses' => $existingLabTestStatuses,
+            'existingLabTestPaket' => $existingLabTestPaket,
+            'previousLab' => $previousLab,
+            'hasilLisNames' => $hasilLisNames,
+            'hasilLabCount' => $hasilLabCount,
+            'lisVisitCount' => $lisVisitCount,
+            'riwayatLabCount' => $riwayatLabCount,
+            'canEditLabStatus' => Auth::user() && Auth::user()->hasAnyRole(['Lab', 'Admin']),
             'lastAsesmen' => $lastAsesmen
         ], $pasienData, $createKunjunganData));
     }
@@ -372,30 +402,30 @@ class ElabController extends Controller
         $visitation = Visitation::findOrFail($visitationId);
         $pasienId = $visitation->pasien_id;
         
-        // Get all visitations for this patient to show all lab results
-        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
-        
-        // Query to get unique visitation IDs that have LIS results
-        // We'll select directly from visitations to ensure one row per visitation
-        $query = Visitation::whereIn('id', $visitationIds)
+        // One row per visit of this patient that has LIS results; the test names come in the same query
+        $query = Visitation::where('pasien_id', $pasienId)
                 ->whereExists(function ($query) {
                     $query->select(DB::raw(1))
                           ->from('erm_hasil_lis')
                           ->whereRaw('erm_hasil_lis.visitation_id = erm_visitations.id');
                 })
+                ->select('erm_visitations.*')
+                ->selectSub(function ($q) {
+                    $q->from('erm_hasil_lis')
+                      ->selectRaw("GROUP_CONCAT(nama_test ORDER BY nama_test SEPARATOR ', ')")
+                      ->whereColumn('erm_hasil_lis.visitation_id', 'erm_visitations.id');
+                }, 'pemeriksaan_list')
                 ->with(['dokter.user'])
                 ->orderBy('tanggal_visitation', 'desc');
-        
+
         return DataTables::of($query)
             ->addIndexColumn()
             ->addColumn('tanggal', function($row) {
                 // Use indoDate helper for Indonesian format
                 return $this->indoDate($row->tanggal_visitation);
             })
-            // New column: Pemeriksaan
             ->addColumn('pemeriksaan', function($row) {
-                $hasilLis = \App\Models\ERM\HasilLis::where('visitation_id', $row->id)->pluck('nama_test')->toArray();
-                return implode(', ', $hasilLis);
+                return (string) $row->pemeriksaan_list;
             })
             ->addColumn('dokter', function($row) {
                 return $row->dokter && $row->dokter->user 
@@ -409,7 +439,7 @@ class ElabController extends Controller
                         <button type="button" class="btn btn-sm btn-primary btn-add-hasil-lis ml-1" data-id="'.$row->id.'" title="Tambah Hasil">
                             <i class="fas fa-plus"></i> Tambah
                         </button>
-                        <a href="'.route('erm.elab.hasil-lis.pdf', $row->id).'" class="btn btn-sm btn-danger ml-1" title="Cetak PDF Hasil Lab" target="_blank">
+                        <a href="'.route('erm.elab.hasil-lis.pdf', $row->id).'" class="btn btn-sm btn-danger ml-1 btn-pdf-preview" data-title="Hasil Lab '.e($this->indoDate($row->tanggal_visitation)).'" data-visitation-id="'.e($row->id).'" title="Cetak PDF Hasil Lab" target="_blank">
                             <i class="fas fa-file-pdf"></i> PDF
                         </a>';
             })
@@ -442,7 +472,7 @@ class ElabController extends Controller
                                           ->from('erm_lab_permintaan')
                                           ->whereColumn('erm_lab_permintaan.visitation_id', 'erm_visitations.id');
                                 })
-                                ->with(['dokter.user', 'pasien'])
+                                ->with(['dokter.user'])
                                 ->orderBy('tanggal_visitation', 'desc');
         
         return DataTables::of($visitations)
@@ -465,7 +495,7 @@ class ElabController extends Controller
 
     public function getVisitationLabDetail($visitationId)
     {
-        $labPermintaan = LabPermintaan::with(['labTest.labKategori', 'dokter.user'])
+        $labPermintaan = LabPermintaan::with(['labTest.labKategori', 'labPaket:id,nama,harga_paket', 'dokter.user'])
                             ->where('visitation_id', $visitationId)
                             ->orderBy('created_at', 'desc')
                             ->get();
@@ -650,11 +680,8 @@ class ElabController extends Controller
         $visitation = Visitation::findOrFail($visitationId);
         $pasienId = $visitation->pasien_id;
         
-        // Get all visitations for this patient to show all lab results
-        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
-        
-        // Query to get all external lab results for this patient
-        $query = HasilEksternal::whereIn('visitation_id', $visitationIds)
+        // All external lab results of this patient
+        $query = HasilEksternal::whereIn('visitation_id', Visitation::select('id')->where('pasien_id', $pasienId))
                 ->orderBy('tanggal_pemeriksaan', 'desc');
         
         return DataTables::of($query)
@@ -857,14 +884,6 @@ class ElabController extends Controller
                 $groupedData[$item->header][$subHeader][] = $item;
             }
 
-            // Pre-load and cache background image
-            $backgroundPath = public_path('img/overlay-lab.png');
-            $backgroundData = '';
-            if (file_exists($backgroundPath)) {
-                // Optimize the image before encoding
-                $backgroundData = 'data:image/png;base64,' . base64_encode(file_get_contents($backgroundPath));
-            }
-
             // Get diagnosa kerja 1-5 from the latest asesmen penunjang for this patient
             $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($visitation) {
                 $query->where('pasien_id', $visitation->pasien_id);
@@ -921,7 +940,6 @@ class ElabController extends Controller
                 'hasilLis' => $hasilLis,
                 'groupedData' => $groupedData,
                 'tanggal' => date('d-m-Y', strtotime($visitation->tanggal_visitation)),
-                'backgroundData' => $backgroundData,
                 'diagnosaKerja' => $diagnosaKerja,
                 'dokterLab' => $dokterLab ? [
                     'name' => $dokterLab->user->name ?? '-',
@@ -1043,10 +1061,8 @@ class ElabController extends Controller
                     'flag' => $item->flag
                 ];
             }
-            // Background image for blade (use header image for background)
             $headerImg = public_path('img/lab_header.png');
             $footerImg = public_path('img/lab_footer.png');
-            $backgroundData = file_exists($headerImg) ? 'data:image/png;base64,' . base64_encode(file_get_contents($headerImg)) : '';
             // Diagnosa kerja dari asesmen penunjang terbaru
             $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($pasienId) {
                 $query->where('pasien_id', $pasienId);
@@ -1096,7 +1112,6 @@ class ElabController extends Controller
                 'latestVisit' => $latestVisit,
                 'monitoringData' => $monitoringData,
                 'visitDates' => $visitDates,
-                'backgroundData' => $backgroundData,
                 'diagnosaKerja' => $diagnosaKerja,
                 'dokterLab' => $dokterLab ? [
                     'name' => $dokterLab->user->name ?? '-',

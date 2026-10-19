@@ -1,0 +1,134 @@
+        .elab-page .erm-section { padding-bottom: 14px; }
+        .elab-head-tools { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+        .elab-tool-btn {
+            display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 10px; font-size: .85rem; font-weight: 700;
+            border: 1px solid rgba(var(--ef-accent-rgb), .45); background: rgba(var(--ef-accent-rgb), .12); color: var(--ef-accent-text);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .06); transition: background .15s, transform .15s, box-shadow .15s;
+        }
+        .elab-tool-btn:hover, .elab-tool-btn:focus { background: rgba(var(--ef-accent-rgb), .22); color: var(--ef-accent-text); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(var(--ef-accent-rgb), .25); }
+        .elab-tool-btn.is-main { background: var(--ef-accent); border-color: var(--ef-accent); color: #fff; }
+        .elab-tool-btn.is-main:hover, .elab-tool-btn.is-main:focus { filter: brightness(1.08); background: var(--ef-accent); color: #fff; }
+        .elab-tool-btn i { font-size: .9rem; }
+        .elab-count { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 999px; font-size: .72rem; font-weight: 800; line-height: 20px; text-align: center; background: var(--ef-accent); color: #fff; }
+        .elab-tool-btn.is-main .elab-count { background: #fff; color: var(--ef-accent); }
+        /* PDF preview modal */
+        .elab-pdf-body { position: relative; height: calc(100vh - 140px); min-height: 360px; background: #525659; }
+        .elab-pdf-body iframe { display: block; width: 100%; height: 100%; border: 0; }
+        .elab-pdf-loading, .elab-pdf-error {
+            position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: var(--sb-bg, #fff); color: var(--sb-text, #4b5671); font-size: .9rem; font-weight: 600; text-align: center; padding: 20px;
+        }
+        .elab-pdf-loading .spinner-border { color: var(--ef-accent); }
+        .elab-pdf-error { color: #dc2626; }
+        /* Riwayat: a visit row opens its tests below it */
+        .elab-history-table tbody tr[role="row"] { cursor: pointer; }
+        .elab-history-table .elab-expand { color: var(--sb-muted, #8a94ad); transition: transform .15s; }
+        .elab-history-table tr.shown .elab-expand { transform: rotate(90deg); color: var(--ef-accent-text); }
+        .elab-history-detail { padding: 4px 4px 4px 36px; }
+        .elab-history-detail table { margin: 0; font-size: .82rem; }
+        .elab-history-detail .table td, .elab-history-detail .table th { padding: 5px 8px; }
+        .elab-page .table { margin-bottom: 0; }
+
+        /* Diagnosa kerja chips */
+        .elab-diagnosa { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+        .elab-diagnosa-chip { padding: 4px 12px; border-radius: 999px; font-size: .82rem; font-weight: 600; background: rgba(var(--ef-accent-rgb), .1); color: var(--ef-accent-text); border: 1px solid rgba(var(--ef-accent-rgb), .3); }
+        .elab-diagnosa-empty { font-size: .82rem; color: var(--sb-muted, #8a94ad); }
+
+        /* Search */
+        .elab-search { position: relative; margin-bottom: 14px; }
+        .elab-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--sb-muted, #8a94ad); pointer-events: none; }
+        .elab-search .form-control { padding-left: 34px; }
+
+        /* Paket lab cards */
+        .elab-paket-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 16px; }
+        .elab-paket {
+            display: block; margin: 0; padding: 10px 12px; border-radius: 12px; cursor: pointer;
+            border: 1px solid var(--sb-line, #e2e8f0); background: var(--sb-bg, #fff); transition: border-color .15s, background .15s;
+        }
+        .elab-paket:hover { border-color: rgba(var(--ef-accent-rgb), .45); }
+        .elab-paket:has(input:checked) { border-color: rgba(var(--ef-accent-rgb), .7); background: rgba(var(--ef-accent-rgb), .08); }
+        .elab-paket-top { display: flex; align-items: flex-start; gap: 8px; }
+        .elab-paket-top input { margin-top: 4px; accent-color: var(--ef-accent); }
+        .elab-paket-name { font-weight: 700; font-size: .9rem; color: var(--sb-text-strong, #1e2538); line-height: 1.3; }
+        .elab-paket-price { font-weight: 800; font-size: .85rem; color: var(--ef-accent-text); }
+        .elab-paket-isi { margin: 6px 0 0 22px; font-size: .76rem; color: var(--sb-muted, #8a94ad); line-height: 1.45; }
+
+        /* Pemeriksaan per kategori */
+        .elab-kategori-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+        .elab-kategori { border: 1px solid var(--sb-line, #e2e8f0); border-radius: 12px; overflow: hidden; background: var(--sb-bg, #fff); }
+        .elab-kategori-head {
+            padding: 7px 12px; font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+            background: rgba(var(--ef-accent-rgb), .1); color: var(--ef-accent-text); border-bottom: 1px solid var(--sb-line, #e2e8f0);
+        }
+        .elab-kategori-body { padding: 6px 4px; }
+        .elab-test {
+            display: flex; align-items: center; gap: 8px; margin: 0; padding: 5px 8px; border-radius: 8px; cursor: pointer;
+            font-size: .85rem; color: var(--sb-text-strong, #1e2538);
+        }
+        .elab-test:hover { background: rgba(148, 163, 184, .12); }
+        .elab-test input { flex: 0 0 auto; margin: 0; accent-color: var(--ef-accent); }
+        .elab-test .elab-test-name { flex: 1 1 auto; line-height: 1.3; }
+        .elab-test:has(input:checked) .elab-test-name { color: var(--ef-accent-text); font-weight: 700; }
+        .elab-test-tag { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; font-size: .64rem; font-weight: 800; white-space: nowrap; }
+        .elab-test-tag.is-off { background: rgba(148, 163, 184, .18); color: var(--sb-muted, #8a94ad); }
+        .elab-test-tag.is-paket { display: none; background: rgba(13, 148, 136, .14); color: #0d9488; }
+        .elab-test.in-paket .elab-test-tag.is-paket { display: inline-block; }
+        .elab-test.in-paket .elab-test-name { color: var(--sb-muted, #8a94ad); font-weight: 500; }
+        .elab-empty-search { display: none; padding: 16px; text-align: center; font-size: .85rem; color: var(--sb-muted, #8a94ad); }
+
+        /* Permintaan terpilih (sticky next to the picker on wide screens) */
+        @media (min-width: 1200px) { .elab-selected { position: sticky; top: 80px; } }
+        .elab-bulk { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; font-size: .82rem; }
+        .erm-form.elab-page .elab-bulk label.custom-control-label { margin-bottom: 0; font-size: .82rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
+        .elab-bulk-status { display: none; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .elab-bulk-status .btn { border-radius: 8px; font-weight: 700; font-size: .75rem; padding: 3px 10px; }
+        .elab-selected-table td { font-size: .85rem; }
+        .erm-form.elab-page .elab-selected-table label.custom-control-label { margin-bottom: 0; font-size: .8rem; font-weight: 700; color: var(--sb-muted, #8a94ad); text-transform: none; letter-spacing: normal; }
+        .lab-package-summary td { background: rgba(var(--ef-accent-rgb), .08); font-weight: 700; color: var(--ef-accent-text); }
+        .lab-package-child-name { padding-left: 22px !important; }
+        .elab-in-paket { font-size: .75rem; font-weight: 700; color: #0d9488; }
+        .elab-status { display: inline-block; min-width: 76px; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 800; text-align: center; cursor: pointer; }
+        .elab-status.is-requested { background: rgba(245, 158, 11, .16); color: #b45309; }
+        .elab-status.is-processing { background: rgba(14, 165, 233, .16); color: #0369a1; }
+        .elab-status.is-completed { background: rgba(22, 163, 74, .16); color: #15803d; }
+        html.theme-dark .elab-status.is-requested { color: #fcd34d; }
+        html.theme-dark .elab-status.is-processing { color: #7dd3fc; }
+        html.theme-dark .elab-status.is-completed { color: #86efac; }
+        .elab-status.is-readonly { cursor: default; }
+        .elab-hasil-icon { margin-left: 6px; color: #16a34a; font-size: .8rem; }
+        .elab-lock-icon { margin-left: 6px; color: var(--sb-muted, #8a94ad); font-size: .72rem; }
+        .elab-test.is-locked, .elab-paket.is-locked { cursor: not-allowed; }
+        .elab-hasil-banner {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: .82rem; font-weight: 600;
+            background: rgba(22, 163, 74, .1); border: 1px solid rgba(22, 163, 74, .35); color: #15803d;
+        }
+        html.theme-dark .elab-hasil-banner { color: #86efac; }
+        .elab-hasil-banner span { flex: 1 1 auto; }
+        .elab-hasil-banner .btn { border-radius: 8px; padding: 2px 12px; font-weight: 700; }
+        .elab-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--sb-line, #e2e8f0); }
+        .elab-total span { font-size: .78rem; font-weight: 700; color: var(--sb-muted, #8a94ad); text-transform: uppercase; letter-spacing: .04em; }
+        .elab-total strong { font-size: 1.25rem; color: var(--sb-text-strong, #1e2538); }
+
+        /* Segmented tabs (same as CPPT) */
+        .elab-seg { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 12px; border-radius: 12px; background: var(--sb-tile, #f1f5f9); border: 1px solid var(--sb-line, #e2e8f0); }
+        .elab-seg .nav-link { border-radius: 9px; padding: 6px 18px; font-weight: 700; font-size: .85rem; color: var(--sb-text, #4b5671); }
+        .elab-seg .nav-link.active { background: var(--ef-accent); color: #fff; box-shadow: 0 2px 8px rgba(var(--ef-accent-rgb), .3); }
+        .elab-tab-tools { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+        .elab-tab-tools .btn { border-radius: 9px; font-weight: 600; }
+
+        /* Table action buttons from the server */
+        .elab-page .dataTable td .btn { border-radius: 8px; margin: 2px; }
+        /* DataTables controls keep their normal look inside the themed form */
+        .elab-page .dataTables_wrapper label { text-transform: none; letter-spacing: normal; font-size: .82rem; font-weight: 500; color: var(--sb-muted, #8a94ad); }
+        .elab-page .dataTables_length select.form-control { min-width: 72px; min-height: 32px; height: 32px; padding: 2px 24px 2px 10px; display: inline-block; width: auto; }
+        .elab-page .dataTables_filter input.form-control { min-height: 32px; height: 32px; }
+        .elab-page table.dataTable thead th { white-space: nowrap; }
+
+        .elab-actionbar-total { font-size: .85rem; color: var(--sb-text, #4b5671); }
+        .elab-actionbar-total strong { font-size: 1.05rem; color: var(--sb-text-strong, #1e2538); }
+        .erm-actionbar .btn.is-dirty { background: #f59e0b; border-color: #f59e0b; color: #1f2937; animation: elab-pulse 2s infinite; }
+        @keyframes elab-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .45); }
+            70% { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }

@@ -13,6 +13,8 @@ class KategoriTindakan extends Model
 
     protected $fillable = [
         'nama',
+        // Inform consent text of the tindakan that pick this kategori (HTML, {tindakan} / {klinik})
+        'consent_content',
     ];
 
     public function kodeTindakans()

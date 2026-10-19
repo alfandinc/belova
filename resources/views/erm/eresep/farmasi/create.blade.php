@@ -373,11 +373,18 @@
     </div>
 </div>
 
+{{-- Cetak prints straight away (public/js/erm-pdf-preview.js); the preview modal is only the fallback --}}
+<link rel="stylesheet" href="{{ asset('css/erm-penunjang.css') }}?v={{ filemtime(public_path('css/erm-penunjang.css')) }}">
+<div class="erm-form" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
+    @include('erm.partials.modal-pdf-preview')
+</div>
+
 @endsection
 
 @section('scripts')
 @include('erm.partials.aturan-pakai-builder')
 @include('erm.partials.obat-alternatif')
+<script src="{{ asset('js/erm-pdf-preview.js') }}?v={{ filemtime(public_path('js/erm-pdf-preview.js')) }}"></script>
 
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
@@ -1827,16 +1834,18 @@
             refreshSubmitButtonState();
         }
 
+        // Cetak opens the browser's print dialog straight away (no new tab); each PDF is made fresh, as the
+        // resep can change between two prints
+        function cetakPdf(url, title) {
+            window.ErmPdfPreview.drop(url);
+            window.ErmPdfPreview.printPdf(url, title);
+        }
         $('.btn-cetakresep').on('click', function() {
-            const visitationId = $('#visitation_id').val();
-            // Open the print route in a new tab
-            window.open(`/erm/eresepfarmasi/${visitationId}/print`, '_blank');
+            cetakPdf(`/erm/eresepfarmasi/${$('#visitation_id').val()}/print`, 'Resep');
         });
 
         $('.btn-cetaketiket').on('click', function() {
-            const visitationId = $('#visitation_id').val();
-            // Open the etiket print route in a new tab
-            window.open(`/erm/eresepfarmasi/${visitationId}/print-etiket`, '_blank');
+            cetakPdf(`/erm/eresepfarmasi/${$('#visitation_id').val()}/print-etiket`, 'Etiket');
         });
 
         // Initialize Select2 for Etiket Biru modal
@@ -1942,36 +1951,20 @@
             formData.append('sore', $('#etiket-sore').is(':checked') ? 1 : 0);
             formData.append('malam', $('#etiket-malam').is(':checked') ? 1 : 0);
 
-            // Submit form to generate PDF
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '/erm/eresepfarmasi/etiket-biru/print';
-            form.target = '_blank';
-            
-            // Add CSRF token
-            const tokenInput = document.createElement('input');
-            tokenInput.type = 'hidden';
-            tokenInput.name = '_token';
-            tokenInput.value = '{{ csrf_token() }}';
-            form.appendChild(tokenInput);
-            
-            // Add other fields
-            for (let [key, value] of formData.entries()) {
-                if (key !== '_token') {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
-                }
-            }
-            
-            document.body.appendChild(form);
-            form.submit();
-            document.body.removeChild(form);
-            
-            // Close modal
+            // Made by a POST: fetched as a blob and printed straight away (no new tab)
             $('#etiketBiruModal').modal('hide');
+            const pdf = fetch('/erm/eresepfarmasi/etiket-biru/print', {
+                // JSON first, so a validation error comes back as a message instead of a redirect
+                method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json, application/pdf' }
+            }).then(function (res) {
+                if (!res.ok || (res.headers.get('Content-Type') || '').indexOf('application/pdf') === -1) {
+                    return res.json().catch(function () { return {}; }).then(function (json) {
+                        throw new Error(json.message || 'Etiket biru gagal dibuat.');
+                    });
+                }
+                return res.blob();
+            });
+            window.ErmPdfPreview.printBlob(pdf, 'Etiket Biru', 'etiket-biru.pdf');
         });
            
         updateTotalPrice(); // <--- Tambahkan ini

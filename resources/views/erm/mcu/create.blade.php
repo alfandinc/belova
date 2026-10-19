@@ -6,6 +6,7 @@
 @endsection
 
 @section('content')
+@include('erm.partials.modal-alergipasien')
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">MCU</h3>

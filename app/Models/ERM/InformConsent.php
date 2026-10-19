@@ -15,6 +15,7 @@ class InformConsent extends Model
         'after_image_path',
         'riwayat_tindakan_id',
         'allow_post',
+        'notes',
     ];
 
     public function tindakan()

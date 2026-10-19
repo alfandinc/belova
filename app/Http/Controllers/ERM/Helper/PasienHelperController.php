@@ -80,10 +80,11 @@ class PasienHelperController
             }
         }
 
-        $zatAktif = ZatAktif::all();
         $alergiPasien = Alergi::where('pasien_id', $pasien->id)
             ->with('zataktif') // Eager load zataktif relationship
             ->get();
+        // Only the patient's own zat aktif go in the allergy picker; the rest is searched (AlergiController::searchZatAktif)
+        $zatAktif = $alergiPasien->pluck('zataktif')->filter()->unique('id')->values();
 
         // Extract zataktif IDs and names (rows with only a kata kunci have no zat aktif name)
         $alergiNames = $alergiPasien->pluck('zataktif.nama')->filter()->values()->toArray();

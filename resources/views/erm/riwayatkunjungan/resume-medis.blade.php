@@ -51,34 +51,20 @@
 </head>
 <body>
 
-<table class="no-border">
-  <tr>
-    <td style="width: 30%;" class="header-logo">
-      <img src="{{ public_path('img/logo-premiere.png') }}" alt="Logo" width="180">
-    </td>
-    <td style="width: 70%; text-align: right;">
-        <strong>KLINIK UTAMA PREMIERE BELOVA</strong> <br>
-        Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-        Telp. 0821-1600-0093 <br>
-        www.premierebelova.id <br>
-    </td>
-  </tr>
-</table>
-
-<hr>
+@include('erm.riwayatkunjungan.partials.kop')
 
 <table class="identity-table no-border">
   <tr>   
-    <td style="width: 12%; line-height: 0.8;"><strong>Nama</strong> </td> <td style="width: 48%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->nama }}</td>
-    <td style="width: 12%; line-height: 0.8;"><strong>No RM</strong> </td> <td style="width: 28%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->id }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>Nama</strong> </td> <td style="width: 48%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->nama }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>No RM</strong> </td> <td style="width: 28%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->id }}</td>
   </tr>
   <tr>   
-    <td style="width: 12%; line-height: 0.8;"><strong>{{ $pasien->identity_label ?? 'Identitas' }}</strong> </td> <td style="width: 48%%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->identity_number ?? $pasien->nik ?? '-' }}</td>
-    <td style="width: 12%; line-height: 0.8;"><strong>Tgl Lahir</strong> </td> <td style="width: 28%; line-height: 0.8;" ><strong>:</strong> {{ \Carbon\Carbon::parse($pasien->tanggal_lahir)->translatedFormat('d F Y') }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>{{ $pasien->identity_label ?? 'Identitas' }}</strong> </td> <td style="width: 48%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->identity_number ?: '-' }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>Tgl Lahir</strong> </td> <td style="width: 28%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->tanggal_lahir ? \Carbon\Carbon::parse($pasien->tanggal_lahir)->translatedFormat('d F Y') : '-' }}</td>
   </tr>
   <tr>   
-    <td style="width: 12%; line-height: 0.8;"><strong>Alamat</strong> </td> <td style="width: 48%%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->alamat }}</td>
-    <td style="width: 12%; line-height: 0.8;"><strong>No Telp.</strong> </td> <td style="width: 28%; line-height: 0.8;" ><strong>:</strong> {{ $pasien->no_hp }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>Alamat</strong> </td> <td style="width: 48%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->alamat ?: '-' }}</td>
+    <td style="width: 12%; line-height: 1.25;"><strong>No Telp.</strong> </td> <td style="width: 28%; line-height: 1.25;" ><strong>:</strong> {{ $pasien->no_hp ?: '-' }}</td>
   </tr>
 </table>
 
@@ -89,7 +75,7 @@
 <table>
   <tr>
     <td><strong>Tanggal:</strong> {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('d F Y') }}</td>
-    <td><strong>Klinik:</strong> Klinik Utama Premiere Belova</td>
+    <td><strong>Klinik:</strong> {{ $kop['nama'] }}</td>
   </tr>
 </table>
 
@@ -116,7 +102,7 @@
     <td class="bold">Penunjang :</td>
   </tr>
   <tr>
-    <td>-</td>
+    <td>{{ $penunjang }}</td>
   </tr>
 
 

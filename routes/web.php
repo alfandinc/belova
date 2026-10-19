@@ -42,7 +42,6 @@ use App\Http\Controllers\ERM\{
     ListAntrianController,
     StatisticController,
     SuratIstirahatController,
-    SuratMondokController,
     ResepCatatanController,
     NotificationController,
     ObatKeluarController,
@@ -710,6 +709,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'index'])->name('marketing.kategori.index');
     Route::post('/marketing/kategori-tindakan', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'store'])->name('marketing.kategori.store');
     Route::delete('/marketing/kategori-tindakan/{id}', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'destroy'])->name('marketing.kategori.destroy');
+    // Inform consent text of a kategori (used by paket that pick it and have no own text)
+    Route::get('/marketing/kategori-tindakan/{id}/consent', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'consent'])->name('marketing.kategori.consent');
+    Route::post('/marketing/kategori-tindakan/{id}/consent', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'saveConsent'])->name('marketing.kategori.consent.save');
     Route::post('/marketing/kategori-tindakan/import', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importPreview'])->name('marketing.kategori.import.preview');
     Route::post('/marketing/kategori-tindakan/import/apply', [\App\Http\Controllers\Marketing\KategoriTindakanController::class, 'importApply'])->name('marketing.kategori.import.apply');
     // Select2 search for kategori (used by kode tindakan form)
@@ -998,6 +1000,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/statistic/summary', [StatisticController::class, 'summary'])->name('erm.statistic.summary');
 
     Route::post('/edukasi-obat/store', [EresepController::class, 'storeEdukasiObat'])->name('edukasi.obat.store');
+    Route::get('/edukasi-obat/{visitationId}/data', [EresepController::class, 'getEdukasiObat'])->name('edukasi.obat.data');
     Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');
     // Add these routes to your routes/web.php file
     Route::get('/resep/dokter/{visitationId}/get', [EresepController::class, 'getResepDokterByVisitation'])->name('resep.dokter.get');
@@ -1009,6 +1012,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //Alergi
     Route::post('/pasiens/{visitation}/alergi', [AlergiController::class, 'store'])->name('erm.alergi.store');
     Route::get('/pasiens/{visitation}/alergi', [AlergiController::class, 'current'])->name('erm.alergi.current');
+    Route::get('/alergi/zat-aktif/search', [AlergiController::class, 'searchZatAktif'])->name('erm.alergi.zataktif.search');
 
     //Radiologi
     Route::get('/eradiologi/{visitation_id}/create', [EradiologiController::class, 'create'])->name('erm.eradiologi.create');
@@ -1019,10 +1023,14 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::put('/eradiologi/permintaan/{id}/status', [EradiologiController::class, 'updateStatus'])->name('erm.eradiologi.update-status');
     Route::post('/eradiologi/permintaan/bulk-delete', [EradiologiController::class, 'bulkDelete'])->name('erm.eradiologi.bulk-delete');
     Route::post('/eradiologi/permintaan/bulk-update', [EradiologiController::class, 'bulkUpdate'])->name('erm.eradiologi.bulk-update');
+    Route::post('/eradiologi/permintaan/sync', [EradiologiController::class, 'sync'])->name('erm.eradiologi.sync');
+    Route::get('/eradiologi/patient/{pasien_id}/history', [EradiologiController::class, 'patientHistory'])->name('erm.eradiologi.patient.history');
+    Route::get('/eradiologi/visitation/{visitation_id}/detail', [EradiologiController::class, 'visitationDetail'])->name('erm.eradiologi.visitation.detail');
     Route::get('/eradiologi/{visitation_id}/print', [EradiologiController::class, 'printPermintaan'])->name('erm.eradiologi.print');
     Route::get('/eradiologi/{visitation_id}/dokumen/data', [EradiologiController::class, 'getRadiologiDokumenData'])->name('erm.eradiologi.dokumen.data');
     Route::post('/eradiologi/hasil/upload', [EradiologiController::class, 'uploadRadiologiHasil'])->name('erm.eradiologi.hasil.upload');
     Route::get('/eradiologi/hasil/{id}', [EradiologiController::class, 'getRadiologiHasilDetails'])->name('erm.eradiologi.hasil.detail');
+    Route::delete('/eradiologi/hasil/{id}', [EradiologiController::class, 'destroyRadiologiHasil'])->middleware('role:Admin')->name('erm.eradiologi.hasil.destroy');
     Route::put('/eradiologi/hasil/{id}/deskripsi', [EradiologiController::class, 'updateRadiologiHasilDescription'])->name('erm.eradiologi.hasil.update-deskripsi');
     
     //Lab
@@ -1056,6 +1064,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
     // Inform consent filled after the tindakan was added (no new riwayat / billing)
     Route::post('/tindakan/riwayat/{id}/inform-consent', [TindakanController::class, 'saveRiwayatInformConsent'])->name('erm.tindakan.riwayat.inform-consent');
+    Route::post('/tindakan/riwayat/{id}/inform-consent/preview', [TindakanController::class, 'previewRiwayatInformConsent'])->name('erm.tindakan.riwayat.inform-consent.preview');
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getRiwayatTindakanHistory'])->name('tindakan.history');
     // Print detail riwayat tindakan (grouped by visitation for the same patient)
     Route::get('/tindakan/history/{visitation}/print-detail', [TindakanController::class, 'printHistoryDetail'])->name('erm.tindakan.history.print');
@@ -1123,11 +1132,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
     Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
-    
+    Route::delete('/surat-istirahat/{id}', [SuratIstirahatController::class, 'destroy'])->name('erm.suratistirahat.destroy');
+
     // Surat Mondok routes
     Route::get('/suratmondok-data/{pasien_id}', [SuratIstirahatController::class, 'getMondokData'])->name('erm.suratmondok.data');
     Route::post('/suratmondok', [SuratIstirahatController::class, 'storeMondok'])->name('erm.suratmondok.store');
-    Route::get('/surat-mondok/{id}', [SuratMondokController::class, 'suratMondok'])->name('surat.mondok');
+    Route::get('/surat-mondok/{id}', [SuratIstirahatController::class, 'suratMondok'])->name('surat.mondok');
+    Route::delete('/surat-mondok/{id}', [SuratIstirahatController::class, 'destroyMondok'])->name('erm.suratmondok.destroy');
     Route::get('/suratmondok/asesmen-data/{visitation_id}', [SuratIstirahatController::class, 'getAsesmenData'])->name('erm.suratmondok.asesmen-data');
 
     //Submit Billing Obat

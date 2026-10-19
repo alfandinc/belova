@@ -6,13 +6,12 @@
 @endsection
 
 @section('content')
-
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-suratdiagnosa')
 
 <div class="container-fluid">
-    <div class="d-flex  align-items-center mb-0 mt-2">
-        <h3 class="mb-0 mr-2">Riwayat Kunjungan</h3>
+    <div class="d-flex align-items-center mb-0 mt-2">
+        <h3 class="mb-0"><strong>Riwayat Kunjungan</strong></h3>
     </div>
     <!-- Page-Title -->
     <div class="row">
@@ -23,325 +22,160 @@
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
                             <li class="breadcrumb-item">Rawat Jalan</li>
-                            <li class="breadcrumb-item active">E-Lab</li>
+                            <li class="breadcrumb-item active">Riwayat Kunjungan</li>
                         </ol>
                     </div><!--end col-->
-                </div><!--end row-->                                                              
+                </div><!--end row-->
             </div><!--end page-title-box-->
         </div><!--end col-->
-    </div><!--end row-->  
+    </div><!--end row-->
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
 
-    <div class="card">
-        <div class="card-body">
-            <div class="row mb-3 align-items-end">
-                <div class="col-md-3">
-                    <div class="card bg-primary mb-0">
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="text-dark">
-                                    <div class="font-weight-bold text-dark">Total Kunjungan (Selesai)</div>
-                                    <div class="h4 mb-0 text-dark">{{ number_format($stats['total_visits'] ?? 0) }}</div>
-                                </div>
-                                <div><i class="fas fa-calendar-check fa-2x text-dark"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card bg-success mb-0">
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div class="text-dark">
-                                    <div class="font-weight-bold text-dark">Total Pengeluaran</div>
-                                    <div class="h4 mb-0 text-dark">Rp {{ number_format($stats['total_spend'] ?? 0, 0, ',', '.') }}</div>
-                                </div>
-                                <div><i class="fas fa-wallet fa-2x text-dark"></i></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    @include('erm.partials.form-theme')
+    <link rel="stylesheet" href="{{ asset('css/erm-penunjang.css') }}?v={{ filemtime(public_path('css/erm-penunjang.css')) }}">
+    <style>
+        /* Stat tiles */
+        .rk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .rk-stat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--sb-line, #e2e8f0); background: var(--sb-bg, #fff); }
+        .rk-stat i { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; background: rgba(var(--ef-accent-rgb), .12); color: var(--ef-accent-text); }
+        .rk-stat-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--sb-muted, #8a94ad); }
+        .rk-stat-value { font-size: 1.15rem; font-weight: 800; color: var(--sb-text-strong, #1e2538); line-height: 1.25; }
+        .rk-stat-note { font-size: .75rem; color: var(--sb-muted, #8a94ad); }
+        .rk-stat-note.is-due { color: #dc2626; font-weight: 700; }
+        /* Filters */
+        .rk-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+        .rk-chip { padding: 5px 13px; border-radius: 999px; border: 1px solid var(--sb-line, #e2e8f0); background: var(--sb-bg, #fff); color: var(--sb-text, #4b5671); font-size: .82rem; font-weight: 600; cursor: pointer; }
+        .rk-chip:hover { border-color: rgba(var(--ef-accent-rgb), .45); }
+        .rk-chip.active { background: var(--ef-accent); border-color: var(--ef-accent); color: #fff; }
+        .rk-filters .form-control { width: auto; min-width: 170px; margin-left: auto; }
+        /* Table badges + actions */
+        .rk-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .72rem; font-weight: 800; white-space: nowrap; color: var(--rk-c); background: color-mix(in srgb, var(--rk-c) 14%, transparent); }
+        html.theme-dark .rk-badge { color: color-mix(in srgb, var(--rk-c) 55%, #fff); }
+        .rk-doc { font-size: .78rem; font-weight: 700; color: var(--sb-text, #4b5671); }
+        .rk-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+        .rk-actions .btn { border-radius: 8px; font-weight: 600; white-space: nowrap; }
+        #riwayat-table td { vertical-align: middle; }
+        .rk-filters-2 .form-control { margin-left: 0; min-width: 0; width: auto; }
+        .rk-filters-2 #filter_status_kunjungan { min-width: 160px; }
+        .rk-chip-count { opacity: .75; font-weight: 800; }
+        .rk-chip-count:empty { display: none; }
+        .rk-bayar-chip.active { background: #dc2626; border-color: #dc2626; color: #fff; }
+        .rk-reset { font-weight: 600; }
+        button.rk-stat-note { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
+        button.rk-stat-note:hover { text-decoration: underline; }
+        .rk-hidden-note { display: none; margin: -4px 0 10px; font-size: .8rem; color: var(--sb-muted, #8a94ad); }
+        .rk-hidden-note a { font-weight: 700; cursor: pointer; }
+        /* Row content */
+        .rk-date { font-weight: 700; color: var(--sb-text-strong, #1e2538); }
+        .rk-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+        .rk-dokter { font-weight: 600; }
+        .rk-sub { font-size: .76rem; color: var(--sb-muted, #8a94ad); }
+        .rk-sub.is-due { color: #dc2626; font-weight: 700; }
+        .rk-dx { font-size: .84rem; color: var(--sb-text-strong, #1e2538); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rk-chips-sm { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+        .rk-chip-sm { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700; background: var(--sb-tile, #f1f5f9); color: var(--sb-text, #4b5671); }
+        .rk-bill { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .rk-amount { font-weight: 800; color: var(--sb-text-strong, #1e2538); }
+        .rk-amount.is-muted { color: var(--sb-muted, #8a94ad); font-weight: 600; }
+        .rk-sub .is-due { color: #dc2626; font-weight: 700; }
+    </style>
 
-                <div class="col-md-6">
-                    <div class="row">
-                        <div class="col-md-5">
-                            <label for="filter_status_kunjungan">Status Kunjungan</label>
-                            <select id="filter_status_kunjungan" class="form-control select2">
-                                <option value="">Semua</option>
-                                <option value="0">Tidak datang</option>
-                                <option value="1">Belum diperiksa</option>
-                                <option value="2">Sudah diperiksa</option>
-                                <option value="7">Dibatalkan</option>
-                            </select>
-                        </div>
-                        <div class="col-md-5">
-                            <label for="filter_jenis_kunjungan">Jenis Kunjungan</label>
-                            <select id="filter_jenis_kunjungan" class="form-control select2">
-                                <option value="">Semua</option>
-                                <option value="klinis">Klinis (Konsultasi, Slimming, Vaksin, MCU)</option>
-                                <option value="1">Konsultasi Dokter</option>
-                                <option value="2">Beli Produk</option>
-                                <option value="3">Laboratorium</option>
-                                <option value="4">Event</option>
-                                <option value="5">Marketplace</option>
-                                <option value="6">Reseller</option>
-                                <option value="7">Slimming</option>
-                                <option value="8">Vaksin</option>
-                                <option value="9">MCU</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button id="btnResetFilter" class="btn btn-secondary w-100">Reset</button>
-                        </div>
+    <div class="erm-form elab-page" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
+        <section class="erm-section">
+            <div class="erm-section-head">
+                <span class="erm-section-num"><i class="fas fa-history"></i></span>
+                <h4 class="erm-section-title">Riwayat Kunjungan<span class="erm-section-sub">Semua kunjungan pasien, terbaru di atas</span></h4>
+            </div>
+
+            <div class="rk-stats">
+                <div class="rk-stat">
+                    <i class="fas fa-calendar-check"></i>
+                    <div>
+                        <div class="rk-stat-label">Kunjungan selesai</div>
+                        <div class="rk-stat-value">{{ number_format($stats['total_visits']) }}</div>
+                    </div>
+                </div>
+                <div class="rk-stat">
+                    <i class="fas fa-clock"></i>
+                    <div>
+                        <div class="rk-stat-label">Kunjungan terakhir</div>
+                        <div class="rk-stat-value">{{ $stats['last_visit'] }}</div>
+                    </div>
+                </div>
+                <div class="rk-stat">
+                    <i class="fas fa-file-invoice"></i>
+                    <div>
+                        <div class="rk-stat-label">Total tagihan</div>
+                        <div class="rk-stat-value">Rp {{ number_format($stats['total_tagihan'], 0, ',', '.') }}</div>
+                    </div>
+                </div>
+                <div class="rk-stat">
+                    <i class="fas fa-wallet"></i>
+                    <div>
+                        <div class="rk-stat-label">Terbayar</div>
+                        <div class="rk-stat-value">Rp {{ number_format($stats['total_terbayar'], 0, ',', '.') }}</div>
+                        @php $sisa = $stats['total_tagihan'] - $stats['total_terbayar']; @endphp
+                        @if($sisa > 0)
+                            <button type="button" class="rk-stat-note is-due rk-due-filter" title="Tampilkan kunjungan yang belum lunas">Belum dibayar Rp {{ number_format($sisa, 0, ',', '.') }} <i class="fas fa-filter"></i></button>
+                        @endif
                     </div>
                 </div>
             </div>
-            <!-- Riwayat Hasil Laboratorium -->
-            <div>
-                <div class="table-responsive">
-                    <table class="table table-bordered" id="riwayat-table">
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>Tanggal Kunjungan</th>
-                                <th>Spesialisasi</th>
-                                <th>Dokter</th>
-                                <th>Status Pasien</th>                
-                                {{-- <th>Tanggal Booking</th> --}}
-                                <th>Dokumen</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
-                </div>
-            </div>
 
-        </div>
+            <div class="rk-filters">
+                @foreach($jenisFilters as $key => $filter)
+                    <button type="button" class="rk-chip {{ $key === 'klinis' ? 'active' : '' }}" data-jenis="{{ $key }}">{{ $filter['label'] }} <span class="rk-chip-count" data-count-for="{{ $key }}"></span></button>
+                @endforeach
+            </div>
+            <div class="rk-filters rk-filters-2">
+                <select id="filter_status_kunjungan" class="form-control form-control-sm" aria-label="Status kunjungan">
+                    <option value="">Semua status</option>
+                    <option value="0">Tidak datang</option>
+                    <option value="1">Belum diperiksa</option>
+                    <option value="2" selected>Sudah diperiksa</option>
+                    <option value="7">Dibatalkan</option>
+                </select>
+                <input type="date" id="filter_date_from" class="form-control form-control-sm" aria-label="Dari tanggal" title="Dari tanggal">
+                <span class="rk-sub">s/d</span>
+                <input type="date" id="filter_date_to" class="form-control form-control-sm" aria-label="Sampai tanggal" title="Sampai tanggal">
+                <button type="button" class="rk-chip rk-bayar-chip" id="filterBayar" title="Hanya kunjungan yang tagihannya belum lunas"><i class="fas fa-file-invoice-dollar mr-1"></i>Belum lunas</button>
+                <button type="button" class="btn btn-sm btn-link rk-reset" id="btnResetFilter">Reset filter</button>
+            </div>
+            <div class="rk-hidden-note" id="rkHiddenNote"></div>
+
+            <div class="table-responsive">
+                <table class="table w-100" id="riwayat-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px">No</th>
+                            <th style="min-width: 150px">Kunjungan</th>
+                            <th>Dokter</th>
+                            <th style="min-width: 180px">Ringkasan</th>
+                            <th>Tagihan</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </section>
+
+        @include('erm.partials.modal-pdf-preview')
     </div>
 </div>
 @endsection
 
 @section('scripts')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-<script>
-$(document).ready(function () {
-    $('.select2').select2({ width: '100%' });
-
-    // Set default filters: status_kunjungan = 2, jenis kunjungan klinis (Konsultasi, Slimming, Vaksin, MCU)
-    $('#filter_status_kunjungan').val('2').trigger('change');
-    $('#filter_jenis_kunjungan').val('klinis').trigger('change');
-
-    var riwayatTable = $('#riwayat-table').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: '{{ route('erm.riwayatkunjungan.index', $pasien) }}',
-            data: function(d) {
-                d.status_kunjungan = $('#filter_status_kunjungan').val();
-                d.jenis_kunjungan = $('#filter_jenis_kunjungan').val();
-            }
-        },
-        columns: [
-            { data: 'DT_RowIndex', name: 'DT_RowIndex', title: 'No', orderable: false, searchable: false },
-            
-            { data: 'tanggal_visitation', name: 'tanggal_visitation' },
-            { data: 'spesialisasi', name: 'spesialisasi', orderable: false }, 
-            { data: 'dokter', name: 'dokter', orderable: false }, 
-            { data: 'metode', name: 'metodeBayar.nama' },
-            { data: 'status_dokumen', name: 'status_dokumen' },
-            // { data: 'created_at', name: 'created_at' },
-            { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
-        ]
-    });
-
-    // Auto-apply filters when selection changes
-    $('#filter_status_kunjungan, #filter_jenis_kunjungan').on('change', function() {
-        riwayatTable.ajax.reload();
-    });
-
-    // Reset filters
-    $('#btnResetFilter').on('click', function() {
-        $('#filter_status_kunjungan').val('').trigger('change');
-        $('#filter_jenis_kunjungan').val('').trigger('change');
-        // table will reload because change event triggers reload
-    });
-
-    // Surat Diagnosis button click
-    $(document).on('click', '.diagnosis-btn', function() {
-        const visitationId = $(this).data('id');
-        $('#visitation_id').val(visitationId);
-        
-        // Get data from server
-        $.ajax({
-            url: '/erm/riwayatkunjungan/' + visitationId + '/get-data-diagnosis',
-            type: 'GET',
-            dataType: 'json',
-            success: function(response) {
-                // Set pasien data
-                $('#pasien_nama').text(response.pasien.nama);
-                $('#pasien_rm').text(response.pasien.id);
-                $('#pasien_lahir').text(moment(response.pasien.tanggal_lahir).format('DD-MM-YYYY'));
-                $('#pasien_gender').text(response.pasien.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan');
-                $('#pasien_alamat').text(response.pasien.alamat);
-                
-                // Set diagnoses
-                let diagnosisHtml = '';
-                if (response.diagnoses.length > 0) {
-                    diagnosisHtml += '<ul class="list-group">';
-                    response.diagnoses.forEach(function(diagnosis, index) {
-                        diagnosisHtml += '<li class="list-group-item">' + diagnosis + '</li>';
-                    });
-                    diagnosisHtml += '</ul>';
-                } else {
-                    diagnosisHtml = '<p class="text-muted">Tidak ada diagnosis yang ditemukan.</p>';
-                }
-                $('#diagnosis_list').html(diagnosisHtml);
-                
-                // Set keterangan if exists
-                if (response.suratDiagnosa) {
-                    $('#keterangan').val(response.suratDiagnosa.keterangan);
-                } else {
-                    $('#keterangan').val('');
-                }
-                
-                // Show modal
-                $('#diagnosisModal').modal('show');
-            },
-            error: function(error) {
-                console.error('Error fetching data:', error);
-                alert('Terjadi kesalahan saat mengambil data. Silakan coba lagi.');
-            }
-        });
-    });
-    
-    // Save Surat Diagnosis
-    $('#saveDiagnosis').on('click', function() {
-        const visitationId = $('#visitation_id').val();
-        const keterangan = $('#keterangan').val();
-        
-        $.ajax({
-            url: '/erm/riwayatkunjungan/store-surat-diagnosis',
-            type: 'POST',
-            dataType: 'json',
-            data: {
-                _token: '{{ csrf_token() }}',
-                visitation_id: visitationId,
-                keterangan: keterangan
-            },
-            success: function(response) {
-                if (response.success) {
-                    alert('Surat diagnosis berhasil disimpan.');
-                } else {
-                    alert('Terjadi kesalahan. Silakan coba lagi.');
-                }
-            },
-            error: function(error) {
-                console.error('Error saving data:', error);
-                alert('Terjadi kesalahan saat menyimpan data. Silakan coba lagi.');
-            }
-        });
-    });
-    
-    // Print Surat Diagnosis
-    $('#printDiagnosis').on('click', function() {
-        const visitationId = $('#visitation_id').val();
-        
-        // First save the form data
-        const keterangan = $('#keterangan').val();
-        
-        $.ajax({
-            url: '/erm/riwayatkunjungan/store-surat-diagnosis',
-            type: 'POST',
-            dataType: 'json',
-            data: {
-                _token: '{{ csrf_token() }}',
-                visitation_id: visitationId,
-                keterangan: keterangan
-            },
-            success: function(response) {
-                if (response.success) {
-                    // If save is successful, open the PDF in a new window
-                    window.open('/erm/riwayatkunjungan/' + visitationId + '/print-surat-diagnosis', '_blank');
-                } else {
-                    alert('Terjadi kesalahan saat menyimpan. Silakan coba lagi.');
-                }
-            },
-            error: function(error) {
-                console.error('Error saving data:', error);
-                alert('Terjadi kesalahan saat menyimpan data. Silakan coba lagi.');
-            }
-        });
-    });
-
-    // Saat tombol modal alergi ditekan
-    $('#btnBukaAlergi').on('click', function () {
-        $('#modalAlergi').modal('show');
-    });
-
-    // Dokumen button: open different pages based on status_dokumen
-    // - if status_dokumen === 'asesmen' -> open Asesmen Dokter create page
-    // - if status_dokumen === 'cppt' -> open CPPT create page
-    $(document).on('click', '.dokumen-btn', function(e) {
-        e.preventDefault();
-
-        // get the DataTable row data for this button's row
-        var $tr = $(this).closest('tr');
-        var rowData = riwayatTable.row($tr).data();
-
-        // fallback: try to read id from data attribute on the button
-        var visitationId = (rowData && (rowData.id || rowData.visitation_id)) ? (rowData.id || rowData.visitation_id) : $(this).data('id');
-        var statusDokumen = rowData && rowData.status_dokumen ? rowData.status_dokumen : $(this).data('status');
-
-        if (!visitationId) {
-            console.error('Visitation id not found for dokumen button.');
-            return;
-        }
-
-        // normalize status to lowercase string when present
-        if (statusDokumen) {
-            statusDokumen = String(statusDokumen).toLowerCase();
-        }
-
-        if (statusDokumen === 'asesmen') {
-            // Open Asesmen Dokter create route (with /erm prefix)
-            window.open('/erm/asesmendokter/' + visitationId + '/create', '_blank');
-        } else if (statusDokumen === 'cppt') {
-            // Open CPPT create route (with /erm prefix)
-            window.open('/erm/cppt/' + visitationId + '/create', '_blank');
-        } else {
-            // Fallback: open resume medis if available
-            window.open('/resume-medis/' + visitationId, '_blank');
-        }
-    });
-
-    // Toggle semua bagian tergantung status
-        var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
-    
-    // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
-    if (initialStatusAlergi === 'ada') {
-        $('#inputKataKunciWrapper').show();
-        $('#selectAlergiWrapper').show();
-        $('#selectKandunganWrapper').show();
-    } else {
-        // Jika tidak, sembunyikan elemen-elemen tersebut
-        $('#inputKataKunciWrapper').hide();
-        $('#selectAlergiWrapper').hide();
-        $('#selectKandunganWrapper').hide();
-    }
-    $('input[name="statusAlergi"]').on('change', function () {
-        if ($(this).val() === 'ada') {
-            $('#inputKataKunciWrapper').show();
-            $('#selectAlergiWrapper').show();
-            $('#selectKandunganWrapper').show();
-        } else {
-            $('#inputKataKunciWrapper').hide();
-            $('#selectAlergiWrapper').hide();
-            $('#selectKandunganWrapper').hide();
-            $('#inputKataKunci').val('');
-            $('#selectAlergi, #selectKandungan').val(null).trigger('change');
-        }
-    });
-});
-</script>
+{{-- Page data for public/js/erm-riwayat-kunjungan.js --}}
+<script>window.RiwayatKunjunganConfig = {!! json_encode([
+    'routes' => [
+        'data' => route('erm.riwayatkunjungan.index', $pasien),
+        'diagnosisData' => url('/erm/riwayatkunjungan/__ID__/get-data-diagnosis'),
+        'diagnosisStore' => url('/erm/riwayatkunjungan/store-surat-diagnosis'),
+        'diagnosisPrint' => url('/erm/riwayatkunjungan/__ID__/print-surat-diagnosis'),
+        'diagnosisPrintEn' => url('/erm/riwayatkunjungan/__ID__/print-surat-diagnosis-en'),
+    ],
+], 15) !!};</script>
+<script src="{{ asset('js/erm-pdf-preview.js') }}?v={{ filemtime(public_path('js/erm-pdf-preview.js')) }}"></script>
+<script src="{{ asset('js/erm-riwayat-kunjungan.js') }}?v={{ filemtime(public_path('js/erm-riwayat-kunjungan.js')) }}"></script>
 @endsection

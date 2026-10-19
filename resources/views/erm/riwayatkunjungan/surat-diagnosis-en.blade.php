@@ -50,25 +50,11 @@
 </head>
 <body>
 
-<table class="no-border">
-  <tr>
-    <td style="width: 30%;" class="header-logo">
-      <img src="{{ public_path('img/logo-premiere.png') }}" alt="Logo" width="180">
-    </td>
-    <td style="width: 70%; text-align: right;">
-        <strong>PREMIERE BELOVA MAIN CLINIC</strong> <br>
-        Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-        Telp. 0821-1600-0093 <br>
-        www.premierebelova.id <br>
-    </td>
-  </tr>
-</table>
-
-<hr>
+@include('erm.riwayatkunjungan.partials.kop')
 
 <h3 class="center">MEDICAL DIAGNOSIS CERTIFICATE</h3>
 
-<p>The undersigned, physician of Klinik Utama Premiere Belova, hereby certifies that:</p>
+<p>The undersigned, physician of {{ \Illuminate\Support\Str::title($kop['nama']) }}, hereby certifies that:</p>
 
 <table class="identity-table no-border">
   <tr>   
@@ -81,15 +67,15 @@
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Gender</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->jenis_kelamin == 'L' ? 'Male' : 'Female' }}</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ ['Laki-laki' => 'Male', 'Perempuan' => 'Female'][$gender] ?? '-' }}</td>
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Age</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $umur }} years</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $umur !== null ? $umur . ' years' : '-' }}</td>
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Address</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->alamat }}</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->alamat ?: '-' }}</td>
   </tr>
 </table>
 
@@ -98,7 +84,7 @@
 <table class="identity-table no-border">
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Date</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('F d, Y') }}</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ \Carbon\Carbon::parse($tanggal_visit)->locale('en')->translatedFormat('F d, Y') }}</td>
   </tr>
   <tr>
     <td style="width: 30%; line-height: 1.2;"><strong>With the following diagnoses</strong></td>
@@ -135,7 +121,7 @@
   <tr>
     <td style="width: 50%;"></td>
     <td style="width: 50%; text-align: center;">
-      <p>Surakarta, {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('F d, Y') }}</p>
+      <p>Surakarta, {{ \Carbon\Carbon::parse($tanggal_visit)->locale('en')->translatedFormat('F d, Y') }}</p>
       
       @if(!empty($ttd_image_path))
         <img src="{{ $ttd_image_path }}" alt="Signature" width="100">

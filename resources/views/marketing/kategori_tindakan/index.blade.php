@@ -23,7 +23,8 @@
                         <th>Nama</th>
                         <th style="width:140px">Jumlah Tindakan</th>
                         <th>ICD10 Terhubung</th>
-                        <th style="width:120px">Aksi</th>
+                        <th style="width:170px">Inform Consent</th>
+                        <th style="width:220px">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -43,7 +44,22 @@
                                     @endforeach
                                 @endif
                             </td>
-                            <td><button class="btn btn-sm btn-danger btn-delete-kategori" data-id="{{ $k->id }}">Hapus</button></td>
+                            <td class="consent-status">
+                                @if($consentReady)
+                                    @if($k->consent_filled)
+                                        <span class="badge badge-success">Terisi</span>
+                                    @else
+                                        <span class="badge badge-secondary">Kosong</span>
+                                    @endif
+                                    <div class="small text-muted mt-1">Dipakai {{ (int) ($consentPaket[$k->id] ?? 0) }} paket</div>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary btn-consent-kategori" data-id="{{ $k->id }}" data-nama="{{ $k->nama }}" @unless($consentReady) disabled title="Jalankan migrasi dulu" @endunless><i class="fas fa-file-signature"></i> Inform Consent</button>
+                                <button class="btn btn-sm btn-danger btn-delete-kategori" data-id="{{ $k->id }}">Hapus</button>
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -139,11 +155,94 @@
   </div>
 </div>
 
+<!-- Inform consent text of a kategori -->
+<div class="modal fade" id="consentKategoriModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Inform Consent Kategori <span id="consentKategoriNama"></span></h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap mb-1" style="gap:8px">
+          <small class="text-muted">
+            Dipakai paket yang memilih kategori ini dan tidak punya isi inform consent sendiri. Kosongkan untuk memakai template umum.
+            Tulis <code>{tindakan}</code> untuk nama paket dan <code>{klinik}</code> untuk nama klinik kunjungan.
+          </small>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="consentKategoriFromGeneric"><i class="fas fa-file-import"></i> Mulai dari template umum</button>
+        </div>
+        <textarea id="consentKategoriContent" class="form-control"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary" id="btnSaveConsentKategori"><i class="fas fa-save"></i> Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 @endsection
 
 @push('scripts')
+<link rel="stylesheet" href="{{ asset('dastone/plugins/summernote/summernote-bs4.min.css') }}">
+<script src="{{ asset('dastone/plugins/summernote/summernote-bs4.min.js') }}"></script>
+@php
+    // The generic consent text with placeholders, to start a kategori's text from it
+    $genericConsent = view('erm.tindakan.inform-consent.partials.default-text', [
+        'tindakan' => (object) ['nama' => '{tindakan}', 'deskripsi' => null],
+        'klinikNama' => '{klinik}',
+    ])->render();
+@endphp
 <script>
 $(function(){
+    // ================= Inform consent per kategori =================
+    var consentUrlTemplate = '{{ route('marketing.kategori.consent', ['id' => '__ID__']) }}';
+    var GENERIC_CONSENT = @json(trim($genericConsent));
+    var consentKategoriId = null;
+    var $consentEditor = $('#consentKategoriContent').summernote({
+        height: 320,
+        dialogsInBody: true,
+        placeholder: 'Kosong = memakai template umum',
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['insert', ['table']],
+            ['view', ['codeview']]
+        ]
+    });
+    function consentCode() { return $consentEditor.summernote('isEmpty') ? '' : $consentEditor.summernote('code'); }
+
+    $(document).on('click', '.btn-consent-kategori', function(){
+        var $btn = $(this).prop('disabled', true);
+        $.get(consentUrlTemplate.replace('__ID__', $btn.data('id')))
+            .done(function(res){
+                consentKategoriId = res.id;
+                $('#consentKategoriNama').text(res.nama);
+                $consentEditor.summernote('code', res.consent_content || '');
+                $('#consentKategoriModal').modal('show');
+            })
+            .fail(function(){ Swal.fire('Gagal', 'Isi inform consent gagal dimuat', 'error'); })
+            .always(function(){ $btn.prop('disabled', false); });
+    });
+    $('#consentKategoriFromGeneric').on('click', function(){
+        if (!consentCode()) { $consentEditor.summernote('code', GENERIC_CONSENT); return; }
+        Swal.fire({ title: 'Ganti isi dengan template umum?', text: 'Isi yang sekarang akan diganti.', icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, ganti', cancelButtonText: 'Batal', reverseButtons: true })
+            .then(function(r){ if (r.value) $consentEditor.summernote('code', GENERIC_CONSENT); });
+    });
+    $('#btnSaveConsentKategori').on('click', function(){
+        var $btn = $(this).prop('disabled', true);
+        $.post(consentUrlTemplate.replace('__ID__', consentKategoriId), { _token: '{{ csrf_token() }}', consent_content: consentCode() })
+            .done(function(res){
+                $('#kategoriTable tbody tr[data-id="' + consentKategoriId + '"] .consent-status .badge')
+                    .attr('class', res.filled ? 'badge badge-success' : 'badge badge-secondary')
+                    .text(res.filled ? 'Terisi' : 'Kosong');
+                $('#consentKategoriModal').modal('hide');
+                Swal.fire({ icon: 'success', title: 'Tersimpan', text: res.message, timer: 1800, showConfirmButton: false });
+            })
+            .fail(function(xhr){ Swal.fire('Gagal', xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Terjadi kesalahan', 'error'); })
+            .always(function(){ $btn.prop('disabled', false); });
+    });
+
     var kategoriStoreUrl = '{{ route('marketing.kategori.store') }}';
     var kategoriPreviewImportUrl = '{{ route('marketing.kategori.import.preview') }}';
     var kategoriApplyImportUrl = '{{ route('marketing.kategori.import.apply') }}';
@@ -159,7 +258,11 @@ $(function(){
             if (res.success) {
                 // append to table
                 var k = res.data;
-                $('#kategoriTable tbody').append('<tr data-id="'+k.id+'"><td>'+escapeHtml(k.nama)+'</td><td><button class="btn btn-sm btn-danger btn-delete-kategori" data-id="'+k.id+'">Hapus</button></td></tr>');
+                var consentReady = {{ $consentReady ? 'true' : 'false' }};
+                $('#kategoriTable tbody').append('<tr data-id="'+k.id+'"><td>'+escapeHtml(k.nama)+'</td><td>0</td><td><span class="text-muted">-</span></td>'
+                    + '<td class="consent-status">' + (consentReady ? '<span class="badge badge-secondary">Kosong</span><div class="small text-muted mt-1">Dipakai 0 paket</div>' : '<span class="text-muted">-</span>') + '</td>'
+                    + '<td><button class="btn btn-sm btn-outline-primary btn-consent-kategori" data-id="'+k.id+'"' + (consentReady ? '' : ' disabled') + '><i class="fas fa-file-signature"></i> Inform Consent</button> '
+                    + '<button class="btn btn-sm btn-danger btn-delete-kategori" data-id="'+k.id+'">Hapus</button></td></tr>');
                 $('#kategoriModal').modal('hide');
             }
         }).fail(function(xhr){

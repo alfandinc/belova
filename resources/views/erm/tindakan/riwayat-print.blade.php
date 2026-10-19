@@ -1,3 +1,4 @@
+@php $embedded = request()->boolean('embed'); @endphp
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -7,6 +8,8 @@
     <style>
         body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; }
         .container { width: 100%; margin: 0 auto; }
+        /* Keep the floated Keterangan inside the page */
+        .container::after { content: ""; display: table; clear: both; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .header .title { font-size: 18px; font-weight: bold; }
         .meta { margin-bottom: 12px; }
@@ -32,15 +35,21 @@
         .print-controls { margin: 10px 0; }
         @media print { .print-controls { display: none; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
     </style>
+@if($embedded)
+    <style>html { background: #525659; } body { background: #fff; max-width: 900px; margin: 16px auto; padding: 24px 28px; box-shadow: 0 2px 12px rgba(0,0,0,.35); } @media print { html { background: none; } body { margin: 0; padding: 0; box-shadow: none; max-width: none; } }</style>
+@endif
 </head>
 <body>
 <div class="container">
     <div class="header">
         <div class="title">Daftar SPK Tindakan</div>
+        {{-- Opened in the page's preview modal (?embed=1): the modal has the Print button --}}
+        @unless($embedded)
         <div class="print-controls">
             <button onclick="window.print()">Print</button>
             <button onclick="window.close()">Close</button>
         </div>
+        @endunless
     </div>
     <div class="meta">
         @php
@@ -165,9 +174,11 @@
         </table>
     </div>
 </div>
+@unless($embedded)
 <script>
-// Auto-print on load for convenience
+// Auto-print on load for convenience (own tab only; in the preview modal the user prints)
 window.addEventListener('load', function(){ setTimeout(function(){ window.print(); }, 200); });
 </script>
+@endunless
 </body>
 </html>

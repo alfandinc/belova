@@ -140,27 +140,12 @@
         <tr>
             <!-- Left side - Header and Prescription information -->
             <td style="width: 50%; vertical-align: top; padding-right: 5px;">
-                <!-- Header with Logo and Clinic Info -->
-                <table style="width:100%; border:none; margin-bottom:0;">
-                    <tr>
-                        <td style="width:60px; vertical-align:top; padding-right:0px;">
-                            <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
-                        </td>
-                        <td style="vertical-align:top;">
-                            <div class="header-left">
-                                <h2>{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
-                                <p>Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-                                    Telp. 0821-1600-0093 <br>
-                                    www.premierebelova.id <br>
-                                </p>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
+                <!-- Header: icon, name and address of the visit's klinik -->
+                @include('erm.eresep.farmasi.partials.kop-kecil')
                 <div class="resep-header">RESEP DOKTER</div>
                 
                 <div style="text-align: right; margin-top: -15px; font-size: 12px;">
-                    Tanggal Resep : {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->format('d F Y') }}
+                    Tanggal Resep : {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('j F Y') }}
                 </div>
                 <!-- Patient Information -->
                 <table class="info-table">
@@ -186,7 +171,7 @@
                         <td>:</td>
                         <td>
                             @if(isset($visitation->pasien->tanggal_lahir))
-                                {{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d F Y') }} / 
+                                {{ $visitation->pasien->tanggal_lahir ? \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->locale('id')->translatedFormat('j F Y') : '-' }} / 
                                 {{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->age }} th
                             @else
                                 -

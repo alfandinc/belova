@@ -85,120 +85,90 @@
 
 <script>
 $(document).ready(function() {
-    // Handle Cetak Edukasi button click
+    const edukasiDataUrl = "{{ url('/erm/edukasi-obat/__ID__/data') }}";
+    const edukasiCheckboxes = ['simpan_etiket_label', 'simpan_suhu_kulkas', 'simpan_tempat_kering', 'hindarkan_jangkauan_anak'];
+
+    // Opening the form: apoteker list, then what was saved for this visit (so Cetak does not overwrite it with an empty form)
     $('.btn-cetakedukasi').on('click', function() {
-        // Show the modal
         $('#edukasiObatModal').modal('show');
-        
-        // Load apoteker options
-        loadApotekers();
-        
-        // Update the total price in modal
+        loadApotekers().then(loadEdukasi);
         const totalHarga = $('#total-harga').text().trim();
         $('#modal_total_pembayaran').text('Rp ' + totalHarga);
     });
 
-    // Function to load apotekers
+    let apotekersLoaded = null;
     function loadApotekers() {
-        // Only load if not already loaded
-        if ($('#apoteker_id option').length <= 1) {
-            $.ajax({
-                url: "{{ route('erm.get-apotekers') }}",
-                method: 'GET',
-                success: function(data) {
-                    const selectElement = $('#apoteker_id');
-                    selectElement.empty();
-                    selectElement.append('<option value="">Pilih Apoteker</option>');
-                    
-                    data.forEach(function(apoteker) {
-                        selectElement.append(`<option value="${apoteker.id}">${apoteker.name}</option>`);
-                    });
-                    
-                    // Select current user if they're an apoteker
-                    const currentUserId = "{{ Auth::id() }}";
-                    if (selectElement.find(`option[value="${currentUserId}"]`).length) {
-                        selectElement.val(currentUserId);
-                    }
-                },
-                error: function(err) {
-                    console.error('Error loading apotekers:', err);
+        if (!apotekersLoaded) {
+            apotekersLoaded = $.get("{{ route('erm.get-apotekers') }}").then(function(data) {
+                const selectElement = $('#apoteker_id').empty().append('<option value="">Pilih Apoteker</option>');
+                data.forEach(function(apoteker) {
+                    selectElement.append(new Option(apoteker.name, apoteker.id));
+                });
+                // The current user when they are an apoteker
+                const currentUserId = "{{ Auth::id() }}";
+                if (selectElement.find('option[value="' + currentUserId + '"]').length) {
+                    selectElement.val(currentUserId);
                 }
+            }, function() {
+                apotekersLoaded = null;
             });
         }
+        return apotekersLoaded;
     }
 
-    // Handle Selesai button click
-    $('#btn-selesai-edukasi').on('click', function() {
-        const visitationId = $('#visitation_id').val();
-        const formData = {
-            visitation_id: visitationId,
-            simpan_etiket_label: $('#simpan_etiket_label').is(':checked') ? 1 : 0,
-            simpan_suhu_kulkas: $('#simpan_suhu_kulkas').is(':checked') ? 1 : 0,
-            simpan_tempat_kering: $('#simpan_tempat_kering').is(':checked') ? 1 : 0,
-            hindarkan_jangkauan_anak: $('#hindarkan_jangkauan_anak').is(':checked') ? 1 : 0,
+    function loadEdukasi() {
+        return $.get(edukasiDataUrl.replace('__ID__', encodeURIComponent($('#visitation_id').val()))).then(function(edukasi) {
+            if (!edukasi) return;
+            edukasiCheckboxes.forEach(function(id) { $('#' + id).prop('checked', !!Number(edukasi[id])); });
+            $('#insulin_brosur').val(edukasi.insulin_brosur || '');
+            $('#inhalasi_brosur').val(edukasi.inhalasi_brosur || '');
+            if (edukasi.apoteker_id && $('#apoteker_id option[value="' + edukasi.apoteker_id + '"]').length) {
+                $('#apoteker_id').val(String(edukasi.apoteker_id)).trigger('change');
+            }
+        });
+    }
+
+    function edukasiFormData() {
+        const data = {
+            _token: "{{ csrf_token() }}",
+            visitation_id: $('#visitation_id').val(),
             insulin_brosur: $('#insulin_brosur').val() || null,
             inhalasi_brosur: $('#inhalasi_brosur').val() || null,
             apoteker_id: $('#apoteker_id').val(),
         };
-        
-        if (!formData.apoteker_id) {
-            alert('Silakan pilih Apoteker terlebih dahulu');
-            return;
+        edukasiCheckboxes.forEach(function(id) { data[id] = $('#' + id).is(':checked') ? 1 : 0; });
+        return data;
+    }
+
+    // Saves the form; resolves when saved
+    function saveEdukasi() {
+        const data = edukasiFormData();
+        if (!data.apoteker_id) {
+            Swal.fire({ icon: 'warning', title: 'Pilih apoteker', text: 'Silakan pilih apoteker terlebih dahulu.' });
+            return $.Deferred().reject().promise();
         }
-        
-        $.ajax({
-            url: "{{ route('edukasi.obat.store') }}",
-            method: 'POST',
-            data: {
-                _token: "{{ csrf_token() }}",
-                ...formData
-            },
-            success: function(response) {
-                alert('Edukasi obat berhasil disimpan');
-                $('#edukasiObatModal').modal('hide');
-            },
-            error: function(err) {
-                console.error(err);
-                alert('Gagal menyimpan edukasi obat: ' + (err.responseJSON?.message || 'Terjadi kesalahan'));
-            }
+        return $.post("{{ route('edukasi.obat.store') }}", data).fail(function(err) {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: 'Edukasi obat gagal disimpan: ' + ((err.responseJSON && err.responseJSON.message) || 'Terjadi kesalahan') });
         });
+    }
+
+    $('#btn-selesai-edukasi').on('click', function() {
+        const $btn = $(this).prop('disabled', true);
+        saveEdukasi().done(function() {
+            $('#edukasiObatModal').modal('hide');
+            Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Edukasi obat disimpan.', timer: 1500, showConfirmButton: false });
+        }).always(function() { $btn.prop('disabled', false); });
     });
 
-    // Handle Cetak button click
+    // Cetak: save, then the browser's print dialog straight away (no new tab)
     $('#btn-cetak-edukasi-pdf').on('click', function() {
-        const visitationId = $('#visitation_id').val();
-        const formData = {
-            visitation_id: visitationId,
-            simpan_etiket_label: $('#simpan_etiket_label').is(':checked') ? 1 : 0,
-            simpan_suhu_kulkas: $('#simpan_suhu_kulkas').is(':checked') ? 1 : 0,
-            simpan_tempat_kering: $('#simpan_tempat_kering').is(':checked') ? 1 : 0,
-            hindarkan_jangkauan_anak: $('#hindarkan_jangkauan_anak').is(':checked') ? 1 : 0,
-            insulin_brosur: $('#insulin_brosur').val() || null,
-            inhalasi_brosur: $('#inhalasi_brosur').val() || null,
-            apoteker_id: $('#apoteker_id').val(),
-        };
-        
-        if (!formData.apoteker_id) {
-            alert('Silakan pilih Apoteker terlebih dahulu');
-            return;
-        }
-        
-        $.ajax({
-            url: "{{ route('edukasi.obat.store') }}",
-            method: 'POST',
-            data: {
-                _token: "{{ csrf_token() }}",
-                ...formData
-            },
-            success: function(response) {
-                // Open print page in new tab
-                window.open(`/erm/edukasi-obat/${visitationId}/print`, '_blank');
-            },
-            error: function(err) {
-                console.error(err);
-                alert('Gagal menyimpan dan mencetak edukasi obat: ' + (err.responseJSON?.message || 'Terjadi kesalahan'));
-            }
-        });
+        const $btn = $(this).prop('disabled', true);
+        saveEdukasi().done(function() {
+            $('#edukasiObatModal').modal('hide');
+            const url = "{{ url('/erm/edukasi-obat') }}/" + encodeURIComponent($('#visitation_id').val()) + '/print';
+            window.ErmPdfPreview.drop(url);
+            window.ErmPdfPreview.printPdf(url, 'Edukasi Obat');
+        }).always(function() { $btn.prop('disabled', false); });
     });
 });
 </script>

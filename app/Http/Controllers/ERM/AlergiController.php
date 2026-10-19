@@ -114,6 +114,31 @@ class AlergiController extends Controller
                 ? [$kataKunci]
                 : $alergiPasien->pluck('zataktif.nama')->filter()->values()->all(),
             'alergiIds' => $alergiPasien->pluck('zataktif_id')->filter()->values()->all(),
+            // id + nama, so the searched allergy picker can show the chosen ones without the full list
+            'alergiZat' => $alergiPasien->pluck('zataktif')->filter()->unique('id')
+                ->map(fn ($z) => ['id' => $z->id, 'text' => $z->nama])->values()->all(),
+        ]);
+    }
+
+    /**
+     * Zat aktif search for the allergy picker (select2 ajax): name contains the term, names starting with it first.
+     */
+    public function searchZatAktif(Request $request)
+    {
+        $term = trim((string) $request->query('q', ''));
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = 30;
+
+        $query = ZatAktif::query()->select('id', 'nama');
+        if ($term !== '') {
+            $query->where('nama', 'like', '%' . addcslashes($term, '%_\\') . '%')
+                ->orderByRaw('nama LIKE ? DESC', [addcslashes($term, '%_\\') . '%']);
+        }
+        $rows = $query->orderBy('nama')->skip(($page - 1) * $perPage)->take($perPage + 1)->get();
+
+        return response()->json([
+            'results' => $rows->take($perPage)->map(fn ($z) => ['id' => $z->id, 'text' => $z->nama])->values(),
+            'more' => $rows->count() > $perPage,
         ]);
     }
 }

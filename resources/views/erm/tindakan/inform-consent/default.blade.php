@@ -1,18 +1,25 @@
-<div class="container">  
+{{-- Inform consent form of every tindakan; $consentHtml / $consentSource come from TindakanController::informConsent --}}
+<div class="container">
+    {{-- Where the consent text comes from (staff only): the tindakan's own, its kategori's, or the generic one --}}
+    @if(($consentSource['type'] ?? 'umum') === 'kategori')
+        <div class="alert alert-info py-2 small mb-3"><i class="fas fa-info-circle mr-1"></i>Memakai isi inform consent kategori <strong>{{ $consentSource['nama'] }}</strong>.</div>
+    @elseif(($consentSource['type'] ?? 'umum') === 'umum')
+        <div class="alert alert-warning py-2 small mb-3"><i class="fas fa-info-circle mr-1"></i>Tindakan ini belum punya isi inform consent (paket maupun kategori), jadi memakai template umum.</div>
+    @endif  
     <form id="informConsentForm" method="POST" action="{{ route('erm.tindakan.inform-consent.save') }}">
         @csrf
         <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
         <input type="hidden" name="tindakan_id" value="{{ $tindakan->id }}">
         <input type="hidden" name="tanggal" value="{{ now()->format('Y-m-d') }}">
 
-        <h4 class="text-center mb-4">INFORMED CONSENT TINDAKAN MEDIS</h4>
+        <h4 class="text-center mb-4">INFORMED CONSENT {{ mb_strtoupper($tindakan->nama) }}</h4>
 
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-4"><strong>Nama Pasien:</strong> {{ $pasien->nama }}</div>
                     <div class="col-md-4"><strong>No. RM:</strong> {{ $pasien->id }}</div>
-                    <div class="col-md-4"><strong>Tanggal:</strong> {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y') }}</div>
+                    <div class="col-md-4"><strong>Tanggal:</strong> {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('j F Y') }}</div>
                 </div>
             </div>
         </div>
@@ -22,28 +29,8 @@
                 <h5 class="mb-0">Persetujuan Tindakan Medis</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan di bawah ini memberikan persetujuan untuk menjalani tindakan <strong>{{ $tindakan->nama }}</strong> di Klinik Pratama Belova Skin & Beauty Center.</p>
-
-                <p><strong>Deskripsi Tindakan:</strong>  
-                {{ $tindakan->deskripsi ?? 'Tindakan ini merupakan prosedur medis/estetika yang dilakukan sesuai standar yang berlaku untuk membantu perbaikan kondisi pasien.' }}</p>
-
-                <p><strong>Manfaat:</strong></p>
-                <ol>
-                    <li>Mendapatkan perbaikan kondisi sesuai tujuan tindakan.</li>
-                    <li>Meningkatkan kenyamanan pasien.</li>
-                    <li>Memperbaiki kualitas hidup/kesehatan kulit sesuai indikasi.</li>
-                </ol>
-
-                <p><strong>Risiko dan Efek Samping:</strong></p>
-                <ol>
-                    <li>Kemerahan atau rasa tidak nyaman (sementara).</li>
-                    <li>Reaksi alergi atau iritasi (jarang).</li>
-                    <li>Hasil dapat bervariasi tergantung kondisi individu.</li>
-                </ol>
-
-                <p><strong>Alternatif:</strong> Saya memahami bahwa terdapat alternatif lain sesuai rekomendasi dokter atau tenaga medis yang berwenang.</p>
-
-                <p><strong>Persetujuan:</strong> Saya telah mendapatkan penjelasan mengenai tindakan <strong>{{ $tindakan->nama }}</strong>, termasuk manfaat, risiko, dan alternatifnya. Saya menyetujui untuk menjalani tindakan ini secara sukarela dan sadar sepenuhnya.</p>
+                {{-- The tindakan's own consent text from master Tindakan, or the generic one (TindakanController::consentHtml) --}}
+                <div class="consent-text">{!! $consentHtml !!}</div>
 
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
@@ -95,6 +82,9 @@
 .card {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
+/* Tables in a consent text (their own styling is not kept) */
+.consent-text table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+.consent-text th, .consent-text td { border: 1px solid #dee2e6; padding: 4px 8px; vertical-align: top; }
 .border-right {
     border-right: 1px solid #dee2e6;
 }

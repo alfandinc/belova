@@ -1,1 +1,0 @@
-@include('erm.tindakan.inform-consent.vaksinasi_covid19')

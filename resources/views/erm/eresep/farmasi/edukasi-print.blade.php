@@ -225,23 +225,8 @@
     <div class="content-wrapper">
         <!-- Restructured header with left-aligned info and centered title -->
         <div class="header-container" style="border-bottom: 1px solid #ddd; margin-bottom: 8px; padding-bottom: 4px; position: relative;">
-            <table style="width:100%; border:none; margin-bottom:0;">
-                <tr>
-                    <td style="width:60px; vertical-align:top; padding-right:0px;">
-                        <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
-                    </td>
-                    <td style="vertical-align:top;">
-                        <div class="header-left">
-                            <h2 style="margin: 0; font-size: 14px; font-weight: bold;">{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
-                            <p style="margin: 1px 0; font-size: 12px;">
-                                Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-                                Telp. 0821-1600-0093 <br>
-                                www.premierebelova.id <br>
-                            </p>
-                        </div>
-                    </td>
-                </tr>
-            </table>
+            {{-- Icon, name and address of the visit's klinik --}}
+            @include('erm.eresep.farmasi.partials.kop-kecil')
         </div>
         
         <div class="header-title">
@@ -249,7 +234,7 @@
         </div>
         
         <div class="date-right">
-            Tanggal Resep : {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->format('d F Y') }}
+            Tanggal Resep : {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('j F Y') }}
         </div>
 
         <!-- Patient Information -->
@@ -257,8 +242,8 @@
             <tr>
                 <th width="20%">Nomor Resep</th>
                 <td width="30%">{{ $noResep ?? '-' }}</td>
-                <th width="20%">&nbsp;</th>
-                <td width="30%"></td>
+                <th width="20%">Dokter</th>
+                <td width="30%">{{ $visitation->dokter->user->name ?? '-' }}</td>
             </tr>
             <tr>
                 <th width="20%">No Rekam Medis</th>
@@ -270,7 +255,7 @@
                 <th>{{ $visitation->pasien->identity_label ?? 'Identitas' }}</th>
                 <td>{{ $visitation->pasien->identity_number ?? $visitation->pasien->nik ?? '-' }}</td>
                 <th>Tanggal Lahir</th>
-                <td>{{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d-m-Y') }}</td>
+                <td>{{ $visitation->pasien->tanggal_lahir ? \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d-m-Y') : '-' }}</td>
             </tr>
         </table>
 

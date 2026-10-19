@@ -1553,6 +1553,8 @@ class EresepController extends Controller
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.print', [
             'visitation' => $visitation,
+            // Logo / name / address of the visit's klinik
+            'kop' => \App\Support\PdfLetterhead::forVisitation($visitation),
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'alergis' => $alergis,
@@ -1604,6 +1606,12 @@ class EresepController extends Controller
         ]);
     }
 
+    /** The visit's saved edukasi obat (null when none), to fill the form again */
+    public function getEdukasiObat($visitationId)
+    {
+        return response()->json(EdukasiObat::where('visitation_id', $visitationId)->first());
+    }
+
     public function printEdukasiObat($visitationId)
     {
         // Get the visitation data with all necessary relations
@@ -1616,7 +1624,8 @@ class EresepController extends Controller
             ->first();
 
         if (!$edukasi) {
-            return redirect()->back()->with('error', 'Data edukasi obat tidak ditemukan');
+            // The page prints it in place (fetch), so an answer it can show, not a redirect
+            return response()->json(['message' => 'Edukasi obat belum diisi. Isi dan simpan dulu di form Edukasi.'], 404);
         }
 
         // Get prescription items
@@ -1652,6 +1661,8 @@ class EresepController extends Controller
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.edukasi-print', [
             'visitation' => $visitation,
+            // Logo / name / address of the visit's klinik
+            'kop' => \App\Support\PdfLetterhead::forVisitation($visitation),
             'edukasi' => $edukasi,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
@@ -1682,7 +1693,7 @@ class EresepController extends Controller
         $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
 
         if ($reseps->isEmpty()) {
-            return back()->with('error', 'Tidak ada obat untuk dicetak etiket.');
+            return response()->json(['message' => 'Tidak ada obat untuk dicetak etiket.'], 422);
         }
 
         // Generate PDF view
@@ -2283,7 +2294,7 @@ class EresepController extends Controller
 
             // Ensure at least one of obat_id or racikan_ke is provided
             if (empty($validated['obat_id']) && empty($validated['racikan_ke'])) {
-                return response()->json(['success' => false, 'message' => 'The obat id or racikan_ke field is required.'], 422);
+                return response()->json(['success' => false, 'message' => 'Pilih obat atau racikan.'], 422);
             }
 
             $visitation = Visitation::with(['pasien', 'dokter.user'])->findOrFail($validated['visitation_id']);
@@ -2346,8 +2357,12 @@ class EresepController extends Controller
             // Prefer explicit label_name if provided, otherwise use obat->nama
             $filenameLabel = $data['label_name'] ?? ($obat->nama ?? 'etiket');
             $labelName = preg_replace('/[^A-Za-z0-9\-\_ ]/', '', $filenameLabel);
-            return response($mpdf->Output('etiket-biru-' . $visitation->pasien->nama . '-' . $labelName . '.pdf', 'I'))
-                ->header('Content-Type', 'application/pdf');
+            // As a string ('S'): 'I' writes the PDF straight to the output itself, outside the response
+            $fileName = preg_replace('/[^A-Za-z0-9\-\_ ]/', '', 'etiket-biru-' . $visitation->pasien->nama . '-' . $labelName) . '.pdf';
+            return response($mpdf->Output('', 'S'), 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            ]);
             
         } catch (\Exception $e) {
             Log::error('Error printing Etiket Biru: ' . $e->getMessage());

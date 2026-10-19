@@ -37,6 +37,8 @@
     @include('erm.partials.card-identitaspasien')
 
     @include('erm.partials.form-theme')
+    {{-- PDF preview modal styles (inform consent) --}}
+    <link rel="stylesheet" href="{{ asset('css/erm-penunjang.css') }}?v={{ filemtime(public_path('css/erm-penunjang.css')) }}">
     <style>
         .tindakan-page .erm-section { padding-bottom: 14px; }
         .tindakan-page .erm-section-head .btn { margin-left: auto; border-radius: 9px; font-weight: 600; }
@@ -75,6 +77,23 @@
         html.theme-dark .tindakan-ic-missing:hover { color: #fff; }
         /* Aksi: same-size icon buttons in one row */
         .tindakan-actions { display: flex; flex-wrap: nowrap; gap: 4px; }
+        .tindakan-actions .btn.is-locked { opacity: .55; cursor: not-allowed; }
+        /* Riwayat: kunjungan ini / semua */
+        .tindakan-scope { display: inline-flex; gap: 4px; padding: 3px; margin: 0 0 10px; border-radius: 10px; background: var(--sb-tile, #f1f5f9); border: 1px solid var(--sb-line, #e2e8f0); }
+        .tindakan-scope-btn { border: 0; background: transparent; border-radius: 8px; padding: 4px 12px; font-size: .8rem; font-weight: 700; color: var(--sb-text, #4b5671); cursor: pointer; }
+        .tindakan-scope-btn.active { background: var(--ef-accent); color: #fff; }
+        /* Riwayat badges: paket session, SPK, payment */
+        .tindakan-badge.is-gratis { background: rgba(13, 148, 136, .12); color: #0d9488; }
+        .tindakan-badge.is-spk-berjalan { background: rgba(245, 158, 11, .16); color: #b45309; cursor: pointer; }
+        .tindakan-badge.is-spk-selesai { background: rgba(22, 163, 74, .14); color: #15803d; cursor: pointer; }
+        .tindakan-badge.is-spk-dibuat { background: rgba(148, 163, 184, .2); color: var(--sb-text, #4b5671); cursor: pointer; }
+        .tindakan-badge.is-paid { background: rgba(22, 163, 74, .14); color: #15803d; }
+        .tindakan-badge.is-issued, .tindakan-badge.is-partial { background: rgba(14, 165, 233, .14); color: #0369a1; }
+        .tindakan-badge.is-unbilled { background: rgba(148, 163, 184, .18); color: var(--sb-muted, #8a94ad); }
+        html.theme-dark .tindakan-badge.is-spk-berjalan { color: #fcd34d; }
+        html.theme-dark .tindakan-badge.is-spk-selesai, html.theme-dark .tindakan-badge.is-paid { color: #86efac; }
+        html.theme-dark .tindakan-badge.is-issued, html.theme-dark .tindakan-badge.is-partial { color: #7dd3fc; }
+        html.theme-dark .tindakan-badge.is-gratis { color: #5eead4; }
         .tindakan-actions .btn { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; }
         /* DataTables controls keep their normal look inside the themed form */
         .tindakan-page .dataTables_wrapper label { text-transform: none; letter-spacing: normal; font-size: .82rem; font-weight: 500; color: var(--sb-muted, #8a94ad); }
@@ -119,10 +138,14 @@
             <section class="erm-section h-100">
                 <div class="erm-section-head">
                     <span class="erm-section-num">2</span>
-                    <h4 class="erm-section-title">Riwayat Tindakan<span class="erm-section-sub">Semua kunjungan pasien</span></h4>
+                    <h4 class="erm-section-title">Riwayat Tindakan<span class="erm-section-sub" id="historyScopeSub">Semua kunjungan pasien</span></h4>
                     <a href="/erm/tindakan/history/{{ $visitation->id }}/print-detail" target="_blank" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-print mr-1"></i>Print Detail
                     </a>
+                </div>
+                <div class="tindakan-scope" role="group" aria-label="Tampilkan riwayat">
+                    <button type="button" class="tindakan-scope-btn" data-scope="current">Kunjungan ini</button>
+                    <button type="button" class="tindakan-scope-btn active" data-scope="all">Semua kunjungan</button>
                 </div>
                 <div class="table-responsive">
                     <table id="historyTindakanTable" class="table w-100">
@@ -211,8 +234,12 @@
         </div>
     </div>
 </div>
+<div class="erm-form" style="{{ \App\Support\ClinicTheme::cssVars('ef') }}">
+    @include('erm.partials.modal-pdf-preview')
+</div>
 @endsection
 @section('scripts')
+<script src="{{ asset('js/erm-pdf-preview.js') }}?v={{ filemtime(public_path('js/erm-pdf-preview.js')) }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 {{-- Loaded up front so the QR of dokter / perawat is ready when the inform consent is saved --}}
 <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
@@ -222,7 +249,7 @@
     function generateQrDataUriBrowser(text, size = 200) {
         try {
             if (!window.QRious) return null;
-            return new QRious({ value: text || '', size: size, level: 'H' }).toDataURL();
+            return new QRious({ value: text || '', size: size, level: 'H' }).toDataURL('image/jpeg');
         } catch (e) {
             console.error('QR generation failed', e);
             return null;
@@ -255,6 +282,13 @@
 
         function hasPaketVisit(row) {
             return typeof row.harga_paket_visit !== 'undefined' && row.harga_paket_visit !== null && String(row.harga_paket_visit).trim() !== '';
+        }
+
+        // Open multi visit package of this patient for the row ({used, total, sisa}) or null
+        function openPaket(row) {
+            if (row.multi_used === null || row.multi_total === null || typeof row.multi_used === 'undefined') return null;
+            const used = parseInt(row.multi_used, 10), total = parseInt(row.multi_total, 10);
+            return used < total ? { used: used, total: total, sisa: total - used } : null;
         }
 
         function errorMessage(xhr, fallback) {
@@ -292,7 +326,10 @@
                             normal = `<s>${normal}</s>${formatRupiah(row.harga_diskon)}`;
                         }
                         let out = `<div class="price-block"><div class="price-row"><span class="price-label">Normal</span><span class="price-value">${normal}</span></div>`;
-                        if (hasPaketVisit(row)) {
+                        const paket = openPaket(row);
+                        if (paket) {
+                            out += `<div class="price-row"><span class="price-label">Sisa Paket</span><span class="price-value text-success">${paket.sisa} sesi &middot; Rp0</span></div>`;
+                        } else if (hasPaketVisit(row)) {
                             out += `<div class="price-row"><span class="price-label">${row.multi_visit_total || 3}x Visit</span><span class="price-value">${formatRupiah(row.harga_paket_visit)}</span></div>`;
                         }
                         return out + '</div>';
@@ -304,9 +341,17 @@
                     searchable: false,
                     render: function (data, type, row) {
                         const nama = escapeHtml(row.nama);
+                        const paket = openPaket(row);
                         let out = '<div class="price-block">';
-                        out += `<div class="price-row"><button class="btn btn-success btn-sm buat-tindakan" title="Tambah Tindakan (Normal)" data-id="${row.id}" data-nama="${nama}" data-harga-label="Normal" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button></div>`;
-                        if (hasPaketVisit(row)) {
+                        if (paket) {
+                            // Open package: the next session is the main choice, Normal still possible after a warning
+                            const sesi = `${paket.used + 1}/${paket.total}`;
+                            out += `<div class="price-row"><button class="btn btn-outline-secondary btn-sm buat-tindakan" title="Tambah Tindakan (Normal) - pasien masih punya sisa paket" data-id="${row.id}" data-nama="${nama}" data-harga-label="Normal" data-harga-type="normal" data-paket-used="${paket.used}" data-paket-total="${paket.total}" data-paket-sisa="${paket.sisa}"><i class="fas fa-plus mr-1"></i>Normal</button></div>`;
+                            out += `<div class="price-row"><button class="btn btn-success btn-sm buat-tindakan" title="Pakai sesi paket ${sesi} (Rp0)" data-id="${row.id}" data-nama="${nama}" data-harga-label="Sesi Paket ${sesi} (Rp0)" data-harga-type="3x"><i class="fas fa-check mr-1"></i>Pakai Sesi ${sesi}</button></div>`;
+                        } else {
+                            out += `<div class="price-row"><button class="btn btn-success btn-sm buat-tindakan" title="Tambah Tindakan (Normal)" data-id="${row.id}" data-nama="${nama}" data-harga-label="Normal" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button></div>`;
+                        }
+                        if (!paket && hasPaketVisit(row)) {
                             const label = (row.multi_visit_total || 3) + 'x Visit';
                             out += `<div class="price-row"><button class="btn btn-primary btn-sm buat-tindakan" title="Tambah Tindakan (${label})" data-id="${row.id}" data-nama="${nama}" data-harga-label="${label}" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>${label}</button></div>`;
                         }
@@ -316,23 +361,37 @@
             ],
         });
 
-        // Riwayat tindakan pasien
+        // Riwayat tindakan pasien: one row per riwayat, newest first (order comes from the server)
+        let historyScope = 'all';
+        const SPK_LABEL = { dibuat: 'SPK dibuat', berjalan: 'SPK berjalan', selesai: 'SPK selesai' };
         $('#historyTindakanTable').DataTable({
             processing: true,
             serverSide: true,
             responsive: true,
+            ordering: false,
             pageLength: 5,
-            ajax: `/erm/tindakan/history/${currentVisitationId}`,
+            ajax: {
+                url: `/erm/tindakan/history/${currentVisitationId}`,
+                data: function (d) { d.scope = historyScope; }
+            },
             columns: [
                 { data: 'tanggal', name: 'tanggal', visible: false },
                 { data: 'tindakan', name: 'tindakan', render: function (data, type, row) {
                         let meta = row.tanggal ? `<span class="tindakan-date">${escapeHtml(row.tanggal)}</span>` : '';
-                        if (parseInt(row.duplicate_count || 1) > 1) {
-                            meta += `<span class="tindakan-badge is-count">${parseInt(row.duplicate_count)}x</span>`;
-                        }
                         if (row.current) {
                             meta += '<span class="tindakan-badge is-current">Kunjungan ini</span>';
                         }
+                        // Multi visit package: session 1 carries the package price, the next ones use the quota
+                        if (row.paket && row.paket.sesi) {
+                            meta += row.paket.sesi > 1
+                                ? `<span class="tindakan-badge is-gratis" title="Memakai kuota paket">Paket ${row.paket.sesi}/${row.paket.total} &middot; kuota</span>`
+                                : `<span class="tindakan-badge is-paket" title="Sesi pertama, harga paket ditagih">Paket 1/${row.paket.total}</span>`;
+                        }
+                        if (row.spk) {
+                            meta += `<span class="tindakan-badge is-spk-${row.spk} spk-btn" role="button" title="Lihat SPK" data-riwayat-id="${row.id}">${SPK_LABEL[row.spk]}</span>`;
+                        }
+                        const bayarClass = { paid: 'is-paid', partial: 'is-partial', issued: 'is-issued' }[row.bayar] || 'is-unbilled';
+                        meta += `<span class="tindakan-badge ${bayarClass}">${escapeHtml(row.bayar_label)}</span>`;
                         // Missing inform consent: the warning is the button to fill it
                         const icMissing = (row.current && row.pending_consent_id)
                             ? `<div><span class="tindakan-ic-missing isi-inform-consent-btn" role="button" title="Klik untuk mengisi inform consent" data-riwayat-id="${row.pending_consent_id}" data-tindakan-id="${row.tindakan_id}"><i class="fas fa-exclamation-triangle"></i>Inform consent belum diisi &middot; Isi</span></div>`
@@ -346,8 +405,7 @@
                     }
                 },
                 {
-                    data: 'dokumen',
-                    name: 'dokumen',
+                    data: null,
                     orderable: false,
                     searchable: false,
                     render: function (data, type, row) {
@@ -355,7 +413,14 @@
                         if (row.inform_consent) {
                             const ic = row.inform_consent;
                             const hasFoto = (ic.before_image_path || '').trim() !== '' && (ic.after_image_path || '').trim() !== '';
-                            group += `<a href="/storage/${escapeHtml(ic.file_path)}" target="_blank" class="btn btn-info btn-sm" title="Lihat Inform Consent"><i class="fas fa-file-alt"></i></a>`;
+                            const icUrl = '/storage/' + String(ic.file_path || '').split('/').map(encodeURIComponent).join('/');
+                            // PDF: preview in the page; anything else opens as it is
+                            group += /\.pdf$/i.test(ic.file_path || '')
+                                ? `<a href="${icUrl}" class="btn btn-info btn-sm btn-pdf-preview" data-title="Inform Consent &middot; ${escapeHtml(row.tindakan)}" title="Lihat Inform Consent"><i class="fas fa-file-alt"></i></a>`
+                                : `<a href="${icUrl}" target="_blank" class="btn btn-info btn-sm" title="Lihat Inform Consent"><i class="fas fa-file-alt"></i></a>`;
+                            if (row.can_refill) {
+                                group += `<button class="btn btn-outline-warning btn-sm isi-ulang-ic-btn" title="Isi ulang inform consent" data-riwayat-id="${row.id}" data-tindakan-id="${row.tindakan_id}"><i class="fas fa-redo"></i></button>`;
+                            }
                             group += `<button class="btn ${hasFoto ? 'btn-primary' : 'btn-success'} btn-sm foto-hasil-btn" title="${hasFoto ? 'Lihat Foto' : 'Upload Foto'}" data-id="${ic.id}" data-before="${escapeHtml(ic.before_image_path || '')}" data-after="${escapeHtml(ic.after_image_path || '')}"><i class="fas ${hasFoto ? 'fa-eye' : 'fa-upload'}"></i></button>`;
                         }
                         if (row.visitation_id) {
@@ -364,15 +429,23 @@
                         // Obat / BHP and Batalkan only for this visit's tindakan
                         if (row.current) {
                             group += `<button class="btn btn-outline-secondary btn-sm detail-riwayat-btn" title="Obat & BHP" data-id="${row.id}"><i class="fas fa-pills"></i></button>`;
-                            group += `<button class="btn btn-outline-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
+                            // On an invoice / paid: cancelled at the kasir (the server refuses it too)
+                            group += row.locked
+                                ? `<button class="btn btn-outline-secondary btn-sm is-locked" title="Sudah masuk invoice (${escapeHtml(row.bayar_label)}). Pembatalan lewat kasir." disabled><i class="fas fa-lock"></i></button>`
+                                : `<button class="btn btn-outline-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
                         }
                         return group + '</div>';
                     }
-                },
-                // Hidden column for raw date sorting
-                { data: 'tanggal_raw', name: 'tanggal_raw', visible: false },
-            ],
-            order: [[4, 'desc']]
+                }
+            ]
+        });
+
+        $('.tindakan-scope-btn').on('click', function () {
+            $('.tindakan-scope-btn').removeClass('active');
+            $(this).addClass('active');
+            historyScope = $(this).data('scope');
+            $('#historyScopeSub').text(historyScope === 'current' ? 'Kunjungan ini' : 'Semua kunjungan pasien');
+            $('#historyTindakanTable').DataTable().ajax.reload();
         });
 
         // Warning banner: tindakan of this visit still without inform consent
@@ -407,18 +480,33 @@
             $('#modalFotoHasil').modal('show');
         });
 
-        // Print detail asks for the beautician first
+        // Print detail: choose the beautician, then the browser's print dialog opens right away (no preview, no new tab)
+        let printTargetUrl = '';
+        let beauticiansLoading = null;   // fetched once per page
+        let lastBeautician = '';         // the next print starts from the last choice
+
+        function loadBeauticians() {
+            if (!beauticiansLoading) {
+                beauticiansLoading = $.get('/erm/beauticians').then(function (res) {
+                    const data = (res && res.data) ? res.data : res;
+                    $('#selectBeautician').html('<option value="">-- Pilih Beautician --</option>'
+                        + (Array.isArray(data) ? data : []).map(function (u) {
+                            return `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`;
+                        }).join(''));
+                }, function () {
+                    beauticiansLoading = null; // try again next time
+                });
+            }
+            return beauticiansLoading;
+        }
+        loadBeauticians();
+
         $(document).on('click', 'a[href*="/print-detail"]', function (e) {
             e.preventDefault();
-            window._printTargetUrl = $(this).attr('href');
-            $('#selectBeautician').html('<option value="">-- Pilih Beautician --</option>');
-            $.get('/erm/beauticians').done(function (res) {
-                const data = (res && res.data) ? res.data : res;
-                (Array.isArray(data) ? data : []).forEach(function (u) {
-                    $('#selectBeautician').append(`<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`);
-                });
-            }).always(function () {
-                $('#modalSelectBeautician').modal('show');
+            printTargetUrl = $(this).attr('href');
+            $('#modalSelectBeautician').modal('show');
+            loadBeauticians() && loadBeauticians().then(function () {
+                $('#selectBeautician').val(lastBeautician);
             });
         });
 
@@ -428,10 +516,14 @@
                 Swal.fire('Pilih Beautician', 'Silakan pilih beautician terlebih dahulu.', 'warning');
                 return;
             }
-            const url = window._printTargetUrl || '';
-            if (!url) return;
-            window.open(url + (url.indexOf('?') === -1 ? '?' : '&') + 'beautician_id=' + encodeURIComponent(beautId), '_blank');
-            $('#modalSelectBeautician').modal('hide');
+            if (!printTargetUrl) return;
+            lastBeautician = beautId;
+            const url = printTargetUrl + (printTargetUrl.indexOf('?') === -1 ? '?' : '&')
+                + 'beautician_id=' + encodeURIComponent(beautId) + '&embed=1';
+            // Print once the chooser is gone, so it is not behind the print dialog
+            $('#modalSelectBeautician').one('hidden.bs.modal', function () {
+                window.ErmPdfPreview.printHtml(url);
+            }).modal('hide');
         });
 
         // Preview images before upload
@@ -486,9 +578,11 @@
                     canvas.height = canvas.parentElement.clientHeight * scale;
                     canvas.getContext('2d').scale(scale, scale);
                 });
+                // White background: the signatures are sent as JPEG (small, and fast for the PDF)
+                const padOptions = { backgroundColor: 'rgb(255, 255, 255)' };
                 signaturePads[step] = {
-                    patient: new SignaturePad(patientCanvas),
-                    witness: new SignaturePad(witnessCanvas)
+                    patient: new SignaturePad(patientCanvas, padOptions),
+                    witness: new SignaturePad(witnessCanvas, padOptions)
                 };
             }
             return true;
@@ -501,6 +595,68 @@
             if (signaturePads[1] && signaturePads[1].witness) signaturePads[1].witness.clear();
         });
 
+        // "Perbesar": sign on the whole screen, then the drawing (cropped to what was drawn) goes into that pad
+        let overlayPad = null;
+        let overlayTarget = null;
+
+        function openSignOverlay(which) {
+            if (!signaturePads[1] || !signaturePads[1][which]) return;
+            overlayTarget = which;
+            $('#icSignOverlayTitle').text(which === 'patient' ? 'Tanda Tangan Pasien/Wali' : 'Tanda Tangan Saksi');
+            $('#icSignOverlay').addClass('show');
+            const canvas = document.getElementById('icSignOverlayCanvas');
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = canvas.offsetWidth * ratio;
+            canvas.height = canvas.offsetHeight * ratio;
+            canvas.getContext('2d').scale(ratio, ratio);
+            overlayPad = overlayPad || new SignaturePad(canvas, { backgroundColor: 'rgb(255, 255, 255)', minWidth: 1.5, maxWidth: 4 });
+            overlayPad.clear();
+        }
+
+        function closeSignOverlay() {
+            $('#icSignOverlay').removeClass('show');
+            overlayTarget = null;
+        }
+
+        $(document).on('click', '.ic-sign-expand', function () { openSignOverlay($(this).data('pad')); });
+        $('#icSignOverlayClear').on('click', function () { if (overlayPad) overlayPad.clear(); });
+        $('#icSignOverlayCancel').on('click', closeSignOverlay);
+        $(document).on('keydown', function (e) { if (e.key === 'Escape' && overlayTarget) closeSignOverlay(); });
+
+        $('#icSignOverlayUse').on('click', function () {
+            const target = overlayTarget && signaturePads[1] ? signaturePads[1][overlayTarget] : null;
+            if (!target || !overlayPad || overlayPad.isEmpty()) {
+                closeSignOverlay();
+                return;
+            }
+            // Bounding box of the strokes (CSS px), with a little margin
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            overlayPad.toData().forEach(function (stroke) {
+                stroke.points.forEach(function (p) {
+                    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+                });
+            });
+            const src = overlayPad.canvas;
+            const ratio = window.devicePixelRatio || 1;
+            const pad = 12;
+            minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+            maxX = Math.min(src.offsetWidth, maxX + pad); maxY = Math.min(src.offsetHeight, maxY + pad);
+            const cropW = Math.max(1, maxX - minX), cropH = Math.max(1, maxY - minY);
+            const crop = document.createElement('canvas');
+            crop.width = cropW * ratio;
+            crop.height = cropH * ratio;
+            crop.getContext('2d').drawImage(src, minX * ratio, minY * ratio, cropW * ratio, cropH * ratio, 0, 0, crop.width, crop.height);
+
+            // Fit into the small pad, keeping the proportions, centred
+            const tw = target.canvas.offsetWidth, th = target.canvas.offsetHeight;
+            const scale = Math.min(tw / cropW, th / cropH);
+            const w = cropW * scale, h = cropH * scale;
+            target.clear();
+            target.fromDataURL(crop.toDataURL('image/png'), { ratio: ratio, width: w, height: h, xOffset: (tw - w) / 2, yOffset: (th - h) / 2 });
+            closeSignOverlay();
+        });
+
         $(document).on('shown.bs.modal', '#modalInformConsent', function () {
             // Small delay so the form has its final size before the canvas is measured
             setTimeout(function () { initializeSignaturePads(1); }, 300);
@@ -508,14 +664,20 @@
 
         // Inform consent form of an already added tindakan (riwayat): the save only adds its consent PDF
         let consentRiwayatId = null;
+        let consentReplace = false;
 
-        function loadInformConsentModal(tindakanId, riwayatId) {
+        function loadInformConsentModal(tindakanId, riwayatId, replace) {
             consentRiwayatId = riwayatId;
+            consentReplace = !!replace;
             signaturePads = {};
+            $('#modalInformConsent .modal-title').text(consentReplace ? 'Isi Ulang Inform Consent' : 'Inform Consent Tindakan');
             $.get(`/erm/tindakan/inform-consent/${tindakanId}?visitation_id=${currentVisitationId}`)
                 .done(function (html) {
                     $('#modalInformConsentBody').html(html);
-                    $('#modalInformConsentBody').append('<div class="text-center mt-4"><button id="saveInformConsent" class="btn btn-success">Simpan Inform Consent</button></div>');
+                    $('#modalInformConsentBody').append('<div class="text-center mt-4"><button type="button" id="previewInformConsent" class="btn btn-outline-primary mr-2"><i class="fas fa-eye mr-1"></i>Preview</button><button id="saveInformConsent" class="btn btn-success">' + (consentReplace ? 'Simpan &amp; Ganti Inform Consent' : 'Simpan Inform Consent') + '</button></div>');
+                    // A 'Perbesar' button next to each signature's Clear
+                    $('#clearSignature').after(' <button type="button" class="btn btn-sm btn-outline-primary mt-2 ic-sign-expand" data-pad="patient"><i class="fas fa-expand mr-1"></i>Perbesar</button>');
+                    $('#clearWitnessSignature').after(' <button type="button" class="btn btn-sm btn-outline-primary mt-2 ic-sign-expand" data-pad="witness"><i class="fas fa-expand mr-1"></i>Perbesar</button>');
                     $('#modalInformConsent').modal('show');
                 })
                 .fail(function () {
@@ -581,7 +743,29 @@
             const nama = $(this).data('nama') || 'tindakan ini';
             const hargaType = $(this).data('harga-type') || 'normal';
             const hargaLabel = $(this).data('harga-label') || 'Normal';
+            const paketSisa = parseInt($(this).data('paket-sisa'), 10);
 
+            // Normal while the patient still has package sessions: confirm the full charge first
+            if (hargaType === 'normal' && paketSisa > 0) {
+                Swal.fire({
+                    title: 'Pasien masih punya sisa paket',
+                    html: `<b>${escapeHtml(nama)}</b><br>Sisa <b>${paketSisa} sesi</b> (terpakai ${parseInt($(this).data('paket-used'), 10)}/${parseInt($(this).data('paket-total'), 10)}).<br>Yakin tagih <b>harga normal</b>?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, tagih normal',
+                    cancelButtonText: 'Batal',
+                    confirmButtonColor: '#dc2626'
+                }).then(function (result) {
+                    if (result.isConfirmed || result.value) {
+                        confirmAddTindakan(id, nama, hargaType, hargaLabel);
+                    }
+                });
+                return;
+            }
+            confirmAddTindakan(id, nama, hargaType, hargaLabel);
+        });
+
+        function confirmAddTindakan(id, nama, hargaType, hargaLabel) {
             // The same tindakan again in this visit reuses its inform consent
             $.get(`/erm/tindakan/${id}/exists-in-visitation`, { visitation_id: currentVisitationId })
                 .always(function (check) {
@@ -600,14 +784,72 @@
                         }
                     });
                 });
-        });
+        }
 
         $(document).on('click', '.isi-inform-consent-btn', function () {
             loadInformConsentModal($(this).data('tindakan-id'), $(this).data('riwayat-id'));
         });
 
+        // Isi ulang: replaces the signed inform consent while the tindakan is not started nor billed
+        $(document).on('click', '.isi-ulang-ic-btn', function () {
+            const tindakanId = $(this).data('tindakan-id');
+            const riwayatId = $(this).data('riwayat-id');
+            Swal.fire({
+                title: 'Isi ulang inform consent?',
+                html: 'Inform consent yang lama diganti dengan yang baru.<br><small>Foto hasil tetap disimpan.</small>',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, isi ulang',
+                cancelButtonText: 'Batal'
+            }).then(function (result) {
+                if (result.isConfirmed || result.value) loadInformConsentModal(tindakanId, riwayatId, true);
+            });
+        });
+
         $(document).on('click', '#saveInformConsent', function () {
             saveInformConsent();
+        });
+
+        // Signatures (JPEG) and the dokter / perawat QR into the form's hidden fields (save and preview)
+        function fillConsentPayload(form, pads) {
+            $('#signatureData').val(pads.patient.isEmpty() ? '' : pads.patient.toDataURL('image/jpeg', 0.85));
+            $('#witnessSignatureData').val(pads.witness.isEmpty() ? '' : pads.witness.toDataURL('image/jpeg', 0.85));
+            const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
+            const perawatNameForQr = @json(optional(auth()->user())->name ?? '');
+            ['dokter_qr', 'perawat_qr'].forEach(function (name) {
+                if (!form.find(`input[name="${name}"]`).length) {
+                    form.append(`<input type="hidden" name="${name}" />`);
+                }
+            });
+            form.find('input[name="dokter_qr"]').val(generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '');
+            form.find('input[name="perawat_qr"]').val(generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '');
+        }
+
+        // Preview: the PDF as it would be saved (what is filled so far), nothing is stored
+        let previewingConsent = false;
+        $(document).on('click', '#previewInformConsent', function () {
+            const form = $('#informConsentForm');
+            const pads = signaturePads[1];
+            if (previewingConsent || !consentRiwayatId || !form.length || !pads) return;
+            fillConsentPayload(form, pads);
+            previewingConsent = true;
+            const btn = $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm mr-1"></span>Menyiapkan...');
+            fetch(`/erm/tindakan/riwayat/${consentRiwayatId}/inform-consent/preview`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'), Accept: 'application/pdf' },
+                body: new FormData(form[0])
+            }).then(function (res) {
+                if (!res.ok || (res.headers.get('Content-Type') || '').indexOf('application/pdf') === -1) throw new Error('Preview gagal dibuat.');
+                return res.blob();
+            }).then(function (blob) {
+                window.ErmPdfPreview.showBlob(blob, 'Preview Inform Consent (belum disimpan)', 'preview-inform-consent.pdf');
+            }).catch(function (err) {
+                Swal.fire('Gagal', err.message || 'Preview gagal dibuat.', 'error');
+            }).finally(function () {
+                previewingConsent = false;
+                btn.prop('disabled', false).html('<i class="fas fa-eye mr-1"></i>Preview');
+            });
         });
 
         function saveInformConsent() {
@@ -627,26 +869,22 @@
                 Swal.fire('Tanda tangan kosong', 'Tanda tangan saksi wajib diisi.', 'error');
                 return;
             }
-            $('#signatureData').val(pads.patient.toDataURL());
-            $('#witnessSignatureData').val(pads.witness.toDataURL());
-
-            // QR of dokter and perawat for the PDF
-            const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
-            const perawatNameForQr = @json(optional(auth()->user())->name ?? '');
-            ['dokter_qr', 'perawat_qr'].forEach(function (name) {
-                if (!form.find(`input[name="${name}"]`).length) {
-                    form.append(`<input type="hidden" name="${name}" />`);
-                }
-            });
-            form.find('input[name="dokter_qr"]').val(generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '');
-            form.find('input[name="perawat_qr"]').val(generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '');
+            const namaPasien = $.trim(form.find('[name="nama_pasien"]').val() || '');
+            const namaSaksi = $.trim(form.find('[name="nama_saksi"]').val() || '');
+            if (!namaPasien || !namaSaksi) {
+                Swal.fire('Nama belum diisi', !namaPasien ? 'Nama pasien/wali wajib diisi.' : 'Nama saksi wajib diisi.', 'error');
+                form.find(!namaPasien ? '[name="nama_pasien"]' : '[name="nama_saksi"]').addClass('is-invalid').trigger('focus');
+                return;
+            }
+            form.find('[name="nama_pasien"], [name="nama_saksi"]').removeClass('is-invalid');
+            fillConsentPayload(form, pads);
 
             savingInformConsent = true;
             Swal.fire({ title: 'Menyimpan...', text: 'Mohon tunggu, inform consent sedang disimpan.', icon: 'info', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false });
             $.ajax({
                 url: `/erm/tindakan/riwayat/${consentRiwayatId}/inform-consent`,
                 method: 'POST',
-                data: new FormData(form[0]),
+                data: (function () { const fd = new FormData(form[0]); if (consentReplace) fd.append('replace', '1'); return fd; })(),
                 processData: false,
                 contentType: false,
                 complete: function () {
@@ -654,7 +892,7 @@
                 },
                 success: function (response) {
                     if (response.success) {
-                        Swal.fire('Berhasil', 'Inform consent berhasil disimpan.', 'success').then(function () {
+                        Swal.fire('Berhasil', response.message || 'Inform consent berhasil disimpan.', 'success').then(function () {
                             $('#modalInformConsent').modal('hide');
                             consentRiwayatId = null;
                             reloadTindakanTables();

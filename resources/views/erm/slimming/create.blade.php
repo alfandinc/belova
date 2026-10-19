@@ -12,6 +12,7 @@
 @endphp
 
 @section('content')
+@include('erm.partials.modal-alergipasien')
 <style>
     .slimming-shell {
         display: grid;

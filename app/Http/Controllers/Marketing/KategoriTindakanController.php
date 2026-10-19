@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\ERM\Icd10;
 use App\Models\ERM\KategoriTindakan;
 use App\Models\ERM\KodeTindakan;
+use App\Models\ERM\Tindakan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class KategoriTindakanController extends Controller
@@ -16,12 +18,61 @@ class KategoriTindakanController extends Controller
 
     public function index()
     {
+        $consentReady = $this->consentReady();
         $kategoris = KategoriTindakan::with('icd10s:id,code,description')
             ->withCount('kodeTindakans')
+            // Only whether the consent text is filled, not the (long) text itself
+            ->when($consentReady, fn ($q) => $q->select('erm_kategori_tindakan.*')
+                ->selectRaw("(consent_content IS NOT NULL AND consent_content <> '') as consent_filled"))
             ->orderBy('nama')
             ->get();
+        // How many paket use each kategori's consent text
+        $consentPaket = $consentReady
+            ? Tindakan::whereNotNull('consent_kategori_id')->groupBy('consent_kategori_id')
+                ->selectRaw('consent_kategori_id, COUNT(*) as total')->pluck('total', 'consent_kategori_id')
+            : collect();
 
-        return view('marketing.kategori_tindakan.index', compact('kategoris'));
+        return view('marketing.kategori_tindakan.index', compact('kategoris', 'consentReady', 'consentPaket'));
+    }
+
+    /** Both inform consent columns are migrated (2026_10_25_000001) */
+    private function consentReady(): bool
+    {
+        return Schema::hasColumn('erm_kategori_tindakan', 'consent_content') && Schema::hasColumn('erm_tindakan', 'consent_kategori_id');
+    }
+
+    /** The kategori's inform consent text, for the editor */
+    public function consent($id)
+    {
+        $kategori = KategoriTindakan::findOrFail($id);
+
+        return response()->json([
+            'id' => $kategori->id,
+            'nama' => $kategori->nama,
+            'consent_content' => $this->consentReady() ? $kategori->consent_content : null,
+        ]);
+    }
+
+    /**
+     * Saves the kategori's inform consent text, cleaned to formatting tags; empty text (or only an empty editor
+     * paragraph) is stored as null, so its paket fall back to the generic consent.
+     */
+    public function saveConsent(Request $request, $id)
+    {
+        if (!$this->consentReady()) {
+            return response()->json(['success' => false, 'message' => 'Kolom inform consent belum ada. Jalankan php artisan migrate terlebih dahulu.'], 422);
+        }
+        $request->validate(['consent_content' => 'nullable|string|max:200000']);
+        $kategori = KategoriTindakan::findOrFail($id);
+        $html = Tindakan::sanitizeConsentHtml($request->input('consent_content'));
+        $kategori->consent_content = trim(strip_tags($html)) === '' ? null : $html;
+        $kategori->save();
+
+        return response()->json([
+            'success' => true,
+            'filled' => $kategori->consent_content !== null,
+            'message' => $kategori->consent_content !== null ? 'Isi inform consent kategori disimpan.' : 'Isi inform consent kategori dikosongkan; paketnya memakai template umum.',
+        ]);
     }
 
     public function store(Request $request)
@@ -60,6 +111,10 @@ class KategoriTindakanController extends Controller
     public function destroy($id)
     {
         $kategori = KategoriTindakan::findOrFail($id);
+        // Paket that used this kategori's consent text go back to their own / the generic text
+        if (Schema::hasColumn('erm_tindakan', 'consent_kategori_id')) {
+            Tindakan::where('consent_kategori_id', $kategori->id)->update(['consent_kategori_id' => null]);
+        }
         $kategori->delete();
 
         return response()->json(['success' => true]);

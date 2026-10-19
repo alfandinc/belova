@@ -50,25 +50,11 @@
 </head>
 <body>
 
-<table class="no-border">
-  <tr>
-    <td style="width: 30%;" class="header-logo">
-      <img src="{{ public_path('img/logo-premiere.png') }}" alt="Logo" width="180">
-    </td>
-    <td style="width: 70%; text-align: right;">
-        <strong>KLINIK UTAMA PREMIERE BELOVA</strong> <br>
-        Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-        Telp. 0821-1600-0093 <br>
-        www.premierebelova.id <br>
-    </td>
-  </tr>
-</table>
-
-<hr>
+@include('erm.riwayatkunjungan.partials.kop')
 
 <h3 class="center">SURAT KETERANGAN DIAGNOSIS</h3>
 
-<p>Yang bertanda tangan dibawah ini dokter Klinik Utama Premiere Belova:</p>
+<p>Yang bertanda tangan di bawah ini dokter {{ \Illuminate\Support\Str::title($kop['nama']) }}:</p>
 
 <table class="identity-table no-border">
   <tr>   
@@ -81,15 +67,15 @@
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Jenis Kelamin</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->jenis_kelamin == 'L' ? 'Laki-laki' : 'Perempuan' }}</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $gender ?? '-' }}</td>
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Umur</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $umur }} tahun</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $umur !== null ? $umur . ' tahun' : '-' }}</td>
   </tr>
   <tr>   
     <td style="width: 30%; line-height: 1.2;"><strong>Alamat</strong></td> 
-    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->alamat }}</td>
+    <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $pasien->alamat ?: '-' }}</td>
   </tr>
 </table>
 
@@ -106,6 +92,12 @@
       <strong>:</strong>
     </td>
   </tr>
+  @if(empty($diagnosis_list))
+  <tr>
+    <td style="width: 30%; line-height: 1.2;"></td>
+    <td style="width: 70%; line-height: 1.2;">-</td>
+  </tr>
+  @endif
   @foreach($diagnosis_list as $index => $diagnosis)
   <tr>
     <td style="width: 30%; line-height: 1.2;"></td>

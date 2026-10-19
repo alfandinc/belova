@@ -11,6 +11,7 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\RiwayatTindakan;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -186,11 +187,39 @@ class TindakanController extends Controller
         $visitation = Visitation::findOrFail($visitation);
         $pasien = $visitation->pasien;
 
-        $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-        if (View::exists("erm.tindakan.inform-consent.{$viewName}")) {
-            return view("erm.tindakan.inform-consent.{$viewName}", compact('tindakan', 'pasien', 'visitation'));
+        [$consentHtml, $consentSource] = $this->consentHtml($tindakan, $visitation);
+
+        return view('erm.tindakan.inform-consent.default', compact('tindakan', 'pasien', 'visitation', 'consentHtml', 'consentSource'));
+    }
+
+    /** Schema::hasColumn once per request (production schema can lag behind the migrations). */
+    private static function hasColumnCached(string $table, string $column): bool
+    {
+        static $cache = [];
+
+        return $cache[$table . "." . $column] ??= Schema::hasColumn($table, $column);
+    }
+
+    /**
+     * Consent text of a tindakan for this visit, the most specific one: the tindakan's own text (master Tindakan),
+     * else the text of the kategori chosen for it, else the generic text. {tindakan} / {klinik} are filled in.
+     * Returns [html, source] with source ['type' => tindakan|kategori|umum, 'nama' => kategori name or null].
+     */
+    private function consentHtml(Tindakan $tindakan, Visitation $visitation): array
+    {
+        $klinikNama = optional($visitation->klinik)->nama ?: 'Klinik Pratama Belova Skin & Beauty Center';
+        $fill = fn ($html) => str_replace(['{tindakan}', '{klinik}'], [e($tindakan->nama), e($klinikNama)], Tindakan::sanitizeConsentHtml($html));
+        $filled = fn ($html) => trim(strip_tags((string) $html)) !== '';
+
+        if (self::hasColumnCached('erm_tindakan', 'consent_content') && $filled($tindakan->consent_content)) {
+            return [$fill($tindakan->consent_content), ['type' => 'tindakan', 'nama' => null]];
         }
-        return view('erm.tindakan.inform-consent.default', compact('tindakan', 'pasien', 'visitation'));
+        if (self::hasColumnCached('erm_tindakan', 'consent_kategori_id') && self::hasColumnCached('erm_kategori_tindakan', 'consent_content')
+            && $tindakan->consent_kategori_id && ($kategori = $tindakan->consentKategori) && $filled($kategori->consent_content)) {
+            return [$fill($kategori->consent_content), ['type' => 'kategori', 'nama' => $kategori->nama]];
+        }
+
+        return [view('erm.tindakan.inform-consent.partials.default-text', compact('tindakan', 'klinikNama'))->render(), ['type' => 'umum', 'nama' => null]];
     }
 
     /**
@@ -281,60 +310,111 @@ class TindakanController extends Controller
     }
 
     /**
+     * A PNG data URI (canvas signature, QR) as a JPEG one on white: DomPDF needs ~0.4 s per PNG with transparency,
+     * a JPEG takes milliseconds. Anything else (already JPEG, SVG, empty, not decodable) is returned as it is.
+     */
+    private function pngDataUriToJpeg(?string $dataUri): ?string
+    {
+        if (!$dataUri || !str_starts_with($dataUri, 'data:image/png;base64,') || !function_exists('imagecreatefromstring')) {
+            return $dataUri;
+        }
+        $png = @imagecreatefromstring(base64_decode(substr($dataUri, strlen('data:image/png;base64,'))));
+        if (!$png) {
+            return $dataUri;
+        }
+        $w = imagesx($png);
+        $h = imagesy($png);
+        $canvas = imagecreatetruecolor($w, $h);
+        imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
+        imagecopy($canvas, $png, 0, 0, 0, 0, $w, $h);
+        ob_start();
+        imagejpeg($canvas, null, 85);
+
+        return 'data:image/jpeg;base64,' . base64_encode(ob_get_clean());
+    }
+
+    /**
+     * A QR data URI (PNG / JPEG) cropped to the code itself plus a small quiet zone, as a square JPEG. A QR library
+     * fits the code into a fixed size with whole-pixel modules, so a denser code (longer text) gets more white
+     * around it and prints smaller; cropped, every QR fills its box the same. Anything not decodable is returned as it is.
+     */
+    private function qrDataUriTrimmed(?string $dataUri): ?string
+    {
+        if (!$dataUri || !preg_match('#^data:image/(png|jpeg);base64,#', $dataUri, $m) || !function_exists('imagecreatefromstring')) {
+            return $dataUri;
+        }
+        $src = @imagecreatefromstring(base64_decode(substr($dataUri, strlen($m[0]))));
+        if (!$src) {
+            return $dataUri;
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        // On white first (a PNG may be transparent)
+        $img = imagecreatetruecolor($w, $h);
+        imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
+        imagecopy($img, $src, 0, 0, 0, 0, $w, $h);
+
+        // Bounding box of the dark modules
+        $minX = $w; $minY = $h; $maxX = -1; $maxY = -1;
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $rgb = imagecolorat($img, $x, $y);
+                if (((($rgb >> 16) & 0xFF) + (($rgb >> 8) & 0xFF) + ($rgb & 0xFF)) < 384) {
+                    if ($x < $minX) $minX = $x;
+                    if ($x > $maxX) $maxX = $x;
+                    if ($y < $minY) $minY = $y;
+                    if ($y > $maxY) $maxY = $y;
+                }
+            }
+        }
+        if ($maxX < 0) {
+            return $dataUri;
+        }
+        $code = max($maxX - $minX, $maxY - $minY) + 1;
+        $side = 240;
+        $quiet = 12; // white border around the code, the same for every QR
+        $out = imagecreatetruecolor($side, $side);
+        imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));
+        // Nearest-neighbour scaling keeps the modules sharp
+        imagecopyresized($out, $img, $quiet, $quiet, $minX, $minY, $side - 2 * $quiet, $side - 2 * $quiet, $code, $code);
+        ob_start();
+        imagejpeg($out, null, 90);
+
+        return 'data:image/jpeg;base64,' . base64_encode(ob_get_clean());
+    }
+
+    /**
      * Inform consent PDF of a riwayat tindakan from the signed form ($data: visitation_id, tindakan_id, tanggal,
      * signature, witness_signature, notes, nama_pasien, nama_saksi). $storedPdf gets the file so a failed save can remove it.
      */
     private function createInformConsentDocument(Request $request, array $data, Visitation $visitation, Tindakan $tindakan, RiwayatTindakan $riwayatTindakan, ?string &$storedPdf): InformConsent
     {
         $pasien = $visitation->pasien;
-        $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-        $bladeViewCandidate = "erm.tindakan.inform-consent.{$viewName}";
-        // Fallback to default view when tindakan-specific template doesn't exist
-        $bladeView = View::exists($bladeViewCandidate) ? $bladeViewCandidate : 'erm.tindakan.inform-consent.default';
-        $consentText = '';
-        // Render the Blade view to HTML
-        $html = View::make($bladeView, [
-            'tindakan' => $tindakan,
-            'pasien' => $pasien,
-            'visitation' => $visitation,
-            'data' => $data,
-        ])->render();
-            // Parse the HTML to extract .card-body before Catatan Tambahan
-            $dom = new \DOMDocument();
-            libxml_use_internal_errors(true);
-            $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
-            libxml_clear_errors();
-            $finder = new \DOMXPath($dom);
-            $cardBodies = $finder->query("//div[contains(@class, 'card-body')]");
-            if ($cardBodies->length > 0) {
-                // Find the card-body that contains the consent text (the one with Catatan Tambahan inside)
-                /** @var \DOMElement $cardBody */
-                foreach ($cardBodies as $cardBody) {
-                    $hasCatatan = false;
-                    foreach ($cardBody->getElementsByTagName('label') as $label) {
-                        if (stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
-                            $hasCatatan = true;
-                            break;
-                        }
-                    }
-                    if ($hasCatatan) {
-                        // Only get content before Catatan Tambahan
-                        $content = '';
-                        foreach ($cardBody->childNodes as $child) {
-                            // Stop at the Catatan Tambahan label
-                            if ($child instanceof \DOMElement && $child->nodeName === 'div') {
-                                $label = $child->getElementsByTagName('label')->item(0);
-                                if ($label && stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
-                                    break;
-                                }
-                            }
-                            $content .= $dom->saveHTML($child);
-                        }
-                        $consentText = $content;
-                        break;
-                    }
-                }
-            }
+        $pdf = $this->buildInformConsentPdf($request, $data, $visitation, $tindakan);
+
+        $timestamp = now()->format('YmdHis');
+        // Unique per riwayat and save: two consents in the same second (the same tindakan twice, or an "isi ulang")
+        // must not overwrite each other's file
+        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-r' . $riwayatTindakan->id
+            . '-' . $timestamp . '-' . \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(5)) . '.pdf';
+        Storage::disk('public')->put($pdfPath, $pdf->output());
+        $storedPdf = $pdfPath;
+
+        $notes = trim((string) ($data['notes'] ?? ''));
+        return InformConsent::create(array_merge([
+            'visitation_id' => $data['visitation_id'],
+            'tindakan_id' => $data['tindakan_id'],
+            'file_path' => $pdfPath,
+            'riwayat_tindakan_id' => $riwayatTindakan->id,
+            'created_at' => now(),
+        ], self::hasColumnCached('erm_inform_consent', 'notes') ? ['notes' => $notes !== '' ? $notes : null] : []));
+    }
+
+    /** The inform consent PDF (not saved): used to save it and to preview it before saving. */
+    private function buildInformConsentPdf(Request $request, array $data, Visitation $visitation, Tindakan $tindakan)
+    {
+        $pasien = $visitation->pasien;
+        [$consentText] = $this->consentHtml($tindakan, $visitation);
         // Prepare dokter and perawat (current user) names for QR
         $dokterName = '';
         if ($visitation->dokter) {
@@ -362,9 +442,14 @@ class TindakanController extends Controller
         // Prefer client-submitted QR data URIs (from browser); an empty one (QR library not loaded) falls back
         $dokterQr = $request->input('dokter_qr') ?: $generateQrDataUri('Dokter: ' . $dokterName);
         $perawatQr = $request->input('perawat_qr') ?: $generateQrDataUri('Perawat: ' . $perawatName);
+        // Every image as JPEG for a fast PDF (PNG signatures / QR from older pages or the server fallback)
+        // Cropped to the code so both QR print at the same size (also a JPEG, see pngDataUriToJpeg)
+        $dokterQr = $this->qrDataUriTrimmed($dokterQr);
+        $perawatQr = $this->qrDataUriTrimmed($perawatQr);
+        $data['signature'] = $this->pngDataUriToJpeg($data['signature'] ?? null);
+        $data['witness_signature'] = $this->pngDataUriToJpeg($data['witness_signature'] ?? null);
 
-        // Generate PDF using the generic template
-        $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
+        return PDF::loadView('erm.tindakan.inform-consent.pdf.generic', [
             'data' => $data,
             'pasien' => $pasien,
             'visitation' => $visitation,
@@ -376,19 +461,32 @@ class TindakanController extends Controller
             'dokter_name' => $dokterName,
             'perawat_name' => $perawatName,
         ]);
-        $timestamp = now()->format('YmdHis');
-        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
-        Storage::disk('public')->put($pdfPath, $pdf->output());
-        $storedPdf = $pdfPath;
-        $informConsent = InformConsent::create([
-            'visitation_id' => $data['visitation_id'],
-            'tindakan_id' => $data['tindakan_id'],
-            'file_path' => $pdfPath,
-            'riwayat_tindakan_id' => $riwayatTindakan->id,
-            'created_at' => now(),
-        ]);
+    }
 
-        return $informConsent;
+    /**
+     * Preview of the inform consent of a riwayat as it would be saved (signatures, names, notes from the form);
+     * nothing is stored.
+     */
+    public function previewRiwayatInformConsent(Request $request, $id)
+    {
+        $riwayat = RiwayatTindakan::findOrFail($id);
+        $this->mapSignatureFields($request);
+        $data = $request->validate([
+            'signature' => 'nullable|string',
+            'witness_signature' => 'nullable|string',
+            'notes' => 'nullable|string|max:2000',
+            'nama_pasien' => 'nullable|string|max:191',
+            'nama_saksi' => 'nullable|string|max:191',
+        ]) + [
+            'visitation_id' => $riwayat->visitation_id,
+            'tindakan_id' => $riwayat->tindakan_id,
+            'tanggal' => Carbon::parse($riwayat->tanggal_tindakan ?? now())->format('Y-m-d'),
+        ];
+
+        $visitation = Visitation::findOrFail($riwayat->visitation_id);
+        $tindakan = Tindakan::findOrFail($riwayat->tindakan_id);
+
+        return $this->buildInformConsentPdf($request, $data, $visitation, $tindakan)->stream('preview-inform-consent.pdf');
     }
 
     /** The consent form posts signatureData / witnessSignatureData; the controller reads signature / witness_signature. */
@@ -403,26 +501,52 @@ class TindakanController extends Controller
     }
 
     /**
+     * Why an inform consent can not be replaced any more ('' = it can): the tindakan is under way / done (SPK) or
+     * already on an invoice / paid.
+     */
+    private function consentReplaceBlocker(RiwayatTindakan $riwayat): string
+    {
+        $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->first();
+        if ($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai))) {
+            return 'Tindakan ini sudah dikerjakan (SPK berjalan / selesai), inform consent tidak bisa diisi ulang.';
+        }
+        if ($this->riwayatBillingState(collect([$riwayat]))[$riwayat->id]['locked'] ?? false) {
+            return 'Tindakan ini sudah masuk invoice / dibayar, inform consent tidak bisa diisi ulang.';
+        }
+
+        return '';
+    }
+
+    /**
      * Inform consent filled after the tindakan was added: only the consent PDF for that riwayat,
-     * no new riwayat / billing.
+     * no new riwayat / billing. With replace=1 ("Isi ulang") it replaces the one already there, while the
+     * tindakan is not started nor billed; the foto hasil and allow_post of the old one are kept.
      */
     public function saveRiwayatInformConsent(Request $request, $id)
     {
         $riwayat = RiwayatTindakan::findOrFail($id);
-        if (InformConsent::where('riwayat_tindakan_id', $riwayat->id)->exists()) {
-            return response()->json(['success' => false, 'message' => 'Inform consent tindakan ini sudah diisi.'], 422);
+        $existing = InformConsent::where('riwayat_tindakan_id', $riwayat->id)->latest('id')->first();
+        if ($existing) {
+            if (!$request->boolean('replace')) {
+                return response()->json(['success' => false, 'message' => 'Inform consent tindakan ini sudah diisi.'], 422);
+            }
+            if ($why = $this->consentReplaceBlocker($riwayat)) {
+                return response()->json(['success' => false, 'message' => $why], 422);
+            }
         }
 
         $this->mapSignatureFields($request);
         $data = $request->validate([
             'signature' => 'required',
             'witness_signature' => 'required',
-            'notes' => 'nullable|string',
-            'nama_pasien' => 'nullable|string',
-            'nama_saksi' => 'nullable|string',
+            'notes' => 'nullable|string|max:2000',
+            'nama_pasien' => 'required|string|max:191',
+            'nama_saksi' => 'required|string|max:191',
         ], [
             'signature.required' => 'Tanda tangan pasien wajib diisi.',
             'witness_signature.required' => 'Tanda tangan saksi wajib diisi.',
+            'nama_pasien.required' => 'Nama pasien/wali wajib diisi.',
+            'nama_saksi.required' => 'Nama saksi wajib diisi.',
         ]);
         $data += [
             'visitation_id' => $riwayat->visitation_id,
@@ -434,9 +558,20 @@ class TindakanController extends Controller
         $tindakan = Tindakan::findOrFail($riwayat->tindakan_id);
 
         $storedPdf = null;
+        $oldFile = null;
         DB::beginTransaction();
         try {
             $informConsent = $this->createInformConsentDocument($request, $data, $visitation, $tindakan, $riwayat, $storedPdf);
+            if ($existing) {
+                // Keep what was added to the old one, then remove it (all rows of this riwayat)
+                $informConsent->update([
+                    'before_image_path' => $existing->before_image_path,
+                    'after_image_path' => $existing->after_image_path,
+                    'allow_post' => $existing->allow_post,
+                ]);
+                $oldFile = $existing->file_path;
+                InformConsent::where('riwayat_tindakan_id', $riwayat->id)->where('id', '!=', $informConsent->id)->delete();
+            }
             DB::commit();
         } catch (\Throwable $e) {
             DB::rollBack();
@@ -446,9 +581,14 @@ class TindakanController extends Controller
             throw $e;
         }
 
+        // The old PDF goes only when no other inform consent uses it (the same tindakan added again reuses it)
+        if ($oldFile && !InformConsent::where('file_path', $oldFile)->exists()) {
+            Storage::disk('public')->delete($oldFile);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Inform consent berhasil disimpan.',
+            'message' => $existing ? 'Inform consent berhasil diisi ulang.' : 'Inform consent berhasil disimpan.',
             'informConsent' => $informConsent,
         ]);
     }
@@ -465,8 +605,8 @@ class TindakanController extends Controller
             'signature' => 'nullable',
             'witness_signature' => 'nullable',
             'notes' => 'nullable|string',
-            'nama_pasien' => 'nullable|string',
-            'nama_saksi' => 'nullable|string',
+            'nama_pasien' => 'nullable|required_with:signature|string|max:191',
+            'nama_saksi' => 'nullable|required_with:witness_signature|string|max:191',
             'reuse_existing_inform_consent' => 'nullable|boolean',
         ];
         $data = $request->validate($rules);
@@ -751,120 +891,111 @@ class TindakanController extends Controller
         return $description !== '' ? $description : null;
     }
 
-    public function getRiwayatTindakanHistory($visitationId)
+    /** Invoice status label per status code. */
+    private const INVOICE_STATUS = ['paid' => 'Lunas', 'partial' => 'Dibayar sebagian', 'issued' => 'Ditagih'];
+
+    /**
+     * Billing state of riwayat tindakan: [riwayat_id => ['status' => paid|partial|issued|null, 'locked' => bool]].
+     * Locked = it is on an invoice (its own invoice item), or its visit's invoice is already (partly) paid
+     * (older tindakan were invoiced as 'Tindakan' items, not per riwayat). A locked one is cancelled at the kasir.
+     */
+    private function riwayatBillingState($riwayats): array
     {
-        // First, get the patient ID from the current visitation
+        $ids = $riwayats->pluck('id')->all();
+        $visitIds = $riwayats->pluck('visitation_id')->unique()->values()->all();
+        if (!$ids) {
+            return [];
+        }
+
+        $rank = ['paid' => 3, 'partial' => 2, 'issued' => 1];
+        $own = DB::table('finance_invoice_items as ii')
+            ->join('finance_invoices as i', 'i.id', '=', 'ii.invoice_id')
+            ->where('ii.billable_type', RiwayatTindakan::class)
+            ->whereIn('ii.billable_id', $ids)
+            ->get(['ii.billable_id', 'i.status'])
+            ->groupBy('billable_id')
+            ->map(fn ($rows) => $rows->sortByDesc(fn ($r) => $rank[$r->status] ?? 0)->first()->status);
+        $visit = DB::table('finance_invoices')->whereIn('visitation_id', $visitIds)
+            ->get(['visitation_id', 'status'])
+            ->groupBy('visitation_id')
+            ->map(fn ($rows) => $rows->sortByDesc(fn ($r) => $rank[$r->status] ?? 0)->first()->status);
+
+        $state = [];
+        foreach ($riwayats as $r) {
+            $ownStatus = $own[$r->id] ?? null;
+            $visitStatus = $visit[$r->visitation_id] ?? null;
+            $visitPaid = in_array($visitStatus, ['paid', 'partial'], true);
+            $state[$r->id] = [
+                'status' => $ownStatus ?? ($visitPaid ? $visitStatus : null),
+                'locked' => $ownStatus !== null || $visitPaid,
+            ];
+        }
+
+        return $state;
+    }
+
+    public function getRiwayatTindakanHistory(Request $request, $visitationId)
+    {
         $currentVisitation = Visitation::findOrFail($visitationId);
-        $patientId = $currentVisitation->pasien_id;
 
-        // Get all visitations for this patient
-        $patientVisitations = Visitation::where('pasien_id', $patientId)
-            ->pluck('id')->toArray();
+        // Every riwayat on its own row (the same tindakan twice in a visit = two rows, each with its own actions);
+        // ?scope=current limits it to this visit
+        $riwayats = RiwayatTindakan::query()
+            ->when($request->query('scope') === 'current',
+                fn ($q) => $q->where('visitation_id', $visitationId),
+                fn ($q) => $q->whereIn('visitation_id', Visitation::select('id')->where('pasien_id', $currentVisitation->pasien_id)))
+            ->with(['tindakan:id,nama', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'visitation.spesialisasi', 'informConsent'])
+            ->get();
 
-        // Get all riwayat tindakan for all visitations of this patient and collapse
-        // duplicate tindakan within the same visit into one row with a count badge.
-        $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'visitation.spesialisasi', 'informConsent'])
-            ->get()
-            ->groupBy(function ($item) {
-                return $item->visitation_id . '-' . ($item->tindakan_id ?? 0);
-            })
-            ->map(function ($group) use ($visitationId) {
-                $representative = $group->sortByDesc('id')->first();
-                $informConsentSource = $group->sortByDesc('id')->first(function ($candidate) {
-                    return !empty($candidate->informConsent);
-                }) ?: $representative;
+        // Batched lookups (no query per row)
+        $billing = $this->riwayatBillingState($riwayats);
+        $spks = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayats->pluck('id'))->get()->keyBy('riwayat_tindakan_id');
+        $usageIds = $riwayats->pluck('multi_visit_usage_id')->filter()->unique();
+        $usages = MultiVisitUsage::whereIn('id', $usageIds)->get()->keyBy('id');
+        // Session number inside a multi visit package = order of its riwayat ids
+        $sessionNo = [];
+        foreach (RiwayatTindakan::whereIn('multi_visit_usage_id', $usageIds)->orderBy('id')->get(['id', 'multi_visit_usage_id'])->groupBy('multi_visit_usage_id') as $rows) {
+            foreach ($rows->values() as $i => $row) {
+                $sessionNo[$row->id] = $i + 1;
+            }
+        }
 
-                $tanggalRaw = $representative->visitation->tanggal_visitation ?? null;
-                $tanggalFormatted = '-';
-                if ($tanggalRaw) {
-                    $tanggalFormatted = Carbon::parse($tanggalRaw)
-                        ->locale('id')
-                        ->isoFormat('D MMMM YYYY');
-                }
+        $history = $riwayats->map(function ($r) use ($visitationId, $billing, $spks, $usages, $sessionNo) {
+            $tanggalRaw = $r->visitation->tanggal_visitation ?? null;
+            $spk = $spks[$r->id] ?? null;
+            $usage = $r->multi_visit_usage_id ? ($usages[$r->multi_visit_usage_id] ?? null) : null;
 
-                return (object) [
-                    'id' => $representative->id,
-                    'visitation_id' => $representative->visitation_id,
-                    'tindakan_id' => $representative->tindakan_id,
-                    'tanggal' => $tanggalFormatted,
-                    'tanggal_raw' => $tanggalRaw,
-                    'tindakan' => $representative->tindakan->nama ?? '-',
-                    'dokter' => $representative->visitation->dokter->user->name ?? '-',
-                    'spesialisasi' => $representative->visitation->listSpesialisasiNama() ?? '-',
-                    'inform_consent' => $informConsentSource->informConsent,
-                    'duplicate_count' => $group->count(),
-                    // A riwayat of this row still without its inform consent (added without filling it)
-                    'pending_consent_id' => optional($group->sortByDesc('id')->first(function ($candidate) {
-                        return empty($candidate->informConsent);
-                    }))->id,
-                    'current' => ($representative->visitation_id == $visitationId)
-                ];
-            })
-            ->sortByDesc(function ($item) {
-                // Sort by raw visitation date (string, so convert to timestamp)
-                return $item->tanggal_raw ? strtotime($item->tanggal_raw) : 0;
-            })
+            return (object) [
+                'id' => $r->id,
+                'visitation_id' => $r->visitation_id,
+                'tindakan_id' => $r->tindakan_id,
+                'tanggal' => $tanggalRaw ? Carbon::parse($tanggalRaw)->locale('id')->isoFormat('D MMMM YYYY') : '-',
+                'tanggal_raw' => $tanggalRaw,
+                'tindakan' => $r->tindakan->nama ?? '-',
+                'dokter' => $r->visitation->dokter->user->name ?? '-',
+                'spesialisasi' => $r->visitation->listSpesialisasiNama() ?? '-',
+                'inform_consent' => $r->informConsent,
+                'pending_consent_id' => $r->informConsent ? null : $r->id,
+                'current' => $r->visitation_id == $visitationId,
+                // Multi visit package: session n of total (session 1 carries the package price)
+                'paket' => $usage ? ['sesi' => $sessionNo[$r->id] ?? null, 'total' => (int) $usage->total] : null,
+                'spk' => $spk ? (!empty($spk->waktu_selesai) ? 'selesai' : (!empty($spk->waktu_mulai) ? 'berjalan' : 'dibuat')) : null,
+                'bayar' => $billing[$r->id]['status'] ?? null,
+                'bayar_label' => self::INVOICE_STATUS[$billing[$r->id]['status'] ?? ''] ?? 'Belum ditagih',
+                'locked' => $billing[$r->id]['locked'] ?? false,
+                // "Isi ulang" inform consent: this visit, filled, tindakan not started (SPK) and not billed
+                'can_refill' => $r->visitation_id == $visitationId && $r->informConsent
+                    && !($billing[$r->id]['locked'] ?? false)
+                    && !($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai))),
+            ];
+        })
+            // Newest visit first, then the latest added
+            ->sortBy([['tanggal_raw', 'desc'], ['id', 'desc']])
             ->values();
 
         return datatables()->of($history)
             // Tindakan of this visit still without inform consent (warning banner)
             ->with('pending_consent', RiwayatTindakan::where('visitation_id', $visitationId)->whereDoesntHave('informConsent')->count())
-            ->addColumn('dokumen', function ($row) {
-                $buttons = '';
-                
-                // Add document button if inform consent exists
-                if ($row->inform_consent) {
-                    $url = Storage::url($row->inform_consent->file_path);
-                    $buttons .= '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>';
-                    
-                    // Always add foto hasil button
-                    $hasBefore = isset($row->inform_consent->before_image_path) && trim($row->inform_consent->before_image_path) !== '';
-                    $hasAfter = isset($row->inform_consent->after_image_path) && trim($row->inform_consent->after_image_path) !== '';
-                    $fotoBtnText = ($hasBefore && $hasAfter) ? 'Lihat Foto' : 'Upload Foto';
-                    $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
-                        'data-id="' . $row->inform_consent->id . '" ' .
-                        'data-before="' . ($row->inform_consent->before_image_path ?? '') . '" ' .
-                        'data-after="' . ($row->inform_consent->after_image_path ?? '') . '">' .
-                        $fotoBtnText . '</button>';
-                    
-                    // Add SPK button
-                    $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
-                        'data-id="' . $row->inform_consent->id . '">' .
-                        'SPK</button>';
-                } else {
-                    $buttons = '<span class="text-muted">Belum ada inform consent</span>';
-                }
-                
-                return $buttons;
-            })
-            ->addColumn('status', function ($row) {
-                return $row->current ?
-                    '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
-                    '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
-            })
-            ->addColumn('spk_status_color', function($row) {
-                // Check SPK detail status for this riwayat
-                $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
-                if ($spk) {
-                    $hasSelesai = !empty($spk->waktu_selesai);
-                    if ($hasSelesai) return 'green';
-                    $hasMulai = !empty($spk->waktu_mulai);
-                    if ($hasMulai) return 'yellow';
-                }
-                return '';
-            })
-            ->setRowClass(function($row) {
-                $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
-                if ($spk) {
-                    $hasSelesai = !empty($spk->waktu_selesai);
-                    if ($hasSelesai) return 'table-success';
-                    $hasMulai = !empty($spk->waktu_mulai);
-                    if ($hasMulai) return 'table-warning';
-                }
-                return '';
-            })
-            ->rawColumns(['dokumen', 'status', 'aksi'])
             ->make(true);
     }
 
@@ -1296,6 +1427,14 @@ class TindakanController extends Controller
         try {
             $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
 
+            // Already on an invoice / paid: removing its billing here would leave the invoice and stock wrong
+            if ($this->riwayatBillingState(collect([$riwayat]))[$riwayat->id]['locked'] ?? false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tindakan ini sudah masuk invoice / sudah dibayar. Pembatalan dilakukan lewat kasir.',
+                ], 422);
+            }
+
             // A multi visit session is cancelled on its own and gives its quota back. The first (paid) session
             // carries the package charge, so it goes only once no later session is left.
             $usageId = $riwayat->multi_visit_usage_id ? (int) $riwayat->multi_visit_usage_id : null;
@@ -1352,24 +1491,29 @@ class TindakanController extends Controller
             throw new \RuntimeException('Invalid visitation id for this record.');
         }
 
-        $quotedVisitation = str_replace("'", "\\'", $visitationIdString);
-        $quotedBillableTindakan = str_replace("'", "\\'", (string) $riwayat->tindakan_id);
-        $quotedBillableRiwayat = str_replace("'", "\\'", (string) $riwayat->id);
-
-        Billing::whereRaw("billable_id = '{$quotedBillableTindakan}'")
-            ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
-            ->whereRaw("visitation_id = '{$quotedVisitation}'")
-            ->delete();
-
-        Billing::whereRaw("billable_id = '{$quotedBillableRiwayat}'")
+        // This riwayat's own billing (current data)
+        Billing::where('visitation_id', $visitationIdString)
             ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
-            ->whereRaw("visitation_id = '{$quotedVisitation}'")
+            ->where('billable_id', (string) $riwayat->id)
             ->delete();
 
-        Billing::whereRaw("visitation_id = '{$quotedVisitation}'")
-            ->where('billable_type', 'App\\Models\\ERM\\Obat')
-            ->where('keterangan', 'like', '%Obat Bundled%')
-            ->delete();
+        // Older data billed per tindakan: remove one billing for this one riwayat only (the same tindakan
+        // added twice in the visit has two), and the visit's 'Obat Bundled' billings (they can not be told
+        // apart per tindakan) only when no other tindakan is left in the visit
+        Billing::where('visitation_id', $visitationIdString)
+            ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->where('billable_id', (string) $riwayat->tindakan_id)
+            ->orderByDesc('id')
+            ->first()
+            ?->delete();
+
+        $otherTindakanLeft = RiwayatTindakan::where('visitation_id', $visitationIdString)->where('id', '!=', $riwayat->id)->exists();
+        if (!$otherTindakanLeft) {
+            Billing::where('visitation_id', $visitationIdString)
+                ->where('billable_type', 'App\\Models\\ERM\\Obat')
+                ->where('keterangan', 'like', '%Obat Bundled%')
+                ->delete();
+        }
 
         DB::table('erm_riwayat_tindakan_obat')
             ->where('riwayat_tindakan_id', $riwayat->id)

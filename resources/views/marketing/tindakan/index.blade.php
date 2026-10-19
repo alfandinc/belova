@@ -204,6 +204,33 @@
                             <div class="invalid-feedback" id="total_inject-error"></div>
                         </div>
                     </div>
+
+                    <hr>
+                    <div class="form-group">
+                        <label for="consent_kategori_id">Kategori Inform Consent</label>
+                        <select id="consent_kategori_id" name="consent_kategori_id" class="form-control">
+                            <option value="">— Tidak ada —</option>
+                            @foreach($kategoriTindakan as $kategori)
+                                <option value="{{ $kategori->id }}">{{ $kategori->nama }}</option>
+                            @endforeach
+                        </select>
+                        <small class="form-text text-muted">
+                            Isi inform consent kategori ini (diatur di Master Kategori Tindakan) dipakai bila Isi Inform Consent di bawah kosong.
+                        </small>
+                        <div class="invalid-feedback" id="consent_kategori_id-error"></div>
+                    </div>
+                    <div class="form-group mb-0">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px">
+                            <label for="consent_content" class="mb-0">Isi Inform Consent</label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="consentFromGeneric"><i class="fas fa-file-import"></i> Mulai dari template umum</button>
+                        </div>
+                        <small class="form-text text-muted mt-0 mb-1">
+                            Khusus paket ini. Kosongkan untuk memakai isi kategori di atas, atau template umum bila kategori tidak dipilih / kosong.
+                            Tulis <code>{tindakan}</code> untuk nama paket dan <code>{klinik}</code> untuk nama klinik kunjungan.
+                        </small>
+                        <textarea id="consent_content" name="consent_content" class="form-control"></textarea>
+                        <div class="invalid-feedback d-block" id="consent_content-error"></div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="tindakanModalFooterClose">Tutup</button>
@@ -267,6 +294,15 @@
 @endsection
 
 @section('scripts')
+<link rel="stylesheet" href="{{ asset('dastone/plugins/summernote/summernote-bs4.min.css') }}">
+<script src="{{ asset('dastone/plugins/summernote/summernote-bs4.min.js') }}"></script>
+@php
+    // The generic consent text with placeholders, to start a tindakan's own text from it
+    $genericConsent = view('erm.tindakan.inform-consent.partials.default-text', [
+        'tindakan' => (object) ['nama' => '{tindakan}', 'deskripsi' => null],
+        'klinikNama' => '{klinik}',
+    ])->render();
+@endphp
 <script>
 $(function () {
     var CSRF = '{{ csrf_token() }}';
@@ -456,6 +492,27 @@ $(function () {
     // ================= Form =================
     $('#spesialis_id').select2({ width: '100%', dropdownParent: $('#tindakanModal') });
 
+    // Inform consent text: a simple editor (formatting only; the server keeps just these tags)
+    var GENERIC_CONSENT = @json(trim($genericConsent));
+    $('#consent_content').summernote({
+        height: 260,
+        dialogsInBody: true,
+        placeholder: 'Kosong = memakai template umum',
+        toolbar: [
+            ['style', ['bold', 'italic', 'underline', 'clear']],
+            ['para', ['ul', 'ol', 'paragraph']],
+            ['insert', ['table']],
+            ['view', ['codeview']]
+        ]
+    });
+    function setConsent(html) { $('#consent_content').summernote('code', html || ''); }
+    $('#consentFromGeneric').on('click', function () {
+        var current = $('#consent_content').summernote('isEmpty') ? '' : $('#consent_content').summernote('code');
+        if (!current) { setConsent(GENERIC_CONSENT); return; }
+        Swal.fire({ title: 'Ganti isi dengan template umum?', text: 'Isi yang sekarang akan diganti.', icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, ganti', cancelButtonText: 'Batal', reverseButtons: true })
+            .then(function (r) { if (r.value) setConsent(GENERIC_CONSENT); });
+    });
+
     function obatListHtml(obats) {
         if (!obats || !obats.length) return '<span class="text-warning small"><i class="fas fa-exclamation-triangle"></i> belum ada obat/BHP</span>';
         return '<ul class="list-unstyled mb-0 small">' + obats.map(function (obat) {
@@ -522,6 +579,7 @@ $(function () {
         $('#tindakan_id').val('');
         $('#spesialis_id').val('').trigger('change');
         $('#kodeTindakanTable tbody').empty();
+        setConsent('');
         toggleSlimmingQuota();
     }
     // Total RF / Inject only apply to slimming paket
@@ -555,6 +613,8 @@ $(function () {
             $('#is_vaksin').prop('checked', !!Number(data.is_vaksin));
             $('#total_rf').val(data.total_rf != null ? data.total_rf : '');
             $('#total_inject').val(data.total_inject != null ? data.total_inject : '');
+            setConsent(data.consent_content || '');
+            $('#consent_kategori_id').val(data.consent_kategori_id || '');
             toggleSlimmingQuota();
             $('#spesialis_id').val(data.spesialis_id).trigger('change');
             (data.kode_tindakans || []).forEach(function (kode) { addKodeRow(kode); });
@@ -574,6 +634,8 @@ $(function () {
         e.preventDefault();
         resetErrors();
         var $btn = $('#saveBtn').prop('disabled', true);
+        // The editor's content (an empty editor = no own consent text)
+        $('#consent_content').val($('#consent_content').summernote('isEmpty') ? '' : $('#consent_content').summernote('code'));
         $.post('{{ route('marketing.tindakan.store') }}', $(this).serializeArray())
             .done(function (response) {
                 $('#tindakanModal').modal('hide');

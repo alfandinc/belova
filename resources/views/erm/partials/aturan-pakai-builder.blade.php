@@ -9,13 +9,19 @@
 <style>
     .ap-ac { position: relative; }
     .ap-ac-menu { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 1065; margin-top: 2px;
-        max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ced4da; border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+        max-height: 300px; overflow-y: auto; border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,.3);
+        --ap-bg: #1e2430; --ap-fg: #e2e8f0; --ap-muted: #94a3b8; --ap-border: rgba(148,163,184,.25);
+        --ap-hover: rgba(59,130,246,.22); --ap-mark-bg: rgba(250,204,21,.3); --ap-mark-fg: #fde68a;
+        background: var(--ap-bg); color: var(--ap-fg); border: 1px solid var(--ap-border); }
+    html.theme-light .ap-ac-menu, [data-theme="light"] .ap-ac-menu {
+        --ap-bg: #fff; --ap-fg: #212529; --ap-muted: #6c757d; --ap-border: #ced4da;
+        --ap-hover: #e7f1ff; --ap-mark-bg: #fff3cd; --ap-mark-fg: inherit; box-shadow: 0 6px 16px rgba(0,0,0,.12); }
     .ap-ac-menu.show { display: block; }
-    .ap-ac-head { padding: 6px 10px 2px; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; color: #6c757d; }
-    .ap-ac-item { display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; font-size: .86rem; cursor: pointer; }
-    .ap-ac-item:hover, .ap-ac-item.active { background: #e7f1ff; }
-    .ap-ac-item .ap-ac-count { color: #6c757d; font-size: .75rem; white-space: nowrap; }
-    .ap-ac-item mark { padding: 0; background: #fff3cd; }
+    .ap-ac-head { padding: 6px 10px 2px; font-size: .7rem; text-transform: uppercase; letter-spacing: .03em; color: var(--ap-muted); }
+    .ap-ac-item { display: flex; justify-content: space-between; gap: 8px; padding: 5px 10px; font-size: .86rem; cursor: pointer; color: var(--ap-fg); }
+    .ap-ac-item:hover, .ap-ac-item.active { background: var(--ap-hover); }
+    .ap-ac-item .ap-ac-count { color: var(--ap-muted); font-size: .75rem; white-space: nowrap; }
+    .ap-ac-item mark { padding: 0; background: var(--ap-mark-bg); color: var(--ap-mark-fg); }
 </style>
 <script>
 (function ($, window) {

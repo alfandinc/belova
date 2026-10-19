@@ -36,12 +36,10 @@
           {{-- Select2 Kandungan Obat --}}
           <div class="form-group" id="selectKandunganWrapper" style="display: none;">
             <label for="zataktif_id">Pilih Zat Aktif Alergi:</label>
-            <select name="zataktif_id[]" class="form-control select2" multiple>
+            {{-- Only the patient's own zat aktif are rendered; the rest is searched (no .select2 class: a page's global init must not take it) --}}
+            <select name="zataktif_id[]" id="alergiZatAktif" class="form-control" multiple data-search-url="{{ route('erm.alergi.zataktif.search') }}">
                 @foreach ($zatAktif as $zat)
-                    <option value="{{ $zat->id }}"
-                        @if(in_array($zat->id, $alergiIds)) selected @endif>
-                        {{ $zat->nama }}
-                    </option>
+                    <option value="{{ $zat->id }}" selected>{{ $zat->nama }}</option>
                 @endforeach
             </select>
           </div>
@@ -56,104 +54,5 @@
 </div>
 {{-- End Modals --}}
 @push('scripts')
-<script>
-// Modal alergi functionality
-$(document).ready(function() {
-    // Saat tombol modal alergi ditekan
-    $('#btnBukaAlergi').on('click', function () {
-        $('#modalAlergi').modal('show');
-    });
-
-    // Toggle semua bagian tergantung status
-    var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
-    
-    // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
-    if (initialStatusAlergi === 'ada') {
-        $('#inputKataKunciWrapper').show();
-        $('#selectAlergiWrapper').show();
-        $('#selectKandunganWrapper').show();
-    } else {
-        // Jika tidak, sembunyikan elemen-elemen tersebut
-        $('#inputKataKunciWrapper').hide();
-        $('#selectAlergiWrapper').hide();
-        $('#selectKandunganWrapper').hide();
-    }
-    
-    $('input[name="statusAlergi"]').on('change', function () {
-        if ($(this).val() === 'ada') {
-            $('#inputKataKunciWrapper').show();
-            $('#selectAlergiWrapper').show();
-            $('#selectKandunganWrapper').show();
-        } else {
-            $('#inputKataKunciWrapper').hide();
-            $('#selectAlergiWrapper').hide();
-            $('#selectKandunganWrapper').hide();
-            $('#inputKataKunci').val('');
-            $('#selectAlergi, #selectKandungan').val(null).trigger('change');
-        }
-    });
-
-    // Ajax form submission
-    $('#formAlergi').on('submit', function(e) {
-        e.preventDefault();
-        
-        var formData = $(this).serialize();
-        var submitBtn = $(this).find('button[type="submit"]');
-        var originalBtnText = submitBtn.html();
-        
-        // Change button to loading state
-        submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
-        submitBtn.prop('disabled', true);
-        
-        $.ajax({
-            url: $(this).attr('action'),
-            type: 'POST',
-            data: formData,
-            dataType: 'json',
-            success: function(response) {
-                // Show success message
-                $('#alergiAlertContainer').html(
-                    '<div class="alert alert-success alert-dismissible fade show" role="alert">' +
-                    '<strong>Sukses!</strong> ' + response.message +
-                    '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
-                    '<span aria-hidden="true">&times;</span></button></div>'
-                );
-                
-                // Update the allergy display in the card-identitaspasien
-                window.pcUpdateAlergiDisplay(response.data);
-                
-                // Reset button state
-                submitBtn.html(originalBtnText);
-                submitBtn.prop('disabled', false);
-                
-                // Auto-close modal after 2 seconds
-                setTimeout(function() {
-                    $('#modalAlergi').modal('hide');
-                }, 2000);
-            },
-            error: function(xhr) {
-                // Show error message
-                var errorMsg = 'Terjadi kesalahan saat menyimpan data.';
-                if (xhr.responseJSON && xhr.responseJSON.errors) {
-                    errorMsg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
-                } else if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMsg = xhr.responseJSON.message;
-                }
-                
-                $('#alergiAlertContainer').html(
-                    '<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
-                    '<strong>Error!</strong> ' + errorMsg +
-                    '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
-                    '<span aria-hidden="true">&times;</span></button></div>'
-                );
-                
-                // Reset button state
-                submitBtn.html(originalBtnText);
-                submitBtn.prop('disabled', false);
-            }
-        });
-    });
-    
-});
-</script>
+<script src="{{ asset('js/erm-modal-alergi.js') }}?v={{ filemtime(public_path('js/erm-modal-alergi.js')) }}"></script>
 @endpush

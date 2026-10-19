@@ -14,7 +14,7 @@
                     
                     <!-- Identitas Pasien -->
                     <div class="card mb-3">
-                        <div class="card-header bg-light">
+                        <div class="card-header">
                             <h6 class="mb-0">Identitas Pasien</h6>
                         </div>
                         <div class="card-body">
@@ -55,7 +55,7 @@
                     
                     <!-- Diagnosis -->
                     <div class="card mb-3">
-                        <div class="card-header bg-light">
+                        <div class="card-header">
                             <h6 class="mb-0">Diagnosis</h6>
                         </div>
                         <div class="card-body">
@@ -68,14 +68,16 @@
                     <!-- Keterangan -->
                     <div class="form-group">
                         <label for="keterangan">Keterangan</label>
-                        <textarea class="form-control" id="keterangan" name="keterangan" rows="4"></textarea>
+                        <textarea class="form-control" id="keterangan" name="keterangan" rows="4" maxlength="191"></textarea>
+                        <small class="form-text text-muted">Maksimal 191 karakter.</small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                 <button type="button" class="btn btn-primary" id="saveDiagnosis">Simpan</button>
-                <button type="button" class="btn btn-success" id="printDiagnosis">Cetak</button>
+                <button type="button" class="btn btn-success" id="printDiagnosis"><i class="fas fa-print mr-1"></i>Cetak</button>
+                <button type="button" class="btn btn-outline-success" id="printDiagnosisEn"><i class="fas fa-print mr-1"></i>Cetak (EN)</button>
             </div>
         </div>
     </div>

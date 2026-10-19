@@ -20,6 +20,8 @@ class TindakanController extends Controller
             'actionCounts' => $this->actionCounts(),
             'statusCounts' => $this->statusCounts(),
             'spesialisasi' => \App\Models\ERM\Spesialisasi::orderBy('nama')->get(['id', 'nama']),
+            // For "Kategori inform consent" (its text is used when the paket has no own text)
+            'kategoriTindakan' => \App\Models\ERM\KategoriTindakan::orderBy('nama')->get(['id', 'nama']),
         ]);
     }
 
@@ -141,6 +143,9 @@ class TindakanController extends Controller
             'nama' => ['required', 'string', 'max:255',
                 Rule::unique('erm_tindakan')->ignore($request->id)],
             'deskripsi' => 'nullable|string',
+            // Inform consent text (HTML from the editor); empty = the generic consent
+            'consent_content' => 'nullable|string|max:200000',
+            'consent_kategori_id' => 'nullable|exists:erm_kategori_tindakan,id',
             'spesialis_id' => 'required|exists:erm_spesialisasis,id',
             // A paket is what gets sold, so it must contain at least one tindakan (even if only one)
             'kode_tindakan_ids' => 'required|array|min:1',
@@ -170,7 +175,8 @@ class TindakanController extends Controller
                     'harga_paket_visit' => null,
                 ] : [],
                 // The form has no deskripsi field: keep the stored one unless it is sent
-                $request->has('deskripsi') ? ['deskripsi' => $request->deskripsi] : [], [
+                $request->has('deskripsi') ? ['deskripsi' => $request->deskripsi] : [],
+                $this->consentContentInput($request), [
                     'nama' => $request->nama,
                     'spesialis_id' => $request->spesialis_id,
                         // An unchecked checkbox is not sent, so absent means inactive
@@ -213,6 +219,25 @@ class TindakanController extends Controller
     /**
      * Toggle active status for a single tindakan.
      */
+    /**
+     * The inform consent fields from the form: the paket's own text, cleaned to formatting tags (empty text, or only
+     * an empty editor paragraph, is stored as null), and the kategori whose text is used when there is no own text.
+     * A field is left out when the form did not send it or its column is not migrated yet.
+     */
+    private function consentContentInput(Request $request): array
+    {
+        $data = [];
+        if ($request->has('consent_content') && \Illuminate\Support\Facades\Schema::hasColumn('erm_tindakan', 'consent_content')) {
+            $html = Tindakan::sanitizeConsentHtml($request->input('consent_content'));
+            $data['consent_content'] = trim(strip_tags($html)) === '' ? null : $html;
+        }
+        if ($request->has('consent_kategori_id') && \Illuminate\Support\Facades\Schema::hasColumn('erm_tindakan', 'consent_kategori_id')) {
+            $data['consent_kategori_id'] = $request->filled('consent_kategori_id') ? $request->integer('consent_kategori_id') : null;
+        }
+
+        return $data;
+    }
+
     public function toggleActive($id)
     {
         try {

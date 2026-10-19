@@ -13,6 +13,8 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\RadiologiTest;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Yajra\DataTables\Facades\DataTables;
 
 class EradiologiController extends Controller
@@ -20,15 +22,26 @@ class EradiologiController extends Controller
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
-        $radiologiCategories = RadiologiKategori::orderBy('nama')->get();
+        // Picker: kategori with their tests (small master, rendered on the page like E-Lab)
+        $radiologiCategories = RadiologiKategori::with(['radiologiTests' => fn ($q) => $q->orderBy('nama')])
+            ->orderBy('nama')->get();
 
-        // Get total estimated price
-        $totalHarga = RadiologiPermintaan::where('visitation_id', $visitationId)
-                        ->with('radiologiTest')
-                        ->get()
-                        ->sum(function($item) {
-                            return $item->radiologiTest->harga;
-                        });
+        // radiologi_test_id => status of what is already saved for this visit
+        $existingStatuses = RadiologiPermintaan::where('visitation_id', $visitationId)
+            ->pluck('status', 'radiologi_test_id')->toArray();
+
+        $pasienVisitIds = Visitation::select('id')->where('pasien_id', $visitation->pasien_id);
+        // Last earlier visit with radiologi requests, for "ulangi permintaan sebelumnya"
+        $previousVisit = Visitation::where('pasien_id', $visitation->pasien_id)
+            ->where('id', '!=', $visitation->id)
+            ->whereExists(fn ($q) => $q->select(\DB::raw(1))->from('erm_radiologi_permintaan')
+                ->whereColumn('erm_radiologi_permintaan.visitation_id', 'erm_visitations.id'))
+            ->orderByDesc('tanggal_visitation')
+            ->first(['id', 'tanggal_visitation']);
+        $previousRadiologi = $previousVisit ? [
+            'tanggal' => \Carbon\Carbon::parse($previousVisit->tanggal_visitation)->format('d-m-Y'),
+            'test_ids' => RadiologiPermintaan::where('visitation_id', $previousVisit->id)->pluck('radiologi_test_id')->values(),
+        ] : null;
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
@@ -36,8 +49,105 @@ class EradiologiController extends Controller
         return view('erm.eradiologi.create', array_merge([
             'visitation' => $visitation,
             'radiologiCategories' => $radiologiCategories,
-            'totalHarga' => $totalHarga
+            'existingStatuses' => $existingStatuses,
+            'previousRadiologi' => $previousRadiologi,
+            'hasilCount' => RadiologiHasil::whereIn('visitation_id', $pasienVisitIds)->count(),
+            'hasilThisVisit' => RadiologiHasil::where('visitation_id', $visitation->id)->count(),
+            'riwayatCount' => RadiologiPermintaan::whereIn('visitation_id', $pasienVisitIds)->distinct()->count('visitation_id'),
+            'canEditStatus' => Auth::user() && Auth::user()->hasAnyRole(['Lab', 'Admin']),
+            // Diagnosa kerja shown above the picker (same source as E-Lab)
+            'lastAsesmen' => \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', fn ($q) => $q->where('pasien_id', $visitation->pasien_id))
+                ->latest()->first(),
         ], $pasienData, $createKunjunganData));
+    }
+
+    /**
+     * Saves the whole permintaan list of a visit at once (same flow as E-Lab): new tests are created with their
+     * billing, unchecked ones removed with their billing, statuses updated. Tests the lab already works on
+     * (Diproses / Selesai) are never removed here, and only Lab / Admin change statuses.
+     */
+    public function sync(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'requests' => 'nullable|array',
+            'requests.*' => 'in:requested,processing,completed',
+        ]);
+
+        $visitationId = $request->visitation_id;
+        $wanted = collect($request->input('requests', []))->mapWithKeys(fn ($status, $testId) => [(int) $testId => $status]);
+        $canEditStatus = Auth::user() && Auth::user()->hasAnyRole(['Lab', 'Admin']);
+
+        \DB::transaction(function () use ($visitationId, $wanted, $canEditStatus) {
+            $existing = RadiologiPermintaan::where('visitation_id', $visitationId)->get()->keyBy('radiologi_test_id');
+
+            foreach ($existing as $testId => $permintaan) {
+                if ($wanted->has($testId)) {
+                    $status = $wanted[$testId];
+                    if ($canEditStatus && $permintaan->status !== $status) {
+                        $permintaan->update(['status' => $status]);
+                    }
+                } elseif ($permintaan->status === 'requested') {
+                    $permintaan->billings()->delete();
+                    $permintaan->delete();
+                }
+            }
+
+            $tests = RadiologiTest::whereIn('id', $wanted->keys()->diff($existing->keys()))->get();
+            foreach ($tests as $test) {
+                $permintaan = RadiologiPermintaan::create([
+                    'visitation_id' => $visitationId,
+                    'radiologi_test_id' => $test->id,
+                    'status' => $canEditStatus ? $wanted[$test->id] : 'requested',
+                    'dokter_id' => Auth::id(),
+                ]);
+                $permintaan->billings()->save(new \App\Models\Finance\Billing([
+                    'visitation_id' => $visitationId,
+                    'jumlah' => $test->harga,
+                    'keterangan' => 'Radiologi: ' . $test->nama,
+                ]));
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Permintaan radiologi berhasil disimpan',
+            'statuses' => RadiologiPermintaan::where('visitation_id', $visitationId)->pluck('status', 'radiologi_test_id'),
+        ]);
+    }
+
+    /** Visits of the patient with radiologi requests (Riwayat modal). */
+    public function patientHistory($pasienId)
+    {
+        $query = Visitation::where('pasien_id', $pasienId)
+            ->whereExists(fn ($q) => $q->select(\DB::raw(1))->from('erm_radiologi_permintaan')
+                ->whereColumn('erm_radiologi_permintaan.visitation_id', 'erm_visitations.id'))
+            ->with(['dokter.user'])
+            ->orderBy('tanggal_visitation', 'desc');
+
+        return DataTables::of($query)
+            ->addColumn('tanggal', fn ($row) => date('d-m-Y', strtotime($row->tanggal_visitation)))
+            ->addColumn('dokter', fn ($row) => $row->dokter && $row->dokter->user ? $row->dokter->user->name : 'N/A')
+            ->make(true);
+    }
+
+    /** Requested tests of one visit (a Riwayat row opened). */
+    public function visitationDetail($visitationId)
+    {
+        $labels = ['requested' => 'Diminta', 'processing' => 'Diproses', 'completed' => 'Selesai'];
+        $data = RadiologiPermintaan::with('radiologiTest.radiologiKategori')
+            ->where('visitation_id', $visitationId)
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn ($item) => [
+                'nama_pemeriksaan' => optional($item->radiologiTest)->nama,
+                'kategori' => optional(optional($item->radiologiTest)->radiologiKategori)->nama,
+                'harga' => 'Rp ' . number_format((float) optional($item->radiologiTest)->harga, 0, ',', '.'),
+                'status' => $item->status,
+                'status_text' => $labels[$item->status] ?? $item->status,
+            ]);
+
+        return response()->json(['data' => $data]);
     }
 
     public function getRadiologiTestData(Request $request)
@@ -330,17 +440,24 @@ class EradiologiController extends Controller
     
     $query = RadiologiHasil::whereIn('visitation_id', $visitationIds)
                 ->orderBy('created_at', 'desc');
-    
+    $canDelete = Auth::user() && Auth::user()->hasRole('Admin');
+
     return DataTables::of($query)
         ->addIndexColumn() // Adds row numbers
         ->addColumn('tanggal', function($row) {
             return $row->tanggal_pemeriksaan->format('d-m-Y');
         })
-        ->addColumn('action', function($row) {
+        ->addColumn('action', function($row) use ($canDelete) {
             $viewBtn = '<button class="btn btn-sm btn-info btn-view-radiologi" data-id="'.$row->id.'">
                             <i class="fas fa-eye"></i> Lihat
                         </button>';
-            return $viewBtn;
+            // Only Admin removes an uploaded result
+            $deleteBtn = $canDelete
+                ? '<button class="btn btn-sm btn-danger btn-delete-radiologi-hasil ml-1" data-id="'.$row->id.'" data-nama="'.e($row->nama_pemeriksaan).'">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>'
+                : '';
+            return $viewBtn . $deleteBtn;
         })
         ->rawColumns(['action'])
         ->make(true);
@@ -380,6 +497,24 @@ public function uploadRadiologiHasil(Request $request)
         'success' => true,
         'message' => 'Hasil radiologi berhasil diupload',
         'data' => $radiologiHasil
+    ]);
+}
+
+/** Removes an uploaded result and its file. Admin only. */
+public function destroyRadiologiHasil($id)
+{
+    abort_unless(Auth::user() && Auth::user()->hasRole('Admin'), 403, 'Hanya Admin yang dapat menghapus hasil radiologi.');
+
+    $radiologiHasil = RadiologiHasil::findOrFail($id);
+    $filePath = $radiologiHasil->file_path;
+    $radiologiHasil->delete();
+    if ($filePath && \Storage::disk('public')->exists($filePath)) {
+        \Storage::disk('public')->delete($filePath);
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Hasil radiologi berhasil dihapus.',
     ]);
 }
 

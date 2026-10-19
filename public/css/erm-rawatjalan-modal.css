@@ -1,0 +1,316 @@
+    #modalDaftarKunjunganRawatJalan .modal-dialog {
+        max-width: 560px;
+        transition: max-width 0.24s ease;
+    }
+
+    #modalDaftarKunjunganRawatJalan.is-calendar-expanded .modal-dialog {
+        max-width: 1360px;
+    }
+
+    /* Compact form */
+    #modalDaftarKunjunganRawatJalan .modal-header {
+        padding: 12px 20px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .modal-body {
+        padding: 16px 20px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .modal-footer {
+        padding: 10px 20px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-visit-modal-form .form-group {
+        margin-bottom: 12px;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-visit-modal-form label {
+        margin-bottom: 4px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        color: #5f6c8c;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-label-optional {
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: 0;
+        color: #9aa5b8;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_referral_section .form-group {
+        margin-bottom: 4px;
+    }
+
+    /* Explicit colors: the theme's outline-primary active state keeps grey text on blue. */
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: 0;
+        color: #1d4ed8;
+        background-color: #fff;
+        border-color: #93b4f5;
+        box-shadow: none;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn:hover {
+        color: #1d4ed8;
+        background-color: #eef4ff;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn.active,
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn.active:hover {
+        color: #fff;
+        background-color: #1d63ed;
+        border-color: #1d63ed;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn.focus,
+    #modalDaftarKunjunganRawatJalan .rj-bayar-toggle .btn:focus-within {
+        box-shadow: 0 0 0 0.15rem rgba(29, 99, 237, 0.25);
+    }
+
+    /* Locked patient (opened from a patient/visit context): readable, no clear button. */
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection__clear {
+        display: none;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection {
+        background-color: #f1f5f9;
+        cursor: default;
+    }
+
+    #modalDaftarKunjunganRawatJalan #rj_pasien_id + .select2-container--disabled .select2-selection__rendered {
+        color: #22324a;
+        font-weight: 600;
+    }
+
+    #modalDaftarKunjunganRawatJalan .rj-field-hint {
+        display: block;
+        margin-bottom: 12px;
+        font-size: 0.72rem;
+        line-height: 1.35;
+        color: #8a96ab;
+    }
+
+    .rj-visit-modal-layout {
+        display: flex;
+        gap: 24px;
+        align-items: stretch;
+    }
+
+    .rj-visit-modal-form {
+        flex: 0 0 100%;
+        min-width: 0;
+    }
+
+    .rj-visit-modal-calendar {
+        display: none;
+        flex: 1 1 0;
+        min-width: 760px;
+        border-left: 1px solid #e9eef5;
+        padding-left: 24px;
+    }
+
+    #modalDaftarKunjunganRawatJalan.is-calendar-expanded .rj-visit-modal-form {
+        flex: 0 0 430px;
+    }
+
+    #modalDaftarKunjunganRawatJalan.is-calendar-expanded .rj-visit-modal-calendar {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .rj-visit-modal-calendar-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .rj-visit-modal-calendar-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #22324a;
+    }
+
+    .rj-visit-modal-calendar-subtitle {
+        display: block;
+        margin-top: 2px;
+        font-size: 0.74rem;
+        color: #7b8aa0;
+    }
+
+    .rj-visit-modal-calendar-summary {
+        font-size: 0.75rem;
+        color: #5f6c8c;
+        text-align: right;
+    }
+
+    .rj-visit-modal-calendar-box {
+        min-height: 420px;
+        border: 1px solid #e4ebf4;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #fbfdff 0%, #f4f8fd 100%);
+        padding: 16px;
+        width: 100%;
+    }
+
+    .rj-visit-modal-calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .rj-visit-modal-calendar-weekday {
+        text-align: center;
+        font-size: 0.71rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #687a96;
+    }
+
+    .rj-visit-modal-calendar-day {
+        min-height: 104px;
+        border: 1px solid #dbe4f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    .rj-visit-modal-calendar-day.is-empty {
+        background: #f5f7fb;
+        border-style: dashed;
+        box-shadow: none;
+    }
+
+    .rj-visit-modal-calendar-day.is-busy {
+        background: linear-gradient(180deg, #effcf5 0%, #dbf7e8 100%);
+        border-color: #86efac;
+    }
+
+    .rj-visit-modal-calendar-day.is-today {
+        background: linear-gradient(180deg, #fff8db 0%, #ffefad 100%);
+        border-color: #facc15;
+    }
+
+    .rj-visit-modal-calendar-day.is-past {
+        background: linear-gradient(180deg, #ffffff 0%, #eef4ff 100%);
+        border-color: #c8d7ff;
+    }
+
+    .rj-visit-modal-calendar-day.is-selected {
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22), 0 10px 22px rgba(37, 99, 235, 0.16);
+        border-color: #2563eb;
+    }
+
+    .rj-visit-modal-calendar-day-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .rj-visit-modal-calendar-day-number {
+        font-size: 1.35rem;
+        font-weight: 800;
+        line-height: 1;
+        color: #1f3b64;
+    }
+
+    .rj-visit-modal-calendar-day-name {
+        margin-top: 2px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #8696af;
+    }
+
+    .rj-visit-modal-calendar-count {
+        min-width: 34px;
+        padding: 5px 8px;
+        border-radius: 10px;
+        background: #2563eb;
+        color: #fff;
+        text-align: center;
+        font-weight: 800;
+        font-size: 0.95rem;
+        line-height: 1;
+    }
+
+    .rj-visit-modal-calendar-day.is-busy .rj-visit-modal-calendar-count {
+        background: #22c55e;
+    }
+
+    .rj-visit-modal-calendar-day.is-today .rj-visit-modal-calendar-count {
+        background: #f4b400;
+    }
+
+    .rj-visit-modal-calendar-day.is-past .rj-visit-modal-calendar-count {
+        background: #3b82f6;
+    }
+
+    .rj-visit-modal-calendar-breakdown {
+        margin-top: auto;
+        display: grid;
+        gap: 2px;
+        font-size: 0.69rem;
+        line-height: 1.18;
+        color: #5f6c8c;
+    }
+
+    .rj-visit-modal-calendar-breakdown small {
+        display: block;
+    }
+
+    .rj-visit-modal-calendar-placeholder {
+        height: 100%;
+        min-height: 390px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #7b8aa0;
+        font-size: 0.88rem;
+    }
+
+    #btn-rj-cek-kalender.active {
+        background: #eef4ff;
+        border-color: #9bb8ff;
+        color: #1d4ed8;
+    }
+
+    @media (max-width: 991.98px) {
+        #modalDaftarKunjunganRawatJalan .modal-dialog,
+        #modalDaftarKunjunganRawatJalan.is-calendar-expanded .modal-dialog {
+            max-width: calc(100vw - 24px);
+        }
+
+        .rj-visit-modal-layout {
+            flex-direction: column;
+        }
+
+        .rj-visit-modal-calendar {
+            border-left: 0;
+            border-top: 1px solid #e9eef5;
+            min-width: 0;
+            padding-left: 0;
+            padding-top: 18px;
+        }
+
+        .rj-visit-modal-calendar-box {
+            min-height: 0;
+        }
+
+        .rj-visit-modal-calendar-day {
+            min-height: 96px;
+        }
+    }
