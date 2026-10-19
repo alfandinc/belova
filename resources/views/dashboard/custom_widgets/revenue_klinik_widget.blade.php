@@ -15,6 +15,7 @@
                 <x-dash.meter :pct="$row->monthPct" :pace="$data['pace']" />
                 @if ($row->monthTarget > 0)
                     <div class="dw-stat-meta">{{ Fmt::rpShort($row->mtd) }} / {{ Fmt::rpShort($row->monthTarget) }}</div>
+                    <x-dash.target-gap :gap="$row->monthGap" />
                 @endif
 
                 <div class="dw-stats mt-3">
@@ -24,6 +25,7 @@
                 <x-dash.meter :pct="$row->ytdPct" />
                 @if ($row->ytdTarget > 0)
                     <div class="dw-stat-meta">{{ Fmt::rpShort($row->ytd) }} / {{ Fmt::rpShort($row->ytdTarget) }}</div>
+                    <x-dash.target-gap :gap="$row->ytdGap" />
                 @endif
             </x-dash.clinic>
         @endforeach
@@ -36,5 +38,11 @@
         <x-dash.stat label="Omset YTD" :value="Fmt::rp($t->ytd)" :trend="$t->yoy" trend-label="vs thn lalu"
             :meta="$t->ytdPct !== null ? 'Target ' . Fmt::pct($t->ytdPct) . ' tercapai' : null" />
     </div>
+    @if ($t->monthGap || $t->ytdGap)
+        <div class="dw-stats">
+            <div><x-dash.target-gap :gap="$t->monthGap" /></div>
+            <div><x-dash.target-gap :gap="$t->ytdGap" /></div>
+        </div>
+    @endif
     <p class="dw-note">MTD dibanding tanggal yang sama bulan lalu; YTD dibanding tanggal yang sama tahun lalu. Omset = invoice lunas/sebagian berdasarkan tanggal bayar.</p>
 </x-dash.card>

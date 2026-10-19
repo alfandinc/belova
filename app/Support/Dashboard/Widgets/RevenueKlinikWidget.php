@@ -40,7 +40,7 @@ class RevenueKlinikWidget implements Widget
 
         // Fixed clinic order (Premiere, Skin, Dental) so each clinic's card keeps its place
         $rows = Clinics::all()
-            ->map(function ($klinik) use ($mtd, $mtdPrev, $ytd, $ytdPrev, $monthTargets, $ytdTargets, $totalMtd) {
+            ->map(function ($klinik) use ($mtd, $mtdPrev, $ytd, $ytdPrev, $monthTargets, $ytdTargets, $totalMtd, $monthStart, $yearStart, $ref) {
                 $m = (float) ($mtd[$klinik->id] ?? 0);
                 $y = (float) ($ytd[$klinik->id] ?? 0);
                 $mt = (float) ($monthTargets[$klinik->id] ?? 0);
@@ -53,10 +53,12 @@ class RevenueKlinikWidget implements Widget
                     'mom' => Fmt::trend($m, (float) ($mtdPrev[$klinik->id] ?? 0)),
                     'monthTarget' => $mt,
                     'monthPct' => $mt > 0 ? Fmt::share($m, $mt) : null,
+                    'monthGap' => RevenueTargets::gap($m, $mt, $monthStart, $ref),
                     'ytd' => $y,
                     'yoy' => Fmt::trend($y, (float) ($ytdPrev[$klinik->id] ?? 0)),
                     'ytdTarget' => $yt,
                     'ytdPct' => $yt > 0 ? Fmt::share($y, $yt) : null,
+                    'ytdGap' => RevenueTargets::gap($y, $yt, $yearStart, $ref),
                 ];
             })
             ->values();
@@ -74,6 +76,8 @@ class RevenueKlinikWidget implements Widget
                 'mom' => Fmt::trend($totalMtd, (float) $mtdPrev->sum()),
                 'monthTarget' => $sumMonthTarget,
                 'monthPct' => $sumMonthTarget > 0 ? Fmt::share($totalMtd, $sumMonthTarget) : null,
+                'monthGap' => RevenueTargets::gap($totalMtd, $sumMonthTarget, $monthStart, $ref),
+                'ytdGap' => RevenueTargets::gap((float) $ytd->sum(), (float) $ytdTargets['total'], $yearStart, $ref),
                 'ytd' => (float) $ytd->sum(),
                 'yoy' => Fmt::trend((float) $ytd->sum(), (float) $ytdPrev->sum()),
                 'ytdTarget' => (float) $ytdTargets['total'],

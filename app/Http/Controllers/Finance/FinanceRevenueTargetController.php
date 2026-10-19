@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Finance\FinanceRevenueTarget;
 use App\Support\Dashboard\Clinics;
 use App\Support\Dashboard\Revenue;
+use App\Support\Dashboard\RevenueTargets;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -120,6 +121,8 @@ class FinanceRevenueTargetController extends Controller
         return [
             'period' => $period->format('Y-m'),
             'period_label' => $period->translatedFormat('F Y'),
+            // days left in that month from today (0 = month over), for "perlu Rp …/hari"
+            'days_left' => RevenueTargets::daysLeft($period, $period),
             'clinics' => $clinics,
         ];
     }

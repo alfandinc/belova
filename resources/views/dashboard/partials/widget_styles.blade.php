@@ -248,6 +248,34 @@
         margin-top: 2px;
     }
 
+    /* x-dash.target-gap: what a target still needs (total + per day) */
+    .dw-gap {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        margin-top: 6px;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        color: var(--dsh-ink-2);
+    }
+
+    .dw-gap strong {
+        color: var(--dsh-ink);
+        white-space: nowrap;
+    }
+
+    .dw-gap .feather {
+        width: 13px;
+        height: 13px;
+        flex: 0 0 auto;
+        margin-top: 2px;
+        color: var(--dw-warning-ink);
+    }
+
+    .dw-gap.is-done .feather {
+        color: var(--dw-good-ink);
+    }
+
     .dw-trend {
         display: inline-flex;
         align-items: center;

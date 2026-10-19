@@ -32,6 +32,7 @@
             :color="$data['monthTargetPct'] >= 100 ? 'var(--dw-good)' : null"
             :marker="$data['pace']"
             :sub="'Proyeksi akhir bulan ' . Fmt::rp($data['projection']) . ' (' . Fmt::pct($data['projectionPct']) . ' dari target)'" />
+        <x-dash.target-gap :gap="$data['monthGap']" />
     @else
         <p class="dw-note mt-0">Target {{ $data['monthLabel'] }} belum diisi. Proyeksi akhir bulan: {{ Fmt::rp($data['projection']) }}.</p>
     @endif
@@ -43,6 +44,7 @@
                 :value="Fmt::rpShort($data['ytd']) . ' / ' . Fmt::rpShort($data['ytdTarget'])"
                 :pct="$data['ytdTargetPct']"
                 :color="$data['ytdTargetPct'] >= 100 ? 'var(--dw-good)' : null" />
+            <x-dash.target-gap :gap="$data['ytdGap']" />
         </div>
     @endif
 

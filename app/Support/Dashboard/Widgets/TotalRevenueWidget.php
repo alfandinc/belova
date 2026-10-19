@@ -56,11 +56,13 @@ class TotalRevenueWidget implements Widget
             'daysInMonth' => $daysInMonth,
             'monthTarget' => $monthTarget,
             'monthTargetPct' => $monthTarget > 0 ? Fmt::share($mtd, $monthTarget) : null,
+            'monthGap' => RevenueTargets::gap($mtd, $monthTarget, $monthStart, $ref),
             'pace' => $pace,
             'projection' => $projection,
             'projectionPct' => $monthTarget > 0 ? Fmt::share($projection, $monthTarget) : null,
             'ytdTarget' => $ytdTargets['total'],
             'ytdTargetPct' => $ytdTargets['total'] > 0 ? Fmt::share($ytd, $ytdTargets['total']) : null,
+            'ytdGap' => RevenueTargets::gap($ytd, $ytdTargets['total'], $ref->copy()->startOfYear(), $ref),
             'ytdTargetLabel' => $ytdTargets['label'],
             'chart' => $this->chart($monthStart, $ref, $prevMonthStart, $monthTarget),
         ];

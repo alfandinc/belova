@@ -17,6 +17,7 @@
         --dw-grid: #eef0f3;
         --dw-track: #eef0f3;
         --dw-good-ink: #006300;
+        --dw-warning-ink: #8a5a00;
         --dw-critical-ink: #b42323;
         --dw-klinik-premiere: #2563eb;
         --dw-klinik-skin: #db2777;
@@ -33,6 +34,7 @@
         --dw-grid: #383f58;
         --dw-track: #383f58;
         --dw-good-ink: #4cc74c;
+        --dw-warning-ink: #f5c04a;
         --dw-critical-ink: #f07a7a;
         --dw-klinik-premiere: #5b93f2;
         --dw-klinik-skin: #ea5d9e;
@@ -67,6 +69,13 @@
     .omz .omz-loading { opacity: .5; transition: opacity .15s; }
     .omz #omz-chart { min-height: 280px; }
     .omz .omz-empty { color: var(--omz-muted); font-size: 13px; padding: .5rem 0; }
+    .omz .omz-gap { display: flex; align-items: flex-start; gap: .4rem; font-size: 12px; margin: -.25rem 0 .75rem; line-height: 1.4; }
+    .omz .omz-gap i { color: var(--dw-warning-ink); margin-top: 2px; font-size: 11px; }
+    .omz .omz-gap.is-done i { color: var(--dw-good-ink); }
+    .omz .omz-gap strong { white-space: nowrap; }
+    .omz .omz-gap-total { border-top: 1px solid var(--dw-grid); padding-top: .6rem; }
+    .omz .omz-gap-total .omz-gap,
+    .omz .omz-target-table .omz-gap { margin: .2rem 0 0; font-weight: normal; }
     /* Atur Target modal */
     .omz .omz-target-table td { vertical-align: middle; }
     .omz .omz-target-table .omz-row-name { font-weight: 600; }
@@ -254,7 +263,7 @@
 
 {{-- Atur Target: monthly revenue target per clinic (finance.omset.targets) --}}
 <div class="modal fade" id="omz-target-modal" tabindex="-1" role="dialog" aria-labelledby="omz-target-title" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content omz">
             <div class="modal-header">
                 <h5 class="modal-title" id="omz-target-title">Atur Target Omset</h5>
@@ -283,7 +292,7 @@
                                 <th>Klinik</th>
                                 <th style="width: 200px;">Target</th>
                                 <th class="text-right" style="width: 150px;">Omset Bulan Itu</th>
-                                <th class="text-right" style="width: 100px;">Pencapaian</th>
+                                <th style="width: 260px;">Pencapaian</th>
                                 <th>Catatan</th>
                             </tr>
                         </thead>
@@ -295,7 +304,7 @@
                                 <td>Total</td>
                                 <td data-t="target">-</td>
                                 <td class="text-right" data-t="actual">-</td>
-                                <td class="text-right" data-t="pct">-</td>
+                                <td data-t="pct">-</td>
                                 <td></td>
                             </tr>
                         </tfoot>
@@ -382,6 +391,20 @@ $(function() {
             + '</div>';
     }
 
+    // What a target still needs (RevenueTargets::gap): shortfall + per day over the days left
+    function gapHtml(g) {
+        if (!g) return '';
+        if (g.reached) {
+            return '<div class="omz-gap is-done"><i class="fas fa-check-circle"></i><span>Target tercapai'
+                + (g.over > 0 ? ' &middot; lebih <strong>' + rp(g.over) + '</strong>' : '') + '</span></div>';
+        }
+        if (g.ended) {
+            return '<div class="omz-gap"><i class="fas fa-flag"></i><span>Kurang <strong>' + rp(g.need) + '</strong> &middot; periode target sudah berakhir</span></div>';
+        }
+        return '<div class="omz-gap"><i class="fas fa-bullseye"></i><span>Kurang <strong>' + rp(g.need) + '</strong> &middot; perlu <strong>'
+            + rp(g.perDay) + '/hari</strong> selama ' + num(g.daysLeft) + ' hari lagi</span></div>';
+    }
+
     function render(d) {
         lastData = d;
         var s = d.summary;
@@ -433,8 +456,12 @@ $(function() {
             kHtml += shareRow({
                 name: name, value: r.total, pct: r.pct, color: r.color,
                 meta: '<span>' + num(r.invoices) + ' invoice &middot; ' + pct(r.pct) + '</span><span>' + target + '</span>'
-            });
+            }) + gapHtml(r.target_gap);
         });
+        var totalGap = d.klinik.target_total_gap;
+        if (kHtml && totalGap) {
+            kHtml += '<div class="omz-gap-total"><div class="omz-row-meta"><strong>Semua klinik</strong><span>Target ' + rpShort(totalGap.target) + '</span></div>' + gapHtml(totalGap) + '</div>';
+        }
         $k('klinik').html(kHtml || '<div class="omz-empty">Belum ada omset.</div>');
 
         // per kategori (fixed color per category, same as the dashboard)
@@ -636,7 +663,7 @@ $(function() {
     // ---- Admin / Finance: monthly target per clinic ("Atur Target") ----
     var targetUrl = '{{ $canEditTarget ? route('finance.omset.targets') : '' }}';
     var targetSaveUrl = '{{ $canEditTarget ? route('finance.omset.targets.store') : '' }}';
-    var targetPeriod = null, targetXhr = null;
+    var targetPeriod = null, targetDaysLeft = 0, targetXhr = null;
     var $targetModal = $('#omz-target-modal');
     var $targetRows = $('#omz-target-rows');
 
@@ -645,8 +672,20 @@ $(function() {
         return value !== '' && n > 0 ? rp(n) : '';
     }
 
+    // Same result as RevenueTargets::gap, so the modal follows what is typed
+    function targetGap(actual, target) {
+        if (!(target > 0)) return null;
+        var need = Math.max(0, target - actual);
+        return {
+            target: target, need: need, over: Math.max(0, actual - target), reached: actual >= target,
+            daysLeft: targetDaysLeft, ended: targetDaysLeft === 0,
+            perDay: need > 0 && targetDaysLeft > 0 ? need / targetDaysLeft : null
+        };
+    }
+
     function renderTargets(d) {
         targetPeriod = d.period;
+        targetDaysLeft = d.days_left;
         $('#omz-target-period').val(d.period);
         $('#omz-target-title').text('Atur Target Omset · ' + d.period_label);
         var html = '';
@@ -660,7 +699,7 @@ $(function() {
                 + '<input type="number" min="0" step="1" class="form-control js-target-amount" value="' + esc(c.target_amount) + '" placeholder="0" aria-label="Target ' + esc(c.nama) + '"></div>'
                 + '<div class="omz-target-hint js-target-hint">' + targetHint(c.target_amount) + '</div></td>'
                 + '<td class="text-right">' + rp(c.actual) + '</td>'
-                + '<td class="text-right font-weight-bold omz-target-pct js-target-pct"></td>'
+                + '<td><div class="font-weight-bold omz-target-pct js-target-pct"></div><div class="js-target-gap"></div></td>'
                 + '<td><input type="text" maxlength="1000" class="form-control form-control-sm js-target-notes" value="' + esc(c.target_notes) + '" placeholder="Opsional" aria-label="Catatan ' + esc(c.nama) + '"></td>'
                 + '</tr>';
         });
@@ -678,6 +717,7 @@ $(function() {
             var actual = Number($tr.data('actual')) || 0;
             var p = target > 0 ? actual / target * 100 : null;
             $tr.find('.js-target-pct').text(p === null ? '-' : pct(p)).toggleClass('is-reached', p !== null && p >= 100);
+            $tr.find('.js-target-gap').html(gapHtml(targetGap(actual, target)));
             $tr.find('.js-target-hint').text(targetHint(amount));
             $tr.toggleClass('is-dirty', amount !== String($tr.attr('data-saved-amount'))
                 || $.trim($tr.find('.js-target-notes').val()) !== String($tr.attr('data-saved-notes')));
@@ -686,7 +726,9 @@ $(function() {
         });
         $targetModal.find('[data-t="target"]').text(totalTarget > 0 ? rp(totalTarget) : '-');
         $targetModal.find('[data-t="actual"]').text(rp(totalActual));
-        $targetModal.find('[data-t="pct"]').text(totalTarget > 0 ? pct(totalActual / totalTarget * 100) : '-');
+        $targetModal.find('[data-t="pct"]').html(totalTarget > 0
+            ? '<div>' + pct(totalActual / totalTarget * 100) + '</div>' + gapHtml(targetGap(totalActual, totalTarget))
+            : '-');
     }
 
     function targetsDirty() {

@@ -326,7 +326,7 @@ class OmsetController extends Controller
         $targets = RevenueTargets::forPeriod($from, $to);
 
         $clinics = $klinikId ? collect([Clinics::find($klinikId)]) : Clinics::all()->values();
-        $result = $clinics->map(function ($klinik) use ($rows, $returs, $targets, $total) {
+        $result = $clinics->map(function ($klinik) use ($rows, $returs, $targets, $total, $from, $to) {
             $row = $rows->first(fn ($r) => (int) $r->klinik_id === (int) $klinik->id);
             $retur = $returs[$klinik->id] ?? 0.0;
             $omset = ($row ? (float) $row->total : 0.0) - $retur;
@@ -344,8 +344,12 @@ class OmsetController extends Controller
                 'pct' => Fmt::share($omset, $total),
                 'target' => $target,
                 'target_pct' => $target > 0 ? $omset / $target * 100 : null,
+                // still needed (total + per day over the days left in the target's months)
+                'target_gap' => RevenueTargets::gap($omset, $target, $from, $to),
             ];
         });
+        $targetTotal = (float) $result->sum('target');
+        $clinicOmset = (float) $result->sum('total'); // before "Tanpa klinik" is added: it has no target
 
         // invoices without a clinic (e.g. direct sales), only when showing every clinic
         $isNone = fn ($id) => $id === null || $id === '' || !Clinics::all()->has((int) $id);
@@ -357,13 +361,15 @@ class OmsetController extends Controller
                 'id' => null, 'nama' => Clinics::none()->short, 'logo' => null, 'color' => Clinics::none()->color,
                 'invoices' => (int) $none->sum('invoices'), 'total' => $noneTotal, 'retur' => $noneRetur,
                 'diterima' => (float) $none->sum('diterima') - $noneRetur,
-                'pct' => Fmt::share($noneTotal, $total), 'target' => 0, 'target_pct' => null,
+                'pct' => Fmt::share($noneTotal, $total), 'target' => 0, 'target_pct' => null, 'target_gap' => null,
             ]);
         }
 
         return [
             'rows' => $result->values()->all(),
             'target_label' => $targets['label'],
+            // all clinics together, only when several are shown
+            'target_total_gap' => $clinics->count() > 1 ? RevenueTargets::gap($clinicOmset, $targetTotal, $from, $to) : null,
         ];
     }
 
