@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 $pricelist = $pricelist;
@@ -28,14 +28,15 @@ $categories = $categories;
         </div><!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
+@include('bcl.partials.subnav', ['group' => 'settings'])
 
 <div class="row">
     <div class="col-lg-6">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Harga Kamar</h4>
+                        <h4 class="card-title">Daftar Harga Kamar</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -57,14 +58,14 @@ $categories = $categories;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Harga</th>
-                                            <th class="text-white">Lama Sewa</th>
-                                            <th class="text-white">Bonus</th>
-                                            <th class="text-white">Kategori</th>
-                                            <th class="text-white hidden">Order</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Harga</th>
+                                            <th>Lama Sewa</th>
+                                            <th>Bonus</th>
+                                            <th>Kategori</th>
+                                            <th class="hidden">Order</th>
                                             <th class="text-right"></th>
                                         </tr>
                                     </thead>
@@ -110,10 +111,10 @@ $categories = $categories;
     </div>
     <div class="col-lg-6">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Harga Tambahan</h4>
+                        <h4 class="card-title">Daftar Harga Tambahan</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -135,12 +136,12 @@ $categories = $categories;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_tambahan">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Nama</th>
-                                            <th class="text-white">Lama Sewa</th>
-                                            <th class="text-center text-white">Harga</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Nama</th>
+                                            <th>Lama Sewa</th>
+                                            <th class="text-center">Harga</th>
                                             <th class="text-right"></th>
                                         </tr>
                                     </thead>
@@ -186,8 +187,8 @@ $categories = $categories;
 <div class="modal fade" id="md_edit_tambahan" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Edit Daftar Harga Tamban</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Edit Daftar Harga Tamban</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -233,8 +234,8 @@ $categories = $categories;
 <div class="modal fade" id="md_tambah_tambahan" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Tambah Daftar Harga Tamban</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Daftar Harga Tamban</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -279,8 +280,8 @@ $categories = $categories;
 <div class="modal fade" id="md_tambah_pricelist" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Tambah Daftar Harga</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Daftar Harga</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -351,8 +352,8 @@ $categories = $categories;
 <div class="modal fade" id="md_edit" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Edit Harga</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Edit Harga</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -588,7 +589,7 @@ $categories = $categories;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

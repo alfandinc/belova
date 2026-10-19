@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <?php
 use Carbon\Carbon;
 $transaksi = $transaksi ?? null;

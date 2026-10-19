@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BCL\renter;
 use App\Models\BCL\renter_document;
 use App\Models\BCL\tr_renter;
+use App\Services\BCL\RentalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -41,16 +42,6 @@ class RenterController extends Controller
         return view('bcl.renter.renter')->with(['renter' => $renter, 'status' => $status]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
     function generateRandomString($length = 20)
     {
         return substr(str_shuffle(str_repeat($x = '0123456789abcdefghijklmnopqrstuvwxyz', ceil($length / strlen($x)))), 1, $length) . time();
@@ -84,7 +75,7 @@ class RenterController extends Controller
             });
 
             if ($validator->fails()) {
-                return redirect()->back()->withErrors($validator)->withInput();
+                return redirect()->back()->withErrors($validator)->withInput()->with('error', $validator->errors()->first());
             }
             // store uploaded files on the public disk (storage/app/public/renter)
             $img_photo_name = $this->generateRandomString(10) . '.' . $request->img_photo->extension();
@@ -106,8 +97,8 @@ class RenterController extends Controller
                 'birthday' => !empty($request->birthday) ? Carbon::parse($request->birthday)->format('Y-m-d') : null,
                 'identitas' => $request->identitas,
                 'no_identitas' => $request->nomor_identitas,
-                'kendaraan' => $request->kendaraan,
-                'nopol' => $request->nopol,
+                'kendaraan' => (string) $request->kendaraan,
+                'nopol' => (string) $request->nopol,
 
             ]);
             $ins_document = renter_document::create([
@@ -136,17 +127,62 @@ class RenterController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Quick add from the Sewa Kamar form (AJAX). Only name and phone are required; documents and the
+     * remaining identity data can be completed later on Daftar Penyewa.
      */
-    public function show(renter $renter)
+    public function quickStore(Request $request)
     {
-        //
+        $validator = Validator::make($request->all(), [
+            'nama' => 'required|string|max:150',
+            'phone' => 'required|string|max:30',
+            'phone2' => 'nullable|string|max:30',
+            'alamat' => 'nullable|string|max:255',
+            'identitas' => 'nullable|in:KTP,SIM,Paspor',
+            'nomor_identitas' => 'nullable|string|max:50',
+            'birthday' => 'nullable|date',
+            'img_identitas' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:8192',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $stored = null;
+        try {
+            $renter = DB::transaction(function () use ($request, &$stored) {
+                $renter = renter::create([
+                    'nama' => trim($request->nama),
+                    'alamat' => (string) $request->alamat,
+                    'phone' => trim($request->phone),
+                    'phone2' => $request->phone2,
+                    'birthday' => $request->birthday ? Carbon::parse($request->birthday)->format('Y-m-d') : null,
+                    'identitas' => (string) $request->identitas,
+                    'no_identitas' => (string) $request->nomor_identitas,
+                    'kendaraan' => '',
+                    'nopol' => '',
+                ]);
+                if ($request->hasFile('img_identitas')) {
+                    $stored = $this->generateRandomString(10) . '.' . $request->img_identitas->extension();
+                    $request->img_identitas->storeAs('renter', $stored, 'public');
+                    renter_document::create(['id_renter' => $renter->id, 'document_type' => 'IDENTITAS', 'img' => $stored]);
+                }
+
+                return $renter;
+            });
+        } catch (\Throwable $th) {
+            if ($stored) {
+                Storage::disk('public')->delete('renter/' . $stored);
+            }
+
+            return response()->json(['message' => $th->getMessage()], 500);
+        }
+
+        return response()->json([
+            'message' => 'Penyewa ' . $renter->nama . ' ditambahkan.',
+            'renter' => ['id' => $renter->id, 'nama' => $renter->nama, 'deposit_balance' => 0],
+        ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(renter $renter, Request $request)
+    public function edit(Request $request)
     {
         try {
             $renter = renter::findorfail($request->id);
@@ -159,17 +195,19 @@ class RenterController extends Controller
         }
     }
 
-    public function detail($id)
+    public function detail($id, RentalService $rental)
     {
         $renter = renter::with(['document', 'current_room'])->findOrFail($id);
-        $transactions = tr_renter::with(['room', 'jurnal', 'tambahan'])
+        $rows = tr_renter::with(['room', 'tambahan'])
             ->where('id_renter', $renter->id)
             ->orderByDesc('tgl_mulai')
             ->limit(12)
-            ->get()
-            ->map(function ($transaction) {
-                $paidTotal = (float) $transaction->jurnal->sum('kredit');
-                $extraTotal = (float) $transaction->tambahan->sum('harga');
+            ->get();
+        $paid = $rental->paidByDoc($rows->pluck('trans_id')->merge($rows->flatMap->tambahan->pluck('kode')));
+        $transactions = $rows
+            ->map(function ($transaction) use ($paid, $rental) {
+                $paidTotal = (float) ($paid[$transaction->trans_id] ?? 0) + (float) $transaction->tambahan->sum(fn ($e) => $paid[$e->kode] ?? 0);
+                $extraTotal = (float) $transaction->tambahan->sum(fn ($e) => $rental->extraTotal($e));
                 $grandTotal = (float) $transaction->harga + $extraTotal;
 
                 return [
@@ -211,6 +249,7 @@ class RenterController extends Controller
                 ];
             })->values(),
             'transactions' => $transactions,
+            'deposit_ledger' => $rental->depositLedger($renter->id)->reverse()->values(),
         ]);
     }
 
@@ -261,7 +300,7 @@ class RenterController extends Controller
             });
 
             if ($validator->fails()) {
-                return redirect()->back()->withErrors($validator)->withInput();
+                return redirect()->back()->withErrors($validator)->withInput()->with('error', $validator->errors()->first());
             }
             // handle new uploaded files and remove previous files if present
             if (isset($request->img_photo)) {
@@ -299,8 +338,8 @@ class RenterController extends Controller
                 'birthday' => !empty($request->birthday) ? Carbon::parse($request->birthday)->format('Y-m-d') : null,
                 'identitas' => $request->identitas,
                 'no_identitas' => $request->nomor_identitas,
-                'kendaraan' => $request->kendaraan,
-                'nopol' => $request->nopol,
+                'kendaraan' => (string) $request->kendaraan,
+                'nopol' => (string) $request->nopol,
             ]);
             if (isset($request->img_photo)) {
                 $photo = renter_document::where('id_renter', $request->id)->where('document_type', 'PHOTO')->first();
@@ -355,21 +394,33 @@ class RenterController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(renter $renter, Request $request)
+    public function destroy(Request $request)
     {
+        $renter = renter::find($request->id);
+        if (!$renter) {
+            return redirect()->route('bcl.renter.index')->with('error', 'Data tidak ditemukan');
+        }
+        if (tr_renter::where('id_renter', $renter->id)->exists()) {
+            return redirect()->route('bcl.renter.index')->with('error', $renter->nama . ' memiliki riwayat transaksi sewa, data tidak dapat dihapus.');
+        }
+        if ((float) $renter->deposit_balance > 0) {
+            return redirect()->route('bcl.renter.index')->with('error', $renter->nama . ' masih memiliki saldo deposit, data tidak dapat dihapus.');
+        }
+
         try {
-            DB::beginTransaction();
-            $renter = renter::findorfail($request->id);
-            $result = $renter->delete();
-            $renter_document = renter_document::where('id_renter', $request->id)->get();
-            foreach ($renter_document as $key => $value) {
-                $result = $value->delete();
-            }
-            DB::commit();
-            return redirect()->route('bcl.renter.index')->with(['success' => 'Data ' . $renter->nama . ' berhasil dihapus!']);
+            DB::transaction(function () use ($renter) {
+                foreach (renter_document::where('id_renter', $renter->id)->get() as $document) {
+                    if ($document->img) {
+                        Storage::disk('public')->delete('renter/' . $document->img);
+                    }
+                    $document->delete();
+                }
+                $renter->delete();
+            });
+
+            return redirect()->route('bcl.renter.index')->with('success', 'Data ' . $renter->nama . ' berhasil dihapus!');
         } catch (\Throwable $th) {
-            DB::rollBack();
-            return redirect()->route('bcl.renter.index')->with(['error' => 'Data gagal dihapus!']);
+            return redirect()->route('bcl.renter.index')->with('error', 'Data gagal dihapus!');
         }
     }
 }

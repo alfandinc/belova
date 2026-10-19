@@ -477,100 +477,113 @@ Route::post('/satusehat/pasiens/{visitation}/update-encounter', [SatusehatPasien
 Route::post('/satusehat/pasiens/{visitation}/finish-encounter', [SatusehatPasienController::class, 'finishKemkesEncounter'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.finish_encounter');
 Route::post('/satusehat/pasiens/{visitation}/send-medication', [SatusehatPasienController::class, 'sendKemkesMedication'])->middleware(['auth','role:SatuSehat|Admin'])->name('satusehat.pasiens.send_medication');
 
-Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
-    Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
+Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () {
+    // Kamar (hub operasional)
+    Route::get('/rooms', [RoomsController::class, 'index'])->name('bcl.rooms');
     Route::get('/rooms/data', [RoomsController::class, 'data'])->name('bcl.rooms.data');
     Route::get('/rooms/form-data', [RoomsController::class, 'formData'])->name('bcl.rooms.form_data');
     Route::get('/rooms/deleted-data', [RoomsController::class, 'deletedData'])->name('bcl.rooms.deleted_data');
     Route::get('/rooms/unpaid-data', [RoomsController::class, 'unpaidData'])->name('bcl.rooms.unpaid_data');
     Route::get('/rooms/extra-bed-data', [RoomsController::class, 'extraBedData'])->name('bcl.rooms.extra_bed_data');
-    Route::get('/rooms/{id}/booking-queue', [RoomsController::class, 'bookingQueue'])->name('bcl.rooms.booking_queue');
+    Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
     Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
-    Route::get('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
-    Route::get('/rooms/restore/{id}', [RoomsController::class, 'restore'])->name('bcl.rooms.restore');
-    Route::get('/rooms', [RoomsController::class, 'index'])->name('bcl.rooms');
+    Route::post('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
+    Route::post('/rooms/restore/{id}', [RoomsController::class, 'restore'])->name('bcl.rooms.restore');
+    Route::get('/rooms/{id}/booking-queue', [RoomsController::class, 'bookingQueue'])->name('bcl.rooms.booking_queue');
     Route::get('/rooms/{id}/wifi', [RoomsController::class, 'wifi'])->name('bcl.rooms.wifi');
     Route::get('/rooms/{id}/history', [RoomsController::class, 'history'])->name('bcl.rooms.history');
     Route::get('/rooms/{id}', [PricelistController::class, 'get_room_pricelist'])->name('bcl.pricelist.get_pl_room');
-    Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');
-    Route::get('/tambahanpl/edit/{id}', [pricelist_tambahanController::class, 'edit'])->name('bcl.extra_pl.edit');
-    Route::post('/tambahanpl/update', [pricelist_tambahanController::class, 'update'])->name('bcl.extra_pl.update');
-    Route::get('/tambahanpl/delete/{id}', [pricelist_tambahanController::class, 'destroy'])->name('bcl.extra_pl.delete');
     Route::post('/rooms/sewa', [tr_renterController::class, 'sewa'])->name('bcl.rooms.sewa');
 
-    Route::get('/category', [RoomCategoryController::class, 'index'])->name('bcl.category.index');
-    Route::post('/category/store', [RoomCategoryController::class, 'store'])->name('bcl.category.store');
-    Route::get('/category/edit/{id}', [RoomCategoryController::class, 'edit'])->name('bcl.category.edit');
-    Route::post('/category/update', [RoomCategoryController::class, 'update'])->name('bcl.category.update');
-    Route::get('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete');
-    Route::get('/category/restore/{id}', [RoomCategoryController::class, 'restore'])->name('bcl.category.restore');
-    Route::post('/images/store', [RoomCategoryImageController::class, 'store'])->name('bcl.images.store');
-    Route::get('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete');
-    Route::get('/category/forcedelete/{id}', [RoomCategoryController::class, 'forcedelete'])->name('bcl.category.forcedelete');
+    // Transaksi sewa
+    Route::any('/transaksi', [tr_renterController::class, 'index'])->name('bcl.transaksi.index');
+    Route::get('/transaksi/show/{id}', [tr_renterController::class, 'show'])->name('bcl.transaksi.show');
+    Route::post('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete');
+    Route::post('/transaksi/refund', [tr_renterController::class, 'refund'])->name('bcl.transaksi.refund');
+    Route::post('/transaksi/checkout', [tr_renterController::class, 'checkout'])->name('bcl.transaksi.checkout');
+    Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
+    Route::post('/transaksi/change-room', [tr_renterController::class, 'changeRoom'])->name('bcl.transaksi.change_room');
+    Route::get('/transaksi/change-room/options/{id}', [tr_renterController::class, 'changeRoomOptions'])->name('bcl.transaksi.change_room.options');
+    Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
+    Route::get('/transaksi/refund/cetak/{doc_id}/{renter_id?}', [tr_renterController::class, 'cetakRefund'])->name('bcl.transaksi.cetak_refund');
+    Route::get('/extrarent/availability', [extra_rentController::class, 'availability'])->name('bcl.extrarent.availability');
+    Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
 
+    // Penyewa
     Route::get('/renter', [RenterController::class, 'index'])->name('bcl.renter.index');
     Route::post('/renter/store', [RenterController::class, 'store'])->name('bcl.renter.store');
+    Route::post('/renter/quick-store', [RenterController::class, 'quickStore'])->name('bcl.renter.quick_store');
     Route::get('/renter/detail/{id}', [RenterController::class, 'detail'])->name('bcl.renter.detail');
     Route::get('/renter/rules/{id}', [RenterController::class, 'rulesPreview'])->name('bcl.renter.rules');
     Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
     Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
-    Route::get('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');
+    Route::post('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');
 
-    Route::get('/chat-template', [ChatTemplateController::class, 'index'])->name('bcl.chat_template.index');
-    Route::get('/chat-template/data', [ChatTemplateController::class, 'data'])->name('bcl.chat_template.data');
-    Route::post('/chat-template/store', [ChatTemplateController::class, 'store'])->name('bcl.chat_template.store');
-    Route::get('/chat-template/edit/{id}', [ChatTemplateController::class, 'edit'])->name('bcl.chat_template.edit');
-    Route::post('/chat-template/update/{id}', [ChatTemplateController::class, 'update'])->name('bcl.chat_template.update');
-    Route::get('/chat-template/delete/{id}', [ChatTemplateController::class, 'destroy'])->name('bcl.chat_template.delete');
-
+    // Inventaris
     Route::get('/inventories', [InventoriesController::class, 'index'])->name('bcl.inventories.index');
     Route::post('/inventories/store', [InventoriesController::class, 'store'])->name('bcl.inventories.store');
     Route::get('/inventories/edit/{id}', [InventoriesController::class, 'edit'])->name('bcl.inventories.edit');
     Route::post('/inventories/update', [InventoriesController::class, 'update'])->name('bcl.inventories.update');
-    Route::get('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete');
+    Route::post('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete');
     Route::get('/inventories/show/{id}', [InventoriesController::class, 'show'])->name('bcl.inventories.show');
     Route::post('/inventories/maintenance', [InventoriesController::class, 'storeMaintenance'])->name('bcl.inventories.maintenance.store');
     Route::post('/inventories/maintenance/update', [InventoriesController::class, 'updateMaintenance'])->name('bcl.inventories.maintenance.update');
     Route::post('/inventories/maintenance/delete', [InventoriesController::class, 'deleteMaintenance'])->name('bcl.inventories.maintenance.delete');
-    // Export inventories PDF (form posts with selected rooms)
     Route::post('/inventories/export/pdf', [InventoriesController::class, 'exportPdf'])->name('bcl.inventories.export.pdf');
 
-    Route::get('/pricelist', [PricelistController::class, 'index'])->name('bcl.pricelist.index');
+    // Keuangan (Pemasukan & Pengeluaran berbagi satu menu)
+    Route::get('/finance', [FinJurnalController::class, 'finance'])->name('bcl.finance');
+    Route::any('/finance/income', [FinJurnalController::class, 'index'])->name('bcl.income.index');
+    Route::post('/finance/income/delete/{id}', [FinJurnalController::class, 'income_delete'])->name('bcl.income.delete');
+    Route::post('/finance/income/store', [FinJurnalController::class, 'store'])->name('bcl.income.store');
+    Route::any('/finance/expense', [FinJurnalController::class, 'expense'])->name('bcl.expense.index');
+    Route::get('/finance/expense/view/{id}', [FinJurnalController::class, 'expense_show'])->name('bcl.expense.show');
+    Route::post('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete');
+    Route::post('/finance/expense/store', [FinJurnalController::class, 'store_expense'])->name('bcl.expense.store');
+    Route::post('/finance/deposit/topup', [FinJurnalController::class, 'topup_deposit'])->name('bcl.deposit.topup');
+
+    // Pengaturan (Harga, Kategori, WiFi, Template Chat berbagi satu menu)
+    Route::get('/pengaturan', [PricelistController::class, 'settings'])->name('bcl.settings');
+    Route::get('/pengaturan/harga', [PricelistController::class, 'index'])->name('bcl.pricelist.index');
     Route::post('/pricelist/store', [PricelistController::class, 'store'])->name('bcl.pricelist.store');
     Route::get('/pricelist/edit/{id}', [PricelistController::class, 'edit'])->name('bcl.pricelist.edit');
     Route::post('/pricelist/update', [PricelistController::class, 'update'])->name('bcl.pricelist.update');
-    Route::get('/pricelist/delete/{id}', [PricelistController::class, 'destroy'])->name('bcl.pricelist.delete');
-    
-    Route::any('/finance/income', [FinJurnalController::class, 'index'])->name('bcl.income.index');
-    Route::get('/finance/income/delete/{id}', [FinJurnalController::class, 'income_delete'])->name('bcl.income.delete');
-    Route::any('/finance/expense', [FinJurnalController::class, 'expense'])->name('bcl.expense.index');
-    Route::get('/finance/expense/view/{id}', [FinJurnalController::class, 'expense_show'])->name('bcl.expense.show');
-    Route::get('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete');
-    Route::post('/finance/income/store', [FinJurnalController::class, 'store'])->name('bcl.income.store');
-    Route::post('/finance/deposit/topup', [FinJurnalController::class, 'topup_deposit'])->name('bcl.deposit.topup');
-    Route::post('/finance/expense/store', [FinJurnalController::class, 'store_expense'])->name('bcl.expense.store');
+    Route::post('/pricelist/delete/{id}', [PricelistController::class, 'destroy'])->name('bcl.pricelist.delete');
+    Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');
+    Route::get('/tambahanpl/edit/{id}', [pricelist_tambahanController::class, 'edit'])->name('bcl.extra_pl.edit');
+    Route::post('/tambahanpl/update', [pricelist_tambahanController::class, 'update'])->name('bcl.extra_pl.update');
+    Route::post('/tambahanpl/delete/{id}', [pricelist_tambahanController::class, 'destroy'])->name('bcl.extra_pl.delete');
 
-    Route::any('/transaksi', [tr_renterController::class, 'index'])->name('bcl.transaksi.index');
-    Route::get('/transaksi/show/{id}', [tr_renterController::class, 'show'])->name('bcl.transaksi.show');
-    Route::get('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete');
-    Route::post('/transaksi/refund', [tr_renterController::class, 'refund'])->name('bcl.transaksi.refund');
-    Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
-    Route::post('/transaksi/change-room', [tr_renterController::class, 'changeRoom'])->name('bcl.transaksi.change_room');
-    // AJAX: list available target rooms with price matching current transaction duration
-    Route::get('/transaksi/change-room/options/{id}', [tr_renterController::class, 'changeRoomOptions'])->name('bcl.transaksi.change_room.options');
-    Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
-    // Refund/Refund-print route for downgrade refunds (optional renter_id helps associate receipt)
-    Route::get('/transaksi/refund/cetak/{doc_id}/{renter_id?}', [tr_renterController::class, 'cetakRefund'])->name('bcl.transaksi.cetak_refund');
-    Route::get('/extrarent/availability', [extra_rentController::class, 'availability'])->name('bcl.extrarent.availability');
-    Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
-    // Room Wifi management (AJAX + Datatables)
-    Route::get('/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');
+    Route::get('/pengaturan/kategori', [RoomCategoryController::class, 'index'])->name('bcl.category.index');
+    Route::post('/category/store', [RoomCategoryController::class, 'store'])->name('bcl.category.store');
+    Route::get('/category/edit/{id}', [RoomCategoryController::class, 'edit'])->name('bcl.category.edit');
+    Route::post('/category/update', [RoomCategoryController::class, 'update'])->name('bcl.category.update');
+    Route::post('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete');
+    Route::post('/category/restore/{id}', [RoomCategoryController::class, 'restore'])->name('bcl.category.restore');
+    Route::post('/category/forcedelete/{id}', [RoomCategoryController::class, 'forcedelete'])->name('bcl.category.forcedelete');
+    Route::post('/images/store', [RoomCategoryImageController::class, 'store'])->name('bcl.images.store');
+    Route::post('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete');
+
+    Route::get('/pengaturan/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');
     Route::get('/wifi/data', [RoomWifiController::class, 'data'])->name('bcl.roomwifi.data');
     Route::post('/wifi/store', [RoomWifiController::class, 'store'])->name('bcl.roomwifi.store');
     Route::get('/wifi/edit/{id}', [RoomWifiController::class, 'edit'])->name('bcl.roomwifi.edit');
     Route::post('/wifi/update/{id}', [RoomWifiController::class, 'update'])->name('bcl.roomwifi.update');
-    Route::get('/wifi/delete/{id}', [RoomWifiController::class, 'destroy'])->name('bcl.roomwifi.delete');
+    Route::post('/wifi/delete/{id}', [RoomWifiController::class, 'destroy'])->name('bcl.roomwifi.delete');
+
+    Route::get('/pengaturan/template-chat', [ChatTemplateController::class, 'index'])->name('bcl.chat_template.index');
+    Route::get('/chat-template/data', [ChatTemplateController::class, 'data'])->name('bcl.chat_template.data');
+    Route::post('/chat-template/store', [ChatTemplateController::class, 'store'])->name('bcl.chat_template.store');
+    Route::get('/chat-template/edit/{id}', [ChatTemplateController::class, 'edit'])->name('bcl.chat_template.edit');
+    Route::post('/chat-template/update/{id}', [ChatTemplateController::class, 'update'])->name('bcl.chat_template.update');
+    Route::post('/chat-template/delete/{id}', [ChatTemplateController::class, 'destroy'])->name('bcl.chat_template.delete');
+
+    // Alamat lama halaman yang dipindah ke menu Pengaturan
+    Route::redirect('/pricelist', '/bcl/pengaturan/harga');
+    Route::redirect('/category', '/bcl/pengaturan/kategori');
+    Route::redirect('/wifi', '/bcl/pengaturan/wifi');
+    Route::redirect('/chat-template', '/bcl/pengaturan/template-chat');
 });
 
 

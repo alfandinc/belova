@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 
@@ -13,7 +13,7 @@ $categories = $categories;
         <div class="page-title-box">
             <div class="row">
                 <div class="col">
-                    <h4 class="page-title">Daftar Kaegori Kamar</h4>
+                    <h4 class="page-title">Daftar Kategori Kamar</h4>
                     <span>{{config('app.name')}}</span>
                 </div>
                 <div class="col-auto align-self-center">
@@ -25,14 +25,15 @@ $categories = $categories;
         </div><!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
+@include('bcl.partials.subnav', ['group' => 'settings'])
 
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Kategori</h4>
+                        <h4 class="card-title">Daftar Kategori</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -54,12 +55,12 @@ $categories = $categories;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-white">Nama Kategori</th>
-                                            <th class="text-white">Catatan</th>
-                                            <th class="text-white">Jml Foto</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th>Nama Kategori</th>
+                                            <th>Catatan</th>
+                                            <th>Jml Foto</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -113,10 +114,10 @@ $categories = $categories;
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-success">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Foto</h4>
+                        <h4 class="card-title">Daftar Foto</h4>
                     </div>
                     <div class="col-auto align-self-center">
                         <button class="btn btn-sm btn-light waves-effect waves-light" data-toggle="modal" data-target="#md_upload">
@@ -165,8 +166,8 @@ $categories = $categories;
 <div class="modal fade" id="md_add" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Tambah Kategori</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Kategori</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -196,8 +197,8 @@ $categories = $categories;
 <div class="modal fade" id="md_edit" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog " role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Edit Kategori</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Edit Kategori</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -228,8 +229,8 @@ $categories = $categories;
 <div class="modal fade" id="md_upload" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Upload Foto</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Upload Foto</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -394,7 +395,7 @@ $categories = $categories;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {
@@ -416,7 +417,7 @@ $categories = $categories;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {
@@ -439,7 +440,7 @@ $categories = $categories;
                     btnClass: 'btn-green',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 
@@ -27,15 +27,16 @@ $data = $data;
         </div><!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
+@include('bcl.partials.subnav', ['group' => 'finance'])
 
-@if($belum_lunas->count()>0 or $belum_lunas->count()>0)
+@if($unpaid->count() > 0)
 <div class="row mb-2">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-danger">
+            <div class="card-header">
                 <div class="row align-items-center">
                     <div class="col">
-                        <h4 class="card-title text-white">Transaksi Belum Lunas</h4>
+                        <h4 class="card-title">Transaksi Belum Lunas</h4>
                     </div>
 
                 </div>
@@ -43,7 +44,7 @@ $data = $data;
             <div class="card-body">
                 <div class="table-responsive-sm">
                     <table class="table table-sm mb-0 table-hover" data-page-length="50" id="tb_pending_tr">
-                        <thead class="thead-secondary bg-light">
+                        <thead>
                             <tr>
                                 <th class="" width="25px"><b>No</b></th>
                                 <th class=""><b>Tanggal</b></th>
@@ -56,48 +57,20 @@ $data = $data;
                             </tr>
                         </thead>
                         <tbody>
-                            <?php
-                            $no = 1;
-                            if ($belum_lunas->count() > 0) {
-                                foreach ($belum_lunas as $value) {
-                            ?>
-                                    <tr>
-                                        <td><?= $no ?></td>
-                                        <td><?= $value->tanggal ?></td>
-                                        <td><?= $value->doc_id ?></td>
-                                        <td><?= $value->identity == 'Sewa Kamar' ? 'Pendapatan Sewa' : 'Pendapatan Lain' ?></td>
-                                        <td><?= $value->catatan ?></td>
-                                        <td class="text-right">Rp <?= number_format($value->harga, 2) ?></td>
-                                        <td class="text-right text-danger font-weight-bold">Rp <?= number_format($value->kurang, 2) ?></td>
-                                        <th class="text-right">
-                                            <button class="btn btn-xs btn-success" onclick="terima('<?= $value->doc_id ?>')"><i class="mdi mdi-check"></i>Terima</button>
-                                        </th>
-                                    </tr>
-                                <?php
-                                    $no++;
-                                }
-                            }
-                            if ($belum_lunas_extra->count() > 0) {
-                                $total_jurnal = 0;
-                                foreach ($belum_lunas_extra as $value) {
-                                    $total_harga = $value->harga * $value->lama_sewa * $value->qty;
-                                ?>
-                                    <tr>
-                                        <td><?= $no ?></td>
-                                        <td><?= $value->tgl_mulai ?></td>
-                                        <td><?= $value->kode ?></td>
-                                        <td><?= 'Tambahan Sewa' ?></td>
-                                        <td><?= $value->nama . ' ' . $value->lama_sewa . ' ' . $value->jangka_sewa . ' ' . $value->renter->nama ?></td>
-                                        <td class="text-right">Rp <?= number_format($total_harga, 2) ?></td>
-                                        <td class="text-right text-danger font-weight-bold">Rp <?= number_format($total_harga - ($value->total_kredit == null ? 0 : $value->total_kredit), 2) ?></td>
-                                        <th class="text-right">
-                                            <button class="btn btn-xs btn-success" onclick="terima('<?= $value->kode ?>')"><i class="mdi mdi-check"></i>Terima</button>
-                                        </th>
-                                    </tr>
-                            <?php
-                                }
-                            }
-                            ?>
+                            @foreach($unpaid as $item)
+                            <tr>
+                                <td>{{ $loop->iteration }}</td>
+                                <td>{{ $item['tanggal'] }}</td>
+                                <td>{{ $item['nomor'] }}</td>
+                                <td>{{ $item['tipe'] }}</td>
+                                <td>{{ $item['catatan'] }}</td>
+                                <td class="text-right">Rp {{ number_format($item['jumlah'], 2) }}</td>
+                                <td class="text-right text-danger font-weight-bold">Rp {{ number_format($item['kurang'], 2) }}</td>
+                                <td class="text-right">
+                                    <button type="button" class="btn btn-xs btn-success js-terima" data-doc="{{ $item['transaksi'] }}"><i class="mdi mdi-check"></i> Terima</button>
+                                </td>
+                            </tr>
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
@@ -109,10 +82,10 @@ $data = $data;
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Pemasukan</h4>
+                        <h4 class="card-title">Pemasukan</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -144,14 +117,14 @@ $data = $data;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Tanggal</th>
-                                            <th class="text-white">Nomor</th>
-                                            <th class="text-white">Tipe</th>
-                                            <th class="text-white">Catatan</th>
-                                            <th class="text-white text-right">Jumlah</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Tanggal</th>
+                                            <th>Nomor</th>
+                                            <th>Tipe</th>
+                                            <th>Catatan</th>
+                                            <th class="text-right">Jumlah</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -193,10 +166,10 @@ $data = $data;
 <div class="modal fade" id="md_pay_biaya" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog  modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-primary">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Penerimaan Pembayaran</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Penerimaan Pembayaran</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
             <form method="POST" action="{{route('bcl.income.store')}}">
@@ -209,18 +182,9 @@ $data = $data;
                                 <label for="transaksi">Pilih Transaksi</label>
                                 <select class="select2" name="transaksi" id="transaksi" required>
                                     <option value="" selected></option>
-                                    <?php
-                                    foreach ($belum_lunas as $value) {
-                                        // Check if this is an upgrade transaction by looking at the identity
-                                        $section = strpos($value->identity, 'Upgrade Kamar') !== false ? 'Upgrade Kamar' : 'Sewa Kamar';
-                                    ?>
-                                        <option data-section="<?= $section ?>" data-kurang="<?= $value->kurang ?>" value="<?= $value->doc_id ?>"><?= $value->doc_id . ' - ' . $value->catatan ?></option>
-                                    <?php }
-                                    foreach ($belum_lunas_extra as $value) {
-                                        $total_harga = $value->harga * $value->lama_sewa * $value->qty;
-                                    ?>
-                                        <option data-section="Tambahan Sewa" data-kurang="<?= $total_harga - ($value->total_kredit == null ? 0 : $value->total_kredit) ?>" value="<?= $value->kode ?>"><?= $value->kode . ' - ' . $value->nama . ' ' . $value->lama_sewa . ' ' . $value->jangka_sewa ?></option>
-                                    <?php } ?>
+                                    @foreach($unpaid as $item)
+                                    <option data-section="{{ $item['section'] }}" data-kurang="{{ $item['kurang'] }}" data-deposit="{{ $item['deposit'] }}" value="{{ $item['transaksi'] }}">{{ $item['option_label'] }} (kurang Rp {{ number_format($item['kurang'], 0, ',', '.') }})</option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>
@@ -241,8 +205,20 @@ $data = $data;
                         <div class="col-sm-6 col-xs-12">
                             <div class="form-group">
                                 <label for="keterangan">Keterangan</label>
-                                <input id="keterangan" name="keterangan" required autocomplete="off" type="text" class="form-control">
+                                <input id="keterangan" name="keterangan" autocomplete="off" type="text" class="form-control">
                             </div>
+                        </div>
+                    </div>
+                    <div class="row" id="income_deposit_row" style="display:none;">
+                        <div class="col-sm-6 col-xs-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" id="income_use_deposit" name="use_deposit">
+                                <label class="form-check-label" for="income_use_deposit">Gunakan deposit penyewa (saldo Rp <span id="income_deposit_balance">0</span>)</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xs-12">
+                            <input type="text" id="income_deposit_amount" name="deposit_amount" class="form-control" placeholder="Nominal deposit dipakai" style="display:none;">
+                            <small class="text-muted">Nominal tunai di atas boleh 0 jika dibayar penuh dari deposit.</small>
                         </div>
                     </div>
                 </div>
@@ -424,20 +400,31 @@ $data = $data;
         console.log($(this).val());
         $('#f_filter_tgl').submit();
     });
-    $('#transaksi').on('select2:select', function() {
-        var kurang = $(this).find(':selected').data('kurang');
-        var section = $(this).find(':selected').data('section');
-        $('#section').val(section);
-        console.log(section);
-        $('#nominal').attr('data-inputmask-max', kurang);
-        init_component();
+    $('#transaksi').on('select2:select change', function() {
+        var $selected = $(this).find(':selected');
+        var kurang = parseFloat($selected.data('kurang') || 0);
+        var deposit = parseFloat($selected.data('deposit') || 0);
+        $('#section').val($selected.data('section') || '');
+        $('#nominal').val(kurang || '');
+        $('#income_deposit_balance').text($.number(deposit, 0));
+        $('#income_deposit_row').toggle(deposit > 0);
+        $('#income_use_deposit').prop('checked', false);
+        $('#income_deposit_amount').hide().val('');
     });
 
-    function terima(doc_id) {
-        $('#md_pay_biaya').modal();
-        $('#transaksi').val(doc_id).trigger('select2:select');
-        // init_component();
-    }
+    $('#income_use_deposit').on('change', function() {
+        var $selected = $('#transaksi').find(':selected');
+        var kurang = parseFloat($selected.data('kurang') || 0);
+        var deposit = parseFloat($selected.data('deposit') || 0);
+        var use = Math.min(kurang, deposit);
+        $('#income_deposit_amount').toggle(this.checked).val(this.checked ? use : '');
+        $('#nominal').val(this.checked ? Math.max(kurang - use, 0) : kurang);
+    });
+
+    $(document).on('click', '.js-terima', function() {
+        $('#md_pay_biaya').modal('show');
+        $('#transaksi').val($(this).data('doc')).trigger('change');
+    });
 
     // Ensure components (datepicker, inputmask, select2, etc.) are initialized
     function init_component() {
@@ -496,7 +483,7 @@ $data = $data;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

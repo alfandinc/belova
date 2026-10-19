@@ -260,19 +260,14 @@ class MainNavigation
         }
 
         return $this->module('bcl', 'KOS BCL', 'key', [
-            $this->heading('Kamar'),
+            $this->heading('Operasional'),
             $this->item('Daftar Kamar', 'key', $this->route('bcl.rooms')),
-            $this->item('Daftar Harga', 'dollar-sign', $this->route('bcl.pricelist.index')),
-            $this->item('Daftar Kategori', 'folder', $this->route('bcl.category.index')),
-            $this->item('Wifi Kamar', 'wifi', $this->route('bcl.roomwifi.index')),
-            $this->heading('Penyewa'),
-            $this->item('Daftar Penyewa', 'users', $this->route('bcl.renter.index')),
-            $this->item('Templating Chat', 'message-circle', $this->route('bcl.chat_template.index')),
             $this->item('Transaksi Sewa', 'repeat', $this->route('bcl.transaksi.index')),
-            $this->heading('Inventaris & Keuangan'),
-            $this->item('Daftar Inventaris', 'archive', $this->route('bcl.inventories.index')),
-            $this->item('Pemasukan', 'trending-up', $this->route('bcl.income.index')),
-            $this->item('Pengeluaran', 'trending-down', $this->route('bcl.expense.index')),
+            $this->item('Daftar Penyewa', 'users', $this->route('bcl.renter.index')),
+            $this->heading('Administrasi'),
+            $this->item('Inventaris', 'archive', $this->route('bcl.inventories.index')),
+            $this->item('Keuangan', 'trending-up', $this->route('bcl.finance')),
+            $this->item('Pengaturan', 'settings', $this->route('bcl.settings')),
         ]);
     }
 

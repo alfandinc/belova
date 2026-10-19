@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 $renter = $renter;
@@ -45,10 +45,10 @@ $pricelist = [];
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Penyewa Kamar</h4>
+                        <h4 class="card-title">Daftar Penyewa Kamar</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -70,18 +70,18 @@ $pricelist = [];
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Foto</th>
-                                            <th class="text-white">Nama</th>
-                                            <th class="text-white">Alamat</th>
-                                            <th class="text-white">Tgl. Lahir</th>
-                                            <th class="text-white">Phone</th>
-                                            <th class="text-white">Kendaraan</th>
-                                            <th class="text-white">Kamar</th>
-                                            <th class="text-white">Habis Kontrak</th>
-                                            <th class="text-right text-white">Deposit (Rp)</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Foto</th>
+                                            <th>Nama</th>
+                                            <th>Alamat</th>
+                                            <th>Tgl. Lahir</th>
+                                            <th>Phone</th>
+                                            <th>Kendaraan</th>
+                                            <th>Kamar</th>
+                                            <th>Habis Kontrak</th>
+                                            <th class="text-right">Deposit (Rp)</th>
                                             <th class="text-right"></th>
                                         </tr>
                                     </thead>
@@ -118,6 +118,10 @@ $pricelist = [];
                                             <td>{{$renter->current_room->tgl_selesai??''}}</td>
                                             <td class="text-right">{{ number_format($renter->deposit_balance ?? 0, 2) }}</td>
                                             <td class="text-right text-nowrap">
+                                                <a href="{{ route('bcl.rooms', ['sewa' => $renter->id]) }}" class="btn btn-xs btn-primary" title="Sewakan kamar ke {{ $renter->nama }}">
+                                                    <i data-feather="key" class="align-self-center icon-xs"></i> Sewa
+                                                </a>
+                                                &nbsp;
                                                 {{-- @can('Edit Penyewa') --}}
                                                 <a href="#" data-id="{{$renter->id}}" class="btn btn-xs btn-info deposit_detail" title="Deposit">
                                                     <i data-feather="dollar-sign" class="align-self-center icon-xs"></i>
@@ -159,10 +163,10 @@ $pricelist = [];
         <div class="modal-content">
             <form method="POST" action="{{route('bcl.renter.store')}}" enctype="multipart/form-data">
                 @csrf
-                <div class="modal-header bg-success">
-                    <h6 class="modal-title m-0 text-white" id="myExtraLargeModalLabel">Tambah Penyewa</h6>
+                <div class="modal-header bg-light">
+                    <h6 class="modal-title m-0" id="myExtraLargeModalLabel">Tambah Penyewa</h6>
                     <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                        <span aria-hidden="true"><i class="la la-times"></i></span>
                     </button>
                 </div>
                 <div class="modal-body">
@@ -261,10 +265,10 @@ $pricelist = [];
 <div class="modal fade" id="md_deposit_detail" tabindex="-1" role="dialog" aria-labelledby="depositDetailLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="depositDetailLabel">Detail Deposit Penyewa</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="depositDetailLabel">Detail Deposit Penyewa</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
             <div class="modal-body">
@@ -289,10 +293,10 @@ $pricelist = [];
 <div class="modal fade" id="md_rules_preview" tabindex="-1" role="dialog" aria-labelledby="rulesPreviewLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-primary">
-                <h6 class="modal-title m-0 text-white" id="rulesPreviewLabel">Preview Rules Penyewa</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="rulesPreviewLabel">Preview Rules Penyewa</h6>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
             <div class="modal-body p-2 bg-light">
@@ -312,10 +316,10 @@ $pricelist = [];
             <form method="POST" action="{{route('bcl.renter.update')}}" enctype="multipart/form-data">
                 <input type="hidden" name="id" id="id">
                 @csrf
-                <div class="modal-header bg-success">
-                    <h6 class="modal-title m-0 text-white" id="myExtraLargeModalLabel">Edit Penyewa</h6>
+                <div class="modal-header bg-light">
+                    <h6 class="modal-title m-0" id="myExtraLargeModalLabel">Edit Penyewa</h6>
                     <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                        <span aria-hidden="true"><i class="la la-times"></i></span>
                     </button>
                 </div>
                 <div class="modal-body">
@@ -638,7 +642,7 @@ $pricelist = [];
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

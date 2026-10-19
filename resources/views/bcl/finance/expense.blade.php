@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 
@@ -27,13 +27,14 @@ $data = $data;
         </div><!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
+@include('bcl.partials.subnav', ['group' => 'finance'])
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Pengeluaran</h4>
+                        <h4 class="card-title">Pengeluaran</h4>
                     </div>
                     <div class="col-auto align-self-center">
                         <a href="#" class="btn btn-sm btn-light waves-effect waves-light dropdown-toggle" data-toggle="dropdown">
@@ -64,15 +65,15 @@ $data = $data;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_expense">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Tanggal</th>
-                                            <th class="text-white">Nomor</th>
-                                            <th class="text-white">Tipe Pengaluaran</th>
-                                            <th class="text-white">Penerima Manfaat</th>
-                                            <th class="text-white">Catatan</th>
-                                            <th class="text-white text-right">Jumlah</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Tanggal</th>
+                                            <th>Nomor</th>
+                                            <th>Tipe Pengaluaran</th>
+                                            <th>Penerima Manfaat</th>
+                                            <th>Catatan</th>
+                                            <th class="text-right">Jumlah</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -120,10 +121,10 @@ $data = $data;
 <div class="modal fade" id="md_add_biaya" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog  modal-xl" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-danger">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Tambah Biaya (Expense)</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Biaya (Expense)</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
             <form method="POST" action="{{route('bcl.expense.store')}}" enctype="multipart/form-data">
@@ -142,7 +143,7 @@ $data = $data;
 
                     <div class="row">
                         <table class="table" id="tb_biaya">
-                            <thead class="bg-soft-primary">
+                            <thead>
                                 <tr>
                                     <th>Tipe Pengeluaran</th>
                                     <th>Penerima Manfaat<br><small class="text-danger">*kosongkan jika bukan inventaris kamar</small></th>
@@ -167,7 +168,7 @@ $data = $data;
                                             <?php
                                             foreach ($inventory as $value) {
                                             ?>
-                                                <option value="<?= $value->inv_number ?>"><?= $value->name ?> (<?= $value->nama_kamar ?>)</option>
+                                                <option value="{{ $value->inv_number }}">{{ $value->name }} ({{ $value->nama_kamar ?? "Umum" }})</option>
                                             <?php
                                             }
                                             ?>
@@ -227,10 +228,10 @@ $data = $data;
 <div class="modal fade" id="md_dt_biaya" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog  modal-xl" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-primary">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Informasi Pengeluaran</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Informasi Pengeluaran</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
             <div class="modal-body">
@@ -252,7 +253,7 @@ $data = $data;
                 <hr class="hr-dashed mt-2">
                 <div class="row">
                     <table class="table table-sm">
-                        <thead class="bg-soft-primary">
+                        <thead>
                             <tr>
                                 <th>Tipe Pengeluaran</th>
                                 <th>Penerima Manfaat</th>
@@ -514,11 +515,9 @@ $data = $data;
     });
 
     function update_amount() {
-        var arr_jumlah = [];
         var total = 0;
         $('[name="jumlah[]"]').each(function() {
-            arr_jumlah.push(parseInt($(this).val()));
-            total += parseFloat($(this).val());
+            total += parseFloat(($(this).val() || '').toString().replace(/[^0-9]/g, '')) || 0;
         });
         $('#amm_total').text('Rp ' + $.number(total));
     }
@@ -535,19 +534,20 @@ $data = $data;
                 var receipt = null;
                 var total = 0;
                 $.each(data, function(index, value) {
+                    var esc = function(v) { return $('<div>').text(v == null ? '' : v).html(); };
                     var manfaat = '';
-                    $.each(value.arr_inventory, function(index, val) {
+                    $.each(value.arr_inventory || [], function(index, val) {
                         if (val != null) {
-                            manfaat += '<span class="badge badge-dark">' + val.name + '</span> ';
+                            manfaat += '<span class="badge badge-dark">' + esc(val.name) + '</span> ';
                         }
                     });
-                    if (value.receipt != null) {
+                    if (value.receipt && value.receipt.length) {
                         receipt = value.receipt;
                     }
                     $('#no_exp').text(value.doc_id);
                     $('#tgl_jurnal').text(value.tanggal);
-                    $('#user_id').text(value.user.name);
-                    $('#md_dt_biaya').find('tbody').append('<tr><td>' + value.tipe_pengeluaran + '</td><td>' + manfaat + '</td><td>' + value.catatan + '</td><td class="text-right">Rp ' + $.number(value.debet, 2) + '</td></tr>');
+                    $('#user_id').text(value.user ? value.user.name : '-');
+                    $('#md_dt_biaya').find('tbody').append('<tr><td>' + esc(value.tipe_pengeluaran) + '</td><td>' + manfaat + '</td><td>' + esc(value.catatan) + '</td><td class="text-right">Rp ' + $.number(value.debet, 2) + '</td></tr>');
                     total += parseFloat(value.debet);
                 });
                 if (receipt != null) {
@@ -599,7 +599,7 @@ $data = $data;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

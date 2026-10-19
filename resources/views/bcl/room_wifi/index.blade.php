@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <div class="row">
     <div class="col-sm-12">
@@ -19,6 +19,7 @@
         </div><!--end page-title-box-->
     </div><!--end col-->
 </div><!--end row-->
+@include('bcl.partials.subnav', ['group' => 'settings'])
 
 <div class="row">
     <div class="col-lg-12">
@@ -58,9 +59,9 @@
 <div class="modal fade" id="wifiModal" tabindex="-1" role="dialog" aria-labelledby="wifiModalLabel" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
-      <div class="modal-header bg-dark">
-        <h6 class="modal-title m-0 text-white" id="modalTitle">Tambah Wifi</h6>
-        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+      <div class="modal-header bg-light">
+        <h6 class="modal-title m-0" id="modalTitle">Tambah Wifi</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
@@ -174,7 +175,7 @@
         $('#wifi-table').on('click', '.btn-delete', function(){
             if(!confirm('Hapus record ini?')) return;
             var id = $(this).data('id');
-            $.get('{!! url('bcl/wifi/delete') !!}/'+id).done(function(){
+            $.post('{!! url('bcl/wifi/delete') !!}/'+id).done(function(){
                 table.ajax.reload();
             });
         });

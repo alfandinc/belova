@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 
@@ -120,7 +120,7 @@ try {
                             <div class="col-lg-12 ">
                                 <div class="table-responsive project-invoice">
                                     <table class="table mb-0">
-                                        <thead style="background-color: #F1F5FA !important;">
+                                        <thead>
                                             <tr>
                                                 <th style="background-color: #F1F5FA;">No</th>
                                                 <th>Deskripsi</th>
@@ -176,7 +176,7 @@ try {
                                                         ({{ implode(', ', $tbh->assigned_asset_codes) }})
                                                     @endif
                                                 </td>
-                                                <td>{{$transaksi->room->category->category_name}}</td>
+                                                <td>{{$transaksi->room->category->category_name ?? "-"}}</td>
                                                 <td>{{$tbh->lama_sewa.' '.$tbh->jangka_sewa}}</td>
                                                 <td class="text-center">{{$tbh->tgl_mulai}}</td>
                                                 <td class="text-center">{{$tbh->tgl_selesai}}</td>

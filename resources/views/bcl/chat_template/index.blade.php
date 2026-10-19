@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <div class="row">
     <div class="col-sm-12">
         <div class="page-title-box">
@@ -18,6 +18,7 @@
         </div>
     </div>
 </div>
+@include('bcl.partials.subnav', ['group' => 'settings'])
 
 <div class="row">
     <div class="col-lg-8">
@@ -65,9 +66,9 @@
 <div class="modal fade" id="chatTemplateModal" tabindex="-1" role="dialog" aria-labelledby="chatTemplateModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="chatTemplateModalLabel">Tambah Template Chat</h6>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="chatTemplateModalLabel">Tambah Template Chat</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -215,7 +216,7 @@
                 return;
             }
 
-            $.get('{!! url("bcl/chat-template/delete") !!}/' + id)
+            $.post('{!! url("bcl/chat-template/delete") !!}/' + id)
                 .done(function (response) {
                     table.ajax.reload(null, false);
                     showToast('success', response.message || 'Template chat berhasil dihapus.');

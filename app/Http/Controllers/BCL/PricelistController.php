@@ -1,136 +1,100 @@
 <?php
 
 namespace App\Http\Controllers\BCL;
+
 use App\Http\Controllers\Controller;
 use App\Models\BCL\extra_pricelist;
 use App\Models\BCL\Pricelist;
+use App\Models\BCL\room_category;
+use App\Services\BCL\RentalService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PricelistController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    public function settings()
+    {
+        return redirect()->route('bcl.pricelist.index');
+    }
+
     public function index()
     {
         $pricelist = Pricelist::join('bcl_room_category as room_category', 'bcl_pricelist.room_category', '=', 'room_category.id_category')
-            ->select('bcl_pricelist.*', 'room_category.category_name as category_name', 'room_category.id_category as category_id')->get();
-        $category = DB::table('bcl_room_category')->get();
-        $pl_tambahan = extra_pricelist::all();
+            ->select('bcl_pricelist.*', 'room_category.category_name as category_name', 'room_category.id_category as category_id')
+            ->get();
+
         return view('bcl.pricelist.pricelist')
             ->with('pricelist', $pricelist)
-            ->with('categories', $category)
-            ->with('pl_tambahan', $pl_tambahan);
+            ->with('categories', room_category::all())
+            ->with('pl_tambahan', extra_pricelist::all());
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function get_room_pricelist(Request $request)
     {
-        //
+        return response()->json(Pricelist::where('room_category', $request->id)->orderBy('price')->get());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    public function edit(Request $request)
+    {
+        return response()->json(Pricelist::find($request->id));
+    }
+
     public function store(Request $request)
     {
+        return $this->save($request, new Pricelist(), 'Data Harga berhasil ditambahkan!');
+    }
+
+    public function update(Request $request)
+    {
+        $pl = Pricelist::find($request->id_pricelist);
+        if (!$pl) {
+            return redirect()->route('bcl.pricelist.index')->with('error', 'Data tidak ditemukan!');
+        }
+
+        return $this->save($request, $pl, 'Data Harga berhasil diubah!');
+    }
+
+    public function destroy(Request $request)
+    {
+        $pl = Pricelist::find($request->id);
+        if (!$pl) {
+            return redirect()->route('bcl.pricelist.index')->with('error', 'Data tidak ditemukan!');
+        }
+        $pl->delete();
+
+        return redirect()->route('bcl.pricelist.index')->with('success', 'Data Harga berhasil dihapus!');
+    }
+
+    protected function save(Request $request, Pricelist $pl, string $message)
+    {
+        $request->merge([
+            'harga' => RentalService::amount($request->harga),
+            'jangka_waktu' => (int) RentalService::amount($request->jangka_waktu),
+            'bonus_waktu' => (int) RentalService::amount($request->bonus_waktu),
+        ]);
+
         try {
             $this->validate($request, [
-                'tipe_kamar'     => 'required|numeric',
-                'harga'     => 'required|numeric',
-                'jangka_waktu' => 'required|numeric',
-                'jangka_sewa' => 'required',
+                'tipe_kamar' => 'required|exists:bcl_room_category,id_category',
+                'harga' => 'required|numeric|min:0',
+                'jangka_waktu' => 'required|integer|min:1',
+                'jangka_sewa' => 'required|in:Hari,Minggu,Bulan,Tahun',
+                'bonus_waktu' => 'nullable|integer|min:0',
+                'bonus_sewa' => 'nullable|in:Hari,Minggu,Bulan,Tahun',
             ]);
-            $result = Pricelist::create([
-                'price'     => $request->harga,
-                'jangka_waktu'     => $request->jangka_waktu,
-                'jangka_sewa'   => $request->jangka_sewa,
-                'bonus_waktu'   => $request->bonus_waktu,
-                'bonus_sewa' => $request->bonus_sewa,
-                'room_category' => $request->tipe_kamar,
-            ]);
-            if (!$result) {
-                return redirect()->route('bcl.pricelist.index')->with(['error' => 'Gagal menambahkan Daftar Harga!']);
-            } else {
-                return redirect()->route('bcl.pricelist.index')->with(['success' => 'Data Harga berhasil ditambahkan!']);
-            }
-            return response()->json($request);
-        } catch (\Throwable $th) {
-            return redirect()->route('bcl.pricelist.index')->with(['error' => $th->getMessage()]);
+        } catch (ValidationException $e) {
+            return redirect()->route('bcl.pricelist.index')->with('error', collect($e->errors())->flatten()->first());
         }
-    }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Pricelist $pricelist, Request $request)
-    {
-    }
+        $pl->fill([
+            'price' => $request->harga,
+            'jangka_waktu' => $request->jangka_waktu,
+            'jangka_sewa' => $request->jangka_sewa,
+            'bonus_waktu' => $request->bonus_waktu ?: 0,
+            'bonus_sewa' => $request->bonus_sewa,
+            'room_category' => $request->tipe_kamar,
+        ])->save();
 
-    public function get_room_pricelist(Pricelist $pricelist, Request $request)
-    {
-        $pricelist = Pricelist::where('room_category', $request->id)->get();
-        return response()->json($pricelist);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Pricelist $pricelist, Request $request)
-    {
-        try {
-            $pl = Pricelist::find($request->id);
-            return response()->json($pl);
-        } catch (\Throwable $th) {
-            return redirect()->route('pricelist')->with(['error' => 'Data tidak ditemukan!']);
-        }
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Pricelist $pricelist)
-    {
-        try {
-            $pl = Pricelist::findorfail($request->id_pricelist);
-            $this->validate($request, [
-                'tipe_kamar'     => 'required|numeric',
-                'harga'     => 'required|numeric',
-                'jangka_waktu' => 'required|numeric',
-                'jangka_sewa' => 'required',
-            ]);
-            $result = $pl->update([
-                'price'     => $request->harga,
-                'jangka_waktu'     => $request->jangka_waktu,
-                'jangka_sewa'   => $request->jangka_sewa,
-                'bonus_waktu'   => $request->bonus_waktu,
-                'bonus_sewa' => $request->bonus_sewa,
-                'room_category' => $request->tipe_kamar,
-            ]);
-            if (!$result) {
-                return redirect()->route('pricelist.index')->with(['error' => 'Gagal merubah Daftar Harga!']);
-            } else {
-                return redirect()->route('pricelist.index')->with(['success' => 'Data Harga berhasil dirubah!']);
-            }
-        } catch (\Throwable $th) {
-            return redirect()->route('pricelist.index')->with(['error' => 'Data tidak ditemukan!']);
-        }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Pricelist $pricelist, Request $request)
-    {
-        try {
-            $pl = Pricelist::find($request->id);
-            $pl->delete();
-            return redirect()->route('pricelist.index')->with(['success' => 'Data Harga berhasil dihapus!']);
-        } catch (\Throwable $th) {
-            return redirect()->route('pricelist.index')->with(['error' => 'Data tidak ditemukan!']);
-        }
+        return redirect()->route('bcl.pricelist.index')->with('success', $message);
     }
 }

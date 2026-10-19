@@ -1,6 +1,6 @@
 @extends('layouts.bcl.app')
 
-@section('content')
+@section('bcl-content')
 <!-- Page-Title -->
 <?php
 
@@ -31,10 +31,10 @@ $inv = $data;
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header bg-dark">
+            <div class="card-header">
                 <div class="row align-self-center">
                     <div class="col align-self-center">
-                        <h4 class="card-title text-white">Daftar Inventaris</h4>
+                        <h4 class="card-title">Daftar Inventaris</h4>
                     </div>
                     <div class="col-auto align-self-center">
 
@@ -55,17 +55,17 @@ $inv = $data;
                         <div class="row">
                             <div class="col-sm-12">
                                 <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead class="thead-info bg-info">
-                                        <tr class="text-white">
-                                            <th class="text-center text-white">No</th>
-                                            <th class="text-center text-white">Nomor Inv</th>
-                                            <th class="text-white">Nama</th>
-                                            <th class="text-white">Catatan</th>
-                                            <th class="text-white">Tipe</th>
-                                            <th class="text-white">Kamar</th>
-                                            <th class="text-white">Perawatan Rutin</th>
-                                            <th class="text-white">Terakhir Perawatan</th>
-                                            <th class="text-white">Perawatan Berikutnya</th>
+                                    <thead>
+                                        <tr>
+                                            <th class="text-center">No</th>
+                                            <th class="text-center">Nomor Inv</th>
+                                            <th>Nama</th>
+                                            <th>Catatan</th>
+                                            <th>Tipe</th>
+                                            <th>Kamar</th>
+                                            <th>Perawatan Rutin</th>
+                                            <th>Terakhir Perawatan</th>
+                                            <th>Perawatan Berikutnya</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -118,8 +118,8 @@ $inv = $data;
 <div class="modal fade" id="md_tambah_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Tambah Inventaris</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Inventaris</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -202,8 +202,8 @@ $inv = $data;
         <div class="modal fade" id="md_export_inv" tabindex="-1" role="dialog" aria-labelledby="mdExportLabel" aria-hidden="true">
             <div class="modal-dialog" role="document">
                 <div class="modal-content">
-                    <div class="modal-header bg-dark">
-                        <h6 class="modal-title m-0 text-white" id="mdExportLabel">Export Inventaris ke PDF</h6>
+                    <div class="modal-header bg-light">
+                        <h6 class="modal-title m-0" id="mdExportLabel">Export Inventaris ke PDF</h6>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true"><i class="la la-times"></i></span>
                         </button>
@@ -233,8 +233,8 @@ $inv = $data;
         <div class="modal fade" id="md_edit_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Edit Inventaris</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Edit Inventaris</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -317,8 +317,8 @@ $inv = $data;
 <div class="modal fade" id="md_history" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <div class="modal-header bg-dark">
-                <h6 class="modal-title m-0 text-white" id="exampleModalDefaultLabel">Riwayat Perbaikan</h6>
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Riwayat Perbaikan</h6>
                 <button type="button" class="close " data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
@@ -385,7 +385,7 @@ $inv = $data;
                     <div class="col-12 px-2">
                         <div class="table-responsive-sm">
                             <table class="table table-sm mb-0">
-                                <thead class="bg-soft-primary">
+                                <thead>
                                     <tr>
                                         <th>Tanggal</th>
                                         <th>Deskripsi</th>
@@ -598,7 +598,7 @@ $inv = $data;
                     btnClass: 'btn-red',
                     keys: ['enter'],
                     action: function() {
-                        window.location.href = url;
+                        bclSubmitPost(url);
                     },
                 },
                 cancel: {

@@ -16,7 +16,7 @@ class tb_extra_rent extends Model
     public function jurnal()
     {
         return $this->hasMany(Fin_jurnal::class, 'doc_id', 'kode')
-            ->where('identity', 'Tambahan Sewa')
+            ->where('kode_akun', '4-10101')
             ->where('pos', 'K');
     }
 

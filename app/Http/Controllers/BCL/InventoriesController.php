@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\BCL\InventoryMaintenance;
+use App\Services\BCL\RentalService;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 
@@ -22,8 +23,11 @@ class InventoriesController extends Controller
     public function index()
     {
         $data = Inventory::leftjoin('bcl_rooms as rooms', 'rooms.id', '=', 'bcl_inventories.assigned_to')
+            // Maintenance expenses may list several inventory numbers separated by commas.
             ->leftjoin('bcl_fin_jurnal as fin_jurnal', function ($join) {
-                $join->on('fin_jurnal.kode_subledger', 'like', 'bcl_inventories.inv_number');
+                $join->whereRaw('FIND_IN_SET(bcl_inventories.inv_number, fin_jurnal.kode_subledger) > 0')
+                    ->where('fin_jurnal.kode_akun', '=', '5-10101')
+                    ->where('fin_jurnal.pos', '=', 'D');
             })
             ->select(
                 DB::raw('bcl_inventories.inv_number as inv_number'),
@@ -106,9 +110,9 @@ class InventoriesController extends Controller
             $this->validate($request, [
                 'nama' => 'required',
                 'tipe_inv' => 'required',
-                'kamar' => 'required_if:tipe_inv,==,Private/Room',
-                'waktu_perawatan' => 'required_if:perawatan_rutin,==,on',
-                'cycle_perawatan' => 'required_if:perawatan_rutin,==,on',
+                'kamar' => 'required_if:tipe_inv,Private/Room',
+                'waktu_perawatan' => 'required_if:perawatan_rutin,on',
+                'cycle_perawatan' => 'required_if:perawatan_rutin,on',
             ]);
             $result = Inventory::create([
                 'inv_number' => $no_inv,
@@ -250,22 +254,35 @@ class InventoriesController extends Controller
                 'tipe_inv' => 'required',
                 // inv_number must be present and unique except for the current record
                 'inv_number' => 'required|unique:bcl_inventories,inv_number,' . $request->id,
-                'kamar' => 'required_if:tipe_inv,==,Private/Room',
-                'waktu_perawatan' => 'required_if:perawatan_rutin,==,On',
-                'cycle_perawatan' => 'required_if:perawatan_rutin,==,On',
+                'kamar' => 'required_if:tipe_inv,Private/Room',
+                'waktu_perawatan' => 'required_if:perawatan_rutin,on',
+                'cycle_perawatan' => 'required_if:perawatan_rutin,on',
             ]);
 
-            // Update including inv_number and correct notes field
-            $result = Inventory::findorfail($request->id)->update([
-                'inv_number' => $request->inv_number,
-                'name' => $request->nama,
-                'notes' => $request->keterangan,
-                'maintanance_period' => $request->waktu_perawatan,
-                'maintanance_cycle' => $request->cycle_perawatan,
-                'type' => $request->tipe_inv,
-                'assigned_to' => $request->kamar,
-            ]);
+            DB::transaction(function () use ($request) {
+                $inventory = Inventory::lockForUpdate()->findOrFail($request->id);
+                $oldNumber = $inventory->inv_number;
+                $routine = $request->has('perawatan_rutin');
+                $inventory->update([
+                    'inv_number' => $request->inv_number,
+                    'name' => $request->nama,
+                    'notes' => $request->keterangan,
+                    'maintanance_period' => $routine ? $request->waktu_perawatan : null,
+                    'maintanance_cycle' => $routine ? $request->cycle_perawatan : null,
+                    'type' => $request->tipe_inv,
+                    'assigned_to' => $request->tipe_inv === 'Private/Room' ? $request->kamar : null,
+                ]);
+
+                // Maintenance history and expense lines are linked by inventory number.
+                if ($oldNumber !== $request->inv_number) {
+                    InventoryMaintenance::where('inv_number', $oldNumber)->update(['inv_number' => $request->inv_number]);
+                    Fin_jurnal::where('kode_subledger', $oldNumber)->whereIn('kode_akun', ['5-10101', '5-10102'])->update(['kode_subledger' => $request->inv_number]);
+                }
+            });
+
             return back()->with(['success' => 'Data Inventaris berhasil diubah!']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return back()->with('error', collect($e->errors())->flatten()->first());
         } catch (\Throwable $th) {
             return back()->with(['error' => $th->getMessage()]);
         }
@@ -277,7 +294,11 @@ class InventoriesController extends Controller
     public function destroy(Inventory $inventory, Request $request)
     {
         try {
-            Inventory::findorfail($request->id)->delete();
+            $inventory = Inventory::findOrFail($request->id);
+            if (InventoryMaintenance::where('inv_number', $inventory->inv_number)->exists()) {
+                return back()->with('error', 'Inventaris memiliki riwayat perawatan, tidak dapat dihapus.');
+            }
+            $inventory->delete();
             return back()->with(['success' => 'Data Inventaris berhasil dihapus!']);
         } catch (\Throwable $th) {
             return back()->with(['error' => $th->getMessage()]);
@@ -308,10 +329,8 @@ class InventoriesController extends Controller
         try {
             $inv = Inventory::where('inv_number', $request->inv_number)->first();
 
-            // generate doc id and no_jurnal similar to FinJurnalController
-            $doc_id = 'MAINT' . time();
-            $nj = DB::select("SELECT CONCAT(DATE_FORMAT(NOW(), '%y' ),LPAD(ifnull(max(SUBSTR(no_jurnal,3)),0)+1,7,0)) as no_jurnal from bcl_fin_jurnal");
-            $no_jurnal = $nj[0]->no_jurnal ?? time();
+            $no_jurnal = app(RentalService::class)->nextNoJurnal();
+            $doc_id = 'MAINT' . $no_jurnal;
 
             // create maintenance record
             $maint = InventoryMaintenance::create([

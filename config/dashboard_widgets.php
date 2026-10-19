@@ -186,6 +186,15 @@ return [
         'span' => 6,
         'order' => 130,
     ],
+    'sewa_kos' => [
+        'name' => 'Sewa Kos BCL',
+        'description' => 'Sewa kamar yang habis 7 hari ke depan (dengan link WhatsApp penyewa), okupansi, dan piutang sewa. Saran: Kos.',
+        'icon' => 'key',
+        'class' => Widgets\SewaKosWidget::class,
+        'view' => 'dashboard.custom_widgets.sewa_kos_widget',
+        'span' => 6,
+        'order' => 135,
+    ],
     'buku_menu' => [
         'name' => 'Buku Menu',
         'description' => 'Cari harga obat, tindakan, dan pemeriksaan lab. Saran: Pendaftaran, Kasir, Marketing, Beautician.',

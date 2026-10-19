@@ -1,81 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
+{{--
+    Kos BCL uses the clinic layout (layouts.erm.app) so head, theme, topbar, sidebar, footer and base
+    scripts are identical to the clinic modules. BCL pages fill "bcl-content" and "pagescript"; this file
+    only adds the plugins BCL needs on top of the clinic layout.
+--}}
+@extends('layouts.erm.app')
 
-<head>
-    <meta charset="utf-8" />
-    <!-- CSRF Token -->
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Belova Center Living</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <meta content="{{config('app.tagline')}}" name="description" />
-    <meta content="" name="author" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+@section('title', 'Kos BCL')
 
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="{{asset('dastone/assets/images/icon.png') }}">
-
-    <!-- App css -->
-    <link href="{{ asset('dastone/plugins/pacejs/flash.css') }}" rel="stylesheet" type="text/css" />
-    <script src="{{ asset('dastone/plugins/pacejs/pace.js') }}"></script>
-    <link href="{{ asset('dastone/assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/default/assets/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/assets/css/icons.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/default/assets/css/metisMenu.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/daterangepicker/daterangepicker.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/assets/css/app.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/vendor/datatable/datatables.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/select2/select2.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/jquery-toast/dist/jquery.toast.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/assets/css/app.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/jquery-confirm/jquery-confirm.min.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/dropify/css/dropify.min.css') }}" rel="stylesheet">
-    <link href="{{ asset('dastone/plugins/hover-css/css/hover.css') }}" rel="stylesheet" type="text/css" />
-    <link href="{{ asset('dastone/plugins/animate/animate.css') }}" rel="stylesheet" type="text/css">
-    <link href="{{ asset('dastone/plugins/lightbox/magnific-popup.css') }}" rel="stylesheet" type="text/css" />
-    
-    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome-animation@1.1.1/css/font-awesome-animation.min.css"> -->
-    <link href="{{ asset('dastone/plugins/font-awesome-animation/font-awesome-animation.css') }}" rel="stylesheet" type="text/css">
-    <link rel="stylesheet" href="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.css') }}">
-</head>
-
-<body class="dark-sidenav">
+@section('navbar')
     @include('layouts.shared.sidebar')
+@endsection
 
+@section('styles')
+    {{-- Full DataTables build (Buttons export, RowGroup) used by the BCL tables --}}
+    <link href="{{ asset('dastone/vendor/datatable/datatables.min.css') }}" rel="stylesheet" />
+    <link href="{{ asset('dastone/plugins/jquery-toast/dist/jquery.toast.min.css') }}" rel="stylesheet" />
+    <link href="{{ asset('dastone/plugins/jquery-confirm/jquery-confirm.min.css') }}" rel="stylesheet" />
+    <link href="{{ asset('dastone/plugins/dropify/css/dropify.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('dastone/plugins/lightbox/magnific-popup.css') }}" rel="stylesheet" />
+    <link href="{{ asset('dastone/plugins/font-awesome-animation/font-awesome-animation.css') }}" rel="stylesheet">
+    <link href="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('css/bcl/bcl.css') }}?v={{ filemtime(public_path('css/bcl/bcl.css')) }}">
+    @yield('pagecss')
+@endsection
 
-    <div class="page-wrapper">
-        <!-- Top Bar Start -->
-        @include('layouts.shared.topbar', ['topbarShowDateTime' => true, 'topbarShowThemeToggle' => false, 'topbarDateTimeId' => 'bcl-date-time-display'])
-        <!-- Top Bar End -->
-
-        <!-- Page Content-->
-        <div class="page-content">
-            <div class="container-fluid">
-                @yield('content')
-                <!-- end page title end breadcrumb -->
-
-                <span id="button_export" class="m-0 p-0 hidden"></span>
-            </div>
-
-            @include('layouts.bcl.footer')
-        </div>
-        <!-- end page content -->
+@section('content')
+    <div class="container-fluid mt-3 bcl">
+        @yield('bcl-content')
+        <span id="button_export" class="m-0 p-0 hidden"></span>
     </div>
-    <!-- end page-wrapper -->
+@endsection
 
-    <!-- jQuery  -->
-    <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/metismenu.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/waves.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/feather.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/simplebar.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/moment.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/daterangepicker/daterangepicker.js') }}"></script>
+@section('scripts')
     <script src="{{ asset('dastone/vendor/datatable/datatables.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/select2/select2.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/jquery-toast/dist/jquery.toast.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/input_money/jquery.inputmask.min.js') }}" type="text/javascript"></script>
-    <script src="{{ asset('dastone/plugins/bootstrap-maxlength/bootstrap-maxlength.min.js') }}"></script>
+    <script src="{{ asset('dastone/plugins/input_money/jquery.inputmask.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/jquery-confirm/jquery-confirm.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/dropify/js/dropify.min.js') }}"></script>
     <script src="{{ asset('dastone/assets/js/jquery.form-upload.init.js') }}"></script>
@@ -83,68 +42,86 @@
     <script src="{{ asset('dastone/plugins/lightbox/jquery.magnific-popup.js') }}"></script>
     <script src="{{ asset('dastone/assets/pages/jquery.lightbox.init.js') }}"></script>
     <script src="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.js') }}"></script>
-
+    <script src="{{ asset('js/bcl/paste-image.js') }}?v={{ filemtime(public_path('js/bcl/paste-image.js')) }}"></script>
     <script>
-        // Global polyfill for $.number if jquery.number plugin file is missing or failed to load.
+        // Fallback when jquery.number is missing: Indonesian grouping.
         if (typeof $.number !== 'function') {
             $.number = function(number, decimals) {
-                try {
-                    var opts = {};
-                    if (typeof decimals === 'number') {
-                        opts.minimumFractionDigits = decimals;
-                        opts.maximumFractionDigits = decimals;
-                    }
-                    return new Intl.NumberFormat('id-ID', opts).format(Number(number || 0));
-                } catch (e) {
-                    var n = Number(number || 0).toFixed(decimals || 0);
-                    return n.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-                }
+                var d = typeof decimals === 'number' ? decimals : 0;
+                return new Intl.NumberFormat('id-ID', { minimumFractionDigits: d, maximumFractionDigits: d }).format(Number(number || 0));
             };
-            // Also provide a simple jQuery element helper to mimic plugin if used as $(el).number(dec)
-            if (typeof $.fn !== 'undefined' && typeof $.fn.number !== 'function') {
-                $.fn.number = function(decimals) {
-                    return this.each(function() {
-                        var $t = $(this);
-                        var val = $t.data('value') !== undefined ? $t.data('value') : $t.text();
-                        $t.text($.number(val, decimals));
-                    });
-                };
-            }
         }
-    </script>
 
-    <!-- App js -->
-    <script src="{{ asset('dastone/default/assets/js/core.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
-    @include('partials.global_emotion_heartbeat')
-    @include('partials.global_chat_widget')
+        // Submit a state-changing link (delete/restore) as POST with the CSRF token.
+        window.bclSubmitPost = function(url) {
+            var $form = $('<form method="POST" style="display:none"></form>').attr('action', url);
+            $form.append($('<input type="hidden" name="_token">').val($('meta[name="csrf-token"]').attr('content')));
+            $('body').append($form);
+            $form.trigger('submit');
+        };
+
+        // Ask for confirmation, then POST to the link's href. Usage: onclick="bclConfirmPost(event, 'Hapus data ini?')"
+        window.bclConfirmPost = function(e, title, content) {
+            e.preventDefault();
+            var url = e.currentTarget.getAttribute('href');
+            $.confirm({
+                title: title || 'Hapus data ini?',
+                content: content || 'Aksi ini tidak dapat diurungkan',
+                theme: document.documentElement.classList.contains('theme-dark') ? 'dark' : 'light',
+                buttons: {
+                    confirm: { text: 'Ya', btnClass: 'btn-red', keys: ['enter'], action: function() { bclSubmitPost(url); } },
+                    cancel: { text: 'Batal', action: function() {} }
+                }
+            });
+        };
+        window.deletes = window.deletes || function(e) { bclConfirmPost(e); };
+
+        window.bclToast = function(message, icon) {
+            $.toast({ text: $('<div>').text(message || '').html(), heading: icon === 'error' ? 'Gagal' : 'Berhasil', position: 'top-center', hideAfter: icon === 'error' ? 8000 : 4000, icon: icon || 'success' });
+        };
+
+        // (Re)initialise select2 and single date pickers on elements added after page load.
+        window.init_component = function() {
+            $('select.select2').each(function() {
+                var $el = $(this);
+                if ($el.hasClass('select2-hidden-accessible')) {
+                    return;
+                }
+                var $modal = $el.closest('.modal');
+                $el.select2({ placeholder: 'Pilih', width: '100%', dropdownParent: $modal.length ? $modal : $(document.body) });
+            });
+            if ($.fn.daterangepicker) {
+                $('.datePicker').each(function() {
+                    if (!$(this).data('daterangepicker')) {
+                        $(this).daterangepicker({ singleDatePicker: true, showDropdowns: true, autoApply: true, locale: { format: 'YYYY-MM-DD' } });
+                    }
+                });
+            }
+        };
+
+        // Switching from one modal to another: keep the body scroll lock while a modal is still open.
+        $(document).on('hidden.bs.modal', '.modal', function() {
+            if ($('.modal.show').length) $('body').addClass('modal-open');
+        });
+
+        // Prevent double submits on every classic form: disable the submit button once.
+        $(document).on('submit', 'form', function(e) {
+            if (e.isDefaultPrevented() || this.method.toLowerCase() === 'get' || this.target === '_blank') return;
+            var $btn = $(this).find('button[type="submit"]');
+            setTimeout(function() { $btn.prop('disabled', true).addClass('disabled'); }, 0);
+        });
+    </script>
     @yield('pagescript')
     <script>
         $(document).ready(function() {
-            $('.select2').select2({
-                placeholder: 'Pilih',
-                width: '100%'
-            });
+            init_component();
             @if($message = Session::get('success'))
-            $.toast({
-                text: "{{ $message }}",
-                heading: 'Result',
-                position: 'top-center',
-                hideAfter: 5000,
-                icon: 'info',
-            });
+            bclToast(@json($message), 'success');
             @endif
             @if($error = Session::get('error'))
-            $.toast({
-                text: "{{ $error }}",
-                heading: 'Result',
-                position: 'top-center',
-                hideAfter: 5000,
-                icon: 'error',
-            });
+            bclToast(@json($error), 'error');
             @endif
+            if (window.feather) feather.replace();
         });
     </script>
-</body>
-
-</html>
+@endsection

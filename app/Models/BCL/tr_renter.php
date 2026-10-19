@@ -27,13 +27,13 @@ class tr_renter extends Model
     }
     public function jurnal()
     {
-        return $this->hasMany(Fin_jurnal::class, 'doc_id', 'trans_id')->where('kode_akun', '4-10101');
+        return $this->hasMany(Fin_jurnal::class, 'doc_id', 'trans_id')
+            ->where('bcl_fin_jurnal.kode_akun', '4-10101')
+            ->where('bcl_fin_jurnal.pos', 'K');
     }
 
     public function tambahan()
     {
         return $this->hasMany(tb_extra_rent::class, 'parent_trans', 'trans_id')->with('jurnal');
-            // ->where('tgl_mulai', '<=', Carbon::now()->format('Y-m-d'))
-            // ->where('tgl_selesai', '>=', Carbon::now()->format('Y-m-d'));
     }
 }
