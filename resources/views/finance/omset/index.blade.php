@@ -67,6 +67,12 @@
     .omz .omz-loading { opacity: .5; transition: opacity .15s; }
     .omz #omz-chart { min-height: 280px; }
     .omz .omz-empty { color: var(--omz-muted); font-size: 13px; padding: .5rem 0; }
+    /* Atur Target modal */
+    .omz .omz-target-table td { vertical-align: middle; }
+    .omz .omz-target-table .omz-row-name { font-weight: 600; }
+    .omz .omz-target-hint { font-size: 11px; color: var(--omz-muted); min-height: 16px; margin-top: 2px; }
+    .omz .omz-target-pct.is-reached { color: var(--dw-good-ink); }
+    .omz .omz-target-table tr.is-dirty td { background: rgba(250, 178, 25, .08); }
 </style>
 
 <div class="container-fluid omz">
@@ -100,6 +106,11 @@
             <button type="button" id="omz-toggle-stats" class="btn btn-sm btn-light" aria-controls="omz-body" aria-expanded="true">
                 <i class="fas fa-eye-slash mr-1"></i><span>Sembunyikan Ringkasan</span>
             </button>
+            @hasanyrole('Admin|Finance')
+                <button type="button" id="omz-open-target" class="btn btn-sm btn-primary">
+                    <i class="fas fa-bullseye mr-1"></i>Atur Target
+                </button>
+            @endhasanyrole
         </div>
     </div>
 
@@ -240,10 +251,69 @@
         </div>
     </div>
 </div>
+
+{{-- Atur Target: monthly revenue target per clinic (finance.omset.targets) --}}
+<div class="modal fade" id="omz-target-modal" tabindex="-1" role="dialog" aria-labelledby="omz-target-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content omz">
+            <div class="modal-header">
+                <h5 class="modal-title" id="omz-target-title">Atur Target Omset</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap align-items-end justify-content-between mb-3" style="gap: .75rem;">
+                    <div>
+                        <label class="small mb-1 d-block" for="omz-target-period">Bulan</label>
+                        <div class="input-group input-group-sm" style="width: 250px;">
+                            <div class="input-group-prepend">
+                                <button type="button" class="btn btn-light border js-target-shift" data-shift="-1" title="Bulan sebelumnya" aria-label="Bulan sebelumnya"><i class="fas fa-chevron-left"></i></button>
+                            </div>
+                            <input type="month" class="form-control form-control-sm" id="omz-target-period">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border js-target-shift" data-shift="1" title="Bulan berikutnya" aria-label="Bulan berikutnya"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="small text-muted text-right">Target dihitung per bulan. Kosongkan nominal untuk menghapus target klinik itu.</div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0 omz-target-table">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Klinik</th>
+                                <th style="width: 200px;">Target</th>
+                                <th class="text-right" style="width: 150px;">Omset Bulan Itu</th>
+                                <th class="text-right" style="width: 100px;">Pencapaian</th>
+                                <th>Catatan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="omz-target-rows">
+                            <tr><td colspan="5" class="omz-empty">Memuat…</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold">
+                                <td>Total</td>
+                                <td data-t="target">-</td>
+                                <td class="text-right" data-t="actual">-</td>
+                                <td class="text-right" data-t="pct">-</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="omz-target-save"><i class="fas fa-save mr-1"></i> Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endhasanyrole
 @endsection
 
 @section('scripts')
+@php($canEditTarget = auth()->user()->hasAnyRole(['Admin', 'Finance']))
 <script>
 $(function() {
     var dataUrl = '{{ route('finance.omset.data') }}';
@@ -562,6 +632,151 @@ $(function() {
             Swal.fire('Gagal', msg, 'error');
         }).always(function() { $btn.prop('disabled', false); });
     });
+
+    // ---- Admin / Finance: monthly target per clinic ("Atur Target") ----
+    var targetUrl = '{{ $canEditTarget ? route('finance.omset.targets') : '' }}';
+    var targetSaveUrl = '{{ $canEditTarget ? route('finance.omset.targets.store') : '' }}';
+    var targetPeriod = null, targetXhr = null;
+    var $targetModal = $('#omz-target-modal');
+    var $targetRows = $('#omz-target-rows');
+
+    function targetHint(value) {
+        var n = Number(value);
+        return value !== '' && n > 0 ? rp(n) : '';
+    }
+
+    function renderTargets(d) {
+        targetPeriod = d.period;
+        $('#omz-target-period').val(d.period);
+        $('#omz-target-title').text('Atur Target Omset · ' + d.period_label);
+        var html = '';
+        $.each(d.clinics, function(i, c) {
+            var name = (c.logo ? '<img src="' + esc(c.logo) + '" alt="">' : '<span class="omz-swatch" style="background:' + c.color + '"></span>')
+                + '<span>' + esc(c.nama) + '</span>';
+            html += '<tr data-id="' + c.id + '" data-actual="' + c.actual + '" data-saved-amount="' + esc(c.target_amount) + '" data-saved-notes="' + esc(c.target_notes) + '">'
+                + '<td><div class="omz-row-name">' + name + '</div>'
+                + '<div class="omz-target-hint">' + (c.updated_at ? 'Diubah ' + esc(c.updated_at) : 'Belum ada target') + '</div></td>'
+                + '<td><div class="input-group input-group-sm"><div class="input-group-prepend"><span class="input-group-text">Rp</span></div>'
+                + '<input type="number" min="0" step="1" class="form-control js-target-amount" value="' + esc(c.target_amount) + '" placeholder="0" aria-label="Target ' + esc(c.nama) + '"></div>'
+                + '<div class="omz-target-hint js-target-hint">' + targetHint(c.target_amount) + '</div></td>'
+                + '<td class="text-right">' + rp(c.actual) + '</td>'
+                + '<td class="text-right font-weight-bold omz-target-pct js-target-pct"></td>'
+                + '<td><input type="text" maxlength="1000" class="form-control form-control-sm js-target-notes" value="' + esc(c.target_notes) + '" placeholder="Opsional" aria-label="Catatan ' + esc(c.nama) + '"></td>'
+                + '</tr>';
+        });
+        $targetRows.html(html || '<tr><td colspan="5" class="omz-empty">Belum ada data klinik.</td></tr>');
+        refreshTargetTotals();
+    }
+
+    // Achievement per row + totals follow what is typed, before saving
+    function refreshTargetTotals() {
+        var totalTarget = 0, totalActual = 0;
+        $targetRows.find('tr[data-id]').each(function() {
+            var $tr = $(this);
+            var amount = $.trim($tr.find('.js-target-amount').val());
+            var target = Number(amount) || 0;
+            var actual = Number($tr.data('actual')) || 0;
+            var p = target > 0 ? actual / target * 100 : null;
+            $tr.find('.js-target-pct').text(p === null ? '-' : pct(p)).toggleClass('is-reached', p !== null && p >= 100);
+            $tr.find('.js-target-hint').text(targetHint(amount));
+            $tr.toggleClass('is-dirty', amount !== String($tr.attr('data-saved-amount'))
+                || $.trim($tr.find('.js-target-notes').val()) !== String($tr.attr('data-saved-notes')));
+            totalTarget += target;
+            totalActual += actual;
+        });
+        $targetModal.find('[data-t="target"]').text(totalTarget > 0 ? rp(totalTarget) : '-');
+        $targetModal.find('[data-t="actual"]').text(rp(totalActual));
+        $targetModal.find('[data-t="pct"]').text(totalTarget > 0 ? pct(totalActual / totalTarget * 100) : '-');
+    }
+
+    function targetsDirty() {
+        return $targetRows.find('tr.is-dirty').length > 0;
+    }
+
+    // The current rows stay (dimmed) until the new month is in, so the modal keeps its height instead of blinking
+    function loadTargets(period) {
+        if ($targetRows.find('tr[data-id]').length) {
+            $targetRows.find('tr.is-dirty').removeClass('is-dirty'); // edits were discarded on purpose
+            $targetRows.addClass('omz-loading').find('input').prop('disabled', true);
+        } else {
+            $targetRows.html('<tr><td colspan="5" class="omz-empty">Memuat…</td></tr>');
+        }
+        $('#omz-target-save').prop('disabled', true);
+        if (targetXhr && targetXhr.readyState !== 4) targetXhr.abort();
+        targetXhr = $.getJSON(targetUrl, { period: period }).done(renderTargets).fail(function(x) {
+            if (x.statusText !== 'abort') $targetRows.html('<tr><td colspan="5" class="omz-empty">Data target gagal dimuat.</td></tr>');
+        }).always(function(d, status) {
+            if (status === 'abort' || (d && d.statusText === 'abort')) return;
+            $targetRows.removeClass('omz-loading');
+            $('#omz-target-save').prop('disabled', false);
+        });
+    }
+
+    function openTargets(period) {
+        loadTargets(period);
+        $targetModal.modal('show');
+    }
+
+    // Defaults to the month the report starts in
+    $('#omz-open-target').on('click', function() {
+        openTargets(moment(startDate).format('YYYY-MM'));
+    });
+
+    $('#omz-target-period').on('change', function() {
+        var period = $(this).val();
+        if (!period || period === targetPeriod) return;
+        if (targetsDirty() && !confirm('Perubahan target ' + moment(targetPeriod + '-01').format('MMMM YYYY') + ' belum disimpan. Pindah bulan tanpa menyimpan?')) {
+            $(this).val(targetPeriod);
+            return;
+        }
+        loadTargets(period);
+    });
+
+    // Arrows: previous / next month, through the same change handler (asks first when there are unsaved edits)
+    $targetModal.on('click', '.js-target-shift', function() {
+        if (!targetPeriod) return;
+        $('#omz-target-period').val(moment(targetPeriod + '-01').add($(this).data('shift'), 'month').format('YYYY-MM')).trigger('change');
+    });
+
+    $targetRows.on('input', 'input', refreshTargetTotals);
+
+    $targetModal.on('hide.bs.modal', function(e) {
+        if (targetsDirty() && !confirm('Perubahan target belum disimpan. Tutup tanpa menyimpan?')) {
+            e.preventDefault();
+        }
+    });
+
+    $('#omz-target-save').on('click', function() {
+        if (!targetPeriod) return;
+        var targets = {};
+        $targetRows.find('tr[data-id]').each(function() {
+            var $tr = $(this);
+            targets[$tr.data('id')] = { amount: $.trim($tr.find('.js-target-amount').val()), notes: $.trim($tr.find('.js-target-notes').val()) };
+        });
+        var $btn = $(this).prop('disabled', true);
+        $.ajax({
+            url: targetSaveUrl,
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', Accept: 'application/json' },
+            data: { period: targetPeriod, targets: targets }
+        }).done(function(res) {
+            renderTargets(res);
+            Swal.fire({ icon: 'success', title: 'Tersimpan', text: res.message, timer: 1600, showConfirmButton: false });
+            // the "Per Klinik" achievement follows the new target
+            loadSummary();
+        }).fail(function(x) {
+            var r = x.responseJSON || {};
+            var msg = r.errors ? $.map(r.errors, function(v) { return v; }).join('\n') : (r.message || 'Gagal menyimpan target.');
+            Swal.fire('Gagal', msg, 'error');
+        }).always(function() { $btn.prop('disabled', false); });
+    });
+
+    // Old Target Revenue URL lands here as ?target=YYYY-MM: open the modal on that month
+    var targetParam = new URLSearchParams(window.location.search).get('target');
+    if (targetUrl && targetParam) {
+        openTargets(/^\d{4}-\d{2}$/.test(targetParam) ? targetParam : moment().format('YYYY-MM'));
+        if (window.history && history.replaceState) history.replaceState({}, '', window.location.pathname);
+    }
 
     applySummaryVisibility(false);
     loadSummary();

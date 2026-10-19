@@ -3,111 +3,84 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
-use App\Models\ERM\Klinik;
 use App\Models\Finance\FinanceRevenueTarget;
+use App\Support\Dashboard\Clinics;
+use App\Support\Dashboard\Revenue;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
-use Illuminate\View\View;
 
+/**
+ * Monthly revenue target per clinic. Edited from Laporan Omset ("Atur Target" modal, Admin / Finance);
+ * the old Target Revenue page URL redirects there and opens the modal.
+ */
 class FinanceRevenueTargetController extends Controller
 {
-    public function index(Request $request): View|JsonResponse
+    /** Old page URL: Laporan Omset with the target modal open on the same month */
+    public function legacy(Request $request): RedirectResponse
     {
-        $period = $this->resolvePeriod($request->query('period'));
-        $payload = $this->buildIndexPayload($period);
-
-        if ($request->expectsJson()) {
-            return response()->json($this->serializePayload($payload));
-        }
-
-        return view('finance.revenue_targets.index', $payload);
+        return redirect()->route('finance.omset.index', [
+            'target' => $this->resolvePeriod($request->query('period'))->format('Y-m'),
+        ]);
     }
 
-    public function store(Request $request): RedirectResponse|JsonResponse
+    public function index(Request $request): JsonResponse
+    {
+        return response()->json($this->payload($this->resolvePeriod($request->query('period'))));
+    }
+
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'period' => ['required', 'date_format:Y-m'],
-            'clinic_ids' => ['required', 'array'],
-            'clinic_ids.*' => ['required', 'integer', 'exists:erm_klinik,id'],
-            'targets' => ['nullable', 'array'],
+            'targets' => ['required', 'array'],
             'targets.*.amount' => ['nullable', 'numeric', 'min:0'],
-            'targets.*.notes' => ['nullable', 'string'],
+            'targets.*.notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $period = $this->resolvePeriod($validated['period']);
-        $clinicIds = collect($validated['clinic_ids'])
-            ->map(fn ($clinicId) => (int) $clinicId)
-            ->unique()
-            ->values();
-        $submittedTargets = collect($validated['targets'] ?? []);
-        $changedClinicIds = [];
+        $clinicIds = Clinics::all()->keys()->map(fn ($id) => (int) $id);
 
-        DB::transaction(function () use ($clinicIds, $submittedTargets, $period, &$changedClinicIds) {
-            foreach ($clinicIds as $clinicId) {
-                $targetPayload = $submittedTargets->get((string) $clinicId, $submittedTargets->get($clinicId, []));
-                $amount = trim((string) ($targetPayload['amount'] ?? ''));
-                $notes = trim((string) ($targetPayload['notes'] ?? ''));
-                $target = FinanceRevenueTarget::query()
-                    ->where('klinik_id', $clinicId)
-                    ->where('periode_bulan', (int) $period->month)
-                    ->where('periode_tahun', (int) $period->year)
-                    ->first();
-                $existingAmount = $target ? number_format((float) $target->target_amount, 2, '.', '') : '';
-                $incomingAmount = $amount !== '' ? number_format(round((float) $amount, 2), 2, '.', '') : '';
-                $existingNotes = trim((string) ($target->notes ?? ''));
-                $hasChanged = $existingAmount !== $incomingAmount || $existingNotes !== $notes;
-
-                if ($hasChanged) {
-                    $changedClinicIds[] = $clinicId;
+        DB::transaction(function () use ($validated, $clinicIds, $period) {
+            foreach ($validated['targets'] as $clinicId => $input) {
+                if (! $clinicIds->contains((int) $clinicId)) {
+                    continue;
                 }
 
+                $amount = trim((string) ($input['amount'] ?? ''));
+                $notes = trim((string) ($input['notes'] ?? ''));
+                $key = [
+                    'klinik_id' => (int) $clinicId,
+                    'periode_bulan' => (int) $period->month,
+                    'periode_tahun' => (int) $period->year,
+                ];
+
+                // empty amount = no target for that clinic this month
                 if ($amount === '') {
-                    if ($target) {
-                        $target->delete();
-                    }
+                    FinanceRevenueTarget::query()->where($key)->delete();
 
                     continue;
                 }
 
-                FinanceRevenueTarget::query()->updateOrCreate(
-                    [
-                        'klinik_id' => $clinicId,
-                        'periode_bulan' => (int) $period->month,
-                        'periode_tahun' => (int) $period->year,
-                    ],
-                    [
-                        'target_amount' => round((float) $amount, 2),
-                        'notes' => $notes !== '' ? $notes : null,
-                    ]
-                );
+                FinanceRevenueTarget::query()->updateOrCreate($key, [
+                    'target_amount' => round((float) $amount, 2),
+                    'notes' => $notes !== '' ? $notes : null,
+                ]);
             }
         });
 
-        $message = 'Target revenue berhasil disimpan.';
-
-        if ($request->expectsJson()) {
-            $payload = $this->buildIndexPayload($period);
-            $responsePayload = $this->serializePayload($payload);
-            $responsePayload['message'] = $message;
-            $responsePayload['saved_clinic_ids'] = array_values(array_unique($changedClinicIds));
-
-            return response()->json($responsePayload, Response::HTTP_OK);
-        }
-
-        return redirect()
-            ->route('finance.revenue-targets.index', ['period' => $period->format('Y-m')])
-            ->with('status', $message);
+        return response()->json($this->payload($period) + [
+            'message' => 'Target ' . $period->translatedFormat('F Y') . ' berhasil disimpan.',
+        ]);
     }
 
     private function resolvePeriod(?string $periodValue): Carbon
     {
         if (is_string($periodValue) && preg_match('/^\d{4}-\d{2}$/', $periodValue) === 1) {
             try {
-                return Carbon::createFromFormat('Y-m', $periodValue)->startOfMonth();
+                return Carbon::createFromFormat('Y-m-d', $periodValue . '-01')->startOfMonth();
             } catch (\Throwable $exception) {
             }
         }
@@ -115,80 +88,39 @@ class FinanceRevenueTargetController extends Controller
         return now()->startOfMonth();
     }
 
-    private function buildIndexPayload(Carbon $period): array
+    private function payload(Carbon $period): array
     {
-        $periodYear = (int) $period->year;
-        $periodMonth = (int) $period->month;
-        $periodStart = $period->copy()->startOfMonth();
-        $periodEnd = $period->copy()->endOfMonth();
-
-        $targetsByClinic = FinanceRevenueTarget::query()
-            ->where('periode_tahun', $periodYear)
-            ->where('periode_bulan', $periodMonth)
+        $targets = FinanceRevenueTarget::query()
+            ->where('periode_tahun', (int) $period->year)
+            ->where('periode_bulan', (int) $period->month)
             ->get()
             ->keyBy('klinik_id');
 
-        // omset (net of returs): klinik_id => total, see Dashboard\Revenue
-        $revenueByClinic = \App\Support\Dashboard\Revenue::byKlinik($periodStart, $periodEnd);
+        // omset (net of returs) of the whole month: klinik_id => total, same as Laporan Omset
+        $omset = Revenue::byKlinik($period->copy()->startOfMonth(), $period->copy()->endOfMonth());
 
-        $clinics = Klinik::query()
-            ->orderBy('nama')
-            ->get(['id', 'nama'])
-            ->map(function (Klinik $clinic) use ($targetsByClinic, $revenueByClinic) {
-                $target = $targetsByClinic->get($clinic->id);
+        $clinics = Clinics::all()->values()->map(function ($klinik) use ($targets, $omset) {
+            $target = $targets->get($klinik->id);
+            $amount = $target ? (float) $target->target_amount : null;
+            $actual = (float) ($omset[$klinik->id] ?? 0);
 
-                $clinic->target_amount = $target ? (float) $target->target_amount : null;
-                $clinic->target_amount_input = $target ? number_format((float) $target->target_amount, 2, '.', '') : '';
-                $clinic->target_notes = $target->notes ?? '';
-                $clinic->target_updated_at = $target?->updated_at;
-                $clinic->actual_revenue = (float) ($revenueByClinic[$clinic->id] ?? 0);
-                $clinic->achievement_percentage = ($clinic->target_amount ?? 0) > 0
-                    ? ($clinic->actual_revenue / $clinic->target_amount) * 100
-                    : null;
-
-                return $clinic;
-            });
+            return [
+                'id' => (int) $klinik->id,
+                'nama' => $klinik->nama,
+                'color' => $klinik->color,
+                'logo' => $klinik->logo,
+                'target_amount' => $target ? (string) round($amount) : '',
+                'target_notes' => $target->notes ?? '',
+                'updated_at' => $target?->updated_at?->translatedFormat('d M Y H:i'),
+                'actual' => $actual,
+                'pct' => $amount > 0 ? $actual / $amount * 100 : null,
+            ];
+        });
 
         return [
+            'period' => $period->format('Y-m'),
+            'period_label' => $period->translatedFormat('F Y'),
             'clinics' => $clinics,
-            'period' => $period,
-            'periodValue' => $period->format('Y-m'),
-            'totalTarget' => (float) $clinics->sum(function (Klinik $clinic) {
-                return $clinic->target_amount ?? 0;
-            }),
-            'totalActualRevenue' => (float) $clinics->sum(function (Klinik $clinic) {
-                return $clinic->actual_revenue ?? 0;
-            }),
-            'configuredClinicCount' => (int) $clinics->filter(function (Klinik $clinic) {
-                return ($clinic->target_amount ?? 0) > 0;
-            })->count(),
-        ];
-    }
-
-    private function serializePayload(array $payload): array
-    {
-        return [
-            'period_label' => $payload['period']->translatedFormat('F Y'),
-            'period_value' => $payload['periodValue'],
-            'total_target' => (float) $payload['totalTarget'],
-            'total_actual_revenue' => (float) $payload['totalActualRevenue'],
-            'configured_clinic_count' => (int) $payload['configuredClinicCount'],
-            'clinic_count' => (int) $payload['clinics']->count(),
-            'clinics' => $payload['clinics']->map(function (Klinik $clinic) {
-                return [
-                    'id' => (int) $clinic->id,
-                    'nama' => $clinic->nama,
-                    'target_amount_input' => $clinic->target_amount_input,
-                    'target_notes' => $clinic->target_notes,
-                    'actual_revenue' => (float) ($clinic->actual_revenue ?? 0),
-                    'achievement_percentage' => $clinic->achievement_percentage !== null
-                        ? (float) $clinic->achievement_percentage
-                        : null,
-                    'target_updated_at_label' => $clinic->target_updated_at
-                        ? $clinic->target_updated_at->translatedFormat('d M Y H:i')
-                        : '-',
-                ];
-            })->values(),
         ];
     }
 }

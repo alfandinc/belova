@@ -1349,8 +1349,8 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
             Route::get('/jurnal/{jurnal}', [FinanceJurnalController::class, 'show'])->name('finance.jurnal.show');
             Route::put('/jurnal/{jurnal}', [FinanceJurnalController::class, 'update'])->name('finance.jurnal.update');
             Route::delete('/jurnal/{jurnal}', [FinanceJurnalController::class, 'destroy'])->name('finance.jurnal.destroy');
-            Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.revenue-targets.index');
-            Route::post('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.revenue-targets.store');
+            // Old Target Revenue page: targets are now set from Laporan Omset ("Atur Target")
+            Route::get('/revenue-targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'legacy'])->name('finance.revenue-targets.index');
         });
         });
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
@@ -1435,6 +1435,11 @@ Route::prefix('finance')->middleware('role:Admin|Finance|Manager|Ceo')->group(fu
         ->whereNumber('id')->middleware('role:Admin|Finance')->name('finance.omset.transaction-date');
     Route::put('/omset/returs/{id}/date', [\App\Http\Controllers\Finance\OmsetController::class, 'updateReturDate'])
         ->whereNumber('id')->middleware('role:Admin|Finance')->name('finance.omset.retur-date');
+    // "Atur Target" modal: monthly revenue target per clinic (Manager / Ceo only see the achievement)
+    Route::middleware('role:Admin|Finance')->group(function () {
+        Route::get('/omset/targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'index'])->name('finance.omset.targets');
+        Route::post('/omset/targets', [\App\Http\Controllers\Finance\FinanceRevenueTargetController::class, 'store'])->name('finance.omset.targets.store');
+    });
 });
 
 // Pengajuan Dana (company-wide fund request): same roles as the finance group above, plus Ceo
