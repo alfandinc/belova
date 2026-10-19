@@ -23,7 +23,8 @@ class DailyJournalWidget implements Widget
         $end = $filter['period_end']->copy()->endOfDay();
         $today = Carbon::today();
 
-        $teamUserIds = app(JournalTeam::class)->memberUserIds($user);
+        $journalTeam = app(JournalTeam::class);
+        $teamUserIds = $journalTeam->memberUserIds($user);
         $canTeam = $teamUserIds !== null;
         $mode = $canTeam && request()->input('daily_journal_mode') === 'team' ? 'team' : 'my';
 
@@ -34,10 +35,10 @@ class DailyJournalWidget implements Widget
             });
 
         if ($mode === 'team') {
-            // null = everyone (Hrd / Admin / Ceo)
-            if ($teamUserIds !== true) {
-                $query->whereIn('user_id', $teamUserIds ?: [0]);
-            }
+            // true = everyone (Hrd / Admin / Ceo): active employees only, plus the viewer
+            $query->whereIn('user_id', $teamUserIds === true
+                ? array_merge($journalTeam->activeUserIds(), [(int) $user->id])
+                : ($teamUserIds ?: [0]));
         } else {
             $query->where('user_id', $user->id);
         }

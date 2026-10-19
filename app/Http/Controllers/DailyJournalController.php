@@ -265,8 +265,12 @@ class DailyJournalController extends Controller
             ->get()
             ->groupBy('user_id');
 
-        // Everyone (Hrd / Admin / Ceo): only people who have something in the period, to keep the list readable
-        $userIds = $memberIds === true ? $rows->keys()->all() : $memberIds;
+        // Everyone (Hrd / Admin / Ceo): only active employees who have something in the period, to keep the list readable
+        // (subordinate lists are cached, so they are filtered again for someone deactivated since)
+        $userIds = array_values(array_intersect(
+            $memberIds === true ? $rows->keys()->map(fn ($id) => (int) $id)->all() : $memberIds,
+            $this->team->activeUserIds()
+        ));
 
         $members = User::query()
             ->select(['id', 'name'])

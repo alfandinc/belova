@@ -72,7 +72,24 @@ class JournalTeam
 
         $ids = $this->memberUserIds($user);
 
-        return $ids === true || (is_array($ids) && in_array($memberUserId, $ids, true));
+        return ($ids === true && in_array($memberUserId, $this->activeUserIds(), true))
+            || (is_array($ids) && in_array($memberUserId, $ids, true));
+    }
+
+    /**
+     * User ids of active employees (Employee's global scope drops "tidak aktif"). Used for the
+     * "everyone" view of Hrd / Admin / Ceo, so resigned staff and accounts without an employee record
+     * don't show up as team members.
+     */
+    public function activeUserIds(): array
+    {
+        return $this->memo['active'] ??= Employee::query()
+            ->whereNotNull('user_id')
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /** User ids of the direct manager(s), who receive the daily report. */
