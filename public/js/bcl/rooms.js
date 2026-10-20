@@ -45,6 +45,11 @@
         return '<i data-feather="' + name + '"></i>';
     }
 
+    // Nota number that opens the print preview modal (layouts/bcl/app.blade.php) instead of a new tab.
+    function notaLink(transId) {
+        return '<a class="bcl-link js-print-preview" href="' + url('print', transId) + '" data-label="' + esc(transId) + '">' + esc(transId) + '</a>';
+    }
+
     function feather() {
         if (window.feather) window.feather.replace();
     }
@@ -280,7 +285,7 @@
                 if (room.kurang > 0) acts += action('pay', 'credit-card', 'Terima Pembayaran', 'Sisa ' + rp(room.kurang));
                 acts += action('process_checkout', 'log-out', 'Sudah Keluar', 'Tagih hari lewat, checklist, jaminan', 'is-danger');
                 acts += action('guarantee', 'shield', 'Uang Jaminan', room.jaminan > 0 ? 'Saldo ' + rp(room.jaminan) : 'Belum ada');
-                acts += '<a class="bcl-action" href="' + url('print', room.trans_id) + '" target="_blank" rel="noopener">' + icon('printer') + '<span>Cetak Nota</span></a>';
+                acts += '<a class="bcl-action js-print-preview" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
                 html += '<div class="bcl-section"><div class="bcl-section__title">Aksi</div><div class="bcl-actions">' + acts + '</div></div>';
                 acts = null;
             }
@@ -292,7 +297,7 @@
             if (!room.has_checkin) acts += action('checkin', 'clipboard', 'Check-in Kamar', 'Belum dicatat');
             acts += action('guarantee', 'shield', 'Uang Jaminan', room.jaminan > 0 ? 'Saldo ' + rp(room.jaminan) : 'Belum ada');
             acts += action('process_checkout', 'log-out', 'Proses Keluar', 'Checklist, jaminan, refund', 'is-danger');
-            acts += '<a class="bcl-action" href="' + url('print', room.trans_id) + '" target="_blank" rel="noopener">' + icon('printer') + '<span>Cetak Nota</span></a>';
+            acts += '<a class="bcl-action js-print-preview" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
             html += '<div class="bcl-section"><div class="bcl-section__title">Aksi</div><div class="bcl-actions">' + acts + '</div></div>';
             }
         } else {
@@ -305,7 +310,7 @@
             html += '<div class="bcl-section"><div class="bcl-section__title">Antrian booking</div><ul class="bcl-list">' +
                 room.bookings.map(function (b) {
                     return '<li><span>' + esc(b.renter || '-') + '<div class="muted">' + fmtDate(b.start) + ' – ' + fmtDate(b.end) + '</div></span>' +
-                        '<span class="text-right"><a class="bcl-link" href="' + url('print', b.trans_id) + '" target="_blank">' + esc(b.trans_id) + '</a>' +
+                        '<span class="text-right">' + notaLink(b.trans_id) +
                         (cfg.canSupervise ? '<br><a class="bcl-link text-danger js-cancel-booking" data-trans="' + esc(b.trans_id) + '" data-label="' + esc((b.renter || '') + ' ' + fmtDate(b.start)) + '">Batalkan</a>' : '') + '</span></li>';
                 }).join('') + '</ul></div>';
         }
@@ -318,9 +323,12 @@
         side += '<div class="bcl-section"><div class="bcl-section__title">Harga paket ' + esc(room.category_name || '') + '</div><ul class="bcl-list" id="room_prices"><li class="muted">Memuat...</li></ul></div>';
         side += '<div class="bcl-section"><div class="bcl-section__title">WiFi <a class="bcl-link" data-act="wifi">Ubah</a></div><div class="bcl-hint" id="room_wifi">Memuat...</div></div>';
         if (room.notes) side += '<div class="bcl-section"><div class="bcl-section__title">Catatan kamar</div><div class="bcl-hint">' + esc(room.notes) + '</div></div>';
-        side += '<div class="bcl-section"><div class="bcl-section__title">Riwayat transaksi <a class="bcl-link" data-act="history">Tampilkan</a></div><div id="room_history"></div></div>';
+        side += '<div class="bcl-section"><div class="bcl-section__title">Riwayat transaksi <a class="bcl-link" data-act="history" id="room_history_toggle">' + (state.historyOpen ? 'Sembunyikan' : 'Tampilkan') + '</a></div>' +
+            '<div class="bcl-hint">Daftar sewa kamar ini, terbuka di kolom samping.</div></div>';
+        var historyCol = '<div class="bcl-room-history-col"><div class="bcl-section"><div class="bcl-section__title">Riwayat transaksi <a class="bcl-link" data-act="history">Tutup</a></div><div id="room_history"></div></div></div>';
 
-        $('#room_body').html('<div class="bcl-room-grid"><div class="bcl-room-main">' + html + '</div><div class="bcl-room-side">' + side + '</div></div>');
+        $('#room_body').html('<div class="bcl-room-grid"><div class="bcl-room-main">' + html + '</div><div class="bcl-room-side">' + side + '</div>' + historyCol + '</div>');
+        if (state.historyOpen) loadHistory(room);
         feather();
 
         pricelistOf(room.room_category).done(function (list) {
@@ -351,7 +359,16 @@
     }
 
     $(document).on('click', '.bcl-room', function () { openRoom($(this).data('room')); });
-    $('#md_room').on('hidden.bs.modal', function () { state.openRoomId = null; });
+    $('#md_room').on('hidden.bs.modal', function () {
+        state.openRoomId = null;
+        setHistoryOpen(false);
+    });
+
+    function setHistoryOpen(open) {
+        state.historyOpen = open;
+        $('#md_room').toggleClass('is-expanded', open);
+        $('#room_history_toggle').text(open ? 'Sembunyikan' : 'Tampilkan');
+    }
 
     $('#md_room').on('click', '[data-act]', function (e) {
         var room = roomById(state.openRoomId);
@@ -372,7 +389,10 @@
             case 'guarantee': openGuarantee(room.id_renter, room.nama, room.jaminan); break;
             case 'renter': openRenter(room.id_renter); break;
             case 'wifi': openWifi(room); break;
-            case 'history': loadHistory(room); break;
+            case 'history':
+                setHistoryOpen(!state.historyOpen);
+                if (state.historyOpen) loadHistory(room);
+                break;
         }
     });
     $('#room_edit_btn').on('click', function () { openRoomForm(state.openRoomId); });
@@ -383,7 +403,7 @@
             var rows = (res.transactions || []).map(function (t) {
                 var total = (t.harga || 0) + (t.extra_total || 0);
                 var lunas = (t.paid_total || 0) >= total - 0.5;
-                return '<li><span><a class="bcl-link" href="' + url('print', t.trans_id) + '" target="_blank">' + esc(t.trans_id) + '</a> · ' + esc(t.renter_name || '-') +
+                return '<li><span>' + notaLink(t.trans_id) + ' · ' + esc(t.renter_name || '-') +
                     '<div class="muted">' + fmtDate(t.tgl_mulai) + ' – ' + fmtDate(t.tgl_selesai) + (t.bukti_transfer_url ? ' · <a href="' + esc(t.bukti_transfer_url) + '" target="_blank">bukti</a>' : '') + '</div></span>' +
                     '<span class="text-right">' + rp(total) + '<div>' + (lunas ? '<span class="bcl-pill is-good">Lunas</span>' : '<span class="bcl-pill is-bad">Kurang ' + rp(total - t.paid_total) + '</span>') + '</div></span></li>';
             });
@@ -964,7 +984,7 @@
                     '<div class="muted">saldo ' + rp(row.saldo) + '</div></span></li>';
             }).join('');
             var trx = (res.transactions || []).map(function (t) {
-                return '<li><span><a class="bcl-link" href="' + url('print', t.trans_id) + '" target="_blank">' + esc(t.trans_id) + '</a> · Kamar ' + esc(t.room_name || '-') +
+                return '<li><span>' + notaLink(t.trans_id) + ' · Kamar ' + esc(t.room_name || '-') +
                     '<div class="muted">' + fmtDate(t.tgl_mulai) + ' – ' + fmtDate(t.tgl_selesai) + '</div></span><span class="text-right">' + rp(t.harga + t.extra_total) +
                     '<div>' + (t.remaining_total > 0 ? '<span class="bcl-pill is-bad">Kurang ' + rp(t.remaining_total) + '</span>' : '<span class="bcl-pill is-good">Lunas</span>') + '</div></span></li>';
             }).join('');

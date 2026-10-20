@@ -1,4 +1,8 @@
-@extends('layouts.bcl.app')
+{{-- ?embed=1: bare page for the print preview modal (layouts.bcl.print); otherwise the normal BCL page --}}
+@extends(request()->boolean('embed') ? 'layouts.bcl.print' : 'layouts.bcl.app')
+@php($embed = request()->boolean('embed'))
+
+@section('title', 'Nota ' . $transaksi->trans_id)
 
 @section('bcl-content')
 <!-- Page-Title -->
@@ -13,18 +17,18 @@ foreach ($transaksi->jurnal as $jurnal) {
 }
 // generate QR code for the signed user name (used in TTD section)
 $__signedUserName = Auth::user()->name ?? '';
-// Prefer embedding the QR image as a data URI so client-side canvas captures include it.
+// Embedded as a data URI so the PNG download (html2canvas) includes it. Fetched once per name and cached:
+// the remote call used to run on every nota view with no timeout.
 $__signedUserQrRemote = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' . urlencode($__signedUserName);
-$__signedUserQr = $__signedUserQrRemote;
-try {
-    // attempt server-side fetch and base64 encode
-    $qr_contents = @file_get_contents($__signedUserQrRemote);
-    if ($qr_contents !== false) {
-        $mime = 'image/png';
-        $__signedUserQr = 'data:' . $mime . ';base64,' . base64_encode($qr_contents);
+$__signedUserQr = \Illuminate\Support\Facades\Cache::get('bcl:nota-qr:' . md5($__signedUserName));
+if (!$__signedUserQr) {
+    $qr_contents = @file_get_contents($__signedUserQrRemote, false, stream_context_create(['http' => ['timeout' => 3]]));
+    if ($qr_contents !== false && $qr_contents !== '') {
+        $__signedUserQr = 'data:image/png;base64,' . base64_encode($qr_contents);
+        \Illuminate\Support\Facades\Cache::put('bcl:nota-qr:' . md5($__signedUserName), $__signedUserQr, now()->addDays(30));
+    } else {
+        $__signedUserQr = $__signedUserQrRemote;
     }
-} catch (\Exception $e) {
-    // ignore, keep remote URL
 }
 ?>
 @section('page_css')
@@ -44,7 +48,7 @@ try {
     }
 </style>
 @endsection
-<div class="row">
+<div class="row {{ $embed ? 'd-none' : '' }}">
     <div class="col-sm-12">
         <div class="page-title-box">
             <div class="row">
@@ -260,7 +264,7 @@ try {
                             </div>
                             <!--end col-->
                             <div class="col-lg-12 col-xl-4">
-                                <div class="row float-right d-print-none">
+                                <div class="row float-right d-print-none {{ $embed ? 'd-none' : '' }}">
                                     <a class="btn btn-danger btn-sm mr-2" href="{{route('bcl.transaksi.index')}}"><i class="mdi mdi-chevron-left"></i> Kembali</a>
                                     <button type="button" onclick="download_receipt()" class="btn btn-success btn-sm"><i class="mdi mdi-download"></i> Download</button>
                                 </div>

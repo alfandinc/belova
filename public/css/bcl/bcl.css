@@ -294,8 +294,37 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     border-radius: var(--bcl-radius);
 }
 
+/*
+ * Snappier modals on BCL pages (bcl.css is only loaded there). Bootstrap fades the backdrop first and only
+ * then slides the dialog in (150 ms + 300 ms = ~450 ms before a modal is usable). Bootstrap times both steps
+ * from these CSS durations, so shortening them shortens the whole sequence: ~80 ms + 180 ms.
+ */
+.modal-backdrop.fade { transition: opacity .08s linear; }
+.modal.fade { transition: opacity .12s linear; }
+.modal.fade .modal-dialog { transition: transform .18s cubic-bezier(.2, .8, .3, 1); transform: translate(0, 8px) scale(.985); }
+.modal.show .modal-dialog { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+    .modal-backdrop.fade, .modal.fade, .modal.fade .modal-dialog { transition: none; }
+}
+
 /* Room detail modal: tenant, payment and actions on the left, room info on the right */
-.bcl-room-modal .modal-dialog { max-width: 920px; }
+.bcl-room-modal .modal-dialog { max-width: 920px; transition: max-width .2s ease, transform .18s cubic-bezier(.2, .8, .3, 1); }
+/* "Riwayat transaksi" opens as a third column: the modal widens sideways instead of growing downwards */
+.bcl-room-modal.is-expanded .modal-dialog { max-width: min(1360px, calc(100vw - 32px)); }
+.bcl-room-history-col { display: none; min-width: 0; }
+.bcl-room-modal.is-expanded .bcl-room-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.15fr); }
+.bcl-room-modal.is-expanded .bcl-room-history-col { display: block; border-left: 1px solid var(--bcl-line); padding-left: 24px; }
+.bcl-room-history-col .bcl-list { max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 4px; }
+@media (max-width: 1199.98px) {
+    .bcl-room-modal.is-expanded .bcl-room-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+    .bcl-room-modal.is-expanded .bcl-room-history-col { grid-column: 1 / -1; border-left: 0; padding-left: 0; border-top: 1px solid var(--bcl-line); padding-top: 16px; }
+}
+
+/* Print preview modal: the document in an iframe, as tall as the screen allows */
+.bcl-print-modal .modal-dialog { max-width: min(1100px, calc(100vw - 32px)); }
+.bcl-print-body { position: relative; height: calc(100vh - 190px); min-height: 360px; background: #fff; }
+.bcl-print-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+.bcl-print-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #64748b; background: #fff; }
 .bcl-room-modal .modal-content { background: var(--bcl-surface); }
 .bcl-room-modal__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 20px 12px; border-bottom: 1px solid var(--bcl-line); }
 .bcl-room-modal__title { font-size: 20px; font-weight: 700; color: var(--bcl-ink); margin: 0; }
@@ -307,6 +336,7 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 @media (max-width: 767.98px) {
     .bcl-room-grid { grid-template-columns: 1fr; gap: 0; }
     .bcl-room-grid > .bcl-room-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--bcl-line); padding-top: 16px; }
+    .bcl-room-modal.is-expanded .bcl-room-grid { grid-template-columns: 1fr; }
 }
 .bcl-section { margin-bottom: 18px; }
 .bcl-section__title {

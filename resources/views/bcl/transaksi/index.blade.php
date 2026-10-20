@@ -104,7 +104,7 @@
                                     @if($overdue->has($trx->trans_id))
                                     <a class="btn btn-xs btn-outline-danger" href="{{ route('bcl.transaksi.checkout', ['trans_id' => $trx->trans_id]) }}" onclick="bclConfirmPost(event, 'Penghuni sudah keluar?', 'Kamar akan tampil kosong. Tunggakan (jika ada) tetap tercatat.')" title="Konfirmasi sudah keluar"><i class="fas fa-door-open"></i></a>
                                     @endif
-                                    <a class="btn btn-xs btn-outline-info" href="{{ route('bcl.transaksi.cetak', $trx->trans_id) }}" target="_blank" title="Cetak nota"><i class="fas fa-print"></i></a>
+                                    <a class="btn btn-xs btn-outline-info js-print-preview" href="{{ route('bcl.transaksi.cetak', $trx->trans_id) }}" data-label="{{ $trx->trans_id }}" title="Cetak nota"><i class="fas fa-print"></i></a>
                                     <a class="btn btn-xs btn-outline-danger" href="{{ route('bcl.transaksi.delete', $trx->trans_id) }}" onclick="bclConfirmPost(event, 'Hapus transaksi {{ $trx->trans_id }}?', 'Semua pembayaran, tambahan sewa dan pemakaian deposit transaksi ini ikut dihapus.')" title="Hapus transaksi"><i class="fas fa-trash"></i></a>
                                 </td>
                             </tr>
