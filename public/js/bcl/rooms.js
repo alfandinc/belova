@@ -323,7 +323,7 @@
         $('#room_body').html('<div class="bcl-room-grid"><div class="bcl-room-main">' + html + '</div><div class="bcl-room-side">' + side + '</div></div>');
         feather();
 
-        $.getJSON(url('pricelist', room.room_category)).done(function (list) {
+        pricelistOf(room.room_category).done(function (list) {
             $('#room_prices').html((list || []).map(function (pl) {
                 var bonus = parseInt(pl.bonus_waktu, 10) > 0 ? ' <span class="muted">+ bonus ' + pl.bonus_waktu + ' ' + esc(pl.bonus_sewa || '') + '</span>' : '';
                 return '<li><span>' + esc(pl.jangka_waktu + ' ' + pl.jangka_sewa) + bonus + '</span><strong>' + rp(pl.price) + '</strong></li>';
@@ -333,6 +333,15 @@
             var wifi = res.wifi;
             $('#room_wifi').html(wifi ? 'SSID <strong>' + esc(wifi.ssid) + '</strong> · Password <strong>' + esc(wifi.password || '-') + '</strong>' : 'Belum ada WiFi aktif.');
         });
+    }
+
+    // Packages per room category, fetched once per page visit (room panel + Sewa form share it).
+    var pricelistCache = {};
+    function pricelistOf(categoryId) {
+        if (!pricelistCache[categoryId]) {
+            pricelistCache[categoryId] = $.getJSON(url('pricelist', categoryId)).fail(function () { delete pricelistCache[categoryId]; });
+        }
+        return pricelistCache[categoryId];
     }
 
     function openRoom(id) {
@@ -402,7 +411,7 @@
         $('#pricelist').html('<option value="">Memuat...</option>').trigger('change.select2');
         updateSewaHint();
         if (!categoryId) return;
-        $.getJSON(url('pricelist', categoryId)).done(function (list) {
+        pricelistOf(categoryId).done(function (list) {
             var options = (list || []).map(function (pl) {
                 var bonus = parseInt(pl.bonus_waktu, 10) > 0 ? ' + bonus ' + pl.bonus_waktu + ' ' + (pl.bonus_sewa || '') : '';
                 return '<option value="' + pl.id + '" data-harga="' + pl.price + '" data-lama="' + pl.jangka_waktu + '" data-jangka="' + esc(pl.jangka_sewa) + '" data-bonus="' + (pl.bonus_waktu || 0) + '" data-bonus-jangka="' + esc(pl.bonus_sewa || '') + '">' +

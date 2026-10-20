@@ -12,14 +12,19 @@
 @endsection
 
 @section('styles')
-    {{-- Full DataTables build (Buttons export, RowGroup) used by the BCL tables --}}
-    <link href="{{ asset('dastone/vendor/datatable/datatables.min.css') }}" rel="stylesheet" />
+    {{--
+        Pages that declare @section('bcl-lite') (Daftar Kamar, Inventaris) skip the heavy plugins: the full
+        DataTables build (2.6 MB, Buttons export + RowGroup; the clinic layout already has core DataTables),
+        dropify, lightbox and the drag-drop uploader.
+    --}}
+    @unless (View::hasSection('bcl-lite'))
+        <link href="{{ asset('dastone/vendor/datatable/datatables.min.css') }}" rel="stylesheet" />
+        <link href="{{ asset('dastone/plugins/dropify/css/dropify.min.css') }}" rel="stylesheet">
+        <link href="{{ asset('dastone/plugins/lightbox/magnific-popup.css') }}" rel="stylesheet" />
+        <link href="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.css') }}" rel="stylesheet">
+    @endunless
     <link href="{{ asset('dastone/plugins/jquery-toast/dist/jquery.toast.min.css') }}" rel="stylesheet" />
     <link href="{{ asset('dastone/plugins/jquery-confirm/jquery-confirm.min.css') }}" rel="stylesheet" />
-    <link href="{{ asset('dastone/plugins/dropify/css/dropify.min.css') }}" rel="stylesheet">
-    <link href="{{ asset('dastone/plugins/lightbox/magnific-popup.css') }}" rel="stylesheet" />
-    <link href="{{ asset('dastone/plugins/font-awesome-animation/font-awesome-animation.css') }}" rel="stylesheet">
-    <link href="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('css/bcl/bcl.css') }}?v={{ filemtime(public_path('css/bcl/bcl.css')) }}">
     @yield('pagecss')
 @endsection
@@ -32,16 +37,14 @@
 @endsection
 
 @section('scripts')
-    <script src="{{ asset('dastone/vendor/datatable/datatables.min.js') }}"></script>
+    @unless (View::hasSection('bcl-lite'))
+        <script src="{{ asset('dastone/vendor/datatable/datatables.min.js') }}"></script>
+        <script src="{{ asset('dastone/plugins/dropify/js/dropify.min.js') }}"></script>
+        <script src="{{ asset('dastone/plugins/lightbox/jquery.magnific-popup.js') }}"></script>
+        <script src="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.js') }}"></script>
+    @endunless
     <script src="{{ asset('dastone/plugins/jquery-toast/dist/jquery.toast.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/input_money/jquery.inputmask.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/jquery-confirm/jquery-confirm.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/dropify/js/dropify.min.js') }}"></script>
-    <script src="{{ asset('dastone/assets/js/jquery.form-upload.init.js') }}"></script>
-    <script src="{{ asset('dastone/assets/js/jquery.number.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/lightbox/jquery.magnific-popup.js') }}"></script>
-    <script src="{{ asset('dastone/assets/pages/jquery.lightbox.init.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.js') }}"></script>
     <script src="{{ asset('js/bcl/paste-image.js') }}?v={{ filemtime(public_path('js/bcl/paste-image.js')) }}"></script>
     <script>
         // Delete/refund/correction actions need the bcl.supervisor permission (server enforces it too).

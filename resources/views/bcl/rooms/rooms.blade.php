@@ -1,6 +1,7 @@
 @extends('layouts.bcl.app')
 
 @section('title', 'Daftar Kamar')
+@section('bcl-lite', '1')
 
 @section('bcl-content')
 <div class="page-title-box d-flex flex-wrap align-items-center justify-content-between" style="gap: 10px;">

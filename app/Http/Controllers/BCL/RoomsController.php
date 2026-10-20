@@ -287,7 +287,7 @@ class RoomsController extends Controller
             ->first();
 
         $unpaid = $this->rental->unpaidItems();
-        $assets = $this->rental->extraBedAssets();
+        $extraBeds = $this->rental->extraBedCounts();
 
         return [
             'month' => $today->translatedFormat('F Y'),
@@ -296,8 +296,8 @@ class RoomsController extends Controller
             'expense' => (float) $cash->keluar,
             'receivable' => (float) $unpaid->sum('kurang'),
             'unpaid_count' => $unpaid->count(),
-            'extra_bed_available' => $assets->where('status', 'Tersedia')->count(),
-            'extra_bed_total' => $assets->count(),
+            'extra_bed_available' => $extraBeds['available'],
+            'extra_bed_total' => $extraBeds['total'],
         ];
     }
 

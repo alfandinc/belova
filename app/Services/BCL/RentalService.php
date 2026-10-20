@@ -37,6 +37,9 @@ class RentalService
 
     protected ?Collection $unpaidCache = null;
 
+    /** Daily pricelist row per room category (null = none), see dailyRate() */
+    protected ?array $dailyPriceCache = null;
+
     public static function methodNeedsProof(?string $method): bool
     {
         return $method !== null && $method !== '' && $method !== 'Tunai';
@@ -140,10 +143,14 @@ class RentalService
     public function dailyRate(tr_renter $trx): float
     {
         $category = optional($trx->room)->room_category;
-        $daily = \App\Models\BCL\Pricelist::where('room_category', $category)
-            ->whereRaw('LOWER(jangka_sewa) = ?', ['hari'])
-            ->orderBy('jangka_waktu')
-            ->first();
+        // The room page asks once per overdue room: look up each category's daily price once.
+        $this->dailyPriceCache ??= [];
+        $daily = array_key_exists((string) $category, $this->dailyPriceCache)
+            ? $this->dailyPriceCache[(string) $category]
+            : $this->dailyPriceCache[(string) $category] = \App\Models\BCL\Pricelist::where('room_category', $category)
+                ->whereRaw('LOWER(jangka_sewa) = ?', ['hari'])
+                ->orderBy('jangka_waktu')
+                ->first();
         if ($daily) {
             return round((float) $daily->price / max((int) $daily->jangka_waktu, 1));
         }
@@ -442,9 +449,13 @@ class RentalService
     public function activeRoomsByRenter(iterable $renterIds): Collection
     {
         $today = Carbon::today()->format('Y-m-d');
+        $ids = collect($renterIds)->filter()->unique()->values();
+        if ($ids->isEmpty()) {
+            return collect();
+        }
 
         return tr_renter::with('room')
-            ->whereIn('id_renter', collect($renterIds)->filter()->unique()->values())
+            ->whereIn('id_renter', $ids)
             ->whereDate('tgl_mulai', '<=', $today)
             ->whereDate('tgl_selesai', '>', $today)
             ->orderByDesc('tgl_mulai')
@@ -454,6 +465,19 @@ class RentalService
     }
 
     // ------------------------------------------------------------ extra bed
+
+    /** Extra bed units in use today vs total, in two count queries (the room page only shows "available/total"). */
+    public function extraBedCounts(): array
+    {
+        ExtraBedAsset::ensureDefaultAssets();
+        $today = Carbon::today()->format('Y-m-d');
+        $total = ExtraBedAsset::count();
+        $inUse = ExtraBedAsset::whereHas('assignments.extraRent', fn ($q) => $q
+            ->whereDate('tgl_mulai', '<=', $today)
+            ->whereDate('tgl_selesai', '>', $today))->count();
+
+        return ['available' => max($total - $inUse, 0), 'total' => $total];
+    }
 
     public function extraBedAssets(): Collection
     {
