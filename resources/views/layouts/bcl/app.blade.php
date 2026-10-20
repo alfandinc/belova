@@ -34,26 +34,8 @@
         @yield('bcl-content')
         <span id="button_export" class="m-0 p-0 hidden"></span>
 
-        {{-- Print preview: links with class "js-print-preview" open their document here (?embed=1) instead of a new tab --}}
-        <div class="modal fade bcl-print-modal" id="bcl_print_modal" tabindex="-1" role="dialog" aria-hidden="true">
-            <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="bcl_print_title">Preview</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
-                    </div>
-                    <div class="modal-body p-0 bcl-print-body">
-                        <div class="bcl-print-loading" id="bcl_print_loading">Memuat dokumen...</div>
-                        <iframe id="bcl_print_frame" title="Preview dokumen"></iframe>
-                    </div>
-                    <div class="modal-footer">
-                        <a href="#" class="btn btn-light mr-auto" id="bcl_print_tab" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Buka di tab baru</a>
-                        <button type="button" class="btn btn-success" id="bcl_print_download" style="display:none"><i class="fas fa-download"></i> Download</button>
-                        <button type="button" class="btn btn-primary" id="bcl_print_print" disabled><i class="fas fa-print"></i> Cetak</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {{-- Links with class "js-print" load their document (?embed=1) here, off-screen, and open the print dialog --}}
+        <iframe id="bcl_print_frame" class="bcl-print-frame" title="Dokumen cetak" aria-hidden="true" tabindex="-1"></iframe>
     </div>
 @endsection
 
@@ -132,43 +114,30 @@
             if ($('.modal.show').length) $('body').addClass('modal-open');
         });
 
-        // Print preview modal (nota, refund): the document loads bare (?embed=1) in an iframe; Cetak prints only
-        // the iframe, Download uses the document's own download_receipt() when it has one.
-        window.bclPrintPreview = function(url, title) {
+        // Direct print (nota, refund): the document loads bare (?embed=1) in an off-screen iframe and the browser's
+        // print dialog opens as soon as it (logo and QR included) has loaded. No new tab, no preview step.
+        window.bclPrint = function(url) {
             var frame = document.getElementById('bcl_print_frame');
-            var embedUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'embed=1';
-            $('#bcl_print_title').text(title || 'Preview');
-            $('#bcl_print_tab').attr('href', url);
-            $('#bcl_print_print').prop('disabled', true);
-            $('#bcl_print_download').hide();
-            $('#bcl_print_loading').show();
+            if (!frame) return window.open(url, '_blank');
+            var $links = $('a.js-print').addClass('is-loading');
             frame.onload = function() {
-                $('#bcl_print_loading').hide();
-                $('#bcl_print_print').prop('disabled', false);
-                try { $('#bcl_print_download').toggle(typeof frame.contentWindow.download_receipt === 'function'); } catch (e) {}
+                if (!frame.src || frame.src === 'about:blank') return;
+                $links.removeClass('is-loading');
+                setTimeout(function() {
+                    try {
+                        frame.contentWindow.focus();
+                        frame.contentWindow.print();
+                    } catch (e) {
+                        window.open(url, '_blank');
+                    }
+                }, 100);
             };
-            frame.src = embedUrl;
-            $('#bcl_print_modal').modal('show');
+            frame.src = url + (url.indexOf('?') === -1 ? '?' : '&') + 'embed=1';
         };
-        $(document).on('click', 'a.js-print-preview', function(e) {
+        $(document).on('click', 'a.js-print', function(e) {
             if (e.ctrlKey || e.metaKey || e.shiftKey || e.which === 2) return; // keep "open in new tab" gestures
             e.preventDefault();
-            bclPrintPreview(this.href, $(this).data('title') || 'Nota ' + $.trim($(this).data('label') || ''));
-        });
-        $('#bcl_print_print').on('click', function() {
-            var win = document.getElementById('bcl_print_frame').contentWindow;
-            win.focus();
-            win.print();
-        });
-        $('#bcl_print_download').on('click', function() {
-            document.getElementById('bcl_print_frame').contentWindow.download_receipt();
-        });
-        // Opened on top of another modal (room panel): stack it and its backdrop above that one.
-        $('#bcl_print_modal').on('show.bs.modal', function() {
-            $(this).css('z-index', 1070);
-            setTimeout(function() { $('.modal-backdrop').last().css('z-index', 1065); }, 0);
-        }).on('hidden.bs.modal', function() {
-            document.getElementById('bcl_print_frame').src = 'about:blank';
+            bclPrint(this.href);
         });
 
         // Prevent double submits on every classic form: disable the submit button once.

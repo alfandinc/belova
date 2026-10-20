@@ -45,9 +45,9 @@
         return '<i data-feather="' + name + '"></i>';
     }
 
-    // Nota number that opens the print preview modal (layouts/bcl/app.blade.php) instead of a new tab.
+    // Nota number that prints straight away (bclPrint in layouts/bcl/app.blade.php) instead of opening a new tab.
     function notaLink(transId) {
-        return '<a class="bcl-link js-print-preview" href="' + url('print', transId) + '" data-label="' + esc(transId) + '">' + esc(transId) + '</a>';
+        return '<a class="bcl-link js-print" href="' + url('print', transId) + '" data-label="' + esc(transId) + '">' + esc(transId) + '</a>';
     }
 
     function feather() {
@@ -285,7 +285,7 @@
                 if (room.kurang > 0) acts += action('pay', 'credit-card', 'Terima Pembayaran', 'Sisa ' + rp(room.kurang));
                 acts += action('process_checkout', 'log-out', 'Sudah Keluar', 'Tagih hari lewat, checklist, jaminan', 'is-danger');
                 acts += action('guarantee', 'shield', 'Uang Jaminan', room.jaminan > 0 ? 'Saldo ' + rp(room.jaminan) : 'Belum ada');
-                acts += '<a class="bcl-action js-print-preview" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
+                acts += '<a class="bcl-action js-print" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
                 html += '<div class="bcl-section"><div class="bcl-section__title">Aksi</div><div class="bcl-actions">' + acts + '</div></div>';
                 acts = null;
             }
@@ -297,7 +297,7 @@
             if (!room.has_checkin) acts += action('checkin', 'clipboard', 'Check-in Kamar', 'Belum dicatat');
             acts += action('guarantee', 'shield', 'Uang Jaminan', room.jaminan > 0 ? 'Saldo ' + rp(room.jaminan) : 'Belum ada');
             acts += action('process_checkout', 'log-out', 'Proses Keluar', 'Checklist, jaminan, refund', 'is-danger');
-            acts += '<a class="bcl-action js-print-preview" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
+            acts += '<a class="bcl-action js-print" href="' + url('print', room.trans_id) + '" data-label="' + esc(room.trans_id) + '">' + icon('printer') + '<span>Cetak Nota</span></a>';
             html += '<div class="bcl-section"><div class="bcl-section__title">Aksi</div><div class="bcl-actions">' + acts + '</div></div>';
             }
         } else {

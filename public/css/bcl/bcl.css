@@ -320,11 +320,9 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     .bcl-room-modal.is-expanded .bcl-room-history-col { grid-column: 1 / -1; border-left: 0; padding-left: 0; border-top: 1px solid var(--bcl-line); padding-top: 16px; }
 }
 
-/* Print preview modal: the document in an iframe, as tall as the screen allows */
-.bcl-print-modal .modal-dialog { max-width: min(1100px, calc(100vw - 32px)); }
-.bcl-print-body { position: relative; height: calc(100vh - 190px); min-height: 360px; background: #fff; }
-.bcl-print-body iframe { width: 100%; height: 100%; border: 0; display: block; }
-.bcl-print-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #64748b; background: #fff; }
+/* Direct print: the document loads in this off-screen iframe (real A4-ish width so the layout is the printed one) */
+.bcl-print-frame { position: fixed; left: -10000px; top: 0; width: 1000px; height: 1400px; border: 0; visibility: hidden; }
+a.js-print.is-loading { cursor: progress; opacity: .6; pointer-events: none; }
 .bcl-room-modal .modal-content { background: var(--bcl-surface); }
 .bcl-room-modal__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 20px 12px; border-bottom: 1px solid var(--bcl-line); }
 .bcl-room-modal__title { font-size: 20px; font-weight: 700; color: var(--bcl-ink); margin: 0; }

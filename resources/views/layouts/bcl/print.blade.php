@@ -14,6 +14,8 @@
     <style>
         body { background: #fff; padding: 16px; }
         .card { box-shadow: none; border: 0; margin-bottom: 0; }
+        /* Print backgrounds too (e.g. the black "Sisa/Kurang" row), even with "Background graphics" unticked */
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print {
             body { padding: 0; }
             @page { margin: 10mm; }
