@@ -28,6 +28,12 @@
     --bcl-info: #0ea5e9;
     --bcl-info-ink: #0369a1;
     --bcl-info-soft: #e0f2fe;
+    /* Room card status colours as "r, g, b" (cards mix their own alphas, like the sidebar accent) */
+    --bcl-room-occupied-rgb: 22, 163, 74;
+    --bcl-room-expiring-rgb: 217, 119, 6;
+    --bcl-room-overdue-rgb: 220, 38, 38;
+    --bcl-room-booked-rgb: 2, 132, 199;
+    --bcl-room-vacant-rgb: 100, 116, 139;
     --bcl-radius: 4px;
     --bcl-shadow: none;
     --bcl-shadow-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.1);
@@ -58,6 +64,11 @@ html.theme-dark .bcl {
     --bcl-info: #38bdf8;
     --bcl-info-ink: #7dd3fc;
     --bcl-info-soft: rgba(56, 189, 248, 0.14);
+    --bcl-room-occupied-rgb: 74, 222, 128;
+    --bcl-room-expiring-rgb: 251, 191, 36;
+    --bcl-room-overdue-rgb: 248, 113, 113;
+    --bcl-room-booked-rgb: 56, 189, 248;
+    --bcl-room-vacant-rgb: 148, 163, 184;
     --bcl-shadow: none;
     --bcl-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
@@ -213,47 +224,67 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 
 .bcl-rooms {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
 }
+/*
+ * Room card: the background is a gradient in the room's status colour (--room-rgb) that stays
+ * tinted edge to edge (never fades to white), with the sidebar's top-left glow on top.
+ */
 .bcl-room {
+    --room-rgb: var(--bcl-room-vacant-rgb);
+    --room-from: .16;
+    --room-to: .07;
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    min-height: 118px;
+    gap: 5px;
+    min-height: 140px;
     width: 100%;
-    padding: 12px 12px 10px;
+    padding: 14px 16px 12px;
     text-align: left;
     color: var(--bcl-ink);
-    background: var(--bcl-surface);
-    border: 1px solid var(--bcl-line);
-    border-radius: var(--bcl-radius);
-    box-shadow: var(--bcl-shadow);
+    background:
+        radial-gradient(120% 120px at 0% 0%, rgba(var(--room-rgb), calc(var(--room-from) * .8)), transparent 70%),
+        linear-gradient(135deg, rgba(var(--room-rgb), var(--room-from)), rgba(var(--room-rgb), var(--room-to))),
+        var(--bcl-surface);
+    border: 1px solid rgba(var(--room-rgb), .35);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
     cursor: pointer;
     overflow: hidden;
-    transition: box-shadow .15s, transform .15s, border-color .15s;
+    transition: box-shadow .2s ease, transform .2s ease, border-color .2s ease;
 }
-.bcl-room::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 4px;
-    background: var(--bcl-faint);
+.bcl-room:hover { transform: translateY(-2px); border-color: rgba(var(--room-rgb), .6); box-shadow: 0 12px 24px -12px rgba(var(--room-rgb), .6); }
+.bcl-room:focus { outline: none; }
+.bcl-room:focus-visible { outline: 2px solid var(--bcl-accent); outline-offset: 2px; }
+.bcl-room.is-occupied { --room-rgb: var(--bcl-room-occupied-rgb); --room-from: .34; --room-to: .14; }
+.bcl-room.is-booked { --room-rgb: var(--bcl-room-booked-rgb); --room-from: .32; --room-to: .13; }
+.bcl-room.is-expiring { --room-rgb: var(--bcl-room-expiring-rgb); --room-from: .40; --room-to: .16; }
+.bcl-room.is-overdue { --room-rgb: var(--bcl-room-overdue-rgb); --room-from: .38; --room-to: .15; }
+.bcl-room__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.bcl-room__name { font-size: 21px; font-weight: 800; line-height: 1.1; letter-spacing: -.01em; word-break: break-word; }
+.bcl-room__cat {
+    flex-shrink: 1;
+    min-width: 0;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--bcl-ink-2);
+    background: var(--bcl-surface);
+    border: 1px solid var(--bcl-line);
+    border-radius: 999px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.bcl-room:hover { box-shadow: var(--bcl-shadow-hover); transform: translateY(-1px); }
-.bcl-room:focus { outline: 2px solid var(--bcl-accent); outline-offset: 1px; }
-.bcl-room.is-occupied::before { background: var(--bcl-good); }
-.bcl-room.is-booked::before { background: var(--bcl-info); }
-.bcl-room.is-expiring::before { background: var(--bcl-warn); }
-.bcl-room.is-vacant { background: var(--bcl-surface-2); }
-.bcl-room__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
-.bcl-room__name { font-size: 17px; font-weight: 700; line-height: 1.2; word-break: break-word; }
-.bcl-room__cat { font-size: 11px; color: var(--bcl-muted); text-align: right; line-height: 1.3; }
-.bcl-room__who { font-size: 13px; font-weight: 600; color: var(--bcl-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bcl-room__who.is-empty { color: var(--bcl-muted); font-weight: 500; }
-.bcl-room__meta { font-size: 12px; color: var(--bcl-muted); }
+.bcl-room__who { font-size: 14px; font-weight: 700; color: var(--bcl-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcl-room__who.is-empty { color: var(--bcl-muted); font-weight: 600; }
+.bcl-room__meta { font-size: 12.5px; color: var(--bcl-ink-2); }
 .bcl-room__flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; padding-top: 4px; }
+/* Pills sit on a tinted card: give them a solid base so they stay readable */
+.bcl-room .bcl-pill { background: var(--bcl-surface); border-color: transparent; }
 
 .bcl-empty {
     padding: 28px 12px;
@@ -338,7 +369,7 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 .bcl-hint.is-info { background: var(--bcl-info-soft); color: var(--bcl-info-ink); }
 .bcl-hint:empty { display: none; }
 
-.bcl-skeleton { height: 118px; border-radius: var(--bcl-radius); background: linear-gradient(90deg, var(--bcl-surface-2), var(--bcl-hover), var(--bcl-surface-2)); background-size: 200% 100%; animation: bcl-shimmer 1.2s infinite; }
+.bcl-skeleton { height: 150px; border-radius: var(--bcl-radius); background: linear-gradient(90deg, var(--bcl-surface-2), var(--bcl-hover), var(--bcl-surface-2)); background-size: 200% 100%; animation: bcl-shimmer 1.2s infinite; }
 @keyframes bcl-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 @media (max-width: 575.98px) {
@@ -347,9 +378,6 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     .bcl-money { grid-template-columns: 1fr 1fr; }
 }
 
-/* Lease ended but the tenant has not extended or been checked out: still occupied, needs action */
-.bcl-room.is-overdue { border-color: var(--bcl-bad); }
-.bcl-room.is-overdue::before { background: var(--bcl-bad); }
 
 /* Image drop zone: paste (Ctrl+V), drag & drop or pick (public/js/bcl/paste-image.js) */
 .bcl-dropzone {

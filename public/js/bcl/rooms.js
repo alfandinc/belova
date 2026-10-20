@@ -138,14 +138,14 @@
 
         if (room.is_overdue) {
             who = '<div class="bcl-room__who" title="' + esc(room.nama) + '">' + esc(room.nama || '-') + '</div>';
-            meta = 'Habis ' + fmtDate(room.tgl_selesai) + ' · lewat ' + room.days_over + ' hari';
+            meta = room.days_over > 0 ? 'Habis ' + fmtDate(room.tgl_selesai) + ' · lewat ' + room.days_over + ' hari' : 'Habis hari ini (' + fmtDate(room.tgl_selesai) + ')';
             flags.push('<span class="bcl-pill is-bad">' + icon('alert-triangle') + 'Belum perpanjang</span>');
             if (room.kurang > 0) flags.push('<span class="bcl-pill is-bad">Kurang ' + rp(room.kurang) + '</span>');
         } else if (room.is_occupied) {
             if (room.is_expiring && !room.is_extended) classes.push('is-expiring');
             who = '<div class="bcl-room__who" title="' + esc(room.nama) + '">' + esc(room.nama || '-') + '</div>';
             var left = room.days_left;
-            meta = 's/d ' + fmtDate(room.tgl_selesai) + (left !== null ? ' · ' + (left <= 0 ? 'hari ini' : left + ' hr lagi') : '');
+            meta = 's/d ' + fmtDate(room.tgl_selesai) + (left !== null ? ' · ' + (left <= 0 ? 'hari ini' : left + ' hari lagi') : '');
             if (room.is_extended) flags.push('<span class="bcl-pill is-good">' + icon('repeat') + 'Diperpanjang</span>');
             else if (room.is_expiring) flags.push('<span class="bcl-pill is-warn">' + icon('clock') + 'Segera habis</span>');
             if (room.kurang > 0) flags.push('<span class="bcl-pill is-bad">Kurang ' + rp(room.kurang) + '</span>');
@@ -160,7 +160,7 @@
         if (room.extra_bed_count > 0) flags.push('<span class="bcl-pill" title="' + esc((room.extra_bed_asset_codes || []).join(', ')) + '">' + icon('layers') + room.extra_bed_count + ' EB</span>');
 
         return '<button type="button" class="' + classes.join(' ') + '" data-room="' + room.id + '">' +
-            '<div class="bcl-room__top"><span class="bcl-room__name">' + esc(room.room_name) + '</span><span class="bcl-room__cat">' + esc(room.category_name || '') + '</span></div>' +
+            '<div class="bcl-room__top"><span class="bcl-room__name">' + esc(room.room_name) + '</span>' + (room.category_name ? '<span class="bcl-room__cat" title="' + esc(room.category_name) + '">' + esc(room.category_name) + '</span>' : '') + '</div>' +
             who +
             '<div class="bcl-room__meta">' + meta + '</div>' +
             (flags.length ? '<div class="bcl-room__flags">' + flags.join('') + '</div>' : '') +
