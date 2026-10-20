@@ -34,6 +34,7 @@
                         <label for="cr_pay_now">Bayar Sekarang (Rp)</label>
                         <input type="text" name="pay_now" id="cr_pay_now" class="form-control text-right" value="0" autocomplete="off">
                         <small class="form-text text-muted">Sisa yang belum dibayar akan masuk daftar Belum Lunas.</small>
+                        <select name="metode_bayar" class="form-control mt-2">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select>
                     </div>
                     <div class="form-check mb-2" id="cr_refund_row" style="display:none;">
                         <input class="form-check-input" type="checkbox" value="1" id="cr_refund_to_deposit" name="refund_to_deposit">

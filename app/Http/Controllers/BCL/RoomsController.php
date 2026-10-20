@@ -111,6 +111,19 @@ class RoomsController extends Controller
         return $this->respond($request, 'Data berhasil dihapus!');
     }
 
+    /** Suggested price for a custom stay in a room (Sewa form, "Durasi custom"). */
+    public function priceSuggestion(Request $request)
+    {
+        $this->validate($request, [
+            'room' => 'required|exists:bcl_rooms,id',
+            'start' => 'required|date',
+            'end' => 'required|date|after:start',
+        ]);
+        $room = Rooms::findOrFail($request->room);
+
+        return response()->json($this->rental->suggestPrice($room->room_category, $request->start, $request->end));
+    }
+
     public function wifi($id)
     {
         $room = Rooms::findOrFail($id);
@@ -178,14 +191,18 @@ class RoomsController extends Controller
         $overstays = $this->rental->overstaysByRoom()->reject(fn ($o) => $active->has($o->room_id));
         $paid = $this->rental->paidByDoc($active->pluck('trans_id')->merge($overstays->pluck('trans_id')));
         $futureBookings = tr_renter::with('renter')
+            ->whereNull('cancelled_at')
             ->whereDate('tgl_mulai', '>', $today)
             ->orderBy('tgl_mulai')
             ->get()
             ->groupBy('room_id');
         $extraBedByRoom = $this->buildActiveExtraBedByRoom();
+        $livingTrx = $active->concat($overstays);
+        $guarantees = $this->rental->guaranteeBalances($livingTrx->pluck('id_renter'));
+        $checkins = \App\Models\BCL\RoomInspection::whereIn('trans_id', $livingTrx->pluck('trans_id'))->where('type', 'checkin')->pluck('trans_id')->flip();
 
         $today = Carbon::today();
-        $rooms = $rooms->map(function ($room) use ($active, $overstays, $paid, $futureBookings, $extraBedByRoom, $today) {
+        $rooms = $rooms->map(function ($room) use ($active, $overstays, $paid, $futureBookings, $extraBedByRoom, $today, $guarantees, $checkins) {
             $current = $active->get($room->id);
             $over = $current ? null : $overstays->get($room->id);
             $trx = $current ?: $over;
@@ -205,6 +222,9 @@ class RoomsController extends Controller
                 'notes' => $room->notes,
                 'status' => $current ? 'occupied' : ($over ? 'overdue' : ($bookings->count() ? 'booked' : 'vacant')),
                 'is_overdue' => (bool) $over,
+                'daily_rate' => $over ? $this->rental->dailyRate($over->loadMissing('room')) : null,
+                'jaminan' => $trx ? (float) ($guarantees[$trx->id_renter] ?? 0) : 0,
+                'has_checkin' => $trx ? $checkins->has($trx->trans_id) : false,
                 'days_over' => $over ? (int) Carbon::parse($over->tgl_selesai)->diffInDays($today) : 0,
                 'kurang' => $kurang,
                 'harga' => (float) optional($trx)->harga,

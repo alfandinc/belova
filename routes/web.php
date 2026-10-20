@@ -488,8 +488,9 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
     Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
-    Route::post('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
+    Route::post('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete')->middleware('can:bcl-supervise');
     Route::post('/rooms/restore/{id}', [RoomsController::class, 'restore'])->name('bcl.rooms.restore');
+    Route::get('/rooms/price-suggestion', [RoomsController::class, 'priceSuggestion'])->name('bcl.rooms.price_suggestion');
     Route::get('/rooms/{id}/booking-queue', [RoomsController::class, 'bookingQueue'])->name('bcl.rooms.booking_queue');
     Route::get('/rooms/{id}/wifi', [RoomsController::class, 'wifi'])->name('bcl.rooms.wifi');
     Route::get('/rooms/{id}/history', [RoomsController::class, 'history'])->name('bcl.rooms.history');
@@ -499,9 +500,15 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     // Transaksi sewa
     Route::any('/transaksi', [tr_renterController::class, 'index'])->name('bcl.transaksi.index');
     Route::get('/transaksi/show/{id}', [tr_renterController::class, 'show'])->name('bcl.transaksi.show');
-    Route::post('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete');
+    Route::post('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete')->middleware('can:bcl-supervise');
     Route::post('/transaksi/refund', [tr_renterController::class, 'refund'])->name('bcl.transaksi.refund');
     Route::post('/transaksi/checkout', [tr_renterController::class, 'checkout'])->name('bcl.transaksi.checkout');
+    Route::post('/transaksi/batal', [tr_renterController::class, 'cancelBooking'])->name('bcl.transaksi.cancel')->middleware('can:bcl-supervise');
+    Route::post('/transaksi/update', [tr_renterController::class, 'updateTransaction'])->name('bcl.transaksi.update')->middleware('can:bcl-supervise');
+    Route::get('/transaksi/renewals', [tr_renterController::class, 'renewals'])->name('bcl.transaksi.renewals');
+    Route::post('/transaksi/perpanjang-massal', [tr_renterController::class, 'bulkRenew'])->name('bcl.transaksi.bulk_renew');
+    Route::get('/transaksi/{id}/inspections', [tr_renterController::class, 'inspections'])->name('bcl.transaksi.inspections');
+    Route::post('/transaksi/inspection', [tr_renterController::class, 'storeInspection'])->name('bcl.transaksi.inspection');
     Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
     Route::post('/transaksi/change-room', [tr_renterController::class, 'changeRoom'])->name('bcl.transaksi.change_room');
     Route::get('/transaksi/change-room/options/{id}', [tr_renterController::class, 'changeRoomOptions'])->name('bcl.transaksi.change_room.options');
@@ -509,6 +516,7 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     Route::get('/transaksi/refund/cetak/{doc_id}/{renter_id?}', [tr_renterController::class, 'cetakRefund'])->name('bcl.transaksi.cetak_refund');
     Route::get('/extrarent/availability', [extra_rentController::class, 'availability'])->name('bcl.extrarent.availability');
     Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
+    Route::post('/extrarent/delete/{kode}', [extra_rentController::class, 'destroy'])->name('bcl.extrarent.delete')->middleware('can:bcl-supervise');
 
     // Penyewa
     Route::get('/renter', [RenterController::class, 'index'])->name('bcl.renter.index');
@@ -518,30 +526,35 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     Route::get('/renter/rules/{id}', [RenterController::class, 'rulesPreview'])->name('bcl.renter.rules');
     Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
     Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
-    Route::post('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');
+    Route::post('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete')->middleware('can:bcl-supervise');
 
     // Inventaris
     Route::get('/inventories', [InventoriesController::class, 'index'])->name('bcl.inventories.index');
+    Route::get('/inventories/data', [InventoriesController::class, 'data'])->name('bcl.inventories.data');
+    Route::get('/inventories/stats', [InventoriesController::class, 'stats'])->name('bcl.inventories.stats');
     Route::post('/inventories/store', [InventoriesController::class, 'store'])->name('bcl.inventories.store');
     Route::get('/inventories/edit/{id}', [InventoriesController::class, 'edit'])->name('bcl.inventories.edit');
     Route::post('/inventories/update', [InventoriesController::class, 'update'])->name('bcl.inventories.update');
-    Route::post('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete');
+    Route::post('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete')->middleware('can:bcl-supervise');
     Route::get('/inventories/show/{id}', [InventoriesController::class, 'show'])->name('bcl.inventories.show');
     Route::post('/inventories/maintenance', [InventoriesController::class, 'storeMaintenance'])->name('bcl.inventories.maintenance.store');
     Route::post('/inventories/maintenance/update', [InventoriesController::class, 'updateMaintenance'])->name('bcl.inventories.maintenance.update');
-    Route::post('/inventories/maintenance/delete', [InventoriesController::class, 'deleteMaintenance'])->name('bcl.inventories.maintenance.delete');
+    Route::post('/inventories/maintenance/delete', [InventoriesController::class, 'deleteMaintenance'])->name('bcl.inventories.maintenance.delete')->middleware('can:bcl-supervise');
     Route::post('/inventories/export/pdf', [InventoriesController::class, 'exportPdf'])->name('bcl.inventories.export.pdf');
 
     // Keuangan (Pemasukan & Pengeluaran berbagi satu menu)
     Route::get('/finance', [FinJurnalController::class, 'finance'])->name('bcl.finance');
     Route::any('/finance/income', [FinJurnalController::class, 'index'])->name('bcl.income.index');
-    Route::post('/finance/income/delete/{id}', [FinJurnalController::class, 'income_delete'])->name('bcl.income.delete');
+    Route::post('/finance/income/delete/{id}', [FinJurnalController::class, 'income_delete'])->name('bcl.income.delete')->middleware('can:bcl-supervise');
     Route::post('/finance/income/store', [FinJurnalController::class, 'store'])->name('bcl.income.store');
     Route::any('/finance/expense', [FinJurnalController::class, 'expense'])->name('bcl.expense.index');
     Route::get('/finance/expense/view/{id}', [FinJurnalController::class, 'expense_show'])->name('bcl.expense.show');
-    Route::post('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete');
+    Route::post('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete')->middleware('can:bcl-supervise');
     Route::post('/finance/expense/store', [FinJurnalController::class, 'store_expense'])->name('bcl.expense.store');
     Route::post('/finance/deposit/topup', [FinJurnalController::class, 'topup_deposit'])->name('bcl.deposit.topup');
+    Route::post('/finance/income/update', [FinJurnalController::class, 'updatePayment'])->name('bcl.income.update')->middleware('can:bcl-supervise');
+    Route::post('/finance/jaminan', [FinJurnalController::class, 'guarantee'])->name('bcl.guarantee');
+    Route::get('/finance/laporan', [FinJurnalController::class, 'report'])->name('bcl.report');
 
     // Pengaturan (Harga, Kategori, WiFi, Template Chat berbagi satu menu)
     Route::get('/pengaturan', [PricelistController::class, 'settings'])->name('bcl.settings');
@@ -549,21 +562,21 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     Route::post('/pricelist/store', [PricelistController::class, 'store'])->name('bcl.pricelist.store');
     Route::get('/pricelist/edit/{id}', [PricelistController::class, 'edit'])->name('bcl.pricelist.edit');
     Route::post('/pricelist/update', [PricelistController::class, 'update'])->name('bcl.pricelist.update');
-    Route::post('/pricelist/delete/{id}', [PricelistController::class, 'destroy'])->name('bcl.pricelist.delete');
+    Route::post('/pricelist/delete/{id}', [PricelistController::class, 'destroy'])->name('bcl.pricelist.delete')->middleware('can:bcl-supervise');
     Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');
     Route::get('/tambahanpl/edit/{id}', [pricelist_tambahanController::class, 'edit'])->name('bcl.extra_pl.edit');
     Route::post('/tambahanpl/update', [pricelist_tambahanController::class, 'update'])->name('bcl.extra_pl.update');
-    Route::post('/tambahanpl/delete/{id}', [pricelist_tambahanController::class, 'destroy'])->name('bcl.extra_pl.delete');
+    Route::post('/tambahanpl/delete/{id}', [pricelist_tambahanController::class, 'destroy'])->name('bcl.extra_pl.delete')->middleware('can:bcl-supervise');
 
     Route::get('/pengaturan/kategori', [RoomCategoryController::class, 'index'])->name('bcl.category.index');
     Route::post('/category/store', [RoomCategoryController::class, 'store'])->name('bcl.category.store');
     Route::get('/category/edit/{id}', [RoomCategoryController::class, 'edit'])->name('bcl.category.edit');
     Route::post('/category/update', [RoomCategoryController::class, 'update'])->name('bcl.category.update');
-    Route::post('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete');
+    Route::post('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete')->middleware('can:bcl-supervise');
     Route::post('/category/restore/{id}', [RoomCategoryController::class, 'restore'])->name('bcl.category.restore');
-    Route::post('/category/forcedelete/{id}', [RoomCategoryController::class, 'forcedelete'])->name('bcl.category.forcedelete');
+    Route::post('/category/forcedelete/{id}', [RoomCategoryController::class, 'forcedelete'])->name('bcl.category.forcedelete')->middleware('can:bcl-supervise');
     Route::post('/images/store', [RoomCategoryImageController::class, 'store'])->name('bcl.images.store');
-    Route::post('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete');
+    Route::post('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete')->middleware('can:bcl-supervise');
 
     Route::get('/pengaturan/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');
     Route::get('/wifi/data', [RoomWifiController::class, 'data'])->name('bcl.roomwifi.data');
@@ -578,6 +591,7 @@ Route::prefix('bcl')->middleware(['auth', 'role:Kos|Admin'])->group(function () 
     Route::get('/chat-template/edit/{id}', [ChatTemplateController::class, 'edit'])->name('bcl.chat_template.edit');
     Route::post('/chat-template/update/{id}', [ChatTemplateController::class, 'update'])->name('bcl.chat_template.update');
     Route::post('/chat-template/delete/{id}', [ChatTemplateController::class, 'destroy'])->name('bcl.chat_template.delete');
+    Route::get('/pengaturan/log', [FinJurnalController::class, 'auditLog'])->name('bcl.audit')->middleware('can:bcl-supervise');
 
     // Alamat lama halaman yang dipindah ke menu Pengaturan
     Route::redirect('/pricelist', '/bcl/pengaturan/harga');

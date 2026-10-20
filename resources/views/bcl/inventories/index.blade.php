@@ -1,889 +1,224 @@
 @extends('layouts.bcl.app')
 
+@section('title', 'Inventaris')
+
 @section('bcl-content')
-<!-- Page-Title -->
-<?php
+<div class="page-title-box d-flex flex-wrap align-items-center justify-content-between" style="gap: 10px;">
+    <div>
+        <h4 class="page-title mb-0">Inventaris</h4>
+        <span>Klik <strong>Rawat</strong> untuk mencatat perawatan/perbaikan, nomor inventaris untuk riwayatnya.</span>
+    </div>
+    <div class="bcl-toolbar">
+        <button type="button" class="btn btn-primary bcl-btn" id="bt_inv_add"><i data-feather="plus"></i> Tambah Inventaris</button>
+        <button type="button" class="btn btn-secondary bcl-btn" data-toggle="modal" data-target="#md_export_inv"><i data-feather="printer"></i> Export PDF</button>
+    </div>
+</div>
 
-use Carbon\Carbon;
+<div class="bcl-kpis" id="inv_kpis">
+    <button type="button" class="bcl-kpi" data-status=""><span class="bcl-kpi__label">Semua inventaris</span><span class="bcl-kpi__value" data-stat="total">-</span></button>
+    <button type="button" class="bcl-kpi is-bad" data-status="overdue"><span class="bcl-kpi__label"><span class="bcl-kpi__dot bcl-dot-unpaid"></span>Terlambat dirawat</span><span class="bcl-kpi__value" data-stat="overdue">-</span></button>
+    <button type="button" class="bcl-kpi is-warn" data-status="soon"><span class="bcl-kpi__label"><span class="bcl-kpi__dot bcl-dot-expiring"></span>Jatuh tempo &le; 7 hari</span><span class="bcl-kpi__value" data-stat="soon">-</span></button>
+    <div class="bcl-kpi is-static is-info"><span class="bcl-kpi__label">Dengan perawatan rutin</span><span class="bcl-kpi__value" data-stat="routine">-</span></div>
+    <div class="bcl-kpi is-static"><span class="bcl-kpi__label">Biaya perawatan bulan ini</span><span class="bcl-kpi__value is-sm" data-stat="month_cost">-</span></div>
+</div>
 
-$inv = $data;
-?>
-<div class="row">
-    <div class="col-sm-12">
-        <div class="page-title-box">
-            <div class="row">
-                <div class="col">
-                    <h4 class="page-title">Inventaris</h4>
-                    <span>{{config('app.name')}}</span>
-                </div><!--end col-->
-                <div class="col text-right">
-                    <!-- <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#md_perbaikan_inv"><i class="mdi mdi-wrench"></i> Perbaikan/Perawatan Inventaris</button> -->
-                    {{-- @can('Tambah Inventaris') --}}
-                    <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#md_tambah_inv"><i class="mdi mdi-plus"></i> Tambah Inventaris</button>
-                    <button class="btn btn-sm btn-secondary ml-2" data-toggle="modal" data-target="#md_export_inv"><i class="far fa-file-pdf"></i> Export PDF</button>
-                    {{-- @endcan --}}
-                </div>
-            </div><!--end row-->
-        </div><!--end page-title-box-->
-    </div><!--end col-->
-</div><!--end row-->
-
-<div class="row">
-    <div class="col-lg-12">
-        <div class="card">
-            <div class="card-header">
-                <div class="row align-self-center">
-                    <div class="col align-self-center">
-                        <h4 class="card-title">Daftar Inventaris</h4>
-                    </div>
-                    <div class="col-auto align-self-center">
-
-                        <a href="#" class="btn btn-sm btn-light waves-effect waves-light dropdown-toggle" data-toggle="dropdown">
-                            <i class="far fa-file-alt"></i> Export <i class="las la-angle-down "></i>
-                        </a>
-                        <div class="dropdown-menu dropdown-menu-bottom side-color side-color-dark">
-                            <a class="dropdown-item btn_exls" href="#">Excel</a>
-                            <a class="dropdown-item btn_epdf" href="#">PDF</a>
-                            <a class="dropdown-item btn_eprint" href="#">Print</a>
-                        </div>
-                    </div>
-                </div>
+<div class="card">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-end mb-2" style="gap: 10px;">
+            <div style="min-width: 220px;">
+                <label class="mb-1">Lokasi</label>
+                <select id="flt_room" class="form-control form-control-sm select2" data-placeholder="Semua lokasi">
+                    <option value="">Semua lokasi</option>
+                    <option value="umum">Umum (bukan kamar)</option>
+                    @foreach($rooms as $r)
+                    <option value="{{ $r->id }}">{{ $r->room_name }}{{ $r->floor ? ' · Lantai ' . $r->floor : '' }}</option>
+                    @endforeach
+                </select>
             </div>
-            <div class="card-body">
-                <div class="table-responsive-sm">
-                    <div id="tb_penjualan_wrapper" class="dataTables_wrapper dt-bootstrap4 no-footer">
-                        <div class="row">
-                            <div class="col-sm-12">
-                                <table class="table table-sm table-hover mb-0 dataTable no-footer" id="tb_kamar">
-                                    <thead>
-                                        <tr>
-                                            <th class="text-center">No</th>
-                                            <th class="text-center">Nomor Inv</th>
-                                            <th>Nama</th>
-                                            <th>Catatan</th>
-                                            <th>Tipe</th>
-                                            <th>Kamar</th>
-                                            <th>Perawatan Rutin</th>
-                                            <th>Terakhir Perawatan</th>
-                                            <th>Perawatan Berikutnya</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php
-                                        $no = 1;
-                                        ?>
-                                        @foreach($inv as $data)
-                                        <?php /* next_maintanance and remaining_badge computed server-side in controller */ ?>
-
-                                        <tr>
-                                            <td class="text-center">{{ $no }}</td>
-                                            <td class="text-center"><u><a href="javascript:void(0)" class="view_inv" data-id="{{ $data->inv_number }}">{{ $data->inv_number }}</a></u></td>
-                                            <td>{{$data->name}}</td>
-                                            <td>{{$data->notes}}</td>
-                                            <td>{{$data->type}}</td>
-                                            <td>{{$data->room_name}}</td>
-                                            <td>{{$data->maintanance_period!=null?$data->maintanance_period.' '.$data->maintanance_cycle:''}}</td>
-                                            <td>{{$data->last_maintanance}}</td>
-                                            <td>{{$data->next_maintanance}} {!! $data->remaining_badge !!}</td>
-                                            <td class="text-right">
-                                                {{-- @can('Tambah Inventaris') --}}
-                                                <a href="#" data-id="{{$data->id}}" class="btn btn-xs btn-outline-primary edit_inv">
-                                                    <i data-feather="edit" class="align-self-center icon-xs"></i>
-                                                </a>
-                                                {{-- @endcan --}}
-                                                {{-- @can('Hapus Inventaris') --}}
-                                                <a href="{{route('bcl.inventories.delete',$data->id)}}" onclick="deletes(event)" class="btn btn-xs btn-danger">
-                                                    <i data-feather="trash" class="align-self-center icon-xs"></i>
-                                                </a>
-                                                {{-- @endcan --}}
-                                            </td>
-                                        </tr>
-                                        <?php $no++; ?>
-                                        @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-sm-12 col-md-5"></div>
-                            <div class="col-sm-12 col-md-7"></div>
-                        </div>
-                    </div>
-                </div>
+            <div style="min-width: 200px;">
+                <label class="mb-1">Status perawatan</label>
+                <select id="flt_status" class="form-control form-control-sm">
+                    <option value="">Semua</option>
+                    <option value="overdue">Terlambat dirawat</option>
+                    <option value="soon">Jatuh tempo &le; 7 hari</option>
+                    <option value="ok">Terjadwal</option>
+                    <option value="none">Tanpa perawatan rutin</option>
+                </select>
             </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 w-100" id="tb_inventory">
+                <thead>
+                    <tr>
+                        <th>No. Inv</th>
+                        <th>Nama</th>
+                        <th>Lokasi</th>
+                        <th>Perawatan rutin</th>
+                        <th>Terakhir dirawat</th>
+                        <th>Berikutnya</th>
+                        <th class="text-right">Aksi</th>
+                    </tr>
+                </thead>
+            </table>
         </div>
     </div>
 </div>
-<div class="modal fade" id="md_tambah_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
+
+{{-- ============================================================ tambah / edit --}}
+<div class="modal fade" id="md_inv" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header bg-light">
-                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Tambah Inventaris</h6>
-                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times"></i></span>
-                </button>
+                <h6 class="modal-title m-0" id="inv_title">Tambah Inventaris</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
-            <form action="{{route('bcl.inventories.store')}}" method="POST">
-                @csrf
+            <form id="form_inv">
+                <input type="hidden" name="id" id="inv_id">
                 <div class="modal-body">
-                    <div class="row mb-2">
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Nomor (Perkiraan)</label>
-                            <input type="text" readonly value="{{$no_inv}}" class="form-control">
+                    <div class="form-row">
+                        <div class="form-group col-md-4" id="inv_number_group" style="display:none;">
+                            <label>Nomor Inventaris</label>
+                            <input type="text" name="inv_number" id="inv_number" class="form-control">
+                            <small class="text-muted">Mengubah nomor ikut memindahkan riwayat perawatannya.</small>
                         </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Nama</label>
-                            <input type="text" name="nama" required class="form-control">
+                        <div class="form-group col-md-8" id="inv_name_group">
+                            <label>Nama Barang <span class="text-danger">*</span></label>
+                            <input type="text" name="nama" id="inv_name" class="form-control" required autocomplete="off" placeholder="mis. AC split 1 PK, Kasur, Lemari">
                         </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Type</label>
-                            <select class="mb-3 select2" id="tipe_inv" name="tipe_inv" required style="width: 100%" data-placeholder="Pilih Type">
-                                <option value=""></option>
-                                <option value="Private/Room">Private/Room</option>
-                                <option value="Public">Public/Umum</option>
-                            </select>
+                        <div class="form-group col-md-4" id="inv_qty_group">
+                            <label>Jumlah per lokasi</label>
+                            <input type="number" min="1" max="50" name="jumlah" id="inv_qty" class="form-control" value="1">
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-xl-4 col-md-6 col-sm-12 hidden" id="kamar_kontainer">
-                            <label class="">Untuk Kamar</label>
-                            <select class="mb-3 select2" id="kamar" name="kamar" style="width: 100%" data-placeholder="Pilih...">
-                                <option value=""></option>
-                                <?php
-                                foreach ($rooms as $value) {
-                                ?>
-                                    <option value="<?= $value->id ?>"><?= ($value->floor ? 'Lantai ' . $value->floor . ' - ' : '') . $value->room_name ?> (<?= $value->category_name ?>)</option>
-                                <?php
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <div class="custom-control custom-switch mt-4 pt-2">
-                                <input type="checkbox" name="perawatan_rutin" class="custom-control-input" id="perawatan_rutin">
-                                <label class="custom-control-label" for="perawatan_rutin">Diperlukan Perawatan Rutin</label>
-                            </div>
+                    <div class="form-group">
+                        <label class="d-block">Lokasi <span class="text-danger">*</span></label>
+                        <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                            <label class="btn btn-outline-primary btn-sm active"><input type="radio" name="tipe_inv" value="Private/Room" checked> Di kamar</label>
+                            <label class="btn btn-outline-primary btn-sm"><input type="radio" name="tipe_inv" value="Public"> Umum (fasilitas bersama)</label>
                         </div>
                     </div>
-                    <hr class="hr-dashed">
-                    <div class="row hidden" id="cycle_kontainer">
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Setiap</label>
-                            <input type="text" name="waktu_perawatan" id="waktu_perawatan" class="form-control inputmask">
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">&nbsp;</label>
-                            <select class="mb-3 select2" id="cycle_perawatan" name="cycle_perawatan" style="width: 100%" data-placeholder="Pilih...">
-                                <option value=""></option>
-                                <option value="Minggu">Minggu</option>
-                                <option value="Bulan">Bulan</option>
-                                <option value="Tahun">Tahun</option>
-                            </select>
-                        </div>
+                    <div class="form-group" id="inv_room_group">
+                        <label id="inv_room_label">Kamar <span class="text-danger">*</span> <small class="text-muted">(bisa pilih beberapa: dibuat satu item per kamar)</small></label>
+                        <select name="kamar[]" id="inv_rooms" class="form-control select2" multiple style="width: 100%" data-placeholder="Pilih kamar">
+                            @foreach($rooms as $r)
+                            <option value="{{ $r->id }}">{{ $r->room_name }}{{ $r->floor ? ' · Lantai ' . $r->floor : '' }}{{ $r->category_name ? ' (' . $r->category_name . ')' : '' }}</option>
+                            @endforeach
+                        </select>
                     </div>
-                    <hr class="hr-dashed">
-                    <div class="row">
-                        <div class="col-sm-12">
-                            <label class="">Keterangan</label>
-                            <input type="text" name="keterangan" id="keterangan" class="form-control">
+                    <div class="custom-control custom-switch mb-2">
+                        <input type="checkbox" class="custom-control-input" id="inv_routine" name="perawatan_rutin" value="1">
+                        <label class="custom-control-label" for="inv_routine">Perlu perawatan rutin</label>
+                    </div>
+                    <div class="form-row" id="inv_routine_group" style="display:none;">
+                        <div class="form-group col-4 col-md-2"><label>Setiap</label><input type="number" min="1" max="120" name="waktu_perawatan" id="inv_period" class="form-control"></div>
+                        <div class="form-group col-8 col-md-3"><label>&nbsp;</label>
+                            <select name="cycle_perawatan" id="inv_cycle" class="form-control"><option value="Minggu">Minggu</option><option value="Bulan" selected>Bulan</option><option value="Tahun">Tahun</option></select>
                         </div>
+                        <div class="form-group col-md-7"><small class="text-muted d-block mt-md-4">Jadwal dihitung dari perawatan terakhir (atau dari tanggal didaftarkan jika belum pernah dirawat).</small></div>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Keterangan</label>
+                        <input type="text" name="keterangan" id="inv_notes" class="form-control" autocomplete="off" placeholder="merek, ukuran, kondisi, dll.">
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-        <!-- Export PDF modal -->
-        <div class="modal fade" id="md_export_inv" tabindex="-1" role="dialog" aria-labelledby="mdExportLabel" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header bg-light">
-                        <h6 class="modal-title m-0" id="mdExportLabel">Export Inventaris ke PDF</h6>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true"><i class="la la-times"></i></span>
-                        </button>
-                    </div>
-                    <form action="{{ route('bcl.inventories.export.pdf') }}" method="POST" target="_blank">
-                        @csrf
-                        <div class="modal-body">
-                            <p>Pilih kamar yang ingin diekspor (boleh memilih lebih dari satu). Kosongkan pilihan untuk mengekspor semua inventaris.</p>
-                            <div class="form-group">
-                                <label>Pilih Kamar</label>
-                                <select id="export_rooms" name="rooms[]" class="form-control select2" multiple style="width:100%" data-placeholder="Pilih kamar...">
-                                    @foreach($rooms as $r)
-                                    <option value="{{ $r->id }}">{{ ($r->floor ? 'Lantai ' . $r->floor . ' - ' : '') . $r->room_name }} ({{ $r->category_name }})</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
-                            <button type="submit" class="btn btn-primary btn-sm">Cetak (Buka PDF)</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
 
-        <div class="modal fade" id="md_edit_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
+{{-- ============================================================ rawat + riwayat --}}
+<div class="modal fade" id="md_maint" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header bg-light">
-                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Edit Inventaris</h6>
-                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times"></i></span>
-                </button>
-            </div>
-            <form action="{{route('bcl.inventories.update')}}" method="POST">
-                @csrf
-                <input type="hidden" name="id" id="id" value="">
-                <div class="modal-body">
-                    <div class="row mb-2">
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Nomor</label>
-                            <input type="text" id="no_inv" name="inv_number" value="" class="form-control">
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Nama</label>
-                            <input type="text" id="nama" name="nama" required class="form-control">
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Type</label>
-                            <select class="mb-3 select2" id="tipe_inv_edit" name="tipe_inv" required style="width: 100%" data-placeholder="Pilih Type">
-                                <option value=""></option>
-                                <option value="Private/Room">Private/Room</option>
-                                <option value="Public">Public/Umum</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-xl-4 col-md-6 col-sm-12 hidden" id="kamar_kontainer_edit">
-                            <label class="">Untuk Kamar</label>
-                            <select class="mb-3 select2" id="kamar_edit" name="kamar" style="width: 100%" data-placeholder="Pilih...">
-                                <option value=""></option>
-                                <?php
-                                foreach ($rooms as $value) {
-                                ?>
-                                    <option value="<?= $value->id ?>"><?= ($value->floor ? 'Lantai ' . $value->floor . ' - ' : '') . $value->room_name ?> (<?= $value->category_name ?>)</option>
-                                <?php
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <div class="custom-control custom-switch mt-4 pt-2">
-                                <input type="checkbox" name="perawatan_rutin" class="custom-control-input" id="perawatan_rutin_edit">
-                                <label class="custom-control-label" for="perawatan_rutin_edit">Diperlukan Perawatan Rutin</label>
-                            </div>
-                        </div>
-                    </div>
-                    <hr class="hr-dashed">
-                    <div class="row hidden" id="cycle_kontainer_edit">
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Setiap</label>
-                            <input type="text" name="waktu_perawatan" id="waktu_perawatan_edit" class="form-control inputmask">
-                        </div>
-                        <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">&nbsp;</label>
-                            <select class="mb-3 select2" id="cycle_perawatan_edit" name="cycle_perawatan" style="width: 100%" data-placeholder="Pilih...">
-                                <option value=""></option>
-                                <option value="Minggu">Minggu</option>
-                                <option value="Bulan">Bulan</option>
-                                <option value="Tahun">Tahun</option>
-                            </select>
-                        </div>
-                    </div>
-                    <hr class="hr-dashed">
-                    <div class="row">
-                        <div class="col-sm-12">
-                            <label class="">Keterangan</label>
-                            <input type="text" name="keterangan" id="keterangan_edit" class="form-control">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<div class="modal fade" id="md_history" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-light">
-                <h6 class="modal-title m-0" id="exampleModalDefaultLabel">Riwayat Perbaikan</h6>
-                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true"><i class="la la-times"></i></span>
-                </button>
+                <h6 class="modal-title m-0">Perawatan <span id="mt_title" class="font-weight-normal"></span></h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body">
-                <div class="row">
-                    <div class="col-sm-6">
-                        <h3 class="text-info mt-0">Riwayat Perbaikan</h3>
+                <dl class="bcl-kv mb-3" id="mt_info"></dl>
+                <form id="form_maint" class="bcl-inline-panel">
+                    <input type="hidden" name="inv_number" id="mt_inv">
+                    <input type="hidden" name="id" id="mt_id">
+                    <div class="bcl-inline-panel__title"><span id="mt_form_title">Catat perawatan / perbaikan</span><a href="#" class="bcl-link small" id="mt_cancel_edit" style="display:none;">Batal koreksi</a></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-3"><label>Tanggal</label><input type="date" name="tanggal" id="mt_date" class="form-control" required></div>
+                        <div class="form-group col-md-9"><label>Yang dikerjakan <span class="text-danger">*</span></label><input type="text" name="catatan" id="mt_desc" class="form-control" required autocomplete="off" placeholder="mis. cuci AC, ganti freon, servis pompa"></div>
                     </div>
-                    <div class="col-sm-6 text-right">
-                        <h3 class="text-info mt-0"><span class="text-success"></span></h3>
+                    <div class="form-row">
+                        <div class="form-group col-md-3"><label>Biaya (Rp)</label><input type="text" inputmode="numeric" name="nominal" id="mt_cost" class="form-control js-money" placeholder="0"></div>
+                        <div class="form-group col-md-3"><label>Dibayar dengan</label><select name="metode_bayar" id="mt_method" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select></div>
+                        <div class="form-group col-md-6"><label>Vendor / teknisi</label><input type="text" name="vendor_name" id="mt_vendor" class="form-control" autocomplete="off"></div>
                     </div>
-                </div>
-                <hr class=" mt-0">
-                <div class="row">
-                    <dt class="col-sm-2">No Inventory</dt>
-                    <dd class="col-sm-10" id="view_inv"></dd>
-                    <dt class="col-sm-2">Nama</dt>
-                    <dd class="col-sm-10" id="view_nama"></dd>
-                    <dt class="col-sm-2">Tipe</dt>
-                    <dd class="col-sm-10" id="view_tipe"></dd>
-                    <dt class="col-sm-2">No. Kamar</dt>
-                    <dd class="col-sm-10" id="view_no_kamar"></dd>
-                </div>
-                <hr class="hr-dashed mt-2">
-                <div class="row mb-2">
-                    <div class="col-sm-12">
-                        <h5>Catat Perawatan / Perbaikan</h5>
-                        <div class="p-3 bg-white border rounded">
-                            <div class="form-row">
-                                <div class="form-group col-md-3">
-                                    <label class="mb-1">Tanggal</label>
-                                    <input type="date" id="maint_tanggal" class="form-control" value="{{date('Y-m-d')}}">
-                                </div>
-                                <div class="form-group col-md-3">
-                                    <label class="mb-1">Biaya <small class="text-muted">(Opsional)</small></label>
-                                    <div class="input-group">
-                                        <div class="input-group-prepend">
-                                            <span class="input-group-text">Rp</span>
-                                        </div>
-                                        <input type="number" id="maint_nominal" class="form-control" placeholder="0">
-                                    </div>
-                                    <small class="form-text text-muted">Masukkan biaya tanpa pemisah ribuan.</small>
-                                </div>
-                                <div class="form-group col-md-6">
-                                    <label class="mb-1">Vendor <small class="text-muted">(Opsional)</small></label>
-                                    <input type="text" id="maint_vendor" class="form-control" placeholder="Nama vendor / penyedia layanan">
-                                </div>
-                            </div>
-                            <div class="form-row align-items-end mt-2">
-                                <div class="form-group col-md-8">
-                                    <label class="mb-1">Deskripsi</label>
-                                    <input type="text" id="maint_catatan" class="form-control" placeholder="Uraian perbaikan / perawatan">
-                                </div>
-                                <div class="form-group col-md-4 text-right">
-                                    <button type="button" id="save_maintenance" class="btn btn-primary btn-block">Simpan</button>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="form-group" id="mt_proof_group" style="display:none;">
+                        <label>Nota / bukti bayar <small class="text-muted">(opsional, bisa Ctrl+V)</small></label>
+                        <div class="bcl-dropzone" data-default id="mt_zone"><input type="file" name="bukti" accept="image/*"></div>
                     </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">Biaya &gt; 0 otomatis tercatat di Pengeluaran (perawatan inventaris).</small>
+                        <button type="submit" class="btn btn-primary btn-sm" id="mt_submit">Simpan Perawatan</button>
+                    </div>
+                </form>
+                <div class="bcl-section__title mt-3">Riwayat perawatan</div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Tanggal</th><th>Yang dikerjakan</th><th>Vendor</th><th class="text-right">Biaya</th><th class="text-right">Aksi</th></tr></thead>
+                        <tbody id="mt_history"><tr><td colspan="5" class="text-muted">Memuat...</td></tr></tbody>
+                    </table>
                 </div>
-                <hr class="hr-dashed mt-2">
-                <div class="row">
-                    <div class="col-12 px-2">
-                        <div class="table-responsive-sm">
-                            <table class="table table-sm mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Tanggal</th>
-                                        <th>Deskripsi</th>
-                                        <th>Vendor</th>
-                                        <th class="text-right">Biaya</th>
-                                        <th class="text-right">No Transaksi</th>
-                                        <th class="text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+            </div>
+        </div>
+    </div>
+</div>
 
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+{{-- ============================================================ export --}}
+<div class="modal fade" id="md_export_inv" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Export Inventaris ke PDF</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form action="{{ route('bcl.inventories.export.pdf') }}" method="POST" target="_blank">
+                @csrf
+                <div class="modal-body">
+                    <label>Kamar <small class="text-muted">(kosongkan untuk semua kamar + inventaris umum)</small></label>
+                    <select name="rooms[]" class="form-control select2" multiple style="width:100%" data-placeholder="Semua kamar">
+                        @foreach($rooms as $r)
+                        <option value="{{ $r->id }}">{{ $r->room_name }}{{ $r->floor ? ' · Lantai ' . $r->floor : '' }}</option>
+                        @endforeach
+                    </select>
                 </div>
-                <hr class="hr-dashed mt-0">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
-            </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Buka PDF</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 @endsection
+
 @section('pagescript')
 <script>
-    var item = $('[data-repeater-item]').html();
-    var itemid = 0;
-    $(document).ready(function() {
-        var table_bb = $("#tb_kamar").DataTable({
-            order: [
-                [4, 'asc'],
-                [5, 'asc'],
-                [8, 'asc']
-            ],
-            "paging": false,
-            "info": false,
-            "language": {
-                "emptyTable": "Tidak ada data untuk ditampilkan, silakan gunakan filter",
-            },
-            rowGroup: {
-                dataSrc: [
-                    function(row) {
-                        return '<i class="fas fa-chevron-down"></i> ' + row[4];
-                    },
-                    function(row) {
-                        return '<i class="fas fa-chevron-down"></i> ' + row[5];
-                    }
-                ],
-                endRender: function(rows, group) {
-                    var numGroups = Math.ceil(rows.count()); //Math.round(rows.count() / 3) + 1;
-                    // return group + ' (' + numGroups + ' groups max of 3)';
-                    // var avg =
-                    //     rows
-                    //     .data()
-                    //     .pluck(7)
-                    //     .reduce((a, b) => a + b.replace(/[(Rp ,)]|(&nbsp;|<([^>]+)>)/g, '') * 1, 0);
-
-                    return (
-                        'Total <span class="highlight text-dark">' + $.number(numGroups, 0) + ' Item</span>'
-                    );
-                }
-            }
-        });
-        table_bb.on('order.dt search.dt', function() {
-            let i = 1;
-
-            table_bb.cells(null, 0, {
-                search: 'applied',
-                order: 'applied'
-            }).every(function(cell) {
-                this.data(i++);
-            });
-        }).draw();
-        var buttonCommon = {
-            exportOptions: {
-                format: {
-                    body: function(data, row, column, node) {
-                        if (column == 0) {
-                            return data;
-                        } else {
-                            return column == 1 ?
-                                data.replace(/[(Rp ,)]|(&nbsp;|<([^>]+)>)/g, '') :
-                                data.replace(/(&nbsp;|<([^>]+)>)/ig, "");
-                        }
-                    }
-                }
-            }
-        };
-        var buttons = new $.fn.dataTable.Buttons(table_bb, {
-            buttons: [
-                $.extend(true, {}, buttonCommon, {
-                    extend: 'excelHtml5',
-                    filename: function() {
-                        return "Laporan Inventaris " + moment().format('YYYY-MM-DD');
-                    },
-                    title: function() {
-                        var data = "{{config('app.name')}} \n Laporan Inventaris";
-                        return data.replace(/<br>/g, String.fromCharCode(10));
-                    },
-                    messageTop: function() {
-                        var data = '#Tgl Cetak: ' + moment().format('YYYY-MM-DD, HH:mm') + ' [{{Auth::user()->name}}]';
-                        return data.replace(/<br>/g, String.fromCharCode(10));
-                    },
-                    pageSize: 'A4',
-                }),
-                $.extend(true, {}, buttonCommon, {
-                    extend: 'pdfHtml5',
-                    filename: function() {
-                        return "Laporan Inventaris " + moment().format('YYYY-MM-DD');
-                    },
-                    title: "{{config('app.name')}} \n Laporan Inventaris",
-                    messageTop: '#Tgl Cetak: ' + moment().format('YYYY-MM-DD, HH:mm') + ' [{{Auth::user()->name}}]',
-                    pageSize: 'A4',
-                }),
-                $.extend(true, {}, buttonCommon, {
-                    extend: 'print',
-                    title: '<span class="text-center"><h3 class="m-0 p-0">Belova </h3><h4 class="m-0 p-0">Laporan Inventaris</h4></span>',
-                    messageTop: '<b>#Tgl Cetak: ' + moment().format('YYYY-MM-DD, HH:mm') + ' [{{Auth::user()->name}}]</b><hr>',
-                    pageSize: 'A4',
-                })
-
-            ]
-        }).container().prependTo($('#button_export'));
-
-        $('.btn_epdf').click(function() {
-            $('.buttons-pdf').click();
-        });
-        $('.btn_exls').click(function() {
-            $('.buttons-excel').click();
-        });
-        $('.btn_eprint').click(function() {
-            $('.buttons-print').click();
-        });
-        table_bb.on('click', 'tbody tr:not(".dtrg-group")', (e) => {
-            let classList = e.currentTarget.classList;
-
-            if (classList.contains('selected')) {
-                // classList.remove('selected');
-            } else {
-                table_bb.rows('.selected').nodes().each((row) => row.classList.remove('selected'));
-                classList.add('selected');
-            }
-        });
-    });
-    $('#tipe_inv').on('select2:select', function() {
-        var val = $(this).val();
-        if (val == 'Public') {
-            $('#kamar_kontainer').addClass('hidden');
-            $('#kamar').removeAttr('required', 'required');
-        } else {
-            $('#kamar_kontainer').removeClass('hidden');
-            $('#kamar').attr('required', 'required');
-        }
-    });
-
-    $('#perawatan_rutin').on('change', function() {
-        var x = $(this).is(":checked");
-        if (x == true) {
-            $('#cycle_kontainer').removeClass('hidden');
-            $('#waktu_perawatan').data('inputmask-min', '1');
-            // init_component();
-            $('#waktu_perawatan').attr('required', 'required');
-            $('#cycle_perawatan').attr('required', 'required');
-        } else {
-            $('#cycle_kontainer').addClass('hidden');
-            $('#waktu_perawatan').removeAttr('required', 'required');
-            $('#cycle_perawatan').removeAttr('required', 'required');
-            $('#waktu_perawatan').data('inputmask-min', '0');
-        }
-    });
-
-    $('#tipe_inv_edit').on('select2:select', function() {
-        var val = $(this).val();
-        if (val == 'Public') {
-            $('#kamar_kontainer_edit').addClass('hidden');
-            $('#kamar_edit').removeAttr('required', 'required');
-        } else {
-            $('#kamar_kontainer_edit').removeClass('hidden');
-            $('#kamar_edit').attr('required', 'required');
-        }
-    });
-
-    $('#perawatan_rutin_edit').on('change', function() {
-        var x = $(this).is(":checked");
-        if (x == true) {
-            $('#cycle_kontainer_edit').removeClass('hidden');
-            $('#waktu_perawatan_edit').data('inputmask-min', '1');
-            // init_component();
-            $('#waktu_perawatan_edit').attr('required', 'required');
-            $('#cycle_perawatan_edit').attr('required', 'required');
-        } else {
-            $('#cycle_kontainer_edit').addClass('hidden');
-            $('#waktu_perawatan_edit').removeAttr('required', 'required');
-            $('#cycle_perawatan_edit').removeAttr('required', 'required');
-            $('#waktu_perawatan_edit').data('inputmask-min', '0');
-        }
-    });
-
-    function deletes(e) {
-        e.preventDefault();
-        var url = e.currentTarget.getAttribute('href');
-        $.confirm({
-            title: 'Hapus data ini?',
-            content: 'Aksi ini tidak dapat diurungkan',
-            buttons: {
-                confirm: {
-                    text: 'Ya',
-                    btnClass: 'btn-red',
-                    keys: ['enter'],
-                    action: function() {
-                        bclSubmitPost(url);
-                    },
-                },
-                cancel: {
-                    text: 'Batal',
-                    action: function() {}
-                }
-            }
-        });
+    window.BCL_INV = {
+        today: @json(now()->format('Y-m-d')),
+        urls: {
+            data: @json(route('bcl.inventories.data')),
+            stats: @json(route('bcl.inventories.stats')),
+            store: @json(route('bcl.inventories.store')),
+            update: @json(route('bcl.inventories.update')),
+            edit: @json(route('bcl.inventories.edit', ':id')),
+            remove: @json(route('bcl.inventories.delete', ':id')),
+            show: @json(route('bcl.inventories.show', ':id')),
+            maintStore: @json(route('bcl.inventories.maintenance.store')),
+            maintUpdate: @json(route('bcl.inventories.maintenance.update')),
+            maintDelete: @json(route('bcl.inventories.maintenance.delete')),
+        },
     };
-    $('[name="jumlah[]"]').on('change', function() {
-        update_amount();
-    });
-
-    function createrow() {
-        itemid++;
-        new_elem = item.replace('"0"', '"' + itemid + '"');
-        new_elem = new_elem.replace('removelist(0)', 'removelist(' + itemid + ')');
-        new_elem = new_elem.replace('akun_subledger[0][]', 'akun_subledger[' + itemid + '][]');
-        $('[data-repeater-item]').append(new_elem);
-        init_component();
-        $('[name="jumlah[]"]').on('change', function() {
-            update_amount();
-        });
-    }
-
-    function removelist(id) {
-        if (id == 0) {
-            $.alert({
-                type: 'red',
-                title: 'Oops!',
-                content: 'Elemen pertama tidak dapat dihapus',
-            });
-        } else {
-            $.confirm({
-                title: 'Hapus List?',
-                type: 'red',
-                buttons: {
-                    Ya: function() {
-                        $('tr[data-id="' + id + '"]').remove();
-                        update_amount();
-                    },
-                    Batal: function() {
-
-                    }
-                }
-            });
-
-        }
-    }
-
-    function update_amount() {
-        var jml_debet = 0;
-        $('[name="jumlah[]"]').each(function(index) {
-            jml_debet += parseFloat($(this).val());
-        });
-        $('#amm_debet').text('Rp ' + $.number(jml_debet));
-        if (jml_debet != '') {
-            $('#bt_simpan').removeAttr('disabled');
-        } else {
-            $('#bt_simpan').attr('disabled', 'disabled');
-
-        }
-    }
-    $('.edit_inv').on('click', function() {
-        var id = $(this).data('id');
-        var address = "{{route('bcl.inventories.edit',':id')}}";
-        $.get(address, {
-                'id': id
-            },
-            function(data) {
-                console.log(data);
-                $('#id').val(data.id);
-                $('#no_inv').val(data.inv_number);
-                $('#nama').val(data.name);
-                $('#tipe_inv_edit').val(data.type).trigger('select2:select').trigger('change');
-                $('#keterangan_edit').val(data.notes);
-                $('#kamar_edit').val(data.assigned_to).trigger('change');
-                if (data.maintanance_period != null) {
-                    $('#perawatan_rutin_edit').prop('checked', true);
-                    $('#cycle_kontainer_edit').removeClass('hidden');
-                    $('#waktu_perawatan_edit').attr('required', 'required');
-                    $('#cycle_perawatan_edit').attr('required', 'required');
-                    $('#waktu_perawatan_edit').val(data.maintanance_period);
-                    $('#cycle_perawatan_edit').val(data.maintanance_cycle).trigger('select2:select').trigger('change');
-                } else {
-                    $('#perawatan_rutin_edit').prop('checked', false);
-                    $('#cycle_kontainer_edit').addClass('hidden');
-                    $('#waktu_perawatan_edit').removeAttr('required', 'required');
-                    $('#cycle_perawatan_edit').removeAttr('required', 'required');
-                }
-            }, 'json');
-        $('#md_edit_inv').modal('show');
-    });
-    $('.view_inv').on('click', function() {
-        var id = $(this).data('id');
-        var address = "{{route('bcl.inventories.show',':id')}}";
-        $.get(address, {
-            'id': id
-        }, function(data) {
-            $('#md_history tbody').html('');
-            console.log(data);
-            $('#view_inv').html(data.inv_number);
-            $('#view_nama').html(data.name);
-            $('#view_tipe').html(data.type);
-            if (data.room_name != null) {
-                $('#view_no_kamar').html(data.room_name);
-            }
-                // populate maintenance history (InventoryMaintenance records)
-            $.each(data.history, function(index, value) {
-                var desc = value.description ? value.description : '';
-                var nominal = value.cost ? value.cost : 0;
-                var vendor = value.vendor_name ? value.vendor_name : '';
-                var row = '<tr data-id="' + value.id + '" data-tanggal="' + value.tanggal + '" data-nominal="' + nominal + '" data-desc="' + $('<div>').text(desc).html() + '" data-vendor="' + $('<div>').text(vendor).html() + '">';
-                row += '<td>' + value.tanggal + '</td>';
-                row += '<td>' + $('<div>').text(desc).html() + '</td>';
-                row += '<td>' + $('<div>').text(vendor).html() + '</td>';
-                var biayaText = (typeof $.number === 'function') ? 'Rp ' + $.number(nominal) : nominal;
-                row += '<td class="text-right">' + biayaText + '</td>';
-                // separate No Transaksi and Action columns
-                row += '<td class="text-right">' + (value.doc_id ? value.doc_id : '') + '</td>';
-                row += '<td class="text-right">';
-                row += '<a href="#" class="btn btn-sm btn-outline-secondary edit-maint" data-id="' + value.id + '" title="Edit"><i class="la la-edit"></i></a> ';
-                row += '<a href="#" class="btn btn-sm btn-danger del-maint" data-id="' + value.id + '" title="Hapus"><i class="la la-trash"></i></a>';
-                row += '</td></tr>';
-                $('#md_history tbody').append(row);
-            });
-            $('#md_history').modal('show');
-        });
-    });
-    
-    // Save or update maintenance record
-    var maintenanceStoreUrl = "{{route('bcl.inventories.maintenance.store')}}";
-    var maintenanceUpdateUrl = "{{route('bcl.inventories.maintenance.update')}}";
-    var maintenanceDeleteUrl = "{{route('bcl.inventories.maintenance.delete')}}";
-
-    function renderMaintenanceRow(m) {
-        var desc = m.description ? m.description : '';
-        var nominal = m.cost ? m.cost : 0;
-        var doc = m.doc_id ? m.doc_id : '';
-        var vendor = m.vendor_name ? m.vendor_name : '';
-
-        var $tr = $('<tr>')
-            .attr('data-id', m.id)
-            .attr('data-tanggal', m.tanggal)
-            .attr('data-nominal', nominal)
-            .attr('data-desc', desc)
-            .attr('data-vendor', vendor);
-
-    $tr.append($('<td>').text(m.tanggal));
-    $tr.append($('<td>').text(desc));
-    $tr.append($('<td>').text(vendor));
-    var biayaText = (typeof $.number === 'function') ? 'Rp ' + $.number(nominal) : nominal;
-    $tr.append($('<td>').addClass('text-right').text(biayaText));
-
-    // create separate No Transaksi cell and Action cell
-    var $docTd = $('<td>').addClass('text-right').text(doc);
-    var $actTd = $('<td>').addClass('text-right');
-    $actTd.append($('<a>').attr('href', '#').addClass('btn btn-sm btn-outline-secondary edit-maint').attr('data-id', m.id).attr('title', 'Edit').html('<i class="la la-edit"></i>'));
-    $actTd.append(' ');
-    $actTd.append($('<a>').attr('href', '#').addClass('btn btn-sm btn-danger del-maint').attr('data-id', m.id).attr('title', 'Hapus').html('<i class="la la-trash"></i>'));
-
-    $tr.append($docTd).append($actTd);
-        return $tr;
-    }
-
-    $('#save_maintenance').on('click', function() {
-        var inv = $('#view_inv').text().trim();
-        if (!inv) {
-            $.alert({title: 'Error', content: 'No inventory selected'});
-            return;
-        }
-        var tanggal = $('#maint_tanggal').val();
-        var nominal = $('#maint_nominal').val();
-        var catatan = $('#maint_catatan').val();
-        if (!tanggal || !catatan) {
-            $.alert({title: 'Error', content: 'Tanggal dan Deskripsi wajib diisi'});
-            return;
-        }
-
-        var editingId = $('#save_maintenance').data('editing-id');
-        var address = editingId ? maintenanceUpdateUrl : maintenanceStoreUrl;
-
-        var payload = {
-            _token: '{{csrf_token()}}',
-            inv_number: inv,
-            tanggal: tanggal,
-            nominal: nominal,
-            catatan: catatan,
-            vendor_name: $('#maint_vendor').val()
-        };
-        if (editingId) payload.id = editingId;
-        $.post(address, payload, function(resp) {
-            if (resp.success) {
-                var m = resp.data;
-                if (editingId) {
-                    // replace existing row
-                    var $existing = $('#md_history tbody').find('tr[data-id="' + m.id + '"]');
-                    if ($existing.length) {
-                        $existing.replaceWith(renderMaintenanceRow(m));
-                    }
-                    $.alert({title: 'Berhasil', content: 'Perubahan tersimpan.'});
-                } else {
-                    // prepend new row
-                    $('#md_history tbody').prepend(renderMaintenanceRow(m));
-                    $.alert({title: 'Berhasil', content: 'Catatan perawatan tersimpan.'});
-                }
-
-                // reset form and editing state
-                $('#save_maintenance').text('Simpan').removeData('editing-id');
-                $('#maint_tanggal').val('{{date("Y-m-d")}}');
-                $('#maint_nominal').val('0');
-                $('#maint_catatan').val('');
-            } else {
-                $.alert({title: 'Error', content: resp.message || 'Gagal menyimpan'});
-            }
-        }).fail(function(xhr) {
-            $.alert({title: 'Error', content: xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menyimpan'});
-        });
-    });
-
-    // Edit maintenance (delegated)
-    $(document).on('click', '.edit-maint', function(e) {
-        e.preventDefault();
-        var tr = $(this).closest('tr');
-        var id = $(this).data('id');
-        var tanggal = tr.data('tanggal');
-        var nominal = tr.data('nominal');
-        var desc = tr.data('desc');
-        var vendor = tr.data('vendor');
-
-        $('#maint_tanggal').val(tanggal);
-        $('#maint_nominal').val(nominal);
-        $('#maint_catatan').val(desc);
-        $('#maint_vendor').val(vendor);
-        // mark button as editing
-        $('#save_maintenance').text('Update').data('editing-id', id);
-    });
-
-    // Cancel editing when modal closed (reset button)
-    $('#md_history').on('hidden.bs.modal', function() {
-        $('#save_maintenance').text('Simpan').removeData('editing-id');
-        // reset fields
-        $('#maint_tanggal').val('{{date("Y-m-d")}}');
-        $('#maint_nominal').val('0');
-        $('#maint_catatan').val('');
-        $('#maint_vendor').val('');
-    });
-
-    // Delete maintenance (delegated)
-    $(document).on('click', '.del-maint', function(e) {
-        e.preventDefault();
-        var id = $(this).data('id');
-        var tr = $(this).closest('tr');
-        $.confirm({
-            title: 'Hapus catatan perawatan?',
-            content: 'Aksi ini akan menghapus catatan dan jurnal terkait',
-            buttons: {
-                confirm: {
-                    text: 'Hapus',
-                    btnClass: 'btn-red',
-                    action: function() {
-                        $.post(maintenanceDeleteUrl, {_token: '{{csrf_token()}}', id: id}, function(resp) {
-                            if (resp.success) {
-                                $.alert({title: 'Berhasil', content: 'Catatan dihapus'});
-                                tr.remove();
-                            } else {
-                                $.alert({title: 'Error', content: resp.message || 'Gagal menghapus'});
-                            }
-                        }).fail(function(xhr) {
-                            $.alert({title: 'Error', content: xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menghapus'});
-                        });
-                    }
-                },
-                cancel: function() {}
-            }
-        });
-    });
-        // initialize export rooms select when modal shown
-        $('#md_export_inv').on('shown.bs.modal', function() {
-            if ($('#export_rooms').data('select2')) return;
-            $('#export_rooms').select2({
-                dropdownParent: $('#md_export_inv'),
-                width: '100%'
-            });
-        });
-
-    </script>
-    @stop
+</script>
+<script src="{{ asset('js/bcl/inventories.js') }}?v={{ filemtime(public_path('js/bcl/inventories.js')) }}"></script>
+@endsection

@@ -44,6 +44,10 @@
     <script src="{{ asset('dastone/plugins/custom-drag-drop-file-upload/fileUpload/fileUpload.js') }}"></script>
     <script src="{{ asset('js/bcl/paste-image.js') }}?v={{ filemtime(public_path('js/bcl/paste-image.js')) }}"></script>
     <script>
+        // Delete/refund/correction actions need the bcl.supervisor permission (server enforces it too).
+        window.BCL_CAN_SUPERVISE = @json(Gate::allows('bcl-supervise'));
+        window.BCL_METHODS = @json(\App\Services\BCL\RentalService::METHODS);
+
         // Fallback when jquery.number is missing: Indonesian grouping.
         if (typeof $.number !== 'function') {
             $.number = function(number, decimals) {
@@ -115,6 +119,9 @@
     <script>
         $(document).ready(function() {
             init_component();
+            if (!window.BCL_CAN_SUPERVISE) {
+                $('.bcl a[href*="/delete/"], .bcl a[href*="/forcedelete/"], .bcl .js-supervisor').remove();
+            }
             @if($message = Session::get('success'))
             bclToast(@json($message), 'success');
             @endif

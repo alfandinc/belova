@@ -195,6 +195,16 @@ return [
         'span' => 6,
         'order' => 135,
     ],
+    'ringkasan_kos' => [
+        'name' => 'Ringkasan Kos BCL',
+        'description' => 'Okupansi dan status kamar hari ini, kas masuk/keluar sesuai periode (dibanding periode lalu), piutang sewa, dan daftar yang perlu ditindak (lewat masa sewa, habis ≤ 7 hari, belum lunas, inventaris telat dirawat). Saran: Kos, Admin.',
+        'icon' => 'home',
+        'class' => Widgets\RingkasanKosWidget::class,
+        'view' => 'dashboard.custom_widgets.ringkasan_kos_widget',
+        'span' => 6,
+        'order' => 134,
+        'uses_period' => true,
+    ],
     'buku_menu' => [
         'name' => 'Buku Menu',
         'description' => 'Cari harga obat, tindakan, dan pemeriksaan lab. Saran: Pendaftaran, Kasir, Marketing, Beautician.',

@@ -263,24 +263,20 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     border-radius: var(--bcl-radius);
 }
 
-/* Room side panel (right drawer built on a Bootstrap modal) */
-.modal.bcl-drawer .modal-dialog {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    margin: 0;
-    width: 440px;
-    max-width: 100%;
-    transform: translateX(100%);
-    transition: transform .2s ease-out;
+/* Room detail modal: tenant, payment and actions on the left, room info on the right */
+.bcl-room-modal .modal-dialog { max-width: 920px; }
+.bcl-room-modal .modal-content { background: var(--bcl-surface); }
+.bcl-room-modal__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 20px 12px; border-bottom: 1px solid var(--bcl-line); }
+.bcl-room-modal__title { font-size: 20px; font-weight: 700; color: var(--bcl-ink); margin: 0; }
+.bcl-room-modal__sub { color: var(--bcl-muted); font-size: 12.5px; margin-top: 2px; }
+.bcl-room-modal__body { padding: 16px 20px 20px; }
+.bcl-room-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; }
+.bcl-room-grid > .bcl-room-side { border-left: 1px solid var(--bcl-line); padding-left: 24px; }
+.bcl-room-grid .bcl-section:last-child { margin-bottom: 0; }
+@media (max-width: 767.98px) {
+    .bcl-room-grid { grid-template-columns: 1fr; gap: 0; }
+    .bcl-room-grid > .bcl-room-side { border-left: 0; padding-left: 0; border-top: 1px solid var(--bcl-line); padding-top: 16px; }
 }
-.modal.bcl-drawer.show .modal-dialog { transform: none; }
-.modal.bcl-drawer .modal-content { height: 100%; border-radius: 0; border-width: 0 0 0 1px; overflow-y: auto; }
-.bcl-drawer__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 16px 18px 12px; border-bottom: 1px solid var(--bcl-line); position: sticky; top: 0; background: var(--bcl-surface); z-index: 2; }
-.bcl-drawer__title { font-size: 20px; font-weight: 700; color: var(--bcl-ink); margin: 0; }
-.bcl-drawer__sub { color: var(--bcl-muted); font-size: 12.5px; margin-top: 2px; }
-.bcl-drawer__body { padding: 14px 18px 24px; }
 .bcl-section { margin-bottom: 18px; }
 .bcl-section__title {
     font-size: 11.5px;
@@ -390,3 +386,11 @@ html.theme-dark .bcl .bcl-kpi:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 /* Outline-dark buttons stay readable on the dark theme */
 html.theme-dark .bcl .btn-outline-dark { color: var(--bcl-ink-2); border-color: #59618a; }
 html.theme-dark .bcl .btn-outline-dark:hover { background: var(--bcl-hover); color: var(--bcl-ink); }
+
+/* Toolbar uses solid buttons; counters inside them are white chips with the button colour as text */
+.bcl-btn { border-width: 0; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15); }
+.bcl-btn:hover { filter: brightness(1.06); box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2); }
+.bcl-btn .bcl-count { background: #fff; color: #b42323; }
+.bcl-btn.btn-warning { color: #3b2a00; }
+.bcl-btn.btn-warning .bcl-count { color: #8a5a00; }
+.bcl-btn.btn-info .bcl-count { color: #0369a1; }

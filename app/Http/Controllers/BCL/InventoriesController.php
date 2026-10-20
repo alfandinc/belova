@@ -1,458 +1,443 @@
 <?php
 
 namespace App\Http\Controllers\BCL;
-use App\Http\Controllers\Controller;
 
+use App\Http\Controllers\Controller;
 use App\Models\BCL\Fin_jurnal;
 use App\Models\BCL\Inventory;
-use App\Models\BCL\Rooms;
-use Illuminate\Support\Facades\DB;
-
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use App\Models\BCL\InventoryMaintenance;
+use App\Models\BCL\Rooms;
 use App\Services\BCL\RentalService;
-use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Yajra\DataTables\DataTables;
 
 class InventoriesController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    protected const CYCLES = ['Minggu', 'Bulan', 'Tahun'];
+    protected const EXPENSE_ACCOUNT = '5-10101';
+
+    public function __construct(protected RentalService $rental)
+    {
+    }
+
     public function index()
     {
-        $data = Inventory::leftjoin('bcl_rooms as rooms', 'rooms.id', '=', 'bcl_inventories.assigned_to')
-            // Maintenance expenses may list several inventory numbers separated by commas.
-            ->leftjoin('bcl_fin_jurnal as fin_jurnal', function ($join) {
-                $join->whereRaw('FIND_IN_SET(bcl_inventories.inv_number, fin_jurnal.kode_subledger) > 0')
-                    ->where('fin_jurnal.kode_akun', '=', '5-10101')
-                    ->where('fin_jurnal.pos', '=', 'D');
-            })
-            ->select(
-                DB::raw('bcl_inventories.inv_number as inv_number'),
-                DB::raw('ANY_VALUE(bcl_inventories.id) as id'),
-                DB::raw('ANY_VALUE(bcl_inventories.name) as name'),
-                DB::raw('ANY_VALUE(bcl_inventories.notes) as notes'),
-                DB::raw('ANY_VALUE(bcl_inventories.maintanance_period) as maintanance_period'),
-                DB::raw('ANY_VALUE(bcl_inventories.maintanance_cycle) as maintanance_cycle'),
-                DB::raw('ANY_VALUE(bcl_inventories.type) as type'),
-                DB::raw('ANY_VALUE(bcl_inventories.assigned_to) as assigned_to'),
-                DB::raw('ANY_VALUE(rooms.room_name) as room_name'),
-                DB::raw('MAX(fin_jurnal.tanggal) as last_maintanance')
-            )
-            ->groupBy('bcl_inventories.inv_number')
-            ->get();
-        // compute next maintenance date and remaining days/badge for each grouped record
-        foreach ($data as $d) {
-            $d->next_maintanance = null;
-            $d->remaining_badge = '';
-            if (!empty($d->last_maintanance) && !empty($d->maintanance_cycle) && !empty($d->maintanance_period)) {
-                $period = (int) $d->maintanance_period;
-                try {
-                    if ($d->maintanance_cycle == 'Minggu') {
-                        $next = Carbon::parse($d->last_maintanance)->addWeeks($period)->format('Y-m-d');
-                    } else if ($d->maintanance_cycle == 'Bulan') {
-                        $next = Carbon::parse($d->last_maintanance)->addMonths($period)->format('Y-m-d');
-                    } else if ($d->maintanance_cycle == 'Tahun') {
-                        $next = Carbon::parse($d->last_maintanance)->addYears($period)->format('Y-m-d');
-                    } else {
-                        $next = null;
-                    }
-                    if ($next) {
-                        $d->next_maintanance = $next;
-                        // compute signed remaining days (negative => overdue)
-                        $remaining = (int) Carbon::now()->diffInDays(Carbon::parse($next), false);
-                        if ($remaining < 0) {
-                            // overdue: show danger blinking badge with days overdue
-                            $overdue = abs($remaining);
-                            $d->remaining_badge = '<span class="badge badge-danger faa faa-flash animated">Terlambat ' . $overdue . ' Hari</span>';
-                        } elseif ($remaining <= 7) {
-                            // due within 7 days: show blinking warning badge
-                            $d->remaining_badge = '<span class="badge badge-warning faa faa-flash animated">' . $remaining . ' Hari lagi</span>';
-                        } else {
-                            // not urgent
-                            $d->remaining_badge = '<span class="badge badge-outline-dark">' . $remaining . ' Hari lagi</span>';
-                        }
-                    }
-                } catch (\Exception $ex) {
-                    // leave next_maintanance null on parse errors
-                    $d->next_maintanance = null;
-                    $d->remaining_badge = '';
-                }
-            }
-        }
-        // return response()->json($data);
-
         $rooms = Rooms::orderedForMapping()
-            ->leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
-            ->select('bcl_rooms.*', 'room_category.category_name')
+            ->leftJoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+            ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name')
             ->get();
-        $no_inv = $this->get_no_inv();
-        return view('bcl.inventories.index')->with('data', $data)->with('rooms', $rooms)->with('no_inv', $no_inv);
+
+        return view('bcl.inventories.index', compact('rooms'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    /** Server-side table (Yajra). Maintenance status is computed in SQL so it can be filtered and sorted. */
+    public function data(Request $request)
     {
-        //
+        $query = $this->statusQuery()
+            ->when($request->filled('room'), fn ($q) => $request->room === 'umum'
+                ? $q->where(fn ($w) => $w->whereNull('assigned_to')->orWhere('assigned_to', 0))
+                : $q->where('assigned_to', (int) $request->room))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->status));
+
+        return DataTables::of($query)
+            ->orderColumn('next_due', 'next_due IS NULL, next_due $1')
+            ->filterColumn('name', fn ($q, $keyword) => $q->where(fn ($w) => $w->where('name', 'like', "%$keyword%")->orWhere('notes', 'like', "%$keyword%")))
+            ->filterColumn('room_name', fn ($q, $keyword) => $q->where('room_name', 'like', "%$keyword%"))
+            ->editColumn('last_maint', fn ($row) => $row->last_maint)
+            ->addColumn('routine', fn ($row) => $row->maintanance_period ? 'Setiap ' . (int) $row->maintanance_period . ' ' . $row->maintanance_cycle : null)
+            ->addColumn('days_left', fn ($row) => $row->next_due ? (int) Carbon::today()->diffInDays(Carbon::parse($row->next_due), false) : null)
+            ->make(true);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    public function stats()
+    {
+        $base = $this->statusQuery();
+        $counts = DB::query()->fromSub($base, 's')->select('status', DB::raw('COUNT(*) as c'))->groupBy('status')->pluck('c', 'status');
+        $monthCost = Fin_jurnal::where('kode_akun', self::EXPENSE_ACCOUNT)->where('pos', 'D')
+            ->whereBetween('tanggal', [now()->startOfMonth()->format('Y-m-d'), now()->endOfMonth()->format('Y-m-d')])
+            ->sum('debet');
+
+        return response()->json([
+            'total' => (int) $counts->sum(),
+            'overdue' => (int) ($counts['overdue'] ?? 0),
+            'soon' => (int) ($counts['soon'] ?? 0),
+            'routine' => (int) ($counts['overdue'] ?? 0) + (int) ($counts['soon'] ?? 0) + (int) ($counts['ok'] ?? 0),
+            'month_cost' => (float) $monthCost,
+        ]);
+    }
+
     public function store(Request $request)
     {
-        $no_inv = $this->get_no_inv();
+        $request->merge(['waktu_perawatan' => $request->filled('waktu_perawatan') ? (int) RentalService::amount($request->waktu_perawatan) : null]);
         try {
-            $this->validate($request, [
-                'nama' => 'required',
-                'tipe_inv' => 'required',
-                'kamar' => 'required_if:tipe_inv,Private/Room',
-                'waktu_perawatan' => 'required_if:perawatan_rutin,on',
-                'cycle_perawatan' => 'required_if:perawatan_rutin,on',
+            $this->validate($request, $this->rules() + [
+                'kamar' => 'required_if:tipe_inv,Private/Room|array',
+                'kamar.*' => 'exists:bcl_rooms,id',
+                'jumlah' => 'nullable|integer|min:1|max:50',
             ]);
-            $result = Inventory::create([
-                'inv_number' => $no_inv,
-                'name' => $request->nama,
-                'notes' => $request->keterangan,
-                'maintanance_period' => $request->waktu_perawatan,
-                'maintanance_cycle' => $request->cycle_perawatan,
-                'type' => $request->tipe_inv,
-                'assigned_to' => $request->kamar,
-            ]);
-            return back()->with(['success' => 'Data Inventaris berhasil ditambahkan!']);
-        } catch (\Throwable $th) {
-            return back()->with(['error' => $th->getMessage()]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
         }
-    }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Inventory $inventory, Request $request)
-    {
-        try {
-            $data = Inventory::with('room')->where('inv_number', $request->id)->first();
-
-            // Return inventory plus its maintenance records (prefer InventoryMaintenance records)
-            $history = InventoryMaintenance::where('inv_number', $request->id)
-                ->orderBy('tanggal', 'desc')
-                ->get();
-
-            $data->history = $history;
-            return response()->json($data);
-        } catch (\Throwable $th) {
-            return response()->json($th->getMessage());
-        }
-    }
-
-    /**
-     * Update a maintenance record (AJAX)
-     */
-    public function updateMaintenance(Request $request)
-    {
-        $this->validate($request, [
-            'id' => 'required|integer',
-            'tanggal' => 'required|date',
-            'catatan' => 'required',
-            'nominal' => 'nullable|numeric',
-        ]);
-
-        DB::beginTransaction();
-        try {
-            $maint = InventoryMaintenance::findOrFail($request->id);
-
-            // update the maintenance record
-            $maint->tanggal = $request->tanggal;
-            $maint->description = $request->catatan;
-            $maint->cost = $request->nominal ?? 0;
-            if ($request->vendor_name) $maint->vendor_name = $request->vendor_name;
-            $maint->save();
-
-            // update related journal entries (by doc_id)
-            if (!empty($maint->doc_id)) {
-                // debit entry (linked to inv via kode_subledger)
-                Fin_jurnal::where('doc_id', $maint->doc_id)->update([
-                    'tanggal' => $request->tanggal,
-                    'debet' => $request->nominal ?? 0,
-                    'kredit' => 0,
-                    'kode_subledger' => $maint->inv_number,
-                    'catatan' => $request->catatan,
-                    'user_id' => Auth::id(),
-                ]);
-                // credit counterpart (same doc_id, opposite pos)
-                Fin_jurnal::where('doc_id', $maint->doc_id)->where('pos', 'K')->update([
-                    'tanggal' => $request->tanggal,
-                    'kredit' => $request->nominal ?? 0,
-                    'debet' => 0,
-                    'catatan' => $request->catatan,
-                    'user_id' => Auth::id(),
-                ]);
-            }
-
-            DB::commit();
-            return response()->json(['success' => true, 'data' => $maint]);
-        } catch (\Throwable $th) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Delete a maintenance record (AJAX)
-     */
-    public function deleteMaintenance(Request $request)
-    {
-        $this->validate($request, [
-            'id' => 'required|integer',
-        ]);
-
-        DB::beginTransaction();
-        try {
-            $maint = InventoryMaintenance::findOrFail($request->id);
-
-            // delete related journal entries by doc_id
-            if (!empty($maint->doc_id)) {
-                Fin_jurnal::where('doc_id', $maint->doc_id)->delete();
-            }
-
-            // soft-delete the maintenance record
-            $maint->delete();
-
-            DB::commit();
-            return response()->json(['success' => true]);
-        } catch (\Throwable $th) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Inventory $inventory, Request $request)
-    {
-        try {
-            $data = Inventory::findorfail($request->id);
-            return response()->json($data);
-        } catch (\Throwable $th) {
-            return response()->json($th->getMessage());
-        }
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Inventory $inventory)
-    {
-        try {
-            $this->validate($request, [
-                'nama' => 'required',
-                'tipe_inv' => 'required',
-                // inv_number must be present and unique except for the current record
-                'inv_number' => 'required|unique:bcl_inventories,inv_number,' . $request->id,
-                'kamar' => 'required_if:tipe_inv,Private/Room',
-                'waktu_perawatan' => 'required_if:perawatan_rutin,on',
-                'cycle_perawatan' => 'required_if:perawatan_rutin,on',
-            ]);
-
-            DB::transaction(function () use ($request) {
-                $inventory = Inventory::lockForUpdate()->findOrFail($request->id);
-                $oldNumber = $inventory->inv_number;
-                $routine = $request->has('perawatan_rutin');
-                $inventory->update([
-                    'inv_number' => $request->inv_number,
-                    'name' => $request->nama,
-                    'notes' => $request->keterangan,
-                    'maintanance_period' => $routine ? $request->waktu_perawatan : null,
-                    'maintanance_cycle' => $routine ? $request->cycle_perawatan : null,
-                    'type' => $request->tipe_inv,
-                    'assigned_to' => $request->tipe_inv === 'Private/Room' ? $request->kamar : null,
-                ]);
-
-                // Maintenance history and expense lines are linked by inventory number.
-                if ($oldNumber !== $request->inv_number) {
-                    InventoryMaintenance::where('inv_number', $oldNumber)->update(['inv_number' => $request->inv_number]);
-                    Fin_jurnal::where('kode_subledger', $oldNumber)->whereIn('kode_akun', ['5-10101', '5-10102'])->update(['kode_subledger' => $request->inv_number]);
+        // One item per selected room (e.g. "AC" for 10 rooms at once), times "jumlah" per room.
+        $rooms = $request->tipe_inv === 'Private/Room' ? array_values(array_unique((array) $request->kamar)) : [null];
+        $copies = max((int) $request->input('jumlah', 1), 1);
+        $numbers = DB::transaction(function () use ($request, $rooms, $copies) {
+            $created = [];
+            foreach ($rooms as $roomId) {
+                for ($i = 0; $i < $copies; $i++) {
+                    $created[] = Inventory::create($this->attributes($request) + [
+                        'inv_number' => $this->nextNumber(),
+                        'assigned_to' => $roomId,
+                    ])->inv_number;
                 }
-            });
-
-            return back()->with(['success' => 'Data Inventaris berhasil diubah!']);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return back()->with('error', collect($e->errors())->flatten()->first());
-        } catch (\Throwable $th) {
-            return back()->with(['error' => $th->getMessage()]);
-        }
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Inventory $inventory, Request $request)
-    {
-        try {
-            $inventory = Inventory::findOrFail($request->id);
-            if (InventoryMaintenance::where('inv_number', $inventory->inv_number)->exists()) {
-                return back()->with('error', 'Inventaris memiliki riwayat perawatan, tidak dapat dihapus.');
             }
-            $inventory->delete();
-            return back()->with(['success' => 'Data Inventaris berhasil dihapus!']);
-        } catch (\Throwable $th) {
-            return back()->with(['error' => $th->getMessage()]);
-        }
+
+            return $created;
+        });
+
+        return response()->json(['message' => count($numbers) . ' inventaris ditambahkan (' . $numbers[0] . (count($numbers) > 1 ? ' s/d ' . end($numbers) : '') . ').']);
     }
 
-    public function get_no_inv()
+    public function edit(Request $request)
     {
-        $data = DB::select("SELECT CONCAT('IN',DATE_FORMAT(NOW(), '%m%y' ),LPAD(ifnull(max(SUBSTR(inv_number,7)),0)+1,4,0)) as no_inv from bcl_inventories");
-        $result = $data[0];
-        return $result->no_inv;
+        return response()->json(Inventory::with('room')->findOrFail($request->id));
     }
 
-    /**
-     * Store a maintenance record in the finance journal and link it to an inventory number
-     */
+    public function update(Request $request)
+    {
+        $request->merge(['waktu_perawatan' => $request->filled('waktu_perawatan') ? (int) RentalService::amount($request->waktu_perawatan) : null]);
+        $inventory = Inventory::find($request->id);
+        if (!$inventory) {
+            return response()->json(['message' => 'Inventaris tidak ditemukan.'], 404);
+        }
+        try {
+            $this->validate($request, $this->rules() + [
+                'inv_number' => ['required', 'max:50', Rule::unique('bcl_inventories', 'inv_number')->ignore($inventory->id)],
+                'kamar' => 'required_if:tipe_inv,Private/Room|nullable|exists:bcl_rooms,id',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
+        }
+
+        DB::transaction(function () use ($request, $inventory) {
+            $oldNumber = $inventory->inv_number;
+            $inventory->update($this->attributes($request) + [
+                'inv_number' => $request->inv_number,
+                'assigned_to' => $request->tipe_inv === 'Private/Room' ? (int) $request->kamar : null,
+            ]);
+
+            // Maintenance history and expense lines are linked by inventory number.
+            if ($oldNumber !== $request->inv_number) {
+                InventoryMaintenance::withTrashed()->where('inv_number', $oldNumber)->update(['inv_number' => $request->inv_number]);
+                Fin_jurnal::where('kode_akun', self::EXPENSE_ACCOUNT)->whereRaw('FIND_IN_SET(?, kode_subledger) > 0', [$oldNumber])->get()
+                    ->each(function ($line) use ($oldNumber, $request) {
+                        $codes = array_map(fn ($c) => $c === $oldNumber ? $request->inv_number : $c, explode(',', (string) $line->kode_subledger));
+                        $line->update(['kode_subledger' => implode(',', $codes)]);
+                    });
+            }
+        });
+
+        return response()->json(['message' => 'Inventaris ' . $request->inv_number . ' diperbarui.']);
+    }
+
+    public function destroy(Request $request)
+    {
+        $inventory = Inventory::find($request->id);
+        if (!$inventory) {
+            return $this->respond($request, 'Inventaris tidak ditemukan.', 404);
+        }
+        if (InventoryMaintenance::where('inv_number', $inventory->inv_number)->exists()) {
+            return $this->respond($request, 'Inventaris memiliki riwayat perawatan, tidak dapat dihapus.', 422);
+        }
+        $this->rental->audit('delete_inventory', $inventory->inv_number, 'Hapus inventaris ' . $inventory->name, $inventory->only(['name', 'type', 'assigned_to', 'notes']));
+        $inventory->delete();
+
+        return $this->respond($request, 'Inventaris ' . $inventory->inv_number . ' dihapus.');
+    }
+
+    /** Inventory detail + maintenance history (newest first). */
+    public function show(Request $request)
+    {
+        $inventory = Inventory::with('room')->where('inv_number', $request->id)->firstOrFail();
+        $status = $this->statusQuery()->where('id', $inventory->id)->first();
+        $history = InventoryMaintenance::where('inv_number', $inventory->inv_number)->orderByDesc('tanggal')->orderByDesc('id')->get();
+        // The payment method sits on the cash (credit) line of each maintenance expense.
+        $methods = Fin_jurnal::whereIn('doc_id', $history->pluck('doc_id')->filter())->where('pos', 'K')->pluck('metode_bayar', 'doc_id');
+
+        return response()->json([
+            'id' => $inventory->id,
+            'inv_number' => $inventory->inv_number,
+            'name' => $inventory->name,
+            'type' => $inventory->type,
+            'notes' => $inventory->notes,
+            'room_name' => optional($inventory->room)->room_name,
+            'routine' => $inventory->maintanance_period ? 'Setiap ' . (int) $inventory->maintanance_period . ' ' . $inventory->maintanance_cycle : null,
+            'last_maint' => optional($status)->last_maint,
+            'next_due' => optional($status)->next_due,
+            'history' => $history->map(fn ($m) => [
+                    'id' => $m->id,
+                    'tanggal' => $m->tanggal,
+                    'description' => $m->description,
+                    'cost' => (float) $m->cost,
+                    'vendor_name' => $m->vendor_name,
+                    'doc_id' => $m->doc_id,
+                    'metode_bayar' => $methods[$m->doc_id] ?? null,
+                ]),
+        ]);
+    }
+
     public function storeMaintenance(Request $request)
     {
-        $this->validate($request, [
-            'inv_number' => 'required',
-            'tanggal' => 'required|date',
-            'catatan' => 'required',
-            'nominal' => 'nullable|numeric',
-            'vendor_name' => 'nullable|string'
-        ]);
-
-        DB::beginTransaction();
+        $request->merge(['nominal' => RentalService::amount($request->nominal)]);
         try {
-            $inv = Inventory::where('inv_number', $request->inv_number)->first();
+            $this->validate($request, $this->maintenanceRules() + ['inv_number' => 'required|exists:bcl_inventories,inv_number']);
+        } catch (ValidationException $e) {
+            return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first()], 422);
+        }
 
-            $no_jurnal = app(RentalService::class)->nextNoJurnal();
-            $doc_id = 'MAINT' . $no_jurnal;
-
-            // create maintenance record
+        $maint = DB::transaction(function () use ($request) {
+            $inventory = Inventory::where('inv_number', $request->inv_number)->firstOrFail();
             $maint = InventoryMaintenance::create([
-                'inventory_id' => $inv?$inv->id:null,
-                'inv_number' => $request->inv_number,
+                'inventory_id' => $inventory->id,
+                'inv_number' => $inventory->inv_number,
                 'tanggal' => $request->tanggal,
                 'description' => $request->catatan,
-                'cost' => $request->nominal ?? 0,
-                'vendor_name' => $request->vendor_name ?? null,
-                'doc_id' => $doc_id,
-                'created_by' => Auth::id()
+                'cost' => (float) $request->nominal,
+                'vendor_name' => $request->vendor_name,
+                'created_by' => auth()->id(),
             ]);
+            $this->syncMaintenanceJournal($maint, $request);
 
-            // Create corresponding Fin_jurnal entries (double-entry)
-            // Credit cash/bank (1-10101)
-            $k = Fin_jurnal::create([
-                'no_jurnal' => $no_jurnal,
-                'tanggal' => $request->tanggal,
-                'kode_akun' => '1-10101',
-                'debet' => 0,
-                'kredit' => $request->nominal ?? 0,
-                'kode_subledger' => null,
-                'catatan' => $request->catatan,
-                'index_kas' => 0,
-                'doc_id' => $doc_id,
-                'identity' => 'Pengeluaran',
-                'pos' => 'K',
-                'user_id' => Auth::id(),
-                'csrf' => time()
-            ]);
+            return $maint;
+        });
 
-            // Debit expense (5-10101) and link to inv_number
-            $d = Fin_jurnal::create([
-                'no_jurnal' => $no_jurnal,
-                'tanggal' => $request->tanggal,
-                'kode_akun' => '5-10101',
-                'debet' => $request->nominal ?? 0,
-                'kredit' => 0,
-                'kode_subledger' => $request->inv_number,
-                'catatan' => $request->catatan,
-                'index_kas' => 0,
-                'doc_id' => $doc_id,
-                'identity' => 'Pengeluaran',
-                'pos' => 'D',
-                'user_id' => Auth::id(),
-                'csrf' => time()
-            ]);
-
-            // update maintenance with journal id
-            $maint->journal_id = $d->id;
-            $maint->save();
-
-            DB::commit();
-
-            return response()->json(['success' => true, 'data' => $maint]);
-        } catch (\Throwable $th) {
-            DB::rollBack();
-            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
-        }
+        return response()->json(['success' => true, 'message' => 'Perawatan ' . $request->inv_number . ' dicatat.', 'data' => $maint]);
     }
 
-    /**
-     * Export inventories filtered by rooms to PDF and stream to browser
-     */
+    public function updateMaintenance(Request $request)
+    {
+        $request->merge(['nominal' => RentalService::amount($request->nominal)]);
+        try {
+            $this->validate($request, $this->maintenanceRules() + ['id' => 'required|integer']);
+        } catch (ValidationException $e) {
+            return response()->json(['success' => false, 'message' => collect($e->errors())->flatten()->first()], 422);
+        }
+
+        $maint = DB::transaction(function () use ($request) {
+            $maint = InventoryMaintenance::lockForUpdate()->findOrFail($request->id);
+            $old = $maint->only(['tanggal', 'description', 'cost', 'vendor_name']);
+            $maint->update([
+                'tanggal' => $request->tanggal,
+                'description' => $request->catatan,
+                'cost' => (float) $request->nominal,
+                'vendor_name' => $request->vendor_name,
+            ]);
+            $this->syncMaintenanceJournal($maint, $request);
+            $this->rental->audit('update_maintenance', $maint->inv_number, 'Koreksi catatan perawatan ' . $maint->inv_number, ['old' => $old, 'new' => $maint->only(['tanggal', 'description', 'cost', 'vendor_name'])]);
+
+            return $maint;
+        });
+
+        return response()->json(['success' => true, 'message' => 'Catatan perawatan diperbarui.', 'data' => $maint]);
+    }
+
+    public function deleteMaintenance(Request $request)
+    {
+        $this->validate($request, ['id' => 'required|integer']);
+
+        DB::transaction(function () use ($request) {
+            $maint = InventoryMaintenance::findOrFail($request->id);
+            if ($maint->doc_id) {
+                Fin_jurnal::where('doc_id', $maint->doc_id)->delete();
+            }
+            $this->rental->audit('delete_maintenance', $maint->inv_number, 'Hapus catatan perawatan ' . $maint->inv_number, $maint->only(['tanggal', 'description', 'cost', 'vendor_name', 'doc_id']));
+            $maint->delete();
+        });
+
+        return response()->json(['success' => true, 'message' => 'Catatan perawatan dihapus.']);
+    }
+
     public function exportPdf(Request $request)
     {
         $this->validate($request, [
             'rooms' => 'nullable|array',
-            'rooms.*' => 'integer'
+            'rooms.*' => 'integer',
         ]);
 
-        $roomsInput = $request->input('rooms', []);
+        $roomsInput = array_map('intval', $request->input('rooms', []));
+        $roomsQuery = Rooms::leftJoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+            ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name');
+        $roomsModel = $roomsInput
+            ? $roomsQuery->whereIn('bcl_rooms.id', $roomsInput)->orderByRaw('FIELD(bcl_rooms.id, ' . implode(',', $roomsInput) . ')')->get()
+            : $roomsQuery->orderByRaw('bcl_rooms.floor IS NULL, bcl_rooms.floor')->orderBy('bcl_rooms.room_name')->get();
 
-        // build groups per room. If rooms specified, use that order; otherwise all rooms
-        $groups = [];
-        if (!empty($roomsInput)) {
-            $roomsModel = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
-                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name')
-                ->whereIn('bcl_rooms.id', $roomsInput)
-                ->orderByRaw("FIELD(bcl_rooms.id, " . implode(',', array_map('intval', $roomsInput)) . ")")
-                ->get();
-        } else {
-            $roomsModel = Rooms::orderedForMapping()
-                ->leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
-                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'bcl_rooms.floor', 'room_category.category_name')
-                ->get();
-        }
+        $items = Inventory::whereIn('assigned_to', $roomsModel->pluck('id'))->orderBy('inv_number')->get()->groupBy('assigned_to');
+        $groups = $roomsModel->map(fn ($r) => [
+            'room_id' => $r->id,
+            'room_name' => $r->room_name,
+            'floor' => $r->floor,
+            'category_name' => $r->category_name,
+            'items' => $items->get($r->id, collect()),
+        ])->all();
 
-        foreach ($roomsModel as $r) {
-            $items = Inventory::where('assigned_to', $r->id)->orderBy('inv_number')->get();
-            $groups[] = [
-                'room_id' => $r->id,
-                'room_name' => $r->room_name,
-                'floor' => $r->floor,
-                'category_name' => $r->category_name,
-                'items' => $items
-            ];
-        }
-
-        // include unassigned inventories if no specific rooms requested
-        if (empty($roomsInput)) {
-            $unassigned = Inventory::whereNull('assigned_to')->orWhere('assigned_to', 0)->orderBy('inv_number')->get();
+        if (!$roomsInput) {
+            $unassigned = Inventory::where(fn ($q) => $q->whereNull('assigned_to')->orWhere('assigned_to', 0))->orderBy('inv_number')->get();
             if ($unassigned->count()) {
-                $groups[] = [
-                    'room_id' => null,
-                    'room_name' => 'Umum',
-                    'category_name' => '',
-                    'items' => $unassigned
-                ];
+                $groups[] = ['room_id' => null, 'room_name' => 'Umum', 'floor' => null, 'category_name' => '', 'items' => $unassigned];
             }
         }
 
-        // roomTitle is useful when only one group
-        $roomTitle = null;
-        if (count($groups) === 1) {
-            $g = $groups[0];
-            $roomTitle = $g['room_name'] . ($g['category_name'] ? ' (' . $g['category_name'] . ')' : '');
+        $roomTitle = count($groups) === 1 ? $groups[0]['room_name'] . ($groups[0]['category_name'] ? ' (' . $groups[0]['category_name'] . ')' : '') : null;
+
+        return PDF::loadView('bcl.inventories.export_pdf', compact('groups', 'roomTitle'))->setPaper('a5', 'portrait')->stream('inventories.pdf');
+    }
+
+    // ------------------------------------------------------------ helpers
+
+    /**
+     * Inventory rows with last maintenance (maintenance log or older expense entries), the next due date
+     * (from the last maintenance, or from when the item was registered) and a status:
+     * none (no routine) | overdue | soon (within 7 days) | ok.
+     */
+    public function statusQuery()
+    {
+        // Small derived tables joined once (a correlated FIND_IN_SET per row took ~2 s on 700 items).
+        $maintLog = DB::table('bcl_inventory_maintenances')->whereNull('deleted_at')
+            ->groupBy('inv_number')->select('inv_number', DB::raw('MAX(tanggal) as tanggal'));
+        $expenseLines = DB::table('bcl_fin_jurnal')
+            ->where('kode_akun', self::EXPENSE_ACCOUNT)->where('pos', 'D')->where('doc_id', 'not like', 'MAINT%')
+            ->whereNotNull('kode_subledger')->where('kode_subledger', '!=', '')
+            ->select('kode_subledger', 'tanggal');
+
+        $base = DB::table('bcl_inventories as i')
+            ->leftJoin('bcl_rooms as r', 'r.id', '=', 'i.assigned_to')
+            ->leftJoinSub($maintLog, 'ml', 'ml.inv_number', '=', 'i.inv_number')
+            ->leftJoinSub($expenseLines, 'el', function ($join) {
+                $join->whereRaw('FIND_IN_SET(i.inv_number, el.kode_subledger) > 0');
+            })
+            ->groupBy('i.id')
+            ->select('i.id')
+            ->selectRaw('MAX(i.inv_number) as inv_number, MAX(i.name) as name, MAX(i.notes) as notes, MAX(i.type) as type, MAX(i.assigned_to) as assigned_to')
+            ->selectRaw('MAX(i.maintanance_period) as maintanance_period, MAX(i.maintanance_cycle) as maintanance_cycle, MAX(i.created_at) as created_at')
+            ->selectRaw('MAX(r.room_name) as room_name, MAX(r.floor) as floor')
+            ->selectRaw('MAX(ml.tanggal) as last_maint_log, MAX(el.tanggal) as last_maint_expense');
+
+        $withDue = DB::query()->fromSub($base, 'b')
+            ->select('b.*')
+            ->selectRaw("NULLIF(GREATEST(COALESCE(last_maint_log, '1000-01-01'), COALESCE(last_maint_expense, '1000-01-01')), '1000-01-01') as last_maint")
+            ->selectRaw("CASE WHEN CAST(maintanance_period AS UNSIGNED) > 0 THEN
+                CASE maintanance_cycle
+                    WHEN 'Minggu' THEN DATE_ADD(COALESCE(NULLIF(GREATEST(COALESCE(last_maint_log, '1000-01-01'), COALESCE(last_maint_expense, '1000-01-01')), '1000-01-01'), DATE(created_at)), INTERVAL CAST(maintanance_period AS UNSIGNED) WEEK)
+                    WHEN 'Bulan' THEN DATE_ADD(COALESCE(NULLIF(GREATEST(COALESCE(last_maint_log, '1000-01-01'), COALESCE(last_maint_expense, '1000-01-01')), '1000-01-01'), DATE(created_at)), INTERVAL CAST(maintanance_period AS UNSIGNED) MONTH)
+                    WHEN 'Tahun' THEN DATE_ADD(COALESCE(NULLIF(GREATEST(COALESCE(last_maint_log, '1000-01-01'), COALESCE(last_maint_expense, '1000-01-01')), '1000-01-01'), DATE(created_at)), INTERVAL CAST(maintanance_period AS UNSIGNED) YEAR)
+                END END as next_due");
+
+        $today = Carbon::today()->format('Y-m-d');
+        $soon = Carbon::today()->addDays(7)->format('Y-m-d');
+
+        $withStatus = DB::query()->fromSub($withDue, 'd')
+            ->select('d.*')
+            ->selectRaw("CASE WHEN next_due IS NULL THEN 'none' WHEN next_due < ? THEN 'overdue' WHEN next_due <= ? THEN 'soon' ELSE 'ok' END as status", [$today, $soon]);
+
+        // Wrapped once more so "status" can be filtered on and sorted by.
+        return DB::query()->fromSub($withStatus, 'inv')->select('inv.*');
+    }
+
+    protected function rules(): array
+    {
+        return [
+            'nama' => 'required|string|max:150',
+            'tipe_inv' => 'required|in:Private/Room,Public',
+            'keterangan' => 'nullable|string|max:255',
+            'waktu_perawatan' => 'required_if:perawatan_rutin,1|nullable|integer|min:1|max:120',
+            'cycle_perawatan' => 'required_if:perawatan_rutin,1|nullable|in:' . implode(',', self::CYCLES),
+        ];
+    }
+
+    protected function attributes(Request $request): array
+    {
+        $routine = $request->boolean('perawatan_rutin');
+
+        return [
+            'name' => trim($request->nama),
+            'notes' => $request->keterangan,
+            'type' => $request->tipe_inv,
+            'maintanance_period' => $routine ? $request->waktu_perawatan : null,
+            'maintanance_cycle' => $routine ? $request->cycle_perawatan : null,
+        ];
+    }
+
+    protected function maintenanceRules(): array
+    {
+        return [
+            'tanggal' => 'required|date',
+            'catatan' => 'required|string|max:255',
+            'nominal' => 'nullable|numeric|min:0',
+            'vendor_name' => 'nullable|string|max:150',
+            'metode_bayar' => 'nullable|in:' . implode(',', RentalService::METHODS),
+            'bukti' => 'nullable|image|max:8192',
+        ];
+    }
+
+    /**
+     * Keep the expense journal of a maintenance in line with its cost: lines only exist when there is a
+     * cost (no more Rp 0 expenses), and are created / updated / removed as the cost changes.
+     */
+    protected function syncMaintenanceJournal(InventoryMaintenance $maint, Request $request): void
+    {
+        $cost = (float) $maint->cost;
+        if ($cost <= 0) {
+            if ($maint->doc_id) {
+                Fin_jurnal::where('doc_id', $maint->doc_id)->delete();
+                $maint->update(['doc_id' => null, 'journal_id' => null]);
+            }
+
+            return;
         }
 
-        $pdf = PDF::loadView('bcl.inventories.export_pdf', compact('groups', 'roomTitle'))
-            ->setPaper('a5', 'portrait');
+        $catatan = 'Perawatan ' . $maint->inv_number . ': ' . $maint->description . ($maint->vendor_name ? ' (' . $maint->vendor_name . ')' : '');
+        $method = $request->metode_bayar ?: 'Tunai';
+        $proof = $this->rental->storeProof($request->file('bukti'), 'bukti-perawatan');
 
-        return $pdf->stream('inventories.pdf');
+        if ($maint->doc_id && Fin_jurnal::where('doc_id', $maint->doc_id)->exists()) {
+            Fin_jurnal::where('doc_id', $maint->doc_id)->where('pos', 'K')->update(array_filter([
+                'tanggal' => $maint->tanggal, 'kredit' => $cost, 'debet' => 0, 'catatan' => $catatan, 'metode_bayar' => $method, 'bukti' => $proof,
+            ], fn ($v) => $v !== null));
+            Fin_jurnal::where('doc_id', $maint->doc_id)->where('pos', 'D')->update([
+                'tanggal' => $maint->tanggal, 'debet' => $cost, 'kredit' => 0, 'catatan' => $catatan, 'kode_subledger' => $maint->inv_number,
+            ]);
+
+            return;
+        }
+
+        $noJurnal = $this->rental->nextNoJurnal();
+        $base = ['no_jurnal' => $noJurnal, 'tanggal' => $maint->tanggal, 'doc_id' => 'MAINT' . $noJurnal, 'identity' => 'Pengeluaran', 'catatan' => $catatan];
+        $this->rental->journal($base + ['kode_akun' => RentalService::ACCOUNT_CASH, 'kredit' => $cost, 'pos' => 'K', 'metode_bayar' => $method, 'bukti' => $proof]);
+        $debit = $this->rental->journal($base + ['kode_akun' => self::EXPENSE_ACCOUNT, 'debet' => $cost, 'pos' => 'D', 'kode_subledger' => $maint->inv_number]);
+        $maint->update(['doc_id' => 'MAINT' . $noJurnal, 'journal_id' => $debit->id]);
+    }
+
+    /** Next free number "IN" + mmyy + 4 digits (sequence continues across months). */
+    protected function nextNumber(): string
+    {
+        $last = DB::selectOne("SELECT MAX(CAST(SUBSTR(inv_number, 7, 4) AS UNSIGNED)) AS n FROM bcl_inventories WHERE inv_number REGEXP '^IN[0-9]{8}' FOR UPDATE");
+
+        return 'IN' . now()->format('my') . str_pad((string) (((int) ($last->n ?? 0)) + 1), 4, '0', STR_PAD_LEFT);
+    }
+
+    protected function respond(Request $request, string $message, int $status = 200)
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['message' => $message], $status);
+        }
+
+        return back()->with($status < 300 ? 'success' : 'error', $message);
     }
 }

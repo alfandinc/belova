@@ -97,9 +97,9 @@ $data = $data;
                                             <td>{{$data->catatan}}</td>
                                             <td class="text-right">Rp {{number_format($data->debet,2)}} </td>
                                             <td class="text-right">
-                                                @role('Administrator')
+                                                @can('bcl-supervise')
                                                 <a class="btn btn-xs btn-square btn-danger" onclick="deletes(event)" href="{{route('bcl.expense.delete',$data->doc_id)}}"><i class="fas fa-trash"></i></i></button>
-                                                    @endrole
+                                                    @endcan
                                             </td>
                                         </tr>
                                         <?php $no++; ?>

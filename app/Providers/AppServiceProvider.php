@@ -39,6 +39,11 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('erm.rawatjalans.partials.modal-daftar-kunjungan', DaftarKunjunganModalComposer::class);
 
+        // Kos BCL: deleting, refunding, cancelling and correcting money records needs a supervisor.
+        \Illuminate\Support\Facades\Gate::define('bcl-supervise', function ($user) {
+            return $user->hasRole('Admin') || $user->checkPermissionTo('bcl.supervisor');
+        });
+
         config(['app.locale' => 'id']);
 	    Carbon::setLocale('id');
         Schema::defaultStringLength(191); 

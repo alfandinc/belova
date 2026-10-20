@@ -27,8 +27,137 @@ class RentalService
     public const ACCOUNT_DEPOSIT = '2-99999';
     public const ACCOUNT_REVENUE = '4-10101';
     public const ACCOUNT_REFUND = '5-10102';
+    /** Security deposit (uang jaminan): returned at check-out minus damages. Kept apart from the prepaid balance (2-99999). */
+    public const ACCOUNT_GUARANTEE = '2-99998';
+    /** Other income: kept guarantee deductions, forfeited booking deposits. */
+    public const ACCOUNT_OTHER_INCOME = '4-10102';
+
+    /** Payment methods offered on every money-in form; the first one needs no transfer proof. */
+    public const METHODS = ['Tunai', 'Transfer', 'QRIS', 'EDC'];
 
     protected ?Collection $unpaidCache = null;
+
+    public static function methodNeedsProof(?string $method): bool
+    {
+        return $method !== null && $method !== '' && $method !== 'Tunai';
+    }
+
+    /** Store an uploaded payment proof on the public disk and return its path. */
+    public function storeProof(?\Illuminate\Http\UploadedFile $file, string $prefix): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        return $file->storeAs('bcl/transfer-proof', $prefix . '-' . \Illuminate\Support\Str::random(10) . '.' . $file->getClientOriginalExtension(), 'public');
+    }
+
+    public function audit(string $action, ?string $subject, string $description, array $data = []): void
+    {
+        \App\Models\BCL\AuditLog::create([
+            'user_id' => auth()->id(),
+            'action' => $action,
+            'subject' => $subject,
+            'description' => $description,
+            'data' => $data,
+            'created_at' => now(),
+        ]);
+    }
+
+    /** Security deposit held per renter (kredit - debet on 2-99998). */
+    public function guaranteeBalances(iterable $renterIds = null): Collection
+    {
+        return Fin_jurnal::where('kode_akun', self::ACCOUNT_GUARANTEE)
+            ->when($renterIds !== null, fn ($q) => $q->whereIn('kode_subledger', collect($renterIds)->filter()->unique()->values()))
+            ->groupBy('kode_subledger')
+            ->selectRaw('kode_subledger, SUM(kredit) - SUM(debet) as saldo')
+            ->pluck('saldo', 'kode_subledger')
+            ->map(fn ($v) => (float) $v)
+            ->filter(fn ($v) => abs($v) > 0.009);
+    }
+
+    public function guaranteeBalance($renterId): float
+    {
+        return (float) ($this->guaranteeBalances([$renterId])[$renterId] ?? 0);
+    }
+
+    /**
+     * Suggested price for a custom stay [start, end) in a room category: as many month/year packages as fit
+     * (largest first), the remaining days at the daily rate (1-day package, else monthly price / 30).
+     *
+     * @return array{total: float, days: int, parts: array<int, array{label: string, amount: float}>, daily_rate: float}
+     */
+    public function suggestPrice($category, $start, $end): array
+    {
+        $start = Carbon::parse($start)->startOfDay();
+        $end = Carbon::parse($end)->startOfDay();
+        $days = max((int) $start->diffInDays($end, false), 0);
+        $lists = \App\Models\BCL\Pricelist::where('room_category', $category)->get();
+
+        // Month-based packages expressed in months: "3 Bulan" = 3, "1 Tahun" = 12.
+        $monthPackages = $lists->map(function ($pl) {
+            $unit = strtolower((string) $pl->jangka_sewa);
+            $months = $unit === 'bulan' ? (int) $pl->jangka_waktu : ($unit === 'tahun' ? 12 * (int) $pl->jangka_waktu : 0);
+
+            return $months > 0 ? ['months' => $months, 'price' => (float) $pl->price, 'label' => $pl->jangka_waktu . ' ' . $pl->jangka_sewa] : null;
+        })->filter()->sortByDesc('months')->values();
+
+        $daily = $lists->filter(fn ($pl) => strtolower((string) $pl->jangka_sewa) === 'hari')->sortBy('jangka_waktu')->first();
+        $monthly = $monthPackages->firstWhere('months', 1);
+        $dailyRate = $daily
+            ? round((float) $daily->price / max((int) $daily->jangka_waktu, 1))
+            : ($monthly ? round($monthly['price'] / 30) : ($monthPackages->isNotEmpty() ? round($monthPackages->last()['price'] / ($monthPackages->last()['months'] * 30)) : 0));
+
+        $parts = [];
+        $cursor = $start->copy();
+        foreach ($monthPackages as $package) {
+            $count = 0;
+            while ($cursor->copy()->addMonthsNoOverflow($package['months'])->lte($end)) {
+                $cursor->addMonthsNoOverflow($package['months']);
+                $count++;
+            }
+            if ($count > 0) {
+                $parts[] = ['label' => $count . ' × paket ' . $package['label'], 'amount' => $count * $package['price']];
+            }
+        }
+        $rest = (int) $cursor->diffInDays($end);
+        if ($rest > 0) {
+            $parts[] = ['label' => $rest . ' hari × ' . number_format($dailyRate, 0, ',', '.') . ($daily ? '' : ' (prorata)'), 'amount' => $rest * $dailyRate];
+        }
+
+        return [
+            'total' => (float) array_sum(array_column($parts, 'amount')),
+            'days' => $days,
+            'parts' => $parts,
+            'daily_rate' => (float) $dailyRate,
+        ];
+    }
+
+    /**
+     * Daily price for a rental's room: the 1-day package of its category when it exists,
+     * otherwise the rental price spread over the package length.
+     */
+    public function dailyRate(tr_renter $trx): float
+    {
+        $category = optional($trx->room)->room_category;
+        $daily = \App\Models\BCL\Pricelist::where('room_category', $category)
+            ->whereRaw('LOWER(jangka_sewa) = ?', ['hari'])
+            ->orderBy('jangka_waktu')
+            ->first();
+        if ($daily) {
+            return round((float) $daily->price / max((int) $daily->jangka_waktu, 1));
+        }
+
+        $package = \App\Models\BCL\Pricelist::where('room_category', $category)
+            ->where('jangka_waktu', (int) $trx->lama_sewa)
+            ->whereRaw('LOWER(jangka_sewa) = ?', [strtolower((string) $trx->jangka_sewa)])
+            ->first();
+        $price = $package ? (float) $package->price : (float) $trx->harga;
+        $start = $this->packageStart($trx);
+        $days = max($start->diffInDays($this->addUnits($start, max((int) $trx->lama_sewa, 1), $trx->jangka_sewa)), 1);
+
+        return round($price / $days);
+    }
 
     /**
      * Parse a typed amount into a float. Accepts "1600000", "1,600,000.00",
@@ -173,6 +302,7 @@ class RentalService
         $today = Carbon::today()->format('Y-m-d');
         $ended = tr_renter::with('renter')
             ->whereNull('checked_out_at')
+            ->whereNull('cancelled_at')
             ->whereDate('tgl_selesai', '<=', $today)
             ->when($roomId, fn ($q) => $q->where('room_id', $roomId))
             ->orderByDesc('tgl_selesai')
@@ -353,6 +483,52 @@ class RentalService
                 'period' => $extraRent ? ($extraRent->tgl_mulai . ' s/d ' . $extraRent->tgl_selesai) : null,
             ];
         })->values();
+    }
+
+    /** Receive a security deposit (uang jaminan) from a renter. */
+    public function receiveGuarantee(\App\Models\BCL\renter $renter, float $amount, string $method, ?string $proof, string $date, string $note = ''): string
+    {
+        $noJurnal = $this->nextNoJurnal();
+        $base = ['no_jurnal' => $noJurnal, 'tanggal' => $date, 'doc_id' => 'JM' . $noJurnal, 'identity' => 'Uang Jaminan', 'catatan' => 'Uang jaminan dari ' . $renter->nama . ($note ? '. ' . $note : '')];
+        $this->journal($base + ['kode_akun' => self::ACCOUNT_CASH, 'debet' => $amount, 'pos' => 'D', 'metode_bayar' => $method, 'bukti' => $proof]);
+        $this->journal($base + ['kode_akun' => self::ACCOUNT_GUARANTEE, 'kredit' => $amount, 'pos' => 'K', 'kode_subledger' => $renter->id]);
+        $this->audit('guarantee', 'JM' . $noJurnal, 'Terima uang jaminan ' . $renter->nama, ['amount' => $amount, 'method' => $method]);
+
+        return 'JM' . $noJurnal;
+    }
+    /** Return / deduct / move the security deposit of a renter. Returns human-readable notes. */
+    public function settleGuarantee(\App\Models\BCL\renter $renter, float $return, float $deduct, bool $toBalance, string $method, string $reason): array
+    {
+        if ($return <= 0 && $deduct <= 0) {
+            return [];
+        }
+        $balance = $this->guaranteeBalance($renter->id);
+        if ($return + $deduct > $balance + 0.009) {
+            throw new \RuntimeException('Uang jaminan ' . $renter->nama . ' hanya Rp ' . number_format($balance, 0, ',', '.') . '.');
+        }
+        $notes = [];
+        $noJurnal = $this->nextNoJurnal();
+        $doc = 'JM' . $noJurnal;
+        if ($deduct > 0) {
+            $base = ['no_jurnal' => $noJurnal, 'tanggal' => date('Y-m-d'), 'doc_id' => $doc, 'identity' => 'Potongan Jaminan', 'catatan' => 'Potongan uang jaminan ' . $renter->nama . ($reason ? ': ' . $reason : '')];
+            $this->journal($base + ['kode_akun' => self::ACCOUNT_GUARANTEE, 'debet' => $deduct, 'pos' => 'D', 'kode_subledger' => $renter->id]);
+            $this->journal($base + ['kode_akun' => self::ACCOUNT_OTHER_INCOME, 'kredit' => $deduct, 'pos' => 'K', 'kode_subledger' => $renter->id]);
+            $notes[] = 'jaminan dipotong Rp ' . number_format($deduct, 0, ',', '.');
+        }
+        if ($return > 0) {
+            $base = ['no_jurnal' => $noJurnal, 'tanggal' => date('Y-m-d'), 'doc_id' => $doc, 'catatan' => 'Pengembalian uang jaminan ' . $renter->nama . ($toBalance ? ' ke saldo deposit' : '')];
+            $this->journal($base + ['kode_akun' => self::ACCOUNT_GUARANTEE, 'debet' => $return, 'pos' => 'D', 'kode_subledger' => $renter->id, 'identity' => 'Pengembalian Jaminan']);
+            if ($toBalance) {
+                $this->journal($base + ['kode_akun' => self::ACCOUNT_DEPOSIT, 'kredit' => $return, 'pos' => 'K', 'kode_subledger' => $renter->id, 'identity' => 'Topup Deposit (Jaminan)']);
+                $renter->creditDeposit($return);
+            } else {
+                $this->journal($base + ['kode_akun' => self::ACCOUNT_CASH, 'kredit' => $return, 'pos' => 'K', 'identity' => 'Pengembalian Jaminan', 'metode_bayar' => $method]);
+            }
+            $notes[] = 'jaminan dikembalikan Rp ' . number_format($return, 0, ',', '.') . ($toBalance ? ' ke deposit' : '');
+        }
+        $this->audit('guarantee', $doc, 'Penyelesaian uang jaminan ' . $renter->nama, ['return' => $return, 'deduct' => $deduct, 'to_balance' => $toBalance, 'reason' => $reason]);
+
+        return $notes;
     }
 
     // ------------------------------------------------------------ journal

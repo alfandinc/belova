@@ -123,6 +123,7 @@ $data = $data;
                                             <th class="text-center">Tanggal</th>
                                             <th>Nomor</th>
                                             <th>Tipe</th>
+                                            <th>Metode</th>
                                             <th>Catatan</th>
                                             <th class="text-right">Jumlah</th>
                                             <th></th>
@@ -138,12 +139,13 @@ $data = $data;
                                             <td class="text-center">{{ $data->tanggal }}</td>
                                             <td>{{$data->doc_id}}</td>
                                             <td>{{$data->identity}}</td>
+                                            <td>{{ $data->metode_bayar ?: "-" }} @if($data->bukti)<a href="{{ asset("storage/" . $data->bukti) }}" target="_blank" class="ml-1" title="Lihat bukti"><i class="fas fa-paperclip"></i></a>@endif</td>
                                             <td>{{$data->catatan}}</td>
                                             <td class="text-right">{{$data->debet}} </td>
                                             <td class="text-right">
-                                                @role('Administrator')
+                                                @can('bcl-supervise')
                                                 <a class="btn btn-xs btn-square btn-danger" onclick="deletes(event)" href="{{route('bcl.income.delete',$data->no_jurnal)}}"><i class="fas fa-trash"></i></i></button>
-                                                    @endrole
+                                                    @endcan
                                             </td>
 
                                         </tr>
@@ -172,7 +174,7 @@ $data = $data;
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form method="POST" action="{{route('bcl.income.store')}}">
+            <form method="POST" action="{{route('bcl.income.store')}}" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" id="section" name="section" value="">
                 <div class="modal-body">
@@ -206,6 +208,22 @@ $data = $data;
                             <div class="form-group">
                                 <label for="keterangan">Keterangan</label>
                                 <input id="keterangan" name="keterangan" autocomplete="off" type="text" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4 col-xs-12">
+                            <div class="form-group">
+                                <label for="income_method">Metode Bayar</label>
+                                <select class="form-control" name="metode_bayar" id="income_method">
+                                    @foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-sm-8 col-xs-12">
+                            <div class="form-group">
+                                <label>Bukti Pembayaran <small class="text-muted">(wajib selain Tunai, bisa Ctrl+V)</small></label>
+                                <div class="bcl-dropzone" data-default><input type="file" name="bukti" accept="image/*"></div>
                             </div>
                         </div>
                     </div>
@@ -264,7 +282,7 @@ $data = $data;
                 "emptyTable": "Tidak ada data untuk ditampilkan, silakan gunakan filter",
             },
             columnDefs: [{
-                targets: 5,
+                targets: 6,
                 render: $.fn.dataTable.render.number(',', '.', 2, 'Rp ')
             }],
             rowGroup: {
@@ -279,7 +297,7 @@ $data = $data;
                     var avg =
                         rows
                         .data()
-                        .pluck(5)
+                        .pluck(6)
                         .reduce((a, b) => a + b.replace(/[(Rp ,)]|(&nbsp;|<([^>]+)>)/g, '') * 1, 0);
 
                     return (
@@ -305,7 +323,7 @@ $data = $data;
                         if (column == 0) {
                             return data;
                         } else {
-                            return column == 5 ?
+                            return column == 6 ?
                                 data.replace(/[(Rp ,)]|(&nbsp;|<([^>]+)>)/g, '') :
                                 data.replace(/(&nbsp;|<([^>]+)>)/ig, "");
                         }

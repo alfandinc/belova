@@ -10,13 +10,14 @@
     </div>
     <div class="bcl-toolbar">
         <button type="button" class="btn btn-primary bcl-btn" id="bt_sewa"><i data-feather="plus"></i> Sewa Baru</button>
-        <button type="button" class="btn btn-outline-primary bcl-btn" id="bt_extra"><i data-feather="package"></i> Tambahan Sewa</button>
-        <button type="button" class="btn btn-outline-danger bcl-btn" id="bt_unpaid"><i data-feather="credit-card"></i> Belum Lunas <span class="bcl-count" id="unpaid_count"></span></button>
-        <button type="button" class="btn btn-outline-info bcl-btn" id="bt_extra_bed" title="Ketersediaan extra bed"><i data-feather="layers"></i> Extra Bed <span class="bcl-count is-info" id="extra_bed_badge">-</span></button>
+        <button type="button" class="btn btn-info bcl-btn" id="bt_extra"><i data-feather="package"></i> Tambahan Sewa</button>
+        <button type="button" class="btn btn-danger bcl-btn" id="bt_unpaid"><i data-feather="credit-card"></i> Belum Lunas <span class="bcl-count" id="unpaid_count"></span></button>
+        <button type="button" class="btn btn-success bcl-btn" id="bt_renewals" title="Perpanjang beberapa sewa sekaligus"><i data-feather="repeat"></i> Perpanjangan <span class="bcl-count" id="renewal_count"></span></button>
+        <button type="button" class="btn btn-warning bcl-btn" id="bt_extra_bed" title="Ketersediaan extra bed"><i data-feather="layers"></i> Extra Bed <span class="bcl-count" id="extra_bed_badge">-</span></button>
         <span class="bcl-toolbar__sep"></span>
-        <button type="button" class="btn btn-outline-dark bcl-btn" id="bt_room_add" title="Tambah kamar"><i data-feather="plus-square"></i> Kamar</button>
-        <button type="button" class="btn btn-outline-dark bcl-btn is-icon" id="bt_room_deleted" title="Kamar dihapus" data-toggle="tooltip"><i data-feather="archive"></i></button>
-        <button type="button" class="btn btn-outline-dark bcl-btn is-icon" id="bt_export" title="Export daftar kamar (Excel/CSV)" data-toggle="tooltip"><i data-feather="download"></i></button>
+        <button type="button" class="btn btn-dark bcl-btn" id="bt_room_add" title="Tambah kamar"><i data-feather="plus-square"></i> Kamar</button>
+        <button type="button" class="btn btn-secondary bcl-btn is-icon" id="bt_room_deleted" title="Kamar dihapus" data-toggle="tooltip"><i data-feather="archive"></i></button>
+        <button type="button" class="btn btn-secondary bcl-btn is-icon" id="bt_export" title="Export daftar kamar (Excel/CSV)" data-toggle="tooltip"><i data-feather="download"></i></button>
     </div>
 </div>
 
@@ -50,20 +51,20 @@
 </div>
 
 {{-- ============================================================ room panel --}}
-<div class="modal fade bcl-drawer" id="md_room" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<div class="modal fade bcl-room-modal" id="md_room" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
         <div class="modal-content">
-            <div class="bcl-drawer__head">
+            <div class="bcl-room-modal__head">
                 <div>
-                    <h5 class="bcl-drawer__title" id="room_title">-</h5>
-                    <div class="bcl-drawer__sub" id="room_sub"></div>
+                    <h5 class="bcl-room-modal__title" id="room_title">-</h5>
+                    <div class="bcl-room-modal__sub" id="room_sub"></div>
                 </div>
                 <div class="d-flex align-items-center" style="gap: 6px;">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="room_edit_btn" title="Edit kamar"><i data-feather="edit-2" style="width:14px;height:14px"></i></button>
                     <button type="button" class="close ml-1" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
                 </div>
             </div>
-            <div class="bcl-drawer__body" id="room_body"></div>
+            <div class="modal-body bcl-room-modal__body" id="room_body"></div>
         </div>
     </div>
 </div>
@@ -133,6 +134,38 @@
                             <input type="text" id="catatan" name="catatan" class="form-control" autocomplete="off">
                         </div>
                     </div>
+                    {{-- Durasi custom: no package, explicit end date and a suggested (editable) price --}}
+                    <div class="bcl-inline-panel" id="sewa_custom" style="display:none;">
+                        <div class="bcl-inline-panel__title"><span>Durasi custom</span></div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4">
+                                <label>Sampai Tanggal <span class="text-danger">*</span></label>
+                                <input type="date" name="tgl_selesai_custom" id="sewa_custom_end" class="form-control">
+                                <small class="text-muted">Tanggal keluar (hari terakhir menginap + 1).</small>
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>atau Jumlah Hari</label>
+                                <input type="number" min="1" max="1100" id="sewa_custom_days" class="form-control">
+                            </div>
+                            <div class="form-group col-md-5">
+                                <label>Harga Sewa (Rp) <span class="text-danger">*</span></label>
+                                <input type="text" inputmode="numeric" name="harga_custom" id="sewa_custom_price" class="form-control js-money" autocomplete="off">
+                                <small class="text-muted"><a href="#" class="bcl-link" id="sewa_custom_use">Pakai harga saran</a></small>
+                            </div>
+                        </div>
+                        <div class="bcl-hint mb-2" id="sewa_custom_breakdown">Isi tanggal selesai atau jumlah hari.</div>
+                    </div>
+                    <div class="form-row" id="sewa_diskon_row">
+                        <div class="form-group col-md-4" id="sewa_diskon_col">
+                            <label>Diskon Khusus (Rp) <small class="text-muted">opsional</small></label>
+                            <input type="text" inputmode="numeric" name="diskon" id="sewa_diskon" class="form-control js-money" autocomplete="off">
+                            <small class="text-muted" id="sewa_price_hint"></small>
+                        </div>
+                        <div class="form-group col-md-8" id="sewa_diskon_reason" style="display:none;">
+                            <label>Alasan Diskon <span class="text-danger">*</span></label>
+                            <input type="text" name="alasan_diskon" id="sewa_alasan_diskon" class="form-control" placeholder="mis. penghuni lama, promo, kesepakatan dengan pemilik" autocomplete="off">
+                        </div>
+                    </div>
                     <hr class="my-2">
                     <div class="form-row">
                         <div class="form-group col-md-4">
@@ -157,11 +190,22 @@
                             <input type="text" inputmode="numeric" id="deposit_amount" name="deposit_amount" class="form-control form-control-sm mt-1 js-money" value="0" style="display:none;">
                         </div>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Metode Bayar</label>
+                            <select name="metode_bayar" id="sewa_method" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Uang Jaminan (Rp) <small class="text-muted">opsional</small></label>
+                            <input type="text" inputmode="numeric" name="jaminan" id="sewa_jaminan" class="form-control js-money" autocomplete="off">
+                        </div>
+                        <div class="form-group col-md-4"><small class="text-muted d-block mt-md-4">Uang jaminan dikembalikan saat keluar (bisa dipotong kerusakan), terpisah dari saldo deposit.</small></div>
+                    </div>
                     <div class="bcl-hint mb-2" id="sewa_payment_hint"></div>
                     <div class="form-group mb-0">
-                        <label>Bukti Transfer <span class="text-danger" id="bukti_transfer_required">*</span></label>
+                        <label>Bukti Pembayaran <span class="text-danger" id="bukti_transfer_required">*</span></label>
                         <div class="bcl-dropzone" data-default id="bukti_zone"><input type="file" name="bukti_transfer" accept="image/*"></div>
-                        <small class="text-muted">Wajib jika ada pembayaran tunai/transfer. Screenshot bisa langsung ditempel dengan Ctrl+V.</small>
+                        <small class="text-muted">Wajib untuk Transfer/QRIS/EDC. Screenshot bisa langsung ditempel dengan Ctrl+V.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -191,6 +235,10 @@
                     <div class="form-group">
                         <label>Item</label>
                         <select class="select2" name="pricelist" id="pricelist_extra" required style="width:100%" data-placeholder="Pilih item"></select>
+                    </div>
+                    <div class="form-row" id="extra_custom" style="display:none;">
+                        <div class="form-group col-7"><label>Nama Tagihan <span class="text-danger">*</span></label><input type="text" name="nama_custom" id="extra_custom_name" class="form-control" placeholder="mis. Listrik Oktober, Laundry, Ganti kunci" autocomplete="off"></div>
+                        <div class="form-group col-5"><label>Nominal (Rp) <span class="text-danger">*</span></label><input type="text" inputmode="numeric" name="harga_custom" id="extra_custom_price" class="form-control js-money" autocomplete="off"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group col-4">
@@ -225,7 +273,7 @@
                 <h6 class="modal-title m-0">Terima Pembayaran</h6>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
-            <form method="POST" action="{{ route('bcl.income.store') }}" id="form_pay">
+            <form method="POST" action="{{ route('bcl.income.store') }}" id="form_pay" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" id="pay_section" name="section">
                 <div class="modal-body">
@@ -242,6 +290,14 @@
                             <label>Tunai/Transfer (Rp)</label>
                             <input type="text" inputmode="numeric" name="nominal" id="pay_nominal" required class="form-control js-money" autocomplete="off">
                         </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Metode Bayar</label>
+                        <select name="metode_bayar" id="pay_method" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select>
+                    </div>
+                    <div class="form-group" id="pay_proof_row">
+                        <label>Bukti Pembayaran <small class="text-muted">(wajib selain Tunai, bisa Ctrl+V)</small></label>
+                        <div class="bcl-dropzone" data-default id="pay_zone"><input type="file" name="bukti" accept="image/*"></div>
                     </div>
                     <div class="form-check mb-2" id="pay_deposit_row" style="display:none;">
                         <input class="form-check-input" type="checkbox" value="1" id="pay_use_deposit" name="use_deposit">
@@ -414,19 +470,223 @@
                 <h6 class="modal-title m-0">Top-up Deposit</h6>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
-            <form action="{{ route('bcl.deposit.topup') }}" method="POST">
+            <form action="{{ route('bcl.deposit.topup') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <input type="hidden" name="renter" id="topup_renter_id">
                 <div class="modal-body">
                     <div class="form-group"><label>Jumlah (Rp)</label><input type="text" inputmode="numeric" name="amount" class="form-control js-money" required></div>
                     <div class="form-group"><label>Tanggal</label><input type="date" name="tgl_transaksi" value="{{ date('Y-m-d') }}" class="form-control" required></div>
-                    <div class="form-group mb-0"><label>Catatan</label><input type="text" name="note" class="form-control"></div>
+                    <div class="form-group"><label>Catatan</label><input type="text" name="note" class="form-control"></div>
+                    <div class="form-group"><label>Metode</label><select name="metode_bayar" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select></div>
+                    <div class="form-group mb-0"><label>Bukti <small class="text-muted">(selain Tunai)</small></label><div class="bcl-dropzone" data-default><input type="file" name="bukti" accept="image/*"></div></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary btn-sm">Top-up</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ proses keluar --}}
+<div class="modal fade" id="md_checkout" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Proses Keluar <span id="co_title" class="font-weight-normal"></span></h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form id="form_checkout" enctype="multipart/form-data">
+                <input type="hidden" name="trans_id" id="co_trans_id">
+                <input type="hidden" name="inspection_items" id="co_items_json">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Tanggal Keluar</label>
+                            <input type="date" name="tgl_keluar" id="co_date" class="form-control" required>
+                            <small class="text-muted" id="co_period"></small>
+                        </div>
+                        <div class="form-group col-md-8"><div class="bcl-hint mt-md-4" id="co_hint"></div></div>
+                    </div>
+
+                    <div id="co_overstay" style="display:none;">
+                        <div class="bcl-section__title">Tinggal lewat masa sewa</div>
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-4">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" value="1" name="tagih_overstay" id="co_charge" checked><label class="form-check-label" for="co_charge">Tagih <span id="co_days"></span> hari</label></div>
+                            </div>
+                            <div class="form-group col-md-4"><label>Tarif per hari (Rp)</label><input type="text" inputmode="numeric" name="overstay_rate" id="co_rate" class="form-control js-money"></div>
+                            <div class="form-group col-md-4"><label>Total</label><div class="form-control-plaintext font-weight-bold" id="co_total">-</div></div>
+                        </div>
+                        <small class="text-muted d-block mb-3">Masuk Belum Lunas sebagai Tambahan Sewa "Tinggal lewat masa sewa".</small>
+                    </div>
+
+                    <div id="co_early" style="display:none;">
+                        <div class="bcl-section__title">Keluar sebelum masa sewa habis</div>
+                        <div class="form-row">
+                            <div class="form-group col-md-4 js-supervisor"><label>Refund uang sewa (Rp)</label><input type="text" inputmode="numeric" name="refund" class="form-control js-money" value="0"></div>
+                            <div class="form-group col-md-8"><label>Alasan</label><input type="text" name="alasan" class="form-control"></div>
+                        </div>
+                    </div>
+
+                    <div class="bcl-section__title">Checklist kamar <small class="text-muted text-lowercase font-weight-normal">(opsional)</small></div>
+                    <div id="co_items" class="mb-2"></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-3"><label>Kunci kembali</label><input type="number" min="0" name="jumlah_kunci" class="form-control"></div>
+                        <div class="form-group col-md-3"><label>Meter listrik</label><input type="text" name="meter_listrik" class="form-control"></div>
+                        <div class="form-group col-md-6"><label>Catatan kondisi</label><input type="text" name="catatan_kamar" class="form-control"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Foto kondisi kamar</label>
+                        <div class="bcl-dropzone"><input type="file" name="foto" accept="image/*"></div>
+                    </div>
+
+                    <div id="co_guarantee" style="display:none;">
+                        <div class="bcl-section__title">Uang jaminan · saldo <span id="co_guarantee_balance"></span></div>
+                        <div class="form-row">
+                            <div class="form-group col-md-3"><label>Dipotong (Rp)</label><input type="text" inputmode="numeric" name="jaminan_potong" id="co_deduct" class="form-control js-money" value="0"></div>
+                            <div class="form-group col-md-5"><label>Alasan potongan</label><input type="text" name="alasan_potong" class="form-control" placeholder="mis. kunci hilang"></div>
+                            <div class="form-group col-md-4"><label>Dikembalikan (Rp)</label><input type="text" inputmode="numeric" name="jaminan_kembali" id="co_return" class="form-control js-money" value="0"></div>
+                        </div>
+                        <div class="form-check mb-2"><input class="form-check-input" type="checkbox" value="1" name="jaminan_ke_saldo" id="co_to_balance"><label class="form-check-label" for="co_to_balance">Pengembalian disimpan sebagai saldo deposit (tidak dibayar tunai)</label></div>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label>Metode uang keluar (refund / jaminan)</label>
+                        <select name="metode_bayar" class="form-control js-methods"></select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-danger btn-sm">Proses Keluar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ check-in --}}
+<div class="modal fade" id="md_checkin" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Checklist Check-in <span id="ci_title" class="font-weight-normal"></span></h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form id="form_checkin" enctype="multipart/form-data">
+                <input type="hidden" name="trans_id" id="ci_trans_id">
+                <input type="hidden" name="inspection_items" id="ci_items_json">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group col-md-3"><label>Tanggal</label><input type="date" name="tanggal" id="ci_date" class="form-control" required></div>
+                        <div class="form-group col-md-3"><label>Kunci diserahkan</label><input type="number" min="0" name="jumlah_kunci" class="form-control"></div>
+                        <div class="form-group col-md-3"><label>Meter listrik</label><input type="text" name="meter_listrik" class="form-control"></div>
+                    </div>
+                    <div class="bcl-section__title">Kondisi inventaris kamar</div>
+                    <div id="ci_items" class="mb-2"></div>
+                    <div class="form-group"><label>Catatan kondisi</label><input type="text" name="catatan_kamar" class="form-control"></div>
+                    <div class="form-group mb-0"><label>Foto kondisi kamar</label><div class="bcl-dropzone"><input type="file" name="foto" accept="image/*"></div></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Simpan Check-in</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ uang jaminan --}}
+<div class="modal fade" id="md_guarantee" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Uang Jaminan <span id="gu_title" class="font-weight-normal"></span></h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form id="form_guarantee" enctype="multipart/form-data">
+                <input type="hidden" name="renter" id="gu_renter">
+                <div class="modal-body">
+                    <div class="bcl-hint mb-3">Saldo jaminan: <strong id="gu_balance">-</strong>. Uang jaminan terpisah dari saldo deposit (titipan) dan dikembalikan saat keluar.</div>
+                    <div class="form-group">
+                        <label>Aksi</label>
+                        <select name="mode" id="gu_mode" class="form-control">
+                            <option value="terima">Terima uang jaminan</option>
+                            <option value="kembalikan">Kembalikan ke penyewa</option>
+                            <option value="potong">Potong (kerusakan / kehilangan)</option>
+                            <option value="ke_saldo">Pindahkan ke saldo deposit</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-6"><label>Nominal (Rp)</label><input type="text" inputmode="numeric" name="amount" class="form-control js-money" required></div>
+                        <div class="form-group col-6"><label>Metode</label><select name="metode_bayar" class="form-control js-methods"></select></div>
+                    </div>
+                    <div class="form-group"><label>Catatan / alasan</label><input type="text" name="catatan" class="form-control"></div>
+                    <div class="form-group mb-0" id="gu_proof"><label>Bukti <small class="text-muted">(wajib selain Tunai saat terima)</small></label><div class="bcl-dropzone" data-default><input type="file" name="bukti" accept="image/*"></div></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ batal booking --}}
+<div class="modal fade" id="md_cancel_booking" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Batalkan Booking <span id="cb_title" class="font-weight-normal"></span></h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <form id="form_cancel_booking">
+                <input type="hidden" name="trans_id" id="cb_trans_id">
+                <div class="modal-body">
+                    <div class="bcl-hint mb-3" id="cb_info">Memuat...</div>
+                    <div class="form-row">
+                        <div class="form-group col-6"><label>Refund (Rp)</label><input type="text" inputmode="numeric" name="refund" id="cb_refund" class="form-control js-money" value="0"><small class="text-muted">Sisanya hangus (tetap pendapatan).</small></div>
+                        <div class="form-group col-6"><label>Refund ke</label>
+                            <select name="refund_mode" class="form-control"><option value="tunai">Dibayar tunai/transfer</option><option value="deposit">Saldo deposit penyewa</option></select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label>Metode</label><select name="metode_bayar" class="form-control js-methods"></select></div>
+                    <div class="form-group mb-0"><label>Alasan <span class="text-danger">*</span></label><input type="text" name="alasan" class="form-control" required></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-danger btn-sm">Batalkan Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{-- ============================================================ perpanjangan massal --}}
+<div class="modal fade" id="md_renewals" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title m-0">Perpanjangan Sewa</h6>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between mb-2" style="gap: 8px;">
+                    <div class="bcl-hint">Sewa yang habis dalam <select id="rn_days" class="form-control form-control-sm d-inline-block" style="width:auto"><option value="7">7</option><option value="14" selected>14</option><option value="30">30</option></select> hari ke depan atau sudah lewat. Perpanjangan dimulai dari tanggal habis; tagihannya masuk Belum Lunas.</div>
+                    <label class="mb-0"><input type="checkbox" id="rn_all"> Pilih semua</label>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead><tr><th></th><th>Kamar</th><th>Penyewa</th><th>Habis</th><th>Tunggakan</th><th style="min-width: 220px;">Paket baru</th></tr></thead>
+                        <tbody id="rn_body"><tr><td colspan="6" class="text-center text-muted py-3">Memuat...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-success btn-sm" id="rn_submit">Perpanjang yang dipilih</button>
+            </div>
         </div>
     </div>
 </div>
@@ -453,10 +713,18 @@
             wifiUpdate: @json(route('bcl.roomwifi.update', ':id')),
             history: @json(route('bcl.rooms.history', ':id')),
             pricelist: @json(route('bcl.pricelist.get_pl_room', ':id')),
+            priceSuggestion: @json(route('bcl.rooms.price_suggestion')),
             renter: @json(route('bcl.renter.detail', ':id')),
             renterQuickStore: @json(route('bcl.renter.quick_store')),
             print: @json(route('bcl.transaksi.cetak', ':id')),
             checkout: @json(route('bcl.transaksi.checkout')),
+            cancelBooking: @json(route('bcl.transaksi.cancel')),
+            renewals: @json(route('bcl.transaksi.renewals')),
+            bulkRenew: @json(route('bcl.transaksi.bulk_renew')),
+            inspections: @json(route('bcl.transaksi.inspections', ':id')),
+            inspection: @json(route('bcl.transaksi.inspection')),
+            guarantee: @json(route('bcl.guarantee')),
+            show: @json(route('bcl.transaksi.show', ':id')),
             availability: @json(route('bcl.extrarent.availability')),
         },
     };

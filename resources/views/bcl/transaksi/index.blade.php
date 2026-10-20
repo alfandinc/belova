@@ -73,6 +73,7 @@
                                 <td>
                                     {{ $trx->room->room_name ?? 'Kamar dihapus' }}
                                     @if($trx->identity === 'Pindah Kamar')<span class="badge badge-soft-primary">Pindah</span>@endif
+                                    @if($trx->cancelled_at)<span class="bcl-pill is-bad">Batal</span>@endif
                                     @if($trx->tambahan->count())<span class="badge badge-soft-success" title="Ada tambahan sewa">+{{ $trx->tambahan->count() }}</span>@endif
                                 </td>
                                 <td>{{ $trx->renter->nama ?? 'N/a' }}</td>
@@ -90,7 +91,10 @@
                                     @endif
                                 </td>
                                 <td class="text-right text-nowrap">
-                                    @if($isActive && $trx->identity !== 'Pindah Kamar')
+                                    @if(!$trx->cancelled_at && $trx->tgl_mulai > now()->format('Y-m-d'))
+                                    <button type="button" class="btn btn-xs btn-outline-danger js-supervisor js-cancel-booking" data-trans="{{ $trx->trans_id }}" data-label="{{ ($trx->room->room_name ?? '') . ' - ' . ($trx->renter->nama ?? '') }}" title="Batalkan booking"><i class="fas fa-ban"></i></button>
+                                    @endif
+                                    @if($isActive && $trx->identity !== 'Pindah Kamar' && !$trx->cancelled_at)
                                     <button type="button" class="btn btn-xs btn-outline-secondary js-reschedule" data-trans="{{ $trx->trans_id }}" data-start="{{ $trx->tgl_mulai }}" title="Ubah tanggal masuk"><i class="fas fa-calendar-alt"></i></button>
                                     @endif
                                     @if($isActive)
@@ -147,6 +151,7 @@
             <div class="modal-body">
                 <div class="d-flex justify-content-between">
                     <h4 class="text-info mt-0" id="dt_no_trans"></h4>
+                    <button type="button" class="btn btn-sm btn-outline-primary js-supervisor" id="dt_edit_trx">Koreksi transaksi</button>
                     <h4 class="mt-0" id="dt_status"></h4>
                 </div>
                 <dl class="row mb-2">
@@ -156,10 +161,10 @@
                 </dl>
                 <table class="table table-sm" id="dt_table">
                     <thead>
-                        <tr><th>Tanggal</th><th>Keterangan</th><th class="text-right">Tagihan</th><th class="text-right">Dibayar</th></tr>
+                        <tr><th>Tanggal</th><th>Keterangan</th><th class="text-right">Tagihan</th><th class="text-right">Dibayar</th><th></th></tr>
                     </thead>
                     <tbody></tbody>
-                    <tfoot class="font-weight-bold"><tr><td colspan="2" class="text-right">Total</td><td class="text-right" id="dt_total_bill"></td><td class="text-right" id="dt_total_paid"></td></tr></tfoot>
+                    <tfoot class="font-weight-bold"><tr><td colspan="2" class="text-right">Total</td><td class="text-right" id="dt_total_bill"></td><td class="text-right" id="dt_total_paid"></td><td></td></tr></tfoot>
                 </table>
             </div>
             <div class="modal-footer">
@@ -167,6 +172,54 @@
             </div>
         </div>
     </div>
+</div>
+
+<div class="modal fade" id="md_edit_payment" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document"><div class="modal-content">
+        <div class="modal-header bg-light"><h6 class="modal-title m-0">Koreksi Pembayaran</h6><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+        <form id="form_edit_payment">
+            <input type="hidden" name="no_jurnal" id="ep_no_jurnal">
+            <div class="modal-body">
+                <div class="form-group"><label>Tanggal</label><input type="date" name="tanggal" id="ep_tanggal" class="form-control" required></div>
+                <div class="form-group"><label>Nominal (Rp)</label><input type="number" min="1" name="nominal" id="ep_nominal" class="form-control" required></div>
+                <div class="form-group"><label>Metode</label><select name="metode_bayar" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select></div>
+                <div class="form-group mb-0"><label>Alasan koreksi <span class="text-danger">*</span></label><input type="text" name="alasan" class="form-control" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary btn-sm">Simpan</button></div>
+        </form>
+    </div></div>
+</div>
+<div class="modal fade" id="md_edit_trx" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document"><div class="modal-content">
+        <div class="modal-header bg-light"><h6 class="modal-title m-0">Koreksi Transaksi <span id="et_title"></span></h6><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+        <form id="form_edit_trx">
+            <input type="hidden" name="trans_id" id="et_trans_id">
+            <div class="modal-body">
+                <div class="form-group"><label>Harga sewa disepakati (Rp)</label><input type="number" min="0" name="harga" id="et_harga" class="form-control" required><small class="text-muted">Untuk diskon/kesepakatan harga. Tanggal: gunakan Reschedule; kamar: Pindah Kamar.</small></div>
+                <div class="form-group"><label>Catatan</label><input type="text" name="catatan" id="et_catatan" class="form-control"></div>
+                <div class="form-group mb-0"><label>Alasan koreksi <span class="text-danger">*</span></label><input type="text" name="alasan" class="form-control" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Batal</button><button type="submit" class="btn btn-primary btn-sm">Simpan</button></div>
+        </form>
+    </div></div>
+</div>
+<div class="modal fade" id="md_cancel_booking" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document"><div class="modal-content">
+        <div class="modal-header bg-light"><h6 class="modal-title m-0">Batalkan Booking <span id="cb_title"></span></h6><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+        <form id="form_cancel_booking">
+            <input type="hidden" name="trans_id" id="cb_trans_id">
+            <div class="modal-body">
+                <div class="bcl-hint mb-3" id="cb_info"></div>
+                <div class="form-row">
+                    <div class="form-group col-6"><label>Refund (Rp)</label><input type="number" min="0" name="refund" id="cb_refund" class="form-control" value="0"><small class="text-muted">Sisanya hangus.</small></div>
+                    <div class="form-group col-6"><label>Refund ke</label><select name="refund_mode" class="form-control"><option value="tunai">Tunai/transfer</option><option value="deposit">Saldo deposit</option></select></div>
+                </div>
+                <div class="form-group"><label>Metode</label><select name="metode_bayar" class="form-control">@foreach(\App\Services\BCL\RentalService::METHODS as $m)<option value="{{ $m }}">{{ $m }}</option>@endforeach</select></div>
+                <div class="form-group mb-0"><label>Alasan <span class="text-danger">*</span></label><input type="text" name="alasan" class="form-control" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Tutup</button><button type="submit" class="btn btn-danger btn-sm">Batalkan Booking</button></div>
+        </form>
+    </div></div>
 </div>
 
 @include('bcl.partials.change_room_modal')
@@ -239,6 +292,79 @@
         bclOpenRefund($(this).data('trans'), $(this).data('label'));
     });
 
+    var currentTrx = null;
+    var trxUrls = {
+        show: @json(route('bcl.transaksi.show', ':id')),
+        paymentUpdate: @json(route('bcl.income.update')),
+        paymentDelete: @json(route('bcl.income.delete', ':id')),
+        extraDelete: @json(route('bcl.extrarent.delete', ':id')),
+        trxUpdate: @json(route('bcl.transaksi.update')),
+        cancelBooking: @json(route('bcl.transaksi.cancel')),
+    };
+
+    function paymentActions(line) {
+        if (!window.BCL_CAN_SUPERVISE || !line.no_jurnal) return '';
+        return '<button type="button" class="btn btn-xs btn-outline-primary js-edit-payment" data-jurnal="' + esc(line.no_jurnal) + '" data-tanggal="' + esc(line.tanggal) + '" data-nominal="' + (parseFloat(line.kredit) || 0) + '">Koreksi</button> ' +
+            '<button type="button" class="btn btn-xs btn-outline-danger js-delete-payment" data-jurnal="' + esc(line.no_jurnal) + '">Hapus</button>';
+    }
+
+    function ajaxPost(urlValue, data) {
+        return $.ajax({ url: urlValue, type: 'POST', data: data, headers: { Accept: 'application/json' } })
+            .fail(function(xhr) { bclToast((xhr.responseJSON && xhr.responseJSON.message) || 'Gagal.', 'error'); });
+    }
+
+    function reloadSoon(res) {
+        bclToast(res.message);
+        setTimeout(function() { location.reload(); }, 700);
+    }
+
+    function confirmPost(title, content, urlValue) {
+        $.confirm({ title: title, content: content, buttons: {
+            confirm: { text: 'Ya', btnClass: 'btn-red', action: function() { ajaxPost(urlValue, {}).done(reloadSoon); } },
+            cancel: { text: 'Batal' }
+        } });
+    }
+
+    $(document).on('click', '.js-edit-payment', function() {
+        $('#ep_no_jurnal').val($(this).data('jurnal'));
+        $('#ep_tanggal').val($(this).data('tanggal'));
+        $('#ep_nominal').val($(this).data('nominal'));
+        $('#md_edit_payment').modal('show');
+    });
+    $(document).on('click', '.js-delete-payment', function() {
+        confirmPost('Hapus pembayaran ini?', 'Pembayaran dihapus dan tagihan kembali Belum Lunas. Tercatat di Log Aktivitas.', trxUrls.paymentDelete.replace(':id', $(this).data('jurnal')));
+    });
+    $(document).on('click', '.js-cancel-extra', function() {
+        confirmPost('Batalkan tambahan sewa ' + $(this).data('kode') + '?', 'Pembayarannya ikut dihapus dan extra bed dilepas.', trxUrls.extraDelete.replace(':id', $(this).data('kode')));
+    });
+    $('#dt_edit_trx').on('click', function() {
+        if (!currentTrx) return;
+        $('#et_trans_id').val(currentTrx.trans_id);
+        $('#et_title').text(currentTrx.trans_id);
+        $('#et_harga').val(parseFloat(currentTrx.harga) || 0);
+        $('#et_catatan').val(currentTrx.catatan || '');
+        $('#md_edit_trx').modal('show');
+    });
+    $(document).on('click', '.js-cancel-booking', function() {
+        var transId = $(this).data('trans');
+        $('#form_cancel_booking')[0].reset();
+        $('#cb_trans_id').val(transId);
+        $('#cb_title').text($(this).data('label'));
+        $('#cb_info').text('Memuat...');
+        $('#md_cancel_booking').modal('show');
+        $.getJSON(trxUrls.show.replace(':id', encodeURIComponent(transId)), { id: transId }).done(function(trx) {
+            var paid = (trx.jurnal || []).reduce(function(t, l) { return t + (parseFloat(l.kredit) || 0); }, 0);
+            $('#cb_info').text('Sudah dibayar Rp ' + $.number(paid, 0) + '. Isi nominal yang dikembalikan, sisanya hangus.');
+            $('#cb_refund').val(paid);
+        });
+    });
+    $('#form_edit_payment, #form_edit_trx, #form_cancel_booking').on('submit', function(e) {
+        e.preventDefault();
+        var target = { form_edit_payment: trxUrls.paymentUpdate, form_edit_trx: trxUrls.trxUpdate, form_cancel_booking: trxUrls.cancelBooking }[this.id];
+        var $btn = $(this).find('button[type="submit"]').prop('disabled', true);
+        ajaxPost(target, $(this).serialize()).done(reloadSoon).always(function() { $btn.prop('disabled', false); });
+    });
+
     $(document).on('click', '.dt_transaksi', function() {
         var id = $(this).data('id');
         $.getJSON("{{ route('bcl.transaksi.show', ':id') }}".replace(':id', encodeURIComponent(id)), { id: id }).done(function(data) {
@@ -248,7 +374,7 @@
             rows.push('<tr><td>' + esc(data.tanggal) + '</td><td>Sewa ' + esc(data.lama_sewa + ' ' + data.jangka_sewa) + ' - ' + esc((data.room || {}).room_name || '-') + '</td><td class="text-right">Rp ' + $.number(bill, 0) + '</td><td></td></tr>');
             (data.jurnal || []).forEach(function(line) {
                 paid += parseFloat(line.kredit) || 0;
-                rows.push('<tr><td>' + esc(line.tanggal) + '</td><td>' + esc(line.catatan) + (line.name ? ' <small class="text-muted">(' + esc(line.name) + ')</small>' : '') + '</td><td></td><td class="text-right">Rp ' + $.number(line.kredit, 0) + '</td></tr>');
+                rows.push('<tr><td>' + esc(line.tanggal) + '</td><td>' + esc(line.catatan) + (line.name ? ' <small class="text-muted">(' + esc(line.name) + ')</small>' : '') + '</td><td></td><td class="text-right">Rp ' + $.number(line.kredit, 0) + '</td><td class="text-right text-nowrap">' + paymentActions(line) + '</td></tr>');
             });
             (data.tambahan || []).forEach(function(extra) {
                 var total = (parseFloat(extra.harga) || 0) * (parseInt(extra.qty, 10) || 0) * (parseInt(extra.lama_sewa, 10) || 0);
@@ -257,14 +383,15 @@
                     label += ' [' + extra.assigned_asset_codes.join(', ') + ']';
                 }
                 bill += total;
-                rows.push('<tr><td>' + esc(extra.tgl_mulai) + '</td><td>' + esc(extra.kode + ' - ' + label) + '</td><td class="text-right">Rp ' + $.number(total, 0) + '</td><td></td></tr>');
+                rows.push('<tr><td>' + esc(extra.tgl_mulai) + '</td><td>' + esc(extra.kode + ' - ' + label) + '</td><td class="text-right">Rp ' + $.number(total, 0) + '</td><td></td><td class="text-right">' + (window.BCL_CAN_SUPERVISE ? '<button type="button" class="btn btn-xs btn-outline-danger js-cancel-extra" data-kode="' + esc(extra.kode) + '">Batal</button>' : '') + '</td></tr>');
                 (extra.jurnal || []).forEach(function(line) {
                     paid += parseFloat(line.kredit) || 0;
-                    rows.push('<tr><td>' + esc(line.tanggal) + '</td><td>' + esc(line.catatan) + '</td><td></td><td class="text-right">Rp ' + $.number(line.kredit, 0) + '</td></tr>');
+                    rows.push('<tr><td>' + esc(line.tanggal) + '</td><td>' + esc(line.catatan) + '</td><td></td><td class="text-right">Rp ' + $.number(line.kredit, 0) + '</td><td class="text-right text-nowrap">' + paymentActions(line) + '</td></tr>');
                 });
             });
 
             $('#dt_no_trans').text(data.trans_id);
+            currentTrx = data;
             $('#dt_renter').text(((data.renter || {}).nama || '-') + ' / ' + ((data.room || {}).room_name || '-'));
             $('#dt_period').text(data.tgl_mulai + ' s/d ' + data.tgl_selesai);
             $('#dt_notes').text(data.catatan || '-');
