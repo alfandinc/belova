@@ -194,16 +194,20 @@ class MainNavigation
         ]);
     }
 
+    /**
+     * Social media & design work. Request Desain is open to every user (anyone can ask the designer
+     * for print/packaging work); the other pages keep their Marketing/Admin/Finance roles.
+     */
     private function sosmed(): ?array
     {
-        if (!$this->can('Marketing', 'Admin', 'Finance')) {
-            return null;
-        }
+        $marketing = $this->can('Marketing', 'Admin', 'Finance');
 
-        return $this->module('sosmed', 'Sosmed', 'instagram', [
-            $this->item('Content Plan', 'layout', url('/marketing/content-plan'), $this->badge('content_scheduled', 'warning', 'Content plan terjadwal')),
-            $this->item('Before After Gallery', 'image', $this->route('marketing.before_after_gallery.index')),
-            $this->item('Hari Penting', 'star', url('/marketing/hari-penting'), $this->badge('hari_penting_today', 'danger', 'Hari penting hari ini')),
+        return $this->module('sosmed', 'Sosmed & Desain', 'instagram', [
+            $marketing ? $this->item('Content Plan', 'layout', url('/marketing/content-plan'), $this->badge('content_scheduled', 'warning', 'Konten menunggu review')) : null,
+            $marketing ? $this->item('Analisa Konten', 'bar-chart-2', url('/marketing/content-analytics')) : null,
+            $this->item('Request Desain', 'pen-tool', $this->route('design-request.index'), $this->badge('design_request_action', 'warning', 'Request desain perlu tindakan')),
+            $marketing ? $this->item('Before After Gallery', 'image', $this->route('marketing.before_after_gallery.index')) : null,
+            $marketing ? $this->item('Hari Penting', 'star', url('/marketing/hari-penting'), $this->badge('hari_penting_today', 'danger', 'Hari penting hari ini')) : null,
         ]);
     }
 

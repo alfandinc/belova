@@ -1,111 +1,98 @@
-<div class="modal fade" id="contentListModal" tabindex="-1" role="dialog" aria-labelledby="contentListModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-  <div class="modal-dialog modal-lg" role="document">
+{{-- "Ide Konten" (content list) form: propose an idea; editing an approved/rejected idea sends it back for approval. --}}
+<div class="modal fade wf-modal" id="contentListModal" tabindex="-1" role="dialog" aria-labelledby="contentListModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" id="clDialog" role="document">
     <div class="modal-content">
-      <form id="contentListForm" data-action="store" data-id="">
+      <form id="contentListForm" data-action="store" data-id="" novalidate>
         <div class="modal-header">
-          <h5 class="modal-title" id="contentListModalLabel">Tambah Content List</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
+          <h5 class="modal-title" id="contentListModalLabel">Ide Konten Baru</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Tutup"><span aria-hidden="true">&times;</span></button>
         </div>
         <div class="modal-body">
           <div class="row">
-            <div class="col-md-12 mb-3">
-              <label for="cl_judul" class="form-label">Judul</label>
-              <input type="text" class="form-control" id="cl_judul" name="judul" required>
-            </div>
+          <div class="col-12" id="clMain">
+          <div id="clResubmitNote" class="alert alert-warning py-2" style="display:none"></div>
+          <div class="form-group">
+            <label for="cl_judul">Judul ide <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="cl_judul" name="judul" required maxlength="255" placeholder="Contoh: 3 mitos jerawat yang masih dipercaya">
           </div>
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label for="cl_brand" class="form-label">Brand</label>
-              <select class="form-control content-list-select2" id="cl_brand" name="brand[]" multiple>
-                <option value="Premiere Belova">Premiere Belova</option>
-                <option value="Belova Skin">Belova Skin</option>
-                <option value="Belova Dental Care">Belova Dental Care</option>
-                <option value="BCL">BCL</option>
-                <option value="dr Fika">dr Fika</option>
+          <div class="form-row">
+            <div class="form-group col-12">
+              <label for="cl_platform">Platform <span class="text-danger">*</span></label>
+              <select class="d-none js-chip-picker" id="cl_platform" name="platform[]" multiple required data-placeholder="Pilih platform">
+                @foreach($platforms as $p)<option value="{{ $p }}">{{ $p }}</option>@endforeach
               </select>
             </div>
-            <div class="col-md-6 mb-3">
-              <label for="cl_assigned_to" class="form-label">Assigned To</label>
-              <select class="form-control content-list-select2" id="cl_assigned_to" name="assigned_to">
-                <option value="">(Unassigned)</option>
-                @if(isset($users) && $users->count())
-                  @foreach($users as $u)
-                    <option value="{{ $u->id }}">{{ $u->name }}</option>
-                  @endforeach
-                @endif
+            <div class="form-group col-12">
+              <label for="cl_jenis_konten">Jenis konten <span class="text-danger">*</span></label>
+              <select class="d-none js-chip-picker" id="cl_jenis_konten" name="jenis_konten[]" multiple required data-placeholder="Feed, Reels, …">
+                @foreach($jenisKonten as $j)<option value="{{ $j }}">{{ $j }}</option>@endforeach
               </select>
             </div>
           </div>
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label for="cl_platform" class="form-label">Platform</label>
-              <select class="form-control content-list-select2" id="cl_platform" name="platform[]" multiple required>
-                <option value="Instagram">Instagram</option>
-                <option value="Facebook">Facebook</option>
-                <option value="TikTok">TikTok</option>
-                <option value="YouTube">YouTube</option>
-                <option value="Website">Website</option>
-                <option value="Other">Other</option>
+          {{-- only judul, platform and jenis are needed to propose an idea; the rest is optional --}}
+          <button type="button" class="btn btn-link px-0 cl-more-toggle" id="clMoreToggle" aria-expanded="false" aria-controls="clMore">
+            <i class="fas fa-plus-circle mr-1"></i> Detail tambahan <span class="wf-muted">(opsional: klinik, pilar, PIC, referensi, catatan)</span>
+          </button>
+          <div id="clMore" style="display:none">
+          <div class="form-row">
+            <div class="form-group col-12">
+              <label for="cl_brand">Klinik / brand</label>
+              <select class="d-none js-chip-picker" id="cl_brand" name="brand[]" multiple data-placeholder="Pilih klinik">
+                @foreach($brands as $b)<option value="{{ $b['value'] }}">{{ $b['label'] }}</option>@endforeach
               </select>
             </div>
-            <div class="col-md-6 mb-3">
-              <label for="cl_jenis_konten" class="form-label">Jenis Konten</label>
-              <select class="form-control content-list-select2" id="cl_jenis_konten" name="jenis_konten[]" multiple required>
-                <option value="Feed">Feed</option>
-                <option value="Story">Story</option>
-                <option value="Reels">Reels</option>
-                <option value="Artikel">Artikel</option>
-                <option value="Other">Other</option>
+            <div class="form-group col-sm-6">
+              <label for="cl_konten_pilar">Konten pilar</label>
+              <select class="form-control cl-select2" id="cl_konten_pilar" name="konten_pilar" data-placeholder="Pilih pilar" data-allow-clear="1">
+                <option value=""></option>
+                @foreach($kontenPilar as $k)<option value="{{ $k }}">{{ $k }}</option>@endforeach
               </select>
             </div>
           </div>
-          <div class="row">
-            <div class="col-md-6 mb-3">
-              <label for="cl_konten_pilar" class="form-label">Konten Pilar</label>
-              <select class="form-control content-list-select2" id="cl_konten_pilar" name="konten_pilar">
-                <option value="">Pilih Konten Pilar</option>
-                <option value="Edukasi">Edukasi</option>
-                <option value="Awareness">Awareness</option>
-                <option value="Engagement/Interaktif">Engagement/Interaktif</option>
-                <option value="Promo/Testimoni">Promo/Testimoni</option>
-                <option value="Lifestyle/Tips">Lifestyle/Tips</option>
+          <div class="form-row">
+            <div class="form-group col-sm-6">
+              <label for="cl_assigned_to">PIC</label>
+              <select class="form-control cl-select2" id="cl_assigned_to" name="assigned_to" data-placeholder="Pilih PIC" data-allow-clear="1">
+                <option value=""></option>
+                @foreach($users as $u)<option value="{{ $u->id }}">{{ $u->name }}</option>@endforeach
               </select>
             </div>
-            <div class="col-md-6 mb-3">
-              <label for="cl_link_referensi" class="form-label">Link Referensi</label>
-              <input type="text" class="form-control" id="cl_link_referensi" name="link_referensi" placeholder="https://...">
+            <div class="form-group col-sm-6">
+              <label for="cl_link_referensi">Link referensi</label>
+              <input type="text" class="form-control" id="cl_link_referensi" name="link_referensi" placeholder="Link Instagram / TikTok / YouTube…">
             </div>
           </div>
-          <div class="row">
-            <div class="col-md-12 mb-3">
-              <label for="cl_gambar_referensi" class="form-label">Visual Reference</label>
-              <input type="file" class="d-none" id="cl_gambar_referensi" name="gambar_referensi" accept="image/*">
-              <div id="cl_gambar_referensi_paste_target" class="content-list-reference-card mt-2" tabindex="0" role="button" aria-label="Upload atau paste visual reference">
-                <div class="content-list-reference-card__icon">
-                  <i class="fas fa-image"></i>
-                </div>
-                <div class="content-list-reference-card__body">
-                  <div class="content-list-reference-card__title">Upload atau paste gambar referensi</div>
-                  <div class="content-list-reference-card__hint">Klik area ini untuk pilih file, atau tekan Ctrl+V setelah fokus di sini.</div>
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-primary content-list-reference-card__button" id="btnContentListReferenceBrowse">Pilih Gambar</button>
-              </div>
-              <small class="text-muted d-block mt-2">Opsional. Setelah content list di-approve dan dijadwalkan, gambar ini otomatis masuk ke Brief sebagai visual reference.</small>
-              <div id="cl_gambar_referensi_preview" class="mt-2"></div>
+          <div id="cl_link_preview" class="wf-embed form-group" style="display:none"></div>
+          <div class="form-group">
+            <label>Gambar referensi</label>
+            <input type="file" class="d-none" id="cl_gambar_referensi" name="gambar_referensi" accept="image/*">
+            <input type="hidden" id="cl_remove_gambar" name="remove_gambar" value="0">
+            <div id="cl_gambar_drop" class="cp-drop" tabindex="0" role="button">
+              <i class="fas fa-image mb-1"></i>
+              <div>Ketuk untuk pilih gambar, atau tempel screenshot (Ctrl+V)</div>
+            </div>
+            <div id="cl_gambar_preview" class="mt-2"></div>
+            <small class="wf-muted d-block mt-1">Opsional. Saat ide dijadwalkan, gambar ini otomatis masuk ke Brief.</small>
+          </div>
+          <div class="form-group mb-0">
+            <label for="cl_catatan">Catatan</label>
+            <textarea class="form-control" id="cl_catatan" name="catatan" rows="3" placeholder="Angle, hook, detail lain…"></textarea>
+          </div>
+          </div>
+          </div>
+
+          {{-- RIWAYAT: right-hand panel when editing (below the form on phones) --}}
+          <div class="col-lg-4" id="clHistoryWrap" style="display:none">
+            <div class="wf-side">
+              <div class="wf-side-title"><i class="fas fa-history"></i> Riwayat</div>
+              <div id="clTimeline"></div>
             </div>
           </div>
-          <div class="row">
-            <div class="col-md-12 mb-3">
-              <label for="cl_catatan" class="form-label">Catatan</label>
-              <textarea class="form-control" id="cl_catatan" name="catatan" rows="3"></textarea>
-            </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveContentList">Simpan</button>
+          <button type="button" class="btn btn-light" data-dismiss="modal">Tutup</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveContentList"><i class="fas fa-paper-plane mr-1"></i> Simpan & Ajukan</button>
         </div>
       </form>
     </div>

@@ -196,6 +196,10 @@ class RndProdukController extends Controller
                 'pic:id,name',
                 'obat:id,kode_obat,nama,status_aktif',
             ])
+            // newest Request Desain per kemasan side (table arrives with a migration)
+            ->when(Schema::hasTable('marketing_design_requests'), fn ($q) => $q->with([
+                'designRequests' => fn ($dr) => $dr->select('id', 'rnd_produk_id', 'rnd_kemasan_sisi', 'status')->orderByDesc('id'),
+            ]))
             ->select('rnd_produk.*')
             // Newest first unless the user sorts a column (the No column is not sortable, so nothing was ordered before)
             ->when(!$request->filled('order'), fn ($q) => $q->orderByDesc('rnd_produk.id'));
@@ -206,6 +210,18 @@ class RndProdukController extends Controller
             ->with('counts', $counts)
             // Search is applied above (shared with the export); an empty callback turns off the default global search
             ->filter(function () {
+            })
+            ->addColumn('design_requests', function (RndProduk $produk) {
+                if (!$produk->relationLoaded('designRequests')) {
+                    return null;
+                }
+                $out = [];
+                foreach (['primer', 'sekunder'] as $sisi) {
+                    $dr = $produk->designRequests->firstWhere('rnd_kemasan_sisi', $sisi);
+                    $out[$sisi] = $dr ? ['id' => $dr->id, 'status' => $dr->status] : null;
+                }
+
+                return $out;
             })
             ->addColumn('pic_name', fn (RndProduk $produk) => optional($produk->pic)->name)
             ->addColumn('legalitas', fn (RndProduk $produk) => $this->legalitasSummary($produk))

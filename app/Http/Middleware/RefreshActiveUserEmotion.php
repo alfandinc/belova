@@ -18,6 +18,19 @@ class RefreshActiveUserEmotion
     {
         $user = Auth::user();
 
+        // Logged in again from the "Ingat saya" cookie: this new session never went through the login form,
+        // so restore the clinic & emotion picked at login (kept in cookies by AuthController::login)
+        if ($user && !$request->session()->has('clinic_choice')) {
+            $clinic = $request->cookie('clinic_choice');
+            if (in_array($clinic, ['skin', 'premiere', 'dental'], true)) {
+                $request->session()->put('clinic_choice', $clinic);
+            }
+            $emotion = $request->cookie('user_emotion');
+            if ($emotion && array_key_exists($emotion, AuthController::emotionCatalog())) {
+                $request->session()->put('user_emotion', $emotion);
+            }
+        }
+
         if ($user) {
             $emotion = $request->session()->get('user_emotion', AuthController::DEFAULT_EMOTION);
             $entry = Cache::get('active_user_emotions', [])[$user->id] ?? null;

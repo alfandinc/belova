@@ -137,6 +137,12 @@ class RndProduk extends Model
         return $this->hasMany(RndProdukSertifikasi::class, 'produk_id');
     }
 
+    /** Packaging design jobs requested to the graphic designer (Request Desain). */
+    public function designRequests()
+    {
+        return $this->hasMany(\App\Models\Marketing\DesignRequest::class, 'rnd_produk_id');
+    }
+
     /** Notifikasi BPOM that is valid longest (the current one). */
     public function latestNotif()
     {

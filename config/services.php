@@ -42,4 +42,10 @@ return [
         'cacert_path' => env('SATUSEHAT_CACERT_PATH'),
     ],
 
+    // Content Plan insights (Instagram API). INSTAGRAM_CACERT_PATH points to a CA bundle when PHP has none
+    // (cURL error 60 on WAMP); falls back to the SatuSehat bundle.
+    'instagram' => [
+        'cacert_path' => env('INSTAGRAM_CACERT_PATH', env('SATUSEHAT_CACERT_PATH')),
+    ],
+
 ];

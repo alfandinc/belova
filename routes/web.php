@@ -144,6 +144,23 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/buku-menu/tindakan-data', [BukuMenuController::class, 'tindakanData'])->name('buku-menu.tindakan-data');
     Route::get('/buku-menu/labtest-data', [BukuMenuController::class, 'labtestData'])->name('buku-menu.labtest-data');
 
+    // Request Desain: anyone can request and follow their own requests;
+    // Marketing takes, works on and approves them (checked in the controller / model)
+    Route::prefix('design-request')->name('design-request.')->controller(\App\Http\Controllers\Marketing\DesignRequestController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/summary', 'summary')->name('summary');
+        Route::get('/capacity', 'capacity')->name('capacity');
+        Route::get('/list', 'list')->name('list');
+        Route::post('/', 'store')->name('store');
+        Route::delete('/files/{file}', 'destroyFile')->whereNumber('file')->name('files.destroy');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+        Route::post('/{id}', 'update')->whereNumber('id')->name('update');
+        Route::post('/{id}/action', 'action')->whereNumber('id')->name('action');
+        Route::post('/{id}/upload', 'upload')->whereNumber('id')->name('upload');
+    });
+    // New workflow events (perlu approval, siap publish, revisi, ditugaskan…) for the pages' notifications
+    Route::get('/workflow-notifications', [\App\Http\Controllers\Marketing\WorkflowNotificationController::class, 'feed'])->name('workflow-notifications.feed');
+
     // Daily Journal (accessible for all authenticated users)
     Route::get('/daily-journal', [DailyJournalController::class, 'index'])->name('daily-journal.index');
     Route::get('/daily-journal/modal', [DailyJournalController::class, 'modal'])->name('daily-journal.modal');
@@ -1850,12 +1867,42 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'show'])->name('marketing.content-plan.show');
     Route::post('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'store'])->name('marketing.content-plan.store');
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');
-    // Inline update for specific fields (brand/platform/jenis_konten/status)
+    // Drag & drop on the board (schedule dates only)
     Route::post('content-plan/{id}/inline-update', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'inlineUpdate'])->name('marketing.content-plan.inline-update');
+    // Workflow step: produksi, review, approve, revisi, publish, batal
+    Route::post('content-plan/{id}/transition', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'transition'])->name('marketing.content-plan.transition');
     Route::delete('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'destroy'])->name('marketing.content-plan.destroy');
 
+    // Analisa Konten: performance of published content per period (from the daily Instagram snapshots)
+    Route::get('content-analytics', [\App\Http\Controllers\Marketing\ContentAnalyticsController::class, 'index'])->name('marketing.content-analytics.index');
+    Route::get('content-analytics/data', [\App\Http\Controllers\Marketing\ContentAnalyticsController::class, 'data'])->name('marketing.content-analytics.data');
+    Route::get('content-analytics/best-time', [\App\Http\Controllers\Marketing\ContentAnalyticsController::class, 'bestTime'])->name('marketing.content-analytics.best-time');
+
+    // Instagram insights: connected accounts, "Update insight" (daily snapshot) and the series of one content
+    Route::prefix('content-insight')->name('marketing.content-insight.')->controller(\App\Http\Controllers\Marketing\ContentInsightController::class)->group(function () {
+        Route::get('/accounts', 'accounts')->name('accounts');
+        Route::post('/accounts', 'connect')->name('connect');
+        Route::post('/accounts/{id}', 'updateAccount')->whereNumber('id')->name('update');
+        Route::delete('/accounts/{id}', 'disconnect')->whereNumber('id')->name('disconnect');
+        Route::post('/sync', 'sync')->name('sync');
+        Route::get('/check-link', 'checkLink')->name('check-link');
+        Route::get('/plan/{planId}', 'series')->whereNumber('planId')->name('series');
+    });
+
+    // Konten rutin (made once, uploaded every day / on fixed days): definition + the daily upload
+    Route::prefix('content-routine')->name('marketing.content-routine.')->controller(\App\Http\Controllers\Marketing\ContentRoutineController::class)->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::get('/{id}', 'show')->whereNumber('id')->name('show');
+        Route::put('/{id}', 'update')->whereNumber('id')->name('update');
+        Route::delete('/{id}', 'destroy')->whereNumber('id')->name('destroy');
+        Route::post('/{id}/post', 'post')->whereNumber('id')->name('post');
+        Route::post('/{id}/skip', 'skip')->whereNumber('id')->name('skip');
+        Route::post('/{id}/undo', 'undo')->whereNumber('id')->name('undo');
+    });
+
     // Content List Management
-    Route::get('content-list/datatable', [\App\Http\Controllers\Marketing\ContentListController::class, 'datatable'])->name('marketing.content-list.datatable');
+    Route::get('content-list/list', [\App\Http\Controllers\Marketing\ContentListController::class, 'list'])->name('marketing.content-list.list');
     Route::get('content-list/stats', [\App\Http\Controllers\Marketing\ContentListController::class, 'stats'])->name('marketing.content-list.stats');
     Route::get('content-list/{id}', [\App\Http\Controllers\Marketing\ContentListController::class, 'show'])->name('marketing.content-list.show');
     Route::get('content-list/{id}/schedule-payload', [\App\Http\Controllers\Marketing\ContentListController::class, 'schedulePayload'])->name('marketing.content-list.schedule-payload');

@@ -3,216 +3,160 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
-use App\Models\Marketing\ContentList;
 use App\Models\Marketing\ContentBrief;
-use Illuminate\Http\Request;
+use App\Models\Marketing\ContentList;
 use App\Models\Marketing\ContentPlan;
-use App\Models\User;
+use App\Models\Marketing\DesignRequest;
+use App\Support\Marketing\MarketingAccess;
+use App\Support\Marketing\DesignSync;
+use App\Support\Marketing\PublicFile;
+use App\Support\Marketing\RoutineSchedule;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Yajra\DataTables\DataTables;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
+/**
+ * Content Plan = the social media publishing calendar.
+ *
+ * Flow: Terjadwal → Produksi → Review → Siap Publish → Published (+ Revisi loop, Batal).
+ * Status values stay as stored before ("Scheduled", "Done", ...); labels are what users see.
+ */
 class ContentPlanController extends Controller
 {
-    public function index(Request $request)
+    /** Stored status => label shown to users. "Draft" only exists on old rows. */
+    public const STATUS_LABELS = [
+        'Draft' => 'Draft',
+        'Scheduled' => 'Terjadwal',
+        'Produksi' => 'Produksi',
+        'Review' => 'Review',
+        'Revisi' => 'Revisi',
+        'Done' => 'Siap Publish',
+        'Published' => 'Published',
+        'Cancelled' => 'Batal',
+    ];
+
+    /**
+     * Statuses that count as "terlewat" once the schedule date has passed.
+     * Publish mode: anything not yet published. Production mode: anything not yet produced
+     * (Review / Siap Publish mean production is finished).
+     */
+    public const OVERDUE_STATUSES = [
+        'tanggal_publish' => ['Draft', 'Scheduled', 'Produksi', 'Review', 'Revisi', 'Done'],
+        'tanggal_produksi' => ['Draft', 'Scheduled', 'Produksi', 'Revisi'],
+    ];
+
+    /**
+     * Workflow buttons: action => [from statuses, to status, label, button style, note (null|optional|required)].
+     * Every transition is written to the status log (who, when, note).
+     */
+    public const TRANSITIONS = [
+        'start' => [['Draft', 'Scheduled'], 'Produksi', 'Mulai Produksi', 'primary', null],
+        'submit_review' => [['Produksi', 'Revisi'], 'Review', 'Ajukan Review', 'primary', 'optional'],
+        'approve' => [['Review'], 'Done', 'Approved', 'success', 'optional'],
+        'revise' => [['Review', 'Done'], 'Revisi', 'Revisi masuk', 'warning', 'required'],
+        'publish' => [['Done'], 'Published', 'Tandai Published', 'success', 'optional'],
+        'cancel' => [['Draft', 'Scheduled', 'Produksi', 'Review', 'Revisi', 'Done'], 'Cancelled', 'Batalkan', 'outline-danger', 'required'],
+        'reopen' => [['Cancelled'], 'Scheduled', 'Aktifkan Lagi', 'outline-primary', 'optional'],
+    ];
+
+    public const ACTION_LABELS = [
+        'created' => 'Membuat jadwal',
+        'reschedule' => 'Mengubah jadwal',
+        'start' => 'Mulai produksi',
+        'submit_review' => 'Mengajukan review',
+        'approve' => 'Approved',
+        'revise' => 'Revisi masuk',
+        'publish' => 'Menandai published',
+        'cancel' => 'Membatalkan',
+        'reopen' => 'Mengaktifkan lagi',
+        'design' => 'Menugaskan designer',
+    ];
+
+    /** Brand = a clinic (by keyword in erm_klinik.nama) + BCL; values stay the strings stored before. */
+    private const CLINIC_BRANDS = [
+        'premiere' => ['value' => 'Premiere Belova', 'color' => '#2563eb'],
+        'skin' => ['value' => 'Belova Skin', 'color' => '#db2777'],
+        'dental' => ['value' => 'Belova Dental Care', 'color' => '#16a34a'],
+    ];
+    public const PLATFORMS = ['Instagram', 'Facebook', 'TikTok', 'YouTube', 'Website', 'Other'];
+    public const JENIS_KONTEN = ['Feed', 'Story', 'Reels', 'Artikel', 'Other'];
+    public const KONTEN_PILAR = ['Edukasi', 'Awareness', 'Engagement/Interaktif', 'Promo/Testimoni', 'Lifestyle/Tips'];
+
+    /**
+     * Brand choices: every clinic (with its logo and the clinic color used by the sidebar/dashboard)
+     * plus BCL (kos). [{value, label, title, color, logo, logo_bg}]
+     */
+    public static function brandOptions(): array
     {
-        if ($request->ajax()) {
-            $data = ContentPlan::withCount('briefs')->with('assignedTo');
-            // Date range filter
-            if ($request->filled('date_start') && $request->filled('date_end')) {
-                $start = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
-                $end = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-                $data->whereBetween('tanggal_publish', [$start, $end]);
-            }
-            // Brand filter (array)
-            if ($request->filled('filter_brand')) {
-                $brands = $request->filter_brand;
-                if (is_string($brands)) {
-                    $brands = [$brands];
-                }
-                $data->where(function($q) use ($brands) {
-                    foreach ($brands as $brand) {
-                        $q->orWhereJsonContains('brand', $brand);
-                    }
-                });
-            }
-            // Platform filter (array)
-            if ($request->filled('filter_platform')) {
-                $platforms = $request->filter_platform;
-                if (is_string($platforms)) {
-                    $platforms = [$platforms];
-                }
-                $data->where(function($q) use ($platforms) {
-                    foreach ($platforms as $platform) {
-                        $q->orWhereJsonContains('platform', $platform);
-                    }
-                });
-            }
-            // Status filter
-            if ($request->filled('filter_status')) {
-                $data->where('status', $request->filter_status);
-            }
-            // Konten Pilar filter
-            if ($request->filled('filter_konten_pilar')) {
-                $data->where('konten_pilar', $request->filter_konten_pilar);
-            }
-            return DataTables::of($data)
-                ->addColumn('action', function ($row) {
-                    return view('marketing.content_plan.partials.actions', compact('row'))->render();
-                })
-                    ->addColumn('assigned_to_name', function ($row) {
-                        return $row->assignedTo ? $row->assignedTo->name : '';
-                    })
-                ->editColumn('brand', function ($row) {
-                    if (!$row->brand || !is_array($row->brand)) return '';
-                    $badges = collect($row->brand)->map(function($brand) {
-                        $color = 'secondary';
-                        switch (strtolower($brand)) {
-                            case 'premiere belova':
-                                $color = 'primary'; break;
-                            case 'belova skin':
-                                $color = 'purple'; break;
-                            case 'bcl':
-                                $color = 'pink'; break;
-                            case 'dr fika':
-                                $color = 'orange'; break;
-                                
-                        }
-                        $class = 'badge badge-' . $color;
-                        $style = '';
-                        if ($color === 'purple') {
-                            $style = 'background-color:#6f42c1;color:#fff;';
-                        } elseif ($color === 'pink') {
-                            $style = 'background-color:#e83e8c;color:#fff;';
-                        }
-                        return '<span class="' . $class . '" style="' . $style . '">' . e($brand) . '</span>';
-                    });
-                    return $badges->implode(' ');
-                })
-                ->editColumn('platform', function ($row) {
-                    // Render platform as colored badges instead of icons
-                    $badgeColors = [
-                        'Instagram' => ['bg' => '#E4405F', 'color' => '#ffffff'],
-                        'TikTok' => ['bg' => '#000000', 'color' => '#ffffff'],
-                        'YouTube' => ['bg' => '#FF0000', 'color' => '#ffffff'],
-                        'Facebook' => ['bg' => '#1877F3', 'color' => '#ffffff'],
-                        'Website' => ['bg' => '#FFC107', 'color' => '#212529'],
-                        'Other' => ['bg' => '#6c757d', 'color' => '#ffffff'],
-                    ];
-
-                    $arr = [];
-                    if (is_array($row->platform)) {
-                        $arr = $row->platform;
-                    } elseif (is_string($row->platform)) {
-                        if (strpos($row->platform, ',') !== false) {
-                            $arr = array_map('trim', explode(',', $row->platform));
-                        } else {
-                            $arr = [trim($row->platform)];
-                        }
-                    }
-
-                    $htmlParts = [];
-                    foreach ($arr as $p) {
-                        $c = $badgeColors[$p] ?? ['bg' => '#6c757d', 'color' => '#ffffff'];
-                        $style = 'background-color:' . $c['bg'] . ';color:' . $c['color'] . ';margin-right:6px;';
-                        $htmlParts[] = '<span class="badge" title="' . e($p) . '" style="' . $style . '">' . e($p) . '</span>';
-                    }
-
-                    // do not include brand/jenis_konten here; they are moved into judul
-                    return implode(' ', $htmlParts);
-                })
-                ->editColumn('jenis_konten', function ($row) {
-                    if (!$row->jenis_konten || !is_array($row->jenis_konten)) return '';
-                    $badges = collect($row->jenis_konten)->map(function($k) {
-                        $color = 'secondary';
-                        switch (strtolower($k)) {
-                            case 'feed': $color = 'primary'; break;
-                            case 'story': $color = 'info'; break;
-                            case 'reels': $color = 'danger'; break;
-                            case 'artikel': $color = 'success'; break;
-                            case 'other': $color = 'secondary'; break;
-                        }
-                        $class = 'badge badge-' . $color;
-                        return '<span class="' . $class . '" style="margin-right:4px">' . e($k) . '</span>';
-                    });
-                    return $badges->implode(' ');
-                })
-                ->editColumn('konten_pilar', function ($row) {
-                    return $row->konten_pilar ? e($row->konten_pilar) : '';
-                })
-                ->editColumn('tanggal_publish', function ($row) {
-                    return $row->tanggal_publish ? $row->tanggal_publish->toIso8601String() : '';
-                })
-                ->editColumn('judul', function ($row) {
-                    $title = '<strong>' . e(mb_strtoupper($row->judul ?? '', 'UTF-8')) . '</strong>';
-                    $parts = [];
-
-                    // Keep only konten_pilar under title
-                    if ($row->konten_pilar) {
-                        $map = [
-                            'Edukasi' => ['cls' => 'primary', 'style' => ''],
-                            'Awareness' => ['cls' => 'warning', 'style' => ''],
-                            'Engagement/Interaktif' => ['cls' => 'success', 'style' => ''],
-                            'Promo/Testimoni' => ['cls' => 'danger', 'style' => ''],
-                            'Lifestyle/Tips' => ['cls' => 'info', 'style' => '']
-                        ];
-                        if (is_array($row->konten_pilar)) {
-                            $kp = collect($row->konten_pilar)->map(function($d) use ($map) {
-                                $m = $map[$d] ?? ['cls' => 'secondary', 'style' => ''];
-                                return '<span class="badge badge-' . $m['cls'] . '" style="' . $m['style'] . ';margin-right:6px">' . e($d) . '</span>';
-                            })->implode(' ');
-                        } else {
-                            $v = $row->konten_pilar;
-                            $m = $map[$v] ?? ['cls' => 'secondary', 'style' => ''];
-                            $kp = '<span class="badge badge-' . $m['cls'] . '" style="' . $m['style'] . '">' . e($v) . '</span>';
-                        }
-                        $parts[] = $kp;
-                    }
-
-                    // (brand badges removed — not displayed under title)
-
-                    // Append jenis_konten badges under the title as well
-                    if ($row->jenis_konten && is_array($row->jenis_konten)) {
-                        $jparts = [];
-                        foreach ($row->jenis_konten as $k) {
-                            $color = 'secondary';
-                            switch (strtolower($k)) {
-                                case 'feed': $color = 'primary'; break;
-                                case 'story': $color = 'info'; break;
-                                case 'reels': $color = 'danger'; break;
-                                case 'artikel': $color = 'success'; break;
-                                case 'other': $color = 'secondary'; break;
-                            }
-                            $jparts[] = '<span class="badge badge-' . $color . '" style="margin-right:4px">' . e($k) . '</span>';
-                        }
-                        if (!empty($jparts)) $parts[] = implode(' ', $jparts);
-                    }
-
-                    $badgesHtml = '';
-                    if (!empty($parts)) {
-                        $badgesHtml = '<div class="mt-1">' . implode(' ', $parts) . '</div>';
-                    }
-
-                    return $title . $badgesHtml;
-                })
-                ->rawColumns(['action', 'konten_pilar', 'judul', 'platform'])
-                ->make(true);
-        }
-        // Only include users with the 'Marketing' role for assignment
+        $out = [];
         try {
-            $users = User::role('Marketing')->orderBy('name')->get(['id','name']);
+            $kliniks = DB::table('erm_klinik')->orderBy('id')->get(['nama', 'logo']);
         } catch (\Throwable $e) {
-            // Fallback to all users if role scope isn't available or role missing
-            $users = User::orderBy('name')->get(['id','name']);
+            $kliniks = collect();
         }
-        return view('marketing.content_plan.index', compact('users'));
+        foreach ($kliniks as $klinik) {
+            $key = collect(array_keys(self::CLINIC_BRANDS))->first(fn ($w) => str_contains(strtolower($klinik->nama), $w));
+            $known = $key ? self::CLINIC_BRANDS[$key] : null;
+            $out[] = [
+                'value' => $known['value'] ?? $klinik->nama,
+                'label' => $known['value'] ?? $klinik->nama,
+                'title' => $klinik->nama,
+                'color' => $known['color'] ?? '#6b7280',
+                'logo' => PublicFile::url($klinik->logo),
+                'logo_bg' => null,
+            ];
+        }
+        $out[] = [
+            'value' => 'BCL',
+            'label' => 'BCL (Kos)',
+            'title' => 'Belova Center Living (Kos)',
+            'color' => '#a21caf',
+            'logo' => '/img/logobcl-white.png',
+            'logo_bg' => '#a21caf',
+        ];
+
+        return $out;
     }
 
-    public function store(Request $request)
+    /** People who usually approve / ask for revisions (picked when the creator records a WA decision). */
+    public static function reviewers(): array
     {
-        $data = $request->validate([
+        try {
+            return \App\Models\User::role(['Marketing', 'Manager', 'Head Manager', 'Ceo'])
+                ->where('is_active', true)->orderBy('name')->pluck('name')->unique()->values()->all();
+        } catch (\Throwable $e) {
+            return MarketingAccess::users()->pluck('name')->all();
+        }
+    }
+
+    public function index()
+    {
+        return view('marketing.content_plan.index', [
+            'users' => MarketingAccess::users(),
+            'statusLabels' => self::STATUS_LABELS,
+            'overdueStatuses' => self::OVERDUE_STATUSES,
+            'brands' => self::brandOptions(),
+            'platforms' => self::PLATFORMS,
+            'jenisKonten' => self::JENIS_KONTEN,
+            'kontenPilar' => self::KONTEN_PILAR,
+            'canManage' => MarketingAccess::isMarketing(Auth::user()),
+            'reviewers' => self::reviewers(),
+            // Marketing users approving the content themselves get their own name pre-filled
+            'selfApprover' => optional(Auth::user())->hasRole('Marketing') ? Auth::user()->name : null,
+        ]);
+    }
+
+    protected function authorizeManage(): void
+    {
+        abort_unless(MarketingAccess::isMarketing(Auth::user()), 403, 'Hanya tim Marketing yang dapat mengubah content plan.');
+    }
+
+    protected function planRules(): array
+    {
+        return [
             'judul' => 'required|string|max:255',
-            'content_list_id' => 'nullable|integer|exists:marketing_content_lists,id',
             'brand' => 'nullable|array',
             'deskripsi' => 'nullable|string',
             'caption' => 'nullable|string',
@@ -220,443 +164,673 @@ class ContentPlanController extends Controller
             'tanggal_produksi' => 'nullable|date',
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
-            'status' => 'required|string',
-            'konten_pilar' => 'nullable|string|in:Edukasi,Awareness,Engagement/Interaktif,Promo/Testimoni,Lifestyle/Tips',
+            'konten_pilar' => 'nullable|string|in:' . implode(',', self::KONTEN_PILAR),
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
             'link_referensi' => 'nullable|string',
             'link_publikasi' => 'nullable|array',
-            'link_publikasi.*' => 'nullable|string',
+            'link_publikasi.*' => 'nullable|string|max:1000',
             'catatan' => 'nullable|string',
             'assigned_to' => 'nullable|integer|exists:users,id',
-            'gambar_referensi' => 'nullable|file|image|max:5120',
-        ]);
-        $contentListId = $data['content_list_id'] ?? null;
-        unset($data['content_list_id']);
+        ];
+    }
 
+    protected function normalizePlanData(array $data): array
+    {
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
-        // Normalize link_publikasi to sequential associative array if provided
+        if (isset($data['brand'])) {
+            $data['brand'] = array_values($data['brand']);
+        }
         if (isset($data['link_publikasi']) && is_array($data['link_publikasi'])) {
-            // remove empty values
-            $data['link_publikasi'] = array_filter($data['link_publikasi'], function($v){ return $v !== null && $v !== '' ; });
+            $data['link_publikasi'] = array_filter($data['link_publikasi'], fn ($v) => $v !== null && trim($v) !== '');
         } else {
             unset($data['link_publikasi']);
         }
-        if ($request->hasFile('gambar_referensi')) {
-            $file = $request->file('gambar_referensi');
-            $path = $file->store('uploads/gambar_referensi', 'public');
-            $data['gambar_referensi'] = $path;
-        } else {
-            unset($data['gambar_referensi']);
-        }
-        $plan = ContentPlan::create($data);
 
-        if ($contentListId) {
-            $contentList = ContentList::whereKey($contentListId)
-                ->where('approval_status', 'Approved')
-                ->whereNull('scheduled_plan_id')
-                ->first();
+        return $data;
+    }
+
+    public function store(Request $request)
+    {
+        $this->authorizeManage();
+
+        $data = $request->validate($this->planRules() + self::designerRules() + [
+            'content_list_id' => 'nullable|integer|exists:marketing_content_lists,id',
+        ]);
+        $contentListId = $data['content_list_id'] ?? null;
+        $designer = $this->pullDesignerChoice($data);
+        unset($data['content_list_id']);
+        $data = $this->normalizePlanData($data);
+        // New plans always start the workflow at "Terjadwal"
+        $data['status'] = 'Scheduled';
+
+        // Scheduling from a content list: check the list first and lock it, so a list that is
+        // not approved / already scheduled never produces a (duplicate) plan.
+        $result = DB::transaction(function () use ($data, $contentListId) {
+            $contentList = null;
+            if ($contentListId) {
+                $contentList = ContentList::whereKey($contentListId)->lockForUpdate()->first();
+                if (!$contentList || strtolower($contentList->approval_status ?? '') !== 'approved') {
+                    return 'Ide konten ini belum di-approve.';
+                }
+                if ($contentList->scheduled_plan_id && ContentPlan::whereKey($contentList->scheduled_plan_id)->exists()) {
+                    return 'Ide konten ini sudah dijadwalkan.';
+                }
+            }
+
+            $plan = ContentPlan::create($data);
+            $plan->logStatus('created', null, 'Scheduled', $contentList ? 'Dari ide konten: ' . $contentList->judul : null);
+            $brief = null;
 
             if ($contentList) {
                 $contentList->update(['scheduled_plan_id' => $plan->id]);
+                $contentList->logStatus('scheduled', $contentList->approval_status, 'Scheduled', 'Publish ' . $plan->tanggal_publish->format('d/m/Y H:i'));
 
                 if ($contentList->gambar_referensi) {
-                    ContentBrief::create([
+                    $brief = ContentBrief::create([
                         'content_plan_id' => $plan->id,
                         'user_id' => Auth::id(),
                         'visual_references' => [$contentList->gambar_referensi],
                     ]);
                 }
             }
+
+            return [$plan, $brief];
+        });
+
+        if (is_string($result)) {
+            return response()->json(['message' => $result, 'errors' => ['content_list_id' => [$result]]], 422);
         }
 
-        return response()->json(['success' => true, 'data' => $plan]);
+        [$plan, $brief] = $result;
+        if ($designer) {
+            DesignSync::applyChoice($plan, ...$designer);
+        }
+
+        // brief_id lets the modal update this brief instead of creating a second one
+        return response()->json(['success' => true, 'data' => $plan, 'brief_id' => $brief ? $brief->id : null]);
     }
 
     public function show($id)
     {
-        $plan = ContentPlan::with('briefs')->findOrFail($id);
-        // include latest brief data (if any) to make it easier for the front-end to populate the Brief tab
+        $plan = ContentPlan::with('assignedTo:id,name')->findOrFail($id);
         $latestBrief = $plan->briefs()->orderBy('created_at', 'desc')->first();
+
         $out = $plan->toArray();
-        $out['tanggal_produksi'] = $plan->tanggal_produksi
-            ? $plan->tanggal_produksi->toDateString()
-            : null;
-        if ($latestBrief) {
-            $out['brief'] = [
-                'id' => $latestBrief->id,
-                'headline' => $latestBrief->headline,
-                'sub_headline' => $latestBrief->sub_headline,
-                'isi_konten' => $latestBrief->isi_konten,
-                'visual_references' => $latestBrief->visual_references,
-            ];
-            $out['brief_id'] = $latestBrief->id;
-            // also expose top-level keys for backward compatibility
-            $out['headline'] = $latestBrief->headline;
-            $out['sub_headline'] = $latestBrief->sub_headline;
-            $out['isi_konten'] = $latestBrief->isi_konten;
-            $out['visual_references'] = $latestBrief->visual_references;
-        }
+        $out['tanggal_produksi'] = optional($plan->tanggal_produksi)->toDateString();
+        $out['tanggal_publish'] = optional($plan->tanggal_publish)->toIso8601String();
+        $out['status_label'] = self::STATUS_LABELS[$plan->status] ?? $plan->status;
+        $out['transitions'] = MarketingAccess::isMarketing(Auth::user()) ? $this->transitionsFor($plan) : [];
+        $out['timeline'] = $plan->timeline(self::STATUS_LABELS);
+        $out['design_requests'] = $this->designRequestsOf($plan);
+        $job = DesignSync::activeJob($plan);
+        $out['design_job'] = $job ? [
+            'id' => $job->id,
+            'status' => $job->status,
+            'designer_id' => $job->designer_id,
+            'designer' => optional($job->designer)->name,
+            'note' => $job->brief,
+        ] : null;
+        $out['has_brief'] = $plan->briefs()->where(fn ($q) => self::filledBrief($q))->exists();
+        $out['brief'] = $latestBrief ? [
+            'id' => $latestBrief->id,
+            'headline' => $latestBrief->headline,
+            'sub_headline' => $latestBrief->sub_headline,
+            'isi_konten' => $latestBrief->isi_konten,
+            'visual_references' => $latestBrief->visual_references,
+        ] : null;
+
         return response()->json($out);
     }
 
     public function update(Request $request, $id)
     {
+        $this->authorizeManage();
+
         $plan = ContentPlan::findOrFail($id);
-        $data = $request->validate([
-            'judul' => 'required|string|max:255',
-            'brand' => 'nullable|array',
-            'deskripsi' => 'nullable|string',
-            'caption' => 'nullable|string',
-            'mention' => 'nullable|string',
-            'tanggal_produksi' => 'nullable|date',
-            'tanggal_publish' => 'required|date',
-            'platform' => 'required|array',
-            'status' => 'required|string',
-            'konten_pilar' => 'nullable|string|in:Edukasi,Awareness,Engagement/Interaktif,Promo/Testimoni,Lifestyle/Tips',
-            'jenis_konten' => 'required|array',
-            'target_audience' => 'nullable|string',
-            'link_asset' => 'nullable|string',
-            'link_referensi' => 'nullable|string',
-            'link_publikasi' => 'nullable|array',
-            'link_publikasi.*' => 'nullable|string',
-            'catatan' => 'nullable|string',
-            'assigned_to' => 'nullable|integer|exists:users,id',
-            'gambar_referensi' => 'nullable|file|image|max:5120',
-        ]);
-        $data['platform'] = array_values($data['platform']);
-        $data['jenis_konten'] = array_values($data['jenis_konten']);
-        if (isset($data['link_publikasi']) && is_array($data['link_publikasi'])) {
-            $data['link_publikasi'] = array_filter($data['link_publikasi'], function($v){ return $v !== null && $v !== '' ; });
-        } else {
-            unset($data['link_publikasi']);
-        }
-        if ($request->hasFile('gambar_referensi')) {
-            $file = $request->file('gambar_referensi');
-            $path = $file->store('uploads/gambar_referensi', 'public');
-            $data['gambar_referensi'] = $path;
-        } else {
-            unset($data['gambar_referensi']);
-        }
+        // status is only changed through transition()
+        $data = $request->validate($this->planRules() + self::designerRules());
+        $designer = $this->pullDesignerChoice($data);
+        $data = $this->normalizePlanData($data);
+
+        $before = $this->scheduleSnapshot($plan);
         $plan->update($data);
+        $this->logReschedule($plan, $before);
+        if ($designer) {
+            DesignSync::applyChoice($plan->fresh(), ...$designer);
+        }
+
         return response()->json(['success' => true, 'data' => $plan]);
     }
 
     public function destroy($id)
     {
+        $this->authorizeManage();
+
         $plan = ContentPlan::findOrFail($id);
-                    // This line is misplaced, remove it (already returned in editColumn)
+        // Release the source content list so it can be scheduled again
+        // (the FK is nullOnDelete, but prod schema may lack it)
+        ContentList::where('scheduled_plan_id', $plan->id)->update(['scheduled_plan_id' => null]);
+        DesignSync::planDeleted($plan);
         $plan->delete();
+
         return response()->json(['success' => true]);
     }
 
-    /**
-     * Inline update for specific fields. Accepts partial data for
-     * 'brand', 'platform', 'jenis_konten', and 'status'.
-     */
+    /** Drag & drop on the board: move the date of the active mode only. */
     public function inlineUpdate(Request $request, $id)
     {
+        $this->authorizeManage();
+
         $plan = ContentPlan::findOrFail($id);
         $data = $request->validate([
-            'brand' => 'nullable|array',
-            'platform' => 'nullable|array',
-            'jenis_konten' => 'nullable|array',
-            'status' => 'nullable|string',
+            'tanggal_publish' => 'sometimes|required|date',
+            'tanggal_produksi' => 'sometimes|required|date',
         ]);
 
-        // Normalize arrays to sequential arrays for JSON columns
-        if (isset($data['brand']) && is_array($data['brand'])) {
-            $data['brand'] = array_values($data['brand']);
-        }
-        if (isset($data['platform']) && is_array($data['platform'])) {
-            $data['platform'] = array_values($data['platform']);
-        }
-        if (isset($data['jenis_konten']) && is_array($data['jenis_konten'])) {
-            $data['jenis_konten'] = array_values($data['jenis_konten']);
-        }
-
+        $before = $this->scheduleSnapshot($plan);
         $plan->update($data);
+        $this->logReschedule($plan, $before);
+        DesignSync::syncDeadline($plan->fresh());
 
         return response()->json(['success' => true, 'data' => $plan]);
     }
 
-    /**
-     * Return all content plans for a week range as grouped JSON (keyed by YYYY-MM-DD).
-     * Accepts same filters as index: date_start, date_end, filter_brand, filter_platform, filter_status, filter_konten_pilar
-     */
-    public function week(Request $request)
+    /** Run one workflow step (see TRANSITIONS). */
+    public function transition(Request $request, $id)
     {
-        $scheduleBy = $request->input('schedule_by') === 'tanggal_produksi'
-            ? 'tanggal_produksi'
-            : 'tanggal_publish';
+        $this->authorizeManage();
 
-        $data = ContentPlan::withCount('briefs')->with('assignedTo');
-        // Date range filter
-        if ($request->filled('date_start') && $request->filled('date_end')) {
-            $start = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
-            $end = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-            $data->whereBetween($scheduleBy, [$start, $end]);
+        $plan = ContentPlan::findOrFail($id);
+        $payload = $request->validate([
+            'action' => 'required|string|in:' . implode(',', array_keys(self::TRANSITIONS)),
+            'notes' => 'nullable|string|max:2000',
+            // who approved / asked for the revision (usually said in the WA group, recorded by the creator)
+            'actor' => 'nullable|string|max:100',
+            'link_publikasi' => 'nullable|array',
+            'link_publikasi.*' => 'nullable|string|max:1000',
+            // when it really went live (the button is often pressed later): "Y-m-d H:i"
+            'tayang_at' => 'nullable|date_format:Y-m-d H:i',
+        ]);
+
+        [$from, $to, $label, , $note] = self::TRANSITIONS[$payload['action']];
+        if (!in_array($plan->status, $from, true)) {
+            return response()->json([
+                'message' => '"' . $label . '" tidak bisa dilakukan saat status ' . (self::STATUS_LABELS[$plan->status] ?? $plan->status) . '.',
+            ], 422);
         }
-        // Brand filter (array)
-        if ($request->filled('filter_brand')) {
-            $brands = $request->filter_brand;
-            if (is_string($brands)) $brands = [$brands];
-            $data->where(function($q) use ($brands) {
-                foreach ($brands as $brand) {
-                    $q->orWhereJsonContains('brand', $brand);
-                }
-            });
+        if (in_array($payload['action'], DesignSync::hiddenPlanActions($plan), true)) {
+            return response()->json(['message' => 'Konten ini dikerjakan designer: produksi dimulai saat designer mengambil job, dan review saat designer menandai selesai.'], 422);
         }
-        // Platform filter (array)
-        if ($request->filled('filter_platform')) {
-            $platforms = $request->filter_platform;
-            if (is_string($platforms)) $platforms = [$platforms];
-            $data->where(function($q) use ($platforms) {
-                foreach ($platforms as $platform) {
-                    $q->orWhereJsonContains('platform', $platform);
-                }
-            });
+        if ($payload['action'] === 'start' && ($missing = $this->missingPreparation($plan))) {
+            return response()->json(['message' => 'Lengkapi dulu sebelum mulai produksi: ' . implode(' dan ', $missing) . '.', 'missing' => $missing], 422);
         }
-        if ($request->filled('filter_status')) {
-            $data->where('status', $request->filter_status);
-        }
-        if ($request->filled('filter_konten_pilar')) {
-            $data->where('konten_pilar', $request->filter_konten_pilar);
+        $notes = trim((string) ($payload['notes'] ?? ''));
+        if ($note === 'required' && $notes === '') {
+            return response()->json(['message' => 'Catatan wajib diisi untuk "' . $label . '".', 'errors' => ['notes' => ['Catatan wajib diisi.']]], 422);
         }
 
-        $items = $data->orderBy($scheduleBy)->orderBy('tanggal_publish')->get();
+        $update = ['status' => $to];
 
-        $rows = $items->map(function($row) use ($scheduleBy) {
-            // build judul html (keep konten_pilar under title)
-            $title = '<strong>' . e(mb_strtoupper($row->judul ?? '', 'UTF-8')) . '</strong>';
-            $parts = [];
-            if ($row->konten_pilar) {
-                $map = [
-                    'Edukasi' => ['cls' => 'primary', 'style' => ''],
-                    'Awareness' => ['cls' => 'warning', 'style' => ''],
-                    'Engagement/Interaktif' => ['cls' => 'success', 'style' => ''],
-                    'Promo/Testimoni' => ['cls' => 'danger', 'style' => ''],
-                    'Lifestyle/Tips' => ['cls' => 'info', 'style' => '']
-                ];
-                if (is_array($row->konten_pilar)) {
-                    $kp = collect($row->konten_pilar)->map(function($d) use ($map) {
-                        $m = $map[$d] ?? ['cls' => 'secondary', 'style' => ''];
-                        return '<span class="badge badge-' . $m['cls'] . '" style="' . $m['style'] . ';margin-right:6px">' . e($d) . '</span>';
-                    })->implode(' ');
-                } else {
-                    $v = $row->konten_pilar;
-                    $m = $map[$v] ?? ['cls' => 'secondary', 'style' => ''];
-                    $kp = '<span class="badge badge-' . $m['cls'] . '" style="' . $m['style'] . '">' . e($v) . '</span>';
+        if ($payload['action'] === 'publish') {
+            // Published needs the post link(s); links typed in the dialog are merged per platform
+            $links = is_array($plan->link_publikasi) ? $plan->link_publikasi : [];
+            foreach ((array) ($payload['link_publikasi'] ?? []) as $platform => $url) {
+                if ($url !== null && trim($url) !== '') {
+                    $links[$platform] = trim($url);
                 }
-                $parts[] = $kp;
             }
-            // Build jenis_konten badges
-            if ($row->jenis_konten && is_array($row->jenis_konten)) {
-                $jparts = [];
-                foreach ($row->jenis_konten as $k) {
-                    $color = 'secondary';
-                    switch (strtolower($k)) {
-                        case 'feed': $color = 'primary'; break;
-                        case 'story': $color = 'info'; break;
-                        case 'reels': $color = 'danger'; break;
-                        case 'artikel': $color = 'success'; break;
-                        case 'other': $color = 'secondary'; break;
-                    }
-                    $jparts[] = '<span class="badge badge-' . $color . '" style="margin-right:4px">' . e($k) . '</span>';
-                }
-                if (!empty($jparts)) $parts[] = implode(' ', $jparts);
+            if (!array_filter($links, fn ($v) => trim((string) $v) !== '')) {
+                return response()->json(['message' => 'Isi minimal satu link publikasi sebelum menandai Published.', 'errors' => ['link_publikasi' => ['Link publikasi wajib diisi.']]], 422);
             }
+            $update['link_publikasi'] = $links;
+        }
 
-            // delay building judul_html until platform badges are available so all badges can be in one row
-            $judul_html = null;
+        $oldStatus = $plan->status;
+        $plan->update($update);
+        $actor = trim((string) ($payload['actor'] ?? ''));
+        if ($actor !== '' && in_array($payload['action'], ['approve', 'revise'], true)) {
+            $notes = ($payload['action'] === 'approve' ? 'Oleh: ' : 'Dari: ') . $actor . ($notes !== '' ? "\n" . $notes : '');
+        }
+        if ($payload['action'] === 'publish' && !empty($payload['tayang_at'])) {
+            $notes = self::tayangNote(Carbon::parse($payload['tayang_at']), $plan->tanggal_publish) . ($notes !== '' ? "\n" . $notes : '');
+        }
+        $plan->logStatus($payload['action'], $oldStatus, $to, $notes);
+        DesignSync::fromPlan($plan, $payload['action'], $notes);
 
-            // platform HTML (render as colored badges)
-            $badgeColors = [
-                'Instagram' => ['bg' => '#E4405F', 'color' => '#ffffff'],
-                'TikTok' => ['bg' => '#000000', 'color' => '#ffffff'],
-                'YouTube' => ['bg' => '#FF0000', 'color' => '#ffffff'],
-                'Facebook' => ['bg' => '#1877F3', 'color' => '#ffffff'],
-                'Website' => ['bg' => '#FFC107', 'color' => '#212529'],
-                'Other' => ['bg' => '#6c757d', 'color' => '#ffffff'],
-            ];
-            $arr = [];
-            if (is_array($row->platform)) $arr = $row->platform;
-            elseif (is_string($row->platform)) $arr = strpos($row->platform, ',') !== false ? array_map('trim', explode(',', $row->platform)) : [trim($row->platform)];
-            $htmlParts = [];
-            foreach ($arr as $p) {
-                // link mapping
-                $link = null;
-                if ($row->link_publikasi) {
-                    if (is_array($row->link_publikasi) && count($row->link_publikasi) === count($arr)) {
-                        $idx = array_search($p, $arr);
-                        if ($idx !== false && isset($row->link_publikasi[$idx])) $link = $row->link_publikasi[$idx];
-                    } elseif (is_array($row->link_publikasi) && isset($row->link_publikasi[$p])) {
-                        $link = $row->link_publikasi[$p];
-                    } elseif (is_string($row->link_publikasi)) {
-                        $parts = strpos($row->link_publikasi, '||') !== false ? array_map('trim', explode('||', $row->link_publikasi)) : (strpos($row->link_publikasi, ',') !== false ? array_map('trim', explode(',', $row->link_publikasi)) : [$row->link_publikasi]);
-                        if (count($parts) === count($arr)) {
-                            $idx = array_search($p, $arr);
-                            if ($idx !== false) $link = $parts[$idx] ?? null;
-                        } elseif (count($parts) > 0) {
-                            $link = $parts[0];
-                        }
-                    }
-                }
-                $c = $badgeColors[$p] ?? ['bg' => '#6c757d', 'color' => '#ffffff'];
-                $style = 'background-color:' . $c['bg'] . ';color:' . $c['color'] . ';margin-right:6px;';
-                $badgeHtml = '<span class="badge" title="' . e($p) . '" style="' . $style . '">' . e($p) . '</span>';
-                if ($link) $htmlParts[] = '<a href="' . e($link) . '" target="_blank" style="margin-right:6px;display:inline-block">' . $badgeHtml . '</a>';
-                else $htmlParts[] = $badgeHtml;
-            }
-            // platform_html contains only platform badges (we will merge into judul_html)
-            $platform_html = implode(' ', $htmlParts);
+        return response()->json(['success' => true, 'status' => $to, 'status_label' => self::STATUS_LABELS[$to] ?? $to]);
+    }
 
-            // build final judul_html including konten_pilar, jenis_konten, and platform badges in one badge row
-            $badgeInner = trim(implode(' ', $parts));
-            if ($platform_html) {
-                $badgeInner = trim($badgeInner . ' ' . $platform_html);
-            }
-            if ($badgeInner) {
-                $judul_html = $title . '<div class="mt-1">' . $badgeInner . '</div>';
-            } else {
-                $judul_html = $title;
-            }
+    /** Minutes after the scheduled time a post still counts as on time. */
+    public const ON_TIME_MINUTES = 30;
 
-            // clear platform_html so client doesn't duplicate badges
-            $platform_html = '';
+    /** "Tayang: 21/10/2026 09.00 (tepat waktu)" / "(terlambat 1 jam 15 menit)" for the history. */
+    public static function tayangNote(Carbon $tayang, $jadwal): string
+    {
+        $note = 'Tayang: ' . $tayang->format('d/m/Y H.i');
+        if ($jadwal) {
+            $late = (int) Carbon::parse($jadwal)->diffInMinutes($tayang, false);
+            $note .= $late <= self::ON_TIME_MINUTES ? ' (tepat waktu)' : ' (terlambat ' . self::duration($late) . ')';
+        }
 
-            $actionHtml = view('marketing.content_plan.partials.actions', ['row' => $row])->render();
+        return $note;
+    }
 
-            $scheduleDate = $scheduleBy === 'tanggal_produksi'
-                ? ($row->tanggal_produksi ? $row->tanggal_produksi->toDateString() : null)
-                : ($row->tanggal_publish ? $row->tanggal_publish->toIso8601String() : null);
+    public static function duration(int $minutes): string
+    {
+        if ($minutes >= 1440) {
+            return intdiv($minutes, 1440) . ' hari';
+        }
 
-            return [
-                'id' => $row->id,
-                'judul_html' => $judul_html,
-                'platform_html' => $platform_html,
-                'status' => $row->status,
-                'action_html' => $actionHtml,
-                'schedule_by' => $scheduleBy,
-                'schedule_date' => $scheduleDate,
-                'tanggal_produksi' => $row->tanggal_produksi ? $row->tanggal_produksi->toDateString() : null,
-                'tanggal_publish' => $row->tanggal_publish ? $row->tanggal_publish->toIso8601String() : null,
-                'assigned_to_name' => $row->assignedTo ? $row->assignedTo->name : '',
-                'briefs_count' => $row->briefs_count ?? 0,
-                'brand' => $row->brand,
-                'jenis_konten' => $row->jenis_konten,
-                'konten_pilar' => $row->konten_pilar,
-                'link_publikasi' => $row->link_publikasi,
-            ];
-        });
-
-        // group by date (Y-m-d)
-        $grouped = $rows->groupBy(function($r){
-            return $r['schedule_date'] ? \Carbon\Carbon::parse($r['schedule_date'])->format('Y-m-d') : 'no_date';
-        })->toArray();
-
-        return response()->json(['data' => $grouped]);
+        return trim((intdiv($minutes, 60) ? intdiv($minutes, 60) . ' jam ' : '') . ($minutes % 60 ? ($minutes % 60) . ' menit' : ''));
     }
 
     /**
-     * Return flat list of items for a given status (or all) to populate the status-list modal.
-     * Accepts same filters as week() and optional `status` ('Published','Scheduled','Draft','Cancelled').
+     * A brief counts as written when it has a headline or a script; reference images alone
+     * (e.g. copied from the idea) are not a brief yet.
      */
-    public function statusList(Request $request)
+    public static function filledBrief($query)
     {
-        $scheduleBy = $request->input('schedule_by') === 'tanggal_produksi'
-            ? 'tanggal_produksi'
-            : 'tanggal_publish';
+        return $query->where(function ($q) {
+            $q->where(fn ($w) => $w->whereNotNull('headline')->where('headline', '!=', ''))
+                ->orWhere(fn ($w) => $w->whereNotNull('isi_konten')->where('isi_konten', '!=', ''));
+        });
+    }
 
-        $data = ContentPlan::with('assignedTo');
-        // Date range filter
+    /** "Siapa yang mengerjakan?" in Penugasan (only sent by the form when that section is shown). */
+    protected static function designerRules(): array
+    {
+        return [
+            'needs_designer' => 'nullable|boolean',
+            'designer_id' => 'nullable|integer|exists:users,id',
+        ];
+    }
+
+    /** Take the designer fields out of the plan data: [needsDesigner, designerId] or null when not sent. */
+    protected function pullDesignerChoice(array &$data): ?array
+    {
+        $sent = array_key_exists('needs_designer', $data);
+        $choice = $sent ? [(bool) $data['needs_designer'], $data['designer_id'] ?? null] : null;
+        unset($data['needs_designer'], $data['designer_id']);
+
+        return $choice;
+    }
+
+    /** Steps that must be done before "Mulai produksi": [] when ready. */
+    protected function missingPreparation(ContentPlan $plan): array
+    {
+        $missing = [];
+        if (!$plan->assigned_to) {
+            $missing[] = 'PIC';
+        }
+        if (!$plan->briefs()->where(fn ($q) => self::filledBrief($q))->exists()) {
+            $missing[] = 'brief';
+        }
+
+        return $missing;
+    }
+
+    protected function transitionsFor(ContentPlan $plan, ?bool $hasActiveJob = null): array
+    {
+        $hidden = ($hasActiveJob ?? (bool) DesignSync::activeJob($plan)) ? ['start', 'submit_review'] : [];
+        $out = [];
+        foreach (self::TRANSITIONS as $action => [$from, $to, $label, $style, $note]) {
+            if (in_array($plan->status, $from, true) && !in_array($action, $hidden, true)) {
+                $out[] = compact('action', 'label', 'style', 'note') + ['to' => $to];
+            }
+        }
+
+        return $out;
+    }
+
+    protected function designRequestsOf(ContentPlan $plan): array
+    {
+        if (!Schema::hasTable('marketing_design_requests')) {
+            return [];
+        }
+
+        return $plan->designRequests()->with('designer:id,name')->orderByDesc('id')->get()
+            ->map(fn (DesignRequest $dr) => [
+                'id' => $dr->id,
+                'judul' => $dr->judul,
+                'status' => $dr->status,
+                'designer' => optional($dr->designer)->name,
+                'deadline' => optional($dr->deadline)->toDateString(),
+            ])->all();
+    }
+
+    protected function scheduleSnapshot(ContentPlan $plan): array
+    {
+        return [
+            'tanggal_publish' => optional($plan->tanggal_publish)->format('d/m/Y H:i'),
+            'tanggal_produksi' => optional($plan->tanggal_produksi)->format('d/m/Y'),
+        ];
+    }
+
+    protected function logReschedule(ContentPlan $plan, array $before): void
+    {
+        $after = $this->scheduleSnapshot($plan->fresh());
+        $changes = [];
+        foreach (['tanggal_publish' => 'Publish', 'tanggal_produksi' => 'Produksi'] as $field => $label) {
+            if ($before[$field] !== $after[$field]) {
+                $changes[] = $label . ': ' . ($before[$field] ?: '-') . ' → ' . ($after[$field] ?: '-');
+            }
+        }
+        if ($changes) {
+            $plan->logStatus('reschedule', null, null, implode('; ', $changes));
+        }
+    }
+
+    protected function scheduleBy(Request $request)
+    {
+        return $request->input('schedule_by') === 'tanggal_produksi' ? 'tanggal_produksi' : 'tanggal_publish';
+    }
+
+    /**
+     * Filters shared by week() and statusList(): date range on the schedule column,
+     * brand / platform (JSON arrays), status, konten pilar and "Tugas Saya" (mine=1).
+     */
+    protected function applyFilters($query, Request $request, $scheduleBy)
+    {
         if ($request->filled('date_start') && $request->filled('date_end')) {
-            $start = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
-            $end = \Carbon\Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-            $data->whereBetween($scheduleBy, [$start, $end]);
+            $start = Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
+            $end = Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
+            $query->whereBetween($scheduleBy, [$start, $end]);
         }
-        // Status filter
-        if ($request->filled('status')) {
-            $statusParam = strtolower($request->status);
-            if ($statusParam === 'all') {
-                // no-op
-            } elseif ($statusParam === 'terlewat' || $statusParam === 'overdue') {
-                $now = \Carbon\Carbon::now();
-                $data->where(function($q) {
-                    $q->whereIn('status', ['Scheduled','Draft','Done']);
+        foreach (['filter_brand' => 'brand', 'filter_platform' => 'platform'] as $param => $column) {
+            if ($request->filled($param)) {
+                $values = (array) $request->input($param);
+                $query->where(function ($q) use ($values, $column) {
+                    foreach ($values as $value) {
+                        $q->orWhereJsonContains($column, $value);
+                    }
                 });
-                if ($scheduleBy === 'tanggal_produksi') {
-                    $data->whereDate('tanggal_produksi', '<', $now->toDateString());
-                } else {
-                    $data->where('tanggal_publish', '<', $now);
-                }
-            } else {
-                $data->where('status', $request->status);
             }
         }
-        // Brand filter (array)
-        if ($request->filled('filter_brand')) {
-            $brands = $request->filter_brand;
-            if (is_string($brands)) $brands = [$brands];
-            // keep existing brand filtering behavior if needed
-            $data->where(function($q) use ($brands) {
-                foreach ($brands as $b) {
-                    $q->orWhereJsonContains('brand', $b);
-                }
-            });
+        if ($request->filled('filter_status')) {
+            $query->where('status', $request->filter_status);
         }
-        // Platform filter (array)
-        if ($request->filled('filter_platform')) {
-            $platforms = $request->filter_platform;
-            if (is_string($platforms)) $platforms = [$platforms];
-            $data->where(function($q) use ($platforms) {
-                foreach ($platforms as $p) {
-                    $q->orWhereJsonContains('platform', $p);
-                }
-            });
+        if ($request->filled('filter_konten_pilar')) {
+            $query->where('konten_pilar', $request->filter_konten_pilar);
+        }
+        if ($request->boolean('mine')) {
+            $query->where('assigned_to', Auth::id());
         }
 
-        $items = $data->orderBy($scheduleBy)->orderBy('tanggal_publish')->get();
+        return $query;
+    }
 
-        $rows = $items->map(function($row) use ($scheduleBy) {
-            // plain title (remove any appended tokens like konten_pilar or platform names)
-            $title = $row->judul ?? '';
-            // remove platform/konten_pilar tokens if present
-            if ($row->konten_pilar) {
-                $title = str_ireplace($row->konten_pilar, '', $title);
-            }
-            if ($row->platform) {
-                if (is_array($row->platform)) {
-                    foreach ($row->platform as $p) { $title = str_ireplace($p, '', $title); }
-                } else { $title = str_ireplace($row->platform, '', $title); }
-            }
-            // collapse whitespace
-            $title = trim(preg_replace('/\s+/', ' ', $title));
+    protected function applyOverdue($query, $scheduleBy)
+    {
+        $query->whereIn('status', self::OVERDUE_STATUSES[$scheduleBy]);
+        if ($scheduleBy === 'tanggal_produksi') {
+            $query->whereDate('tanggal_produksi', '<', Carbon::today()->toDateString());
+        } else {
+            $query->where('tanggal_publish', '<', Carbon::now());
+        }
 
-            $scheduleValue = $scheduleBy === 'tanggal_produksi' ? $row->tanggal_produksi : $row->tanggal_publish;
-            $day = $scheduleValue ? \Carbon\Carbon::parse($scheduleValue)->format('l, j M Y') : '';
-            $time = $scheduleBy === 'tanggal_publish' && $scheduleValue
-                ? \Carbon\Carbon::parse($scheduleValue)->format('H.i')
-                : '';
-            $brand = '';
-            if ($row->brand) {
-                if (is_array($row->brand)) $brand = implode(', ', $row->brand);
-                else $brand = $row->brand;
+        return $query;
+    }
+
+    /** Only http(s) links are rendered; a bare "instagram.com/..." gets https:// */
+    protected function safeUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') return null;
+        if (preg_match('#^https?://#i', $url)) return $url;
+        if (!preg_match('#^[a-z][a-z0-9+.\-]*:#i', $url)) return 'https://' . ltrim($url, '/');
+
+        return null;
+    }
+
+    /**
+     * All content plans of a week range as plain data grouped by date (YYYY-MM-DD);
+     * the board builds the cards client-side.
+     */
+    public function week(Request $request)
+    {
+        $scheduleBy = $this->scheduleBy($request);
+        $hasDesign = Schema::hasTable('marketing_design_requests');
+        $canManage = MarketingAccess::isMarketing(Auth::user());
+
+        $query = ContentPlan::with('assignedTo:id,name')
+            ->withCount(['briefs as brief_filled' => fn ($q) => self::filledBrief($q)]);
+        // revision count + when the content last went into Review (history table arrives with a migration)
+        if (Schema::hasTable('marketing_status_logs')) {
+            $query->withCount(['statusLogs as revisi_count' => fn ($q) => $q->where('action', 'revise')])
+                ->withMax(['statusLogs as review_since' => fn ($q) => $q->where('to_status', 'Review')], 'created_at');
+        }
+        if ($hasDesign) {
+            $query->with(['designRequests' => fn ($q) => $q->select('id', 'content_plan_id', 'status', 'designer_id', 'deadline')->with('designer:id,name')->orderByDesc('id')]);
+        }
+        $this->applyFilters($query, $request, $scheduleBy);
+        $items = $query->orderBy($scheduleBy)->orderBy('tanggal_publish')->get();
+        $publishedIds = $items->where('status', 'Published')->pluck('id')->all();
+        $published = self::publishInfo($publishedIds);
+        $insights = $this->insightInfo($publishedIds);
+
+        $rows = $items->map(function (ContentPlan $row) use ($scheduleBy, $hasDesign, $canManage, $published, $insights) {
+            $platforms = is_array($row->platform)
+                ? $row->platform
+                : array_filter(array_map('trim', explode(',', (string) $row->platform)));
+            // links are stored keyed by platform; older rows used a plain list in platform order
+            $links = is_array($row->link_publikasi) ? $row->link_publikasi : [];
+            $platformItems = [];
+            foreach (array_values($platforms) as $i => $p) {
+                $platformItems[] = ['name' => $p, 'url' => $this->safeUrl($links[$p] ?? ($links[$i] ?? null))];
             }
-            $assigned = $row->assignedTo ? $row->assignedTo->name : ($row->assigned_to_name ?? $row->assigned_to ?? '');
+
+            // newest design request decides the badge on the card
+            $design = null;
+            $activeJob = null;
+            if ($hasDesign && $row->designRequests->isNotEmpty()) {
+                $activeJob = $row->designRequests->first(fn ($dr) => $dr->isActive());
+                $design = ($activeJob ?: $row->designRequests->first())->status;
+            }
+
+            $scheduleDate = $scheduleBy === 'tanggal_produksi'
+                ? optional($row->tanggal_produksi)->toDateString()
+                : optional($row->tanggal_publish)->toIso8601String();
 
             return [
                 'id' => $row->id,
-                'day' => $day,
-                'time' => $time,
-                'judul' => $title,
-                'brand' => $brand,
+                'judul' => $row->judul,
                 'status' => $row->status,
-                'assigned' => $assigned,
+                'status_label' => self::STATUS_LABELS[$row->status] ?? $row->status,
+                'schedule_date' => $scheduleDate,
+                'tanggal_produksi' => optional($row->tanggal_produksi)->toDateString(),
+                'tanggal_publish' => optional($row->tanggal_publish)->toIso8601String(),
+                'assigned_to' => $row->assigned_to,
+                'assigned_to_name' => $row->assignedTo ? $row->assignedTo->name : '',
+                'brand' => array_values((array) ($row->brand ?? [])),
+                'jenis_konten' => array_values((array) ($row->jenis_konten ?? [])),
+                'konten_pilar' => $row->konten_pilar,
+                'platforms' => $platformItems,
+                'design_status' => $design,
+                // workflow buttons for the card (Marketing only)
+                'transitions' => $canManage ? $this->transitionsFor($row, (bool) $activeJob) : [],
+                'needs_designer' => (bool) $activeJob,
+                'designer_name' => $activeJob ? optional($activeJob->designer)->name : null,
+                // H-1: the designer job is still waiting while its deadline is close / past
+                'design_urgency' => $activeJob ? \App\Support\Marketing\DesignReminders::urgency($activeJob->deadline, $activeJob->status) : null,
+                'link_publikasi' => is_array($row->link_publikasi) ? $row->link_publikasi : (object) [],
+                'revisi_count' => (int) ($row->revisi_count ?? 0),
+                'has_brief' => ($row->brief_filled ?? 0) > 0,
+                'review_since' => $row->review_since ? Carbon::parse($row->review_since)->toIso8601String() : null,
+                // Published: when it went live (time typed in "Tandai published"), by whom, on time or not
+                'published' => $published[$row->id] ?? null,
+                // latest Instagram numbers (from "Update insight") and the views gained since the snapshot before
+                'insight' => $insights[$row->id] ?? null,
             ];
+        });
+
+        $grouped = $rows->groupBy(function ($r) {
+            return $r['schedule_date'] ? Carbon::parse($r['schedule_date'])->format('Y-m-d') : 'no_date';
         })->toArray();
+
+        // konten rutin of the week (upload days only exist on the publish calendar)
+        $routines = [];
+        if ($scheduleBy === 'tanggal_publish' && $request->filled('date_start') && $request->filled('date_end')) {
+            $routines = RoutineSchedule::between(
+                Carbon::createFromFormat('d/m/Y', $request->date_start),
+                Carbon::createFromFormat('d/m/Y', $request->date_end),
+                $this->routineFilters($request)
+            );
+        }
+
+        return response()->json(['data' => $grouped, 'routines' => (object) $routines]);
+    }
+
+    /**
+     * Latest "publish" of each plan: go-live time (the "Tayang: d/m/Y H.i" note written by transition(),
+     * otherwise the moment the button was pressed), who recorded it and how late against the schedule.
+     *
+     * @return array<int, array{at: string, by: ?string, on_time: ?bool, late_by: ?string}>
+     */
+    public static function publishInfo(array $planIds): array
+    {
+        if (!$planIds || !Schema::hasTable('marketing_status_logs')) {
+            return [];
+        }
+        $plans = ContentPlan::whereIn('id', $planIds)->pluck('tanggal_publish', 'id');
+        $logs = \App\Models\Marketing\StatusLog::with('user:id,name')
+            ->where('loggable_type', ContentPlan::class)->whereIn('loggable_id', $planIds)
+            ->where('action', 'publish')->orderBy('id')->get()
+            ->keyBy('loggable_id'); // last one wins
+
+        $out = [];
+        foreach ($logs as $planId => $log) {
+            $at = preg_match('/Tayang: (\d{2}\/\d{2}\/\d{4} \d{2}\.\d{2})/', (string) $log->notes, $m)
+                ? Carbon::createFromFormat('d/m/Y H.i', $m[1])
+                : Carbon::parse($log->created_at);
+            $late = $plans[$planId] ? (int) Carbon::parse($plans[$planId])->diffInMinutes($at, false) : null;
+            $out[$planId] = [
+                'at' => $at->toIso8601String(),
+                'by' => optional($log->user)->name,
+                'on_time' => $late === null ? null : $late <= self::ON_TIME_MINUTES,
+                'late_by' => $late !== null && $late > self::ON_TIME_MINUTES ? self::duration($late) : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /** @return array<int, array{tanggal: string, views: ?int, likes: ?int, comments: ?int, reach: ?int, views_delta: ?int}> */
+    protected function insightInfo(array $planIds): array
+    {
+        if (!$planIds || !Schema::hasTable('marketing_content_insights')) {
+            return [];
+        }
+        $out = [];
+        $rows = \App\Models\Marketing\ContentInsight::whereIn('content_plan_id', $planIds)->where('platform', 'instagram')
+            ->orderBy('content_plan_id')->orderByDesc('tanggal')->get()->groupBy('content_plan_id');
+        foreach ($rows as $planId => $list) {
+            [$last, $before] = [$list->get(0), $list->get(1)];
+            $out[$planId] = [
+                'tanggal' => $last->tanggal->toDateString(),
+                'views' => $last->views,
+                'likes' => $last->likes,
+                'comments' => $last->comments,
+                'reach' => $last->reach,
+                'views_delta' => $before && $last->views !== null && $before->views !== null ? $last->views - $before->views : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /** Board filters that also apply to konten rutin. */
+    protected function routineFilters(Request $request): array
+    {
+        return [
+            'mine' => $request->boolean('mine') ? Auth::id() : null,
+            'brand' => $request->filled('filter_brand') ? (array) $request->input('filter_brand') : null,
+            'platform' => $request->filled('filter_platform') ? (array) $request->input('filter_platform') : null,
+        ];
+    }
+
+    /**
+     * Flat list for the "Konten Terlewat" modal. `status` is a plan status, 'all',
+     * or 'terlewat' (see OVERDUE_STATUSES). With `count_only=1` only the count is returned.
+     */
+    public function statusList(Request $request)
+    {
+        $scheduleBy = $this->scheduleBy($request);
+
+        $query = ContentPlan::with('assignedTo:id,name');
+        $this->applyFilters($query, $request, $scheduleBy);
+
+        $status = strtolower((string) $request->input('status', ''));
+
+        // Published on Instagram without a post link: such content never shows up in the insights
+        if ($status === 'tanpa_link') {
+            $rows = ContentPlan::with('assignedTo:id,name')->where('status', 'Published')
+                ->where('tanggal_publish', '>=', now()->subDays(\App\Support\Marketing\InstagramInsights::SYNC_DAYS)->startOfDay())
+                ->when($request->boolean('mine'), fn ($q) => $q->where('assigned_to', Auth::id()))
+                ->orderByDesc('tanggal_publish')->get()
+                ->filter(fn (ContentPlan $p) => in_array('Instagram', (array) $p->platform, true)
+                    && !\App\Support\Marketing\InstagramInsights::shortcode(\App\Support\Marketing\InstagramInsights::instagramLink($p)))
+                ->values();
+            if ($request->boolean('count_only')) {
+                return response()->json(['count' => $rows->count()]);
+            }
+
+            return response()->json(['data' => $rows->map(fn (ContentPlan $row) => [
+                'id' => $row->id,
+                'day' => Carbon::parse($row->tanggal_publish)->locale('id')->translatedFormat('l, j M Y'),
+                'time' => Carbon::parse($row->tanggal_publish)->format('H.i'),
+                'judul' => $row->judul ?? '',
+                'brand' => is_array($row->brand) ? implode(', ', $row->brand) : (string) ($row->brand ?? ''),
+                'status' => $row->status,
+                'status_label' => self::STATUS_LABELS[$row->status] ?? $row->status,
+                'assigned' => $row->assignedTo ? $row->assignedTo->name : '',
+                'link' => \App\Support\Marketing\InstagramInsights::instagramLink($row),
+            ])->values()]);
+        }
+
+        $overdue = in_array($status, ['terlewat', 'overdue'], true);
+        if ($overdue) {
+            $this->applyOverdue($query, $scheduleBy);
+        } elseif ($status !== '' && $status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // missed uploads of konten rutin (last days) count as "terlewat" on the publish calendar
+        $lateRoutines = $overdue && $scheduleBy === 'tanggal_publish' ? RoutineSchedule::late($this->routineFilters($request)) : [];
+
+        if ($request->boolean('count_only')) {
+            return response()->json(['count' => $query->count() + count($lateRoutines)]);
+        }
+
+        $rows = $query->orderBy($scheduleBy)->orderBy('tanggal_publish')->get()->map(function ($row) use ($scheduleBy) {
+            $scheduleValue = $row->{$scheduleBy};
+
+            return [
+                'id' => $row->id,
+                'day' => $scheduleValue ? Carbon::parse($scheduleValue)->locale('id')->translatedFormat('l, j M Y') : '',
+                'time' => $scheduleBy === 'tanggal_publish' && $scheduleValue ? Carbon::parse($scheduleValue)->format('H.i') : '',
+                'judul' => $row->judul ?? '',
+                'brand' => is_array($row->brand) ? implode(', ', $row->brand) : (string) ($row->brand ?? ''),
+                'status' => $row->status,
+                'status_label' => self::STATUS_LABELS[$row->status] ?? $row->status,
+                'assigned' => $row->assignedTo ? $row->assignedTo->name : '',
+            ];
+        })->values();
+
+        foreach ($lateRoutines as $occ) {
+            $rows->push([
+                'type' => 'routine',
+                'routine_id' => $occ['routine_id'],
+                'date' => $occ['date'],
+                'day' => Carbon::parse($occ['date'])->locale('id')->translatedFormat('l, j M Y'),
+                'time' => str_replace(':', '.', $occ['time']),
+                'judul' => $occ['judul'],
+                'brand' => implode(', ', $occ['brand']),
+                'assigned' => $occ['assigned_to_name'] ?: '',
+            ]);
+        }
 
         return response()->json(['data' => $rows]);
     }

@@ -33,6 +33,22 @@ class NavigationBadges
             ->whereNotIn('status', ['done', 'skipped'])
             ->count());
 
+        // Request Desain: Marketing = new + waiting review + my jobs in revision; requester = own requests in review
+        $counts['design_request_action'] = $this->safe(function () use ($user) {
+            $q = \App\Models\Marketing\DesignRequest::query();
+            if (\App\Support\Marketing\MarketingAccess::isMarketing($user)) {
+                return $q->where(function ($w) use ($user) {
+                    // a content job in Review is approved on the Content Plan (counted in its own badge)
+                    $w->where('status', 'Baru')
+                        ->orWhere(fn ($r) => $r->where('status', 'Review')
+                            ->where(fn ($c) => $c->whereNull('content_plan_id')->orWhere('jenis', '!=', 'Konten Sosmed')))
+                        ->orWhere(fn ($m) => $m->where('designer_id', $user->id)->where('status', 'Revisi'));
+                })->count();
+            }
+
+            return $q->where('requester_id', $user->id)->where('status', 'Review')->count();
+        });
+
         if ($user->hasAnyRole(['Farmasi', 'Admin', 'Finance'])) {
             $counts['harga_menunggu'] = $this->safe(fn () => \App\Models\ERM\ObatHargaPengajuan::where('status', 'menunggu')->count());
         }
@@ -50,7 +66,8 @@ class NavigationBadges
 
         if ($user->hasAnyRole(['Marketing', 'Admin', 'Finance'])) {
             $today = Carbon::today();
-            $counts['content_scheduled'] = $this->safe(fn () => \App\Models\Marketing\ContentPlan::where('status', 'Scheduled')->count());
+            // content waiting for a Marketing review (approve / minta revisi)
+            $counts['content_scheduled'] = $this->safe(fn () => \App\Models\Marketing\ContentPlan::where('status', 'Review')->count());
             $counts['hari_penting_today'] = $this->safe(fn () => \App\Models\Marketing\HariPenting::where(function ($q) use ($today) {
                 $q->where(function ($q2) use ($today) {
                     $q2->whereDate('start_date', $today)->whereNull('end_date');

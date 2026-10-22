@@ -19,6 +19,8 @@
     #tindakan-table .badge { font-weight: 600; }
     #tindakan-table tr.pt-off td { color: #8a94a6; }
     #tindakan-table tr.pt-selected td { background: #eef4ff; }
+    /* modal-dialog-scrollable needs the body's parent to flex; here a <form> sits between content and body */
+    #tindakanModal .modal-content > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
     .pt-bulk { background: #eef4ff; border: 1px solid #c9dafc; border-radius: .4rem; padding: .35rem .6rem; }
 </style>
 <div class="container-fluid">

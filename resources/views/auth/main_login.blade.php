@@ -167,6 +167,9 @@
         .input:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent); }
         .input-wrap:focus-within .icon { color: var(--accent); }
         .password-wrap .input { padding-right: 46px; }
+        .remember-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 2px 0 16px; cursor: pointer; font-size: .9rem; color: var(--text); user-select: none; }
+        .remember-row input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; margin: 0; }
+        .remember-row small { flex-basis: 100%; padding-left: 26px; color: var(--muted); font-size: .76rem; }
         .toggle-password {
             position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
             width: 38px; height: 38px;
@@ -399,6 +402,13 @@
                     <input type="hidden" name="emotion" id="emotion_input" value="{{ $oldEmotion }}">
                     <div class="field-error">Pilih mood Anda.</div>
                 </div>
+
+                {{-- stay logged in on this device until logout (handy on a personal phone; leave off on shared PCs) --}}
+                <label class="remember-row" for="remember">
+                    <input type="checkbox" name="remember" id="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
+                    <span>Ingat saya di perangkat ini</span>
+                    <small>Jangan dicentang di komputer bersama</small>
+                </label>
 
                 <button type="submit" class="btn-login" id="login-btn">
                     <span class="spinner" aria-hidden="true"></span>

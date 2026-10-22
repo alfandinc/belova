@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use App\Models\User;
@@ -187,8 +188,12 @@ class AuthController extends Controller
             return $this->loginFailed($request, 'Email atau password salah.');
         }
 
+        // "Ingat saya di perangkat ini": stay logged in on this device (Laravel remember cookie) until logout,
+        // so links opened from WhatsApp land straight in the app on the user's phone
+        $remember = $request->boolean('remember');
+
         // Attempt to login (nonaktif accounts are rejected)
-        if (Auth::attempt(['email' => $request->email, 'password' => $request->password, 'is_active' => true])) {
+        if (Auth::attempt(['email' => $request->email, 'password' => $request->password, 'is_active' => true], $remember)) {
             // New session id after login (prevents session fixation)
             $request->session()->regenerate();
 
@@ -202,6 +207,16 @@ class AuthController extends Controller
                 'user_emotion' => $emotion,
                 'clinic_choice' => $request->clinic_choice,
             ]);
+            // A session restored from the remember cookie skips this form: keep the choices in cookies too
+            // (RefreshActiveUserEmotion puts them back into such a session)
+            if ($remember) {
+                $minutes = 60 * 24 * 365;
+                Cookie::queue('clinic_choice', $request->clinic_choice, $minutes);
+                Cookie::queue('user_emotion', $emotion, $minutes);
+            } else {
+                Cookie::queue(Cookie::forget('clinic_choice'));
+                Cookie::queue(Cookie::forget('user_emotion'));
+            }
 
             // Back to the page the user was trying to open, otherwise the dashboard
             $redirect = redirect()->intended('/');
@@ -232,9 +247,11 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         self::removeUserEmotion(Auth::user());
-        Auth::logout();
+        Auth::logout(); // also clears the remember cookie
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        Cookie::queue(Cookie::forget('clinic_choice'));
+        Cookie::queue(Cookie::forget('user_emotion'));
 
         return redirect('/');
     }

@@ -2,12 +2,13 @@
 
 namespace App\Models\Marketing;
 
+use App\Models\Marketing\Concerns\HasStatusLogs;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class ContentList extends Model
 {
-    use HasFactory;
+    use HasFactory, HasStatusLogs;
 
     protected $table = 'marketing_content_lists';
 

@@ -349,11 +349,17 @@ class StokService {
                 ->orderByDesc('last_id')
                 ->get();
 
-            // Earlier billing-edit returns of this invoice: never give back more than was taken per batch
+            // Earlier billing-edit returns and retur penjualan of this invoice: never give back more than was taken per batch
             $returned = KartuStok::where('obat_id', $obatId)
-                ->where('ref_type', 'invoice_return')
-                ->where('ref_id', $invoiceId)
                 ->where('tipe', 'masuk')
+                ->where(function ($q) use ($invoiceId) {
+                    $q->where(function ($w) use ($invoiceId) {
+                        $w->where('ref_type', 'invoice_return')->where('ref_id', $invoiceId);
+                    })->orWhere(function ($w) use ($invoiceId) {
+                        $w->where('ref_type', 'retur_pembelian')
+                            ->whereIn('ref_id', DB::table('finance_retur_pembelian')->where('invoice_id', $invoiceId)->select('id'));
+                    });
+                })
                 ->select('gudang_id', 'batch', DB::raw('SUM(qty) as qty'))
                 ->groupBy('gudang_id', 'batch')
                 ->get()

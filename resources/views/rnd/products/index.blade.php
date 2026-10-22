@@ -1160,7 +1160,20 @@
             + '<div class="rnd-status-pair mt-1">'
             + '<span class="rnd-sub">Kemasan</span> ' + statusTrigger(row.id, primer ? 'status_kemasan_primer' : 'status_kemasan_sekunder', primer ? row.status_kemasan_primer : row.status_kemasan_sekunder)
             + ' <span class="rnd-sub ml-2">Desain</span> ' + statusTrigger(row.id, primer ? 'status_desain_kemasan_primer' : 'status_desain_kemasan_sekunder', primer ? row.status_desain_kemasan_primer : row.status_desain_kemasan_sekunder)
-            + '</div>';
+            + '</div>'
+            + designRequestLink(row, side);
+    }
+
+    // Request Desain (graphic designer): open the running request, or ask for a new design of this kemasan
+    function designRequestLink(row, side) {
+        if (!row.design_requests) return '';
+        const dr = row.design_requests[side];
+        if (dr && dr.status !== 'Dibatalkan') {
+            return '<div class="rnd-meta mt-1"><a href="{{ url('/design-request') }}?open=' + dr.id + '" target="_blank" rel="noopener">'
+                + '<i class="fas fa-pen-nib"></i> Request desain #' + dr.id + ': ' + esc(dr.status) + '</a></div>';
+        }
+        return '<div class="rnd-meta mt-1"><a href="{{ url('/design-request') }}?rnd_produk_id=' + row.id + '&sisi=' + side + '" target="_blank" rel="noopener">'
+            + '<i class="fas fa-pen-nib"></i> Ajukan desain ke designer</a></div>';
     }
 
     function renderAdministrasi(row, field) {

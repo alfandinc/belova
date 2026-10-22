@@ -1,0 +1,15 @@
+{
+    "name": "Content Plan Belova",
+    "short_name": "Content Plan",
+    "description": "Jadwal & progres konten sosmed Belova",
+    "start_url": "/marketing/content-plan",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#ffffff",
+    "theme_color": "#7b52ab",
+    "icons": [
+        { "src": "/img/pwa/content-plan-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+        { "src": "/img/pwa/content-plan-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    ]
+}

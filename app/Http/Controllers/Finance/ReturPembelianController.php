@@ -323,6 +323,10 @@ class ReturPembelianController extends Controller
             // Handle stock return if it's an Obat (medicine) or ResepFarmasi
             if ($invoiceItem->billable_type === 'App\Models\ERM\Obat' && $invoiceItem->billable_id) {
                 $this->handleStockReturn($invoiceItem->billable_id, $quantityReturned, $retur);
+            } elseif ($invoiceItem->billable_type === 'App\Models\ERM\ResepFarmasi'
+                && (!$invoiceItem->billable_id || (int) optional(ResepFarmasi::withTrashed()->find($invoiceItem->billable_id))->racikan_ke > 0)) {
+                // Racikan: one invoice line (billable_id null) per racikan, stok was cut per component
+                $this->handleRacikanStockReturn($invoiceItem, $quantityReturned, $retur);
             } elseif ($invoiceItem->billable_type === 'App\Models\ERM\ResepFarmasi' && $invoiceItem->billable_id) {
                 // For ResepFarmasi, get the obat_id from the ResepFarmasi record (older returs may have soft-deleted it)
                 $resepFarmasi = ResepFarmasi::withTrashed()->find($invoiceItem->billable_id);
@@ -502,6 +506,83 @@ class ReturPembelianController extends Controller
             $retur->id,
             "Retur Pembelian - {$retur->retur_number}"
         );
+    }
+
+    /**
+     * Return the components of a racikan line. Billing cut each component's jumlah_racikan (total
+     * for all bungkus), so a partial retur gives back the same share: jumlah_racikan * returned / sold.
+     */
+    private function handleRacikanStockReturn(InvoiceItem $invoiceItem, float $quantityReturned, $retur): void
+    {
+        $soldQty = (float) $invoiceItem->quantity;
+        if ($soldQty <= 0) {
+            return;
+        }
+
+        $components = $this->racikanComponents($invoiceItem);
+        if ($components->isEmpty()) {
+            throw new \Exception("Komponen racikan untuk item {$invoiceItem->name} tidak ditemukan, stok tidak bisa dikembalikan.");
+        }
+
+        foreach ($components as $resep) {
+            if (!$resep->obat_id) {
+                continue;
+            }
+            $componentSold = (float) $resep->jumlah_racikan > 0 ? (float) $resep->jumlah_racikan : $soldQty;
+            $qty = round($componentSold * $quantityReturned / $soldQty, 4);
+            if ($qty > 0) {
+                $this->handleStockReturn($resep->obat_id, $qty, $retur);
+            }
+        }
+    }
+
+    /**
+     * The resep rows of the racikan behind an invoice line. Billing creates one line per racikan_ke
+     * of the visitation in order, so the n-th racikan line is the n-th racikan; bungkus and component
+     * count must match, otherwise the single racikan that matches both is used.
+     */
+    private function racikanComponents(InvoiceItem $invoiceItem)
+    {
+        if ($invoiceItem->billable_id) {
+            $resep = ResepFarmasi::withTrashed()->find($invoiceItem->billable_id);
+            return $resep
+                ? ResepFarmasi::withTrashed()->where('visitation_id', $resep->visitation_id)->where('racikan_ke', $resep->racikan_ke)->orderBy('id')->get()
+                : collect();
+        }
+
+        $invoice = Invoice::find($invoiceItem->invoice_id);
+        if (!$invoice || !$invoice->visitation_id) {
+            return collect();
+        }
+
+        $groups = ResepFarmasi::where('visitation_id', $invoice->visitation_id)
+            ->where('racikan_ke', '>', 0)
+            ->orderBy('id')
+            ->get()
+            ->groupBy(fn ($r) => (int) $r->racikan_ke)
+            ->sortKeys()
+            ->values();
+
+        $lines = InvoiceItem::where('invoice_id', $invoiceItem->invoice_id)
+            ->where('billable_type', 'App\Models\ERM\ResepFarmasi')
+            ->whereNull('billable_id')
+            ->orderBy('id')
+            ->pluck('id')
+            ->values();
+
+        $componentCount = count(array_filter(preg_split('/\R/', (string) $invoiceItem->description), fn ($l) => trim($l) !== ''));
+        $matches = function ($group) use ($invoiceItem, $componentCount) {
+            return (float) $group->first()->bungkus === (float) $invoiceItem->quantity
+                && ($componentCount === 0 || $group->count() === $componentCount);
+        };
+
+        $position = $lines->search($invoiceItem->id);
+        if ($position !== false && $groups->count() === $lines->count() && $matches($groups[$position])) {
+            return $groups[$position];
+        }
+
+        $candidates = $groups->filter($matches);
+        return $candidates->count() === 1 ? $candidates->first() : collect();
     }
 
     public function show($id)

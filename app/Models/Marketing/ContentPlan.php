@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Marketing\ContentReport;
 use App\Models\Marketing\ContentBrief;
+use App\Models\Marketing\Concerns\HasStatusLogs;
 
 class ContentPlan extends Model
 {
-    use HasFactory;
+    use HasFactory, HasStatusLogs;
 
     protected $table = 'marketing_content_plans';
 
@@ -51,6 +52,11 @@ class ContentPlan extends Model
     public function briefs()
     {
         return $this->hasMany(ContentBrief::class, 'content_plan_id');
+    }
+
+    public function designRequests()
+    {
+        return $this->hasMany(DesignRequest::class, 'content_plan_id');
     }
 
     public function assignedTo()
