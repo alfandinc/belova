@@ -161,15 +161,20 @@ class DesignRequestController extends Controller
             ->pluck('content_plan_id')->unique()->values();
         $briefReady = $planIds->isEmpty() ? collect() : \App\Models\Marketing\ContentBrief::whereIn('content_plan_id', $planIds)
             ->where(fn ($q) => ContentPlanController::filledBrief($q))->pluck('content_plan_id')->unique()->flip();
+        $noPic = $planIds->isEmpty() ? collect() : ContentPlan::whereIn('id', $planIds)->whereNull('assigned_to')->pluck('id')->flip();
 
         return response()->json([
             'data' => $items->map(fn (DesignRequest $dr) => $this->card($dr) + [
                 'actions' => $dr->availableActions($user),
                 'is_content_job' => $dr->isContentJob(),
                 'waiting_brief' => $dr->isContentJob() && $dr->status === DesignRequest::STATUS_BARU && !$briefReady->has($dr->content_plan_id),
+                'waiting_pic' => $dr->isContentJob() && $dr->status === DesignRequest::STATUS_BARU && $noPic->has($dr->content_plan_id),
                 'revisi_count' => (int) ($dr->revisi_count ?? 0),
             ])->values(),
             'has_more' => $hasMore,
+            // tab counters + designer workload ride along: one request per refresh instead of three
+            'summary' => $request->boolean('with_extra') ? $this->summary()->getData(true) : null,
+            'capacity' => $request->boolean('with_extra') && $isMarketing ? \App\Support\Marketing\DesignerCapacity::build() : null,
         ]);
     }
 
@@ -303,6 +308,19 @@ class DesignRequestController extends Controller
         ]);
         $designerId = MarketingAccess::isMarketing($user) ? ($data['designer_id'] ?? null) : null;
 
+        // one designer job per content: a second one would split the flow (the content follows only one)
+        if (!empty($data['content_plan_id'])) {
+            $existing = DesignRequest::where('content_plan_id', $data['content_plan_id'])
+                ->whereIn('status', DesignRequest::ACTIVE_STATUSES)->first();
+            if ($existing) {
+                return response()->json(['message' => 'Konten ini sudah punya request desain aktif (#' . $existing->id . ').', 'existing_id' => $existing->id], 422);
+            }
+            // design of this content is already done: changes go through "Revisi masuk" on the content
+            $done = DesignRequest::where('content_plan_id', $data['content_plan_id'])->where('status', DesignRequest::STATUS_SELESAI)->latest('id')->first();
+            if ($done) {
+                return response()->json(['message' => 'Desain konten ini sudah selesai (#' . $done->id . '). Untuk perubahan, catat "Revisi masuk" di Content Plan; untuk desain lain, buat request tanpa menautkan konten.', 'existing_id' => $done->id], 422);
+            }
+        }
         if (!empty($data['rnd_produk_id'])) {
             $existing = DesignRequest::where('rnd_produk_id', $data['rnd_produk_id'])
                 ->where('rnd_kemasan_sisi', $data['rnd_kemasan_sisi'])
@@ -353,7 +371,8 @@ class DesignRequestController extends Controller
 
         DB::transaction(function () use ($dr, $data, $request) {
             $dr->update([
-                'jenis' => $data['jenis'],
+                // a job linked to a content / R&D product keeps its jenis (the link and its flow depend on it)
+                'jenis' => $dr->content_plan_id || $dr->rnd_produk_id ? $dr->jenis : $data['jenis'],
                 'judul' => $data['judul'],
                 'brief' => $data['brief'] ?? null,
                 'deadline' => $data['deadline'] ?? null,
@@ -421,9 +440,14 @@ class DesignRequestController extends Controller
         switch ($action) {
             case 'take':
                 // a Content Plan job can only start once the creator wrote the brief (keeps the order of the flow)
-                if ($contentJob && ($plan = \App\Models\Marketing\ContentPlan::find($dr->content_plan_id))
-                    && !$plan->briefs()->where(fn ($q) => ContentPlanController::filledBrief($q))->exists()) {
-                    return response()->json(['message' => 'Brief konten belum diisi oleh content creator. Job bisa diambil setelah brief ada.'], 422);
+                if ($contentJob && ($plan = \App\Models\Marketing\ContentPlan::find($dr->content_plan_id))) {
+                    if (!$plan->briefs()->where(fn ($q) => ContentPlanController::filledBrief($q))->exists()) {
+                        return response()->json(['message' => 'Brief konten belum diisi oleh content creator. Job bisa diambil setelah brief ada.'], 422);
+                    }
+                    // same rule as "Mulai produksi" on the content: someone answers for it
+                    if (!$plan->assigned_to) {
+                        return response()->json(['message' => 'PIC konten belum ditentukan di Content Plan. Job bisa diambil setelah ada PIC.'], 422);
+                    }
                 }
                 $update['designer_id'] = $user->id;
                 $to = DesignRequest::STATUS_DIKERJAKAN;
@@ -460,7 +484,20 @@ class DesignRequestController extends Controller
         }
 
         $update['status'] = $to;
-        $dr->update($update);
+        // only when nobody moved the job meanwhile (e.g. two designers pressing "Ambil" at the same time)
+        $changed = DB::transaction(function () use ($dr, $from, $update) {
+            $current = DesignRequest::whereKey($dr->id)->lockForUpdate()->first();
+            if (!$current || $current->status !== $from || (int) $current->designer_id !== (int) $dr->designer_id) {
+                return false;
+            }
+            $current->update($update);
+
+            return true;
+        });
+        if (!$changed) {
+            return response()->json(['message' => 'Request ini baru saja diubah orang lain. Muat ulang untuk melihat status terbaru.'], 409);
+        }
+        $dr->refresh();
         $dr->logStatus($action, $from !== $to ? $from : null, $from !== $to ? $to : null, $notes);
         if ($from !== $to) {
             $dr->syncRndStatus();

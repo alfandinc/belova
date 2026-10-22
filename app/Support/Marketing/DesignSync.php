@@ -72,6 +72,11 @@ class DesignSync
 
         // the designer reads the content's own Brief, so the job carries no separate note
         if (!$job) {
+            // design already done (job Selesai) or the content is past production: no second job;
+            // changes after approval go through "Revisi masuk" on the content
+            if (self::latestJob($plan) || !in_array($plan->status, ['Draft', 'Scheduled', 'Produksi', 'Revisi'], true)) {
+                return;
+            }
             $job = DesignRequest::create([
                 'jenis' => 'Konten Sosmed',
                 'judul' => 'Desain konten - ' . $plan->judul,
@@ -89,7 +94,7 @@ class DesignSync
 
         // keep the job in step with the plan: designer and deadline
         $update = [
-            'deadline' => optional($plan->tanggal_produksi)->toDateString() ?: $job->deadline,
+            'deadline' => optional($plan->tanggal_produksi)->toDateString() ?: (optional($plan->tanggal_publish)->toDateString() ?: $job->deadline),
             'judul' => 'Desain konten - ' . $plan->judul,
         ];
         if ($job->status === DesignRequest::STATUS_BARU && (int) $job->designer_id !== (int) $designerId) {
@@ -99,14 +104,18 @@ class DesignSync
         $job->update($update);
     }
 
-    /** The content moved on the board (drag): the designer's deadline follows the production date. */
+    /**
+     * The content's dates changed (drag / form): the designer's deadline follows the production date,
+     * or the publish day when there is no production date.
+     */
     public static function syncDeadline(ContentPlan $plan): void
     {
-        if (!self::enabled() || !($job = self::activeJob($plan)) || !$plan->tanggal_produksi) {
+        $deadline = optional($plan->tanggal_produksi)->toDateString() ?: optional($plan->tanggal_publish)->toDateString();
+        if (!self::enabled() || !$deadline || !($job = self::activeJob($plan))) {
             return;
         }
-        if (optional($job->deadline)->toDateString() !== $plan->tanggal_produksi->toDateString()) {
-            $job->update(['deadline' => $plan->tanggal_produksi->toDateString()]);
+        if (optional($job->deadline)->toDateString() !== $deadline) {
+            $job->update(['deadline' => $deadline]);
         }
     }
 
@@ -146,6 +155,16 @@ class DesignSync
     public static function fromPlan(ContentPlan $plan, string $action, ?string $notes): void
     {
         if (!self::enabled()) {
+            return;
+        }
+        // content activated again: the designer job cancelled together with it comes back (waiting to be taken)
+        if ($action === 'reopen') {
+            $job = DesignRequest::where('content_plan_id', $plan->id)->orderByDesc('id')->first();
+            if ($job && $job->status === DesignRequest::STATUS_DIBATALKAN && !self::activeJob($plan)) {
+                $job->update(['status' => DesignRequest::STATUS_BARU, 'completed_at' => null]);
+                $job->logStatus('reopen', DesignRequest::STATUS_DIBATALKAN, DesignRequest::STATUS_BARU, trim('Konten diaktifkan lagi di Content Plan' . ($notes ? ": \n" . $notes : '')));
+            }
+
             return;
         }
         $map = [

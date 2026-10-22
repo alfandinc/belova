@@ -267,7 +267,8 @@ class ContentPlanController extends Controller
         $out['transitions'] = MarketingAccess::isMarketing(Auth::user()) ? $this->transitionsFor($plan) : [];
         $out['timeline'] = $plan->timeline(self::STATUS_LABELS);
         $out['design_requests'] = $this->designRequestsOf($plan);
-        $job = DesignSync::activeJob($plan);
+        // a finished job still shows (locked) in Penugasan: the content was made by the designer
+        $job = DesignSync::activeJob($plan) ?: DesignSync::latestJob($plan);
         $out['design_job'] = $job ? [
             'id' => $job->id,
             'status' => $job->status,
@@ -318,6 +319,8 @@ class ContentPlanController extends Controller
         $this->logReschedule($plan, $before);
         if ($designer) {
             DesignSync::applyChoice($plan->fresh(), ...$designer);
+        } else {
+            DesignSync::syncDeadline($plan->fresh());
         }
         self::fetchReferencePreview($plan);
 
@@ -348,6 +351,10 @@ class ContentPlanController extends Controller
             'tanggal_publish' => 'sometimes|required|date',
             'tanggal_produksi' => 'sometimes|required|date',
         ]);
+        // a published post already went live on its day: moving it would rewrite the track record
+        if ($plan->status === 'Published') {
+            return response()->json(['message' => 'Konten yang sudah Published tidak bisa dipindah. Ubah lewat form bila jadwalnya memang salah dicatat.'], 422);
+        }
 
         $before = $this->scheduleSnapshot($plan);
         $plan->update($data);
@@ -556,7 +563,13 @@ class ContentPlanController extends Controller
         if ($request->filled('date_start') && $request->filled('date_end')) {
             $start = Carbon::createFromFormat('d/m/Y', $request->date_start)->startOfDay();
             $end = Carbon::createFromFormat('d/m/Y', $request->date_end)->endOfDay();
-            $query->whereBetween($scheduleBy, [$start, $end]);
+            if ($scheduleBy === 'tanggal_produksi') {
+                // no production deadline yet: shown on its publish day (marked) instead of nowhere
+                $query->where(fn ($w) => $w->whereBetween('tanggal_produksi', [$start->toDateString(), $end->toDateString()])
+                    ->orWhere(fn ($n) => $n->whereNull('tanggal_produksi')->whereBetween('tanggal_publish', [$start, $end])));
+            } else {
+                $query->whereBetween($scheduleBy, [$start, $end]);
+            }
         }
         foreach (['filter_brand' => 'brand', 'filter_platform' => 'platform'] as $param => $column) {
             if ($request->filled($param)) {
@@ -662,7 +675,7 @@ class ContentPlanController extends Controller
             }
 
             $scheduleDate = $scheduleBy === 'tanggal_produksi'
-                ? optional($row->tanggal_produksi)->toDateString()
+                ? (optional($row->tanggal_produksi)->toDateString() ?: optional($row->tanggal_publish)->toDateString())
                 : optional($row->tanggal_publish)->toIso8601String();
 
             return [
@@ -673,6 +686,7 @@ class ContentPlanController extends Controller
                 'schedule_date' => $scheduleDate,
                 'tanggal_produksi' => optional($row->tanggal_produksi)->toDateString(),
                 'tanggal_publish' => optional($row->tanggal_publish)->toIso8601String(),
+                'no_deadline' => $scheduleBy === 'tanggal_produksi' && !$row->tanggal_produksi,
                 'assigned_to' => $row->assigned_to,
                 'assigned_to_name' => $row->assignedTo ? $row->assignedTo->name : '',
                 'brand' => array_values((array) ($row->brand ?? [])),
@@ -714,7 +728,20 @@ class ContentPlanController extends Controller
             );
         }
 
-        return response()->json(['data' => $grouped, 'routines' => (object) $routines]);
+        // "Perlu perhatian" counters ride along with the board: one request per refresh instead of three
+        $counts = null;
+        if ($request->boolean('with_counts')) {
+            $sub = fn (string $status) => Request::create('/', 'GET', array_filter([
+                'status' => $status, 'count_only' => 1, 'schedule_by' => $scheduleBy,
+                'mine' => $request->boolean('mine') ? 1 : null, 'filter_brand' => $request->input('filter_brand'),
+            ], fn ($v) => $v !== null));
+            $counts = [
+                'terlewat' => (int) $this->statusList($sub('terlewat'))->getData(true)['count'],
+                'tanpa_link' => $canManage ? (int) $this->statusList($sub('tanpa_link'))->getData(true)['count'] : 0,
+            ];
+        }
+
+        return response()->json(['data' => $grouped, 'routines' => (object) $routines, 'counts' => $counts]);
     }
 
     /**
@@ -947,6 +974,9 @@ class ContentPlanController extends Controller
                 'id' => $row->id,
                 'day' => $scheduleValue ? Carbon::parse($scheduleValue)->locale('id')->translatedFormat('l j F Y') : '',
                 'time' => $scheduleBy === 'tanggal_publish' && $scheduleValue ? Carbon::parse($scheduleValue)->format('H.i') : '',
+                // raw values for "Jadwalkan ulang" in the terlewat list
+                'tanggal_publish' => optional($row->tanggal_publish)->format('Y-m-d H:i'),
+                'tanggal_produksi' => optional($row->tanggal_produksi)->toDateString(),
                 'judul' => $row->judul ?? '',
                 'brand' => is_array($row->brand) ? implode(', ', $row->brand) : (string) ($row->brand ?? ''),
                 'status' => $row->status,

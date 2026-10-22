@@ -371,6 +371,7 @@ $(function () {
         var active = ['Baru', 'Dikerjakan', 'Review', 'Revisi'].indexOf(it.status) !== -1;
         if (!active) return '';
         if (it.waiting_brief) return wait('fas fa-hourglass-half', 'Menunggu brief konten', 'Job bisa diambil setelah content creator mengisi brief');
+        if (it.waiting_pic) return wait('fas fa-hourglass-half', 'Menunggu PIC konten', 'Job bisa diambil setelah PIC konten ditentukan di Content Plan');
         if (it.is_content_job && it.status === 'Review') return wait('fab fa-whatsapp', 'Approval di grup WA', 'Approval / revisi dicatat content creator di Content Plan');
 
         var otherDesigner = it.designer_id && String(it.designer_id) !== String(ME);
@@ -435,8 +436,10 @@ $(function () {
     function load(reset, silent) {
         if (reset) page = 1;
         var params = { scope: scope, jenis: jenis, q: $.trim($('#drSearch').val()), page: page, include_done: scope === 'saya' ? 0 : undefined };
-        $.getJSON(BASE + '/list', params)
+        $.getJSON(BASE + '/list', $.extend({ with_extra: 1 }, params))
             .done(function (r) {
+                renderSummary(r.summary);
+                renderCapacity(r.capacity);
                 // the 10-second refresh only redraws when something changed
                 var key = JSON.stringify([params, r]);
                 if (silent && key === lastKey) return;
@@ -457,50 +460,46 @@ $(function () {
                 }
                 $('#drMore').toggle(!!r.has_more);
             });
-        loadSummary();
-        loadCapacity();
     }
 
     // ---- designer workload
     var LEVEL_LABEL = { ringan: 'Ringan', sedang: 'Sedang', padat: 'Padat' };
-    function loadCapacity() {
-        if (!IS_MARKETING) return;
-        $.getJSON(BASE + '/capacity').done(function (c) {
-            var people = (c.designers || []).filter(function (d) { return d.active > 0; });
-            var idle = (c.designers || []).filter(function (d) { return !d.active; });
-            $('#drCapSum').html(people.map(function (d) {
-                return '<span class="dr-cap-pill ' + d.level + '" title="' + esc(LEVEL_LABEL[d.level]) + '">' + esc(d.name.split(' ')[0]) + ' · ' + d.active + ' job</span>';
-            }).join('') + (c.queue.count ? '<span class="dr-cap-pill queue">Antrian · ' + c.queue.count + ' job</span>' : '')
-                + (!people.length && !c.queue.count ? '<span class="dr-cap-pill">Tidak ada job aktif</span>' : ''));
+    function renderCapacity(c) {
+        if (!IS_MARKETING || !c) return;
+        var people = (c.designers || []).filter(function (d) { return d.active > 0; });
+        var idle = (c.designers || []).filter(function (d) { return !d.active; });
+        $('#drCapSum').html(people.map(function (d) {
+            return '<span class="dr-cap-pill ' + d.level + '" title="' + esc(LEVEL_LABEL[d.level]) + '">' + esc(d.name.split(' ')[0]) + ' · ' + d.active + ' job</span>';
+        }).join('') + (c.queue.count ? '<span class="dr-cap-pill queue">Antrian · ' + c.queue.count + ' job</span>' : '')
+            + (!people.length && !c.queue.count ? '<span class="dr-cap-pill">Tidak ada job aktif</span>' : ''));
 
-            var head = '<div class="dr-cap-dayhead">' + c.days.map(function (d) {
-                var m = moment(d);
-                return '<span>' + (m.isSame(moment(), 'day') ? 'Hari ini' : W.HARI[m.day()].slice(0, 2) + ' ' + m.date()) + '</span>';
-            }).join('') + '</div>';
-            var row = function (d) {
-                var s = d.by_status;
-                var parts = [];
-                ['Baru', 'Dikerjakan', 'Revisi', 'Review'].forEach(function (k) { if (s[k]) parts.push(s[k] + ' ' + k.toLowerCase()); });
-                var days = d.per_day.map(function (day) {
-                    var m = moment(day.date);
-                    var cls = day.count >= 2 ? 'd2' : (day.count === 1 ? 'd1' : '');
-                    return '<span class="dr-cap-day ' + cls + (m.day() === 0 || m.day() === 6 ? ' is-weekend' : '') + '" title="' + esc(W.date(day.date)) + ': '
-                        + (day.count ? day.count + ' deadline · ' + day.jobs.join(', ') : 'tidak ada deadline') + '">' + (day.count || '') + '</span>';
-                }).join('');
-                return '<div class="dr-cap-row"><div><div class="dr-cap-name">' + esc(d.name) + ' <span class="dr-cap-pill ' + d.level + '">' + LEVEL_LABEL[d.level] + '</span></div>'
-                    + '<div class="dr-cap-meta">' + d.active + ' job aktif' + (parts.length ? ' (' + parts.join(', ') + ')' : '')
-                    + (d.due_week ? ' · ' + d.due_week + ' deadline minggu ini' : '')
-                    + (d.late ? ' · <span class="late">' + d.late + ' terlambat</span>' : '')
-                    + (d.clashes ? ' · <span class="late">' + d.clashes + ' hari deadline bertumpuk</span>' : '') + '</div></div>'
-                    + '<div>' + head + '<div class="dr-cap-days">' + days + '</div></div></div>';
-            };
-            $('#drCapBody').html(people.map(row).join('')
-                + (c.queue.count ? '<div class="dr-cap-row"><div><div class="dr-cap-name">Antrian (belum ada designer)</div><div class="dr-cap-meta">' + c.queue.count + ' job menunggu diambil</div></div>'
-                    + '<div class="dr-cap-meta">' + c.queue.jobs.map(function (j) { return esc(j.judul) + (j.deadline ? ' (deadline ' + esc(W.date(j.deadline, { weekday: false })) + ')' : ''); }).join(' · ') + '</div></div>' : '')
-                + (idle.length ? '<div class="dr-cap-note">Tanpa job aktif: ' + idle.map(function (d) { return esc(d.name); }).join(', ') + '.</div>' : '')
-                + '<div class="dr-cap-note">Kotak per hari = jumlah deadline: biru 1 job, merah 2 job atau lebih (bertumpuk). Beban: ringan &lt; ' + c.levels.sedang
-                + ' job aktif, sedang ' + c.levels.sedang + '–' + (c.levels.padat - 1) + ', padat ≥ ' + c.levels.padat + '.</div>');
-        });
+        var head = '<div class="dr-cap-dayhead">' + c.days.map(function (d) {
+            var m = moment(d);
+            return '<span>' + (m.isSame(moment(), 'day') ? 'Hari ini' : W.HARI[m.day()].slice(0, 2) + ' ' + m.date()) + '</span>';
+        }).join('') + '</div>';
+        var row = function (d) {
+            var s = d.by_status;
+            var parts = [];
+            ['Baru', 'Dikerjakan', 'Revisi', 'Review'].forEach(function (k) { if (s[k]) parts.push(s[k] + ' ' + k.toLowerCase()); });
+            var days = d.per_day.map(function (day) {
+                var m = moment(day.date);
+                var cls = day.count >= 2 ? 'd2' : (day.count === 1 ? 'd1' : '');
+                return '<span class="dr-cap-day ' + cls + (m.day() === 0 || m.day() === 6 ? ' is-weekend' : '') + '" title="' + esc(W.date(day.date)) + ': '
+                    + (day.count ? day.count + ' deadline · ' + day.jobs.join(', ') : 'tidak ada deadline') + '">' + (day.count || '') + '</span>';
+            }).join('');
+            return '<div class="dr-cap-row"><div><div class="dr-cap-name">' + esc(d.name) + ' <span class="dr-cap-pill ' + d.level + '">' + LEVEL_LABEL[d.level] + '</span></div>'
+                + '<div class="dr-cap-meta">' + d.active + ' job aktif' + (parts.length ? ' (' + parts.join(', ') + ')' : '')
+                + (d.due_week ? ' · ' + d.due_week + ' deadline minggu ini' : '')
+                + (d.late ? ' · <span class="late">' + d.late + ' terlambat</span>' : '')
+                + (d.clashes ? ' · <span class="late">' + d.clashes + ' hari deadline bertumpuk</span>' : '') + '</div></div>'
+                + '<div>' + head + '<div class="dr-cap-days">' + days + '</div></div></div>';
+        };
+        $('#drCapBody').html(people.map(row).join('')
+            + (c.queue.count ? '<div class="dr-cap-row"><div><div class="dr-cap-name">Antrian (belum ada designer)</div><div class="dr-cap-meta">' + c.queue.count + ' job menunggu diambil</div></div>'
+                + '<div class="dr-cap-meta">' + c.queue.jobs.map(function (j) { return esc(j.judul) + (j.deadline ? ' (deadline ' + esc(W.date(j.deadline, { weekday: false })) + ')' : ''); }).join(' · ') + '</div></div>' : '')
+            + (idle.length ? '<div class="dr-cap-note">Tanpa job aktif: ' + idle.map(function (d) { return esc(d.name); }).join(', ') + '.</div>' : '')
+            + '<div class="dr-cap-note">Kotak per hari = jumlah deadline: biru 1 job, merah 2 job atau lebih (bertumpuk). Beban: ringan &lt; ' + c.levels.sedang
+            + ' job aktif, sedang ' + c.levels.sedang + '–' + (c.levels.padat - 1) + ', padat ≥ ' + c.levels.padat + '.</div>');
     }
 
     function emptyText() {
@@ -509,12 +508,11 @@ $(function () {
         return 'Tidak ada data.';
     }
 
-    function loadSummary() {
-        $.getJSON(BASE + '/summary').done(function (s) {
-            $('#drTabs [data-count]').each(function () {
-                var n = s[$(this).data('count')] || 0;
-                $(this).text(n).toggle(n > 0);
-            });
+    function renderSummary(s) {
+        if (!s) return;
+        $('#drTabs [data-count]').each(function () {
+            var n = s[$(this).data('count')] || 0;
+            $(this).text(n).toggle(n > 0);
         });
     }
 

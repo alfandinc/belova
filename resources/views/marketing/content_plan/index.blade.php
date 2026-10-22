@@ -75,6 +75,12 @@
 .cp-filter-chip:hover { border-color: var(--wf-accent); }
 .cp-filter-chip.active { background: var(--wf-accent); border-color: var(--wf-accent); color: #fff; }
 .cp-filter-chip .cp-logo { width: 18px; height: 18px; box-shadow: 0 0 0 1px var(--wf-border); }
+/* Jadwalkan ulang in the terlewat list */
+.cp-resched { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--wf-border); cursor: default; }
+.cp-resched-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cp-resched-row label { font-size: .75rem; font-weight: 700; color: var(--wf-muted); margin: 0 4px 0 0; }
+.cp-resched-row input[type=date] { width: 150px; }
+.cp-resched-row input[type=time] { width: 100px; }
 /* search: filters this week's board and lists matches of all weeks below the box */
 .cp-search { position: relative; width: 240px; max-width: 100%; }
 .cp-search input {
@@ -719,7 +725,7 @@ $(function () {
 
     // Same "terlewat" rule as the server (ContentPlanController::OVERDUE_STATUSES)
     function isOverdue(row) {
-        if (!row.schedule_date || (OVERDUE_STATUSES[scheduleBy] || []).indexOf(row.status) === -1) return false;
+        if (!row.schedule_date || row.no_deadline || (OVERDUE_STATUSES[scheduleBy] || []).indexOf(row.status) === -1) return false;
         return scheduleBy === 'tanggal_produksi'
             ? moment(row.schedule_date, 'YYYY-MM-DD').isBefore(moment(), 'day')
             : moment(row.schedule_date).isBefore(moment());
@@ -831,6 +837,8 @@ $(function () {
         // the clinic shows as logo (top-left) + card color; the only tag is the content pillar
         var logos = (row.brand || []).map(brandLogo).join('');
         var tags = pilarLabel(row.konten_pilar);
+        // production view without a production date: shown on its publish day until a deadline is set
+        if (row.no_deadline) tags += '<span class="cp-late" title="Belum ada deadline produksi: kartu ditaruh di hari tayang. Geser kartu atau isi tanggal produksi."><i class="far fa-calendar-times"></i>Belum ada deadline</span>';
 
         var icons = (row.platforms || []).map(function (p) {
             return p.url
@@ -858,7 +866,7 @@ $(function () {
 
         // card tinted with the clinic color (light enough to keep the text readable in both themes)
         var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .22 : .12) + '"' : '';
-        return '<div class="cp-item" tabindex="0" role="button" data-id="' + row.id + '"' + style + '>'
+        return '<div class="cp-item' + (row.status === 'Published' ? ' is-published' : '') + '" tabindex="0" role="button" data-id="' + row.id + '"' + style + '>'
             + '<div class="cp-item-top">'
             + (logos ? '<span class="cp-logos">' + logos + '</span>' : '')
             + (time ? (scheduleBy === 'tanggal_publish'
@@ -993,8 +1001,9 @@ $(function () {
         var seq = ++boardSeq;
         if (!opts.silent) $('#weekBoard').css('opacity', .5);
         var params = boardParams();
-        $.get(ROUTES.week, params).done(function (resp) {
+        $.get(ROUTES.week, $.extend({ with_counts: 1 }, params)).done(function (resp) {
             if (seq !== boardSeq) return; // week/mode changed meanwhile
+            if (resp && resp.counts) applyCounts(resp.counts);
             // the 10-second refresh only redraws when something changed (no flicker, hover / focus kept)
             var key = JSON.stringify([params, resp && resp.data, resp && resp.routines]);
             if (opts.silent && key === lastBoardKey) return;
@@ -1018,7 +1027,6 @@ $(function () {
         }).always(function () {
             if (seq === boardSeq) $('#weekBoard').css('opacity', 1);
         });
-        loadOverdueCount();
     }
 
     // Drag a card to another day (desktop only; on phones change the date in the form)
@@ -1026,7 +1034,7 @@ $(function () {
         if (!CAN_MANAGE || IS_TOUCH || !$.fn.sortable) return;
         $('#weekBoard .cp-day-list').sortable({
             connectWith: '#weekBoard .cp-day-list',
-            items: '.cp-item:not(.cp-routine)', // konten rutin follows its own days
+            items: '.cp-item:not(.cp-routine):not(.is-published)', // konten rutin follows its own days; published stays
             placeholder: 'cp-item-placeholder',
             tolerance: 'pointer',
             start: function () { window._cpDragging = true; },
@@ -1108,7 +1116,7 @@ $(function () {
         if (sliderTick) return;
         sliderTick = requestAnimationFrame(function () { sliderTick = null; updateSlider(); });
     });
-    $('#schedule-tab').on('shown.bs.tab', layoutSlider);
+    $('#schedule-tab').on('shown.bs.tab', function () { layoutSlider(); loadBoard({ silent: true }); });
     // the week and the board actions belong to Jadwal only
     $('#cpMainTabs').on('shown.bs.tab', 'a', function () { $('.js-schedule-only').toggle(this.id === 'schedule-tab'); });
     var sliderResize = null;
@@ -1283,22 +1291,14 @@ $(function () {
     });
 
     // ---- konten terlewat (all weeks)
-    function loadOverdueCount() {
-        $.getJSON(ROUTES.statusList, filterParams({ status: 'terlewat', schedule_by: scheduleBy, count_only: 1 }))
-            .done(function (r) {
-                var n = (r && r.count) || 0;
-                $('#stat_terlewat').text(n);
-                $('#btnOverdue').toggle(n > 0);
-                refreshAlerts();
-            });
-        if (CAN_MANAGE) {
-            $.getJSON(ROUTES.statusList, filterParams({ status: 'tanpa_link', count_only: 1 })).done(function (r) {
-                var n = (r && r.count) || 0;
-                $('#stat_nolink').text(n);
-                $('#btnNoLink').toggle(n > 0);
-                refreshAlerts();
-            });
-        }
+    // "Perlu perhatian" counters (sent with every board load)
+    function applyCounts(c) {
+        var late = c.terlewat || 0, noLink = c.tanpa_link || 0;
+        $('#stat_terlewat').text(late);
+        $('#btnOverdue').toggle(late > 0);
+        $('#stat_nolink').text(noLink);
+        $('#btnNoLink').toggle(CAN_MANAGE && noLink > 0);
+        refreshAlerts();
     }
     // Published on Instagram without a post link: open the list, each opens the content to add the link
     $('#btnNoLink').on('click', function () {
@@ -1328,16 +1328,76 @@ $(function () {
                         + '<div class="wf-meta mt-1">Konten rutin · ' + (it.assigned ? '<i class="fas fa-user mr-1"></i>' + esc(it.assigned) : 'Semua tim') + '</div>'
                         + '</div>';
                 }
-                return '<div class="wf-card is-clickable js-open-plan" tabindex="0" data-id="' + it.id + '">'
+                return '<div class="wf-card is-clickable js-open-plan" tabindex="0" data-id="' + it.id + '" data-publish="' + esc(it.tanggal_publish || '') + '" data-produksi="' + esc(it.tanggal_produksi || '') + '">'
                     + '<div class="d-flex justify-content-between flex-wrap" style="gap:6px"><span class="wf-meta">' + esc(it.day) + (it.time ? ' · ' + esc(it.time) : '') + '</span>' + planPill(it.status) + '</div>'
                     + '<div class="wf-card-title mt-1">' + esc(it.judul) + '</div>'
-                    + '<div class="wf-meta mt-1">' + (it.assigned ? '<i class="fas fa-user mr-1"></i>' + esc(it.assigned) : 'Belum ada PIC') + (it.brand ? ' · ' + esc(it.brand) : '') + '</div>'
+                    + '<div class="d-flex justify-content-between align-items-center flex-wrap mt-1" style="gap:6px">'
+                    + '<div class="wf-meta">' + (it.assigned ? '<i class="fas fa-user mr-1"></i>' + esc(it.assigned) : 'Belum ada PIC') + (it.brand ? ' · ' + esc(it.brand) : '') + '</div>'
+                    + (CAN_MANAGE ? '<button type="button" class="cp-act js-resched-open"><i class="far fa-calendar-alt"></i> Jadwalkan ulang</button>' : '')
+                    + '</div><div class="cp-resched" style="display:none"></div>'
                     + '</div>';
             }).join('') : '<div class="wf-empty"><i class="fas fa-check-circle fa-2x mb-2 d-block"></i>Tidak ada konten terlewat.</div>');
             $('#overdueModal').modal('show');
         });
     });
-    $(document).on('click', '#overdueList .js-open-plan', function () {
+
+    // ---- Jadwalkan ulang (terlewat list): new date (+ time on the publish calendar) right in the list
+    function setOverdueTitleCount() {
+        var n = $('#overdueList .wf-card').length;
+        $('#overdueTitle').text($('#overdueTitle').text().replace(/\(\d+\)/, '(' + n + ')'));
+        if (!n) $('#overdueList').html('<div class="wf-empty"><i class="fas fa-check-circle fa-2x mb-2 d-block"></i>Tidak ada konten terlewat.</div>');
+    }
+    $(document).on('click', '#overdueList .js-resched-open', function () {
+        var $card = $(this).closest('.wf-card'), $box = $card.find('.cp-resched');
+        if ($box.is(':visible')) { $box.slideUp(120); return; }
+        var publish = scheduleBy === 'tanggal_publish';
+        var orig = String($card.data('publish') || '');
+        var time = orig ? orig.slice(11, 16) : '09:00';
+        // default: the first moment from now with the same time (today when that time is still ahead, else tomorrow)
+        var day = publish
+            ? (moment(moment().format('YYYY-MM-DD') + ' ' + time).isAfter(moment()) ? moment() : moment().add(1, 'day'))
+            : moment();
+        $box.html('<div class="cp-resched-row">'
+            + '<label>' + (publish ? 'Tayang baru' : 'Deadline produksi baru') + '</label>'
+            + '<input type="date" class="form-control form-control-sm js-resched-date" value="' + day.format('YYYY-MM-DD') + '" min="' + moment().format('YYYY-MM-DD') + '">'
+            + (publish ? '<input type="time" class="form-control form-control-sm js-resched-time" value="' + esc(time) + '">' : '')
+            + '<button type="button" class="btn btn-primary btn-sm js-resched-save"><i class="fas fa-check mr-1"></i>Simpan</button>'
+            + '</div>'
+            + (!publish && orig ? '<div class="wf-meta mt-1">Tayang: ' + esc(W.date(orig.replace(' ', 'T'), { time: true })) + '</div>' : ''))
+            .slideDown(120);
+        $box.find('.js-resched-date').trigger('focus');
+    });
+    $(document).on('click', '#overdueList .js-resched-save', function () {
+        var $btn = $(this), $card = $btn.closest('.wf-card');
+        var publish = scheduleBy === 'tanggal_publish';
+        var date = $card.find('.js-resched-date').val();
+        var time = publish ? ($card.find('.js-resched-time').val() || '09:00') : '';
+        if (!date || (publish && !time)) { Swal.fire('Belum lengkap', 'Isi tanggal' + (publish ? ' dan jam' : '') + ' baru.', 'warning'); return; }
+        var when = moment(date + (publish ? ' ' + time : ''), publish ? 'YYYY-MM-DD HH:mm' : 'YYYY-MM-DD');
+        if (publish ? !when.isAfter(moment()) : when.isBefore(moment(), 'day')) {
+            Swal.fire('Jadwal masih lewat', publish ? 'Pilih tanggal & jam yang belum lewat.' : 'Pilih hari ini atau setelahnya.', 'warning');
+            return;
+        }
+        var orig = String($card.data('publish') || '');
+        if (!publish && orig && when.isAfter(moment(orig.slice(0, 10)), 'day')) {
+            Swal.fire('Melewati hari tayang', 'Deadline produksi tidak boleh setelah tanggal tayang (' + W.date(orig.slice(0, 10)) + '). Jadwalkan ulang di mode "Tanggal publish" bila tayangnya ikut mundur.', 'warning');
+            return;
+        }
+        var payload = publish ? { tanggal_publish: date + ' ' + time + ':00' } : { tanggal_produksi: date };
+        $btn.prop('disabled', true);
+        $.post('/marketing/content-plan/' + $card.data('id') + '/inline-update', payload)
+            .done(function () {
+                W.toast('Dijadwalkan ulang ke ' + W.date(publish ? date + 'T' + time : date, publish ? { time: true } : {}));
+                $card.slideUp(150, function () { $card.remove(); setOverdueTitleCount(); });
+                loadBoard({ silent: true });
+            })
+            .fail(function (xhr) { Swal.fire('Gagal', W.errorMessage(xhr, 'Gagal menjadwalkan ulang.'), 'error'); $btn.prop('disabled', false); });
+    });
+    $(document).on('keydown', '#overdueList .cp-resched input', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); $(this).closest('.cp-resched').find('.js-resched-save').trigger('click'); }
+    });
+    $(document).on('click', '#overdueList .js-open-plan', function (e) {
+        if ($(e.target).closest('.js-resched-open, .cp-resched').length) return;
         var id = $(this).data('id');
         $('#overdueModal').one('hidden.bs.modal', function () { openPlan(id); }).modal('hide');
     });
@@ -2142,9 +2202,9 @@ $(function () {
         $('#designer_id').prop('disabled', !CAN_MANAGE).val(job ? (job.designer_id || '') : '').trigger('change.select2');
         if (!job) { setWho(false); return; }
         // once the designer took the job the choice is fixed (revisi / approval run through the content)
-        var locked = job.status !== 'Baru'
-            ? 'Sedang dikerjakan designer' + (job.designer ? ' ' + job.designer : '') + ' (' + job.status + ').'
-            : '';
+        var locked = job.status === 'Selesai'
+            ? 'Desain sudah selesai oleh designer' + (job.designer ? ' ' + job.designer : '') + '. Perubahan lewat "Revisi masuk".'
+            : (job.status !== 'Baru' ? 'Sedang dikerjakan designer' + (job.designer ? ' ' + job.designer : '') + ' (' + job.status + ').' : '');
         setWho(true, locked);
         if (locked) $('#designer_id').prop('disabled', true).trigger('change.select2');
     }
@@ -3214,10 +3274,14 @@ $(function () {
     // is open or a card is being dragged, redraws only what changed
     function refreshLive() {
         if (document.hidden || window._cpDragging || $('.modal.show').length || Swal.isVisible()) return;
-        loadBoard({ silent: true });
-        loadIdeaStats();
-        if ($('#ideaTab').hasClass('active') && ideaPage === 1) loadIdeas(true, true);
+        var ideaOpen = $('#ideaTab').hasClass('active');
+        // only the open tab refreshes every 10 s; the other one's counters every 30 s
+        if (!ideaOpen) loadBoard({ silent: true });
+        if (ideaOpen || ++liveTick % 3 === 0) loadIdeaStats();
+        if (ideaOpen && ideaPage === 1) loadIdeas(true, true);
+        if (ideaOpen && liveTick % 3 === 0) loadBoard({ silent: true });
     }
+    var liveTick = 0;
     setInterval(refreshLive, 10000);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshLive(); });
 
