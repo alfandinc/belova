@@ -48,15 +48,14 @@
 .cp-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; align-items: start; }
 @media (max-width: 575.98px) { .cp-board { grid-template-columns: 1fr; gap: 8px; } }
 .cp-day { background: var(--wf-surface-2); border-radius: 12px; min-width: 0; display: flex; flex-direction: column; }
-.cp-day-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 12px; }
-.cp-day-dow { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wf-muted); }
-.cp-day-num { font-size: 1.15rem; font-weight: 700; color: var(--wf-text); line-height: 1; }
-.cp-day.is-today .cp-day-dow { color: var(--wf-accent); }
-.cp-day.is-today .cp-day-num {
-    background: var(--wf-accent); color: #fff; border-radius: 999px; min-width: 30px; height: 30px; padding: 0 6px;
-    display: inline-flex; align-items: center; justify-content: center; font-size: 1rem;
-}
-.cp-day.is-past .cp-day-num { color: var(--wf-muted); }
+/* day header: "Jumat 23 Oktober 2026" written out */
+.cp-day-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 12px; }
+.cp-day-date { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; font-size: .92rem; color: var(--wf-text); line-height: 1.3; }
+.cp-day-date strong { font-weight: 800; }
+.cp-day-date span { color: var(--wf-muted); font-weight: 600; }
+.cp-day-today { font-size: .68rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--wf-accent); color: #fff; white-space: nowrap; }
+.cp-day.is-today { box-shadow: inset 0 0 0 2px var(--wf-accent); }
+.cp-day.is-past .cp-day-date, .cp-day.is-past .cp-day-date span { color: var(--wf-muted); }
 .cp-day-stat { font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--wf-surface-solid); color: var(--wf-muted); }
 .cp-day-stat.green { background: var(--st-green-bg); color: var(--st-green-fg); }
 .cp-day-stat.red { background: var(--st-red-bg); color: var(--st-red-fg); }
@@ -71,11 +70,8 @@
 .cp-day-list { padding: 4px 8px 8px; min-height: 64px; flex: 1 1 auto; }
 .cp-day-empty { color: var(--wf-muted); font-size: .76rem; text-align: center; padding: 14px 0; opacity: .7; }
 @media (max-width: 575.98px) {
-    .cp-day { flex-direction: row; align-items: stretch; }
-    .cp-day-head { flex-direction: column; align-items: center; justify-content: flex-start; width: 58px; padding: 10px 4px; gap: 4px; flex: 0 0 auto; }
-    .cp-day-add { margin-left: 0; margin-top: 2px; }
-    .cp-day-list { flex: 1 1 auto; min-height: 0; padding: 8px 8px 8px 0; }
-    .cp-day-empty { text-align: left; padding: 8px 0; }
+    .cp-day-list { min-height: 0; }
+    .cp-day-empty { text-align: left; padding: 4px 4px 8px; }
 }
 
 /* ---------- content card ---------- */
@@ -89,16 +85,50 @@
 .cp-item:last-child { margin-bottom: 0; }
 .cp-item:hover, .cp-item:focus { outline: none; box-shadow: 0 6px 18px rgba(0,0,0,.10), 0 0 0 2px var(--brand, var(--wf-accent)); }
 
-.cp-item-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.cp-item-time { font-weight: 700; font-size: .82rem; color: var(--wf-muted); font-variant-numeric: tabular-nums; }
-.cp-item-top .wf-pill { margin-left: auto; font-size: .7rem; padding: 1px 9px; }
+.cp-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* the time is the second thing read after the title: a clear dark badge with a clock */
+.cp-item-time {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 8px;
+    font-weight: 800; font-size: .9rem; color: var(--wf-text); background: var(--wf-surface-solid);
+    box-shadow: inset 0 0 0 1px var(--wf-border); font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap;
+}
+.cp-item-time i { font-size: .75rem; color: var(--brand, var(--wf-accent)); }
+.cp-item-top .wf-pill { margin-left: auto; font-size: .68rem; padding: 1px 8px; opacity: .9; }
 .cp-warn { color: var(--wf-danger); font-size: .8rem; animation: cp-blink 1.2s linear infinite; }
 @keyframes cp-blink { 50% { opacity: .3; } }
 
+/* the title is what the card is about: biggest and darkest text, everything else is quieter */
 .cp-item-title {
-    font-weight: 700; font-size: .93rem; line-height: 1.35; word-break: break-word;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    font-weight: 800; font-size: 1.05rem; line-height: 1.38; letter-spacing: -.005em; color: var(--wf-text); word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* title with an optional preview square on its left */
+.cp-item-main { display: flex; gap: 10px; align-items: flex-start; }
+.cp-item-main-text { flex: 1 1 auto; min-width: 0; }
+.cp-thumb {
+    position: relative; flex: 0 0 auto; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; display: block;
+    background: var(--wf-surface-2); box-shadow: 0 0 0 1px var(--wf-border);
+}
+.cp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+a.cp-thumb:hover { box-shadow: 0 0 0 2px var(--brand, var(--wf-accent)); }
+.cp-thumb.is-ref img { opacity: .85; }
+.cp-thumb b {
+    position: absolute; left: 4px; bottom: 4px; font-size: .58rem; font-weight: 700; line-height: 1; padding: 2px 5px;
+    border-radius: 5px; background: rgba(0,0,0,.6); color: #fff;
+}
+.cp-item .cp-item-tags { align-items: center; gap: 4px 10px; margin-top: 6px; }
+.cp-item .cp-item-tags .cp-tag { font-size: .68rem; font-weight: 600; padding: 1px 7px; }
+/* pillar: a quiet coloured label, not a chip */
+.cp-pilar { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 600; color: var(--p, var(--wf-muted)); }
+.cp-pilar::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--p, var(--wf-muted)); }
+/* published: pill, then go-live date/time, then lateness — stacked on the right of the top row */
+.cp-item-top { align-items: flex-start; }
+.cp-item-top > .cp-logos, .cp-item-top > .cp-item-time { margin-top: 1px; }
+.cp-status { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; min-width: 0; }
+.cp-status .wf-pill { margin-left: 0; font-size: .68rem; padding: 1px 8px; }
+.cp-late { display: inline-flex; align-items: center; gap: 4px; font-size: .7rem; font-weight: 600; color: var(--st-amber-fg); white-space: nowrap; }
+.cp-late i { font-size: .62rem; }
+.cp-item-top .wf-pill i { font-size: .6rem; }
 /* brand chips (each in its own brand colour) + pilar / jenis tags; wraps instead of truncating */
 .cp-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .cp-chip-opt .cp-logo { width: 22px; height: 22px; box-shadow: 0 0 0 1px var(--wf-border); }
@@ -121,8 +151,9 @@
 }
 .cp-tag-brand::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: 0 0 auto; }
 
-.cp-item-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--wf-border); }
-.cp-pic { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; font-size: .78rem; font-weight: 600; color: var(--wf-text); }
+.cp-item-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--wf-border); }
+.cp-pic { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; font-size: .76rem; font-weight: 500; color: var(--wf-muted); }
+.cp-pic::before { content: '\f007'; font-family: 'Font Awesome 5 Free'; font-weight: 400; font-size: .7rem; opacity: .8; }
 .cp-pic > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cp-pic.is-empty { color: var(--wf-muted); font-weight: 400; }
 .cp-avatar {
@@ -162,7 +193,7 @@ a.cp-plat::after {
 
 /* ---------- konten rutin: compact card, no workflow; dashed ring tells it apart ---------- */
 .cp-item.cp-routine { padding: 10px 12px 8px; box-shadow: 0 0 0 1px var(--brand-line, var(--wf-border)); outline: 1px dashed transparent; }
-.cp-item.cp-routine .cp-item-title { font-size: .88rem; -webkit-line-clamp: 1; }
+.cp-item.cp-routine .cp-item-title { font-size: 1rem; -webkit-line-clamp: 2; }
 .cp-rt-ico { font-size: .68rem; color: var(--wf-muted); }
 .cp-item.cp-routine.is-late { box-shadow: 0 0 0 1.5px var(--wf-danger); }
 .cp-item.cp-routine.is-posted, .cp-item.cp-routine.is-skipped { opacity: .78; }
@@ -175,9 +206,10 @@ a.cp-plat::after {
 .cp-insight-group { display: inline-flex; align-items: center; gap: 4px; }
 .cp-insight-last { font-weight: 400; color: var(--wf-muted); font-size: .74rem; }
 .cp-chip.active .cp-insight-last { color: rgba(255,255,255,.8); }
-.cp-insight { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 6px; font-size: .76rem; color: var(--wf-muted); font-weight: 600; }
-.cp-insight i { font-size: .7rem; margin-right: 3px; }
-.cp-insight .up { color: var(--st-green-fg); }
+/* numbers under the "Published" pill (right-aligned, one line) */
+.cp-insight { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 9px; font-size: .74rem; color: var(--wf-muted); font-weight: 600; white-space: nowrap; }
+.cp-insight i { font-size: .68rem; margin-right: 3px; }
+.cp-insight .up { color: var(--st-green-fg); font-weight: 700; }
 .cp-insight-box { border: 1px solid var(--wf-border); border-radius: 10px; padding: 10px 12px; background: var(--wf-surface-2); }
 .cp-insight-table td, .cp-insight-table th { white-space: nowrap; font-size: .8rem; }
 .cp-insight-table .up { color: var(--st-green-fg); font-size: .72rem; margin-left: 4px; }
@@ -192,6 +224,32 @@ a.cp-plat::after {
 .cp-designer-load:empty { display: none; }
 .cp-designer-load.is-sedang { color: var(--st-amber-fg); }
 .cp-designer-load.is-padat { color: var(--wf-danger); }
+
+/* ---------- saved content: one part at a time ---------- */
+#contentPlanModal.is-section .cp-group-title { display: none; }
+.cp-summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.cp-sum-box { border-radius: 12px; padding: 12px 14px; background: var(--wf-surface-2); min-width: 0; }
+.cp-sum-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: .9rem; }
+.cp-sum-head > i { color: var(--wf-muted); width: 16px; text-align: center; }
+.cp-sum-head .btn { font-size: .76rem; padding: 2px 10px; border-radius: 8px; }
+.cp-sum-title { font-weight: 800; font-size: 1rem; line-height: 1.35; margin-bottom: 6px; word-break: break-word; }
+.cp-sum-text { font-size: .84rem; line-height: 1.5; color: var(--wf-text); white-space: pre-wrap; word-break: break-word; }
+.cp-sum-row { display: grid; grid-template-columns: 120px 1fr; gap: 8px; font-size: .84rem; padding: 4px 0; border-top: 1px dashed var(--wf-border); }
+.cp-sum-row:first-of-type { border-top: 0; }
+.cp-sum-row > span { color: var(--wf-muted); }
+.cp-sum-row > div { min-width: 0; word-break: break-word; }
+.cp-sum-row .cp-logo { width: 18px; height: 18px; vertical-align: middle; }
+.cp-sum-plat { display: inline-flex; align-items: center; gap: 5px; margin-right: 8px; white-space: nowrap; }
+.cp-sum-tl { font-size: .82rem; padding: 4px 0; border-top: 1px dashed var(--wf-border); }
+.cp-sum-tl:first-of-type { border-top: 0; }
+
+/* small icon buttons on a card: open one part directly */
+.cp-item-tools { display: flex; gap: 4px; margin-top: 8px; }
+.cp-tool {
+    width: 30px; height: 28px; border-radius: 8px; border: 0; background: transparent; color: var(--wf-muted);
+    display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; cursor: pointer; transition: background .15s, color .15s;
+}
+.cp-tool:hover, .cp-tool:focus { background: var(--wf-surface-solid); color: var(--brand, var(--wf-accent)); outline: none; }
 
 /* pilar mix of the week */
 .cp-pilar-mix { background: var(--wf-surface-solid); border-radius: 12px; box-shadow: 0 0 0 1px var(--wf-border); padding: 10px 14px; margin-bottom: 12px; }
@@ -575,11 +633,11 @@ $(function () {
         var color = brandColor(row);
         var time = scheduleBy === 'tanggal_publish'
             ? (row.tanggal_publish ? moment(row.tanggal_publish).format('HH.mm') : '')
-            : 'Tayang ' + W.date(row.tanggal_publish, { weekday: false });
+            : 'Tayang ' + W.date(row.tanggal_publish, { year: false });
 
         // the clinic shows as logo (top-left) + card color; the only tag is the content pillar
         var logos = (row.brand || []).map(brandLogo).join('');
-        var tags = row.konten_pilar ? '<span class="cp-tag" title="Pilar konten"><i class="fas fa-layer-group"></i>' + esc(row.konten_pilar) + '</span>' : '';
+        var tags = pilarLabel(row.konten_pilar);
 
         var icons = (row.platforms || []).map(function (p) {
             return p.url
@@ -603,33 +661,68 @@ $(function () {
             progress += '<span class="cp-tag" title="Menunggu review sejak ' + esc(W.date(row.review_since, { time: true })) + '"><i class="far fa-clock"></i>'
                 + (waited < 24 ? waited + ' jam' : Math.floor(waited / 24) + ' hari') + ' di review</span>';
         }
+        var pub = row.status === 'Published' ? row.published : null;
 
         // card tinted with the clinic color (light enough to keep the text readable in both themes)
         var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .16 : .08) + ';--brand-line:' + rgba(color, .35) + '"' : '';
         return '<div class="cp-item" tabindex="0" role="button" data-id="' + row.id + '"' + style + '>'
             + '<div class="cp-item-top">'
             + (logos ? '<span class="cp-logos">' + logos + '</span>' : '')
-            + (time ? '<span class="cp-item-time">' + esc(time) + '</span>' : '')
+            + (time ? '<span class="cp-item-time" title="' + (scheduleBy === 'tanggal_publish' ? 'Jam tayang' : 'Tanggal tayang') + '"><i class="far ' + (scheduleBy === 'tanggal_publish' ? 'fa-clock' : 'fa-calendar') + '"></i>' + esc(time) + '</span>' : '')
             + (isOverdue(row) ? '<i class="fas fa-exclamation-triangle cp-warn" title="Terlewat"></i>' : '')
-            + planPill(row.status) + '</div>'
+            + (row.status === 'Published' ? publishedPill(pub && pub.at, pub && pub.by, pub && pub.late_by, row.tanggal_publish, insightLine(row)) : planPill(row.status)) + '</div>'
+            + '<div class="cp-item-main">' + thumbHtml(row) + '<div class="cp-item-main-text">'
             + '<div class="cp-item-title">' + esc(row.judul) + '</div>'
             + (tags || progress ? '<div class="cp-item-tags">' + tags + progress + '</div>' : '')
+            + '</div></div>'
             + '<div class="cp-item-foot">' + pic + (icons ? '<span class="cp-icons">' + icons + '</span>' : '') + '</div>'
-            + publishedLine(row)
-            + insightLine(row)
+            + cardTools(row)
             + actions
             + '</div>';
     }
 
-    // Published: when it went live and who recorded it (same line as a konten rutin upload)
-    function publishedLine(row) {
-        var p = row.status === 'Published' ? row.published : null;
+    /**
+     * Status of published content and uploaded konten rutin, the same for both, on the right of the card:
+     * "✓ Published · 09.00" (the card already sits under its day: the date only shows when it went live on
+     * another day), under it the numbers (views, likes, comments), under that how late it was.
+     * Who recorded it: tooltip.
+     */
+    function publishedPill(at, by, lateBy, day, stats) {
+        var when = '';
+        if (at) {
+            when = day && !moment(at).isSame(moment(day), 'day')
+                ? W.date(at, { weekday: false, year: false, short: true, time: true })
+                : moment(at).format('HH.mm');
+        }
+        return '<span class="cp-status"' + (by ? ' title="Dicatat oleh ' + esc(by) + (at ? ' · tayang ' + esc(W.date(at, { time: true })) : '') + '"' : '') + '>'
+            + '<span class="wf-pill st-green"><i class="fas fa-check"></i>Published' + (when ? ' · ' + esc(when) : '') + '</span>'
+            + (stats || '')
+            + (lateBy ? '<span class="cp-late"><i class="far fa-clock"></i>telat ' + esc(lateBy) + '</span>' : '')
+            + '</span>';
+    }
+    /**
+     * Preview square next to the title: the Instagram post itself once published (click = open the post),
+     * before that the first reference picture of the brief (marked "Ref").
+     */
+    function thumbHtml(row) {
+        var t = row.thumb;
+        if (!t) return '';
+        var img = '<img src="' + esc(t.url) + '" alt="" loading="lazy">';
+        if (t.kind === 'post') {
+            var ig = (row.platforms || []).filter(function (p) { return p.name === 'Instagram' && p.url; })[0];
+            return ig
+                ? '<a class="cp-thumb js-stop" href="' + esc(ig.url) + '" target="_blank" rel="noopener" title="Lihat postingan di Instagram">' + img + '</a>'
+                : '<span class="cp-thumb">' + img + '</span>';
+        }
+        return '<span class="cp-thumb is-ref" title="Gambar referensi dari brief">' + img + '<b>Ref</b></span>';
+    }
+
+    // pillar as a small coloured label (same colours as the weekly pillar mix)
+    function pilarLabel(p) {
         if (!p) return '';
-        var at = moment(p.at);
-        var when = at.isSame(moment(row.tanggal_publish), 'day') ? at.format('HH.mm') : W.date(p.at, { weekday: false, time: true });
-        return '<div class="cp-rt-done' + (p.on_time === false ? ' is-late' : '') + '"><i class="fas fa-check-circle"></i>Tayang ' + esc(when)
-            + (p.by ? ' · ' + esc(p.by) : '')
-            + (p.late_by ? ' <span class="cp-tag cp-tag-rev">telat ' + esc(p.late_by) + '</span>' : '') + '</div>';
+        var i = PILAR_LIST.indexOf(p);
+        var color = PILAR_COLORS[(i < 0 ? 5 : i) % PILAR_COLORS.length];
+        return '<span class="cp-pilar" style="--p:' + color + '" title="Pilar konten">' + esc(p) + '</span>';
     }
 
     // "(selesai/total)": done = Published (publish mode) or Review/Siap Publish/Published (production mode).
@@ -675,9 +768,9 @@ $(function () {
             var isToday = d.isSame(moment(), 'day');
             var isPast = d.isBefore(moment(), 'day');
             html += '<div class="cp-day' + (isToday ? ' is-today' : '') + (isPast ? ' is-past' : '') + '" data-date="' + key + '">'
-                + '<div class="cp-day-head" title="' + W.dayTitle(d) + '">'
-                + '<span class="cp-day-dow">' + W.HARI[d.day()].slice(0, 3) + '</span>'
-                + '<span class="cp-day-num">' + d.date() + '</span>'
+                + '<div class="cp-day-head">'
+                + '<div class="cp-day-date"><strong>' + W.HARI[d.day()] + '</strong><span>' + d.date() + ' ' + W.BULAN_PANJANG[d.month()] + ' ' + d.year() + '</span></div>'
+                + (isToday ? '<span class="cp-day-today">Hari ini</span>' : '')
                 + dayStat(d, rows, scheduleBy === 'tanggal_publish' ? routines : [])
                 + (CAN_MANAGE ? '<button type="button" class="cp-day-add" data-date="' + key + '" title="Jadwalkan konten di ' + W.dayTitle(d) + '"><i class="fas fa-plus"></i></button>' : '')
                 + '</div><div class="cp-day-list" data-date="' + key + '">'
@@ -813,8 +906,8 @@ $(function () {
     function updateWeekLabel() {
         var end = weekEnd();
         var label = weekStart.month() === end.month()
-            ? weekStart.date() + ' – ' + end.date() + ' ' + W.BULAN[end.month()] + ' ' + end.year()
-            : weekStart.date() + ' ' + W.BULAN[weekStart.month()] + ' – ' + end.date() + ' ' + W.BULAN[end.month()] + ' ' + end.year();
+            ? weekStart.date() + ' – ' + end.date() + ' ' + W.BULAN_PANJANG[end.month()] + ' ' + end.year()
+            : weekStart.date() + ' ' + W.BULAN_PANJANG[weekStart.month()] + ' – ' + end.date() + ' ' + W.BULAN_PANJANG[end.month()] + ' ' + end.year();
         $('#cpWeekLabel').text(label);
         $('#cpWeekDate').val(weekStart.format('YYYY-MM-DD'));
         $('#btnThisWeek').toggle(!weekStart.isSame(moment().startOf('isoWeek'), 'day'));
@@ -989,6 +1082,7 @@ $(function () {
         $('#cpDesignList').empty();
         $('#cpDesignCount').hide();
         setPlanReadOnly(!CAN_MANAGE);
+        clearSection();
         setWizard(0);
     }
 
@@ -1037,14 +1131,188 @@ $(function () {
         showPlanTab(step === 3 ? 'brief' : 'detail');
     }
 
-    // modal "Tentukan PIC" / "Isi brief": switch the open modal to that step
-    $(document).on('click', '#cpWorkflowActions .js-prep', function () { setWizard(+$(this).data('step')); });
+    /**
+     * Saved content opens one part at a time instead of one big form: the summary ("Ringkasan") with a box
+     * per part, or a single part (Dasar, Penugasan, Brief, …) with its own Simpan. The form underneath stays
+     * one form (every field is sent on save); only the part on screen changes.
+     * The step-by-step form is only for new content.
+     */
+    var SECTIONS = {
+        ringkasan: { label: 'Ringkasan', tab: 'summary' },
+        dasar: { label: 'Informasi dasar', icon: 'fas fa-info-circle', tab: 'detail', groups: ['1'], edit: true },
+        penugasan: { label: 'Penugasan & PIC', icon: 'fas fa-user-cog', tab: 'detail', groups: ['2'], edit: true },
+        brief: { label: 'Brief', icon: 'far fa-file-alt', tab: 'brief', edit: true },
+        caption: { label: 'Caption & aset', icon: 'far fa-comment-alt', tab: 'detail', groups: ['caption'], edit: true },
+        publikasi: { label: 'Link publikasi', icon: 'fas fa-link', tab: 'detail', groups: ['links'], edit: true },
+        desain: { label: 'Desain', icon: 'fas fa-pen-nib', tab: 'design' },
+        report: { label: 'Insight & report', icon: 'fas fa-chart-line', tab: 'report', edit: true }, // edit: only with non-Instagram platforms
+        riwayat: { label: 'Riwayat', icon: 'fas fa-history', side: true }
+    };
+    var currentSection = null, sectionFromSummary = false;
 
-    // card "Tentukan PIC" / "Isi brief": open that step of the preparation
+    function setSection(name) {
+        var s = SECTIONS[name] || SECTIONS.ringkasan;
+        currentSection = SECTIONS[name] ? name : 'ringkasan';
+        $planModal.addClass('is-section');
+        $('#cpWizard, #cpTabs, #cpPrevStep, #cpNextStep').hide();
+        $planModal.find('.modal-dialog').removeClass('modal-xl').addClass('modal-lg');
+        $('#cpWorkflow').toggle(currentSection === 'ringkasan' && !!currentPlan);
+        if (s.side) {
+            $('#cpMain').hide();
+            $('#cpSide').show().removeClass('col-lg-4').addClass('col-12');
+        } else {
+            $('#cpMain').show().removeClass('col-lg-8');
+            $('#cpSide').hide();
+            showPlanTab(s.tab);
+            if (s.groups) showGroups(s.groups);
+        }
+        $('#contentPlanModalLabel').text(currentPlan ? (currentSection === 'ringkasan' ? 'Konten #' + currentPlan.id : s.label) : s.label);
+        $('#cpBackSummary').toggle(currentSection !== 'ringkasan');
+        // Insight & report of an Instagram-only content: numbers come in by themselves, nothing to save
+        var editable = !!s.edit && CAN_MANAGE && (currentSection !== 'report' || applyReportMode());
+        $planModal.find('.btn-save-plan').toggle(editable).removeClass('btn-outline-primary').addClass('btn-primary')
+            .find('.js-save-label').text('Simpan');
+        $('.btn-delete-plan').toggle(currentSection === 'ringkasan' && CAN_MANAGE);
+        $('#cpCloseBtn').text('Tutup');
+        $planModal.find('.modal-body').scrollTop(0);
+        if (currentSection === 'penugasan') showDesignerLoad();
+        if (currentSection === 'dasar') showBestTime();
+    }
+    function clearSection() {
+        currentSection = null;
+        sectionFromSummary = false;
+        $planModal.removeClass('is-section');
+        $('#cpMain').show();
+        $('#cpSide').removeClass('col-12').addClass('col-lg-4');
+        $('#cpBackSummary').hide();
+        $planModal.find('.btn-save-plan').show();
+    }
+    $('#cpBackSummary').on('click', function () { sectionFromSummary = false; setSection('ringkasan'); });
+    $(document).on('click', '#cpSummary .js-section', function () {
+        sectionFromSummary = true;
+        openSectionNow($(this).data('section'));
+    });
+    function openSectionNow(name) {
+        setSection(name);
+        if (name === 'brief') focusHeadline();
+    }
+
+    // Brief: cursor in the headline (no highlight, no dropdown opening by itself)
+    function focusHeadline() {
+        if (!CAN_MANAGE) return;
+        var go = function () { $('#cb_headline').trigger('focus'); };
+        if ($planModal.hasClass('show')) setTimeout(go, 60);
+        else $planModal.one('shown.bs.modal', go);
+    }
+    function focusSection(step) { openSectionNow(step === 3 ? 'brief' : 'penugasan'); }
+
+    // inside the summary (preparation checklist)
+    $(document).on('click', '#cpWorkflowActions .js-prep', function () { sectionFromSummary = true; focusSection(+$(this).data('step')); });
+
+    // on the card: preparation buttons and the small section icons
     $(document).on('click', '#weekBoard .js-card-prep', function (e) {
         e.preventDefault();
-        openPlan($(this).closest('.cp-item').data('id'), false, { step: +$(this).data('step') });
+        openPlan($(this).closest('.cp-item').data('id'), false, { section: +$(this).data('step') === 3 ? 'brief' : 'penugasan' });
     });
+    $(document).on('click', '#weekBoard .js-card-section', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openPlan($(this).closest('.cp-item').data('id'), false, { section: $(this).data('section') });
+    });
+
+    // which parts a content has at its stage
+    function sectionsFor(p) {
+        var produced = ['Produksi', 'Review', 'Revisi', 'Done', 'Published'].indexOf(p.status) !== -1;
+        var list = ['dasar', 'penugasan', 'brief'];
+        if (produced) list.push('caption');
+        if (p.status === 'Done' || p.status === 'Published') list.push('publikasi');
+        if (p.design_job || (p.design_requests || []).length) list.push('desain');
+        if (p.status === 'Published') list.push('report');
+        list.push('riwayat');
+        return list;
+    }
+
+    // small icon buttons on a card, straight to one part
+    function cardTools(row) {
+        var list = ['dasar', 'penugasan', 'brief'];
+        if (row.needs_designer || row.design_status) list.push('desain');
+        if (row.status === 'Published') list.push('report');
+        list.push('riwayat');
+        return '<div class="cp-item-tools">' + list.map(function (k) {
+            return '<button type="button" class="cp-tool js-stop js-card-section" data-section="' + k + '" title="' + esc(SECTIONS[k].label) + '" aria-label="' + esc(SECTIONS[k].label) + '">'
+                + '<i class="' + SECTIONS[k].icon + '"></i></button>';
+        }).join('') + '</div>';
+    }
+
+    function optionText(sel, value) {
+        return value ? $(sel).find('option').filter(function () { return this.value === String(value); }).first().text() : '';
+    }
+    function plain(html, max) {
+        var t = $('<div>').html(html || '').text().replace(/\s+/g, ' ').trim();
+        return max && t.length > max ? t.slice(0, max) + '…' : t;
+    }
+
+    // Ringkasan: one box per part, read-only, each with its own button
+    function renderSummary(p) {
+        var row = function (label, value) { return '<div class="cp-sum-row"><span>' + label + '</span><div>' + (value || '<span class="wf-muted">–</span>') + '</div></div>'; };
+        var box = function (key, body, cta) {
+            var s = SECTIONS[key];
+            return '<div class="cp-sum-box"><div class="cp-sum-head"><i class="' + s.icon + '"></i><strong>' + esc(s.label) + '</strong>'
+                + '<button type="button" class="btn btn-sm btn-light ml-auto js-section" data-section="' + key + '">' + (cta || (s.edit && CAN_MANAGE ? '<i class="fas fa-pen mr-1"></i>Ubah' : 'Lihat')) + '</button></div>'
+                + body + '</div>';
+        };
+        var html = '';
+        html += box('dasar',
+            '<div class="cp-sum-title">' + esc(p.judul || '') + '</div>'
+            + row('Tayang', p.tanggal_publish ? esc(W.date(p.tanggal_publish, { time: true })) : '')
+            + row('Klinik', (p.brand || []).map(function (b) { return brandLogo(b) + ' ' + esc((BRAND_META[b] || {}).label || b); }).join('<br>'))
+            + row('Platform', (p.platform || []).map(function (x) { return '<span class="cp-sum-plat">' + platformGlyph(x) + esc(x) + '</span>'; }).join(' '))
+            + row('Jenis', esc((p.jenis_konten || []).join(', ')))
+            + row('Pilar', pilarLabel(p.konten_pilar)));
+
+        var job = p.design_job;
+        html += box('penugasan',
+            row('PIC', p.assigned_to ? esc(optionText('#assigned_to', p.assigned_to)) : '<span class="text-danger">Belum ada PIC</span>')
+            + row('Deadline produksi', p.tanggal_produksi ? esc(W.date(p.tanggal_produksi)) : '')
+            + row('Dikerjakan', job ? '<i class="fas fa-pen-nib mr-1"></i>Designer: ' + esc(job.designer || 'menunggu diambil') + ' · ' + W.pill('design', job.status) : 'Content creator'),
+            !p.assigned_to && CAN_MANAGE ? '<i class="fas fa-user-plus mr-1"></i>Tentukan PIC' : null);
+
+        var b = p.brief || {};
+        var imgs = (b.visual_references || []).length;
+        var refLink = p.link_referensi
+            ? '<div class="small mt-1"><i class="fas fa-link mr-1 text-muted"></i><a href="' + esc(/^https?:\/\//i.test(p.link_referensi) ? p.link_referensi : 'https://' + p.link_referensi) + '" target="_blank" rel="noopener">' + esc(plain(p.link_referensi, 50)) + '</a></div>' : '';
+        html += box('brief', (p.has_brief || imgs
+            ? (b.headline ? '<div class="cp-sum-title">' + esc(b.headline) + '</div>' : '')
+                + (b.sub_headline ? '<div class="wf-muted mb-1">' + esc(b.sub_headline) + '</div>' : '')
+                + (b.isi_konten ? '<div class="cp-sum-text">' + esc(plain(b.isi_konten, 260)) + '</div>' : '')
+                + (imgs ? '<div class="wf-muted small mt-1"><i class="far fa-image mr-1"></i>' + imgs + ' gambar referensi</div>' : '')
+            : '<div class="wf-muted">Belum ada brief.</div>') + refLink,
+            !p.has_brief && CAN_MANAGE ? '<i class="fas fa-pen mr-1"></i>Isi brief' : null);
+
+        var list = sectionsFor(p);
+        if (list.indexOf('caption') !== -1) {
+            html += box('caption', (p.caption ? '<div class="cp-sum-text">' + esc(plain(p.caption, 220)) + '</div>' : '<div class="wf-muted">Belum ada caption.</div>')
+                + (p.link_asset ? row('Aset', '<a href="' + esc(p.link_asset) + '" target="_blank" rel="noopener">Buka file</a>') : ''));
+        }
+        if (list.indexOf('publikasi') !== -1) {
+            var links = p.link_publikasi || {};
+            html += box('publikasi', (p.platform || []).map(function (x) {
+                return row('<span class="cp-sum-plat">' + platformGlyph(x) + esc(x) + '</span>', links[x] ? '<a href="' + esc(links[x]) + '" target="_blank" rel="noopener">' + esc(plain(links[x], 40)) + '</a>' : '');
+            }).join(''));
+        }
+        if (list.indexOf('desain') !== -1) {
+            html += box('desain', job ? row('Status', W.pill('design', job.status) + ' ' + esc(job.designer || 'belum diambil')) : '<div class="wf-muted">Lihat request desain konten ini.</div>');
+        }
+        if (list.indexOf('report') !== -1) {
+            html += box('report', '<div class="wf-muted">Views, likes, komentar &amp; perkembangan per hari.</div>', '<i class="fas fa-chart-line mr-1"></i>Lihat');
+        }
+        var tl = (p.timeline || []).slice(-3).reverse();
+        html += box('riwayat', tl.length ? tl.map(function (t) {
+            return '<div class="cp-sum-tl"><strong>' + esc(t.user) + '</strong> · ' + esc(PLAN_ACTIONS[t.action] || t.action) + '<div class="wf-muted small">' + esc(W.date(t.at, { time: true })) + '</div></div>';
+        }).join('') : '<div class="wf-muted">Belum ada riwayat.</div>', 'Lihat semua');
+
+        $('#cpSummary').html(html);
+    }
 
     /**
      * Show only these Detail sections: '1' Dasar (left column), '2' Penugasan, 'caption' Caption & aset,
@@ -1228,11 +1496,11 @@ $(function () {
         }).join('') : '<div class="wf-muted small mb-2">Belum ada request desain untuk konten ini.</div>');
     }
 
-    // opts.step: open a saved plan in the step-by-step form at that step (2 = Penugasan, 3 = Brief)
+    // opts.section: open that part (see SECTIONS); default the summary. keepTab: stay on the part now open.
     function openPlan(id, keepTab, opts) {
         if (!id) return;
         opts = opts || {};
-        var activeTab = keepTab ? $planModal.find('.nav-tabs .nav-link.active').attr('id') : null;
+        var keepSection = keepTab ? currentSection : null;
         $.get('/marketing/content-plan/' + id).done(function (p) {
             if (!$planModal.hasClass('show')) resetPlanModal();
             currentPlan = p;
@@ -1243,6 +1511,7 @@ $(function () {
             fillPlanForm(p);
             fillWho(p.design_job);
             renderWorkflow(p);
+            setWizard(0); // a saved content always opens as the one full form (before the stage sections)
             setStageGroups(p.status);
             renderDesignList(p);
             $('#cpTimeline').html(W.timeline(p.timeline, PLAN_ACTIONS));
@@ -1251,8 +1520,9 @@ $(function () {
             if (CAN_MANAGE) $('.btn-delete-plan').show();
             loadBriefInto(p);
             resetReport(p.id, p.status);
-            if (activeTab) showPlanTab(activeTab.replace(/^tab-|-tab$/g, ''));
-            if (opts.step) setWizard(opts.step);
+            renderSummary(p);
+            if (!keepTab) sectionFromSummary = false;
+            openSectionNow(opts.section || keepSection || 'ringkasan');
             if (!$planModal.hasClass('show')) $planModal.modal('show');
         }).fail(function (xhr) { Swal.fire('Gagal', W.errorMessage(xhr, 'Konten tidak ditemukan.'), 'error'); });
     }
@@ -1450,7 +1720,7 @@ $(function () {
         if (!CAN_MANAGE) return;
         var missing = missingBasics();
         if (missing.length) {
-            if (wizardStep) setWizard(1); else showPlanTab('detail');
+            if (wizardStep) setWizard(1); else if (currentSection) openSectionNow('dasar'); else showPlanTab('detail');
             Swal.fire('Lengkapi dulu', missing.join(', ') + ' wajib diisi.', 'warning');
             return;
         }
@@ -1470,7 +1740,9 @@ $(function () {
                 // a plan scheduled from an idea already got a brief with the idea's image: update that one
                 if (res && res.brief_id && !$('#cb_id').val()) $('#cb_id').val(res.brief_id);
                 $.when(saveBrief(planId), saveReport(planId)).always(function () {
-                    $planModal.modal('hide');
+                    // a part opened from the summary goes back to the (refreshed) summary; otherwise close
+                    if (action === 'update' && sectionFromSummary) openPlan(planId, false, { section: 'ringkasan' });
+                    else $planModal.modal('hide');
                     loadBoard({ silent: true });
                     loadIdeas(true);
                     W.toast(action === 'store' ? 'Jadwal konten dibuat' : 'Perubahan disimpan');
@@ -1572,6 +1844,7 @@ $(function () {
 
     $(document).on('click', '.js-go-penugasan', function (e) {
         e.preventDefault();
+        if (currentSection) { sectionFromSummary = true; openSectionNow('penugasan'); return; }
         showPlanTab('detail');
         setTimeout(function () { var el = document.getElementById('cpWhoChips'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 200);
     });
@@ -1748,6 +2021,7 @@ $(function () {
         clearReportForm();
         $('#cr_content_plan_id').val(planId || '');
         $('#cpReportHint').toggle(!!planId && status !== 'Published');
+        applyReportMode();
         renderReportHistory([]);
         if (!planId) return;
         $.getJSON('/marketing/content-report/by-plan/' + planId).done(function (reports) {
@@ -2121,7 +2395,7 @@ $(function () {
     var routineByKey = {};
     var currentRoutine = null;
     var RT_STATE = {
-        posted: { cls: 'green', label: 'Sudah upload' },
+        posted: { cls: 'green', label: 'Published' },
         skipped: { cls: 'gray', label: 'Dilewati' },
         late: { cls: 'red', label: 'Terlewat' },
         due: { cls: 'blue', label: 'Hari ini' },
@@ -2134,11 +2408,8 @@ $(function () {
 
     // buttons of an open day (today or missed); recorded days show who did it
     function routineActions(o) {
-        if (o.state === 'posted') {
-            return '<div class="cp-rt-done' + (o.on_time === false ? ' is-late' : '') + '"><i class="fas fa-check-circle"></i>Tayang '
-                + (o.done_at ? moment(o.done_at).format('HH.mm') : '') + ' · ' + esc(o.done_by || '')
-                + (o.late_by ? ' <span class="cp-tag cp-tag-rev">telat ' + esc(o.late_by) + '</span>' : '') + '</div>';
-        }
+        // uploaded: shown in the status pill ("Published · 09.05"), like regular content
+        if (o.state === 'posted') return '';
         if (o.state === 'skipped') {
             return '<div class="cp-rt-done is-skip"><i class="fas fa-forward"></i>Dilewati' + (o.notes ? ': ' + esc(o.notes) : '') + '</div>';
         }
@@ -2165,8 +2436,8 @@ $(function () {
         return '<div class="cp-item cp-routine is-' + o.state + '" tabindex="0" role="button" data-routine="' + o.routine_id + '" data-key="' + esc(o.key) + '"' + style + '>'
             + '<div class="cp-item-top">'
             + (logos ? '<span class="cp-logos">' + logos + '</span>' : '')
-            + '<span class="cp-item-time"><i class="fas fa-redo-alt cp-rt-ico mr-1" title="Konten rutin · ' + esc(o.days_label) + '"></i>' + esc(o.time.replace(':', '.')) + '</span>'
-            + routinePill(o.state) + '</div>'
+            + '<span class="cp-item-time" title="Konten rutin · ' + esc(o.days_label) + '"><i class="fas fa-redo-alt"></i>' + esc(o.time.replace(':', '.')) + '</span>'
+            + (o.state === 'posted' ? publishedPill(o.done_at, o.done_by, o.late_by, o.date) : routinePill(o.state)) + '</div>'
             + '<div class="cp-item-title" title="' + esc(o.judul) + '">' + esc(o.judul) + '</div>'
             + '<div class="cp-item-foot">' + pic + (icons ? '<span class="cp-icons">' + icons + '</span>' : '') + '</div>'
             + routineActions(o)
@@ -2407,13 +2678,13 @@ $(function () {
         var s = row.status === 'Published' ? row.insight : null;
         if (!s) return '';
         var old = !moment(s.tanggal).isSame(moment(), 'day');
-        return '<div class="cp-insight" title="Insight Instagram per ' + esc(W.date(s.tanggal)) + (old ? ' (belum diupdate hari ini)' : '') + '">'
-            + (s.views !== null ? '<span><i class="far fa-eye"></i>' + fmtNum(s.views) + '</span>' : '')
+        // sits under the "Published" pill: one compact line, the views gained today in green
+        return '<span class="cp-insight" title="Insight Instagram per ' + esc(W.date(s.tanggal)) + (old ? ' (belum diupdate hari ini)' : '')
+            + (s.views_delta ? ' · +' + fmtNum(s.views_delta) + ' views sejak update sebelumnya' : '') + '">'
+            + (s.views !== null ? '<span><i class="far fa-eye"></i>' + fmtNum(s.views) + (s.views_delta ? ' <b class="up">+' + fmtNum(s.views_delta) + '</b>' : '') + '</span>' : '')
             + (s.likes !== null ? '<span><i class="far fa-heart"></i>' + fmtNum(s.likes) + '</span>' : '')
             + (s.comments !== null ? '<span><i class="far fa-comment"></i>' + fmtNum(s.comments) + '</span>' : '')
-            + (s.views_delta ? '<span class="up">+' + fmtNum(s.views_delta) + ' views</span>' : '')
-            + (old ? '<span>· ' + esc(W.date(s.tanggal, { weekday: false })) + '</span>' : '')
-            + '</div>';
+            + '</span>';
     }
 
     function showInsightLast(iso) {
@@ -2475,9 +2746,28 @@ $(function () {
             + '<path class="area" d="' + area + '"/><path class="line" d="' + line + '"/>' + dots + labels + '</svg>';
     }
 
+    /**
+     * Instagram numbers come in by themselves ("Update insight"); the manual report is only for the other
+     * platforms of the content (TikTok, YouTube, …), so an Instagram-only content shows no manual form.
+     * Returns whether the manual form is shown.
+     */
+    function applyReportMode() {
+        var pf = (currentPlan && currentPlan.platform) || [];
+        var ig = pf.indexOf('Instagram') !== -1;
+        var others = pf.filter(function (p) { return p !== 'Instagram'; });
+        var manual = !currentPlan || !ig || others.length > 0;
+        $('#cpManualReport').toggle(manual);
+        $('#cpManualTitle').text(ig && others.length ? 'Report manual: ' + others.join(', ') : 'Report');
+        $('#cpManualHint').text(ig
+            ? 'Angka Instagram terisi otomatis lewat Update insight. Isi angka ' + others.join(', ') + ' dari insight platformnya.'
+            : 'Isi angka dari insight platform (mis. H+1 dan H+7).');
+        return manual;
+    }
+
     function loadInsight(planId, status) {
         var $box = $('#cpInsightBox');
-        if (!CAN_MANAGE || !planId || status !== 'Published') { $box.hide(); return; }
+        var hasIg = currentPlan && (currentPlan.platform || []).indexOf('Instagram') !== -1;
+        if (!CAN_MANAGE || !planId || status !== 'Published' || !hasIg) { $box.hide(); return; }
         $box.show();
         $('#cpInsightChart').empty();
         $('#cpInsightRows').html('<tr><td colspan="7" class="wf-muted small">Memuat…</td></tr>');

@@ -610,8 +610,9 @@ class ContentPlanController extends Controller
         $publishedIds = $items->where('status', 'Published')->pluck('id')->all();
         $published = self::publishInfo($publishedIds);
         $insights = $this->insightInfo($publishedIds);
+        $thumbs = $this->thumbnails($items->pluck('id')->all());
 
-        $rows = $items->map(function (ContentPlan $row) use ($scheduleBy, $hasDesign, $canManage, $published, $insights) {
+        $rows = $items->map(function (ContentPlan $row) use ($scheduleBy, $hasDesign, $canManage, $published, $insights, $thumbs) {
             $platforms = is_array($row->platform)
                 ? $row->platform
                 : array_filter(array_map('trim', explode(',', (string) $row->platform)));
@@ -663,6 +664,9 @@ class ContentPlanController extends Controller
                 'published' => $published[$row->id] ?? null,
                 // latest Instagram numbers (from "Update insight") and the views gained since the snapshot before
                 'insight' => $insights[$row->id] ?? null,
+                // preview on the card: the post itself once published (copy kept by "Update insight"),
+                // before that the first reference picture of the brief
+                'thumb' => $thumbs[$row->id] ?? null,
             ];
         });
 
@@ -712,6 +716,30 @@ class ContentPlanController extends Controller
                 'on_time' => $late === null ? null : $late <= self::ON_TIME_MINUTES,
                 'late_by' => $late !== null && $late > self::ON_TIME_MINUTES ? self::duration($late) : null,
             ];
+        }
+
+        return $out;
+    }
+
+    /** @return array<int, array{url: string, kind: string}> kind: post (Instagram picture) | ref (brief reference) */
+    protected function thumbnails(array $planIds): array
+    {
+        $out = [];
+        foreach ($planIds as $id) {
+            if ($path = \App\Support\Marketing\InstagramInsights::thumbnailPath($id)) {
+                $out[$id] = ['url' => PublicFile::url($path) . '?v=' . \Illuminate\Support\Facades\Storage::disk('public')->lastModified($path), 'kind' => 'post'];
+            }
+        }
+        $rest = array_values(array_diff($planIds, array_keys($out)));
+        if ($rest) {
+            $briefs = ContentBrief::whereIn('content_plan_id', $rest)->orderBy('created_at')->get(['content_plan_id', 'visual_references'])
+                ->keyBy('content_plan_id'); // latest brief per content wins
+            foreach ($briefs as $planId => $brief) {
+                $first = collect($brief->visual_references ?: [])->first();
+                if ($first && ($url = PublicFile::url($first))) {
+                    $out[$planId] = ['url' => $url, 'kind' => 'ref'];
+                }
+            }
         }
 
         return $out;
@@ -779,7 +807,7 @@ class ContentPlanController extends Controller
 
             return response()->json(['data' => $rows->map(fn (ContentPlan $row) => [
                 'id' => $row->id,
-                'day' => Carbon::parse($row->tanggal_publish)->locale('id')->translatedFormat('l, j M Y'),
+                'day' => Carbon::parse($row->tanggal_publish)->locale('id')->translatedFormat('l j F Y'),
                 'time' => Carbon::parse($row->tanggal_publish)->format('H.i'),
                 'judul' => $row->judul ?? '',
                 'brand' => is_array($row->brand) ? implode(', ', $row->brand) : (string) ($row->brand ?? ''),
@@ -809,7 +837,7 @@ class ContentPlanController extends Controller
 
             return [
                 'id' => $row->id,
-                'day' => $scheduleValue ? Carbon::parse($scheduleValue)->locale('id')->translatedFormat('l, j M Y') : '',
+                'day' => $scheduleValue ? Carbon::parse($scheduleValue)->locale('id')->translatedFormat('l j F Y') : '',
                 'time' => $scheduleBy === 'tanggal_publish' && $scheduleValue ? Carbon::parse($scheduleValue)->format('H.i') : '',
                 'judul' => $row->judul ?? '',
                 'brand' => is_array($row->brand) ? implode(', ', $row->brand) : (string) ($row->brand ?? ''),
@@ -824,7 +852,7 @@ class ContentPlanController extends Controller
                 'type' => 'routine',
                 'routine_id' => $occ['routine_id'],
                 'date' => $occ['date'],
-                'day' => Carbon::parse($occ['date'])->locale('id')->translatedFormat('l, j M Y'),
+                'day' => Carbon::parse($occ['date'])->locale('id')->translatedFormat('l j F Y'),
                 'time' => str_replace(':', '.', $occ['time']),
                 'judul' => $occ['judul'],
                 'brand' => implode(', ', $occ['brand']),

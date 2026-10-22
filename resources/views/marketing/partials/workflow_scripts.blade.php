@@ -44,17 +44,20 @@ window.MkWf = (function () {
 
     function m(value) { return value ? moment(value) : null; }
 
-    /** "Sen, 20 Okt" / with year / with time */
+    /**
+     * Dates written out: "Senin 20 Oktober 2026", with time "Senin 20 Oktober 2026, 09.00".
+     * opts: weekday:false (no day name), year:false (no year), time:true, short:true ("20 Okt", for tight spots)
+     */
     function date(value, opts) {
         var d = m(value); if (!d || !d.isValid()) return '-';
         opts = opts || {};
-        var out = (opts.weekday === false ? '' : HARI[d.day()].slice(0, 3) + ', ') + d.date() + ' ' + BULAN[d.month()];
-        if (opts.year || d.year() !== moment().year()) out += ' ' + d.year();
-        if (opts.time) out += ' ' + d.format('HH.mm');
+        var out = (opts.weekday === false ? '' : HARI[d.day()] + ' ') + d.date() + ' ' + (opts.short ? BULAN[d.month()] : BULAN_PANJANG[d.month()]);
+        if (opts.year !== false) out += ' ' + d.year();
+        if (opts.time) out += ', ' + d.format('HH.mm');
         return out;
     }
 
-    function dayTitle(d) { return HARI[d.day()] + ', ' + d.date() + ' ' + BULAN_PANJANG[d.month()] + ' ' + d.year(); }
+    function dayTitle(d) { return HARI[d.day()] + ' ' + d.date() + ' ' + BULAN_PANJANG[d.month()] + ' ' + d.year(); }
     function monthTitle(d) { return BULAN_PANJANG[d.month()] + ' ' + d.year(); }
 
     /** Deadline in words + whether it is late / close */
@@ -64,7 +67,7 @@ window.MkWf = (function () {
         if (days < 0) return { text: 'Terlambat ' + (-days) + ' hari', state: 'late' };
         if (days === 0) return { text: 'Hari ini', state: 'soon' };
         if (days === 1) return { text: 'Besok', state: 'soon' };
-        return { text: days + ' hari lagi (' + date(value, { weekday: false }) + ')', state: days <= 2 ? 'soon' : '' };
+        return { text: days + ' hari lagi (' + date(value, { weekday: false, year: false }) + ')', state: days <= 2 ? 'soon' : '' };
     }
 
     function timeline(rows, actionLabels) {

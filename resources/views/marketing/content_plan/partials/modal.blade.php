@@ -7,6 +7,8 @@
         <input type="hidden" name="content_list_id" value="">
         <div class="modal-header align-items-center">
           <div class="d-flex align-items-center flex-wrap" style="gap:8px;min-width:0">
+            {{-- one section open: back to the summary of the content --}}
+            <button type="button" class="btn btn-sm btn-light" id="cpBackSummary" style="display:none" title="Kembali ke ringkasan"><i class="fas fa-arrow-left mr-1"></i>Ringkasan</button>
             <h5 class="modal-title mb-0" id="contentPlanModalLabel">Jadwal Konten Baru</h5>
             <span id="cpModalStatus"></span>
           </div>
@@ -38,6 +40,11 @@
           </ul>
 
           <div class="tab-content">
+            {{-- RINGKASAN (saved content): read-only overview, one box per section with its own "Ubah" --}}
+            <div class="tab-pane fade" id="tab-summary" role="tabpanel">
+              <div class="cp-summary" id="cpSummary"></div>
+            </div>
+
             {{-- DETAIL --}}
             <div class="tab-pane fade show active" id="tab-detail" role="tabpanel">
               {{-- New content = step by step: only step 1 is required; edit = all groups at once --}}
@@ -80,6 +87,13 @@
                           @foreach($jenisKonten as $j)<option value="{{ $j }}">{{ $j }}</option>@endforeach
                         </select>
                       </div>
+                    </div>
+                    <div class="form-group mb-0">
+                      <label for="konten_pilar">Konten pilar</label>
+                      <select class="form-control cp-select2" id="konten_pilar" name="konten_pilar" data-placeholder="Pilih pilar" data-allow-clear="1">
+                        <option value=""></option>
+                        @foreach($kontenPilar as $k)<option value="{{ $k }}">{{ $k }}</option>@endforeach
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -125,18 +139,6 @@
                         <div class="cp-designer-load" id="cpDesignerLoad"></div>
                       </div>
                     </div>
-                    <div class="form-group">
-                      <label for="konten_pilar">Konten pilar</label>
-                      <select class="form-control cp-select2" id="konten_pilar" name="konten_pilar" data-placeholder="Pilih pilar" data-allow-clear="1">
-                        <option value=""></option>
-                        @foreach($kontenPilar as $k)<option value="{{ $k }}">{{ $k }}</option>@endforeach
-                      </select>
-                    </div>
-                    <div class="form-group mb-0">
-                      <label for="link_referensi">Link referensi</label>
-                      <input type="text" class="form-control" id="link_referensi" name="link_referensi" placeholder="Link Instagram / TikTok / YouTube…">
-                    </div>
-                    <div id="cp_link_preview" class="wf-embed mt-3" style="display:none"></div>
                   </div>
 
                   {{-- production stage onwards --}}
@@ -189,6 +191,11 @@
                 <label for="cb_isi_konten">Isi konten / script</label>
                 <textarea id="cb_isi_konten" class="form-control" rows="6"></textarea>
               </div>
+              <div class="form-group">
+                <label for="link_referensi">Link referensi</label>
+                <input type="text" class="form-control" id="link_referensi" name="link_referensi" placeholder="Link Instagram / TikTok / YouTube…">
+                <div id="cp_link_preview" class="wf-embed mt-2" style="display:none"></div>
+              </div>
               <div class="form-group mb-0">
                 <label>Visual referensi</label>
                 <div id="cb_preview" class="cp-ref-grid mb-2"></div>
@@ -224,6 +231,12 @@
                   </table>
                 </div>
               </div>
+              {{-- manual numbers: only for platforms that are not read automatically (TikTok, YouTube, …) --}}
+              <div id="cpManualReport">
+              <div class="cp-manual-head mb-2">
+                <strong id="cpManualTitle">Report manual</strong>
+                <div class="wf-muted small" id="cpManualHint">Isi angka dari insight platform (mis. H+1 dan H+7).</div>
+              </div>
               <div class="row">
                 <div class="col-lg-7">
                   <div class="form-row">
@@ -253,6 +266,7 @@
                   </div>
                   <small class="wf-muted">Ketuk baris untuk mengubah report itu.</small>
                 </div>
+              </div>
               </div>
             </div>
 

@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -215,7 +216,7 @@ class InstagramInsights
             try {
                 $after = null;
                 for ($page = 0; $page < self::MEDIA_PAGES && count($found) < count($targets); $page++) {
-                    $params = ['fields' => 'id,permalink,timestamp,like_count,comments_count,media_product_type', 'limit' => 50];
+                    $params = ['fields' => 'id,permalink,timestamp,like_count,comments_count,media_product_type,media_type,media_url,thumbnail_url', 'limit' => 50];
                     if ($after) {
                         $params['after'] = $after;
                     }
@@ -265,11 +266,56 @@ class InstagramInsights
                     'fetched_at' => now(),
                 ]
             );
+            self::saveThumbnail($plan->id, $media);
             $summary['updated']++;
         }
         $summary['missing_metrics'] = array_keys($summary['missing_metrics']);
 
         return $summary;
+    }
+
+    public const THUMB_DIR = 'marketing/thumbs';
+
+    /** Stored picture of a content's post, or null. */
+    public static function thumbnailPath(int $planId): ?string
+    {
+        $path = self::THUMB_DIR . '/' . $planId . '.jpg';
+
+        return Storage::disk('public')->exists($path) ? $path : null;
+    }
+
+    /**
+     * Keep a copy of the post's picture (video: its cover) for the card: Instagram's media links expire
+     * after a few days, a stored copy does not. Taken once per content.
+     */
+    private static function saveThumbnail(int $planId, array $media): void
+    {
+        if (self::thumbnailPath($planId)) {
+            return;
+        }
+        $src = ($media['media_type'] ?? '') === 'VIDEO'
+            ? ($media['thumbnail_url'] ?? null)
+            : ($media['media_url'] ?? $media['thumbnail_url'] ?? null);
+        if (!$src) {
+            return;
+        }
+        try {
+            $response = self::http()->timeout(20)->get($src);
+            if ($response->ok() && str_starts_with((string) $response->header('Content-Type'), 'image/')) {
+                Storage::disk('public')->put(self::THUMB_DIR . '/' . $planId . '.jpg', $response->body());
+            }
+        } catch (\Throwable $e) {
+            report($e); // the card simply shows no picture
+        }
+    }
+
+    /** HTTP client with the CA bundle when PHP has none (WAMP). */
+    private static function http()
+    {
+        $http = Http::timeout(25);
+        $caBundle = config('services.instagram.cacert_path');
+
+        return $caBundle && is_file($caBundle) ? $http->withOptions(['verify' => $caBundle]) : $http;
     }
 
     /**
@@ -315,11 +361,7 @@ class InstagramInsights
     /** GET on the Instagram API; an API error becomes a RuntimeException with its (readable) message. */
     public static function get(string $path, array $params, string $token): array
     {
-        $http = Http::timeout(25)->acceptJson();
-        $caBundle = config('services.instagram.cacert_path');
-        if ($caBundle && is_file($caBundle)) {
-            $http = $http->withOptions(['verify' => $caBundle]);
-        }
+        $http = self::http()->acceptJson();
         try {
             $response = $http->get(self::API . $path, $params + ['access_token' => $token]);
         } catch (\Throwable $e) {
