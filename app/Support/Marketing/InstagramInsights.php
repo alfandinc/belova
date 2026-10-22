@@ -310,7 +310,7 @@ class InstagramInsights
     }
 
     /** HTTP client with the CA bundle when PHP has none (WAMP). */
-    private static function http()
+    public static function http()
     {
         $http = Http::timeout(25);
         $caBundle = config('services.instagram.cacert_path');

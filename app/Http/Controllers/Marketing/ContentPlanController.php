@@ -248,6 +248,7 @@ class ContentPlanController extends Controller
         if ($designer) {
             DesignSync::applyChoice($plan, ...$designer);
         }
+        self::fetchReferencePreview($plan);
 
         // brief_id lets the modal update this brief instead of creating a second one
         return response()->json(['success' => true, 'data' => $plan, 'brief_id' => $brief ? $brief->id : null]);
@@ -281,8 +282,24 @@ class ContentPlanController extends Controller
             'isi_konten' => $latestBrief->isi_konten,
             'visual_references' => $latestBrief->visual_references,
         ] : null;
+        // older content gets its reference picture the first time it is opened
+        self::fetchReferencePreview($plan);
 
         return response()->json($out);
+    }
+
+    /**
+     * Picture of the "link referensi" for the card preview, taken after the response is sent (the page
+     * never waits for YouTube / TikTok / the website). Once per content + link.
+     */
+    protected static function fetchReferencePreview(ContentPlan $plan): void
+    {
+        if (!$plan->link_referensi || \App\Support\Marketing\ReferencePreview::stored($plan->id, $plan->link_referensi)) {
+            return;
+        }
+        $id = $plan->id;
+        $url = $plan->link_referensi;
+        dispatch(fn () => \App\Support\Marketing\ReferencePreview::fetch($id, $url))->afterResponse();
     }
 
     public function update(Request $request, $id)
@@ -301,6 +318,7 @@ class ContentPlanController extends Controller
         if ($designer) {
             DesignSync::applyChoice($plan->fresh(), ...$designer);
         }
+        self::fetchReferencePreview($plan);
 
         return response()->json(['success' => true, 'data' => $plan]);
     }
@@ -610,7 +628,7 @@ class ContentPlanController extends Controller
         $publishedIds = $items->where('status', 'Published')->pluck('id')->all();
         $published = self::publishInfo($publishedIds);
         $insights = $this->insightInfo($publishedIds);
-        $thumbs = $this->thumbnails($items->pluck('id')->all());
+        $thumbs = $this->thumbnails($items);
 
         $rows = $items->map(function (ContentPlan $row) use ($scheduleBy, $hasDesign, $canManage, $published, $insights, $thumbs) {
             $platforms = is_array($row->platform)
@@ -721,14 +739,30 @@ class ContentPlanController extends Controller
         return $out;
     }
 
-    /** @return array<int, array{url: string, kind: string}> kind: post (Instagram picture) | ref (brief reference) */
-    protected function thumbnails(array $planIds): array
+    /**
+     * Card preview, in this order: the published post itself, the picture of the link referensi, the first
+     * reference picture of the brief.
+     *
+     * @return array<int, array{url: string, kind: string, link?: string}> kind: post | link | ref
+     */
+    protected function thumbnails($items): array
     {
+        $planIds = $items->pluck('id')->all();
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
         $out = [];
-        foreach ($planIds as $id) {
-            if ($path = \App\Support\Marketing\InstagramInsights::thumbnailPath($id)) {
-                $out[$id] = ['url' => PublicFile::url($path) . '?v=' . \Illuminate\Support\Facades\Storage::disk('public')->lastModified($path), 'kind' => 'post'];
+        $toFetch = [];
+        foreach ($items as $plan) {
+            if ($path = \App\Support\Marketing\InstagramInsights::thumbnailPath($plan->id)) {
+                $out[$plan->id] = ['url' => PublicFile::url($path) . '?v=' . $disk->lastModified($path), 'kind' => 'post'];
+            } elseif ($path = \App\Support\Marketing\ReferencePreview::stored($plan->id, $plan->link_referensi)) {
+                $out[$plan->id] = ['url' => PublicFile::url($path), 'kind' => 'link', 'link' => $this->safeUrl($plan->link_referensi)];
+            } elseif ($plan->link_referensi && !$disk->exists(\App\Support\Marketing\ReferencePreview::path($plan->id, $plan->link_referensi) . '.none')) {
+                $toFetch[$plan->id] = $plan->link_referensi;
             }
+        }
+        // content that never got its reference picture (older content): a few per board load, after the response
+        foreach (array_slice($toFetch, 0, 5, true) as $id => $url) {
+            dispatch(fn () => \App\Support\Marketing\ReferencePreview::fetch($id, $url))->afterResponse();
         }
         $rest = array_values(array_diff($planIds, array_keys($out)));
         if ($rest) {
@@ -797,6 +831,11 @@ class ContentPlanController extends Controller
             $rows = ContentPlan::with('assignedTo:id,name')->where('status', 'Published')
                 ->where('tanggal_publish', '>=', now()->subDays(\App\Support\Marketing\InstagramInsights::SYNC_DAYS)->startOfDay())
                 ->when($request->boolean('mine'), fn ($q) => $q->where('assigned_to', Auth::id()))
+                ->when($request->filled('filter_brand'), fn ($q) => $q->where(function ($w) use ($request) {
+                    foreach ((array) $request->input('filter_brand') as $brand) {
+                        $w->orWhereJsonContains('brand', $brand);
+                    }
+                }))
                 ->orderByDesc('tanggal_publish')->get()
                 ->filter(fn (ContentPlan $p) => in_array('Instagram', (array) $p->platform, true)
                     && !\App\Support\Marketing\InstagramInsights::shortcode(\App\Support\Marketing\InstagramInsights::instagramLink($p)))

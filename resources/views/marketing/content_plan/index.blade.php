@@ -44,17 +44,115 @@
     .cp-toolbar-right { margin-left: 0; width: 100%; }
 }
 
+/* ---------- toolbar by purpose: AKSI (do something) · FILTER (which content) · TAMPILAN (how it looks) ·
+   PERLU PERHATIAN (information, click to see the list) ---------- */
+.cp-toolbar { justify-content: space-between; }
+.cp-mainbar { gap: 10px 16px; }
+.cp-mainbar #cpMainTabs { flex: 0 0 auto; }
+@media (max-width: 767.98px) { .cp-mainbar #cpMainTabs { width: 100%; } .cp-mainbar #cpMainTabs .nav-link { flex: 1 1 0; text-align: center; } }
+.cp-tb-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.cp-action-btn {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--wf-accent); background: var(--wf-surface-solid);
+    color: var(--wf-accent); border-radius: 8px; padding: 6px 12px; font-size: .82rem; font-weight: 700; white-space: nowrap;
+    transition: background .15s, color .15s;
+}
+.cp-action-btn:hover, .cp-action-btn:focus { background: var(--wf-accent); color: #fff; outline: none; }
+.cp-action-btn:hover .cp-insight-last { color: rgba(255,255,255,.8); }
+.cp-action-btn.is-icon { padding: 6px 10px; }
+.cp-action-btn[disabled] { opacity: .6; }
+.cp-controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; padding: 8px 12px; margin-bottom: 12px;
+    border-radius: 12px; background: var(--wf-surface-2);
+}
+.cp-ctl-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.cp-ctl-label { font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--wf-muted); white-space: nowrap; }
+.cp-ctl-label i { margin-right: 3px; }
+.cp-brand-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.cp-filter-chip {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--wf-border); background: var(--wf-surface-solid);
+    color: var(--wf-text); border-radius: 999px; padding: 4px 12px; font-size: .8rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.cp-filter-chip:hover { border-color: var(--wf-accent); }
+.cp-filter-chip.active { background: var(--wf-accent); border-color: var(--wf-accent); color: #fff; }
+.cp-filter-chip .cp-logo { width: 18px; height: 18px; box-shadow: 0 0 0 1px var(--wf-border); }
+.cp-alerts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.cp-alert {
+    display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 5px 12px;
+    font-size: .8rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.cp-alert:hover { filter: brightness(.96); text-decoration: underline; }
+.cp-alert.is-danger { background: var(--st-red-bg); color: var(--st-red-fg); }
+.cp-alert.is-warn { background: var(--st-amber-bg); color: var(--st-amber-fg); }
+.cp-alert.is-idea { background: var(--st-indigo-bg); color: var(--st-indigo-fg); }
+@media (max-width: 767.98px) {
+    .cp-tb-actions { margin-left: 0; width: 100%; }
+    .cp-controls { gap: 10px; }
+}
+
 /* ---------- week board: wide day columns (about 4 per row on a laptop), agenda list on phones ---------- */
-.cp-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; align-items: start; }
-@media (max-width: 575.98px) { .cp-board { grid-template-columns: 1fr; gap: 8px; } }
-.cp-day { background: var(--wf-surface-2); border-radius: 12px; min-width: 0; display: flex; flex-direction: column; }
+/* days as a slider: N comfortable columns visible (N from the screen width, set by script as --cp-col-w),
+   ◀ ▶ move one day; each day scrolls down on its own. Phones: one day under the other. */
+/* width 0 + min-width 100%: the slider takes the page width but never widens the page with its 7 days
+   (otherwise the whole page grew sideways and the columns were measured on that wider page) */
+.cp-board-wrap, .cp-day-bar { width: 0; min-width: 100%; }
+.cp-board-wrap { position: relative; }
+.cp-page { min-width: 0; }
+.cp-board {
+    display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; scroll-behavior: smooth;
+    scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.cp-board::-webkit-scrollbar { display: none; }
+.cp-day {
+    background: var(--wf-surface-2); border-radius: 12px; min-width: 0; display: flex; flex-direction: column;
+    flex: 0 0 var(--cp-col-w, 340px); max-height: calc(100vh - 230px); scroll-snap-align: start;
+}
+.cp-day-list { overflow-y: auto; scrollbar-width: thin; }
+/* bar above the slider: ◀ day chips ▶ (the arrows never cover a day) */
+.cp-day-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cp-slide-btn {
+    flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--wf-border);
+    background: var(--wf-surface-solid); color: var(--wf-text);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity .15s, border-color .15s;
+}
+.cp-slide-btn:hover { color: var(--wf-accent); border-color: var(--wf-accent); }
+.cp-slide-btn[disabled] { opacity: .35; cursor: default; }
+/* day chips: jump to a day; the days in view are marked */
+.cp-day-nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1 1 auto; min-width: 0; }
+.cp-day-nav::-webkit-scrollbar { display: none; }
+.cp-day-chip {
+    flex: 0 0 auto; border: 1px solid var(--wf-border); background: var(--wf-surface-solid); color: var(--wf-muted);
+    border-radius: 999px; padding: 4px 12px; font-size: .78rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.cp-day-chip b { color: var(--wf-text); font-weight: 800; margin-left: 3px; }
+.cp-day-chip .n { margin-left: 5px; font-size: .68rem; padding: 0 6px; border-radius: 999px; background: var(--wf-surface-2); }
+.cp-day-chip.in-view { border-color: var(--wf-accent); color: var(--wf-accent); background: rgba(13,110,253,.06); }
+.cp-day-chip.is-today { box-shadow: inset 0 0 0 1px var(--wf-accent); }
+@media (max-width: 575.98px) {
+    .cp-day-bar { display: none; }
+    .cp-board { flex-direction: column; overflow-x: visible; gap: 8px; scroll-snap-type: none; }
+    .cp-day { flex: 0 0 auto; width: 100%; max-height: none; }
+    .cp-day-list { overflow-y: visible; }
+}
+/* section icons on the cards: hidden unless "Ikon bagian" is on (the workflow buttons always show) */
+.cp-board:not(.show-tools) .cp-item-tools { display: none; }
+/* "Ringkas": title, time, status, PIC and the next step only */
+.cp-board.is-compact .cp-thumb, .cp-board.is-compact .cp-item-tools, .cp-board.is-compact .cp-item-tags,
+.cp-board.is-compact .cp-icons, .cp-board.is-compact .cp-insight, .cp-board.is-compact .cp-late { display: none; }
+.cp-board.is-compact .cp-item { --py: 9px; --px: 12px; padding-bottom: 8px; margin-bottom: 8px; }
+.cp-board.is-compact .cp-item-title { font-size: .95rem; -webkit-line-clamp: 2; }
+.cp-board.is-compact .cp-item-top { margin-bottom: 6px; padding-top: 7px; padding-bottom: 6px; }
+.cp-board.is-compact .cp-item-foot { margin-top: 6px; padding-top: 6px; }
+.cp-board.is-compact .cp-item-actions { margin-top: 6px; }
 /* day header: "Jumat 23 Oktober 2026" written out */
 .cp-day-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 12px; }
 .cp-day-date { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; font-size: .92rem; color: var(--wf-text); line-height: 1.3; }
 .cp-day-date strong { font-weight: 800; }
 .cp-day-date span { color: var(--wf-muted); font-weight: 600; }
 .cp-day-today { font-size: .68rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--wf-accent); color: #fff; white-space: nowrap; }
-.cp-day.is-today { box-shadow: inset 0 0 0 2px var(--wf-accent); }
+/* today: its column header is tinted (no outline around the whole column) */
+.cp-day.is-today .cp-day-head { background: rgba(13,110,253,.12); }
+:root.theme-dark .cp-day.is-today .cp-day-head { background: rgba(110,168,254,.2); }
+.cp-day.is-today .cp-day-date strong { color: var(--wf-accent); }
 .cp-day.is-past .cp-day-date, .cp-day.is-past .cp-day-date span { color: var(--wf-muted); }
 .cp-day-stat { font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--wf-surface-solid); color: var(--wf-muted); }
 .cp-day-stat.green { background: var(--st-green-bg); color: var(--st-green-fg); }
@@ -68,6 +166,7 @@
 .cp-day-add:hover { background: var(--wf-surface-solid); color: var(--wf-accent); }
 @media (hover: none) { .cp-day-add { opacity: 1; } }
 .cp-day-list { padding: 4px 8px 8px; min-height: 64px; flex: 1 1 auto; }
+.cp-day-head { position: sticky; top: 0; z-index: 2; background: inherit; border-radius: 12px 12px 0 0; }
 .cp-day-empty { color: var(--wf-muted); font-size: .76rem; text-align: center; padding: 14px 0; opacity: .7; }
 @media (max-width: 575.98px) {
     .cp-day-list { min-height: 0; }
@@ -75,17 +174,23 @@
 }
 
 /* ---------- content card ---------- */
+/* every card has the same body; only its header (logo · time · status) carries the clinic colour */
 .cp-item {
-    position: relative; border-radius: 12px; padding: 12px 14px 10px; margin-bottom: 10px;
-    background: linear-gradient(var(--brand-bg, transparent), var(--brand-bg, transparent)), var(--wf-surface-solid);
-    cursor: pointer; color: var(--wf-text); box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 1px var(--brand-line, var(--wf-border));
+    --py: 12px; --px: 14px;
+    position: relative; border-radius: 12px; padding: var(--py) var(--px) 10px; margin-bottom: 10px; overflow: hidden;
+    background: var(--wf-surface-solid);
+    cursor: pointer; color: var(--wf-text); box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 1px var(--wf-border);
     transition: box-shadow .15s ease;
 }
 .cp-item::before { content: none; }
 .cp-item:last-child { margin-bottom: 0; }
 .cp-item:hover, .cp-item:focus { outline: none; box-shadow: 0 6px 18px rgba(0,0,0,.10), 0 0 0 2px var(--brand, var(--wf-accent)); }
 
-.cp-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cp-item-top {
+    display: flex; align-items: center; gap: 8px;
+    margin: calc(-1 * var(--py)) calc(-1 * var(--px)) 10px; padding: 9px var(--px) 8px;
+    background: var(--brand-bg, var(--wf-surface-2));
+}
 /* the time is the second thing read after the title: a clear dark badge with a clock */
 .cp-item-time {
     display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 8px;
@@ -93,6 +198,9 @@
     box-shadow: inset 0 0 0 1px var(--wf-border); font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap;
 }
 .cp-item-time i { font-size: .75rem; color: var(--brand, var(--wf-accent)); }
+.cp-item-when { display: inline-flex; align-items: center; gap: 5px; font-size: .76rem; font-weight: 600; color: var(--wf-muted); white-space: nowrap; margin-top: 3px; }
+.cp-item-when i { font-size: .7rem; }
+.cp-item-top > .cp-status, .cp-item-top > .wf-pill { flex-shrink: 0; }
 .cp-item-top .wf-pill { margin-left: auto; font-size: .68rem; padding: 1px 8px; opacity: .9; }
 .cp-warn { color: var(--wf-danger); font-size: .8rem; animation: cp-blink 1.2s linear infinite; }
 @keyframes cp-blink { 50% { opacity: .3; } }
@@ -192,7 +300,7 @@ a.cp-plat::after {
 .cp-choice-icon.routine { background: var(--st-green-bg); color: var(--st-green-fg); }
 
 /* ---------- konten rutin: compact card, no workflow; dashed ring tells it apart ---------- */
-.cp-item.cp-routine { padding: 10px 12px 8px; box-shadow: 0 0 0 1px var(--brand-line, var(--wf-border)); outline: 1px dashed transparent; }
+.cp-item.cp-routine { --py: 10px; --px: 12px; padding-bottom: 8px; }
 .cp-item.cp-routine .cp-item-title { font-size: 1rem; -webkit-line-clamp: 2; }
 .cp-rt-ico { font-size: .68rem; color: var(--wf-muted); }
 .cp-item.cp-routine.is-late { box-shadow: 0 0 0 1.5px var(--wf-danger); }
@@ -251,17 +359,6 @@ a.cp-plat::after {
 }
 .cp-tool:hover, .cp-tool:focus { background: var(--wf-surface-solid); color: var(--brand, var(--wf-accent)); outline: none; }
 
-/* pilar mix of the week */
-.cp-pilar-mix { background: var(--wf-surface-solid); border-radius: 12px; box-shadow: 0 0 0 1px var(--wf-border); padding: 10px 14px; margin-bottom: 12px; }
-.cp-pilar-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: .84rem; margin-bottom: 6px; }
-.cp-pilar-head strong { font-size: .86rem; }
-.cp-pilar-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--wf-surface-2); }
-.cp-pilar-bar span { display: block; height: 100%; }
-.cp-pilar-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: .78rem; }
-.cp-pilar-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.cp-pilar-legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.cp-pilar-legend .is-zero { color: var(--wf-muted); }
-.cp-pilar-tip { font-size: .78rem; color: var(--st-amber-fg); margin-top: 6px; }
 .cp-link-check { font-size: .78rem; margin-top: 4px; text-align: left; line-height: 1.4; }
 .cp-link-check:empty { display: none; }
 .cp-link-check.is-ok { color: var(--st-green-fg); }
@@ -354,44 +451,73 @@ a.cp-plat::after {
         </div>
     </div>
 
-    <div class="cp-tabsbar">
-        <div class="nav cp-seg" id="cpMainTabs" role="tablist">
-            <a class="nav-link active" id="schedule-tab" data-toggle="tab" href="#scheduleTab" role="tab"><i class="far fa-calendar mr-1"></i> Jadwal</a>
-            <a class="nav-link" id="idea-tab" data-toggle="tab" href="#ideaTab" role="tab"><i class="far fa-lightbulb mr-1"></i> Ide Konten <span class="wf-count" id="ideaPendingCount" style="display:none" title="Menunggu approval"></span></a>
-        </div>
-    </div>
-
-    <div class="tab-content">
-        {{-- JADWAL --}}
-        <div class="tab-pane fade show active" id="scheduleTab" role="tabpanel">
-            <div class="cp-toolbar">
-                <div class="cp-weeknav">
+    {{-- one row: Jadwal / Ide Konten · week (Jadwal only) · actions (Jadwal only) --}}
+    <div class="cp-toolbar cp-mainbar">
+                <div class="nav cp-seg" id="cpMainTabs" role="tablist">
+                    <a class="nav-link active" id="schedule-tab" data-toggle="tab" href="#scheduleTab" role="tab"><i class="far fa-calendar mr-1"></i> Jadwal</a>
+                    <a class="nav-link" id="idea-tab" data-toggle="tab" href="#ideaTab" role="tab"><i class="far fa-lightbulb mr-1"></i> Ide Konten <span class="wf-count" id="ideaPendingCount" style="display:none" title="Menunggu approval"></span></a>
+                </div>
+                <div class="cp-weeknav js-schedule-only">
                     <button type="button" class="cp-icon-btn" id="btnPrevWeek" title="Minggu sebelumnya"><i class="fas fa-chevron-left"></i></button>
                     <button type="button" class="cp-week-label" id="btnWeekLabel" title="Pilih tanggal"><span id="cpWeekLabel"></span><i class="fas fa-chevron-down"></i></button>
                     <input type="date" class="cp-week-date" id="cpWeekDate" tabindex="-1" aria-label="Pilih minggu">
                     <button type="button" class="cp-icon-btn" id="btnNextWeek" title="Minggu berikutnya"><i class="fas fa-chevron-right"></i></button>
                     <button type="button" class="cp-ghost-btn" id="btnThisWeek">Hari ini</button>
                 </div>
-                <div class="cp-toolbar-right">
+                {{-- AKSI: buttons that do something --}}
+                <div class="cp-tb-actions js-schedule-only">
+                    <button type="button" class="cp-action-btn" id="btnRoutines" title="Kelola konten yang diupload rutin (mis. We Are Open)"><i class="fas fa-redo-alt"></i> Konten rutin</button>
+                    @if($canManage)
+                        <span class="cp-insight-group">
+                            <button type="button" class="cp-action-btn" id="btnInsightSync" title="Ambil views, likes, komentar dll. konten Instagram yang sudah Published"><i class="fas fa-sync-alt"></i> Update insight <span class="cp-insight-last" id="cpInsightLast"></span></button>
+                            <button type="button" class="cp-action-btn is-icon" id="btnIgAccounts" title="Akun Instagram yang terhubung"><i class="fab fa-instagram"></i></button>
+                        </span>
+                    @endif
+                </div>
+    </div>
+
+    <div class="tab-content">
+        {{-- JADWAL --}}
+        <div class="tab-pane fade show active" id="scheduleTab" role="tabpanel">
+            {{-- FILTER (which content shows) · TAMPILAN (how the board looks) --}}
+            <div class="cp-controls">
+                <div class="cp-ctl-group">
+                    <span class="cp-ctl-label"><i class="fas fa-filter"></i> Filter</span>
+                    <div class="cp-brand-filter" id="cpBrandFilter" role="group" aria-label="Filter klinik"></div>
+                    <button type="button" class="cp-filter-chip" id="btnMine" aria-pressed="false" title="Hanya konten dengan PIC saya"><i class="far fa-user"></i> Tugas saya</button>
+                </div>
+                <div class="cp-ctl-group">
+                    <span class="cp-ctl-label"><i class="far fa-eye"></i> Tampilan</span>
                     <div class="cp-seg cp-seg-sm" id="cpMode" role="group" aria-label="Kelompokkan menurut">
                         <button type="button" class="active" data-mode="tanggal_publish" title="Kartu per tanggal & jam tayang">Tanggal publish</button>
                         <button type="button" data-mode="tanggal_produksi" title="Kartu per deadline produksi (kapan konten harus jadi)">Deadline produksi</button>
                     </div>
-                    <button type="button" class="cp-chip" id="btnMine" aria-pressed="false"><i class="far fa-user"></i> Tugas saya</button>
-                    <button type="button" class="cp-chip" id="btnRoutines" title="Konten yang diupload rutin"><i class="fas fa-redo-alt"></i> Konten rutin</button>
-                    @if($canManage)
-                        <span class="cp-insight-group">
-                            <button type="button" class="cp-chip" id="btnInsightSync" title="Ambil views, likes, komentar dll. konten Instagram yang sudah Published"><i class="fas fa-chart-line"></i> Update insight <span class="cp-insight-last" id="cpInsightLast"></span></button>
-                            <button type="button" class="cp-icon-btn" id="btnIgAccounts" title="Akun Instagram"><i class="fab fa-instagram"></i></button>
-                        </span>
-                    @endif
-                    <button type="button" class="cp-chip is-danger" id="btnOverdue" title="Lihat konten terlewat"><i class="fas fa-exclamation-triangle"></i> <span id="stat_terlewat">0</span> terlewat</button>
-                    <button type="button" class="cp-chip is-warn" id="btnNoLink" style="display:none" title="Konten Instagram yang sudah Published tapi belum ada link postingannya, jadi insight-nya tidak terlacak"><i class="fas fa-link"></i> <span id="stat_nolink">0</span> belum ada link IG</button>
-                    <button type="button" class="cp-chip is-idea" id="cpReadyIdeas" style="display:none" title="Ide yang sudah di-approve, tinggal dijadwalkan"><i class="far fa-lightbulb"></i> <span id="cpReadyCount">0</span> ide siap dijadwalkan</button>
+                    <div class="cp-seg cp-seg-sm" id="cpDensity" role="group" aria-label="Kepadatan kartu">
+                        <button type="button" class="active" data-density="full" title="Kartu lengkap: pratinjau, tag, statistik">Lengkap</button>
+                        <button type="button" data-density="compact" title="Kartu ringkas: lebih banyak konten terlihat">Ringkas</button>
+                    </div>
+                    <div class="cp-seg cp-seg-sm" role="group" aria-label="Ikon bagian di kartu">
+                        <button type="button" id="btnTools" aria-pressed="false" title="Tampilkan ikon Dasar / PIC / Brief / Riwayat di setiap kartu"><i class="fas fa-th mr-1"></i>Ikon bagian</button>
+                    </div>
                 </div>
             </div>
-            <div class="cp-pilar-mix" id="cpPilarMix" style="display:none"></div>
-            <div class="cp-board" id="weekBoard"></div>
+
+            {{-- PERLU PERHATIAN: information only (click to see the list); hidden when there is nothing --}}
+            <div class="cp-alerts" id="cpAlerts" style="display:none">
+                <span class="cp-ctl-label"><i class="fas fa-bell"></i> Perlu perhatian</span>
+                <button type="button" class="cp-alert is-danger" id="btnOverdue" style="display:none" title="Lihat konten terlewat"><i class="fas fa-exclamation-triangle"></i> <span id="stat_terlewat">0</span> terlewat</button>
+                <button type="button" class="cp-alert is-warn" id="btnNoLink" style="display:none" title="Konten Instagram yang sudah Published tapi belum ada link postingannya, jadi insight-nya tidak terlacak"><i class="fas fa-link"></i> <span id="stat_nolink">0</span> belum ada link IG</button>
+                <button type="button" class="cp-alert is-idea" id="cpReadyIdeas" style="display:none" title="Ide yang sudah di-approve, tinggal dijadwalkan"><i class="far fa-lightbulb"></i> <span id="cpReadyCount">0</span> ide siap dijadwalkan</button>
+            </div>
+            {{-- days as a slider: a few comfortable columns at a time, ◀ ▶ or a day chip to move --}}
+            <div class="cp-day-bar">
+                <button type="button" class="cp-slide-btn" id="cpSlidePrev" aria-label="Hari sebelumnya" title="Hari sebelumnya"><i class="fas fa-chevron-left"></i></button>
+                <div class="cp-day-nav" id="cpDayNav"></div>
+                <button type="button" class="cp-slide-btn" id="cpSlideNext" aria-label="Hari berikutnya" title="Hari berikutnya"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div class="cp-board-wrap">
+                <div class="cp-board" id="weekBoard"></div>
+            </div>
         </div>
 
         {{-- IDE KONTEN --}}
@@ -518,10 +644,37 @@ $(function () {
 
     function weekEnd() { return weekStart.clone().endOf('isoWeek'); }
 
-    function boardParams() {
-        var p = { date_start: weekStart.format('DD/MM/YYYY'), date_end: weekEnd().format('DD/MM/YYYY'), schedule_by: scheduleBy };
-        if (onlyMine) p.mine = 1;
+    // the board filters (Tugas saya, klinik) added to any list request
+    var brandFilter = '';
+    try { brandFilter = localStorage.getItem('cp_brand') || ''; } catch (e) {}
+    function filterParams(p) {
+        p = p || {};
+        p.mine = onlyMine ? 1 : 0;
+        if (brandFilter) p.filter_brand = [brandFilter];
         return p;
+    }
+    function boardParams() {
+        return filterParams({ date_start: weekStart.format('DD/MM/YYYY'), date_end: weekEnd().format('DD/MM/YYYY'), schedule_by: scheduleBy });
+    }
+
+    // Filter klinik: chips with the clinic logos (remembered in this browser)
+    function renderBrandFilter() {
+        var chip = function (value, inner, title) {
+            return '<button type="button" class="cp-filter-chip' + (brandFilter === value ? ' active' : '') + '" data-brand="' + esc(value) + '" title="' + esc(title) + '">' + inner + '</button>';
+        };
+        $('#cpBrandFilter').html(chip('', 'Semua klinik', 'Semua klinik')
+            + (BRAND_LIST || []).map(function (b) { return chip(b.value, brandLogo(b.value) + esc(b.label), b.title || b.label); }).join(''));
+    }
+    $('#cpBrandFilter').on('click', '.cp-filter-chip', function () {
+        brandFilter = String($(this).data('brand') || '');
+        try { localStorage.setItem('cp_brand', brandFilter); } catch (e) {}
+        renderBrandFilter();
+        loadBoard();
+    });
+
+    // "Perlu perhatian" only shows when one of its items has something
+    function refreshAlerts() {
+        $('#cpAlerts').toggle($('#cpAlerts .cp-alert').filter(function () { return this.style.display !== 'none'; }).length > 0);
     }
 
     // Same "terlewat" rule as the server (ContentPlanController::OVERDUE_STATUSES)
@@ -633,7 +786,7 @@ $(function () {
         var color = brandColor(row);
         var time = scheduleBy === 'tanggal_publish'
             ? (row.tanggal_publish ? moment(row.tanggal_publish).format('HH.mm') : '')
-            : 'Tayang ' + W.date(row.tanggal_publish, { year: false });
+            : 'Tayang ' + W.date(row.tanggal_publish, { weekday: false, year: false, short: true });
 
         // the clinic shows as logo (top-left) + card color; the only tag is the content pillar
         var logos = (row.brand || []).map(brandLogo).join('');
@@ -664,11 +817,14 @@ $(function () {
         var pub = row.status === 'Published' ? row.published : null;
 
         // card tinted with the clinic color (light enough to keep the text readable in both themes)
-        var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .16 : .08) + ';--brand-line:' + rgba(color, .35) + '"' : '';
+        var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .22 : .12) + '"' : '';
         return '<div class="cp-item" tabindex="0" role="button" data-id="' + row.id + '"' + style + '>'
             + '<div class="cp-item-top">'
             + (logos ? '<span class="cp-logos">' + logos + '</span>' : '')
-            + (time ? '<span class="cp-item-time" title="' + (scheduleBy === 'tanggal_publish' ? 'Jam tayang' : 'Tanggal tayang') + '"><i class="far ' + (scheduleBy === 'tanggal_publish' ? 'fa-clock' : 'fa-calendar') + '"></i>' + esc(time) + '</span>' : '')
+            + (time ? (scheduleBy === 'tanggal_publish'
+                ? '<span class="cp-item-time" title="Jam tayang"><i class="far fa-clock"></i>' + esc(time) + '</span>'
+                // production view: the column is the production deadline; the go-live date is only a quiet hint
+                : '<span class="cp-item-when" title="Tayang ' + esc(W.date(row.tanggal_publish, { time: true })) + '"><i class="far fa-calendar"></i>' + esc(time) + '</span>') : '')
             + (isOverdue(row) ? '<i class="fas fa-exclamation-triangle cp-warn" title="Terlewat"></i>' : '')
             + (row.status === 'Published' ? publishedPill(pub && pub.at, pub && pub.by, pub && pub.late_by, row.tanggal_publish, insightLine(row)) : planPill(row.status)) + '</div>'
             + '<div class="cp-item-main">' + thumbHtml(row) + '<div class="cp-item-main-text">'
@@ -701,8 +857,9 @@ $(function () {
             + '</span>';
     }
     /**
-     * Preview square next to the title: the Instagram post itself once published (click = open the post),
-     * before that the first reference picture of the brief (marked "Ref").
+     * Preview square next to the title, in this order: the published Instagram post (click = open it),
+     * the picture of the link referensi (click = open the reference), the first reference picture of the
+     * brief. The last two are marked "Ref".
      */
     function thumbHtml(row) {
         var t = row.thumb;
@@ -713,6 +870,9 @@ $(function () {
             return ig
                 ? '<a class="cp-thumb js-stop" href="' + esc(ig.url) + '" target="_blank" rel="noopener" title="Lihat postingan di Instagram">' + img + '</a>'
                 : '<span class="cp-thumb">' + img + '</span>';
+        }
+        if (t.kind === 'link' && t.link) {
+            return '<a class="cp-thumb is-ref js-stop" href="' + esc(t.link) + '" target="_blank" rel="noopener" title="Buka link referensi">' + img + '<b><i class="fas fa-link"></i> Ref</b></a>';
         }
         return '<span class="cp-thumb is-ref" title="Gambar referensi dari brief">' + img + '<b>Ref</b></span>';
     }
@@ -779,49 +939,13 @@ $(function () {
         }
         $('#weekBoard').html(html);
         enableDrag();
-        renderPilarMix(grouped);
+        renderDayNav(grouped, routinesByDay);
+        layoutSlider();
     }
 
-    /**
-     * Mix of content pillars this week (cancelled content left out, konten rutin has no pillar), with a
-     * plain tip when one pillar takes over or a pillar is missing.
-     */
+    // pillar colours of the coloured pillar label on the cards
     var PILAR_LIST = @json($kontenPilar);
     var PILAR_COLORS = ['#2563eb', '#db2777', '#f59f00', '#16a34a', '#7c3aed', '#0891b2'];
-    function renderPilarMix(grouped) {
-        var counts = {}, total = 0, untagged = 0;
-        PILAR_LIST.forEach(function (p) { counts[p] = 0; });
-        Object.keys(grouped || {}).forEach(function (day) {
-            (grouped[day] || []).forEach(function (r) {
-                if (r.status === 'Cancelled') return;
-                total++;
-                if (!r.konten_pilar) { untagged++; return; }
-                counts[r.konten_pilar] = (counts[r.konten_pilar] || 0) + 1;
-            });
-        });
-        var $box = $('#cpPilarMix');
-        if (!total) { $box.hide(); return; }
-        var tagged = total - untagged;
-        var names = Object.keys(counts);
-        var color = function (p) { var i = PILAR_LIST.indexOf(p); return PILAR_COLORS[(i < 0 ? names.indexOf(p) : i) % PILAR_COLORS.length]; };
-        var bar = names.filter(function (p) { return counts[p]; }).map(function (p) {
-            return '<span style="width:' + (counts[p] / total * 100).toFixed(1) + '%;background:' + color(p) + '" title="' + esc(p) + ': ' + counts[p] + ' konten"></span>';
-        }).join('') + (untagged ? '<span style="width:' + (untagged / total * 100).toFixed(1) + '%;background:var(--wf-border)" title="Belum diberi pilar: ' + untagged + '"></span>' : '');
-        var legend = names.map(function (p) {
-            return '<span class="' + (counts[p] ? '' : 'is-zero') + '"><i style="background:' + color(p) + '"></i>' + esc(p) + ' <strong>' + counts[p] + '</strong></span>';
-        }).join('') + (untagged ? '<span class="is-zero"><i style="background:var(--wf-border)"></i>Belum diberi pilar <strong>' + untagged + '</strong></span>' : '');
-
-        var tips = [];
-        var top = names.slice().sort(function (a, b) { return counts[b] - counts[a]; })[0];
-        if (tagged >= 4 && counts[top] / tagged > .5) tips.push('Minggu ini didominasi <strong>' + esc(top) + '</strong> (' + Math.round(counts[top] / tagged * 100) + '%). Coba selingi dengan pilar lain.');
-        var missing = PILAR_LIST.filter(function (p) { return !counts[p]; });
-        if (tagged >= 5 && missing.length) tips.push('Belum ada konten <strong>' + missing.map(esc).join(', ') + '</strong> minggu ini.');
-        if (untagged) tips.push(untagged + ' konten belum diberi pilar (isi di Penugasan).');
-
-        $box.html('<div class="cp-pilar-head"><strong>Komposisi pilar minggu ini</strong><span class="wf-muted">' + total + ' konten</span></div>'
-            + '<div class="cp-pilar-bar">' + bar + '</div><div class="cp-pilar-legend">' + legend + '</div>'
-            + (tips.length ? '<div class="cp-pilar-tip"><i class="fas fa-lightbulb mr-1"></i>' + tips.join(' ') + '</div>' : '')).show();
-    }
 
     var lastBoardKey = null;
     function loadBoard(opts) {
@@ -835,10 +959,19 @@ $(function () {
             var key = JSON.stringify([params, resp && resp.data, resp && resp.routines]);
             if (opts.silent && key === lastBoardKey) return;
             lastBoardKey = key;
+            // a redraw keeps where the user was looking (days scroll sideways, each day scrolls down)
+            var $board = $('#weekBoard');
+            var keepX = $board.scrollLeft(), keepY = {};
+            $board.find('.cp-day-list').each(function () { keepY[$(this).data('date')] = this.scrollTop; });
             renderBoard((resp && resp.data) || {}, (resp && resp.routines) || {});
-            if (opts.scrollToday && window.innerWidth < 768) {
-                var $today = $('#weekBoard .cp-day.is-today');
-                if ($today.length) $('html, body').animate({ scrollTop: $today.offset().top - 70 }, 200);
+            if (opts.silent) {
+                $board.scrollLeft(keepX);
+                $board.find('.cp-day-list').each(function () { if (keepY[$(this).data('date')]) this.scrollTop = keepY[$(this).data('date')]; });
+            }
+            if (opts.scrollToday) {
+                var $today = $board.find('.cp-day.is-today');
+                if ($today.length && window.innerWidth < 576) $('html, body').animate({ scrollTop: $today.offset().top - 70 }, 200);
+                else if ($today.length) $board.scrollLeft($today[0].offsetLeft);
             }
         }).fail(function () {
             if (seq === boardSeq) $('#weekBoard').html('<div class="wf-empty">Gagal memuat jadwal. Coba muat ulang halaman.</div>');
@@ -885,6 +1018,90 @@ $(function () {
     });
     $(document).on('click', '#weekBoard .cp-day-add', function () { prepareNewPlan({ date: $(this).data('date') }); });
 
+    // ---- day slider: N comfortable columns (from the board width), ◀ ▶ one day, chips to jump
+    var colStep = 0;
+    function layoutSlider() {
+        var b = document.getElementById('weekBoard');
+        if (!b) return;
+        if (window.innerWidth < 576) { b.style.removeProperty('--cp-col-w'); return; }
+        var w = b.clientWidth;
+        if (w < 100) return; // board hidden (Ide Konten tab): measured again when Jadwal opens
+        var n = w >= 1500 ? 4 : (w >= 1050 ? 3 : (w >= 640 ? 2 : 1));
+        var col = Math.floor((w - 12 * (n - 1)) / n);
+        b.style.setProperty('--cp-col-w', col + 'px');
+        colStep = col + 12;
+        updateSlider();
+    }
+    function updateSlider() {
+        var b = document.getElementById('weekBoard');
+        if (!b) return;
+        var max = b.scrollWidth - b.clientWidth - 2;
+        $('#cpSlidePrev').prop('disabled', b.scrollLeft <= 2);
+        $('#cpSlideNext').prop('disabled', b.scrollLeft >= max);
+        var left = b.scrollLeft, right = left + b.clientWidth;
+        $('#weekBoard .cp-day').each(function (i) {
+            var mid = this.offsetLeft + this.offsetWidth / 2;
+            $('#cpDayNav .cp-day-chip').eq(i).toggleClass('in-view', mid >= left && mid <= right);
+        });
+    }
+    function renderDayNav(grouped, routinesByDay) {
+        var html = '';
+        for (var i = 0; i < 7; i++) {
+            var d = weekStart.clone().add(i, 'days'), key = d.format('YYYY-MM-DD');
+            var n = (grouped[key] || []).filter(function (r) { return r.status !== 'Cancelled'; }).length
+                + (scheduleBy === 'tanggal_publish' ? ((routinesByDay || {})[key] || []).length : 0);
+            html += '<button type="button" class="cp-day-chip' + (d.isSame(moment(), 'day') ? ' is-today' : '') + '" data-index="' + i + '" title="' + esc(W.dayTitle(d)) + '">'
+                + W.HARI[d.day()].slice(0, 3) + '<b>' + d.date() + '</b>' + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
+        }
+        $('#cpDayNav').html(html);
+    }
+    $('#cpDayNav').on('click', '.cp-day-chip', function () {
+        var day = $('#weekBoard .cp-day').get(+$(this).data('index'));
+        if (day) document.getElementById('weekBoard').scrollLeft = day.offsetLeft;
+    });
+    $('#cpSlidePrev, #cpSlideNext').on('click', function () {
+        var b = document.getElementById('weekBoard');
+        b.scrollLeft += (this.id === 'cpSlideNext' ? 1 : -1) * (colStep || b.clientWidth);
+    });
+    var sliderTick = null;
+    $('#weekBoard').on('scroll', function () {
+        if (sliderTick) return;
+        sliderTick = requestAnimationFrame(function () { sliderTick = null; updateSlider(); });
+    });
+    $('#schedule-tab').on('shown.bs.tab', layoutSlider);
+    // the week and the board actions belong to Jadwal only
+    $('#cpMainTabs').on('shown.bs.tab', 'a', function () { $('.js-schedule-only').toggle(this.id === 'schedule-tab'); });
+    var sliderResize = null;
+    $(window).on('resize', function () { clearTimeout(sliderResize); sliderResize = setTimeout(layoutSlider, 150); });
+
+    // ---- section icons on the cards: off by default (remembered in this browser)
+    var showTools = false;
+    try { showTools = localStorage.getItem('cp_tools') === '1'; } catch (e) {}
+    function applyTools() {
+        $('#weekBoard').toggleClass('show-tools', showTools);
+        $('#btnTools').toggleClass('active', showTools).attr('aria-pressed', showTools);
+    }
+    $('#btnTools').on('click', function () {
+        showTools = !showTools;
+        try { localStorage.setItem('cp_tools', showTools ? '1' : '0'); } catch (e) {}
+        applyTools();
+    });
+    applyTools();
+
+    // ---- card density: Lengkap / Ringkas (remembered in this browser)
+    var density = 'full';
+    try { density = localStorage.getItem('cp_density') || 'full'; } catch (e) {}
+    function applyDensity() {
+        $('#weekBoard').toggleClass('is-compact', density === 'compact');
+        $('#cpDensity button').each(function () { $(this).toggleClass('active', $(this).data('density') === density); });
+    }
+    $('#cpDensity').on('click', 'button', function () {
+        density = $(this).data('density');
+        try { localStorage.setItem('cp_density', density); } catch (e) {}
+        applyDensity();
+    });
+    applyDensity();
+
     // ---- mode, week navigation, "Tugas Saya"
     function updateModeUi() {
         $('#cpMode button').each(function () { $(this).toggleClass('active', $(this).data('mode') === scheduleBy); });
@@ -929,23 +1146,25 @@ $(function () {
 
     // ---- konten terlewat (all weeks)
     function loadOverdueCount() {
-        $.getJSON(ROUTES.statusList, { status: 'terlewat', schedule_by: scheduleBy, count_only: 1, mine: onlyMine ? 1 : 0 })
+        $.getJSON(ROUTES.statusList, filterParams({ status: 'terlewat', schedule_by: scheduleBy, count_only: 1 }))
             .done(function (r) {
                 var n = (r && r.count) || 0;
                 $('#stat_terlewat').text(n);
-                $('#btnOverdue').toggleClass('is-danger', n > 0).toggleClass('is-ok', n === 0);
+                $('#btnOverdue').toggle(n > 0);
+                refreshAlerts();
             });
         if (CAN_MANAGE) {
-            $.getJSON(ROUTES.statusList, { status: 'tanpa_link', count_only: 1, mine: onlyMine ? 1 : 0 }).done(function (r) {
+            $.getJSON(ROUTES.statusList, filterParams({ status: 'tanpa_link', count_only: 1 })).done(function (r) {
                 var n = (r && r.count) || 0;
                 $('#stat_nolink').text(n);
                 $('#btnNoLink').toggle(n > 0);
+                refreshAlerts();
             });
         }
     }
     // Published on Instagram without a post link: open the list, each opens the content to add the link
     $('#btnNoLink').on('click', function () {
-        $.getJSON(ROUTES.statusList, { status: 'tanpa_link', mine: onlyMine ? 1 : 0 }).done(function (r) {
+        $.getJSON(ROUTES.statusList, filterParams({ status: 'tanpa_link' })).done(function (r) {
             var rows = (r && r.data) || [];
             $('#overdueTitle').text('Belum ada link Instagram (' + rows.length + ')');
             $('#overdueList').html('<div class="wf-muted small">Konten ini sudah Published di Instagram, tapi link postingannya belum diisi atau bukan link postingan, jadi views &amp; insight-nya tidak terlacak. Buka kontennya lalu isi <strong>Link publikasi Instagram</strong> (Bagikan → Salin link).</div>'
@@ -960,7 +1179,7 @@ $(function () {
         });
     });
     $('#btnOverdue').on('click', function () {
-        $.getJSON(ROUTES.statusList, { status: 'terlewat', schedule_by: scheduleBy, mine: onlyMine ? 1 : 0 }).done(function (r) {
+        $.getJSON(ROUTES.statusList, filterParams({ status: 'terlewat', schedule_by: scheduleBy })).done(function (r) {
             var rows = (r && r.data) || [];
             $('#overdueTitle').text('Konten terlewat (' + rows.length + ')' + (scheduleBy === 'tanggal_produksi' ? ' · deadline produksi' : ' · jadwal publish'));
             $('#overdueList').html(rows.length ? rows.map(function (it) {
@@ -2079,6 +2298,7 @@ $(function () {
             var ready = s.approved || 0;
             $('#cpReadyCount').text(ready);
             $('#cpReadyIdeas').toggle(CAN_MANAGE && ready > 0);
+            refreshAlerts();
         });
     }
 
@@ -2432,7 +2652,7 @@ $(function () {
         var pic = o.assigned_to_name
             ? '<span class="cp-pic" title="PIC upload"><span>' + esc(o.assigned_to_name) + '</span></span>'
             : '<span class="cp-pic is-empty"><span>Semua tim</span></span>';
-        var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .10 : .05) + ';--brand-line:' + rgba(color, .35) + '"' : '';
+        var style = color ? ' style="--brand:' + color + ';--brand-bg:' + rgba(color, IS_DARK() ? .22 : .12) + '"' : '';
         return '<div class="cp-item cp-routine is-' + o.state + '" tabindex="0" role="button" data-routine="' + o.routine_id + '" data-key="' + esc(o.key) + '"' + style + '>'
             + '<div class="cp-item-top">'
             + (logos ? '<span class="cp-logos">' + logos + '</span>' : '')
@@ -2837,6 +3057,7 @@ $(function () {
     });
 
     // =================================================================== START
+    renderBrandFilter();
     if (CAN_MANAGE) loadIgAccounts();
     try { onlyMine = localStorage.getItem('cp_only_mine') === '1'; } catch (e) {}
     $('#btnMine').toggleClass('active', onlyMine).attr('aria-pressed', onlyMine);
