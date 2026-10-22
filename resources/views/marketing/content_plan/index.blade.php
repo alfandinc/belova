@@ -75,6 +75,34 @@
 .cp-filter-chip:hover { border-color: var(--wf-accent); }
 .cp-filter-chip.active { background: var(--wf-accent); border-color: var(--wf-accent); color: #fff; }
 .cp-filter-chip .cp-logo { width: 18px; height: 18px; box-shadow: 0 0 0 1px var(--wf-border); }
+/* search: filters this week's board and lists matches of all weeks below the box */
+.cp-search { position: relative; width: 240px; max-width: 100%; }
+.cp-search input {
+    width: 100%; border: 1px solid var(--wf-border); background: var(--wf-surface-solid); color: var(--wf-text);
+    border-radius: 999px; padding: 5px 28px 5px 30px; font-size: .82rem; outline: none;
+}
+.cp-search input:focus { border-color: var(--wf-accent); box-shadow: 0 0 0 3px rgba(13,110,253,.15); }
+.cp-search input::-webkit-search-cancel-button { display: none; }
+.cp-search.is-active input { border-color: var(--wf-accent); }
+.cp-search-ico { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: .75rem; color: var(--wf-muted); pointer-events: none; }
+.cp-search-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none;
+    color: var(--wf-muted); font-size: 1.1rem; line-height: 1; padding: 0 4px; cursor: pointer;
+}
+.cp-search-drop {
+    position: absolute; z-index: 1050; top: calc(100% + 6px); left: 0; width: 420px; max-width: calc(100vw - 32px);
+    max-height: 60vh; overflow-y: auto; background: var(--wf-surface-solid); border: 1px solid var(--wf-border);
+    border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 6px;
+}
+.cp-search-head { font-size: .68rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--wf-muted); padding: 6px 8px 4px; }
+.cp-search-item { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--wf-text); border-radius: 8px; padding: 7px 8px; cursor: pointer; }
+.cp-search-item:hover, .cp-search-item.is-focus { background: var(--wf-surface-2); }
+.cp-search-item .t { font-weight: 600; font-size: .85rem; line-height: 1.35; }
+.cp-search-item .t mark { background: rgba(250,204,21,.45); color: inherit; padding: 0; border-radius: 2px; }
+.cp-search-item .m { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: .74rem; color: var(--wf-muted); margin-top: 2px; }
+.cp-search-item .m .wf-pill { font-size: .66rem; padding: 0 7px; }
+.cp-search-empty { padding: 14px 8px; text-align: center; font-size: .82rem; color: var(--wf-muted); }
+@media (max-width: 767.98px) { .cp-search { width: 100%; } .cp-search-drop { width: 100%; } }
 .cp-alerts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .cp-alert {
     display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 5px 12px;
@@ -104,6 +132,7 @@
 .cp-board::-webkit-scrollbar { display: none; }
 .cp-day {
     background: var(--wf-surface-2); border-radius: 12px; min-width: 0; display: flex; flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0,0,0,.07), 0 0 0 1px var(--wf-border);
     flex: 0 0 var(--cp-col-w, 340px); max-height: calc(100vh - 230px); scroll-snap-align: start;
 }
 .cp-day-list { overflow-y: auto; scrollbar-width: thin; }
@@ -139,7 +168,7 @@
 .cp-board.is-compact .cp-thumb, .cp-board.is-compact .cp-item-tools, .cp-board.is-compact .cp-item-tags,
 .cp-board.is-compact .cp-icons, .cp-board.is-compact .cp-insight, .cp-board.is-compact .cp-late { display: none; }
 .cp-board.is-compact .cp-item { --py: 9px; --px: 12px; padding-bottom: 8px; margin-bottom: 8px; }
-.cp-board.is-compact .cp-item-title { font-size: .95rem; -webkit-line-clamp: 2; }
+.cp-board.is-compact .cp-item-title { font-size: .88rem; -webkit-line-clamp: 2; }
 .cp-board.is-compact .cp-item-top { margin-bottom: 6px; padding-top: 7px; padding-bottom: 6px; }
 .cp-board.is-compact .cp-item-foot { margin-top: 6px; padding-top: 6px; }
 .cp-board.is-compact .cp-item-actions { margin-top: 6px; }
@@ -207,7 +236,7 @@
 
 /* the title is what the card is about: biggest and darkest text, everything else is quieter */
 .cp-item-title {
-    font-weight: 800; font-size: 1.05rem; line-height: 1.38; letter-spacing: -.005em; color: var(--wf-text); word-break: break-word;
+    font-weight: 700; font-size: .93rem; line-height: 1.4; color: var(--wf-text); word-break: break-word;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 /* title with an optional preview square on its left */
@@ -301,7 +330,7 @@ a.cp-plat::after {
 
 /* ---------- konten rutin: compact card, no workflow; dashed ring tells it apart ---------- */
 .cp-item.cp-routine { --py: 10px; --px: 12px; padding-bottom: 8px; }
-.cp-item.cp-routine .cp-item-title { font-size: 1rem; -webkit-line-clamp: 2; }
+.cp-item.cp-routine .cp-item-title { -webkit-line-clamp: 2; }
 .cp-rt-ico { font-size: .68rem; color: var(--wf-muted); }
 .cp-item.cp-routine.is-late { box-shadow: 0 0 0 1.5px var(--wf-danger); }
 .cp-item.cp-routine.is-posted, .cp-item.cp-routine.is-skipped { opacity: .78; }
@@ -483,6 +512,12 @@ a.cp-plat::after {
             <div class="cp-controls">
                 <div class="cp-ctl-group">
                     <span class="cp-ctl-label"><i class="fas fa-filter"></i> Filter</span>
+                    <div class="cp-search" id="cpSearch">
+                        <i class="fas fa-search cp-search-ico"></i>
+                        <input type="search" id="cpSearchInput" placeholder="Cari judul konten…" autocomplete="off" aria-label="Cari konten" title="Cari judul konten di semua minggu (Ctrl+K)">
+                        <button type="button" class="cp-search-clear" id="cpSearchClear" aria-label="Hapus pencarian" style="display:none">&times;</button>
+                        <div class="cp-search-drop" id="cpSearchDrop" style="display:none"></div>
+                    </div>
                     <div class="cp-brand-filter" id="cpBrandFilter" role="group" aria-label="Filter klinik"></div>
                     <button type="button" class="cp-filter-chip" id="btnMine" aria-pressed="false" title="Hanya konten dengan PIC saya"><i class="far fa-user"></i> Tugas saya</button>
                 </div>
@@ -615,6 +650,7 @@ $(function () {
     var ROUTES = {
         week: @json(route('marketing.content-plan.week')),
         statusList: @json(route('marketing.content-plan.status_list')),
+        search: @json(route('marketing.content-plan.search')),
         store: @json(route('marketing.content-plan.store')),
         reportStore: @json(route('marketing.content-report.store')),
         ideaList: @json(route('marketing.content-list.list')),
@@ -653,8 +689,12 @@ $(function () {
         if (brandFilter) p.filter_brand = [brandFilter];
         return p;
     }
+    // search text: filters the board of the open week too (not the "perlu perhatian" counters)
+    var searchQ = '';
     function boardParams() {
-        return filterParams({ date_start: weekStart.format('DD/MM/YYYY'), date_end: weekEnd().format('DD/MM/YYYY'), schedule_by: scheduleBy });
+        var p = filterParams({ date_start: weekStart.format('DD/MM/YYYY'), date_end: weekEnd().format('DD/MM/YYYY'), schedule_by: scheduleBy });
+        if (searchQ) p.q = searchQ;
+        return p;
     }
 
     // Filter klinik: chips with the clinic logos (remembered in this browser)
@@ -1143,6 +1183,104 @@ $(function () {
     $('#btnPrevWeek').on('click', function () { goToWeek(weekStart.clone().subtract(7, 'days')); });
     $('#btnNextWeek').on('click', function () { goToWeek(weekStart.clone().add(7, 'days')); });
     $('#btnThisWeek').on('click', function () { goToWeek(moment()); });
+
+    // ---- search: typing filters this week's board and lists the matches of all weeks under the box;
+    // a result jumps to its week and opens the content. "#123" finds content number 123.
+    var searchTimer = null, searchSeq = 0;
+    function searchUsable(q) { return q.length >= 2 || /^#?\d+$/.test(q); }
+    function highlight(text, q) {
+        var html = esc(text || '(tanpa judul)');
+        q.replace(/^#/, '').split(/\s+/).filter(Boolean).forEach(function (w) {
+            var safe = esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            html = html.replace(new RegExp('(' + safe + ')(?![^<]*>)', 'ig'), '<mark>$1</mark>');
+        });
+        return html;
+    }
+    function renderSearch(resp, q) {
+        var rows = (resp && resp.data) || [], routines = (resp && resp.routines) || [];
+        var out = '';
+        if (routines.length) {
+            out += '<div class="cp-search-head">Konten rutin</div>' + routines.map(function (r) {
+                return '<button type="button" class="cp-search-item" data-routine="' + r.id + '">'
+                    + '<div class="t"><i class="fas fa-redo-alt cp-rt-ico mr-1"></i>' + highlight(r.judul, q) + '</div>'
+                    + '<div class="m"><span>' + esc(r.days) + ' · ' + esc(r.time) + '</span>' + (r.brand ? '<span>' + esc(r.brand) + '</span>' : '')
+                    + (!r.active ? '<span class="wf-pill st-gray">Nonaktif</span>' : '') + '</div></button>';
+            }).join('');
+        }
+        if (rows.length) {
+            out += '<div class="cp-search-head">Konten' + (rows.length >= 30 ? ' (30 terbaru, perjelas kata kunci)' : ' (' + rows.length + ')') + '</div>' + rows.map(function (it) {
+                return '<button type="button" class="cp-search-item" data-id="' + it.id + '" data-date="' + esc(it.date || '') + '">'
+                    + '<div class="t">' + highlight(it.judul, q) + '</div>'
+                    + '<div class="m"><span>' + esc(it.day) + (it.time ? ' · ' + esc(it.time) : '') + '</span>' + planPill(it.status)
+                    + (it.brand ? '<span>' + esc(it.brand) + '</span>' : '')
+                    + (it.assigned ? '<span><i class="far fa-user mr-1"></i>' + esc(it.assigned) + '</span>' : '') + '</div></button>';
+            }).join('');
+        }
+        if (!out) {
+            out = '<div class="cp-search-empty">Tidak ada konten dengan judul “' + esc(q) + '”'
+                + (brandFilter || onlyMine ? '<br><span class="small">Filter klinik / Tugas saya sedang aktif</span>' : '') + '</div>';
+        }
+        $('#cpSearchDrop').html(out).show();
+    }
+    function runSearch() {
+        var q = $.trim($('#cpSearchInput').val());
+        var usable = searchUsable(q);
+        $('#cpSearchClear').toggle(q !== '');
+        $('#cpSearch').toggleClass('is-active', usable);
+        if ((usable ? q : '') !== searchQ) {
+            searchQ = usable ? q : '';
+            loadBoard();
+        }
+        if (!usable) { $('#cpSearchDrop').hide().empty(); return; }
+        var seq = ++searchSeq;
+        $.getJSON(ROUTES.search, filterParams({ q: q, schedule_by: scheduleBy })).done(function (resp) {
+            if (seq === searchSeq) renderSearch(resp, q);
+        });
+    }
+    function clearSearch() {
+        $('#cpSearchInput').val('');
+        runSearch();
+    }
+    $('#cpSearchInput').on('input', function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(runSearch, 300);
+    }).on('focus', function () {
+        if (searchQ && $('#cpSearchDrop').children().length) $('#cpSearchDrop').show();
+    }).on('keydown', function (e) {
+        var $items = $('#cpSearchDrop .cp-search-item'), $cur = $items.filter('.is-focus'), i = $items.index($cur);
+        if (e.key === 'Escape') {
+            if ($('#cpSearchDrop').is(':visible')) $('#cpSearchDrop').hide(); else clearSearch();
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (!$items.length) return;
+            $('#cpSearchDrop').show();
+            i = e.key === 'ArrowDown' ? Math.min(i + 1, $items.length - 1) : Math.max(i - 1, 0);
+            $items.removeClass('is-focus').eq(i).addClass('is-focus')[0].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            clearTimeout(searchTimer);
+            if ($cur.length) $cur.trigger('click');
+            else if ($items.length === 1) $items.trigger('click');
+            else runSearch();
+        }
+    });
+    $('#cpSearchClear').on('click', function () { clearSearch(); $('#cpSearchInput').trigger('focus'); });
+    $('#cpSearchDrop').on('click', '.cp-search-item', function () {
+        var $it = $(this);
+        $('#cpSearchDrop').hide();
+        if ($it.data('routine')) { openRoutine($it.data('routine')); return; }
+        var date = String($it.data('date') || '');
+        if (date && !moment(date).isSame(weekStart, 'isoWeek')) goToWeek(date);
+        openPlan($it.data('id'));
+    });
+    $(document).on('mousedown', function (e) {
+        if (!$(e.target).closest('#cpSearch').length) $('#cpSearchDrop').hide();
+    }).on('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K') && $('#scheduleTab').is(':visible')) {
+            e.preventDefault();
+            $('#cpSearchInput').trigger('focus').trigger('select');
+        }
+    });
 
     // ---- konten terlewat (all weeks)
     function loadOverdueCount() {

@@ -169,6 +169,13 @@ class RoutineSchedule
 
     private static function matches(ContentRoutine $routine, array $filters): bool
     {
+        if (!empty($filters['q'])) {
+            foreach (preg_split('/\s+/', $filters['q']) as $word) {
+                if (stripos($routine->judul, ltrim($word, '#')) === false) {
+                    return false;
+                }
+            }
+        }
         foreach (['brand', 'platform'] as $field) {
             if (!empty($filters[$field]) && !array_intersect((array) $filters[$field], (array) ($routine->{$field} ?? []))) {
                 return false;

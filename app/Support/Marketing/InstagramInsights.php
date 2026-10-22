@@ -365,9 +365,11 @@ class InstagramInsights
         try {
             $response = $http->get(self::API . $path, $params + ['access_token' => $token]);
         } catch (\Throwable $e) {
-            $hint = str_contains($e->getMessage(), 'cURL error 60')
-                ? 'sertifikat SSL server belum diatur: isi INSTAGRAM_CACERT_PATH di .env dengan lokasi file cacert.pem'
-                : $e->getMessage();
+            $caBundle = (string) config('services.instagram.cacert_path');
+            $hint = !str_contains($e->getMessage(), 'cURL error 60') ? $e->getMessage()
+                : ($caBundle !== '' && !is_file($caBundle)
+                    ? 'file sertifikat tidak ditemukan di "' . $caBundle . '": perbaiki INSTAGRAM_CACERT_PATH di .env lalu jalankan php artisan config:clear'
+                    : 'sertifikat SSL server belum diatur: isi INSTAGRAM_CACERT_PATH di .env dengan lokasi file cacert.pem, lalu php artisan config:clear');
             throw new RuntimeException('Tidak bisa menghubungi Instagram (' . $hint . ')');
         }
         $json = $response->json() ?? [];

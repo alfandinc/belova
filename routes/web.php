@@ -1864,6 +1864,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Content Plan Management
     Route::get('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'index'])->name('marketing.content-plan.index');
     Route::get('content-plan/week', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'week'])->name('marketing.content-plan.week');
+    Route::get('content-plan/search', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'search'])->name('marketing.content-plan.search');
     Route::get('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'show'])->name('marketing.content-plan.show');
     Route::post('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'store'])->name('marketing.content-plan.store');
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');

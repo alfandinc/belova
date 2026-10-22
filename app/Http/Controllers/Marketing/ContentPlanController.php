@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Marketing\ContentBrief;
 use App\Models\Marketing\ContentList;
 use App\Models\Marketing\ContentPlan;
+use App\Models\Marketing\ContentRoutine;
 use App\Models\Marketing\DesignRequest;
 use App\Support\Marketing\MarketingAccess;
 use App\Support\Marketing\DesignSync;
@@ -576,6 +577,17 @@ class ContentPlanController extends Controller
         if ($request->boolean('mine')) {
             $query->where('assigned_to', Auth::id());
         }
+        // search: words of the title (all must appear), or "#123" for one content
+        $q = trim((string) $request->input('q', ''));
+        if ($q !== '') {
+            if (preg_match('/^#?(\d+)$/', $q, $m)) {
+                $query->where(fn ($w) => $w->where('id', (int) $m[1])->orWhere('judul', 'like', '%' . $m[1] . '%'));
+            } else {
+                foreach (preg_split('/\s+/', $q) as $word) {
+                    $query->where('judul', 'like', '%' . addcslashes($word, '%_\\') . '%');
+                }
+            }
+        }
 
         return $query;
     }
@@ -810,7 +822,64 @@ class ContentPlanController extends Controller
             'mine' => $request->boolean('mine') ? Auth::id() : null,
             'brand' => $request->filled('filter_brand') ? (array) $request->input('filter_brand') : null,
             'platform' => $request->filled('filter_platform') ? (array) $request->input('filter_platform') : null,
+            'q' => trim((string) $request->input('q', '')) ?: null,
         ];
+    }
+
+    /**
+     * Search box of the board: content of any date whose title matches `q` (newest schedule first,
+     * honours brand / "Tugas saya"), plus the konten rutin with a matching title.
+     */
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+        if (mb_strlen($q) < 2 && !preg_match('/^#?\d+$/', $q)) {
+            return response()->json(['data' => [], 'routines' => []]);
+        }
+        $scheduleBy = $this->scheduleBy($request);
+        $query = ContentPlan::with('assignedTo:id,name');
+        $this->applyFilters($query, $request->merge(['date_start' => null, 'date_end' => null]), $scheduleBy);
+        $rows = $query->orderByRaw($scheduleBy . ' IS NULL')->orderByDesc($scheduleBy)->limit(30)->get();
+
+        $routines = [];
+        if (RoutineSchedule::enabled()) {
+            $filters = $this->routineFilters($request);
+            $routines = ContentRoutine::when($filters['mine'], fn ($w) => $w->where('assigned_to', $filters['mine']))
+                ->orderByDesc('is_active')->orderBy('judul')->get()
+                ->filter(function (ContentRoutine $r) use ($q, $filters) {
+                    foreach (preg_split('/\s+/', $q) as $word) {
+                        if (stripos($r->judul, ltrim($word, '#')) === false) {
+                            return false;
+                        }
+                    }
+
+                    return empty($filters['brand']) || array_intersect($filters['brand'], (array) ($r->brand ?? []));
+                })
+                ->take(5)
+                ->map(fn (ContentRoutine $r) => [
+                    'id' => $r->id,
+                    'judul' => $r->judul,
+                    'brand' => implode(', ', (array) ($r->brand ?? [])),
+                    'days' => $r->daysLabel(),
+                    'time' => str_replace(':', '.', $r->jamLabel()),
+                    'active' => (bool) $r->is_active,
+                ])->values()->all();
+        }
+
+        return response()->json([
+            'data' => $rows->map(fn (ContentPlan $row) => [
+                'id' => $row->id,
+                'judul' => $row->judul ?? '',
+                'date' => $row->{$scheduleBy} ? Carbon::parse($row->{$scheduleBy})->toDateString() : null,
+                'day' => $row->{$scheduleBy} ? Carbon::parse($row->{$scheduleBy})->locale('id')->translatedFormat('l j F Y') : 'Belum dijadwalkan',
+                'time' => $scheduleBy === 'tanggal_publish' && $row->tanggal_publish ? Carbon::parse($row->tanggal_publish)->format('H.i') : '',
+                'brand' => implode(', ', (array) ($row->brand ?? [])),
+                'status' => $row->status,
+                'status_label' => self::STATUS_LABELS[$row->status] ?? $row->status,
+                'assigned' => $row->assignedTo ? $row->assignedTo->name : '',
+            ])->values(),
+            'routines' => $routines,
+        ]);
     }
 
     /**
