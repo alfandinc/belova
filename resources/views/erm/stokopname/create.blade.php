@@ -6,37 +6,6 @@
 @endsection
 
 @section('content')
-<!-- Modal Ubah Status -->
-                    <div class="modal fade" id="changeStatusModal" tabindex="-1" role="dialog" aria-labelledby="changeStatusModalLabel" aria-hidden="true">
-                      <div class="modal-dialog" role="document">
-                        <div class="modal-content">
-                          <form id="changeStatusForm" method="POST" action="{{ route('erm.stokopname.updateStatus', $stokOpname->id) }}">
-                            @csrf
-                            <div class="modal-header">
-                              <h5 class="modal-title" id="changeStatusModalLabel">Ubah Status Stok Opname</h5>
-                              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                              </button>
-                            </div>
-                            <div class="modal-body">
-                              <div class="form-group">
-                                <label for="status">Status Baru</label>
-                                <select class="form-control" name="status" id="status" required>
-                                  <option value="draft" {{ $stokOpname->status == 'draft' ? 'selected' : '' }}>Draft</option>
-                                  <option value="proses" {{ $stokOpname->status == 'proses' ? 'selected' : '' }}>Proses</option>
-                                  <option value="selesai" {{ $stokOpname->status == 'selesai' ? 'selected' : '' }}>Selesai</option>
-                                </select>
-                              </div>
-                            </div>
-                            <div class="modal-footer">
-                              <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                              <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    </div>
-
 <!-- Modal History Temuan -->
 <div class="modal fade" id="temuanHistoryModal" tabindex="-1" role="dialog" aria-labelledby="temuanHistoryModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -61,13 +30,14 @@
                                         <input type="hidden" id="temuan_item_id" value="">
                                         <div class="form-group mr-2">
                                                 <label class="sr-only" for="temuan_qty">Qty</label>
-                                                <input type="number" step="0.0001" class="form-control form-control-sm" id="temuan_qty" placeholder="Qty" style="width:110px;">
+                                                <input type="number" step="0.01" min="0.01" class="form-control form-control-sm" id="temuan_qty" placeholder="Qty" style="width:110px;">
                                         </div>
                                         <div class="form-group mr-2">
                                             <label class="sr-only" for="temuan_jenis">Jenis</label>
-                                            <select id="temuan_jenis" class="form-control form-control-sm" style="width:190px;" title="Nilai tersimpan tetap plus/minus; labelnya menjelaskan dampak ke stok">
-                                                <option value="plus">Fisik kurang (stok −)</option>
-                                                <option value="minus">Fisik lebih (stok +)</option>
+                                            {{-- plus = menjelaskan selisih plus (fisik lebih), minus = menjelaskan selisih minus (fisik kurang) --}}
+                                            <select id="temuan_jenis" class="form-control form-control-sm" style="width:190px;" title="Pilih sesuai arah selisih yang dijelaskan temuan ini">
+                                                <option value="plus">Fisik lebih (selisih +)</option>
+                                                <option value="minus">Fisik kurang (selisih −)</option>
                                             </select>
                                         </div>
                                         <div class="form-group mr-2" style="flex:1;">
@@ -211,7 +181,14 @@
                             </div>
                         </div>
                     </div>
-                    
+
+                    @if($stokOpname->status !== 'selesai')
+                    <div class="alert alert-warning mt-2 mb-0 py-2" style="font-size:13px;">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <strong>Stok sistem</strong> diambil saat <strong>Generate Items</strong>. Selama stok opname berjalan, jangan ada transaksi di gudang ini
+                        (penjualan, resep, mutasi, penerimaan faktur, retur) sampai <strong>Submit Stok</strong>. Saat Submit, stok diset ke stok fisik.
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -226,11 +203,11 @@
                             <i class="fa fa-magic"></i> Generate Items
                         </button>
                         @endif
-                        @if($stokOpname->status === 'proses')
-                        <button type="button" class="btn btn-secondary mr-2" id="addItemBtn">
+                        {{-- Always rendered (hidden outside 'proses') so Generate Items can show it without a reload --}}
+                        <button type="button" class="btn btn-secondary mr-2" id="addItemBtn"
+                            @if($stokOpname->status !== 'proses') style="display:none;" @endif>
                             <i class="fa fa-plus"></i> Tambah Item
                         </button>
-                        @endif
                         @php
                             $hasItems = $items->count() > 0;
                             $isCompleted = $stokOpname->status === 'selesai';
@@ -445,6 +422,19 @@ $(function () {
         }
         return n.toFixed(2);
     }
+    // Temuan explains part of the selisih: plus (legacy 'kurang') = selisih plus / fisik lebih,
+    // minus (legacy 'lebih') = selisih minus / fisik kurang. Its net offsets the item's selisih.
+    function temuanJenisLabel(jenis) {
+        if (jenis === 'plus' || jenis === 'kurang') return 'Fisik lebih (selisih +)';
+        if (jenis === 'minus' || jenis === 'lebih') return 'Fisik kurang (selisih −)';
+        return '-';
+    }
+    // Escape text from the server before it goes into HTML (nama obat, catatan temuan, ...)
+    function esc(v) {
+        if (v === null || v === undefined) return '';
+        return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
     // Convert string to deterministic HSL color
     function hashCode(str) {
         var hash = 0;
@@ -496,6 +486,8 @@ $(function () {
             $('#totalStokFisikText').text(res.totalStokFisik.toLocaleString('id-ID'));
             var sel = (parseFloat(res.totalStokSistem) || 0) - (parseFloat(res.totalStokFisik) || 0);
             $('#selisihNilaiText').text(sel.toLocaleString('id-ID'));
+            if (typeof res.itemsWithSelisih !== 'undefined') $('#itemsWithSelisihText').text(res.itemsWithSelisih);
+            if (typeof res.totalItems !== 'undefined') $('#totalItemsText').text(res.totalItems);
         }).always(function() {
             if (btn.length) {
                 btn.prop('disabled', false);
@@ -518,8 +510,8 @@ $(function () {
                 d.filter_stok_fisik = $('#filterStokFisik').val();
             }
         },
-        // Default order: Selisih column (now at index 7) ascending so biggest negative values appear first
-        order: [[7, 'asc']],
+        // Default order: Selisih column (index 6) ascending so biggest negative values appear first
+        order: [[6, 'asc']],
         columns: [
             { data: 'obat_id', name: 'obat_id', className: 'text-center' },
             { data: 'nama_obat', name: 'nama_obat', className: 'nama-obat-cell', render: function(data, type, row) {
@@ -530,29 +522,29 @@ $(function () {
                     var badges = '';
                     if (kategori) {
                         var c = colorFromString(kategori, {saturation:60, lightness:50});
-                        badges += '<span class="badge mr-1 badge-kategori" style="background:' + c.css + '; color:' + readableTextColorFromLightness(c.l) + ';">'+kategori+'</span>';
+                        badges += '<span class="badge mr-1 badge-kategori" style="background:' + c.css + '; color:' + readableTextColorFromLightness(c.l) + ';">'+esc(kategori)+'</span>';
                     }
                     if (metode) {
                         var cm = colorFromString(metode, {saturation:70, lightness:55});
-                        badges += '<span class="badge mr-1 badge-metode" style="background:' + cm.css + '; color:' + readableTextColorFromLightness(cm.l) + ';">'+metode+'</span>';
+                        badges += '<span class="badge mr-1 badge-metode" style="background:' + cm.css + '; color:' + readableTextColorFromLightness(cm.l) + ';">'+esc(metode)+'</span>';
                     }
                     if (jenis) {
                         var cj = colorFromString(jenis, {saturation:65, lightness:45});
-                        badges += '<span class="badge mr-1 badge-jenis" style="background:' + cj.css + '; color:' + readableTextColorFromLightness(cj.l) + ';">'+jenis+'</span>';
+                        badges += '<span class="badge mr-1 badge-jenis" style="background:' + cj.css + '; color:' + readableTextColorFromLightness(cj.l) + ';">'+esc(jenis)+'</span>';
                     }
-                    return '<div class="nama-obat-cell"><strong>'+name+'</strong>' + '<div class="nama-meta" style="margin-top:6px;">'+badges+'</div></div>';
+                    return '<div class="nama-obat-cell"><strong>'+esc(name)+'</strong>' + '<div class="nama-meta" style="margin-top:6px;">'+badges+'</div></div>';
                 } },
             { data: 'satuan', name: 'satuan', defaultContent: '-', className: 'satuan-cell' },
             { data: 'stok_sistem', name: 'stok_sistem', className: 'text-right', render: function(data, type, row) { return formatQty(data); } },
             { data: 'stok_fisik', name: 'stok_fisik', className: 'text-right', render: function(data, type, row) {
                     var disabledAttr = isCompleted ? 'disabled' : '';
-                    return `<input type="number" step="0.01" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${formatQty(data)}" style="width:110px; text-align:right;" ${disabledAttr}>`;
+                    return `<input type="number" step="0.01" min="0" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${formatQty(data)}" style="width:110px; text-align:right;" ${disabledAttr}>`;
                 }
             },
             { data: 'total_temuan', name: 'total_temuan', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { if (data === null || data === undefined) data = 0; return formatQty(data); } },
             { data: 'selisih', name: 'selisih', className: 'text-right', render: function(data, type, row) { var txt = formatQty(data); if (parseFloat(data) != 0) { return txt + ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>'; } else { return txt + ' <i class="fa fa-check text-success" title="Sesuai"></i>'; } } },
             { data: 'nearest_exp', name: 'nearest_exp', className: 'text-center', render: function(data, type, row) { return data || '-'; } },
-            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
+            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = (parseFloat(row.stok_fisik) || 0) + (parseFloat(row.total_temuan) || 0); var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
                 { data: null, orderable: false, searchable: false, className: 'text-center', render: function(data, type, row) {
                         var id = row.id || '';
                         var obatId = row.obat_id || row.obatId || '';
@@ -576,18 +568,10 @@ $(function () {
             if (info && typeof info.recordsTotal !== 'undefined') {
                 $('#totalItemsText').text(info.recordsTotal);
             }
+            // Whole-opname count from the server (rows on screen are only one page)
             var ajaxJson = table.ajax.json && table.ajax.json();
             if (ajaxJson && typeof ajaxJson.items_with_selisih !== 'undefined') {
                 $('#itemsWithSelisihText').text(ajaxJson.items_with_selisih);
-            } else {
-                // Fallback: count selisih in currently loaded rows
-                var cnt = 0;
-                var d = table.rows().data();
-                for (var i = 0; i < d.length; i++) {
-                    var s = parseFloat(d[i].selisih) || 0;
-                    if (s !== 0) cnt++;
-                }
-                $('#itemsWithSelisihText').text(cnt);
             }
         } catch (e) {
             console.error('updateCounts error', e);
@@ -611,47 +595,24 @@ $(function () {
                     _token: '{{ csrf_token() }}'
                 },
                     success: function(res) {
-                        input.removeClass('is-invalid').addClass('is-valid');
-                        setTimeout(() => input.removeClass('is-valid'), 1000);
-                        // Get row index
+                        // Update the row data; re-rendering the row refreshes Selisih and Nilai Stok cells
                         var rowIdx = table.row(input.closest('tr')).index();
-                        // Update selisih cell (column indexes after moving Nilai Stok to the rightmost)
-                        // Columns: 0 Obat ID,1 Nama,2 Satuan,3 Stok Sistem,4 Stok Fisik,5 Total Temuan,6 Selisih,7 Exp Date,8 Nilai Stok
-                        var selisihCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk kolom Selisih
-                        var icon = parseFloat(res.selisih) != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
-                        selisihCell.html(formatQty(res.selisih) + ' ' + icon);
-                        // Update Nilai Stok cell using hpp_obat from row data (now at index 8)
                         var rowData = table.row(rowIdx).data();
-                        var hpp = parseFloat(rowData.hpp_obat) || 0;
-                        var nilai = hpp * (parseFloat(res.stok_fisik) || 0);
-                        var nilaiCell = $(table.cell(rowIdx, 8).node()); // Index 8 untuk Nilai Stok (rightmost)
-                        nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
-                        
-                        // Also update table's internal data for stok_fisik and selisih so future redraws have correct values
                         rowData.stok_fisik = parseFloat(res.stok_fisik);
                         rowData.selisih = parseFloat(res.selisih);
-                            table.row(rowIdx).data(rowData);
+                        table.row(rowIdx).data(rowData);
+                        var newInput = $(table.cell(rowIdx, 4).node()).find('.stok-fisik-input');
+                        newInput.addClass('is-valid');
+                        setTimeout(() => newInput.removeClass('is-valid'), 1000);
 
-                            // Recalculate and update total nilai stok (sistem & fisik) immediately
-                            var totalSistem = 0;
-                            var totalFisik = 0;
-                            table.rows().every(function() {
-                                var d = this.data();
-                                var h = parseFloat(d.hpp_obat) || 0;
-                                var s = parseFloat(d.stok_sistem) || 0;
-                                var f = parseFloat(d.stok_fisik) || 0;
-                                totalSistem += h * s;
-                                totalFisik += h * f;
-                            });
-                            $('#totalStokSistemText').text(totalSistem.toLocaleString('id-ID'));
-                            $('#totalStokFisikText').text(totalFisik.toLocaleString('id-ID'));
-                            var selDiff = totalSistem - totalFisik;
-                            $('#selisihNilaiText').text(selDiff.toLocaleString('id-ID'));
-                                // Refresh item counts (total items & items with selisih)
-                                if (typeof updateCounts === 'function') updateCounts();
+                        // Header totals cover the whole opname (incl. temuan): ask the server, not the current page
+                        syncTotals();
                     },
-                error: function() {
+                error: function(xhr) {
                     input.addClass('is-invalid');
+                    if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.message) {
+                        Swal.fire({ icon: 'error', title: 'Tidak bisa diubah', text: xhr.responseJSON.message });
+                    }
                 },
                 complete: function() {
                     input.prop('disabled', false);
@@ -678,9 +639,9 @@ $(function () {
                     var content = `
                         <div class="mb-3">
                             <h6><strong>Item Information</strong></h6>
-                            <p><strong>Obat:</strong> ${res.item.obat_nama}<br>
-                            <strong>Batch:</strong> ${res.item.batch || '-'}<br>
-                            <strong>Gudang:</strong> ${res.item.gudang}</p>
+                            <p><strong>Obat:</strong> ${esc(res.item.obat_nama)}<br>
+                            <strong>Batch:</strong> ${esc(res.item.batch || '-')}<br>
+                            <strong>Gudang:</strong> ${esc(res.item.gudang)}</p>
                         </div>
                         <hr>
                     `;
@@ -692,7 +653,7 @@ $(function () {
                         var h = '<h6><strong>History (kartu stok)</strong></h6>' +
                             '<div class="table-responsive"><table class="table table-sm table-bordered"><thead class="bg-light"><tr><th>Tanggal & Waktu</th><th>Qty Temuan</th><th>Catatan</th><th>Stok Setelah</th></tr></thead><tbody>';
                         res.history.forEach(function(record) {
-                            h += `<tr><td>${record.tanggal}</td><td class="text-center">${formatQty(record.qty)}</td><td>${record.keterangan || '-'}</td><td class="text-center">${record.stok_setelah}</td></tr>`;
+                            h += `<tr><td>${esc(record.tanggal)}</td><td class="text-center">${formatQty(record.qty)}</td><td>${esc(record.keterangan || '-')}</td><td class="text-center">${esc(record.stok_setelah)}</td></tr>`;
                         });
                         h += '</tbody></table></div>';
                         $('#temuanHistoryContent').append(h);
@@ -701,16 +662,14 @@ $(function () {
                     // Populate simple temuan records into the temuanRecordsTable
                     if (res.temuan_records && res.temuan_records.length > 0) {
                         res.temuan_records.forEach(function(r) {
-                            var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
-                                ? 'Fisik lebih (stok +)'
-                                : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Fisik kurang (stok −)' : '-');
+                            var jenisLabel = temuanJenisLabel(r.jenis);
                             var actionBtn = '';
                             if (r.process_status && parseInt(r.process_status) === 1) {
                                 actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
                             } else {
                                 actionBtn = `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
                             }
-                            var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
+                            var tr = `<tr data-id="${r.id}"><td>${esc(r.tanggal)}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${esc(r.keterangan || '-')}</td><td>${esc(r.created_by_name || '-')}</td><td class="text-center">${actionBtn}</td></tr>`;
                             $('#temuanRecordsTable tbody').append(tr);
                             var row = $('#temuanRecordsTable').find(`tr[data-id="${r.id}"]`);
                             row.find('.delete-temuan-btn').on('click', deleteTemuanHandler);
@@ -757,7 +716,7 @@ $(function () {
                 if (res.success && res.data && res.data.length > 0) {
                     var opts = '<option value="">-- Pilih Obat --</option>';
                     res.data.forEach(function(o) {
-                        opts += '<option value="' + o.id + '">' + (o.nama || o.name || o.nama) + '</option>';
+                        opts += '<option value="' + esc(o.id) + '">' + esc(o.nama || o.name) + '</option>';
                     });
                     sel.html(opts);
                     sel.prop('disabled', false);
@@ -825,10 +784,10 @@ $(function () {
                     var rows = '';
                     if (res.batches && res.batches.length > 0) {
                         res.batches.forEach(function(b) {
-                            var expDisplay = b.expiration_date || '-';
-                            var expRaw = b.expiration_date_raw || '';
-                            var editBtn = '<button class="btn btn-sm btn-outline-secondary edit-exp-btn" data-id="'+b.id+'" data-exp="'+expRaw+'" title="Ubah Tanggal"><i class="fa fa-edit"></i></button>';
-                            rows += '<tr data-batch-id="'+b.id+'"><td>' + (b.batch || '-') + '</td><td class="text-right">' + (parseFloat(b.stok) || 0) + '</td><td class="exp-cell text-center">' + expDisplay + ' ' + editBtn + '</td></tr>';
+                            var expDisplay = esc(b.expiration_date || '-');
+                            var expRaw = esc(b.expiration_date_raw || '');
+                            var editBtn = '<button class="btn btn-sm btn-outline-secondary edit-exp-btn" data-id="'+esc(b.id)+'" data-exp="'+expRaw+'" title="Ubah Tanggal"><i class="fa fa-edit"></i></button>';
+                            rows += '<tr data-batch-id="'+esc(b.id)+'"><td>' + esc(b.batch || '-') + '</td><td class="text-right">' + formatQty(parseFloat(b.stok) || 0) + '</td><td class="exp-cell text-center">' + expDisplay + ' ' + editBtn + '</td></tr>';
                         });
                     } else {
                         rows = '<tr><td colspan="3" class="text-center">Tidak ada batch.</td></tr>';
@@ -837,7 +796,7 @@ $(function () {
                     $('#batchListLoading').hide();
                     $('#batchListContent').show();
                 } else {
-                    $('#batchListLoading').html('<div class="text-danger">'+(res.message||'Gagal memuat data')+'</div>');
+                    $('#batchListLoading').html('<div class="text-danger">'+esc(res.message||'Gagal memuat data')+'</div>');
                 }
             }).fail(function() {
                 $('#batchListLoading').html('<div class="text-danger">Gagal memuat data batch</div>');
@@ -884,39 +843,12 @@ $(function () {
             _token: '{{ csrf_token() }}'
         }).done(function(res) {
             if (res.success) {
-                var newDisplay = res.data.expiration_date || '-';
-                var newRaw = res.data.expiration_date_raw || '';
-                var editBtn = '<button class="btn btn-sm btn-outline-secondary edit-exp-btn" data-id="'+id+'" data-exp="'+newRaw+'" title="Ubah Tanggal"><i class="fa fa-edit"></i></button>';
+                var newDisplay = esc(res.data.expiration_date || '-');
+                var newRaw = esc(res.data.expiration_date_raw || '');
+                var editBtn = '<button class="btn btn-sm btn-outline-secondary edit-exp-btn" data-id="'+esc(id)+'" data-exp="'+newRaw+'" title="Ubah Tanggal"><i class="fa fa-edit"></i></button>';
                 tr.find('.exp-cell').html(newDisplay + ' ' + editBtn);
-                // Recompute nearest expiration for this item from modal rows and update main DataTable
-                try {
-                    var itemIdModal = $('#batchListModal').data('item-id');
-                    var minDate = null;
-                    $('#batchListModal .edit-exp-btn').each(function() {
-                        var d = $(this).data('exp');
-                        if (d && d !== '') {
-                            var dt = new Date(d + 'T00:00:00');
-                            if (!minDate || dt < minDate) minDate = dt;
-                        }
-                    });
-                    var formatted = '-';
-                    if (minDate) formatted = minDate.toLocaleDateString('id-ID');
-
-                    if (typeof table !== 'undefined') {
-                        table.rows().every(function() {
-                            var rowData = this.data();
-                            if (rowData && parseInt(rowData.id) === parseInt(itemIdModal)) {
-                                // Update the displayed nearest_exp cell (column index 7)
-                                rowData.nearest_exp = formatted;
-                                this.data(rowData);
-                            }
-                        });
-                        // Redraw without resetting pagination
-                        table.draw(false);
-                    }
-                } catch (e) {
-                    console.error('Failed to update nearest exp in main table', e);
-                }
+                // Nearest exp is computed by the server (batches with stok only, same date format): reload the page of rows
+                if (typeof table !== 'undefined') table.ajax.reload(null, false);
             } else {
                 alert(res.message || 'Gagal menyimpan');
                 tr.find('.exp-cell').html(tr.find('.exp-cell').data('orig') || '-');
@@ -964,16 +896,14 @@ $(function () {
                 if (res.success) {
                     // append new record to table
                     var r = res.record;
-                    var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
-                        ? 'Fisik lebih (stok +)'
-                        : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Fisik kurang (stok −)' : '-');
+                    var jenisLabel = temuanJenisLabel(r.jenis);
                     var actionBtn = '';
                     if (r.process_status && parseInt(r.process_status) === 1) {
                         actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
                     } else {
                         actionBtn = `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
                     }
-                    var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
+                    var tr = `<tr data-id="${r.id}"><td>${esc(r.tanggal)}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${esc(r.keterangan || '-')}</td><td>${esc(r.created_by_name || '-')}</td><td class="text-center">${actionBtn}</td></tr>`;
                     // if table previously had 'no data' row, remove it
                     var first = $('#temuanRecordsTable tbody tr:first');
                     if (first.length && first.find('td').length === 1) {
@@ -1049,45 +979,6 @@ $(function () {
         $(this).next('.custom-file-label').html(fileName);
     });
 
-    // AJAX for change status
-    $('#changeStatusForm').submit(function(e) {
-        e.preventDefault();
-        var form = $(this);
-        var url = form.attr('action');
-        var data = form.serialize();
-        var btn = form.find('button[type="submit"]');
-        btn.prop('disabled', true);
-        Swal.fire({
-            title: 'Menyimpan perubahan status...',
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); }
-        });
-        $.post(url, data)
-            .done(function(res) {
-                $('#changeStatusModal').modal('hide');
-                if(res.status) {
-                    $('#status-text').text(res.status.toUpperCase());
-                }
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Status berhasil diubah!',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-            })
-            .fail(function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal mengubah status!',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-            })
-            .always(function() {
-                btn.prop('disabled', false);
-            });
-    });
-
     // ========== MULTI-GUDANG STOCK OPNAME HANDLERS ==========
     function blockUI() {
         try { $('#pageOverlay').show(); } catch(e) {}
@@ -1131,17 +1022,14 @@ $(function () {
                             showConfirmButton: false
                         });
                         
-                        // Reload table and enable update stock button (only if not completed)
+                        // Reload table and refresh header totals
                         table.ajax.reload();
-                        var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
-                        if (!isCompleted) {
-                            $('#updateStockBtn').prop('disabled', false);
-                        }
-                        $('#syncTotalsBtn').click(); // Auto sync totals
+                        syncTotals();
                         // Hide generate button immediately so user doesn't need to refresh
                         btn.hide();
-                        // Show submit button (updateStockBtn)
+                        // Status is now 'proses': Submit and Tambah Item become available
                         $('#updateStockBtn').show().prop('disabled', false);
+                        $('#addItemBtn').show();
                         // Update header to 'proses' (yellow) and update status text
                         $('#stokOpnameHeader').removeClass('bg-primary bg-success bg-warning text-white text-dark').addClass('bg-warning text-dark');
                         var newStatus = (res.status || 'proses').toUpperCase();
@@ -1171,9 +1059,30 @@ $(function () {
     
     // Update stock based on opname results using StokService
     $('#updateStockBtn').click(function() {
+        // Warn when stok changed since Generate (a transaction happened during the opname)
+        var checkReq = $.get("{{ route('erm.stokopname.submitCheck', $stokOpname->id) }}");
+        checkReq.always(function() {
+        var berubah = (checkReq.responseJSON && checkReq.responseJSON.berubah) || [];
+        var warningHtml = '';
+        if (checkReq.status !== 200) {
+            warningHtml = '<div class="alert alert-warning text-left">Pengecekan perubahan stok gagal dijalankan. Pastikan tidak ada transaksi di gudang ini sejak Generate Items.</div>';
+        } else if (berubah.length) {
+            var rows = berubah.slice(0, 15).map(function(b) {
+                return '<tr><td>' + $('<div>').text(b.nama + (b.batch ? ' (' + b.batch + ')' : '')).html() + '</td>'
+                    + '<td class="text-right">' + formatQty(b.stok_sistem) + '</td>'
+                    + '<td class="text-right">' + formatQty(b.stok_sekarang) + '</td></tr>';
+            }).join('');
+            var more = berubah.length > 15 ? '<div><small>... dan ' + (berubah.length - 15) + ' item lainnya</small></div>' : '';
+            warningHtml = '<div class="alert alert-danger text-left" style="font-size:13px;">'
+                + '<strong>Peringatan:</strong> ' + berubah.length + ' item stoknya sudah berubah sejak Generate Items (ada transaksi selama stok opname). '
+                + 'Jika tetap disubmit, stok item tersebut diset ke stok fisik dan transaksi tadi ikut tertimpa.'
+                + '<table class="table table-sm table-bordered mt-2 mb-1" style="background:#fff;"><thead><tr><th>Obat</th><th>Stok Sistem (Generate)</th><th>Stok Sekarang</th></tr></thead><tbody>' + rows + '</tbody></table>'
+                + more + '</div>';
+        }
         Swal.fire({
             title: 'Update Stock dari Hasil Opname?',
-            html: `
+            width: berubah.length ? 700 : undefined,
+            html: warningHtml + `
                 <p>Ini akan mengupdate stok fisik di gudang berdasarkan hasil stok opname menggunakan StokService:</p>
                 <ul style="text-align: left; margin: 10px 20px;">
                     <li><strong>Surplus</strong> (stok fisik > sistem): Akan menambah stok</li>
@@ -1220,8 +1129,10 @@ $(function () {
                         $('#stokOpnameHeader').removeClass('bg-primary bg-success bg-warning text-white text-dark').addClass('bg-success text-white');
                         $('#updateStockBtn').hide();
                         $('#generateItemsBtn').hide();
+                        $('#addItemBtn').hide();
 
-                        // Reload table
+                        // Opname is final now: the reloaded rows render stok fisik inputs disabled
+                        isCompleted = true;
                         table.ajax.reload();
                     } else {
                         Swal.fire({
@@ -1232,10 +1143,31 @@ $(function () {
                     }
                 })
                 .fail(function(xhr) {
+                    // 422 = already applied (e.g. the first request succeeded but its response was lost):
+                    // reload so the page shows the real, finished state
+                    if (xhr.status === 422) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'Sudah diterapkan',
+                            text: xhr.responseJSON?.message || 'Opname ini sudah diterapkan ke stok.'
+                        }).then(function() { location.reload(); });
+                        return;
+                    }
+                    // No response at all (network drop / browser timeout): the server may still have finished
+                    if (xhr.status === 0) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Koneksi terputus',
+                            text: 'Hasil submit tidak diketahui. Halaman akan dimuat ulang untuk mengecek status; jika masih PROSES, silakan Submit lagi.'
+                        }).then(function() { location.reload(); });
+                        return;
+                    }
+                    // Server answered with an error: nothing was changed (the whole submit is one transaction), safe to retry
                     Swal.fire({
                         icon: 'error',
-                        title: 'Error!',
-                        text: 'Failed to update stock: ' + (xhr.responseJSON?.message || 'Unknown error')
+                        title: 'Submit gagal, stok tidak berubah',
+                        text: (xhr.responseJSON?.message || ('Koneksi / server error (' + xhr.status + ')'))
+                            + '. Semua perubahan dibatalkan, silakan coba Submit lagi. Jika terus gagal, muat ulang halaman dulu.'
                     });
                 })
                 .always(function() {
@@ -1243,6 +1175,7 @@ $(function () {
                     unblockUI();
                 });
             }
+        });
         });
     });
 
@@ -1267,6 +1200,9 @@ $(function () {
 
         // Satuan stok: filled from the server response below (only valid satuan stok values are selectable)
         $('#edit_obat_satuan').val('');
+        // Clear values left from the previously edited obat, else they get saved onto this one
+        $('#edit_obat_kategori').val('');
+        $('#edit_obat_metode').val('');
 
         // Kategori: straightforward (text values)
         if (rowData && (rowData.kategori || rowData.obat_kategori)) $('#edit_obat_kategori').val(rowData.kategori || rowData.obat_kategori);
@@ -1302,7 +1238,7 @@ $(function () {
                         $met.val(mv);
                     } else if (res.metode_bayar && res.metode_bayar !== '') {
                         // append option with label
-                        $met.append('<option value="'+mv+'">'+res.metode_bayar+'</option>');
+                        $met.append('<option value="'+esc(mv)+'">'+esc(res.metode_bayar)+'</option>');
                         $met.val(mv);
                     }
                 }

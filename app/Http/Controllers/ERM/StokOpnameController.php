@@ -12,6 +12,7 @@ use App\Models\ERM\StokOpnameItem;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
@@ -32,6 +33,7 @@ class StokOpnameController extends Controller
             ->get();
         $totalStokSistem = 0;
         $totalStokFisik = 0;
+        $itemsWithSelisih = 0;
         foreach ($items as $item) {
             $hppJual = $item->obat ? ($item->obat->hpp ?? 0) : 0;
             // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
@@ -44,10 +46,17 @@ class StokOpnameController extends Controller
             $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
             // nilai stok fisik includes stok_fisik plus any recorded temuan (record-only)
             $totalStokFisik += $hppJual * ((float)($item->stok_fisik ?? 0) + $netTemuan);
+
+            $selisih = ((float) $item->stok_fisik - (float) $item->stok_sistem) + $netTemuan;
+            if (abs($selisih) > 0.000001) {
+                $itemsWithSelisih++;
+            }
         }
         return response()->json([
             'totalStokSistem' => $totalStokSistem,
             'totalStokFisik' => $totalStokFisik,
+            'itemsWithSelisih' => $itemsWithSelisih,
+            'totalItems' => $items->count(),
         ]);
     }
     /**
@@ -56,19 +65,22 @@ class StokOpnameController extends Controller
     public function updateStokFisik(Request $request, $itemId)
     {
         $request->validate([
-            'stok_fisik' => 'required|numeric',
+            'stok_fisik' => 'required|numeric|min:0',
+        ], [
+            'stok_fisik.min' => 'Stok fisik tidak boleh negatif.',
         ]);
-        $item = StokOpnameItem::findOrFail($itemId);
-        $stokFisik = (float) $request->stok_fisik;
-        $item->stok_fisik = $stokFisik;
-        // Ensure stok_sistem is treated as float (casted in model)
-        $stokSistem = (float) $item->stok_sistem;
-        $item->selisih = $stokFisik - $stokSistem;
+        $item = StokOpnameItem::with('stokOpname')->findOrFail($itemId);
+        if ($blocked = $this->tolakJikaSudahDiterapkan($item->stokOpname)) {
+            return $blocked;
+        }
+        $item->stok_fisik = (float) $request->stok_fisik;
         $item->save();
+        // selisih includes the item's temuan, same as everywhere else
+        $selisih = $this->recalcSelisihTemuan($item);
         return response()->json([
             'success' => true,
             'stok_fisik' => (float) $item->stok_fisik,
-            'selisih' => (float) $item->selisih,
+            'selisih' => (float) $selisih,
         ]);
     }
 
@@ -128,7 +140,7 @@ class StokOpnameController extends Controller
                 'temuan_records' => $temuanRecords->map(function($r) {
                     $userName = null;
                     if (!empty($r->created_by)) {
-                        $u = \App\Models\User::find($r->created_by);
+                        $u = \App\Models\User::query()->find($r->created_by);
                         $userName = $u ? $u->name : null;
                     }
                     return [
@@ -158,7 +170,8 @@ class StokOpnameController extends Controller
     public function addTemuanRecord(Request $request, $itemId)
     {
         $request->validate([
-            'qty' => 'required|numeric|min:0.0001',
+            // gudang stok is stored with 2 decimals
+            'qty' => 'required|numeric|min:0.01|decimal:0,2',
             // Backward compatible: old values (kurang/lebih) and new values (plus/minus)
             'jenis' => 'required|in:kurang,lebih,plus,minus',
             'keterangan' => 'nullable|string|max:255',
@@ -173,10 +186,10 @@ class StokOpnameController extends Controller
                 'qty' => $request->qty,
                 'jenis' => $request->jenis,
                 'keterangan' => $request->keterangan,
-                'created_by' => auth()->id()
+                'created_by' => Auth::id()
             ]);
 
-            $createdByName = auth()->user() ? auth()->user()->name : null;
+            $createdByName = Auth::user() ? Auth::user()->name : null;
 
             // Recalculate and persist selisih on the opname item
             $recordNet = DB::table('erm_stok_opname_temuan')
@@ -261,6 +274,11 @@ class StokOpnameController extends Controller
                 $item = StokOpnameItem::with('stokOpname')->findOrFail($r->stok_opname_item_id);
                 $stokOpname = $item->stokOpname;
 
+                // Before Submit Stok the opname would later reset stok to stok_fisik and erase this temuan
+                if (!$this->opnameSudahDiterapkan($stokOpname)) {
+                    throw new \RuntimeException('Opname belum di-Submit Stok. Temuan baru bisa diproses setelah penyesuaian opname diterapkan.');
+                }
+
                 $qty = (float) $r->qty;
                 if ($qty <= 0) {
                     throw new \RuntimeException('Qty temuan harus lebih dari 0.');
@@ -271,8 +289,9 @@ class StokOpnameController extends Controller
 
                 $stokService = app(\App\Services\ERM\StokService::class);
 
-                // Stored values (legacy names kept): lebih/minus = physical stock higher -> add,
-                // kurang/plus = physical stock lower -> remove
+                // A temuan explains part of the selisih; processing undoes the opname adjustment for that qty
+                // (the real transaction gets input later). plus/kurang = explains a selisih plus (fisik lebih)
+                // -> remove; minus/lebih = explains a selisih minus (fisik kurang) -> add back
                 if (in_array($jenis, ['lebih', 'minus'], true)) {
                     $targetBatch = $item->batch_name;
                     $targetExp = $item->expiration_date;
@@ -337,7 +356,7 @@ class StokOpnameController extends Controller
                             $stokOpname->id,
                             $keterangan
                         );
-                        $toRemove -= $remQty;
+                        $toRemove = round($toRemove - $remQty, 4);
                     }
                 }
 
@@ -348,7 +367,7 @@ class StokOpnameController extends Controller
             });
 
             return ['success' => true, 'selisih' => $selisih];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::warning('applyTemuanToStok failed: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
         }
@@ -439,7 +458,7 @@ class StokOpnameController extends Controller
             'periode_tahun' => $request->periode_tahun,
             'notes' => $request->notes,
             'status' => 'draft',
-            'created_by' => auth()->id(),
+            'created_by' => Auth::id(),
         ]);
         return response()->json(['success' => true, 'id' => $stokOpname->id]);
     }
@@ -673,6 +692,9 @@ class StokOpnameController extends Controller
 
         try {
             $stokOpname = StokOpname::findOrFail($stokOpnameId);
+            if ($blocked = $this->tolakJikaSudahDiterapkan($stokOpname)) {
+                return $blocked;
+            }
 
             $obatId = (int)$request->obat_id;
 
@@ -798,6 +820,7 @@ class StokOpnameController extends Controller
     public function temuanData(Request $request, $id)
     {
         $stokOpname = StokOpname::find($id);
+        $opnameApplied = $stokOpname ? $this->opnameSudahDiterapkan($stokOpname) : false;
 
         $data = \App\Models\ERM\StokOpnameTemuan::with(['item.obat'])
             ->where('stok_opname_id', $id)
@@ -819,16 +842,19 @@ class StokOpnameController extends Controller
                 }
                 return '<span class="badge badge-warning">Belum Diproses</span>';
             })
-            ->addColumn('aksi', function($r) use ($stokOpname) {
+            ->addColumn('aksi', function($r) use ($opnameApplied) {
                 $btn = '';
-                // show "Proses" button only when opname is completed and temuan not yet processed
-                if ($stokOpname && $stokOpname->status === 'selesai' && (empty($r->process_status) || $r->process_status == 0)) {
+                // show "Proses" button only when the opname was applied (Submit Stok) and temuan not yet processed
+                if ($opnameApplied && (empty($r->process_status) || $r->process_status == 0)) {
                     $btn .= '<button class="btn btn-success btn-sm process-temuan" data-id="'.$r->id.'">Proses</button> ';
                 }
                 $btn .= '<button class="btn btn-danger btn-sm delete-temuan" data-id="'.$r->id.'">Hapus</button>';
                 return $btn;
             })
-            ->with(['opname_status' => $stokOpname ? $stokOpname->status : null])
+            ->with([
+                'opname_status' => $stokOpname ? $stokOpname->status : null,
+                'opname_applied' => $opnameApplied,
+            ])
             ->rawColumns(['aksi','process_status'])
             ->make(true);
     }
@@ -839,17 +865,22 @@ class StokOpnameController extends Controller
             'file' => 'required|file|mimes:xlsx,xls',
         ]);
         $stokOpname = StokOpname::findOrFail($id);
+        if ($this->opnameSudahDiterapkan($stokOpname)) {
+            return back()->with('error', 'Opname ini sudah di-Submit Stok, data tidak bisa diubah lagi.');
+        }
         DB::beginTransaction();
         try {
             $import = new StokOpnameImport($stokOpname->id);
             Excel::import($import, $request->file('file'));
             DB::commit();
-            if ($import->imported > 0) {
-                return back()->with('success', 'Data stok opname berhasil diupload: ' . $import->imported . ' baris.');
-            } else {
-                $msg = 'Tidak ada data yang diimport. Pastikan header kolom: obat_id, stok_sistem, stok_fisik. Baris dilewati: ' . json_encode($import->skippedRows);
-                return back()->with('error', $msg);
+            if ($import->imported <= 0) {
+                return back()->with('error', 'Tidak ada data yang diimport. Pastikan header kolom: obat_id, stok_sistem, stok_fisik. Baris dilewati: ' . json_encode($import->skippedRows));
             }
+            $msg = 'Data stok opname berhasil diupload: ' . $import->imported . ' baris.';
+            if ($import->skipped > 0) {
+                $msg .= ' Dilewati ' . $import->skipped . ' baris: ' . json_encode($import->skippedRows);
+            }
+            return back()->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Gagal upload: ' . $e->getMessage());
@@ -943,7 +974,14 @@ class StokOpnameController extends Controller
                 $query->whereRaw('COALESCE(erm_stok_opname_items.stok_fisik,0) <> 0');
             }
 
+            // Header "Items Selisih": whole opname, not just the current page / filters
+            $itemsWithSelisih = DB::table('erm_stok_opname_items')
+                ->where('stok_opname_id', $id)
+                ->whereRaw("ABS(" . $adjustExpr . ") > 0.000001")
+                ->count();
+
             return datatables()->of($query)
+                ->with(['items_with_selisih' => $itemsWithSelisih])
                 // Override selisih column to show adjusted selisih that includes unprocessed record-only temuan
                 ->addColumn('selisih', function($row) {
                     // $row is stdClass; use adjusted_selisih if present, else fallback to stored selisih
@@ -1044,12 +1082,22 @@ class StokOpnameController extends Controller
             'status' => 'required|in:draft,proses,selesai',
         ]);
         $stokOpname = StokOpname::findOrFail($id);
+        $sudahDiterapkan = $this->opnameSudahDiterapkan($stokOpname);
 
         // Once the adjustment hit the stok the opname is final; reopening it would allow applying it again
-        if ($this->opnameSudahDiterapkan($stokOpname) && $request->status !== 'selesai') {
+        if ($sudahDiterapkan && $request->status !== 'selesai') {
             return response()->json([
                 'success' => false,
                 'message' => 'Opname ini sudah diterapkan ke stok, jadi statusnya tidak bisa diubah lagi.'
+            ], 422);
+        }
+
+        // 'selesai' only comes from Submit Stok; set by hand it hides Submit and opens temuan processing
+        // while the stok was never adjusted
+        if (!$sudahDiterapkan && $request->status === 'selesai') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Status Selesai hanya bisa didapat lewat tombol Submit Stok.'
             ], 422);
         }
 
@@ -1069,6 +1117,21 @@ class StokOpnameController extends Controller
     }
 
     /**
+     * 422 response when the opname was already applied (items are then a final record), else null.
+     */
+    private function tolakJikaSudahDiterapkan(StokOpname $stokOpname)
+    {
+        if (!$this->opnameSudahDiterapkan($stokOpname)) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Opname ini sudah di-Submit Stok, data item tidak bisa diubah lagi.'
+        ], 422);
+    }
+
+    /**
      * Generate stok opname items from current stock in selected gudang
      */
     public function generateStokOpnameItems($stokOpnameId)
@@ -1076,9 +1139,23 @@ class StokOpnameController extends Controller
         try {
             DB::beginTransaction();
             
-            $stokOpname = StokOpname::findOrFail($stokOpnameId);
+            $stokOpname = StokOpname::lockForUpdate()->findOrFail($stokOpnameId);
             $gudangId = $stokOpname->gudang_id;
-            
+
+            if ($blocked = $this->tolakJikaSudahDiterapkan($stokOpname)) {
+                DB::rollBack();
+                return $blocked;
+            }
+            // Regenerating deletes the items; their temuan would point to nothing
+            $jumlahTemuan = \App\Models\ERM\StokOpnameTemuan::where('stok_opname_id', $stokOpnameId)->count();
+            if ($jumlahTemuan > 0) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => "Opname ini sudah punya {$jumlahTemuan} temuan. Hapus temuannya dulu sebelum Generate Items ulang."
+                ], 422);
+            }
+
             // Delete existing items for regeneration
             StokOpnameItem::where('stok_opname_id', $stokOpnameId)->delete();
             // New behavior: generate one aggregated item per obat (single row per obat)
@@ -1130,16 +1207,58 @@ class StokOpnameController extends Controller
             return response()->json([
                 'success' => true,
                 'status' => $stokOpname->status,
-                'message' => 'Generated ' . $stokList->count() . ' items for stock opname'
+                'message' => 'Generated ' . $grouped->count() . ' items for stock opname'
             ]);
-            
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
             DB::rollback();
             return response()->json([
                 'success' => false, 
                 'message' => 'Failed to generate items: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Items whose current gudang stok no longer equals the stok sistem captured at Generate,
+     * i.e. a transaction happened during the opname. Shown as a warning before Submit Stok.
+     */
+    public function submitCheck($stokOpnameId)
+    {
+        $stokOpname = StokOpname::findOrFail($stokOpnameId);
+
+        $items = StokOpnameItem::with('obat')
+            ->where('stok_opname_id', $stokOpname->id)
+            ->get();
+
+        $currentPerObat = DB::table('erm_obat_stok_gudang')
+            ->where('gudang_id', $stokOpname->gudang_id)
+            ->whereIn('obat_id', $items->pluck('obat_id')->unique())
+            ->whereNull('deleted_at')
+            ->groupBy('obat_id')
+            ->select('obat_id', DB::raw('SUM(stok) as total'))
+            ->pluck('total', 'obat_id');
+        $currentPerBatch = DB::table('erm_obat_stok_gudang')
+            ->whereIn('id', $items->pluck('batch_id')->filter())
+            ->pluck('stok', 'id');
+
+        $berubah = [];
+        foreach ($items as $item) {
+            $current = $item->batch_id
+                ? (float) ($currentPerBatch[$item->batch_id] ?? 0)
+                : (float) ($currentPerObat[$item->obat_id] ?? 0);
+            $sistem = (float) $item->stok_sistem;
+            if (abs($current - $sistem) >= 0.01) {
+                $berubah[] = [
+                    'nama' => $item->obat ? $item->obat->nama : ('Obat #' . $item->obat_id),
+                    'batch' => $item->batch_name,
+                    'stok_sistem' => $sistem,
+                    'stok_sekarang' => $current,
+                ];
+            }
+        }
+
+        return response()->json(['success' => true, 'berubah' => $berubah]);
     }
 
     /**
@@ -1168,7 +1287,14 @@ class StokOpnameController extends Controller
             $items = StokOpnameItem::where('stok_opname_id', $stokOpnameId)
                 ->with(['obatStokGudang', 'obat'])
                 ->get();
-            
+            if ($items->isEmpty()) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Opname ini belum punya item. Generate Items dulu.'
+                ], 422);
+            }
+
             foreach ($items as $item) {
                 // If the item was generated per-batch we have obatStokGudang relation.
                 // If the item is aggregated per-obat (batch_id == null), distribute the change across batches.
@@ -1179,10 +1305,45 @@ class StokOpnameController extends Controller
                         ->orderBy('expiration_date', 'desc')
                         ->get();
 
-                    if ($batches->isEmpty()) continue;
-
                     $currentTotal = (float) $batches->sum('stok');
                     $targetTotal = (float) $item->stok_fisik;
+
+                    // The obat's stok rows were removed since Generate: counted stok goes to a row
+                    // without batch; nothing counted still gets its kartu stok row (marks the opname applied)
+                    if ($batches->isEmpty()) {
+                        if ($targetTotal > 0.000001) {
+                            $stokService->tambahStok(
+                                $item->obat_id,
+                                $stokOpname->gudang_id,
+                                $targetTotal,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                'stok_opname',
+                                $stokOpname->id,
+                                $this->buildStokOpnameKeterangan("OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}", 0, $targetTotal, 'surplus ' . $this->formatStockNumber($targetTotal) . ' (tanpa batch)')
+                            );
+                        } else {
+                            \App\Models\ERM\KartuStok::create([
+                                'obat_id' => $item->obat_id,
+                                'gudang_id' => $stokOpname->gudang_id,
+                                'tanggal' => now(),
+                                'tipe' => 'stok_opname',
+                                'qty' => 0,
+                                'stok_setelah' => 0,
+                                'ref_type' => 'stok_opname',
+                                'ref_id' => $stokOpname->id,
+                                'batch' => null,
+                                'keterangan' => $this->buildStokOpnameKeterangan(null, 0, 0, 'tidak ada perubahan'),
+                                'user_id' => Auth::id()
+                            ]);
+                        }
+                        $updatedCount++;
+                        continue;
+                    }
 
                     // If there is no change, still record a kartu stok entry for this opname (qty 0)
                     if (abs($targetTotal - $currentTotal) < 0.000001) {
@@ -1197,7 +1358,7 @@ class StokOpnameController extends Controller
                             'ref_id' => $stokOpname->id,
                             'batch' => null,
                             'keterangan' => $this->buildStokOpnameKeterangan(null, $currentTotal, $targetTotal, 'tidak ada perubahan'),
-                            'user_id' => auth()->id()
+                            'user_id' => Auth::id()
                         ]);
                         $updatedCount++;
                         continue;
@@ -1251,7 +1412,8 @@ class StokOpnameController extends Controller
                                 $stokOpname->id,
                                 $this->buildStokOpnameKeterangan($opnameRef, $available, $available - $remQty, 'shortage ' . $this->formatStockNumber($remQty) . ' (aggregated)')
                             );
-                            $toRemove -= $remQty;
+                            // Rounded: float leftovers (e.g. 1e-13) must not become extra tiny kartu stok rows
+                            $toRemove = round($toRemove - $remQty, 4);
                         }
                     }
 
@@ -1259,7 +1421,28 @@ class StokOpnameController extends Controller
                     continue;
                 }
 
-                if (!$item->obatStokGudang) continue;
+                if (!$item->obatStokGudang) {
+                    // Batch row removed since the import: re-create it with the counted stok
+                    $targetStock = (float) $item->stok_fisik;
+                    if ($targetStock > 0.000001) {
+                        $stokService->tambahStok(
+                            $item->obat_id,
+                            $stokOpname->gudang_id,
+                            $targetStock,
+                            $item->batch_name,
+                            $item->expiration_date,
+                            null,
+                            null,
+                            null,
+                            null,
+                            'stok_opname',
+                            $stokOpname->id,
+                            $this->buildStokOpnameKeterangan("OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}", 0, $targetStock, 'surplus ' . $this->formatStockNumber($targetStock))
+                        );
+                        $updatedCount++;
+                    }
+                    continue;
+                }
 
                 $stokGudang = $item->obatStokGudang;
 
@@ -1281,7 +1464,7 @@ class StokOpnameController extends Controller
                         'ref_id' => $stokOpname->id,
                         'batch' => $stokGudang->batch,
                         'keterangan' => $this->buildStokOpnameKeterangan(null, $currentStock, $targetStock, 'tidak ada perubahan'),
-                        'user_id' => auth()->id()
+                        'user_id' => Auth::id()
                     ]);
                     $updatedCount++;
                     continue;
@@ -1334,9 +1517,11 @@ class StokOpnameController extends Controller
                 'success' => true, 
                 'message' => "Successfully updated {$updatedCount} stock adjustments from stock opname"
             ]);
-            
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
+            // Throwable, not only Exception: a PHP Error must also roll back and answer with a message
             DB::rollback();
+            Log::error('updateStokFromOpname failed', ['stok_opname_id' => $stokOpnameId, 'error' => $e->getMessage()]);
             return response()->json([
                 'success' => false, 
                 'message' => 'Failed to update stock: ' . $e->getMessage()

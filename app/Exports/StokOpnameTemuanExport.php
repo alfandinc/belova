@@ -31,7 +31,7 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
         $data = $rows->map(function ($r) {
             $userName = null;
             if (!empty($r->created_by)) {
-                $u = User::find($r->created_by);
+                $u = User::query()->find($r->created_by);
                 $userName = $u ? $u->name : null;
             }
 
@@ -46,9 +46,10 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
             $sign = (in_array($r->jenis, ['lebih', 'minus'], true)) ? -1 : 1;
             $nilaiNominal = $hppJual * $qty * $sign;
 
+            // plus (legacy kurang) explains a selisih plus, minus (legacy lebih) a selisih minus
             $jenisSelisih = $r->jenis;
-            if ($r->jenis === 'kurang') $jenisSelisih = 'plus';
-            if ($r->jenis === 'lebih') $jenisSelisih = 'minus';
+            if (in_array($r->jenis, ['plus', 'kurang'], true)) $jenisSelisih = 'Fisik lebih (selisih +)';
+            if (in_array($r->jenis, ['minus', 'lebih'], true)) $jenisSelisih = 'Fisik kurang (selisih −)';
 
             $processStatusLabel = (!empty($r->process_status) && (int) $r->process_status === 1)
                 ? 'Diproses'

@@ -216,6 +216,19 @@ $(function () {
     return number.toFixed(4).replace(/\.?0+$/, '');
   }
 
+  // plus (legacy 'kurang') = explains a selisih plus (fisik lebih); minus (legacy 'lebih') = selisih minus
+  function temuanJenisLabel(jenis) {
+    if (jenis === 'plus' || jenis === 'kurang') return 'Fisik lebih (selisih +)';
+    if (jenis === 'minus' || jenis === 'lebih') return 'Fisik kurang (selisih −)';
+    return jenis || '-';
+  }
+
+  // Processing undoes the opname adjustment for this qty, for when the real transaction
+  // (faktur / penjualan / pemakaian) is input later and would otherwise be counted twice
+  var TEMUAN_PROCESS_NOTE = 'Proses hanya jika transaksi penyebabnya (faktur, penjualan, pemakaian) akan diinput belakangan. '
+    + 'Proses = membatalkan penyesuaian opname untuk qty ini agar tidak terhitung dua kali. '
+    + 'Jika temuan hanya penjelasan (mis. salah hitung periode lalu), jangan diproses.';
+
   function getTemuanProcessInfo(jenis) {
     if (jenis === 'lebih' || jenis === 'minus') {
       return {
@@ -511,7 +524,7 @@ $(function () {
             { data: 'qty', name: 'qty', render: function(data, type, row){
               return formatTemuanQty(data);
             } },
-            { data: 'jenis', name: 'jenis' },
+            { data: 'jenis', name: 'jenis', render: function(data){ return escapeHtml(temuanJenisLabel(data)); } },
             { data: 'process_status', name: 'process_status' },
             { data: 'keterangan', name: 'keterangan' },
             { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
@@ -525,8 +538,8 @@ $(function () {
         temuanTable.off('xhr.temuanStatus').on('xhr.temuanStatus', function() {
           try {
             var json = temuanTable.ajax.json();
-            var opnameStatus = json && json.opname_status ? json.opname_status : '';
-            if (opnameStatus === 'selesai') {
+            // temuan can only be processed after Submit Stok applied the opname
+            if (json && json.opname_applied) {
               $('#process-selected').show();
             } else {
               $('#process-selected').hide();
@@ -591,6 +604,7 @@ $(function () {
         '<p>Proses <strong>' + ids.length + '</strong> temuan terpilih ke stok?</p>' +
         '<p class="mb-1 text-success"><strong>Menambah stok:</strong> ' + summary.tambahCount + ' temuan (qty ' + formatTemuanQty(summary.tambahQty) + ')</p>' +
         '<p class="mb-0 text-danger"><strong>Mengurangi stok:</strong> ' + summary.kurangCount + ' temuan (qty ' + formatTemuanQty(summary.kurangQty) + ')</p>' +
+        '<p class="mt-2 mb-0 small text-muted">' + TEMUAN_PROCESS_NOTE + '</p>' +
         '</div>';
       var bulkText = 'Proses ' + ids.length + ' temuan ke stok?\n' +
         'Menambah stok: ' + summary.tambahCount + ' temuan (qty ' + formatTemuanQty(summary.tambahQty) + ')\n' +
@@ -640,7 +654,7 @@ $(function () {
       var info = getTemuanProcessInfo(rowData ? rowData.jenis : null);
       var obatName = rowData && rowData.obat ? rowData.obat : 'obat ini';
       var qtyText = formatTemuanQty(rowData ? rowData.qty : '');
-      var jenisText = rowData && rowData.jenis ? rowData.jenis : '-';
+      var jenisText = temuanJenisLabel(rowData ? rowData.jenis : null);
 
       var singleHtml = '<div class="text-left">' +
         '<p>Temuan ini akan diproses ke stok.</p>' +
@@ -648,6 +662,7 @@ $(function () {
         '<p class="mb-1"><strong>Qty:</strong> ' + escapeHtml(qtyText) + '</p>' +
         '<p class="mb-1"><strong>Jenis Selisih:</strong> ' + escapeHtml(jenisText) + '</p>' +
         '<p class="mb-0 ' + (info.action === 'tambah' ? 'text-success' : 'text-danger') + '"><strong>' + info.label + ':</strong> qty ' + escapeHtml(qtyText) + ' ' + info.preposition + '</p>' +
+        '<p class="mt-2 mb-0 small text-muted">' + TEMUAN_PROCESS_NOTE + '</p>' +
         '</div>';
       var singleText = 'Proses temuan ini ke stok?\n' +
         'Obat: ' + obatName + '\n' +

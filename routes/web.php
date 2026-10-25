@@ -1247,7 +1247,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/generate-items', [\App\Http\Controllers\ERM\StokOpnameController::class, 'generateStokOpnameItems'])->name('erm.stokopname.generateItems');
     Route::post('/{id}/add-item', [\App\Http\Controllers\ERM\StokOpnameController::class, 'addItem'])->name('erm.stokopname.addItem');
     Route::get('/{id}/available-obats', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getAvailableObats'])->name('erm.stokopname.availableObats');
-    Route::post('/{id}/update-stock-from-opname', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFromOpname'])->name('erm.stokopname.updateStockFromOpname');
+    Route::get('/{id}/submit-check', [\App\Http\Controllers\ERM\StokOpnameController::class, 'submitCheck'])->name('erm.stokopname.submitCheck');
+    Route::post('/{id}/update-stock-from-opname',[\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFromOpname'])->name('erm.stokopname.updateStockFromOpname');
     Route::post('/generate-lembur-so', [\App\Http\Controllers\ERM\StokOpnameController::class, 'generateLemburSo'])->name('erm.stokopname.generateLemburSo');
     });
 
