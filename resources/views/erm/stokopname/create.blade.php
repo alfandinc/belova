@@ -144,8 +144,14 @@
                 <div class="card-body">
                     
                     @php
-                        $totalItems = $items->count();
-                        $itemsWithSelisih = $items->filter(function($it){ return (float)($it->selisih ?? 0) != 0; })->count();
+                        $totalItems = $totals['totalItems'];
+                        $itemsWithSelisih = $totals['itemsWithSelisih'];
+                        $totalStokSistem = $totals['totalStokSistem'];
+                        $totalStokFisik = $totals['totalStokFisik'];
+                        $fmtRpSigned = function ($v) {
+                            $v = round((float) $v);
+                            return ($v > 0 ? '+' : ($v < 0 ? '−' : '')) . 'Rp ' . number_format(abs($v), 0, ',', '.');
+                        };
                     @endphp
 
                     <div class="row mt-1 stat-row">
@@ -163,9 +169,12 @@
                         </div>
                         <div class="col stat-col">
                             <div class="stat-box stat-warning" id="selisihNilaiBox">
-                                <div class="stat-label">Selisih Nilai</div>
-                                @php $selisihVal = ($totalStokSistem - $totalStokFisik); @endphp
-                                <div class="stat-value">Rp <span id="selisihNilaiText">{{ number_format($selisihVal, 0, ',', '.') }}</span></div>
+                                {{-- Same direction as the item selisih: + = fisik lebih, − = fisik kurang --}}
+                                <div class="stat-label" title="Nilai fisik − nilai sistem (+ lebih, − kurang)">Selisih Nilai</div>
+                                <div class="stat-value">
+                                    <span id="selisihNilaiText">{{ $fmtRpSigned($totals['selisihNilai']) }}</span>
+                                    <div class="small text-muted" style="font-weight:600;" title="Bagian selisih yang belum dijelaskan temuan">belum terjelaskan: <span id="sisaNilaiText">{{ $fmtRpSigned($totals['sisaNilai']) }}</span></div>
+                                </div>
                             </div>
                         </div>
                         <div class="col stat-col small-stat">
@@ -176,7 +185,7 @@
                         </div>
                         <div class="col stat-col small-stat-wide">
                             <div class="stat-box stat-danger" id="itemsWithSelisihBox">
-                                <div class="stat-label">Items Selisih</div>
+                                <div class="stat-label" title="Item yang masih punya selisih belum terjelaskan temuan">Items Belum Terjelaskan</div>
                                 <div class="stat-value"><span id="itemsWithSelisihText">{{ $itemsWithSelisih }}</span></div>
                             </div>
                         </div>
@@ -315,8 +324,8 @@
                     <label class="mr-2" for="filterSelisih" style="font-size:0.85rem; color:#6c757d; text-transform:none;">Filter:</label>
                     <select id="filterSelisih" class="form-control form-control-sm mr-2">
                         <option value="">All</option>
-                        <option value="with">With Selisih</option>
-                        <option value="without">No Selisih</option>
+                        <option value="with">Selisih belum terjelaskan</option>
+                        <option value="without">Sesuai / sudah terjelaskan</option>
                     </select>
 
                     <label class="mr-2 ml-2" for="filterKategori" style="font-size:0.85rem; color:#6c757d; text-transform:none;">Kategori:</label>
@@ -368,8 +377,8 @@
                             <th style="width:6%">Satuan</th>
                             <th style="width:10%">Stok Sistem</th>
                             <th style="width:10%">Stok Fisik</th>
-                            <th style="width:8%">Total Temuan</th>
-                            <th style="width:10%">Selisih</th>
+                            <th style="width:8%" title="Bagian selisih yang sudah dijelaskan oleh temuan">Terjelaskan Temuan</th>
+                            <th style="width:10%" title="Stok fisik − stok sistem; di bawahnya sisa yang belum terjelaskan">Selisih</th>
                             <th style="width:6%">Exp Date</th>
                             <th style="width:7%">Nilai Stok</th>
                             <th style="width:9%">Aksi</th>
@@ -421,6 +430,12 @@ $(function () {
             return String(Math.round(n));
         }
         return n.toFixed(2);
+    }
+    // +30 / −30 / 0 (selisih direction: + = fisik lebih, − = fisik kurang)
+    function formatSigned(q) {
+        var n = parseFloat(q) || 0;
+        if (Math.abs(n) < 1e-9) return '0';
+        return (n > 0 ? '+' : '−') + formatQty(Math.abs(n));
     }
     // Temuan explains part of the selisih: plus (legacy 'kurang') = selisih plus / fisik lebih,
     // minus (legacy 'lebih') = selisih minus / fisik kurang. Its net offsets the item's selisih.
@@ -482,10 +497,15 @@ $(function () {
             btn.html('<i class="fa fa-sync fa-spin"></i> Syncing...');
         }
         $.get("{{ route('erm.stokopname.syncTotals', $stokOpname->id) }}", function(res) {
-            $('#totalStokSistemText').text(res.totalStokSistem.toLocaleString('id-ID'));
-            $('#totalStokFisikText').text(res.totalStokFisik.toLocaleString('id-ID'));
-            var sel = (parseFloat(res.totalStokSistem) || 0) - (parseFloat(res.totalStokFisik) || 0);
-            $('#selisihNilaiText').text(sel.toLocaleString('id-ID'));
+            var rp = function(v) { return Math.round(parseFloat(v) || 0).toLocaleString('id-ID'); };
+            var rpSigned = function(v) {
+                var n = Math.round(parseFloat(v) || 0);
+                return (n > 0 ? '+' : (n < 0 ? '−' : '')) + 'Rp ' + Math.abs(n).toLocaleString('id-ID');
+            };
+            $('#totalStokSistemText').text(rp(res.totalStokSistem));
+            $('#totalStokFisikText').text(rp(res.totalStokFisik));
+            $('#selisihNilaiText').text(rpSigned(res.selisihNilai));
+            $('#sisaNilaiText').text(rpSigned(res.sisaNilai));
             if (typeof res.itemsWithSelisih !== 'undefined') $('#itemsWithSelisihText').text(res.itemsWithSelisih);
             if (typeof res.totalItems !== 'undefined') $('#totalItemsText').text(res.totalItems);
         }).always(function() {
@@ -541,10 +561,27 @@ $(function () {
                     return `<input type="number" step="0.01" min="0" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${formatQty(data)}" style="width:110px; text-align:right;" ${disabledAttr}>`;
                 }
             },
-            { data: 'total_temuan', name: 'total_temuan', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { if (data === null || data === undefined) data = 0; return formatQty(data); } },
-            { data: 'selisih', name: 'selisih', className: 'text-right', render: function(data, type, row) { var txt = formatQty(data); if (parseFloat(data) != 0) { return txt + ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>'; } else { return txt + ' <i class="fa fa-check text-success" title="Sesuai"></i>'; } } },
+            // total_temuan is the net offset (−qty for "fisik lebih"); shown as the explained amount in the selisih direction
+            { data: 'total_temuan', name: 'total_temuan', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) {
+                    var explained = -(parseFloat(data) || 0);
+                    return Math.abs(explained) < 1e-9 ? '<span class="text-muted">-</span>' : formatSigned(explained);
+                } },
+            // data = sisa belum terjelaskan (selisih + net temuan); the main number is the raw fisik − sistem
+            { data: 'selisih', name: 'selisih', className: 'text-right', render: function(data, type, row) {
+                    var raw = (parseFloat(row.stok_fisik) || 0) - (parseFloat(row.stok_sistem) || 0);
+                    var sisa = parseFloat(data) || 0;
+                    var hasTemuan = Math.abs((parseFloat(row.total_temuan) || 0)) > 1e-9;
+                    var icon = Math.abs(sisa) > 1e-9
+                        ? ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih belum terjelaskan"></i>'
+                        : ' <i class="fa fa-check text-success" title="' + (Math.abs(raw) > 1e-9 ? 'Selisih sudah terjelaskan temuan' : 'Sesuai') + '"></i>';
+                    var html = '<strong>' + formatSigned(raw) + '</strong>' + icon;
+                    if (hasTemuan) {
+                        html += '<div class="small text-muted">sisa ' + formatSigned(sisa) + '</div>';
+                    }
+                    return html;
+                } },
             { data: 'nearest_exp', name: 'nearest_exp', className: 'text-center', render: function(data, type, row) { return data || '-'; } },
-            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = (parseFloat(row.stok_fisik) || 0) + (parseFloat(row.total_temuan) || 0); var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
+            { data: null, name: 'nilai_stok', orderable: false, searchable: false, className: 'text-right', render: function(data, type, row) { var hpp = parseFloat(row.hpp_obat) || 0; var stokFisik = parseFloat(row.stok_fisik) || 0; var nilai = hpp * stokFisik; return 'Rp ' + nilai.toLocaleString('id-ID'); } },
                 { data: null, orderable: false, searchable: false, className: 'text-center', render: function(data, type, row) {
                         var id = row.id || '';
                         var obatId = row.obat_id || row.obatId || '';

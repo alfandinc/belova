@@ -38,7 +38,7 @@
         <th>Periode</th>
         <th>Tanggal Opname</th>
         <th>Status</th>
-        <th>Obat Selisih</th>
+        <th title="Obat yang selisihnya belum terjelaskan temuan">Obat Belum Terjelaskan</th>
         <th>Aksi</th>
       </tr>
         </thead>

@@ -28,36 +28,49 @@ class StokOpnameController extends Controller
      */
     public function getStokTotals($id)
     {
+        return response()->json($this->hitungTotalOpname($id));
+    }
+
+    /**
+     * Header totals (nilai = hpp x qty). Stok fisik is the stok after Submit, so nilai fisik uses it alone.
+     * Temuan only explain the selisih: sisa = (fisik - sistem) + net temuan is the unexplained part.
+     * Signs follow the item selisih: + = fisik lebih, - = fisik kurang.
+     */
+    private function hitungTotalOpname($stokOpnameId): array
+    {
         $items = StokOpnameItem::with('obat')
-            ->where('stok_opname_id', $id)
+            ->where('stok_opname_id', $stokOpnameId)
             ->get();
+        $netPerItem = DB::table('erm_stok_opname_temuan')
+            ->whereIn('stok_opname_item_id', $items->pluck('id'))
+            ->groupBy('stok_opname_item_id')
+            ->select('stok_opname_item_id', DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
+            ->pluck('net', 'stok_opname_item_id');
+
         $totalStokSistem = 0;
         $totalStokFisik = 0;
+        $sisaNilai = 0;
         $itemsWithSelisih = 0;
         foreach ($items as $item) {
-            $hppJual = $item->obat ? ($item->obat->hpp ?? 0) : 0;
-            // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
-            $recordNet = DB::table('erm_stok_opname_temuan')
-                ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
-                ->first();
-            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+            $hpp = $item->obat ? (float) ($item->obat->hpp ?? 0) : 0;
+            $sisa = ((float) $item->stok_fisik - (float) $item->stok_sistem) + (float) ($netPerItem[$item->id] ?? 0);
 
-            $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
-            // nilai stok fisik includes stok_fisik plus any recorded temuan (record-only)
-            $totalStokFisik += $hppJual * ((float)($item->stok_fisik ?? 0) + $netTemuan);
-
-            $selisih = ((float) $item->stok_fisik - (float) $item->stok_sistem) + $netTemuan;
-            if (abs($selisih) > 0.000001) {
+            $totalStokSistem += $hpp * (float) $item->stok_sistem;
+            $totalStokFisik += $hpp * (float) $item->stok_fisik;
+            $sisaNilai += $hpp * $sisa;
+            if (abs($sisa) > 0.000001) {
                 $itemsWithSelisih++;
             }
         }
-        return response()->json([
+
+        return [
             'totalStokSistem' => $totalStokSistem,
             'totalStokFisik' => $totalStokFisik,
+            'selisihNilai' => $totalStokFisik - $totalStokSistem,
+            'sisaNilai' => $sisaNilai,
             'itemsWithSelisih' => $itemsWithSelisih,
             'totalItems' => $items->count(),
-        ]);
+        ];
     }
     /**
      * Inline update stok fisik and recalculate selisih
@@ -626,26 +639,10 @@ class StokOpnameController extends Controller
     public function create($id)
     {
         $stokOpname = StokOpname::with('gudang')->findOrFail($id);
-        $items = StokOpnameItem::with('obat')
-            ->where('stok_opname_id', $stokOpname->id)
-            ->get();
+        $items = StokOpnameItem::where('stok_opname_id', $stokOpname->id)->get();
 
-        // Calculate total nilai stok sistem and stok fisik (based on hpp)
-        $totalStokSistem = 0;
-        $totalStokFisik = 0;
-        foreach ($items as $item) {
-            $hppJual = $item->obat ? ($item->obat->hpp ?? 0) : 0;
-            // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
-            $recordNet = DB::table('erm_stok_opname_temuan')
-                ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
-                ->first();
-            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
-
-            $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
-            // nilai stok fisik includes stok_fisik plus any recorded temuan (record-only)
-            $totalStokFisik += $hppJual * ((float)($item->stok_fisik ?? 0) + $netTemuan);
-        }
+        // Header totals (nilai sistem / fisik / selisih / belum terjelaskan)
+        $totals = $this->hitungTotalOpname($stokOpname->id);
 
         // Prepare filter lists for the view
         $kategoriList = Obat::KATEGORI_LIST;
@@ -678,7 +675,7 @@ class StokOpnameController extends Controller
             ->orderBy('o.nama')
             ->get();
 
-        return view('erm.stokopname.create', compact('stokOpname', 'items', 'totalStokSistem', 'totalStokFisik', 'kategoriList', 'metodeList', 'expYears', 'availableObats'));
+        return view('erm.stokopname.create', compact('stokOpname', 'items', 'totals', 'kategoriList', 'metodeList', 'expYears', 'availableObats'));
     }
 
     /**
