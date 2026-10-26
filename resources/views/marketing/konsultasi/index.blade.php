@@ -23,6 +23,7 @@
                             <th style="width: 6%;">No</th>
                             <th>Nama</th>
                             <th>Kategori</th>
+                            <th>Spesialisasi</th>
                             <th style="width: 18%;">Harga</th>
                             <th style="width: 16%;">Aksi</th>
                         </tr>
@@ -33,6 +34,18 @@
                                 <td>{{ $index + 1 }}</td>
                                 <td>{{ $konsultasi->nama }}</td>
                                 <td>{{ $konsultasi->kategori ?: '-' }}</td>
+                                @php $spesialisasiList = $hasSpesialisasi ? $konsultasi->spesialisasis->sortBy('nama') : collect(); @endphp
+                                <td data-order="{{ $spesialisasiList->isEmpty() ? '0' : '1' . $spesialisasiList->pluck('nama')->implode(',') }}">
+                                    @forelse($spesialisasiList as $spesialisasi)
+                                        <span class="badge badge-soft-primary">{{ $spesialisasi->nama }}</span>
+                                    @empty
+                                        @if($hasSpesialisasi && str_contains(mb_strtolower($konsultasi->nama), 'konsultasi'))
+                                            <span class="badge badge-soft-danger">Belum dipetakan: tidak muncul di dokter</span>
+                                        @else
+                                            <span class="text-muted">-</span>
+                                        @endif
+                                    @endforelse
+                                </td>
                                 <td data-order="{{ $konsultasi->harga }}">Rp {{ number_format($konsultasi->harga, 0, ',', '.') }}</td>
                                 <td>
                                     <button
@@ -41,6 +54,7 @@
                                         data-id="{{ $konsultasi->id }}"
                                         data-nama="{{ $konsultasi->nama }}"
                                         data-kategori="{{ $konsultasi->kategori }}"
+                                        data-spesialisasi-ids="{{ $spesialisasiList->pluck('id')->values()->toJson() }}"
                                         data-harga="{{ $konsultasi->harga }}"
                                     >
                                         Edit
@@ -85,6 +99,21 @@
                         <label for="kategori">Kategori</label>
                         <input type="text" class="form-control" id="kategori" name="kategori" placeholder="Contoh: Konsultasi, Administrasi, Lain-lain">
                     </div>
+                    <div class="form-group">
+                        <label for="spesialisasi_ids">Spesialisasi</label>
+                        <select class="form-control" id="spesialisasi_ids" name="spesialisasi_ids[]" multiple style="width: 100%;" @unless($hasSpesialisasi) disabled @endunless>
+                            @foreach ($spesialisasis as $spesialisasi)
+                                <option value="{{ $spesialisasi->id }}">{{ $spesialisasi->nama }}</option>
+                            @endforeach
+                        </select>
+                        <small class="form-text text-muted">
+                            @if($hasSpesialisasi)
+                                Wajib untuk jenis konsultasi: hanya muncul di dokter spesialisasi yang dipilih (boleh beberapa).
+                            @else
+                                Belum aktif: jalankan migration dulu.
+                            @endif
+                        </small>
+                    </div>
                     <div class="form-group mb-0">
                         <label for="harga">Harga</label>
                         <input type="number" min="0" step="0.01" class="form-control" id="harga" name="harga" required>
@@ -105,11 +134,23 @@
 $(function () {
     $('#konsultasiTable').DataTable({
         pageLength: 25,
-        order: [[2, 'asc'], [1, 'asc']],
+        order: [[3, 'asc'], [1, 'asc']],
     });
+
+    // Multi-select spesialisasi; a jenis konsultasi without any is offered nowhere
+    const $spesialisasi = $('#spesialisasi_ids');
+    if ($.fn.select2) {
+        $spesialisasi.select2({
+            dropdownParent: $('#konsultasiModal'),
+            placeholder: 'Pilih spesialisasi...',
+            allowClear: true,
+            width: '100%',
+        });
+    }
 
     function resetForm() {
         $('#konsultasiForm')[0].reset();
+        $spesialisasi.val([]).trigger('change');
         $('#konsultasiId').val('');
         $('#formMethod').val('POST');
         $('#konsultasiModalLabel').text('Tambah Biaya Konsultasi');
@@ -144,6 +185,7 @@ $(function () {
         $('#konsultasiId').val($(this).data('id'));
         $('#nama').val($(this).data('nama'));
         $('#kategori').val($(this).data('kategori'));
+        $spesialisasi.val(($(this).data('spesialisasi-ids') || []).map(String)).trigger('change');
         $('#harga').val($(this).data('harga'));
         $('#formMethod').val('PUT');
         $('#konsultasiModalLabel').text('Edit Biaya Konsultasi');
@@ -162,6 +204,7 @@ $(function () {
             _token: '{{ csrf_token() }}',
             nama: $('#nama').val(),
             kategori: $('#kategori').val(),
+            spesialisasi_ids: $spesialisasi.val() || [],
             harga: $('#harga').val(),
         };
 

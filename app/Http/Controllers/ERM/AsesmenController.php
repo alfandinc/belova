@@ -64,7 +64,8 @@ class AsesmenController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($spesialisasiNama);
+        // Jenis konsultasi mapped to this visit's spesialisasi plus those for all spesialisasi (master Biaya Konsultasi)
+        $jenisKonsultasi = Konsultasi::untukSpesialisasi($visitation->resolvedSpesialisasiId())->get();
 
         // Get previous visitation for this patient (exclude current)
         $lastVisitation = Visitation::where('pasien_id', $visitation->pasien_id)
@@ -97,42 +98,6 @@ class AsesmenController extends Controller
             'prefill_riwayat_penyakit_dahulu' => $prefill_riwayat_penyakit_dahulu,
             'prefill_obat_dikonsumsi' => $prefill_obat_dikonsumsi,
         ], $pasienData, $createKunjunganData));
-    }
-
-    private function getJenisKonsultasiForSpesialisasi(string $spesialisasiNama)
-    {
-        $jenisKonsultasi = Konsultasi::query()
-            ->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%'])
-            ->orderBy('kategori')
-            ->orderBy('nama')
-            ->get();
-
-        $normalizedSpesialisasi = $this->normalizeKonsultasiKategori($spesialisasiNama);
-
-        $spesialisasiItems = $jenisKonsultasi->filter(function (Konsultasi $konsultasi) use ($normalizedSpesialisasi) {
-            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
-
-            return $kategori !== '' && str_contains($kategori, $normalizedSpesialisasi);
-        })->values();
-
-        if ($spesialisasiItems->isNotEmpty()) {
-            return $spesialisasiItems;
-        }
-
-        return $jenisKonsultasi->filter(function (Konsultasi $konsultasi) {
-            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
-
-            return $kategori === '' || $kategori === 'konsultasi';
-        })->values();
-    }
-
-    private function normalizeKonsultasiKategori(?string $value): string
-    {
-        return (string) Str::of((string) $value)
-            ->lower()
-            ->replaceMatches('/[^a-z0-9\s]/', ' ')
-            ->replaceMatches('/\s+/', ' ')
-            ->trim();
     }
 
     public function store(Request $request)
@@ -542,6 +507,12 @@ class AsesmenController extends Controller
 
         // Ambil data jasa medis
         $jasa = Konsultasi::findOrFail($jenis_konsultasi);
+        $spesialisasiId = optional(Visitation::find($visitationId))->resolvedSpesialisasiId();
+        if (!$jasa->berlakuUntuk($spesialisasiId)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'jenis_konsultasi' => 'Jenis konsultasi "' . $jasa->nama . '" bukan untuk spesialisasi kunjungan ini.',
+            ]);
+        }
 
         $consultationBillings = Billing::where('visitation_id', $visitationId)
             ->where('billable_type', Konsultasi::class)

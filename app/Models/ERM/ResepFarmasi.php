@@ -50,6 +50,12 @@ class ResepFarmasi extends Model
         return $this->belongsTo(Obat::class, 'obat_id');
     }
 
+    /** The obat even when it was deactivated after the resep was written (stock must still be cut at billing). */
+    public function obatAny()
+    {
+        return $this->belongsTo(Obat::class, 'obat_id')->withoutGlobalScope('active');
+    }
+
     public function wadah()
     {
         return $this->belongsTo(WadahObat::class, 'wadah_id');

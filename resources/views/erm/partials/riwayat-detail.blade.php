@@ -1,4 +1,4 @@
-@if(!empty($riwayatTindakan->kodeTindakans) && is_iterable($riwayatTindakan->kodeTindakans))
+@if($kodeTindakans->isNotEmpty())
     <table class="table table-bordered table-striped">
         <thead>
             <tr>
@@ -7,7 +7,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($riwayatTindakan->kodeTindakans as $kodeTindakan)
+            @foreach($kodeTindakans as $kodeTindakan)
             <tr>
                 <td>{{ $kodeTindakan->nama }}</td>
                 <td>
@@ -24,16 +24,13 @@
                             @if(isset($riwayatObat[$kodeTindakan->id]))
                                 @foreach($riwayatObat[$kodeTindakan->id] as $obatId)
                                     @php
-                                        $obat = \App\Models\ERM\Obat::find($obatId);
-                                        $pivot = \DB::table('erm_riwayat_tindakan_obat')
-                                            ->where('riwayat_tindakan_id', $riwayatTindakan->id)
-                                            ->where('kode_tindakan_id', $kodeTindakan->id)
-                                            ->where('obat_id', $obatId)
-                                            ->first();
+                                        // Inactive obat are shown too: a hidden row would be deleted on save
+                                        $obat = $obats[$obatId] ?? null;
+                                        $pivot = $pivotObats->first(fn ($p) => (int) $p->kode_tindakan_id === (int) $kodeTindakan->id && (int) $p->obat_id === (int) $obatId);
                                     @endphp
                                     @if($obat)
                                     <tr>
-                                        <td class="obat-name-cell" data-obat-id="{{ $obat->id }}" data-kode-tindakan-id="{{ $kodeTindakan->id }}" style="width:220px">{{ $obat->nama }}</td>
+                                        <td class="obat-name-cell" data-obat-id="{{ $obat->id }}" data-kode-tindakan-id="{{ $kodeTindakan->id }}" style="width:220px">{{ $obat->nama }}@if(!$obat->status_aktif) <span class="badge badge-secondary">nonaktif</span>@endif</td>
                                         <td><input type="number" class="form-control qty-input" name="qty[{{ $kodeTindakan->id }}][{{ $obat->id }}]" value="{{ $pivot->qty ?? 1 }}" step="0.01" min="0" style="width:70px" disabled></td>
                                         <td style="min-width:100px">
                                             @php

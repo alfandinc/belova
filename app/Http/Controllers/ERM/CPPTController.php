@@ -71,7 +71,7 @@ class CPPTController extends Controller
         });
 
         // Get konsultasi list for select
-        $jenisKonsultasi = $this->getJenisKonsultasiForSpesialisasi($visitation->resolvedSpesialisasi()->nama ?? '');
+        $jenisKonsultasi = Konsultasi::untukSpesialisasi($visitation->resolvedSpesialisasiId())->get();
 
         return view('erm.cppt.create', array_merge([
             'visitation' => $visitation,
@@ -80,85 +80,52 @@ class CPPTController extends Controller
         ], $pasienData, $createKunjunganData));
     }
 
-    private function getJenisKonsultasiForSpesialisasi(string $spesialisasiNama)
-    {
-        $jenisKonsultasi = Konsultasi::query()
-            ->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%'])
-            ->orderBy('kategori')
-            ->orderBy('nama')
-            ->get();
-
-        $normalizedSpesialisasi = $this->normalizeKonsultasiKategori($spesialisasiNama);
-
-        $spesialisasiItems = $jenisKonsultasi->filter(function (Konsultasi $konsultasi) use ($normalizedSpesialisasi) {
-            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
-
-            return $kategori !== '' && str_contains($kategori, $normalizedSpesialisasi);
-        })->values();
-
-        if ($spesialisasiItems->isNotEmpty()) {
-            return $spesialisasiItems;
-        }
-
-        return $jenisKonsultasi->filter(function (Konsultasi $konsultasi) {
-            $kategori = $this->normalizeKonsultasiKategori($konsultasi->kategori);
-
-            return $kategori === '' || $kategori === 'konsultasi';
-        })->values();
-    }
-
-    private function normalizeKonsultasiKategori(?string $value): string
-    {
-        return (string) Str::of((string) $value)
-            ->lower()
-            ->replaceMatches('/[^a-z0-9\s]/', ' ')
-            ->replaceMatches('/\s+/', ' ')
-            ->trim();
-    }
-
     public function store(Request $request)
     {
         $visitation = Visitation::findOrFail($request->visitation_id);
 
-        // Update status_dokumen & progress berdasarkan role
-        if (Auth::check()) {
-            $user = Auth::user();
+        // One transaction: a refused jenis konsultasi (other spesialisasi) must not leave the CPPT saved half way
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request, $visitation) {
+            // Update status_dokumen & progress berdasarkan role
+            if (Auth::check()) {
+                $user = Auth::user();
 
-            if ($user->hasRole('Perawat')) {
-                // Only forward: a perawat CPPT after the dokter finished keeps the visit done
-                $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 1);
-                $visitation->status_dokumen = 'cppt';
-            } elseif ($user->hasRole('Dokter')) {
-                $visitation->status_kunjungan = 2;
-                $visitation->status_dokumen = 'cppt';
+                if ($user->hasRole('Perawat')) {
+                    // Only forward: a perawat CPPT after the dokter finished keeps the visit done
+                    $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 1);
+                    $visitation->status_dokumen = 'cppt';
+                } elseif ($user->hasRole('Dokter')) {
+                    $visitation->status_kunjungan = 2;
+                    $visitation->status_dokumen = 'cppt';
+                }
+
+                $visitation->save();
             }
 
-            $visitation->save();
-        }
+            // Siapkan data
+            $data = $request->all();
+            $data['user_id'] = Auth::id();
 
-        // Siapkan data
-        $data = $request->all();
-        $data['user_id'] = Auth::id();
+            // Buat atau update CPPT hanya berdasarkan visitation_id + user_id + jenis_dokumen
+            $cppt = Cppt::updateOrCreate(
+                [
+                    'visitation_id' => $data['visitation_id'],
+                    'user_id' => $data['user_id'],
+                    'jenis_dokumen' => $data['jenis_dokumen'],
+                ],
+                $data
+            );
 
-        // Buat atau update CPPT hanya berdasarkan visitation_id + user_id + jenis_dokumen
-        $cppt = Cppt::updateOrCreate(
-            [
-                'visitation_id' => $data['visitation_id'],
-                'user_id' => $data['user_id'],
-                'jenis_dokumen' => $data['jenis_dokumen'],
-            ],
-            $data
-        );
+            // Store konsultasi billing if selected
+            if ($request->filled('jenis_konsultasi')) {
+                $this->storeJenisKonsultasi($request);
+            }
 
-        // Store konsultasi billing if selected
-        if ($request->filled('jenis_konsultasi')) {
-            $this->storeJenisKonsultasi($request);
-        }
-
-        return response()->json([
-            'message' => 'CPPT berhasil disimpan.',
-            'data'    => $cppt,
-        ]);
+            return response()->json([
+                'message' => 'CPPT berhasil disimpan.',
+                'data'    => $cppt,
+            ]);
+        });
     }
 
     // Copy-paste from AsesmenController, but simplified
@@ -173,6 +140,12 @@ class CPPTController extends Controller
         $jenis_konsultasi = $request->jenis_konsultasi;
 
         $jasa = \App\Models\ERM\Konsultasi::findOrFail($jenis_konsultasi);
+        $spesialisasiId = optional(Visitation::find($visitationId))->resolvedSpesialisasiId();
+        if (!$jasa->berlakuUntuk($spesialisasiId)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'jenis_konsultasi' => 'Jenis konsultasi "' . $jasa->nama . '" bukan untuk spesialisasi kunjungan ini.',
+            ]);
+        }
 
         $consultationBillings = \App\Models\Finance\Billing::where('visitation_id', $visitationId)
             ->where('billable_type', \App\Models\ERM\Konsultasi::class)

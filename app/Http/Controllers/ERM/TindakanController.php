@@ -81,25 +81,32 @@ class TindakanController extends Controller
      */
     public function getRiwayatDetail($id)
     {
-        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['tindakan.kodeTindakans.obats', 'tindakan', 'tindakan.kodeTindakans'])->find($id);
-        if (!$riwayatTindakan) {
-            $riwayatTindakan = new \stdClass();
-            $riwayatTindakan->kodeTindakans = [];
-        }
+        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['tindakan.kodeTindakans'])->find($id);
         $pivotObats = DB::table('erm_riwayat_tindakan_obat')
             ->where('riwayat_tindakan_id', $id)
             ->get();
 
         $riwayatObat = [];
-        if ($pivotObats) {
-            foreach ($pivotObats as $pivot) {
-                $riwayatObat[$pivot->kode_tindakan_id][] = $pivot->obat_id;
-            }
+        foreach ($pivotObats as $pivot) {
+            $riwayatObat[$pivot->kode_tindakan_id][] = $pivot->obat_id;
         }
 
+        // Saving this modal replaces all obat of the riwayat with the rows shown, so every saved row must be
+        // shown: the tindakan's current kode tindakan plus kode tindakan only this riwayat still has (changed in
+        // master later). Rows hidden here used to be deleted on save and then never cut from stock.
+        $kodeTindakans = collect(optional(optional($riwayatTindakan)->tindakan)->kodeTindakans ?? []);
+        $extraKodeIds = collect(array_keys($riwayatObat))->diff($kodeTindakans->pluck('id'));
+        if ($extraKodeIds->isNotEmpty()) {
+            $kodeTindakans = $kodeTindakans->concat(\App\Models\ERM\KodeTindakan::whereIn('id', $extraKodeIds)->get());
+        }
+        $obats = \App\Models\ERM\Obat::withInactive()->whereIn('id', $pivotObats->pluck('obat_id'))->get()->keyBy('id');
+
         $html = view('erm.partials.riwayat-detail', [
-            'riwayatTindakan' => $riwayatTindakan,
-            'riwayatObat' => $riwayatObat ?: []
+            'riwayatTindakan' => $riwayatTindakan ?: (object) ['id' => $id],
+            'kodeTindakans' => $kodeTindakans,
+            'riwayatObat' => $riwayatObat,
+            'pivotObats' => $pivotObats,
+            'obats' => $obats,
         ])->render();
         return response()->json(['html' => $html]);
     }
@@ -788,8 +795,9 @@ class TindakanController extends Controller
         } else {
             $billing = null; // intentionally no billing for consumed session
         }
-        // Copy obat from kode tindakan to riwayat tindakan obat pivot table
-        $kodeTindakans = $tindakan->kodeTindakans;
+        // Copy obat from kode tindakan to riwayat tindakan obat pivot table. Inactive obat too: the kode tindakan
+        // still lists them as used, and skipping them meant that BHP/obat was never cut from stock at billing.
+        $kodeTindakans = $tindakan->kodeTindakans()->with(['obats' => fn ($q) => $q->withoutGlobalScope('active')])->get();
         foreach ($kodeTindakans as $kodeTindakan) {
             foreach ($kodeTindakan->obats as $obat) {
                 DB::table('erm_riwayat_tindakan_obat')->insert([
@@ -1593,7 +1601,7 @@ class TindakanController extends Controller
     public function getSopList($tindakanId)
     {
         // Return kode tindakan list (with obat bundles) instead of SOP so the Detail button shows kode details.
-        $tindakan = \App\Models\ERM\Tindakan::with(['kodeTindakans.obats'])->findOrFail($tindakanId);
+        $tindakan = \App\Models\ERM\Tindakan::with(['kodeTindakans.obats' => fn ($q) => $q->withoutGlobalScope('active')])->findOrFail($tindakanId);
 
         $kodeTindakans = $tindakan->kodeTindakans->map(function($kode, $i) {
             return [

@@ -36,6 +36,15 @@ use Carbon\Carbon;
 class BillingController extends Controller
 {
     /**
+     * During a payment on an invoice whose stock was already cut: obat_id => qty already in kartu stok for it.
+     * reduceGudangStock uses this up first, so only items added after the first payment are cut. Null otherwise.
+     */
+    private ?array $invoiceCutBudget = null;
+
+    /** Number of stock cuts that really took stock during the current payment (not covered by the budget). */
+    private int $invoiceCutActual = 0;
+
+    /**
      * Endpoint statistik harian untuk AJAX
      */
     public function statistikPendapatanAjax(Request $request)
@@ -1185,7 +1194,8 @@ class BillingController extends Controller
 
     /**
      * Obat a lab billing row consumes (same quantities createInvoice reduces from stock).
-     * LabPermintaan: dosis x billing qty; LabPaket: dosis of every test requested under that paket.
+     * LabPermintaan / LabTest (added at the kasir): dosis x billing qty; LabPaket: dosis of every test requested
+     * under that paket.
      *
      * @return array<int, array{obat_id:int, obat_nama:string, qty:float, lab_test_id:int, lab_test_nama:string}>
      */
@@ -1193,8 +1203,12 @@ class BillingController extends Controller
     {
         $type = $billing->billable_type ?? null;
 
-        if ($type === 'App\\Models\\ERM\\LabPermintaan') {
-            $permintaans = \App\Models\ERM\LabPermintaan::with('labTest.obats')->whereKey($billing->billable_id)->get();
+        if ($type === 'App\\Models\\ERM\\LabPermintaan' || $type === 'App\\Models\\ERM\\LabTest') {
+            $permintaans = $type === 'App\\Models\\ERM\\LabTest'
+                // Same shape as a permintaan (->labTest) so the loop below handles both
+                ? \App\Models\ERM\LabTest::with(['obats' => fn ($q) => $q->withoutGlobalScope('active')])->whereKey($billing->billable_id)->get()
+                    ->map(fn ($test) => (object) ['labTest' => $test])
+                : \App\Models\ERM\LabPermintaan::with(['labTest.obats' => fn ($q) => $q->withoutGlobalScope('active')])->whereKey($billing->billable_id)->get();
 
             $qtyTestRaw = $billing->qty ?? 1;
             if (is_string($qtyTestRaw)) {
@@ -1208,7 +1222,7 @@ class BillingController extends Controller
                 $qtyTest = $qtyTest / 100.0;
             }
         } elseif ($type === 'App\\Models\\ERM\\LabPaket') {
-            $permintaans = \App\Models\ERM\LabPermintaan::with('labTest.obats')
+            $permintaans = \App\Models\ERM\LabPermintaan::with(['labTest.obats' => fn ($q) => $q->withoutGlobalScope('active')])
                 ->where('visitation_id', $billing->visitation_id)
                 ->where('lab_paket_id', $billing->billable_id)
                 ->get();
@@ -3195,6 +3209,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'invoice_id' => 'nullable|integer',
         ]);
 
+        // Gudang is locked to Gudang Mapping: whatever the page sends is ignored, so stock is always cut from the
+        // mapped gudang (per transaction type / spesialisasi / event context)
+        $request->merge(['gudang_selections' => []]);
+
         // Accept totals as either an array (normal) or a JSON string (sent from frontend).
         $totalsInput = $request->input('totals');
         if (is_string($totalsInput)) {
@@ -3276,7 +3294,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 Log::warning('Failed to write upsertInvoiceInternal debug log: ' . $e->getMessage());
             }
 
+            // Stock already cut for this invoice (an earlier "Terima Pembayaran"): net qty per obat in kartu stok
+            $alreadyReduced = false;
+            $alreadyCutPerObat = [];
+            if ($existingInvoice) {
+                $alreadyCutPerObat = KartuStok::where('ref_id', $existingInvoice->id)
+                    ->where(fn ($q) => $q->where(fn ($k) => $k->where('ref_type', 'invoice_penjualan')->where('tipe', 'keluar'))
+                        ->orWhere(fn ($m) => $m->where('ref_type', 'invoice_return')->where('tipe', 'masuk')))
+                    ->get(['obat_id', 'ref_type', 'qty'])
+                    ->groupBy('obat_id')
+                    ->map(fn ($rows) => $rows->sum(fn ($r) => $r->ref_type === 'invoice_penjualan' ? (float) $r->qty : -(float) $r->qty))
+                    ->all();
+                $alreadyReduced = KartuStok::where('ref_type', 'invoice_penjualan')->where('ref_id', $existingInvoice->id)->exists();
+            }
+
             // --- Stock validation (shared) ---
+            // On an invoice already cut most of the quantity below is already taken from stock, so this full-qty
+            // check would refuse wrongly; the cut itself still refuses (and rolls back) when the added items lack stok.
             $stockErrors = [];
             $kodeTindakanObats = [];
             $labRequiredObats = [];
@@ -3285,7 +3319,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             foreach ($billingItems as $item) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
-                    if ($resep && $resep->obat) {
+                    if ($resep && $resep->obatAny) {
                         $qty = floatval($item->qty ?? 1);
                         if ($resep->racikan_ke > 0) {
                             continue;
@@ -3294,26 +3328,26 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $selectedGudangId = null;
                         if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
                             $selectedGudangId = $gudangSelections[$billingKey];
-                        } elseif (isset($gudangSelections['resep_' . $resep->obat->id]) && $gudangSelections['resep_' . $resep->obat->id]) {
-                            $selectedGudangId = $gudangSelections['resep_' . $resep->obat->id];
+                        } elseif (isset($gudangSelections['resep_' . $resep->obatAny->id]) && $gudangSelections['resep_' . $resep->obatAny->id]) {
+                            $selectedGudangId = $gudangSelections['resep_' . $resep->obatAny->id];
                         }
 
                         if (!$selectedGudangId) {
-                            $selectedGudangId = $this->getGudangForItem($request, $resep->obat->id, 'resep', $item->id);
+                            $selectedGudangId = $this->getGudangForItem($request, $resep->obatAny->id, 'resep', $item->id);
                         }
 
                         // Resep may take expired batches too (after the usable ones), so they count here
                         if ($selectedGudangId) {
-                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obatAny->id)
                                 ->where('gudang_id', $selectedGudangId)
                                 ->where('stok', '>', 0)->sum('stok');
                         } else {
-                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obatAny->id)
                                 ->where('stok', '>', 0)->sum('stok');
                         }
 
                         if ($qty > $currentStock) {
-                            $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia (belum kadaluarsa): {$currentStock}";
+                            $stockErrors[] = "Stok {$resep->obatAny->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia (belum kadaluarsa): {$currentStock}";
                         }
                     }
                 } else if (
@@ -3322,7 +3356,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     isset($item->keterangan) &&
                     str_contains($item->keterangan, 'Obat Bundled:')
                 ) {
-                    $obat = \App\Models\ERM\Obat::find($item->billable_id);
+                    $obat = \App\Models\ERM\Obat::withInactive()->find($item->billable_id);
                     if ($obat) {
                         $qty = floatval($item->qty ?? 1);
                         $billingKey = $item->id;
@@ -3363,7 +3397,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             ->get();
 
                         foreach ($kodeTindakanMeds as $kodeTindakanMed) {
-                            $obat = \App\Models\ERM\Obat::find($kodeTindakanMed->obat_id);
+                            $obat = \App\Models\ERM\Obat::withInactive()->find($kodeTindakanMed->obat_id);
                             if ($obat) {
                                 $qty = floatval($kodeTindakanMed->qty ?? 1);
                                 $resolvedGudangId = $this->getGudangForItem($request, $obat->id, 'kode_tindakan', $item->id);
@@ -3406,14 +3440,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $obatId = $labReq['obat_id'];
                     $required = $labReq['qty'];
 
-                    $billingKey = $item->id;
-                    $selectedGudangId = null;
-                    if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
-                        $selectedGudangId = $gudangSelections[$billingKey];
-                    } elseif (isset($gudangSelections['lab_' . $obatId]) && $gudangSelections['lab_' . $obatId]) {
-                        $selectedGudangId = $gudangSelections['lab_' . $obatId];
-                    }
-                    $labGudangId = $selectedGudangId ?: $this->getGudangForItem($request, $obatId, 'lab', $item->id);
+                    // Gudang Mapping of the lab
+                    $labGudangId = $this->getGudangForItem($request, $obatId, 'lab', $item->id);
 
                     // Expired batches count too (taken after the usable ones)
                     $stockQuery = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)->where('stok', '>', 0);
@@ -3441,7 +3469,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            if (!empty($stockErrors)) {
+            if (!empty($stockErrors) && !$alreadyReduced) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Stok tidak mencukupi untuk beberapa obat:\n' . implode('\n', $stockErrors)
@@ -3464,6 +3492,18 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             $amountPaidNumeric = floatval($amountPaid ?? 0);
             $grandTotalNumeric = floatval($grandTotal ?? 0);
+
+            // "Buat Invoice" with nothing to pay (e.g. multi-visit session 2/3, 100% discount): settle it right away,
+            // as "Terima Pembayaran" of Rp 0 would. Stock is only cut when the payment is processed, and the kasir
+            // often stopped here because there was nothing to pay, so that stock was never cut.
+            $autoSettledZero = false;
+            if ($mode === 'unpaid' && $request->has('totals') && $billingItems->isNotEmpty() && intval(ceil($grandTotalNumeric)) <= 0) {
+                $mode = 'payment';
+                $amountPaid = 0;
+                $amountPaidNumeric = 0.0;
+                $paymentMethod = null;
+                $autoSettledZero = true;
+            }
 
             // Force unpaid for the Buat Invoice endpoint.
             if ($mode === 'unpaid') {
@@ -3633,21 +3673,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Stock cutting rule (robust):
-            // Reduce stock whenever "Terima Pembayaran" is processed, but ONLY ONCE per invoice.
-            // We detect prior reductions via KartuStok entries created with ref_type=invoice_penjualan.
+            // Stock cutting rule: every "Terima Pembayaran" cuts the stock the billing needs. When this invoice
+            // was already cut before (items added after the first payment, e.g. after a piutang / partial payment),
+            // what kartu stok already shows for it is used up first (reduceGudangStock), so only the added items
+            // are cut. $alreadyReduced / $alreadyCutPerObat come from the check before the stock validation.
             $amountPaidRaw = floatval($amountPaid ?? 0);
-            $alreadyReduced = false;
-            try {
-                $alreadyReduced = (bool)($existingInvoice && KartuStok::where('ref_type', 'invoice_penjualan')
-                    ->where('ref_id', $existingInvoice->id)
-                    ->exists());
-            } catch (\Exception $e) {
-                $alreadyReduced = false;
-            }
-            $shouldReduceStock = ($mode === 'payment') && !$alreadyReduced;
+            $shouldReduceStock = ($mode === 'payment');
             // For compatibility with existing qty-diff logic (racikan + oldQty handling)
-            $paymentIncreased = ($mode === 'payment') && !$alreadyReduced;
+            $paymentIncreased = ($mode === 'payment');
+            $this->invoiceCutBudget = ($shouldReduceStock && $alreadyReduced) ? $alreadyCutPerObat : null;
+            $this->invoiceCutActual = 0;
 
             Log::info('Stock reduction decision', [
                 'mode' => $mode,
@@ -3688,13 +3723,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // For ResepFarmasi items
                     if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
-                        if ($resep && $resep->obat) {
+                        if ($resep && $resep->obatAny) {
                             // Skip stock reduction for individual racikan items
                             if ($resep->racikan_ke > 0) {
                                 continue;
                             }
                             
-                            $obat = $resep->obat;
+                            $obat = $resep->obatAny;
                             
                             if (abs($qtyDiff) > 0.00001) {
                                 Log::info('Stock adjustment', [
@@ -3750,7 +3785,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         isset($item->keterangan) && 
                         str_contains($item->keterangan, 'Obat Bundled:')
                     ) {
-                        $obat = \App\Models\ERM\Obat::find($item->billable_id);
+                        $obat = \App\Models\ERM\Obat::withInactive()->find($item->billable_id);
                         if ($obat) {
                             $qty = floatval($item->qty ?? 1);
                             
@@ -3795,12 +3830,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $stockOpsSucceeded++;
                         $stockReduced = true;
                     } else {
-                        $obatName = optional(\App\Models\ERM\Obat::find($obatId))->nama;
+                        $obatName = optional(\App\Models\ERM\Obat::withInactive()->find($obatId))->nama;
                         $obatName = $obatName ?: 'Unknown';
                         $stockOpsErrors[] = "Gagal mengurangi stok {$obatName} (kode tindakan) (qty: {$qty})";
                     }
                     
-                    $obat = \App\Models\ERM\Obat::find($obatId);
+                    $obat = \App\Models\ERM\Obat::withInactive()->find($obatId);
                     Log::info('Stock processed via invoice (Kode Tindakan Obat)', [
                         'obat_id' => $obatId,
                         'obat_nama' => $obat ? $obat->nama : 'Unknown',
@@ -3824,11 +3859,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $stockOpsSucceeded++;
                         $stockReduced = true;
                     } else {
-                        $obatName = optional(\App\Models\ERM\Obat::find($obatId))->nama;
+                        $obatName = optional(\App\Models\ERM\Obat::withInactive()->find($obatId))->nama;
                         $obatName = $obatName ?: 'Unknown';
                         $stockOpsErrors[] = "Gagal mengurangi stok {$obatName} (lab) (qty: {$qty})";
                     }
-                    $obat = \App\Models\ERM\Obat::find($obatId);
+                    $obat = \App\Models\ERM\Obat::withInactive()->find($obatId);
                     \Illuminate\Support\Facades\Log::info('Stock processed via invoice (Lab Test Obat)', [
                         'obat_id' => $obatId,
                         'obat_nama' => $obat ? $obat->nama : 'Unknown',
@@ -4192,8 +4227,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $totalPrice += floatval($item->jumlah ?? 0);
                     
                     // Get the obat name for description
-                    if (isset($item->billable) && $item->billable->obat) {
-                        $obatList[] = $item->billable->obat->nama;
+                    if (isset($item->billable) && $item->billable->obatAny) {
+                        $obatList[] = $item->billable->obatAny->nama;
                     }
                     
                     // Use the qty/bungkus from the first item (should be the same for all items in racikan)
@@ -4228,8 +4263,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // and there is a non-zero qty difference to apply.
                     if (!empty($shouldReduceStock) && $racikanQtyDiff != 0) {
                         foreach ($racikanItems as $racikanItem) {
-                            if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
-                                $obat = $racikanItem->billable->obat;
+                            if (isset($racikanItem->billable) && $racikanItem->billable->obatAny) {
+                                $obat = $racikanItem->billable->obatAny;
 
                                 // For racikan components, prefer using the stored 'jumlah_racikan' value
                                 // (which we persist as 'stok_dikurangi' during resep submit). Fall
@@ -4279,8 +4314,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 ]);
                             }
                         }
+
+                        // Racikan is cut after the check of the other items: a failed component (stok kurang /
+                        // gudang salah) used to leave the invoice paid without kartu stok. Roll back like the others.
+                        if ($stockOpsSucceeded < $stockOpsAttempted) {
+                            throw new \Exception(
+                                "Stok gagal diproses untuk beberapa item:\n" . implode("\n", $stockOpsErrors)
+                            );
+                        }
                     }
-                    
+
                     // For racikan, the unit price is the total price of all components per unit (bungkus)
                     $unitPrice = (float) $totalPrice;  // Total price of all components is treated as unit price
                     // Aggregate discount for racikan group (mirror billing grouped-row behavior)
@@ -4488,7 +4531,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 app(PasienMembershipStatusService::class)->syncFromInvoice($invoice);
             }
 
+            // Items removed / reduced after the first cut: kartu stok shows more taken for this invoice than the
+            // billing needs now, so the difference goes back to the batches the invoice took it from
+            $stockReturnedCount = 0;
+            $leftover = array_filter((array) $this->invoiceCutBudget, fn ($q) => $q > 0.00001);
+            foreach ($leftover as $obatId => $qtyBack) {
+                $gudangId = $this->getGudangForItem($request, $obatId, 'resep');
+                if (!$this->returnToGudangStock($obatId, $qtyBack, $gudangId, $invoice->id, $invoice->invoice_number)) {
+                    throw new \Exception("Gagal mengembalikan stok obat ID {$obatId} (qty: {$qtyBack}) untuk item yang dihapus dari invoice.");
+                }
+                $stockReturnedCount++;
+            }
+            if ($leftover) {
+                Log::info('Stok item yang dihapus setelah pembayaran dikembalikan', ['invoice_id' => $invoice->id, 'obat_qty' => $leftover]);
+            }
+
             DB::commit();
+            $this->invoiceCutBudget = null;
 
             // Determine paid status using the same integer-ceil comparison used for stock reduction
             $invoiceAmountPaidRaw = floatval($invoice->amount_paid ?? 0);
@@ -4501,10 +4560,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ? $invoiceAmountPaidInt >= $invoiceTotalAmountInt
                 : !empty($invoice->payment_method);
 
-            $responseMessage = $mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat';
+            $responseMessage = $autoSettledZero
+                ? 'Invoice dibuat dan langsung selesai (total Rp 0, tidak ada yang perlu dibayar).'
+                : ($mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat');
 
             $computedStockMessage = null;
-            if (!empty($shouldReduceStock)) {
+            $toppedUp = !empty($shouldReduceStock) && !empty($alreadyReduced);
+            if ($toppedUp) {
+                // Invoice cut before: only items added since then were cut (if any)
+                $stockReduced = $this->invoiceCutActual > 0;
+                $computedStockMessage = $stockReduced
+                    ? 'Stok item tambahan berhasil dikurangi (item lain sudah dikurangi sebelumnya).'
+                    : 'Stok tidak dikurangi (stok sudah dikurangi sebelumnya untuk invoice ini).';
+                if ($stockReturnedCount > 0) {
+                    $computedStockMessage .= " Stok {$stockReturnedCount} obat dari item yang dihapus dikembalikan.";
+                }
+            } elseif (!empty($shouldReduceStock)) {
                 if ($stockOpsAttempted <= 0) {
                     $computedStockMessage = 'Stok tidak dikurangi (tidak ada item stok).';
                 } else {
@@ -4556,12 +4627,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'is_paid' => $isPaid,
                 'payment_info' => $this->invoicePaymentInfo($invoice->load('user')),
                 'stock_reduced' => $stockReduced,
-                'stock_message' => $stockReduced ? 'Stok berhasil dikurangi sesuai pembayaran.' : $computedStockMessage,
+                'stock_message' => ($stockReduced && !$toppedUp) ? 'Stok berhasil dikurangi sesuai pembayaran.' : $computedStockMessage,
                 'stock_ops_attempted' => $stockOpsAttempted,
                 'stock_ops_succeeded' => $stockOpsSucceeded,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            $this->invoiceCutBudget = null;
             $logLabel = $mode === 'payment' ? 'Error processing payment' : 'Error creating invoice';
             Log::error($logLabel, [
                 'error' => $e->getMessage(),
@@ -5239,7 +5311,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             return;
         }
 
-        $tindakan = Tindakan::with('kodeTindakans.obats')->find($tindakanId);
+        // Inactive obat too (same as adding the tindakan from the Tindakan page), otherwise it is never cut
+        $tindakan = Tindakan::with(['kodeTindakans.obats' => fn ($q) => $q->withoutGlobalScope('active')])->find($tindakanId);
         if (!$tindakan) {
             return;
         }
@@ -6097,6 +6170,18 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     private function reduceGudangStock($obatId, $qty, $gudangId = null, $invoiceId = null, $invoiceNumber = null)
     {
+        // Invoice already cut before: the part kartu stok already shows for this obat is not cut again
+        if ($this->invoiceCutBudget !== null) {
+            $covered = min((float) $qty, max(0.0, (float) ($this->invoiceCutBudget[$obatId] ?? 0)));
+            if ($covered > 0) {
+                $this->invoiceCutBudget[$obatId] = (float) ($this->invoiceCutBudget[$obatId] ?? 0) - $covered;
+                $qty = (float) $qty - $covered;
+            }
+            if ($qty <= 0.00001) {
+                return true;
+            }
+        }
+
         // Callers resolve the gudang via getGudangForItem(); never fall back to an arbitrary gudang here
         if (!$gudangId) {
             Log::error("Gudang tidak diketahui untuk pengurangan stok obat ID: " . $obatId);
@@ -6169,6 +6254,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return false;
             }
 
+            $this->invoiceCutActual++;
             return true;
 
         } catch (\Exception $e) {
@@ -6180,6 +6266,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     /**
      * Get gudang ID for specific item based on frontend selection or mapping
+     * (the payment flow empties gudang_selections, so there it is always the mapping)
      */
     private function getGudangForItem($request, $obatId, $transactionType, $billingId = null)
     {
