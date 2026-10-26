@@ -10,6 +10,9 @@ use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Support\SaveErrorMessage;
 
 class AsesmenPerawatController extends Controller
 {
@@ -96,42 +99,50 @@ class AsesmenPerawatController extends Controller
         if ($lewatiDokter) {
             $visitation->status_kunjungan = Visitation::advanceStatus($visitation->status_kunjungan, 2);
         }
-        $visitation->save(); // Save the updated visitation
+        // Visit status + asesmen together; a failure returns a readable message for the Swal
+        try {
+            $asesmenperawat = DB::transaction(function () use ($request, $visitation, $user, $masalah) {
+                $visitation->save(); // Save the updated visitation
 
-        $asesmenperawat = AsesmenPerawat::updateOrCreate(
-            ['visitation_id' => $request->visitation_id],
-            [
-                'user_id' => $user,
-                'keluhan_utama' => $request->keluhan_utama,
-                'alasan_kunjungan' => $request->alasan_kunjungan,
-                'kesadaran' => $request->kesadaran,
-                'td' => $request->td,
-                'nadi' => $request->nadi,
-                'rr' => $request->rr,
-                'suhu' => $request->suhu,
-                'riwayat_psikososial' => $request->riwayat_psikososial,
-                'tb' => $request->tb,
-                'bb' => $request->bb,
-                'lla' => $request->lla,
-                'diet' => $request->diet,
-                'porsi' => $request->porsi,
-                'imt' => $request->imt,
-                'presentase' => $request->presentase,
-                'efek' => $request->efek,
-                'nyeri' => $request->nyeri,
-                'p' => $request->p,
-                'q' => $request->q,
-                'r' => $request->r,
-                't' => $request->t,
-                'onset' => $request->onset,
-                'skor' => $request->skor,
-                'kategori' => $request->kategori,
-                'kategori_risja' => $request->kategori_risja,
-                'status_fungsional' => $request->status_fungsional,
-
-                'masalah_keperawatan' => $masalah,
-            ]
-        );
+                return AsesmenPerawat::updateOrCreate(
+                    ['visitation_id' => $request->visitation_id],
+                    [
+                        'user_id' => $user,
+                        'keluhan_utama' => $request->keluhan_utama,
+                        'alasan_kunjungan' => $request->alasan_kunjungan,
+                        'kesadaran' => $request->kesadaran,
+                        'td' => $request->td,
+                        'nadi' => $request->nadi,
+                        'rr' => $request->rr,
+                        'suhu' => $request->suhu,
+                        'riwayat_psikososial' => $request->riwayat_psikososial,
+                        'tb' => $request->tb,
+                        'bb' => $request->bb,
+                        'lla' => $request->lla,
+                        'diet' => $request->diet,
+                        'porsi' => $request->porsi,
+                        'imt' => $request->imt,
+                        'presentase' => $request->presentase,
+                        'efek' => $request->efek,
+                        'nyeri' => $request->nyeri,
+                        'p' => $request->p,
+                        'q' => $request->q,
+                        'r' => $request->r,
+                        't' => $request->t,
+                        'onset' => $request->onset,
+                        'skor' => $request->skor,
+                        'kategori' => $request->kategori,
+                        'kategori_risja' => $request->kategori_risja,
+                        'status_fungsional' => $request->status_fungsional,
+        
+                        'masalah_keperawatan' => $masalah,
+                    ]
+                );
+            });
+        } catch (\Throwable $e) {
+            Log::error('Simpan asesmen perawat gagal: ' . $e->getMessage(), ['visitation_id' => $request->visitation_id]);
+            return response()->json(['status' => 'error', 'message' => SaveErrorMessage::from($e)], 500);
+        }
 
         $message = ($asesmenperawat->wasRecentlyCreated)
             ? 'Asesmen Perawat berhasil dibuat.'

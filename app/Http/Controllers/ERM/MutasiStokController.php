@@ -529,7 +529,7 @@ class MutasiStokController extends Controller
         return $total >= (float) config('stok.penyesuaian.approval_threshold', 1000000);
     }
 
-    // An approver (Admin/Farmasi); approving one's own document depends on config (allowed by default)
+    // An approver (config stok.penyesuaian.approver_roles); approving one's own document depends on config (allowed by default)
     private function canDecide(MutasiStok $mutasi): bool
     {
         if (!$this->isApprover()) {
@@ -546,7 +546,7 @@ class MutasiStokController extends Controller
             throw new \RuntimeException('Dokumen ini sudah diproses (status: ' . $mutasi->status . ').');
         }
         if (!$this->isApprover()) {
-            throw new \RuntimeException('Hanya Admin yang bisa meng-approve atau menolak penyesuaian stok.');
+            throw new \RuntimeException('Hanya Admin, Farmasi, Marketing atau Beautician yang bisa meng-approve atau menolak penyesuaian stok.');
         }
         if (!$this->canDecide($mutasi)) {
             throw new \RuntimeException('Pembuat dokumen tidak boleh meng-approve atau menolak dokumennya sendiri.');

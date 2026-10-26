@@ -643,16 +643,9 @@
                 });
             },
             error: function (xhr) {
-                let errors = xhr.responseJSON?.errors;
-                let errorMsg = "Terjadi kesalahan saat mengirim data.";
-
-                if (errors) {
-                    errorMsg = Object.values(errors).map(err => `• ${err}`).join('<br>');
-                }
-
                 Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMsg,
+                    title: 'Gagal menyimpan!',
+                    html: belovaAjaxError(xhr, 'Asesmen perawat gagal disimpan.'),
                     icon: 'error',
                     confirmButtonText: 'OK'
                 });

@@ -11,7 +11,7 @@ return [
     'penyesuaian' => [
         'approval_threshold' => (float) env('STOK_PENYESUAIAN_APPROVAL_THRESHOLD', 1000000),
         'masuk_selalu_approval' => true,
-        'approver_roles' => ['Admin', 'Farmasi'],
+        'approver_roles' => ['Admin', 'Farmasi', 'Marketing', 'Beautician'],
         'boleh_approve_sendiri' => (bool) env('STOK_PENYESUAIAN_BOLEH_APPROVE_SENDIRI', true),
     ],
 

@@ -218,7 +218,7 @@
             </div>
             <div class="form-group">
                 <label for="sasaran">Sasaran</label>
-                <input type="text" class="form-control" name="sasaran" id="sasaran" value="{{ old('sasaran', $asesmenPenunjang->sasaran ?? 'Kondisi Umum Baik dan Stabil') }}">
+                <textarea class="form-control" name="sasaran" id="sasaran" rows="2">{{ old('sasaran', $asesmenPenunjang->sasaran ?? 'Kondisi Umum Baik dan Stabil') }}</textarea>
             </div>
             <div class="form-group">
                 <label for="standing_order">Rencana Asuhan / Terapi / Instruksi (Standing Order)</label>
@@ -595,16 +595,9 @@
                 startTimer(); // restart timer baru
             },
             error: function (xhr) {
-                let errors = xhr.responseJSON?.errors;
-                let errorMsg = "Terjadi kesalahan saat mengirim data.";
-
-                if (errors) {
-                    errorMsg = Object.values(errors).map(err => `• ${err}`).join('<br>');
-                }
-
                 Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMsg,
+                    title: 'Gagal menyimpan!',
+                    html: belovaAjaxError(xhr, 'Asesmen dokter gagal disimpan.'),
                     icon: 'error',
                     confirmButtonText: 'OK'
                 });

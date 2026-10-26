@@ -113,6 +113,7 @@
 
     <!-- Scripts -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
+    @include('partials.csrf_refresh')
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
     @unless($financeEmbed)
     {{-- sidebar / topbar helpers (not rendered in embed mode) --}}

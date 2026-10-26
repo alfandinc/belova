@@ -429,9 +429,9 @@
                         // Obat / BHP and Batalkan only for this visit's tindakan
                         if (row.current) {
                             group += `<button class="btn btn-outline-secondary btn-sm detail-riwayat-btn" title="Obat & BHP" data-id="${row.id}"><i class="fas fa-pills"></i></button>`;
-                            // On an invoice / paid: cancelled at the kasir (the server refuses it too)
+                            // Invoice paid / processed at the kasir: cancelled there (the server refuses it too)
                             group += row.locked
-                                ? `<button class="btn btn-outline-secondary btn-sm is-locked" title="Sudah masuk invoice (${escapeHtml(row.bayar_label)}). Pembatalan lewat kasir." disabled><i class="fas fa-lock"></i></button>`
+                                ? `<button class="btn btn-outline-secondary btn-sm is-locked" title="Invoice sudah dibayar / diproses kasir (${escapeHtml(row.bayar_label)}). Pembatalan lewat kasir." disabled><i class="fas fa-lock"></i></button>`
                                 : `<button class="btn btn-outline-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
                         }
                         return group + '</div>';
@@ -948,7 +948,7 @@
             const id = $(this).data('id');
             Swal.fire({
                 title: 'Batalkan Tindakan?',
-                html: 'Tindakan beserta billing, inform consent, SPK, dan obat/BHP-nya akan dihapus.<br><small>Untuk paket multi visit, hanya sesi ini yang dibatalkan dan kuota paket dikembalikan.</small>',
+                html: 'Tindakan beserta billing, inform consent, SPK, dan obat/BHP-nya akan dihapus.<br><small>Jika sudah masuk invoice yang belum dibayar, baris tindakan ini ikut dihapus dari invoice.</small><br><small>Untuk paket multi visit, hanya sesi ini yang dibatalkan dan kuota paket dikembalikan.</small>',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, batalkan',

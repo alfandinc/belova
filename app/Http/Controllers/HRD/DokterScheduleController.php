@@ -101,10 +101,18 @@ class DokterScheduleController extends Controller
     // Data jadwal dokter mingguan (read-only) untuk tampilan di main menu / HP
     public function viewData(Request $request)
     {
-        $startOfWeek = $request->input('start_date')
-            ? Carbon::parse($request->input('start_date'))->startOfWeek()
-            : Carbon::now()->startOfWeek();
-        $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
+        // ?month=YYYY-MM: the month's calendar grid (whole weeks, Monday to Sunday); otherwise one week
+        $month = preg_match('/^\d{4}-\d{2}$/', (string) $request->input('month')) ? Carbon::parse($request->input('month') . '-01') : null;
+        if ($month) {
+            $startOfWeek = $month->copy()->startOfWeek();
+            $gridEnd = $month->copy()->endOfMonth()->endOfWeek();
+            $dates = collect(range(0, (int) $startOfWeek->diffInDays($gridEnd)))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
+        } else {
+            $startOfWeek = $request->input('start_date')
+                ? Carbon::parse($request->input('start_date'))->startOfWeek()
+                : Carbon::now()->startOfWeek();
+            $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
+        }
         $today = now()->toDateString();
         $colorMap = $this->doctorColorMap();
 
@@ -133,8 +141,12 @@ class DokterScheduleController extends Controller
 
         return response()->json([
             'start' => $dates->first(),
-            'label' => $startOfWeek->locale('id')->isoFormat('D MMM') . ' – ' . $startOfWeek->copy()->addDays(6)->locale('id')->isoFormat('D MMM YYYY'),
+            'month' => $month?->format('Y-m'),
+            'label' => $month
+                ? $month->locale('id')->isoFormat('MMMM YYYY')
+                : $startOfWeek->locale('id')->isoFormat('D MMM') . ' – ' . $startOfWeek->copy()->addDays(6)->locale('id')->isoFormat('D MMM YYYY'),
             'dates' => $dates->map(fn($d) => [
+                'inMonth' => !$month || substr($d, 0, 7) === $month->format('Y-m'),
                 'date' => $d,
                 'day' => Carbon::parse($d)->locale('id')->isoFormat('ddd'),
                 'dayLong' => Carbon::parse($d)->locale('id')->isoFormat('dddd, D MMMM'),

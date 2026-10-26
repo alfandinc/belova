@@ -137,6 +137,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/chat/conversations/{user}', [ChatController::class, 'store'])->name('chat.store');
     // Jadwal viewer modal (HTML + script), loaded on demand from the sidebar instead of being embedded in every page
     Route::get('/jadwal-viewer', fn () => view('partials.jadwal_viewer'))->name('jadwal.viewer');
+    // Current CSRF token for pages left open long (partials.csrf_refresh): keeps the session alive and fixes 419
+    Route::get('/csrf-token', fn () => response()->json(['token' => csrf_token()]))->name('csrf.token');
 
     // Buku Menu (accessible for all authenticated users)
     Route::get('/buku-menu', [BukuMenuController::class, 'index'])->name('buku-menu.index');
@@ -1561,15 +1563,20 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
     }
 );
 
-Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')->group(function () {
-    Route::get('/dokter-schedule/print', [\App\Http\Controllers\HRD\DokterSchedulePrintController::class, 'print'])->name('hrd.dokter-schedule.print');
-    // Jadwal Karyawan Print (Employee)
+// Jadwal viewer (sidebar / dashboard "Jadwal"): read-only data, print / download and "sudah dibaca"; Dokter too
+Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo|Dokter')->group(function () {
+    Route::get('schedule/view-data', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'viewData'])->name('hrd.schedule.view_data');
+    Route::get('dokter-schedule/view-data', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'viewData'])->name('hrd.dokter-schedule.view_data');
     Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
+    Route::get('/dokter-schedule/print', [\App\Http\Controllers\HRD\DokterSchedulePrintController::class, 'print'])->name('hrd.dokter-schedule.print');
+    Route::post('schedule/perubahan/baca', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'bacaPerubahan'])->name('hrd.schedule.baca_perubahan');
+});
+
+Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|Ceo')->group(function () {
     Route::post('/dokter-schedule/delete/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'deleteJadwal']);
 
      // Jadwal Karyawan
      // ...existing code...
-    Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
     Route::get('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'index'])->name('hrd.schedule.index');
     Route::post('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'store'])->name('hrd.schedule.store')->middleware('role:Hrd|Admin');
     Route::post('schedule/copy-week', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'copyWeek'])->name('hrd.schedule.copy_week')->middleware('role:Hrd|Admin');
@@ -1577,7 +1584,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::get('schedule/rekap-hari-libur', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'rekapHariLibur'])->name('hrd.schedule.rekap_hari_libur')->middleware('role:Hrd|Admin');
     Route::get('schedule/hari-masuk-tersedia', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'hariMasukTersedia'])->name('hrd.schedule.hari_masuk_tersedia')->middleware('role:Hrd|Admin');
     Route::get('schedule/riwayat-jatah', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'riwayatJatah'])->name('hrd.schedule.riwayat_jatah');
-    Route::post('schedule/perubahan/baca', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'bacaPerubahan'])->name('hrd.schedule.baca_perubahan');
     Route::get('schedule/logs',[\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'scheduleLogs'])->name('hrd.schedule.logs')->middleware('role:Hrd|Admin');
         Route::post('/dokter-schedule/update-jam/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateJam']);
     // Jadwal Dokter
@@ -1587,8 +1593,6 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin|C
     Route::post('dokter-schedule/move/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'moveJadwal'])->name('hrd.dokter-schedule.move');
     Route::post('dokter-schedule/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'store'])->name('hrd.dokter-schedule.store');
     Route::post('dokter-schedule/save-week', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'saveWeek'])->name('hrd.dokter-schedule.save_week');
-    Route::get('dokter-schedule/view-data', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'viewData'])->name('hrd.dokter-schedule.view_data');
-    Route::get('schedule/view-data', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'viewData'])->name('hrd.schedule.view_data');
     Route::post('dokter-schedule/copy-week',[\App\Http\Controllers\HRD\DokterScheduleController::class, 'copyWeek'])->name('hrd.dokter-schedule.copy_week');
     // Create or update doctor shifts (HRD)
     Route::post('dokter-shifts/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeShift'])->name('hrd.dokter-shifts.store');

@@ -21,6 +21,10 @@ use App\Models\ERM\Konsultasi;
 
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use App\Support\SaveErrorMessage;
 
 
 class AsesmenController extends Controller
@@ -137,29 +141,40 @@ class AsesmenController extends Controller
         $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($request->visitation_id);
         $spesialisasi = strtolower($visitation->resolvedSpesialisasi()->nama ?? '');
 
-        // Call spesialisasi-based save function
-        if ($spesialisasi === 'penyakit dalam') {
-            $this->storeAsesmenDalam($request);
-        } elseif ($spesialisasi === 'tht') {
-            $this->storeAsesmenTht($request);
-        } elseif ($spesialisasi === 'umum') {
-            $this->storeAsesmenUmum($request);
-        } elseif ($spesialisasi === 'estetika') {
-            $this->storeAsesmenEstetika($request);
-        } elseif ($spesialisasi === 'anak') {
-            $this->storeAsesmenAnak($request);
-        } elseif ($spesialisasi === 'saraf') {
-            $this->storeAsesmenSaraf($request);
-        } elseif ($spesialisasi === 'gigi') {
-            $this->storeAsesmenGigi($request);
+        // All parts in one transaction: a failure must not leave the asesmen half saved.
+        // Validation errors go through as usual (422); anything else returns a readable message for the Swal.
+        try {
+            DB::transaction(function () use ($request, $spesialisasi) {
+                // Call spesialisasi-based save function
+                if ($spesialisasi === 'penyakit dalam') {
+                    $this->storeAsesmenDalam($request);
+                } elseif ($spesialisasi === 'tht') {
+                    $this->storeAsesmenTht($request);
+                } elseif ($spesialisasi === 'umum') {
+                    $this->storeAsesmenUmum($request);
+                } elseif ($spesialisasi === 'estetika') {
+                    $this->storeAsesmenEstetika($request);
+                } elseif ($spesialisasi === 'anak') {
+                    $this->storeAsesmenAnak($request);
+                } elseif ($spesialisasi === 'saraf') {
+                    $this->storeAsesmenSaraf($request);
+                } elseif ($spesialisasi === 'gigi') {
+                    $this->storeAsesmenGigi($request);
+                }
+
+                // Shared Penunjang logic
+                $this->storeAsesmenPenunjang($request);
+
+                $this->storeJenisKonsultasi($request);
+
+                Visitation::where('id', $request->visitation_id)->update(['status_kunjungan' => 2]);
+            });
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('Simpan asesmen dokter gagal: ' . $e->getMessage(), ['visitation_id' => $request->visitation_id]);
+            return response()->json(['status' => 'error', 'message' => SaveErrorMessage::from($e)], 500);
         }
-
-        // Shared Penunjang logic
-        $this->storeAsesmenPenunjang($request);
-
-        $this->storeJenisKonsultasi($request);
-
-        Visitation::where('id', $request->visitation_id)->update(['status_kunjungan' => 2]);
 
         return response()->json([
             'status' => 'success',

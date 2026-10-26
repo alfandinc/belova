@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\Finance\Billing;
+use App\Models\Finance\Invoice;
+use App\Models\Finance\InvoiceItem;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Tindakan;
@@ -896,8 +898,9 @@ class TindakanController extends Controller
 
     /**
      * Billing state of riwayat tindakan: [riwayat_id => ['status' => paid|partial|issued|null, 'locked' => bool]].
-     * Locked = it is on an invoice (its own invoice item), or its visit's invoice is already (partly) paid
-     * (older tindakan were invoiced as 'Tindakan' items, not per riwayat). A locked one is cancelled at the kasir.
+     * Locked = its invoice (its own invoice item, or its visit's invoice: older tindakan were invoiced as
+     * 'Tindakan' items, not per riwayat) is already processed: (partly) paid, or taken as piutang / asuransi
+     * (stock already cut). A locked one is cancelled at the kasir; an unpaid invoice ('Ditagih') does not lock.
      */
     private function riwayatBillingState($riwayats): array
     {
@@ -908,30 +911,83 @@ class TindakanController extends Controller
         }
 
         $rank = ['paid' => 3, 'partial' => 2, 'issued' => 1];
+        $pick = fn ($rows) => $rows->sortByDesc(fn ($r) => ($this->invoiceProcessed($r) ? 10 : 0) + ($rank[$r->status] ?? 0))->first();
         $own = DB::table('finance_invoice_items as ii')
             ->join('finance_invoices as i', 'i.id', '=', 'ii.invoice_id')
             ->where('ii.billable_type', RiwayatTindakan::class)
             ->whereIn('ii.billable_id', $ids)
-            ->get(['ii.billable_id', 'i.status'])
+            ->get(['ii.billable_id', 'i.status', 'i.payment_method'])
             ->groupBy('billable_id')
-            ->map(fn ($rows) => $rows->sortByDesc(fn ($r) => $rank[$r->status] ?? 0)->first()->status);
+            ->map($pick);
         $visit = DB::table('finance_invoices')->whereIn('visitation_id', $visitIds)
-            ->get(['visitation_id', 'status'])
+            ->get(['visitation_id', 'status', 'payment_method'])
             ->groupBy('visitation_id')
-            ->map(fn ($rows) => $rows->sortByDesc(fn ($r) => $rank[$r->status] ?? 0)->first()->status);
+            ->map($pick);
 
         $state = [];
         foreach ($riwayats as $r) {
-            $ownStatus = $own[$r->id] ?? null;
-            $visitStatus = $visit[$r->visitation_id] ?? null;
-            $visitPaid = in_array($visitStatus, ['paid', 'partial'], true);
+            $ownInv = $own[$r->id] ?? null;
+            $visitInv = $visit[$r->visitation_id] ?? null;
+            $visitProcessed = $visitInv && $this->invoiceProcessed($visitInv);
             $state[$r->id] = [
-                'status' => $ownStatus ?? ($visitPaid ? $visitStatus : null),
-                'locked' => $ownStatus !== null || $visitPaid,
+                'status' => $ownInv->status ?? ($visitProcessed ? $visitInv->status : null),
+                'locked' => ($ownInv && $this->invoiceProcessed($ownInv)) || $visitProcessed,
             ];
         }
 
         return $state;
+    }
+
+    /** Payment already processed at the kasir: (partly) paid, or piutang / asuransi (payment method set, stock cut). */
+    private function invoiceProcessed($invoice): bool
+    {
+        return in_array($invoice->status, ['paid', 'partial'], true) || !empty($invoice->payment_method);
+    }
+
+    /**
+     * A cancelled tindakan on a not yet processed invoice: drop its invoice line and recompute the totals
+     * (same formula as the billing page / Edit Invoice). The kasir rebuilds the lines from billing on the next save;
+     * an invoice left without any line is removed so the visit shows as not billed again.
+     */
+    private function removeRiwayatFromOpenInvoice(RiwayatTindakan $riwayat): void
+    {
+        $invoices = Invoice::where('visitation_id', $riwayat->visitation_id)->with('items')->get()
+            ->reject(fn ($inv) => $this->invoiceProcessed($inv));
+
+        foreach ($invoices as $invoice) {
+            $line = $invoice->items->first(fn ($it) => $it->billable_type === RiwayatTindakan::class && (int) $it->billable_id === (int) $riwayat->id)
+                // Older data: billed per tindakan, one line for this one riwayat
+                ?? $invoice->items->sortByDesc('id')->first(fn ($it) => $it->billable_type === Tindakan::class && (int) $it->billable_id === (int) $riwayat->tindakan_id);
+            if (!$line) {
+                continue;
+            }
+            $line->delete();
+            $items = $invoice->items->reject(fn ($it) => $it->id === $line->id);
+
+            $isFee = fn ($it) => empty($it->billable_type) && in_array($it->name, ['Biaya Administrasi', 'Biaya Ongkir'], true);
+            if ($items->reject($isFee)->isEmpty()) {
+                InvoiceItem::where('invoice_id', $invoice->id)->delete();
+                $invoice->delete();
+                continue;
+            }
+
+            $subtotal = (float) $items->reject($isFee)->sum('final_amount');
+            $fees = (float) $items->filter($isFee)->sum('final_amount');
+            $discountValue = (float) $invoice->discount_value;
+            $discountAmount = in_array($invoice->discount_type, ['%', 'percent'], true)
+                ? $subtotal * min(100, $discountValue) / 100
+                : min($subtotal, $discountValue);
+            $taxAmount = ($subtotal - $discountAmount) * (float) $invoice->tax_percentage / 100;
+            $total = (float) ceil($subtotal - $discountAmount + $taxAmount + $fees);
+
+            $invoice->subtotal = $subtotal;
+            $invoice->discount = $discountAmount;
+            $invoice->tax = $taxAmount;
+            $invoice->total_amount = $total;
+            $invoice->change_amount = 0;
+            $invoice->shortage_amount = $total;
+            $invoice->save();
+        }
     }
 
     public function getRiwayatTindakanHistory(Request $request, $visitationId)
@@ -1427,11 +1483,11 @@ class TindakanController extends Controller
         try {
             $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
 
-            // Already on an invoice / paid: removing its billing here would leave the invoice and stock wrong
+            // Invoice already paid / processed: removing its billing here would leave the invoice and stock wrong
             if ($this->riwayatBillingState(collect([$riwayat]))[$riwayat->id]['locked'] ?? false) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Tindakan ini sudah masuk invoice / sudah dibayar. Pembatalan dilakukan lewat kasir.',
+                    'message' => 'Invoice tindakan ini sudah dibayar / diproses kasir. Pembatalan dilakukan lewat kasir.',
                 ], 422);
             }
 
@@ -1450,6 +1506,8 @@ class TindakanController extends Controller
 
             DB::beginTransaction();
 
+            // Before the graph goes: the old-data fallback matches the line by tindakan_id
+            $this->removeRiwayatFromOpenInvoice($riwayat);
             $this->deleteSingleRiwayatTindakanGraph($riwayat);
 
             $removedMultiVisitUsageId = null;

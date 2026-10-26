@@ -118,6 +118,45 @@
 
     <!-- Sweet-Alert  -->
         <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js')}}"></script>
+    <script>
+    // A Bootstrap 4 modal pulls keyboard focus back into itself on every focusin, so the input of a
+    // SweetAlert dialog (or a Select2 search box) opened on top of it could not be typed in.
+    // Let focus stay in those overlays; everything else keeps the normal modal focus trap.
+    (function () {
+        if (!window.jQuery || !$.fn.modal || !$.fn.modal.Constructor || $.fn.modal.Constructor.prototype._wfFocusPatched) return;
+        var proto = $.fn.modal.Constructor.prototype;
+        proto._enforceFocus = function () {
+            var self = this;
+            $(document).off('focusin.bs.modal').on('focusin.bs.modal', function (e) {
+                if ($(e.target).closest('.swal2-container, .select2-container').length) return;
+                if (document !== e.target && self._element !== e.target && $(self._element).has(e.target).length === 0) {
+                    self._element.focus();
+                }
+            });
+        };
+        proto._wfFocusPatched = true;
+    })();
+
+    // Readable (HTML-escaped) message of a failed AJAX save for the error Swal: validation errors as a list,
+    // otherwise the server's message, or what the HTTP status means.
+    window.belovaAjaxError = function (xhr, fallback) {
+        var esc = function (s) { return $('<div>').text(String(s)).html(); };
+        var res = (xhr && xhr.responseJSON) || {};
+        if (res.errors) {
+            return Object.values(res.errors).flat().map(function (e) { return '&bull; ' + esc(e); }).join('<br>');
+        }
+        switch (xhr ? xhr.status : 0) {
+            case 0: return 'Tidak ada koneksi ke server. Periksa jaringan lalu simpan lagi.';
+            case 419: return 'Sesi login sudah habis. Salin dulu isian yang panjang, lalu muat ulang halaman dan simpan lagi.';
+            case 403: return esc(res.message || 'Anda tidak punya akses untuk menyimpan data ini.');
+            case 413: return 'Data / gambar yang dikirim terlalu besar.';
+        }
+        if (res.message && res.message !== 'Server Error') {
+            return esc(res.message);
+        }
+        return esc(fallback || 'Terjadi kesalahan saat mengirim data.') + ' (kode ' + xhr.status + ')';
+    };
+    </script>
 
     <!-- Theme Toggle Script -->
     <script>

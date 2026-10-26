@@ -52,6 +52,18 @@ body.jv-open #belovaChatWidget { display: none !important; }
 .jv-table .jv-group-row td { font-weight: 700; font-size: 12px; text-transform: uppercase; background: rgba(128,128,128,.15); text-align: left; }
 .jv-group-label { position: sticky; left: 8px; }
 .jv-table tr.me td.jv-sticky { background: linear-gradient(rgba(30,136,229,.12), rgba(30,136,229,.12)), var(--jv-bg, #fff); }
+/* Jadwal dokter sebulan: kalender Senin–Minggu, tiap tanggal berisi dokter yang praktik */
+.jv-cal { width: 100%; min-width: 760px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.jv-cal th { position: sticky; top: 0; z-index: 2; background: var(--jv-bg, #fff); text-align: center; font-weight: 600; padding: 5px 2px; border-bottom: 1px solid rgba(128,128,128,.3); }
+.jv-cal th.red, .jv-cal td.red .jv-cal-num { color: #e74c3c; }
+.jv-cal td { vertical-align: top; height: 92px; padding: 4px; border-right: 1px solid rgba(128,128,128,.18); border-bottom: 1px solid rgba(128,128,128,.18); cursor: pointer; overflow: hidden; }
+.jv-cal td:hover { background: rgba(128,128,128,.08); }
+.jv-cal td.out { opacity: .4; }
+.jv-cal td.today { background: rgba(30,136,229,.1); }
+.jv-cal-num { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
+.jv-cal td.today .jv-cal-num { color: #1e88e5; }
+.jv-cal-item { font-size: 11px; line-height: 1.3; border-left: 3px solid; border-radius: 3px; padding: 1px 4px; margin-top: 2px; background: rgba(128,128,128,.12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jv-cal-item small { opacity: .75; }
 @media (max-width: 767.98px) {
     #jadwalModal .modal-dialog.jv-dialog { margin: 0; width: 100%; max-width: 100%; height: 100%; }
     #jadwalModal .modal-content { min-height: 100%; border-radius: 0; border: 0; }
@@ -89,6 +101,9 @@ body.jv-open #belovaChatWidget { display: none !important; }
                             <button type="button" class="btn btn-link jv-label" title="Kembali ke minggu ini">-</button>
                             <button type="button" class="btn btn-outline-secondary jv-next" aria-label="Minggu berikutnya"><i class="fas fa-chevron-right"></i></button>
                             <button type="button" class="btn btn-outline-secondary jv-mode" title="Tampilan seminggu / per hari"><i class="fas fa-table"></i></button>
+                            @if($jvKey === 'dokter')
+                                <button type="button" class="btn btn-outline-secondary jv-month" title="Tampilan sebulan"><i class="fas fa-calendar-alt"></i><span class="d-none d-md-inline ml-1">Bulan</span></button>
+                            @endif
                             <button type="button" class="btn btn-primary jv-download" title="Download gambar"><i class="fas fa-download"></i><span class="d-none d-md-inline ml-1">Gambar</span></button>
                         </div>
                         <div class="jv-days"></div>
@@ -259,6 +274,8 @@ function initBelovaJadwalViewer() {
         function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
         function mondayOf(d) { d = new Date(d); var day = d.getDay(); d.setDate(d.getDate() + ((day === 0 ? -6 : 1) - day)); return ymd(d); }
         function addDays(s, n) { var p = s.split('-'); var d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() + n); return ymd(d); }
+        function parseYmd(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +(p[2] || 1)); }
+        function addMonths(m, n) { var p = m.split('-'); var d = new Date(+p[0], +p[1] - 1 + n, 1); return ymd(d).slice(0, 7); }
         function contrast(hex) {
             var c = (hex || '').replace('#', '');
             if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
@@ -310,10 +327,10 @@ function initBelovaJadwalViewer() {
 
         function createViewer(key) {
             var $pane = $('[data-jv-pane="' + key + '"]');
-            var state = { start: mondayOf(new Date()), day: null, mode: null, data: null };
+            var state = { start: mondayOf(new Date()), day: null, mode: null, data: null, month: ymd(new Date()).slice(0, 7) };
 
             function load() {
-                var params = { start_date: state.start };
+                var params = state.mode === 'month' ? { month: state.month } : { start_date: state.start };
                 if (key === 'dokter') params.clinic_id = $pane.find('.jv-clinic').val() || '';
                 $pane.find('.jv-body').html('<div class="jv-empty"><span class="spinner-border spinner-border-sm mr-1"></span> Memuat jadwal...</div>');
                 $.getJSON(key === 'dokter' ? URL_DOKTER : URL_KARYAWAN, params)
@@ -343,10 +360,15 @@ function initBelovaJadwalViewer() {
                     return '<button type="button" class="' + cls + '" data-date="' + d.date + '"' + (d.holiday ? ' title="' + esc(d.holiday) + '"' : '') + '>' +
                         '<small>' + esc(d.day) + '</small><b>' + esc(d.num) + '</b></button>';
                 }).join('');
-                $pane.find('.jv-days').html(html);
+                // Sebulan: tanggal sudah ada di kalender, strip hari disembunyikan
+                $pane.find('.jv-days').html(state.mode === 'month' ? '' : html).toggle(state.mode !== 'month');
                 // Tombol mode: tampilkan ikon tujuan (tabel seminggu <-> daftar harian)
                 $pane.find('.jv-mode').toggleClass('active', state.mode === 'week')
                     .html(state.mode === 'week' ? '<i class="fas fa-list"></i>' : '<i class="fas fa-table"></i>');
+                $pane.find('.jv-month').toggleClass('active', state.mode === 'month');
+                $pane.find('.jv-prev').attr('aria-label', state.mode === 'month' ? 'Bulan sebelumnya' : 'Minggu sebelumnya');
+                $pane.find('.jv-next').attr('aria-label', state.mode === 'month' ? 'Bulan berikutnya' : 'Minggu berikutnya');
+                $pane.find('.jv-label').attr('title', state.mode === 'month' ? 'Kembali ke bulan ini' : 'Kembali ke minggu ini');
                 $pane.find('.jv-label').text(state.data.label);
             }
 
@@ -360,7 +382,7 @@ function initBelovaJadwalViewer() {
                 if (!state.mode) state.mode = isMobile() ? 'day' : 'week';
                 renderDays();
                 var groups = key === 'dokter' ? state.data.kliniks : state.data.divisions;
-                $pane.find('.jv-body').html(state.mode === 'day' ? renderDay(groups) : renderWeek(groups));
+                $pane.find('.jv-body').html(state.mode === 'month' ? renderMonth(groups) : (state.mode === 'day' ? renderDay(groups) : renderWeek(groups)));
                 if (state.mode === 'week') {
                     // Geser tabel supaya kolom hari yang dipilih langsung terlihat di samping kolom nama
                     var wrap = $pane.find('.jv-table-wrap')[0];
@@ -427,16 +449,78 @@ function initBelovaJadwalViewer() {
                 return any ? html : '<div class="jv-empty">Tidak ada jadwal minggu ini.</div>';
             }
 
+            // Jadwal dokter sebulan: kalender per minggu, tiap tanggal = dokter yang praktik + jamnya (klik = per hari)
+            function renderMonth(groups) {
+                var dates = state.data.dates;
+                var people = [];
+                groups.forEach(function (g) { g.dokters.forEach(function (p) { if (matches(p.nama)) people.push(p); }); });
+                var html = '<div class="jv-table-wrap"><table class="jv-cal"><thead><tr>' +
+                    dates.slice(0, 7).map(function (d) { return '<th class="' + (d.sunday ? 'red' : '') + '">' + esc(d.day) + '</th>'; }).join('') +
+                    '</tr></thead><tbody>';
+                var any = false;
+                dates.forEach(function (d, i) {
+                    if (i % 7 === 0) html += '<tr>';
+                    var items = people.filter(function (p) { return !!p.days[d.date]; })
+                        .sort(function (a, b) { return String(a.days[d.date]).localeCompare(String(b.days[d.date])); })
+                        .map(function (p) {
+                            return '<div class="jv-cal-item" style="border-left-color:' + esc(p.color) + '" title="' + esc(p.nama + ' ' + jamRange(p.days[d.date])) + '">' +
+                                esc(p.nama) + ' <small>' + esc(jamRange(p.days[d.date])) + '</small></div>';
+                        }).join('');
+                    if (items && d.inMonth) any = true;
+                    var cls = (d.inMonth ? '' : 'out') + (d.today ? ' today' : '') + (d.sunday ? ' red' : '');
+                    html += '<td class="' + cls + '" data-cal-date="' + d.date + '" title="' + esc(d.dayLong) + '"><div class="jv-cal-num">' + esc(d.num) + '</div>' + items + '</td>';
+                    if (i % 7 === 6) html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                return any ? html : html + '<div class="jv-empty">Tidak ada jadwal dokter di bulan ini.</div>';
+            }
+
             // Events
-            $pane.on('click', '.jv-prev', function () { state.start = addDays(state.start, -7); state.day = null; load(); });
-            $pane.on('click', '.jv-next', function () { state.start = addDays(state.start, 7); state.day = null; load(); });
-            $pane.on('click', '.jv-label', function () { state.start = mondayOf(new Date()); state.day = null; load(); });
+            $pane.on('click', '.jv-prev', function () {
+                if (state.mode === 'month') { state.month = addMonths(state.month, -1); load(); return; }
+                state.start = addDays(state.start, -7); state.day = null; load();
+            });
+            $pane.on('click', '.jv-next', function () {
+                if (state.mode === 'month') { state.month = addMonths(state.month, 1); load(); return; }
+                state.start = addDays(state.start, 7); state.day = null; load();
+            });
+            $pane.on('click', '.jv-label', function () {
+                if (state.mode === 'month') { state.month = ymd(new Date()).slice(0, 7); load(); return; }
+                state.start = mondayOf(new Date()); state.day = null; load();
+            });
+            $pane.on('click', '.jv-month', function () {
+                if (state.mode === 'month') {
+                    // Back to the week of the month shown (this week when it is the current month)
+                    state.mode = 'week';
+                    state.start = state.month === ymd(new Date()).slice(0, 7) ? mondayOf(new Date()) : mondayOf(parseYmd(state.month));
+                    state.day = null;
+                } else {
+                    state.mode = 'month';
+                    state.month = (state.day || state.start).slice(0, 7);
+                }
+                load();
+            });
+            // Klik tanggal di kalender: buka daftar dokter hari itu
+            $pane.on('click', '[data-cal-date]', function () {
+                var date = $(this).data('cal-date');
+                state.mode = 'day';
+                state.day = date;
+                state.start = mondayOf(parseYmd(date));
+                load();
+            });
             $pane.on('click', '.jv-day', function () {
                 state.mode = 'day';
                 state.day = $(this).data('date');
                 render();
             });
             $pane.on('click', '.jv-mode', function () {
+                if (state.mode === 'month') {
+                    state.mode = 'week';
+                    state.start = state.month === ymd(new Date()).slice(0, 7) ? mondayOf(new Date()) : mondayOf(parseYmd(state.month));
+                    state.day = null;
+                    load();
+                    return;
+                }
                 state.mode = state.mode === 'week' ? 'day' : 'week';
                 render();
             });
@@ -444,10 +528,11 @@ function initBelovaJadwalViewer() {
             $pane.on('change', '.jv-clinic', load);
             $pane.on('click', '.jv-download', function () {
                 var clinic = $pane.find('.jv-clinic').val();
+                var month = state.mode === 'month' ? state.month : state.start.slice(0, 7);
                 var url = key === 'dokter'
-                    ? "{{ route('hrd.dokter-schedule.print') }}?month=" + state.start.slice(0, 7) + (clinic ? '&clinic_id=' + clinic : '')
+                    ? "{{ route('hrd.dokter-schedule.print') }}?month=" + month + (clinic ? '&clinic_id=' + clinic : '')
                     : "{{ route('hrd.schedule.print') }}?start_date=" + state.start;
-                var name = key === 'dokter' ? 'jadwal_dokter_' + state.start.slice(0, 7) : 'jadwal_karyawan_' + state.start;
+                var name = key === 'dokter' ? 'jadwal_dokter_' + month : 'jadwal_karyawan_' + state.start;
                 var $btn = $(this).prop('disabled', true);
                 Promise.resolve(renderPdfToSingleImage(url, name, document.getElementById('jadwalPdfCanvas')))
                     .finally(function () { $btn.prop('disabled', false); });
