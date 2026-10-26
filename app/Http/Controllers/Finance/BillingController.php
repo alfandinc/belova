@@ -2366,15 +2366,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Expose a lightweight "invoice out-of-date" flag so the UI can switch to "Update Invoice"
             // without requiring a full page refresh.
             $invoiceNeedsUpdate = false;
+            $invoiceChanges = null;
             try {
                 $latestInvoice = Invoice::with('items')->where('visitation_id', $visitation_id)->latest()->first();
                 if ($latestInvoice) {
                     $invoiceNeedsUpdate = !$this->invoiceSnapshotMatchesProcessedBillings($processedBillings, $latestInvoice);
+                    // What changed, for the warning above the billing table (unpaid invoice only reaches here)
+                    if ($invoiceNeedsUpdate) {
+                        $invoiceChanges = $this->invoiceChangesForBillings($processedBillings, $latestInvoice);
+                    }
                 }
             } catch (\Exception $e) {
                 $invoiceNeedsUpdate = false;
             }
             $dt->with('invoice_needs_update', $invoiceNeedsUpdate ? 1 : 0);
+            $dt->with('invoice_changes', $invoiceChanges);
 
             return $dt
             ->addColumn('is_racikan', function ($row) {
@@ -3172,6 +3178,38 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         });
 
         return $normalized;
+    }
+
+    /**
+     * What differs between the billing and an unpaid invoice, for the "billing berubah" warning on the billing page
+     * (e.g. the dokter changed the biaya konsultasi after "Buat Invoice"): ['baru' => [...], 'lama' => [...]], each
+     * item ['name', 'quantity', 'final_amount']. 'baru' = in billing but not on the invoice, 'lama' = the reverse.
+     */
+    private function invoiceChangesForBillings($processedBillings, Invoice $invoice): array
+    {
+        $invoice->loadMissing('items');
+        $key = fn ($row) => implode('|', [$row['group_type'] ?? '', $row['name'] ?? '', $row['quantity'] ?? '', $row['final_amount'] ?? '']);
+        $billing = $this->normalizeProcessedBillingsForInvoiceComparison($processedBillings);
+        $onInvoice = $this->normalizeInvoiceItemsForBillingComparison($invoice);
+
+        // Multiset difference (the same item can be there twice)
+        $diff = function (array $from, array $minus) use ($key) {
+            $left = [];
+            foreach ($minus as $row) {
+                $left[$key($row)] = ($left[$key($row)] ?? 0) + 1;
+            }
+            $out = [];
+            foreach ($from as $row) {
+                if (!empty($left[$key($row)])) {
+                    $left[$key($row)]--;
+                    continue;
+                }
+                $out[] = ['name' => $row['name'], 'quantity' => $row['quantity'], 'final_amount' => $row['final_amount']];
+            }
+            return $out;
+        };
+
+        return ['baru' => $diff($billing, $onInvoice), 'lama' => $diff($onInvoice, $billing)];
     }
 
     private function invoiceSnapshotMatchesProcessedBillings($processedBillings, ?Invoice $invoice): bool

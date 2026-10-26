@@ -685,6 +685,8 @@
                             Rincian billing akan aktif setelah data pasien event dibuat.
                         </div>
                     @endif
+                    {{-- Billing changed after "Buat Invoice" (e.g. dokter changed the biaya konsultasi): filled by renderInvoiceChanges() --}}
+                    <div id="invoiceChangesAlert" class="alert alert-warning mb-3" style="display:none;"></div>
                     <div class="table-responsive">
                         <table id="billingTable" class="table table-hover">
                             <thead class="thead-light">
@@ -1345,6 +1347,33 @@
             return isNaN(billableIdNum) ? [] : [billableIdNum];
         }
 
+        // Warning above the table when the billing no longer matches the unpaid invoice (server compares them):
+        // lists what was added / what is on the invoice but no longer in billing, and points to "Update Invoice"
+        function renderInvoiceChanges(changes) {
+            const $box = $('#invoiceChangesAlert');
+            if (!changes || (!(changes.baru || []).length && !(changes.lama || []).length)) {
+                $box.hide().empty();
+                return;
+            }
+            const esc = function (s) { return $('<div>').text(s == null ? '' : String(s)).html(); };
+            const line = function (it) {
+                const qty = parseFloat(it.quantity) || 1;
+                return esc(it.name) + (qty !== 1 ? ' &times;' + esc(qty) : '') + ' <strong>Rp ' + formatCurrency(it.final_amount || 0) + '</strong>';
+            };
+            // Old lines (on the invoice) struck through, new lines (billing now) highlighted
+            const oldLines = (changes.lama || []).map(function (it) {
+                return '<li class="text-muted"><span class="badge badge-secondary mr-1">Di invoice</span><s>' + line(it) + '</s></li>';
+            }).join('');
+            const newLines = (changes.baru || []).map(function (it) {
+                return '<li><span class="badge badge-warning mr-1">Billing sekarang</span>' + line(it) + '</li>';
+            }).join('');
+            $box.html(
+                '<div class="font-weight-bold mb-1"><i class="fas fa-exclamation-triangle mr-1"></i>Billing berubah setelah invoice dibuat</div>'
+                + '<ul class="mb-2 pl-3">' + oldLines + newLines + '</ul>'
+                + '<div class="small">Klik <strong>Update Invoice</strong> supaya invoice sesuai billing sebelum menerima pembayaran.</div>'
+            ).show();
+        }
+
         function hasLocalBillingChanges() {
             try {
                 if (!Array.isArray(billingData)) return false;
@@ -1830,6 +1859,7 @@
                                 invoiceNeedsUpdateServer = backendInvoiceNeedsUpdate;
                             }
                         }
+                        renderInvoiceChanges(invoiceNeedsUpdateServer && !currentInvoiceIsPaid && !billingLocked ? json.invoice_changes : null);
                     } catch (e) {
                         // ignore
                     }

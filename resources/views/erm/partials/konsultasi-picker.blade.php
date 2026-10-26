@@ -53,7 +53,7 @@ window.belovaPilihKonsultasi = function (items, selectedId) {
         }).join('')
         + '<div class="kp-empty" style="display:none">Tidak ada yang cocok.</div></div>';
 
-    return Swal.fire({
+    var options = {
         title: 'Pilih Biaya Konsultasi',
         html: html,
         customClass: { popup: 'kp-popup' },
@@ -62,31 +62,6 @@ window.belovaPilihKonsultasi = function (items, selectedId) {
         cancelButtonText: 'Batal',
         reverseButtons: true,
         focusConfirm: false,
-        didOpen: function (popup) {
-            var $p = $(popup);
-            var select = function ($btn) {
-                current = String($btn.data('id'));
-                $p.find('.kp-item').removeClass('active').attr('aria-checked', 'false');
-                $btn.addClass('active').attr('aria-checked', 'true');
-                Swal.resetValidationMessage();
-            };
-            $p.on('click', '.kp-item', function () { select($(this)); });
-            // Double-click = choose and continue
-            $p.on('dblclick', '.kp-item', function () { select($(this)); Swal.clickConfirm(); });
-            $p.on('input', '.kp-search', function () {
-                var q = $(this).val().trim().toLowerCase();
-                var any = false;
-                $p.find('.kp-item').each(function () {
-                    var show = !q || String($(this).data('search')).indexOf(q) !== -1;
-                    $(this).toggle(show);
-                    any = any || show;
-                });
-                $p.find('.kp-empty').toggle(!any);
-            });
-            var $active = $p.find('.kp-item.active');
-            if ($active.length) $active[0].scrollIntoView({ block: 'nearest' });
-            ($p.find('.kp-search')[0] || $active[0] || popup).focus();
-        },
         preConfirm: function () {
             if (!current) {
                 Swal.showValidationMessage('Pilih biaya konsultasi terlebih dahulu.');
@@ -94,6 +69,36 @@ window.belovaPilihKonsultasi = function (items, selectedId) {
             }
             return current;
         }
-    }).then(function (result) { return result.value ? String(result.value) : null; }); // this SweetAlert2 has no isConfirmed
+    };
+    // The bundled SweetAlert2 (9.5.3) calls it onOpen; v10+ renamed it didOpen. Without it the cards can't be clicked.
+    var openHook = (Swal.isValidParameter && Swal.isValidParameter('didOpen')) ? 'didOpen' : 'onOpen';
+    options[openHook] = function (popup) {
+        var $p = $(popup);
+        var select = function ($btn) {
+            current = String($btn.data('id'));
+            $p.find('.kp-item').removeClass('active').attr('aria-checked', 'false');
+            $btn.addClass('active').attr('aria-checked', 'true');
+            Swal.resetValidationMessage();
+        };
+        $p.on('click', '.kp-item', function () { select($(this)); });
+        // Double-click = choose and continue
+        $p.on('dblclick', '.kp-item', function () { select($(this)); Swal.clickConfirm(); });
+        $p.on('input', '.kp-search', function () {
+            var q = $(this).val().trim().toLowerCase();
+            var any = false;
+            $p.find('.kp-item').each(function () {
+                var show = !q || String($(this).data('search')).indexOf(q) !== -1;
+                $(this).toggle(show);
+                any = any || show;
+            });
+            $p.find('.kp-empty').toggle(!any);
+        });
+        var $active = $p.find('.kp-item.active');
+        if ($active.length) $active[0].scrollIntoView({ block: 'nearest' });
+        ($p.find('.kp-search')[0] || $active[0] || popup).focus();
+    };
+
+    return Swal.fire(options)
+        .then(function (result) { return result.value ? String(result.value) : null; }); // 9.5.3 has no isConfirmed
 };
 </script>
