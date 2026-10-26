@@ -17,7 +17,13 @@
             (string) $konsultasi->id => $konsultasi->nama . ' - Rp ' . number_format($konsultasi->harga, 0, ',', '.'),
         ])
         ->all();
+    $konsultasiItems = $filteredJenisKonsultasi
+        ->map(fn ($konsultasi) => ['id' => (string) $konsultasi->id, 'nama' => $konsultasi->nama, 'harga' => (float) $konsultasi->harga])
+        ->values()
+        ->all();
 @endphp
+
+@include('erm.partials.konsultasi-picker')
 
 @include('erm.partials.modal-alergipasien')
 
@@ -336,6 +342,7 @@
 <script>
 $(document).ready(function () {
     const konsultasiOptions = @json($konsultasiPopupOptions);
+    const konsultasiItems = @json($konsultasiItems);
     let selectedJenisKonsultasi = @json($defaultJenisKonsultasi);
 
     async function promptJenisKonsultasi() {
@@ -355,30 +362,14 @@ $(document).ready(function () {
             selectedJenisKonsultasi = availableOptions[0];
         }
 
-        const result = await Swal.fire({
-            title: 'Pilih Biaya Konsultasi',
-            input: 'select',
-            inputOptions: konsultasiOptions,
-            inputValue: String(selectedJenisKonsultasi),
-            inputPlaceholder: 'Pilih biaya konsultasi',
-            showCancelButton: true,
-            confirmButtonText: 'Lanjut simpan',
-            cancelButtonText: 'Batal',
-            inputValidator: (value) => {
-                if (!value) {
-                    return 'Pilih biaya konsultasi terlebih dahulu.';
-                }
-
-                return undefined;
-            }
-        });
-
-        if (!result.value) {
+        // Card list (name + harga), see erm.partials.konsultasi-picker
+        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi);
+        if (!chosen) {
             return null;
         }
 
-        selectedJenisKonsultasi = result.value;
-        return result.value;
+        selectedJenisKonsultasi = chosen;
+        return chosen;
     }
 
     // Refresh CPPT history on page load
