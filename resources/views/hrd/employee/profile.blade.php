@@ -179,7 +179,7 @@
 </div>
 
 <!-- Edit Profile Modal -->
-<div class="modal fade" id="editProfileModal" tabindex="-1" role="dialog" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+<div class="modal fade" id="profilePageModal" tabindex="-1" role="dialog" aria-labelledby="profilePageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content" id="modalContent">
             <!-- Content will be loaded here -->
@@ -208,7 +208,7 @@ $(function() {
     // Load modal content via AJAX
     $('#btnEditProfile').on('click', function() {
         $('#modalContent').html('<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');
-        $('#editProfileModal').modal('show');
+        $('#profilePageModal').modal('show');
         
         $.ajax({
             url: '{{ route("hrd.employee.profile.modal") }}',
@@ -234,7 +234,7 @@ $(function() {
     // Handle Change Password button click
     $('#btnChangePassword').on('click', function() {
         $('#modalContent').html('<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');
-        $('#editProfileModal').modal('show');
+        $('#profilePageModal').modal('show');
         
         $.ajax({
             url: '{{ route("hrd.employee.profile.modal") }}?mode=password',
@@ -268,7 +268,7 @@ $(function() {
                 },
                 success: function(response) {
                     if (response.success) {
-                        $('#editProfileModal').modal('hide');
+                        $('#profilePageModal').modal('hide');
                         
                         Swal.fire({
                             icon: 'success',
@@ -334,7 +334,7 @@ $(function() {
                 },
                 success: function(response) {
                     if (response.success) {
-                        $('#editProfileModal').modal('hide');
+                        $('#profilePageModal').modal('hide');
                         
                         Swal.fire({
                             icon: 'success',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\KPI;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Models\HRD\Employee;
 use App\Models\KPI\KpiAssessment;
 
@@ -91,9 +92,79 @@ class KpiAssessmentController extends Controller
             $assessment->save();
         }
 
+        // a specific-position evaluator assesses the employee once: offer the same scores for the employee's other positions
+        $siblings = $this->pendingSpecificSiblings($assessment)->map(function ($sibling) {
+            return [
+                'id' => $sibling->id,
+                'position' => optional($sibling->evaluateePosition)->name ?? '-',
+            ];
+        })->values();
+
         return response()->json([
             'message' => $canManageOverride ? 'Assessment updated.' : 'Assessment saved',
+            'siblings' => $siblings,
+            'apply_siblings_url' => $siblings->isNotEmpty() ? route('kpi.kpi_assessments.apply_siblings', $assessment) : null,
+            'evaluatee' => optional($assessment->evaluateeEmployee)->nama ?? optional($assessment->evaluateeEmployee)->name,
         ]);
+    }
+
+    /**
+     * Copy the scores of a done specific_position assessment to the same evaluator's pending
+     * assessments on the employee's other positions. Indicators not scored here take the average raw score.
+     */
+    public function applyToSiblings(KpiAssessment $assessment)
+    {
+        abort_unless($this->canAccessAssessment($assessment), 403);
+
+        if ($assessment->assessment_type !== 'specific_position' || $assessment->status !== 'done') {
+            return response()->json(['message' => 'Penilaian ini belum selesai atau bukan penilai khusus.'], 422);
+        }
+
+        $pool = \App\Models\KPI\KpiScore::where('assessment_id', $assessment->id)->get()->keyBy('indicators_id');
+        if ($pool->isEmpty()) {
+            return response()->json(['message' => 'Penilaian ini belum punya nilai.'], 422);
+        }
+        $averageScore = $pool->avg(fn ($s) => (float) $s->score);
+
+        $applied = DB::transaction(function () use ($assessment, $pool, $averageScore) {
+            $applied = 0;
+            foreach ($this->pendingSpecificSiblings($assessment) as $sibling) {
+                if ($sibling->scores->isEmpty()) {
+                    continue;
+                }
+                foreach ($sibling->scores as $s) {
+                    $source = $pool->get($s->indicators_id);
+                    $rawScore = $source ? (float) $source->score : $averageScore;
+                    $s->score = round($rawScore, 2);
+                    $s->notes = $source?->notes;
+                    $s->final_calculated_score = round(($rawScore / 5.0) * (((float) ($s->ss_indicator_weight_percentage ?? 0)) / 100.0) * ((float) ($s->ss_category_weight_percentage ?? 0)), 2);
+                    $s->save();
+                }
+                $sibling->status = 'done';
+                $sibling->save();
+                $applied++;
+            }
+            return $applied;
+        });
+
+        return response()->json(['message' => $applied . ' posisi lain sudah diisi dengan penilaian yang sama.', 'applied' => $applied]);
+    }
+
+    private function pendingSpecificSiblings(KpiAssessment $assessment)
+    {
+        if ($assessment->assessment_type !== 'specific_position') {
+            return collect();
+        }
+
+        return KpiAssessment::with(['evaluateePosition', 'scores'])
+            ->where('period_id', $assessment->period_id)
+            ->where('assessment_type', 'specific_position')
+            ->where('evaluator_employee_id', $assessment->evaluator_employee_id)
+            ->where('evaluator_position_id', $assessment->evaluator_position_id)
+            ->where('evaluatee_employee_id', $assessment->evaluatee_employee_id)
+            ->where('id', '!=', $assessment->id)
+            ->where('status', 'pending')
+            ->get();
     }
 
     private function canAccessAssessment(KpiAssessment $assessment): bool

@@ -2051,6 +2051,9 @@ Route::get('/kpi/assessments/{assessment}', [\App\Http\Controllers\KPI\KpiAssess
 Route::post('/kpi/assessments/{assessment}/submit', [\App\Http\Controllers\KPI\KpiAssessmentController::class, 'submit'])
     ->name('kpi.kpi_assessments.submit')
     ->middleware(['auth']);
+Route::post('/kpi/assessments/{assessment}/apply-siblings', [\App\Http\Controllers\KPI\KpiAssessmentController::class, 'applyToSiblings'])
+    ->name('kpi.kpi_assessments.apply_siblings')
+    ->middleware(['auth']);
 
 Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
 // Route::prefix('admin')->group(

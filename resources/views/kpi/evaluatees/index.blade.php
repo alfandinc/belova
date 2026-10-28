@@ -119,6 +119,10 @@ $(function(){
                 }).done(function(res){
                     $('#fillAssessmentModal').modal('hide');
                     table.ajax.reload(null,false);
+                    if (res.siblings && res.siblings.length && res.apply_siblings_url) {
+                        offerApplySiblings(res);
+                        return;
+                    }
                     Swal.fire('Success', res.message || 'Assessment saved', 'success');
                 }).fail(function(xhr){
                     if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
@@ -129,6 +133,34 @@ $(function(){
                     var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Failed to save assessment';
                     Swal.fire('Error', msg, 'error');
                 });
+            });
+        });
+    }
+
+    // specific-position evaluator: reuse the evaluation just submitted for the employee's other positions
+    function offerApplySiblings(res){
+        var list = res.siblings.map(function(s){ return '<li>' + $('<div>').text(s.position).html() + '</li>'; }).join('');
+        Swal.fire({
+            title: 'Penilaian tersimpan',
+            html: '<div class="text-left">' + $('<div>').text(res.evaluatee || 'Karyawan ini').html()
+                + ' juga punya posisi lain yang harus Anda nilai:<ul class="mt-2">' + list + '</ul>'
+                + 'Isi posisi tersebut dengan penilaian yang sama?</div>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, samakan',
+            cancelButtonText: 'Tidak, isi manual'
+        }).then(function(result){
+            if (!result.value) return;
+            $.ajax({
+                url: res.apply_siblings_url,
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+            }).done(function(r){
+                table.ajax.reload(null,false);
+                Swal.fire('Success', r.message, 'success');
+            }).fail(function(xhr){
+                var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Gagal menyamakan penilaian';
+                Swal.fire('Error', msg, 'error');
             });
         });
     }
