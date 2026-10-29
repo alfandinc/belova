@@ -118,9 +118,8 @@
                             <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                         </div>
                         <div class="modal-body">
-                            <div id="previewCounts" class="mb-2"></div>
                             <div id="previewWarnings"></div>
-                            <div id="previewRemovals"></div>
+                            <div id="previewCounts" class="mb-2"></div>
                             <div class="row">
                                 <div class="col-md-4 border-right" style="max-height:60vh; overflow:auto;">
                                     <h6>Evaluators</h6>
@@ -142,6 +141,7 @@
                                     </div>
                                 </div>
                             </div>
+                            <div id="previewRemovals" class="border-top pt-3 mt-2"></div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -294,7 +294,7 @@ $(function(){
     // sync only: existing assessments the current setup no longer generates; filled ones are always kept,
     // unfilled ones are deleted only when ticked
     function renderRemovals(removals) {
-        var $box = $('#previewRemovals').empty();
+        var $box = $('#previewRemovals').empty().toggle(removals !== null);
         if (removals === null) return;
         if (!removals.length) {
             $box.html('<div class="mb-2"><strong class="mr-1"><i class="fas fa-minus-circle text-danger"></i> Akan dihapus:</strong><span class="text-muted small">tidak ada</span></div>');
@@ -373,7 +373,7 @@ $(function(){
 
             if (warnings.length) {
                 var warningHtml = '<div class="alert alert-warning py-2 small">'
-                    + '<strong><i class="fas fa-exclamation-triangle mr-1"></i>' + warnings.length + ' hal perlu dicek sebelum mulai:</strong>'
+                    + '<strong><i class="fas fa-exclamation-triangle mr-1"></i>' + warnings.length + ' hal perlu dicek sebelum ' + (previewIsSync ? 'sync' : 'mulai') + ':</strong>'
                     + '<ul class="mb-0 pl-3 mt-1" style="max-height:140px; overflow:auto;">';
                 warnings.forEach(function(w){
                     warningHtml += '<li>' + escapeHtml(w.message) + (w.count > 1 ? ' <span class="badge badge-light">' + w.count + ' karyawan</span>' : '') + '</li>';
