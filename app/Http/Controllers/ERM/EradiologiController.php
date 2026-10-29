@@ -78,7 +78,10 @@ class EradiologiController extends Controller
         $wanted = collect($request->input('requests', []))->mapWithKeys(fn ($status, $testId) => [(int) $testId => $status]);
         $canEditStatus = Auth::user() && Auth::user()->hasAnyRole(['Lab', 'Admin']);
 
-        \DB::transaction(function () use ($visitationId, $wanted, $canEditStatus) {
+        // Newly added tests, for the notification to the staff
+        $addedTests = [];
+
+        \DB::transaction(function () use ($visitationId, $wanted, $canEditStatus, &$addedTests) {
             $existing = RadiologiPermintaan::where('visitation_id', $visitationId)->get()->keyBy('radiologi_test_id');
 
             foreach ($existing as $testId => $permintaan) {
@@ -106,8 +109,13 @@ class EradiologiController extends Controller
                     'jumlah' => $test->harga,
                     'keterangan' => 'Radiologi: ' . $test->nama,
                 ]));
+                $addedTests[] = $test->nama;
             }
         });
+
+        if ($addedTests) {
+            $this->notifyRadiologiPermintaan($visitationId, $addedTests);
+        }
 
         return response()->json([
             'success' => true,
@@ -117,6 +125,21 @@ class EradiologiController extends Controller
     }
 
     /** Visits of the patient with radiologi requests (Riwayat modal). */
+    /**
+     * Tell Perawat, Pendaftaran, Farmasi and Lab which radiologi tests the dokter added. Never fails the save.
+     */
+    private function notifyRadiologiPermintaan($visitationId, array $testNames): void
+    {
+        try {
+            $notif = \App\Support\ErmStaffNotifications::class;
+            $notif::send(new \App\Notifications\RadiologiPermintaanNotification(
+                $notif::permintaanMessage($visitationId, $testNames), optional(Auth::user())->name, $visitationId
+            ), ['Lab']);
+        } catch (\Throwable $e) {
+            \Log::error('Radiologi permintaan notification failed: ' . $e->getMessage(), ['visitation_id' => $visitationId]);
+        }
+    }
+
     public function patientHistory($pasienId)
     {
         $query = Visitation::where('pasien_id', $pasienId)
@@ -399,8 +422,8 @@ class EradiologiController extends Controller
     
     public function printPermintaan($visitationId)
     {
-        $visitation = Visitation::with(['pasien', 'dokter'])->findOrFail($visitationId);
-        
+        $visitation = Visitation::with(['pasien', 'dokter', 'klinik'])->findOrFail($visitationId);
+
         // Get all radiologi categories with their tests
         $radiologiCategories = RadiologiKategori::with(['radiologiTests' => function($query) {
             $query->orderBy('nama');
@@ -420,7 +443,8 @@ class EradiologiController extends Controller
             'visitation' => $visitation,
             'radiologiCategories' => $radiologiCategories,
             'radiologiRequests' => $radiologiRequests,
-            'pasienData' => $pasienData
+            'pasienData' => $pasienData,
+            'kop' => \App\Support\PdfLetterhead::forVisitation($visitation),
         ]);
         
         // Set paper size to match the form in the image

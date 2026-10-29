@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\SuratDiagnosa;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -379,6 +380,33 @@ class RiwayatKunjunganController extends Controller
         ]);
     }
 
+    /**
+     * Tell Perawat, Pendaftaran and Farmasi about a new surat diagnosa. Never fails the save.
+     */
+    private function notifySuratDiagnosa(SuratDiagnosa $surat): void
+    {
+        try {
+            $notif = \App\Support\ErmStaffNotifications::class;
+            $visitation = Visitation::with(['pasien:id,nama', 'dokter.user:id,name', 'dokter.spesialisasi:id,nama', 'asesmenPenunjang'])
+                ->find($surat->visitation_id);
+            $sender = optional(Auth::user())->name;
+            $diagnosa = $visitation ? implode(', ', $this->diagnosisList($visitation)) : '';
+
+            $message = implode("\n", [
+                'Pasien: ' . $notif::pasienLabel(optional($visitation)->pasien),
+                'Dokter: ' . $notif::dokterLabel(optional($visitation)->dokter, optional($visitation)->klinik_id, $sender),
+                'Diagnosa: ' . \Illuminate\Support\Str::limit($diagnosa !== '' ? $diagnosa : '-', 120),
+                'Tanggal kunjungan: ' . $notif::tanggal(optional($visitation)->tanggal_visitation),
+            ]);
+
+            $notif::send(new \App\Notifications\SuratNotification(
+                'Surat Diagnosa Baru', $message, $sender, route('riwayatkunjungan.print-surat-diagnosis', $surat->visitation_id)
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Surat diagnosa notification failed: ' . $e->getMessage(), ['visitation_id' => $surat->visitation_id]);
+        }
+    }
+
     public function storeSuratDiagnosis(Request $request)
     {
         $request->validate([
@@ -394,6 +422,11 @@ class RiwayatKunjunganController extends Controller
             ['visitation_id' => $request->visitation_id],
             ['keterangan' => $request->keterangan]
         );
+
+        // Only a new surat notifies; editing the keterangan later does not
+        if ($surat->wasRecentlyCreated) {
+            $this->notifySuratDiagnosa($surat);
+        }
 
         return response()->json([
             'success' => true,

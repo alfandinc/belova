@@ -266,8 +266,8 @@ class InvoiceController extends Controller
         }
         // Klinik logo as a small, pre-flattened data URI (the originals are several thousand px wide
         // with alpha, which dompdf decodes pixel by pixel and made this nota take ~6s to render)
-        $klinikId = $invoice->visitation->klinik_id ?? 2;
-        $logoPath = public_path((int) $klinikId === 1 ? 'img/logo-premiere.png' : 'img/logo-belovaskin.png');
+        $klinikId = (int) ($invoice->visitation->klinik_id ?? 2);
+        $logoPath = public_path([1 => 'img/logo-premiere.png', 3 => 'img/logo-dental.png'][$klinikId] ?? 'img/logo-belovaskin.png');
         $logoBase64 = $this->notaLogoDataUri($logoPath);
 
         $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))

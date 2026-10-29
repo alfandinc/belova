@@ -181,7 +181,7 @@
     });
 
     // Dokter/Perawat: Poll for notifications every 2 seconds
-    @if ($role === 'Perawat' || !empty($isDokter))
+    @if (Auth::user()->hasAnyRole(['Perawat', 'Pendaftaran', 'Lab']) || !empty($isDokter))
     // Sound permission popup on page load
     window.soundEnabled = false;
     $(function() {
@@ -261,12 +261,15 @@
                     popupText = data.message + '\n(Dari: ' + data.sender + ')';
                 }
 
-                if (!data.dokumen_url && data.sender) {
+                if (!data.dokumen_url && data.sender && !data.multiline) {
                     popupText += '\n(Dari: ' + data.sender + ')';
                 }
+                // Rujukan / permintaan lab: message already lists one field per line
+                var isMultiline = !!data.multiline && window.rujukanNotifHtml;
                 Swal.fire({
                     title: data.title || 'Notifikasi',
-                    text: popupText,
+                    text: isMultiline ? undefined : popupText,
+                    html: isMultiline ? window.rujukanNotifHtml(data.message) : undefined,
                     icon: popupIcon,
                     iconHtml: popupIconHtml,
                     customClass: popupCustomClass,
@@ -1537,7 +1540,8 @@ var isDokter = {!! json_encode(!empty($isDokter)) !!};
                     data: {
                         start_date: startDate,
                         end_date: endDate,
-                        dokter_id: filterDokter
+                        dokter_id: filterDokter,
+                        klinik_id: filterKlinik
                     },
                     success: function(res2) {
                         if (res2.data && res2.data.length > 0) {

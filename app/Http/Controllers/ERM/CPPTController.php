@@ -25,15 +25,12 @@ class CPPTController extends Controller
     $cppt->save();
     return response()->json(['message' => 'CPPT berhasil diupdate.', 'data' => $cppt]);
     }
-    // Mark all CPPTs for a visitation/patient as read
-    public function markAllAsRead($visitationId)
+    /** Mark every CPPT of the visit's patient (all visits) as read by the current user; returns how many changed. */
+    private function markAllReadFor(Visitation $visitation): int
     {
-        $visitation = \App\Models\ERM\Visitation::findOrFail($visitationId);
-        $pasienId = $visitation->pasien_id;
-        $visitationIds = \App\Models\ERM\Visitation::where('pasien_id', $pasienId)->pluck('id');
-        $cpptList = Cppt::whereIn('visitation_id', $visitationIds)->get();
+        $visitationIds = Visitation::where('pasien_id', $visitation->pasien_id)->pluck('id');
         $count = 0;
-        foreach ($cpptList as $cppt) {
+        foreach (Cppt::whereIn('visitation_id', $visitationIds)->get() as $cppt) {
             if ($cppt->dibaca !== Auth::id()) {
                 $cppt->update([
                     'dibaca' => Auth::id(),
@@ -42,6 +39,14 @@ class CPPTController extends Controller
                 $count++;
             }
         }
+
+        return $count;
+    }
+
+    // Mark all CPPTs for a visitation/patient as read
+    public function markAllAsRead($visitationId)
+    {
+        $count = $this->markAllReadFor(Visitation::findOrFail($visitationId));
         return response()->json([
             'message' => "Ditandai sudah dibaca: $count catatan.",
             'count' => $count
@@ -121,9 +126,13 @@ class CPPTController extends Controller
                 $this->storeJenisKonsultasi($request);
             }
 
+            // "Lanjut simpan" in the biaya konsultasi popup also marks every CPPT of the patient read
+            $markedRead = $request->boolean('mark_all_read') ? $this->markAllReadFor($visitation) : 0;
+
             return response()->json([
                 'message' => 'CPPT berhasil disimpan.',
                 'data'    => $cppt,
+                'marked_read' => $markedRead,
             ]);
         });
     }

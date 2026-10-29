@@ -93,14 +93,9 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div class="header-text">
-            Jl. Melon Raya I, No. 27, Karangasem, Laweyan, Surakarta, Jawa Tengah
-            <br>☎ 0821 1600 0093 ✉ premierebelova@gmail.com
-        </div>
-    </div>
-    <div class="horizontal-line"></div>
-    
+    {{-- Letterhead of the visit's klinik (App\Support\PdfLetterhead) --}}
+    @include('erm.riwayatkunjungan.partials.kop')
+
     <table class="patient-info">
         <tr>
             <td width="15%">Nama Pasien</td>

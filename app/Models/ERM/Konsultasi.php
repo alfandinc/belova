@@ -44,7 +44,8 @@ class Konsultasi extends Model
             $query->whereHas('spesialisasis', fn ($s) => $s->whereKey($spesialisasiId ?? 0));
         }
 
-        return $query->orderBy('nama');
+        // Cheapest first in the "Pilih Biaya Konsultasi" picker; same harga by name
+        return $query->orderBy('harga')->orderBy('nama');
     }
 
     /** May this jenis konsultasi be billed for a visit of that spesialisasi? */

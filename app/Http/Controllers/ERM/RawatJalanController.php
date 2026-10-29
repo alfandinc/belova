@@ -27,6 +27,10 @@ use Illuminate\Support\Facades\Validator;
 use App\Models\ERM\PasienMerchandise;
 use App\Notifications\DokterToPerawatNotification;
 use App\Notifications\PerawatToDokterNotification;
+use App\Notifications\RujukanNotification;
+use App\Notifications\LabPermintaanNotification;
+use App\Notifications\RadiologiPermintaanNotification;
+use App\Notifications\SuratNotification;
 use Carbon\Carbon;
 use App\View\Composers\DaftarKunjunganModalComposer;
 
@@ -330,21 +334,29 @@ class RawatJalanController extends Controller
         ]);
     }
 
-    private function notificationClassForUser($user)
+    private function notificationClassesForUser($user)
     {
         if (!$user) {
-            return null;
+            return [];
         }
 
         if ($user->hasRole('Perawat')) {
-            return DokterToPerawatNotification::class;
+            return [DokterToPerawatNotification::class, RujukanNotification::class, LabPermintaanNotification::class, RadiologiPermintaanNotification::class, SuratNotification::class];
         }
 
         if ($user->hasRole('Dokter')) {
-            return PerawatToDokterNotification::class;
+            return [PerawatToDokterNotification::class];
         }
 
-        return null;
+        if ($user->hasRole('Pendaftaran')) {
+            return [RujukanNotification::class, LabPermintaanNotification::class, RadiologiPermintaanNotification::class, SuratNotification::class];
+        }
+
+        if ($user->hasRole('Lab')) {
+            return [LabPermintaanNotification::class, RadiologiPermintaanNotification::class];
+        }
+
+        return [];
     }
 
     private function notificationTitleForUser($user)
@@ -370,14 +382,14 @@ class RawatJalanController extends Controller
     public function getNotif(Request $request)
     {
         $user = Auth::user();
-        $notificationClass = $this->notificationClassForUser($user);
+        $notificationClasses = $this->notificationClassesForUser($user);
 
-        if (!$notificationClass) {
+        if (!$notificationClasses) {
             return response()->json(['new' => false, 'unread_count' => 0]);
         }
 
         $latestUnreadQuery = $user->unreadNotifications()
-            ->where('type', $notificationClass);
+            ->whereIn('type', $notificationClasses);
 
         $sessionSinceMs = (int) session('rawatjalan_realtime_notification_since_ms', 0);
         if ($sessionSinceMs <= 0) {
@@ -407,7 +419,7 @@ class RawatJalanController extends Controller
         $deliveredNotificationIds = (array) session('rawatjalan_delivered_notification_ids', []);
         if ($notif) {
             $unreadCount = $user->unreadNotifications()
-                ->where('type', $notificationClass)
+                ->whereIn('type', $notificationClasses)
                 ->count();
 
             if (in_array($notif->id, $deliveredNotificationIds, true)) {
@@ -428,11 +440,13 @@ class RawatJalanController extends Controller
                 'message' => $notif->data['message'],
                 'sender' => $notif->data['sender'],
                 'dokumen_url' => $notif->data['dokumen_url'] ?? null,
+                'kind' => $notif->data['kind'] ?? null,
+                'multiline' => !empty($notif->data['multiline']),
                 'unread_count' => $unreadCount,
             ]);
         }
         $unreadCount = $user->unreadNotifications()
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->count();
         return response()->json(['new' => false, 'unread_count' => $unreadCount]);
     }
@@ -447,16 +461,16 @@ class RawatJalanController extends Controller
             'notification_id' => 'required|string',
         ]);
 
-        $notificationClass = $this->notificationClassForUser(Auth::user());
+        $notificationClasses = $this->notificationClassesForUser(Auth::user());
 
-        if (!$notificationClass) {
+        if (!$notificationClasses) {
             return response()->json(['message' => 'Notifikasi tidak tersedia'], 403);
         }
 
         $notification = Auth::user()
             ->notifications()
             ->where('id', $request->notification_id)
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->first();
 
         if (!$notification) {
@@ -481,7 +495,7 @@ class RawatJalanController extends Controller
 
         $unreadCount = Auth::user()
             ->unreadNotifications()
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->count();
 
         return response()->json([
@@ -496,15 +510,15 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $notificationClass = $this->notificationClassForUser(Auth::user());
+        $notificationClasses = $this->notificationClassesForUser(Auth::user());
 
-        if (!$notificationClass) {
+        if (!$notificationClasses) {
             return response()->json(['message' => 'Notifikasi tidak tersedia'], 403);
         }
 
         $notifications = Auth::user()
             ->unreadNotifications()
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->get();
 
         foreach ($notifications as $notification) {
@@ -530,9 +544,9 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $notificationClass = $this->notificationClassForUser(Auth::user());
+        $notificationClasses = $this->notificationClassesForUser(Auth::user());
 
-        if (!$notificationClass) {
+        if (!$notificationClasses) {
             return response()->json([
                 'unread_count' => 0,
             ]);
@@ -540,7 +554,7 @@ class RawatJalanController extends Controller
 
         $count = Auth::user()
             ->unreadNotifications()
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->count();
 
         return response()->json([
@@ -554,9 +568,9 @@ class RawatJalanController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $notificationClass = $this->notificationClassForUser(Auth::user());
+        $notificationClasses = $this->notificationClassesForUser(Auth::user());
 
-        if (!$notificationClass) {
+        if (!$notificationClasses) {
             return response()->json([
                 'data' => [],
                 'unread_count' => 0,
@@ -565,7 +579,7 @@ class RawatJalanController extends Controller
 
         $notifications = Auth::user()
             ->notifications()
-            ->where('type', $notificationClass)
+            ->whereIn('type', $notificationClasses)
             ->latest()
             ->limit(10)
             ->get()
@@ -879,25 +893,9 @@ class RawatJalanController extends Controller
                     ->leftJoin('area_districts as ad', 'av.district_id', '=', 'ad.id')
                     ->leftJoin('area_regencies as ar', 'ad.regency_id', '=', 'ar.id')
                     ->leftJoin('area_provinces as ap2', 'ar.province_id', '=', 'ap2.id')
-                    ->when($user && $user->hasRole('Dokter'), function($q) {
-                        // Dokter view: Konsultasi + service visits (Slimming, Vaksin, MCU)
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 7, 8, 9]);
-                    }, function($q) {
-                        // Non-dokter view: show Konsultasi + Produk/Obat + Lab + Event
-                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-                    })
-                    ->where('erm_visitations.status_kunjungan', '!=', 7)
-                    // Lab staff only need visits with lab work: lab visits, or any visit with a lab request
-                    ->when($this->isLabOnlyUser($user), function ($q) {
-                        $q->where(function ($labQuery) {
-                            $labQuery->where('erm_visitations.jenis_kunjungan', 3)
-                                ->orWhereExists(function ($sub) {
-                                    $sub->select(DB::raw(1))
-                                        ->from('erm_lab_permintaan')
-                                        ->whereColumn('erm_lab_permintaan.visitation_id', 'erm_visitations.id');
-                                });
-                        });
-                    });
+                    // Visit types per role (and lab-only staff), shared with the stats cards
+                    ->tap(fn ($q) => $this->scopeRawatJalanVisits($q, $user))
+                    ->where('erm_visitations.status_kunjungan', '!=', 7);
 
             if (Visitation::tracksMasukRuangan()) {
                 $visitations->addSelect('erm_visitations.masuk_ruangan_at');
@@ -1351,37 +1349,22 @@ class RawatJalanController extends Controller
     public function getStats(Request $request)
     {
         try {
-            // existing optimized implementation
-        
-            // Prepare filters
             $user = Auth::user();
-            $dokter = null;
-            if ($user && $user->hasRole('Dokter')) {
-                $dokter = Dokter::where('user_id', $user->id)->first();
-            }
 
             $start = $request->start_date;
             $end = $request->end_date;
-            $today = now()->format('Y-m-d');
             if (!$start || !$end) {
-                $start = $end = $today;
+                $start = $end = now()->format('Y-m-d');
             }
 
-            // If explicit dokter_id provided, use that and clear default dokter
-            $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
-
-            if ($dokterFilter) {
-                $dokter = null;
-            } else {
-                $dokterFilter = ($dokter ? $dokter->id : null);
-            }
-
+            // Same dokter / klinik / visit-type rules as the table, so a card equals the rows it stands for
+            $dokterFilter = $this->rawatJalanDokterFilter($request);
             $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
+            $scopeKey = ($user && $user->hasRole('Dokter') ? 'dokter' : 'all') . ($this->isLabOnlyUser($user) ? '_lab' : '');
 
-            // Create cache key based on filters
-            $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
+            $cacheKey = 'getstats_v2_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all') . '_' . $scopeKey;
 
-            $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
+            $stats = Cache::remember($cacheKey, 5, function () use ($user, $start, $end, $dokterFilter, $klinikFilter) {
                 $query = DB::table('erm_visitations')
                     ->selectRaw(
                         "COUNT(*) as total,
@@ -1390,46 +1373,12 @@ class RawatJalanController extends Controller
                         SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
                         SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
                     )
-                    ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9])
                     ->whereDate('tanggal_visitation', '>=', $start)
-                    ->whereDate('tanggal_visitation', '<=', $end);
-
-                if ($dokterFilter) {
-                    $query->where('dokter_id', $dokterFilter);
-                }
-                if ($klinikFilter) {
-                    $query->where('klinik_id', $klinikFilter);
-                }
-
+                    ->whereDate('tanggal_visitation', '<=', $end)
+                    ->when($dokterFilter, fn ($q) => $q->where('dokter_id', $dokterFilter))
+                    ->when($klinikFilter, fn ($q) => $q->where('klinik_id', $klinikFilter));
+                $this->scopeRawatJalanVisits($query, $user);
                 $row = $query->first();
-
-                // rujuk count for the requested date range
-                $rujukQuery = Rujuk::whereHas('visitation', function($q) use ($start) {
-                    $q->whereDate('tanggal_visitation', $start);
-                });
-                if ($dokterFilter) {
-                    $rujukQuery->where(function($r) use ($dokterFilter) {
-                        $r->where('dokter_pengirim_id', $dokterFilter)
-                          ->orWhere('dokter_tujuan_id', $dokterFilter)
-                          ->orWhereHas('visitation', function($v) use ($dokterFilter) {
-                              $v->where('dokter_id', $dokterFilter);
-                          });
-                    });
-                }
-
-                // Lab permintaan count within same date range & filters
-                $labQuery = LabPermintaan::whereHas('visitation', function($q) use ($start, $end) {
-                    $q->whereDate('tanggal_visitation', '>=', $start)
-                      ->whereDate('tanggal_visitation', '<=', $end);
-                });
-                if ($dokterFilter) {
-                    $labQuery->where('dokter_id', $dokterFilter);
-                }
-                if ($klinikFilter) {
-                    $labQuery->whereHas('visitation', function($q) use ($klinikFilter) {
-                        $q->where('klinik_id', $klinikFilter);
-                    });
-                }
 
                 return [
                     'total' => $row->total ?? 0,
@@ -1437,8 +1386,10 @@ class RawatJalanController extends Controller
                     'belum_diperiksa' => $row->belum_diperiksa ?? 0,
                     'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
                     'dibatalkan' => $row->dibatalkan ?? 0,
-                    'rujuk' => $rujukQuery->count(),
-                    'lab_permintaan' => $labQuery->count(),
+                    'rujuk' => $this->rujukStatsQuery($start, $end, $dokterFilter, $klinikFilter)->count(),
+                    // Visits with a lab request (the list groups per visit), not the number of tests
+                    'lab_permintaan' => $this->labStatsQuery($user, $start, $end, $dokterFilter, $klinikFilter)
+                        ->distinct()->count('visitation_id'),
                 ];
             });
 
@@ -1452,95 +1403,78 @@ class RawatJalanController extends Controller
             ]);
             return response()->json(['error' => 'Internal Server Error'], 500);
         }
-        // Prepare filters
+    }
+
+    /**
+     * Dokter filter of the Rawat Jalan page: the chosen dokter; with no dokter_id sent at all, a Dokter user
+     * sees their own visits (also with the Admin role). "Semua dokter" (empty / __all__) means no filter.
+     */
+    private function rawatJalanDokterFilter(Request $request)
+    {
+        $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+        if ($dokterFilter) {
+            return $dokterFilter;
+        }
+
         $user = Auth::user();
-        $dokter = null;
-        if ($user && $user->hasRole('Dokter')) {
-            $dokter = Dokter::where('user_id', $user->id)->first();
+        if ($user && $user->hasRole('Dokter') && !$request->has('dokter_id')) {
+            return Dokter::where('user_id', $user->id)->value('id');
         }
 
-        $start = $request->start_date;
-        $end = $request->end_date;
-        $today = now()->format('Y-m-d');
-        if (!$start || !$end) {
-            $start = $end = $today;
-        }
+        return null;
+    }
 
-        // If explicit dokter_id provided, use that and clear default dokter
-        if ($request->dokter_id) {
-            $dokter = null;
-            $dokterFilter = $request->dokter_id;
-        } else {
-            $dokterFilter = ($dokter ? $dokter->id : null);
-        }
+    /**
+     * Visit types the Rawat Jalan table shows to this user: a Dokter sees Konsultasi + Slimming / Vaksin / MCU,
+     * others every type; Lab-only staff only visits with lab work. Shared by the table, the stats cards and their lists.
+     */
+    private function scopeRawatJalanVisits($query, $user, string $table = 'erm_visitations')
+    {
+        $query->whereIn($table . '.jenis_kunjungan', $user && $user->hasRole('Dokter') ? [1, 7, 8, 9] : [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-        $klinikFilter = $request->klinik_id ?? null;
-
-        // Create cache key based on filters
-        $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
-
-    $stats = Cache::remember($cacheKey, 10, function() use ($start, $end, $dokterFilter, $klinikFilter) {
-            $query = DB::table('erm_visitations')
-                ->selectRaw(
-                    "COUNT(*) as total,
-                    SUM(CASE WHEN status_kunjungan = 0 THEN 1 ELSE 0 END) as tidak_datang,
-                    SUM(CASE WHEN status_kunjungan = 1 THEN 1 ELSE 0 END) as belum_diperiksa,
-                    SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
-                    SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
-                )
-                ->whereIn('jenis_kunjungan', [1, 2, 4, 5, 6, 7, 8, 9])
-                ->whereDate('tanggal_visitation', '>=', $start)
-                ->whereDate('tanggal_visitation', '<=', $end);
-
-            if ($dokterFilter) {
-                $query->where('dokter_id', $dokterFilter);
-            }
-            if ($klinikFilter) {
-                $query->where('klinik_id', $klinikFilter);
-            }
-
-            $row = $query->first();
-
-            // rujuk count for the requested date range
-            $rujukQuery = Rujuk::whereHas('visitation', function($q) use ($start) {
-                $q->whereDate('tanggal_visitation', $start);
+        if ($this->isLabOnlyUser($user)) {
+            $query->where(function ($labQuery) use ($table) {
+                $labQuery->where($table . '.jenis_kunjungan', 3)
+                    ->orWhereExists(function ($sub) use ($table) {
+                        $sub->select(DB::raw(1))
+                            ->from('erm_lab_permintaan')
+                            ->whereColumn('erm_lab_permintaan.visitation_id', $table . '.id');
+                    });
             });
-            if ($dokterFilter) {
-                $rujukQuery->where(function($r) use ($dokterFilter) {
-                    $r->where('dokter_pengirim_id', $dokterFilter)
-                      ->orWhere('dokter_tujuan_id', $dokterFilter)
-                      ->orWhereHas('visitation', function($v) use ($dokterFilter) {
-                          $v->where('dokter_id', $dokterFilter);
-                      });
-                });
-            }
+        }
 
-            // Lab permintaan count honoring same filters (date range + dokter + klinik)
-            $labQuery = LabPermintaan::whereHas('visitation', function($q) use ($start, $end) {
-                $q->whereDate('tanggal_visitation', '>=', $start)
-                  ->whereDate('tanggal_visitation', '<=', $end);
+        return $query;
+    }
+
+    /** Rujuk of visits in the date range; a dokter filter matches the pengirim, the tujuan or the visit's dokter. */
+    private function rujukStatsQuery($start, $end, $dokterFilter, $klinikFilter)
+    {
+        return Rujuk::whereHas('visitation', function ($q) use ($start, $end, $klinikFilter) {
+            $q->whereDate('tanggal_visitation', '>=', $start)
+                ->whereDate('tanggal_visitation', '<=', $end)
+                ->when($klinikFilter, fn ($v) => $v->where('klinik_id', $klinikFilter));
+        })->when($dokterFilter, function ($query) use ($dokterFilter) {
+            $query->where(function ($r) use ($dokterFilter) {
+                $r->where('dokter_pengirim_id', $dokterFilter)
+                    ->orWhere('dokter_tujuan_id', $dokterFilter)
+                    ->orWhereHas('visitation', fn ($v) => $v->where('dokter_id', $dokterFilter));
             });
-            if ($dokterFilter) {
-                $labQuery->where('dokter_id', $dokterFilter);
-            }
-            if ($klinikFilter) {
-                $labQuery->whereHas('visitation', function($q) use ($klinikFilter) {
-                    $q->where('klinik_id', $klinikFilter);
-                });
-            }
-
-            return [
-                'total' => $row->total ?? 0,
-                'tidak_datang' => $row->tidak_datang ?? 0,
-                'belum_diperiksa' => $row->belum_diperiksa ?? 0,
-                'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
-                'dibatalkan' => $row->dibatalkan ?? 0,
-                'rujuk' => $rujukQuery->count(),
-                'lab_permintaan' => $labQuery->count(),
-            ];
         });
+    }
 
-        return response()->json($stats);
+    /**
+     * Lab requests of visits the table shows. The dokter filter goes through the visit's dokter:
+     * erm_lab_permintaan.dokter_id holds the requesting user's id, not an erm_dokters id.
+     */
+    private function labStatsQuery($user, $start, $end, $dokterFilter, $klinikFilter)
+    {
+        return LabPermintaan::whereHas('visitation', function ($q) use ($user, $start, $end, $dokterFilter, $klinikFilter) {
+            $q->whereDate('tanggal_visitation', '>=', $start)
+                ->whereDate('tanggal_visitation', '<=', $end)
+                ->when($dokterFilter, fn ($v) => $v->where('dokter_id', $dokterFilter))
+                ->when($klinikFilter, fn ($v) => $v->where('klinik_id', $klinikFilter));
+            $this->scopeRawatJalanVisits($q, $user);
+        });
     }
 
     /**
@@ -1548,54 +1482,17 @@ class RawatJalanController extends Controller
      */
     public function listRujuks(Request $request)
     {
-        $query = Rujuk::with(['pasien:id,nama,tanggal_lahir', 'dokterPengirim.user:id,name', 'dokterTujuan.user:id,name', 'visitation'])
+        // Same rules as the Rujuk card (getStats): visit date range, klinik, dokter as pengirim / tujuan / visit dokter
+        $start = $request->start_date ?: now()->format('Y-m-d');
+        $end = $request->end_date ?: $start;
+        $query = $this->rujukStatsQuery(
+            $start,
+            $end,
+            $this->rawatJalanDokterFilter($request),
+            $this->normalizeOptionalFilterValue($request->input('klinik_id'))
+        )
+            ->with(['pasien:id,nama,tanggal_lahir', 'dokterPengirim.user:id,name', 'dokterTujuan.user:id,name', 'visitation'])
             ->orderBy('created_at', 'desc');
-
-        // If request included dokter_id, filter by involvement (pengirim/tujuan/visitation)
-        $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
-
-        if ($dokterFilter) {
-            $dokId = $dokterFilter;
-            $query->where(function($qr) use ($dokId) {
-                $qr->where('dokter_pengirim_id', $dokId)
-                   ->orWhere('dokter_tujuan_id', $dokId)
-                   ->orWhereHas('visitation', function($v) use ($dokId) {
-                        $v->where('dokter_id', $dokId);
-                   });
-            });
-        }
-
-        // If no explicit dokter filter and logged-in user is a Dokter, restrict to their involvement
-    $user = Auth::user();
-    if (!$request->has('dokter_id') && $user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
-            $dokter = Dokter::where('user_id', $user->id)->first();
-            if ($dokter) {
-                $query->where(function($qr) use ($dokter) {
-                    $qr->where('dokter_pengirim_id', $dokter->id)
-                       ->orWhere('dokter_tujuan_id', $dokter->id)
-                       ->orWhereHas('visitation', function($v) use ($dokter) {
-                            $v->where('dokter_id', $dokter->id);
-                       });
-                });
-            }
-        }
-
-        // Filter by related visitation.tanggal_visitation
-        if ($request->start_date && $request->end_date) {
-            $query->whereHas('visitation', function($q) use ($request) {
-                $q->whereDate('tanggal_visitation', '>=', $request->start_date)
-                  ->whereDate('tanggal_visitation', '<=', $request->end_date);
-            });
-        } else {
-            $today = now()->format('Y-m-d');
-            $query->whereHas('visitation', function($q) use ($today) {
-                $q->whereDate('tanggal_visitation', $today);
-            });
-        }
-
-        if ($dokterFilter) {
-            $query->where('dokter_tujuan_id', $dokterFilter);
-        }
 
         $rujuks = $query->get();
 
@@ -1609,7 +1506,8 @@ class RawatJalanController extends Controller
     public function printRujukSurat($id)
     {
         try {
-            $rujuk = Rujuk::with(['pasien', 'dokterPengirim.user', 'dokterTujuan.user', 'visitation'])->findOrFail($id);
+            $rujuk = Rujuk::with(['pasien', 'dokterPengirim.user', 'dokterTujuan.user', 'visitation.klinik'])->findOrFail($id);
+            $kop = \App\Support\PdfLetterhead::forVisitation($rujuk->visitation ?? new Visitation());
 
             // Calculate age string if tanggal_lahir available
             $age = null;
@@ -1620,7 +1518,7 @@ class RawatJalanController extends Controller
 
             // Generate PDF and stream to browser
             try {
-                $pdf = Pdf::loadView('erm.rujuk.surat_pdf', compact('rujuk', 'age'))
+                $pdf = Pdf::loadView('erm.rujuk.surat_pdf', compact('rujuk', 'age', 'kop'))
                     ->setPaper('a4', 'portrait');
                 // Stream the PDF (opens in browser). Use download() to force download.
                 return $pdf->stream('surat_rujuk_' . $rujuk->id . '.pdf');
@@ -1643,27 +1541,20 @@ class RawatJalanController extends Controller
         try {
             $start = $request->start_date ?: now()->format('Y-m-d');
             $end = $request->end_date ?: $start;
-            $dokterFilter = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
-            $klinikFilter = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
-            $query = LabPermintaan::with([
+            // Same rules as the Lab card (getStats)
+            $query = $this->labStatsQuery(
+                Auth::user(),
+                $start,
+                $end,
+                $this->rawatJalanDokterFilter($request),
+                $this->normalizeOptionalFilterValue($request->input('klinik_id'))
+            )->with([
                 'visitation:id,pasien_id,dokter_id,klinik_id,tanggal_visitation,no_antrian',
                 'visitation.pasien:id,nama',
                 'labTest:id,nama',
                 'dokter.user:id,name'
-            ])->whereHas('visitation', function($q) use ($start, $end) {
-                $q->whereDate('tanggal_visitation', '>=', $start)
-                  ->whereDate('tanggal_visitation', '<=', $end);
-            });
-
-            if ($dokterFilter) {
-                $query->where('dokter_id', $dokterFilter);
-            }
-            if ($klinikFilter) {
-                $query->whereHas('visitation', function($q) use ($klinikFilter) {
-                    $q->where('klinik_id', $klinikFilter);
-                });
-            }
+            ]);
 
             $labsRaw = $query->orderBy('created_at','desc')->get();
 
@@ -2518,12 +2409,12 @@ class RawatJalanController extends Controller
         $status = $request->input('status');
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
-        $dokterId = $this->normalizeOptionalFilterValue($request->input('dokter_id'));
+        // Same dokter / visit-type rules as the table and the stats cards
+        $dokterId = $this->rawatJalanDokterFilter($request);
         $klinikId = $this->normalizeOptionalFilterValue($request->input('klinik_id'));
 
-        $query = Visitation::query()
-            ->with(['pasien', 'dokter'])
-            ->whereIn('jenis_kunjungan', [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        $query = Visitation::query()->with(['pasien', 'dokter']);
+        $this->scopeRawatJalanVisits($query, Auth::user());
 
         // Status filter
         if ($status && $status !== 'total') {
@@ -2545,18 +2436,8 @@ class RawatJalanController extends Controller
                   ->whereDate('tanggal_visitation', '<=', $endDate);
         }
 
-        // Dokter filter
         if ($dokterId) {
             $query->where('dokter_id', $dokterId);
-        } else {
-            // If logged in user is a Dokter and no dokter filter provided, restrict to that dokter
-            $user = Auth::user();
-            if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin') && !$request->has('dokter_id')) {
-                $dokter = Dokter::where('user_id', $user->id)->first();
-                if ($dokter) {
-                    $query->where('dokter_id', $dokter->id);
-                }
-            }
         }
 
         // Klinik filter

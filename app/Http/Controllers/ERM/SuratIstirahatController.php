@@ -150,6 +150,28 @@ class SuratIstirahatController extends Controller
             ->make(true);
     }
 
+    /**
+     * Tell Perawat, Pendaftaran and Farmasi about a new surat. Never fails the save.
+     * Spesialisasi follows the klinik of the visit, or the dokter's own klinik (surat istirahat has no visit).
+     */
+    private function notifySurat($surat, string $title, array $detailLines, string $printUrl, $klinikId = null): void
+    {
+        try {
+            $notif = \App\Support\ErmStaffNotifications::class;
+            $surat->load(['pasien:id,nama', 'dokter.user:id,name', 'dokter.spesialisasi:id,nama']);
+            $sender = optional(Auth::user())->name;
+
+            $message = implode("\n", array_merge([
+                'Pasien: ' . $notif::pasienLabel($surat->pasien),
+                'Dokter: ' . $notif::dokterLabel($surat->dokter, $klinikId ?: optional($surat->dokter)->klinik_id, $sender),
+            ], $detailLines));
+
+            $notif::send(new \App\Notifications\SuratNotification($title, $message, $sender, $printUrl));
+        } catch (\Throwable $e) {
+            Log::error('Surat notification failed: ' . $e->getMessage(), ['surat_id' => $surat->id ?? null]);
+        }
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -181,6 +203,11 @@ class SuratIstirahatController extends Controller
             'jumlah_hari' => $jumlahHari,
         ]);
 
+        $notif = \App\Support\ErmStaffNotifications::class;
+        $this->notifySurat($surat, 'Surat Istirahat Baru', [
+            'Istirahat: ' . $jumlahHari . ' hari (' . $notif::tanggal($surat->tanggal_mulai) . ' – ' . $notif::tanggal($surat->tanggal_selesai) . ')',
+        ], route('surat.istirahat', $surat->id));
+
         return response()->json([
             'success' => true,
             'message' => 'Surat istirahat ' . $jumlahHari . ' hari dibuat.',
@@ -204,7 +231,7 @@ class SuratIstirahatController extends Controller
         $tanggal = Carbon::parse($surat->created_at ?? now());
 
         return $this->streamSurat('erm.suratistirahat.print-simple', array_merge(
-            $this->suratCommon($surat->pasien, $surat->dokter, $tanggal, $this->visitForSurat($surat->pasien_id, $tanggal)),
+            $this->suratCommon($surat->pasien, $surat->dokter, $tanggal, $this->visitForSurat($surat->pasien_id, $tanggal, null, $surat->dokter_id)),
             [
                 'tanggal_mulai' => $surat->tanggal_mulai,
                 'tanggal_selesai' => $surat->tanggal_selesai,
@@ -230,16 +257,19 @@ class SuratIstirahatController extends Controller
 
     /**
      * The visit a surat belongs to, for its klinik letterhead: the stored one (Surat Mondok), else the patient's
-     * visit on the surat's date, else the last one before it, else the latest. Surat Istirahat has no visit column.
+     * visit on the surat's date (with the surat's dokter first, so two klinik on one day pick the right one),
+     * else the last one before it, else the latest. Surat Istirahat has no visit column.
      */
-    private function visitForSurat($pasienId, Carbon $tanggal, $visitationId = null): ?Visitation
+    private function visitForSurat($pasienId, Carbon $tanggal, $visitationId = null, $dokterId = null): ?Visitation
     {
         if ($visitationId && ($visit = Visitation::with('klinik')->find($visitationId))) {
             return $visit;
         }
         $visits = Visitation::with('klinik')->where('pasien_id', $pasienId);
+        $sameDay = (clone $visits)->whereDate('tanggal_visitation', $tanggal->toDateString());
 
-        return (clone $visits)->whereDate('tanggal_visitation', $tanggal->toDateString())->latest('id')->first()
+        return ($dokterId ? (clone $sameDay)->where('dokter_id', $dokterId)->latest('id')->first() : null)
+            ?? $sameDay->latest('id')->first()
             ?? (clone $visits)->whereDate('tanggal_visitation', '<', $tanggal->toDateString())->latest('tanggal_visitation')->first()
             ?? (clone $visits)->latest('tanggal_visitation')->first();
     }
@@ -339,6 +369,12 @@ class SuratIstirahatController extends Controller
             'created_at' => $suratDate,
             'updated_at' => $suratDate,
         ]);
+
+        $this->notifySurat($surat, 'Surat Mondok Baru', [
+            'Tujuan IGD: ' . $surat->tujuan_igd,
+            'Diagnosa: ' . \Illuminate\Support\Str::limit(preg_replace('/\s+/', ' ', strip_tags($surat->diagnosa)), 120),
+            'Tanggal: ' . \App\Support\ErmStaffNotifications::tanggal($suratDate),
+        ], route('surat.mondok', $surat->id), $visitation->klinik_id);
 
         return response()->json([
             'success' => true,

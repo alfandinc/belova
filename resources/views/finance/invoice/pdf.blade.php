@@ -528,24 +528,31 @@
                 <td class="logo-cell">
                     @php
                         $logoPath = '';
+                        $logoSrc = '';
                         if ($invoice->visitation->klinik_id == 1) {
                             $logoPath = public_path('img/header-premiere.png');
                             $altText = 'Premiere Logo';
                         } elseif ($invoice->visitation->klinik_id == 2) {
                             $logoPath = public_path('img/header-belova.png');
                             $altText = 'Belova Logo';
+                        } elseif ($invoice->visitation->klinik_id == 3) {
+                            // Dental logo is 5000+ px: use the small cached JPEG (DomPDF decodes big PNGs slowly)
+                            $dentalJpeg = \App\Support\PdfLetterhead::logo('img/logo-dental.png');
+                            $logoSrc = $dentalJpeg && is_file($dentalJpeg)
+                                ? 'data:' . (str_ends_with($dentalJpeg, '.jpg') ? 'image/jpeg' : 'image/png') . ';base64,' . base64_encode(file_get_contents($dentalJpeg))
+                                : '';
+                            $altText = 'Belova Dental Care';
                         } else {
-                            $logoPath = public_path('img/logo.png');
-                            $altText = 'Default Logo';
+                            $altText = optional($invoice->visitation->klinik)->nama ?: 'Klinik';
                         }
-                        
-                        $logoBase64 = '';
-                        if (file_exists($logoPath)) {
+
+                        $logoBase64 = $logoSrc;
+                        if (!$logoBase64 && $logoPath && file_exists($logoPath)) {
                             $logoData = file_get_contents($logoPath);
                             $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
                         }
                     @endphp
-                    
+
                     @if($logoBase64)
                         <img src="{{ $logoBase64 }}" alt="{{ $altText }}" height="80" style="max-width: 240px;">
                     @else
@@ -817,40 +824,24 @@
             $klinik = $invoice->visitation->klinik ?? null;
             $clinicId = $invoice->visitation->klinik_id ?? ($klinik->id ?? null);
 
-            if ($clinicId == 1) {
-                // Payment info for Premiere Belova
-                $paymentBank = 'BRI';
-                $paymentAccNo = '137801000400307';
-                $paymentAccName = 'CV BELOVA INDONESIA';
+            // Built-in footer text per klinik; Admin › Klinik Settings (tab Invoice) overrides each field when filled
+            $builtIn = [
+                1 => ['nama' => 'PREMIERE BELOVA', 'bank' => 'BRI', 'no' => '137801000400307', 'an' => 'CV BELOVA INDONESIA',
+                      'alamat' => 'Jl. Melon Raya no 27, Karangasem, Kec. Laweyan, Kota Surakarta, Jwa Tengah, 57145',
+                      'telp' => '0821 1600 0093', 'web' => 'www.premierebelova.id'],
+                2 => ['nama' => 'BELOVA SKIN', 'bank' => 'BRI', 'no' => '137801000423305', 'an' => 'CV BELIA ABADI',
+                      'alamat' => 'Jl. Melon Raya no 29, Karangasem, Kec. Laweyan, Kota Surakarta, Jwa Tengah, 57145',
+                      'telp' => '085 100 990 139 / 0812 2870 6886', 'web' => 'www.belovaskin.id'],
+            ][(int) $clinicId] ?? ['nama' => $klinik->nama ?? 'Klinik', 'bank' => '', 'no' => '', 'an' => '', 'alamat' => '', 'telp' => '', 'web' => ''];
+            $setting = fn ($field) => trim((string) ($klinik->{$field} ?? ''));
 
-                // Clinic display info for klinik id 1
-                $clinicDisplayName = 'PREMIERE BELOVA';
-                $clinicAddress = 'Jl. Melon Raya no 27, Karangasem, Kec. Laweyan, Kota Surakarta, Jwa Tengah, 57145';
-                $clinicPhone = '0821 1600 0093';
-                $clinicWebsite = 'www.premierebelova.id';
-            } elseif ($clinicId == 2) {
-                // Payment info fallback for klinik id 2 (use clinic values if present)
-                $paymentBank = $klinik->bank_name ?? 'BRI';
-                $paymentAccName = $klinik->bank_account_name ?? ($klinik->rekening_nama ?? 'CV BELIA ABADI');
-                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '137801000423305'));
-
-                // Clinic display info for klinik id 2 (Belova Skin)
-                $clinicDisplayName = 'BELOVA SKIN';
-                $clinicAddress = 'Jl. Melon Raya no 29, Karangasem, Kec. Laweyan, Kota Surakarta, Jwa Tengah, 57145';
-                $clinicPhone = '085 100 990 139 / 0812 2870 6886';
-                $clinicWebsite = 'www.belovaskin.id';
-            } else {
-                $paymentBank = $klinik->bank_name ?? 'BRI';
-                $paymentAccName = $klinik->bank_account_name ?? ($klinik->rekening_nama ?? 'CV BELIA ABADI');
-                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomer ?? ($klinik->no_rekening ?? '137801000423305'));
-
-                $clinicDisplayName = $klinik->nama ?? $klinik->name ?? 'Klinik';
-                // prefer alamat or address fields if available
-                $clinicAddress = $klinik->alamat ?? $klinik->address ?? '';
-                $clinicPhone = $klinik->telp ?? $klinik->phone ?? '';
-                $clinicIg = '';
-                $clinicWebsite = $klinik->website ?? $klinik->web ?? '';
-            }
+            $paymentBank = $setting('bank_name') ?: $builtIn['bank'];
+            $paymentAccNo = $setting('bank_account_number') ?: $builtIn['no'];
+            $paymentAccName = $setting('bank_account_name') ?: $builtIn['an'];
+            $clinicDisplayName = $builtIn['nama'];
+            $clinicAddress = $setting('alamat') ?: $builtIn['alamat'];
+            $clinicPhone = $setting('telp') ?: $builtIn['telp'];
+            $clinicWebsite = $setting('website') ?: $builtIn['web'];
 
             $taxPct = $invoice->tax_percentage ?? 0;
             $taxAmount = $invoice->tax ?? 0;
@@ -885,6 +876,8 @@
                 <tr>
                     <!-- Payment information on the left -->
                     <td class="footer-payment" style="width:52%; padding-left:0; vertical-align:bottom;">
+                        {{-- Hidden for a klinik without an account (none set in Klinik Settings, no built-in one) --}}
+                        @if($paymentAccNo !== '')
                         <div class="payment-box">
                             <div class="payment-info">
                                 <div class="payment-info-title">Payment Information</div>
@@ -895,6 +888,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endif
                     </td>
                     <!-- Clinic information on the right (name + address), aligned bottom-right -->
                     <td class="footer-clinic" style="width:48%; padding-right:0; text-align:right; vertical-align:bottom;">

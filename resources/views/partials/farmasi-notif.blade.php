@@ -56,7 +56,8 @@ function pollFarmasiNotifications() {
 
             Swal.fire({
                 title: title,
-                text: text,
+                text: data.multiline ? undefined : text,
+                html: data.multiline ? window.rujukanNotifHtml(data.message) : undefined,
                 icon: 'info',
                 confirmButtonText: 'OK'
             });

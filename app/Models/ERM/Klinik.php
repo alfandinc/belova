@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Klinik extends Model
 {
     protected $table = 'erm_klinik';
-    protected $fillable = ['nama', 'logo', 'color', 'report_cutoff_time'];
+    // alamat .. bank_account_name: invoice footer, set in Admin › Klinik Settings (empty = built-in text)
+    protected $fillable = ['nama', 'logo', 'color', 'report_cutoff_time', 'alamat', 'telp', 'website', 'bank_name', 'bank_account_number', 'bank_account_name'];
 
     /** Name without the "Klinik Utama / Pratama" licence prefix, for badges and chips. */
     public static function shortName(string $nama): string

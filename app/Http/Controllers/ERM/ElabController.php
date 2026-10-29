@@ -574,7 +574,10 @@ class ElabController extends Controller
             }
 
             $this->syncPackageBillingForVisitation($visitationId, $selectedPackageIds);
-            
+
+            // Newly added tests, for the notification to the staff
+            $addedTests = [];
+
             // Process each lab test in the request
             foreach ($requestsData as $labTestId => $requestData) {
                 if (is_numeric($labTestId)) {
@@ -613,6 +616,7 @@ class ElabController extends Controller
                         $this->applyStatusTimestamps($labRequest, $status);
                         $labRequest->save();
                         $currentRequest = $labRequest;
+                        $addedTests[] = ['nama' => optional($labTest)->nama, 'lab_paket_id' => $labPaketId];
                         
                         // Create billing entry for standalone lab tests only
                         if ($labTest && !$labPaketId) {
@@ -642,7 +646,11 @@ class ElabController extends Controller
                     }
                 }
             }
-            
+
+            if ($addedTests) {
+                $this->notifyLabPermintaan($visitationId, $addedTests);
+            }
+
             return response()->json([
                 'message' => 'Permintaan lab berhasil disimpan'
             ]);
@@ -650,6 +658,31 @@ class ElabController extends Controller
             return response()->json([
                 'message' => 'Gagal menyimpan permintaan lab: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Tell Perawat, Pendaftaran, Farmasi and Lab which lab tests the dokter added. Never fails the save.
+     * Tests from a paket are listed once as "Paket <nama>".
+     */
+    private function notifyLabPermintaan($visitationId, array $addedTests): void
+    {
+        try {
+            $notif = \App\Support\ErmStaffNotifications::class;
+
+            $paketNames = LabPaket::whereIn('id', array_filter(array_column($addedTests, 'lab_paket_id')))->pluck('nama', 'id');
+            $items = [];
+            foreach ($addedTests as $test) {
+                $items[] = $test['lab_paket_id']
+                    ? 'Paket ' . ($paketNames[$test['lab_paket_id']] ?? '-')
+                    : ($test['nama'] ?: '-');
+            }
+
+            $notif::send(new \App\Notifications\LabPermintaanNotification(
+                $notif::permintaanMessage($visitationId, $items), optional(Auth::user())->name, $visitationId
+            ), ['Lab']);
+        } catch (\Throwable $e) {
+            Log::error('Lab permintaan notification failed: ' . $e->getMessage(), ['visitation_id' => $visitationId]);
         }
     }
 

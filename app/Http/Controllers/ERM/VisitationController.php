@@ -334,6 +334,37 @@ class VisitationController extends Controller
     }
 
     /**
+     * Tell Perawat, Pendaftaran and Farmasi about a new rujukan. A failed notification never fails the rujukan.
+     */
+    private function notifyRujukan(\App\Models\ERM\Rujuk $rujuk)
+    {
+        try {
+            $rujuk->load([
+                'pasien:id,nama',
+                'dokterPengirim.user:id,name', 'dokterPengirim.spesialisasi:id,nama',
+                'dokterTujuan.user:id,name', 'dokterTujuan.spesialisasi:id,nama',
+                'visitation:id,tanggal_visitation,klinik_id',
+            ]);
+
+            $notif = \App\Support\ErmStaffNotifications::class;
+            $pengirim = optional(optional($rujuk->dokterPengirim)->user)->name ?: optional(Auth::user())->name;
+
+            // The tujuan's spesialisasi follows the klinik of the new visit
+            $message = implode("\n", [
+                'Pasien: ' . $notif::pasienLabel($rujuk->pasien),
+                'Dari: ' . $notif::dokterLabel($rujuk->dokterPengirim, optional($rujuk->dokterPengirim)->klinik_id, $pengirim),
+                'Ke: ' . $notif::dokterLabel($rujuk->dokterTujuan, optional($rujuk->visitation)->klinik_id),
+                'Tanggal kunjungan: ' . $notif::tanggal(optional($rujuk->visitation)->tanggal_visitation),
+            ]);
+            $title = ($rujuk->jenis_permintaan === 'Konsultasi' ? 'Konsultasi' : 'Rujukan') . ' Baru';
+
+            $notif::send(new \App\Notifications\RujukanNotification($title, $message, $pengirim, $rujuk->id, $rujuk->visitation_id));
+        } catch (\Throwable $e) {
+            Log::error('Rujukan notification failed: ' . $e->getMessage(), ['rujuk_id' => $rujuk->id]);
+        }
+    }
+
+    /**
      * Store visitation and rujuk record for referral (rujuk).
      */
     public function storeRujuk(Request $request)
@@ -443,7 +474,7 @@ class VisitationController extends Controller
             ]);
 
             // Create rujuk record
-            \App\Models\ERM\Rujuk::create([
+            $rujuk = \App\Models\ERM\Rujuk::create([
                 'pasien_id' => $request->pasien_id,
                 'dokter_pengirim_id' => $dokterPengirimId,
                 'dokter_tujuan_id' => $request->dokter_id,
@@ -455,6 +486,7 @@ class VisitationController extends Controller
 
             DB::commit();
 
+            $this->notifyRujukan($rujuk);
 
             return response()->json([
                 'success' => true,

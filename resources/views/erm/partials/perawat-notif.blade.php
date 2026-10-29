@@ -1,5 +1,5 @@
 {{-- Perawat Notification Polling & Sound --}}
-@if (Auth::user()->hasRole('Perawat'))
+@if (Auth::user()->hasAnyRole(['Perawat', 'Pendaftaran', 'Lab']))
 <script>
 if (document.getElementById('rawatjalan-table')) {
     // Rawat Jalan has its own notification handler with richer behavior.
@@ -70,9 +70,12 @@ BelovaTabLeader.run('erm-get-notif', 2000, function() {
                     icon: 'swal2-call-icon'
                 };
             }
+            // Rujukan / permintaan lab: message already lists one field per line
+            var isMultiline = !!data.multiline;
             Swal.fire({
                 title: data.title || 'Notifikasi dari Dokter',
-                text: data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
+                text: isMultiline ? undefined : data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
+                html: isMultiline ? window.rujukanNotifHtml(data.message) : undefined,
                 icon: 'info',
                 iconHtml: popupIconHtml,
                 customClass: popupCustomClass,

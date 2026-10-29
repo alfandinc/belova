@@ -362,8 +362,10 @@ $(document).ready(function () {
             selectedJenisKonsultasi = availableOptions[0];
         }
 
-        // Card list (name + harga), see erm.partials.konsultasi-picker
-        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi);
+        // Card list (name + harga), see erm.partials.konsultasi-picker. Saving also marks every CPPT read (mark_all_read)
+        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi, {
+            note: 'Dengan klik "Lanjut simpan", semua CPPT pasien ini otomatis ditandai sudah dibaca.'
+        });
         if (!chosen) {
             return null;
         }
@@ -526,6 +528,7 @@ $(document).ready(function () {
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
         formData.set('jenis_konsultasi', jenisKonsultasi);
+        formData.set('mark_all_read', '1');
 
         $.ajax({
             url: $(this).attr('action'),
@@ -537,7 +540,7 @@ $(document).ready(function () {
                 Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             },
             success: function (res) {
-                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SOAP berhasil disimpan.', timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SOAP berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
                 $('#form-cppt-soap')[0].reset();
                 refreshCpptHistory(visitationId);
             },
@@ -560,6 +563,7 @@ $(document).ready(function () {
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
         formData.set('jenis_konsultasi', jenisKonsultasi);
+        formData.set('mark_all_read', '1');
 
         $.ajax({
             url: $(this).attr('action'),
@@ -571,7 +575,7 @@ $(document).ready(function () {
                 Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             },
             success: function (res) {
-                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SBAR berhasil disimpan.', timer: 2000, showConfirmButton: false });
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SBAR berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
                 $('#form-cppt-sbar')[0].reset();
                 refreshCpptHistory(visitationId);
             },

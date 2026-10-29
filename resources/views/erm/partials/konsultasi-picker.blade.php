@@ -16,9 +16,12 @@
 .kp-price { flex: none; font-weight: 600; font-size: 14px; white-space: nowrap; }
 .kp-price.free { color: #16a34a; }
 .kp-empty { padding: 16px; text-align: center; opacity: .7; }
+.kp-note { margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: rgba(23,162,184,.12); color: inherit; font-size: 12.5px; text-align: left; line-height: 1.45; }
 </style>
 <script>
-window.belovaPilihKonsultasi = function (items, selectedId) {
+// opts.note: optional text shown under the list (e.g. CPPT: what "Lanjut simpan" also does)
+window.belovaPilihKonsultasi = function (items, selectedId, opts) {
+    opts = opts || {};
     var esc = function (s) { return $('<div>').text(s == null ? '' : String(s)).html(); };
     var rupiah = function (n) { return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID'); };
 
@@ -51,7 +54,8 @@ window.belovaPilihKonsultasi = function (items, selectedId) {
                 + '<span class="kp-radio"></span><span class="kp-name">' + esc(shortName(it)) + '</span>'
                 + '<span class="kp-price' + (free ? ' free' : '') + '">' + (free ? 'Gratis' : rupiah(it.harga)) + '</span></button>';
         }).join('')
-        + '<div class="kp-empty" style="display:none">Tidak ada yang cocok.</div></div>';
+        + '<div class="kp-empty" style="display:none">Tidak ada yang cocok.</div></div>'
+        + (opts.note ? '<div class="kp-note"><i class="fas fa-info-circle mr-1"></i>' + esc(opts.note) + '</div>' : '');
 
     var options = {
         title: 'Pilih Biaya Konsultasi',

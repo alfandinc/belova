@@ -30,42 +30,8 @@
     </style>
 </head>
 <body>
-    {{-- Use table layout for header because DomPDF has limited flexbox support --}}
-    <table class="header-table" style="width:100%; border-collapse:collapse;">
-        <tr>
-            <td style="vertical-align:middle; width:50%;">
-                <div class="logo">
-                    @php
-                        // choose logo based on klinik id; adjust IDs as needed
-                        $clinicId = optional($rujuk->visitation->klinik)->id;
-                        // mapping: clinic id 1 -> premiere (blue), id 2 -> beauty (pink)
-                        $logoFile = 'img/logo.png';
-                        if ($clinicId == 1) {
-                            $logoFile = 'img/logo-premiere.png';
-                        } elseif ($clinicId == 2) {
-                            $logoFile = 'img/logo-beauty.png';
-                        }
-                        $logoPath = public_path($logoFile);
-                    @endphp
-                    @if(file_exists($logoPath))
-                        {{-- Use filesystem path so DomPDF can embed the image --}}
-                        <img src="{{ $logoPath }}" style="height:70px; display:block;" />
-                    @else
-                        <div style="height:70px;"></div>
-                    @endif
-                </div>
-            </td>
-            <td style="vertical-align:middle; width:50%; text-align:right;">
-                <div class="clinic">
-                    <h4 style="margin:0;">KLINIK UTAMA PREMIERE BELOVA</h4>
-                    <div class="small">Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta</div>
-                    <div class="small">Telp. 0821-1600-0093</div>
-                    <div class="small">www.premierebelova.id</div>
-                </div>
-            </td>
-        </tr>
-    </table>
-    <hr class="topline" />
+    {{-- Letterhead of the klinik of the rujukan visit (App\Support\PdfLetterhead) --}}
+    @include('erm.riwayatkunjungan.partials.kop')
 
     <div class="title">SURAT PERMINTAAN KONSULTASI</div>
 

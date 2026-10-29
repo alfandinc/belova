@@ -58,6 +58,8 @@ class NotificationController extends Controller
                         'hasNew' => true,
                         'message' => $dbNotif->data['message'] ?? '',
                         'type' => $dbNotif->data['title'] ?? 'notification',
+                        'kind' => $dbNotif->data['kind'] ?? null,
+                        'multiline' => !empty($dbNotif->data['multiline']),
                         'timestamp' => $currentTime,
                         'source' => 'database'
                     ]);

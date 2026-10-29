@@ -14,7 +14,40 @@
             meta="tidak kembali 6–12 bulan" />
     </div>
 
-    <div class="dw-section-label">Kohort pasien baru · % yang kembali dalam …</div>
+    <div class="dw-section-label">Per klinik · kembali ke klinik yang sama</div>
+    <div class="dw-table-wrap">
+        <table class="dw-grid-table" style="min-width: 520px;">
+            <thead>
+                <tr>
+                    <th>Klinik</th>
+                    <th class="text-right">Pasien kembali</th>
+                    <th class="text-right">Retensi 90 hari</th>
+                    <th class="text-right">Frekuensi</th>
+                    <th class="text-right">Berisiko hilang</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($data['clinics'] as $c)
+                    <tr>
+                        <td>
+                            <span aria-hidden="true" style="display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; background: {{ $c['klinik']->color }};"></span>
+                            <span class="dw-cell-title" title="{{ $c['klinik']->nama }}">{{ $c['klinik']->short }}</span>
+                        </td>
+                        <td class="text-right" title="{{ Fmt::num($c['returning']) }} dari {{ Fmt::num($c['periodPatients']) }} pasien periode ini">
+                            <span class="dw-cell-num">{{ $c['periodPatients'] > 0 ? Fmt::pct($c['returningPct']) : '–' }}</span>
+                            <div class="dw-note mt-0">{{ Fmt::num($c['returning']) }} / {{ Fmt::num($c['periodPatients']) }}</div>
+                        </td>
+                        <td class="text-right"><span class="dw-cell-num">{{ $c['retention90'] !== null ? Fmt::pct($c['retention90']) : '–' }}</span></td>
+                        <td class="text-right"><span class="dw-cell-num">{{ $c['frequency'] > 0 ? Fmt::num($c['frequency'], 1) . 'x' : '–' }}</span></td>
+                        <td class="text-right"><span class="dw-cell-num">{{ Fmt::num($c['atRisk']) }}</span></td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    <p class="dw-note">Angka di atas tabel menghitung semua klinik. Per klinik, pasien dihitung kembali hanya kalau datang lagi ke klinik yang sama, jadi jumlah per klinik tidak harus sama dengan total.</p>
+
+    <div class="dw-section-label">Kohort pasien baru · semua klinik · % yang kembali dalam …</div>
     <div class="dw-table-wrap">
         <table class="dw-grid-table dw-cohort" style="min-width: 420px;">
             <thead>

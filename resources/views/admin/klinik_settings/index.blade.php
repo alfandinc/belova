@@ -141,6 +141,7 @@
 
                     <ul class="nav nav-tabs mb-3" role="tablist">
                         <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tabUmum" role="tab">Umum</a></li>
+                        <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabInvoice" role="tab">Invoice</a></li>
                         <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tabSatusehat" role="tab">SatuSehat <span id="ssTabBadge"></span></a></li>
                     </ul>
 
@@ -177,6 +178,43 @@
                                 </div>
                                 <input type="file" class="form-control-file" id="klinikLogo" name="logo" accept="image/png,image/jpeg,image/webp">
                                 <small class="text-muted">Format JPG, PNG, atau WEBP. Maksimal 2 MB.</small>
+                            </div>
+                        </div>
+
+                        {{-- Footer of the invoice (finance/invoice/pdf); empty fields keep the invoice's built-in text --}}
+                        <div class="tab-pane fade" id="tabInvoice" role="tabpanel">
+                            <div class="alert alert-secondary py-2 small mb-3">
+                                Tampil di bagian bawah invoice. Kosongkan untuk memakai teks bawaan invoice.
+                            </div>
+                            <h6 class="text-muted mb-2">Rekening Pembayaran</h6>
+                            <div class="form-row">
+                                <div class="form-group col-md-4">
+                                    <label for="klinikBankName">Bank</label>
+                                    <input type="text" class="form-control" id="klinikBankName" name="bank_name" maxlength="100" placeholder="BRI">
+                                </div>
+                                <div class="form-group col-md-8">
+                                    <label for="klinikBankAccountNumber">No. Rekening</label>
+                                    <input type="text" class="form-control" id="klinikBankAccountNumber" name="bank_account_number" maxlength="50">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="klinikBankAccountName">Atas Nama</label>
+                                <input type="text" class="form-control" id="klinikBankAccountName" name="bank_account_name" maxlength="255" placeholder="CV ...">
+                            </div>
+                            <h6 class="text-muted mb-2 mt-3">Kontak Klinik</h6>
+                            <div class="form-group">
+                                <label for="klinikAlamat">Alamat</label>
+                                <textarea class="form-control" id="klinikAlamat" name="alamat" rows="2" maxlength="500"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group col-md-6 mb-0">
+                                    <label for="klinikTelp">Telepon</label>
+                                    <input type="text" class="form-control" id="klinikTelp" name="telp" maxlength="100">
+                                </div>
+                                <div class="form-group col-md-6 mb-0">
+                                    <label for="klinikWebsite">Website</label>
+                                    <input type="text" class="form-control" id="klinikWebsite" name="website" maxlength="255" placeholder="www.contoh.id">
+                                </div>
                             </div>
                         </div>
 
@@ -377,6 +415,9 @@ $(document).ready(function() {
             $('#klinikId').val(data.id);
             $('#klinikNama').val(data.nama);
             $('#klinikCutoff').val(data.report_cutoff_time || '00:00');
+            $.each(['bank_name', 'bank_account_number', 'bank_account_name', 'alamat', 'telp', 'website'], function(_, field) {
+                $('#klinikForm [name="' + field + '"]').val(data[field] || '');
+            });
             if (data.color) {
                 $('#klinikColorText').val(data.color);
                 $('#klinikColorPicker').val(data.color);

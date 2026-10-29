@@ -21,6 +21,8 @@ class KlinikSettingController extends Controller
         'base_url' => 'https://api-satusehat.kemkes.go.id/fhir-r4/v1',
         'consent_url' => 'https://api-satusehat.kemkes.go.id/consent/v1',
     ];
+    // Invoice footer fields (contact + bank account) => max length; empty = the invoice's built-in text
+    private const INVOICE_FIELDS = ['alamat' => 500, 'telp' => 100, 'website' => 255, 'bank_name' => 100, 'bank_account_number' => 50, 'bank_account_name' => 255];
     // SatuSehat Location form fields (prefixed "loc_" in the request)
     private const LOCATION_FIELDS = ['location_id', 'name', 'identifier_value', 'description', 'province', 'city', 'district', 'village', 'rt', 'rw', 'line', 'postal_code', 'latitude', 'longitude'];
 
@@ -115,6 +117,20 @@ class KlinikSettingController extends Controller
         ]));
     }
 
+    /** Invoice footer fields from the request; columns the database does not have yet are skipped. */
+    private function invoiceData(array $validated): array
+    {
+        $data = [];
+        foreach (array_keys(self::INVOICE_FIELDS) as $field) {
+            if (\Illuminate\Support\Facades\Schema::hasColumn('erm_klinik', $field)) {
+                $value = trim((string) ($validated[$field] ?? ''));
+                $data[$field] = $value !== '' ? $value : null;
+            }
+        }
+
+        return $data;
+    }
+
     public function store(Request $request)
     {
         $validated = $this->validateKlinik($request);
@@ -123,7 +139,7 @@ class KlinikSettingController extends Controller
             'nama' => $validated['nama'],
             'report_cutoff_time' => $validated['report_cutoff_time'] ?? '00:00',
             'color' => $validated['color'] ?? null,
-        ];
+        ] + $this->invoiceData($validated);
 
         if ($request->hasFile('logo')) {
             $data['logo'] = $request->file('logo')->store('klinik_logos', 'public');
@@ -151,7 +167,7 @@ class KlinikSettingController extends Controller
             'nama' => $validated['nama'],
             'report_cutoff_time' => $validated['report_cutoff_time'] ?? '00:00',
             'color' => $validated['color'] ?? null,
-        ];
+        ] + $this->invoiceData($validated);
 
         if ($request->hasFile('logo')) {
             $this->deleteLogoFile($klinik->logo);
@@ -223,6 +239,9 @@ class KlinikSettingController extends Controller
             'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'remove_logo' => 'nullable|boolean',
         ];
+        foreach (self::INVOICE_FIELDS as $field => $max) {
+            $rules[$field] = 'nullable|string|max:' . $max;
+        }
         foreach (self::SATUSEHAT_FIELDS as $field) {
             $rules['ss_' . $field] = 'nullable|string|max:255';
         }
