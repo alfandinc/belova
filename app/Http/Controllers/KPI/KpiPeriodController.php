@@ -161,8 +161,15 @@ class KpiPeriodController extends Controller
     private function positionPlan(HRDPosition $position, array &$warnings): array
     {
         $plans = [];
-        $byCategory = $this->activeIndicatorMappingsForPosition($position)
-            ->groupBy(fn ($mapping) => $mapping->indicator->category_id);
+        $mappings = $this->activeIndicatorMappingsForPosition($position);
+        $byCategory = $mappings->groupBy(fn ($mapping) => $mapping->indicator->category_id);
+
+        // shared indicators apply to every position, so a missing position mapping would otherwise go unnoticed
+        if (!$mappings->contains(fn ($mapping) => !$mapping->indicator->category->is_shared)) {
+            $this->addWarning($warnings, 'no_indicator:' . $position->id,
+                'Posisi ' . $position->name . ' punya karyawan aktif tapi belum ada indikator posisi (non-shared). '
+                . 'Petakan indikatornya di Master Indicators.');
+        }
 
         foreach ($byCategory as $mappings) {
             $category = $mappings->first()->indicator->category;
@@ -325,12 +332,16 @@ class KpiPeriodController extends Controller
                     $startBtn = '<button class="btn btn-warning btn-close-period" data-id="' . $p->id . '">Close</button>';
                 }
 
+                $syncBtn = in_array($p->status, ['started', 'open'], true)
+                    ? '<button class="btn btn-outline-primary btn-sync-period" data-id="' . $p->id . '" title="Tambah assessment yang belum dibuat"><i class="fa fa-sync"></i> Sync</button>'
+                    : '';
                 $scoresBtn = '<button class="btn btn-secondary btn-scores-period" data-id="' . $p->id . '"><i class="fa fa-list"></i> Scores</button>';
                 $iconEdit = '<button class="btn btn-info btn-edit-period" data-id="' . $p->id . '" title="Edit"><i class="fa fa-edit"></i></button>';
                 $iconDelete = '<button class="btn btn-danger btn-delete-period" data-id="' . $p->id . '" title="Delete"><i class="fa fa-trash"></i></button>';
 
                 return '<div class="btn-group btn-group-sm" role="group">'
                     . $startBtn
+                    . $syncBtn
                     . $scoresBtn
                     . '</div>'
                     . '<div class="btn-group btn-group-sm ml-1" role="group">'
@@ -500,43 +511,13 @@ class KpiPeriodController extends Controller
                     throw new \RuntimeException('Tidak ada assessment yang bisa dibuat. Periksa indikator posisi dan penilai di halaman Master Indicators.');
                 }
 
-                $assessmentCount = 0;
-                $scoreCount = 0;
-
-                foreach ($assignments as $assignment) {
-                    $assessment = KpiAssessment::firstOrCreate([
-                        'period_id' => $lockedPeriod->id,
-                        'evaluator_employee_id' => $assignment['evaluator_employee']->id,
-                        'evaluator_position_id' => $assignment['evaluator_position']->id,
-                        'evaluatee_employee_id' => $assignment['evaluatee_employee']->id,
-                        'evaluatee_position_id' => $assignment['evaluatee_position']->id,
-                        'assessment_type' => $assignment['assessment_type'],
-                    ], [
-                        'status' => 'pending',
-                    ]);
-                    $assessmentCount++;
-
-                    foreach ($assignment['indicators'] as $item) {
-                        // ss_* is the snapshot old assessments keep, whatever changes in the indicators later
-                        KpiScore::firstOrCreate([
-                            'assessment_id' => $assessment->id,
-                            'indicators_id' => $item['indicator']->id,
-                        ], [
-                            'ss_category_name' => $item['category']->category_name,
-                            'ss_category_weight_percentage' => $item['category']->weight_percentage,
-                            'ss_indicator_name' => $item['indicator']->indicator_name,
-                            'ss_indicator_weight_percentage' => $item['weight'],
-                            'score' => 0,
-                        ]);
-                        $scoreCount++;
-                    }
-                }
+                $counts = $this->createAssignments($lockedPeriod, $assignments);
 
                 $lockedPeriod->status = 'started';
                 $lockedPeriod->started_at = now();
                 $lockedPeriod->save();
 
-                return ['assessments' => $assessmentCount, 'scores' => $scoreCount];
+                return $counts;
             });
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
@@ -550,6 +531,147 @@ class KpiPeriodController extends Controller
             'message' => 'Periode dimulai: ' . $created['assessments'] . ' assessment dan ' . $created['scores'] . ' indikator penilaian dibuat.',
             'counts' => $created,
         ]);
+    }
+
+    /**
+     * Bring a started or open period in line with the current setup: add the assessments it is missing
+     * (e.g. indicators mapped to a position after the start) and delete the stale ones the user ticked.
+     * Existing assessments never get new scores, and a filled ('done') assessment is never deleted.
+     */
+    public function syncAssessment(Request $request, KpiPeriod $period)
+    {
+        $removeIds = collect($request->input('remove_ids', []))->map(fn ($id) => (int) $id)->filter()->unique();
+
+        try {
+            $result = DB::transaction(function () use ($period, $removeIds) {
+                $lockedPeriod = KpiPeriod::whereKey($period->id)->lockForUpdate()->first();
+                if (!in_array($lockedPeriod->status, ['started', 'open'], true)) {
+                    throw new \RuntimeException('Sync hanya untuk periode berstatus started atau open (status: ' . $lockedPeriod->status . ').');
+                }
+
+                $distribution = $this->buildDistribution()['assignments'];
+                $assignments = $this->missingAssignments($lockedPeriod, $distribution);
+                // re-checked here under the lock: only stale and still unfilled assessments can go
+                $removals = $this->staleAssessments($lockedPeriod, $distribution)
+                    ->filter(fn (KpiAssessment $a) => $a->status !== 'done' && $removeIds->contains((int) $a->id));
+
+                if (empty($assignments) && $removals->isEmpty()) {
+                    throw new \RuntimeException('Tidak ada perubahan. Semua assessment periode ini sudah sesuai.');
+                }
+
+                $counts = $this->createAssignments($lockedPeriod, $assignments);
+
+                foreach ($removals as $assessment) {
+                    $assessment->scores()->delete();
+                    $assessment->delete();
+                }
+                $counts['removed'] = $removals->count();
+
+                return $counts;
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Gagal sync assessment: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Sync selesai: ' . $result['assessments'] . ' assessment baru (' . $result['scores'] . ' indikator) dibuat, '
+                . $result['removed'] . ' assessment dihapus.',
+            'counts' => $result,
+        ]);
+    }
+
+    private function assignmentKey(array $assignment): string
+    {
+        return implode(':', [
+            $assignment['evaluator_employee']->id,
+            $assignment['evaluator_position']->id,
+            $assignment['evaluatee_employee']->id,
+            $assignment['evaluatee_position']->id,
+            $assignment['assessment_type'],
+        ]);
+    }
+
+    private function assessmentKey(KpiAssessment $assessment): string
+    {
+        return implode(':', [
+            $assessment->evaluator_employee_id,
+            $assessment->evaluator_position_id,
+            $assessment->evaluatee_employee_id,
+            $assessment->evaluatee_position_id,
+            $assessment->assessment_type,
+        ]);
+    }
+
+    /**
+     * Assignments of the distribution that have no kpi_assessments row in the period yet.
+     */
+    private function missingAssignments(KpiPeriod $period, array $assignments): array
+    {
+        $existing = KpiAssessment::where('period_id', $period->id)->get()
+            ->mapWithKeys(fn (KpiAssessment $a) => [$this->assessmentKey($a) => true]);
+
+        return array_values(array_filter($assignments, fn ($assignment) => !isset($existing[$this->assignmentKey($assignment)])));
+    }
+
+    /**
+     * Assessments of the period the current distribution would no longer generate
+     * (position, atasan/bawahan or indicator mapping changed after the start).
+     */
+    private function staleAssessments(KpiPeriod $period, array $assignments)
+    {
+        $planned = collect($assignments)->mapWithKeys(fn ($assignment) => [$this->assignmentKey($assignment) => true]);
+
+        return KpiAssessment::where('period_id', $period->id)
+            ->with(['evaluatorEmployee', 'evaluatorPosition', 'evaluateeEmployee', 'evaluateePosition'])
+            ->get()
+            ->reject(fn (KpiAssessment $a) => isset($planned[$this->assessmentKey($a)]))
+            ->values();
+    }
+
+    private function createAssignments(KpiPeriod $period, array $assignments): array
+    {
+        $assessmentCount = 0;
+        $scoreCount = 0;
+
+        foreach ($assignments as $assignment) {
+            $assessment = KpiAssessment::firstOrCreate([
+                'period_id' => $period->id,
+                'evaluator_employee_id' => $assignment['evaluator_employee']->id,
+                'evaluator_position_id' => $assignment['evaluator_position']->id,
+                'evaluatee_employee_id' => $assignment['evaluatee_employee']->id,
+                'evaluatee_position_id' => $assignment['evaluatee_position']->id,
+                'assessment_type' => $assignment['assessment_type'],
+            ], [
+                'status' => 'pending',
+            ]);
+
+            // an assessment that already exists keeps its own indicator set; never add scores to it
+            if (!$assessment->wasRecentlyCreated) {
+                continue;
+            }
+            $assessmentCount++;
+
+            foreach ($assignment['indicators'] as $item) {
+                // ss_* is the snapshot old assessments keep, whatever changes in the indicators later
+                KpiScore::firstOrCreate([
+                    'assessment_id' => $assessment->id,
+                    'indicators_id' => $item['indicator']->id,
+                ], [
+                    'ss_category_name' => $item['category']->category_name,
+                    'ss_category_weight_percentage' => $item['category']->weight_percentage,
+                    'ss_indicator_name' => $item['indicator']->indicator_name,
+                    'ss_indicator_weight_percentage' => $item['weight'],
+                    'score' => 0,
+                ]);
+                $scoreCount++;
+            }
+        }
+
+        return ['assessments' => $assessmentCount, 'scores' => $scoreCount];
     }
 
     public function store(Request $request)
@@ -579,6 +701,24 @@ class KpiPeriodController extends Controller
     public function previewStart(Request $request, KpiPeriod $period)
     {
         $distribution = $this->buildDistribution();
+        // a started or open period previews the sync: the assessments it does not have yet,
+        // and the existing ones the current setup would no longer generate
+        $removals = [];
+        if (in_array($period->status, ['started', 'open'], true)) {
+            $removals = $this->staleAssessments($period, $distribution['assignments'])
+                ->map(fn (KpiAssessment $a) => [
+                    'id' => $a->id,
+                    'evaluator_name' => optional($a->evaluatorEmployee)->nama ?? '-',
+                    'evaluator_position_name' => optional($a->evaluatorPosition)->name ?? '-',
+                    'evaluatee_name' => optional($a->evaluateeEmployee)->nama ?? '-',
+                    'evaluatee_position_name' => optional($a->evaluateePosition)->name ?? '-',
+                    'assessment_type' => $a->assessment_type,
+                    'filled' => $a->status === 'done',
+                ])
+                ->values()
+                ->all();
+            $distribution['assignments'] = $this->missingAssignments($period, $distribution['assignments']);
+        }
         $proposals = [];
         $evaluatees = [];
 
@@ -617,6 +757,7 @@ class KpiPeriodController extends Controller
             ],
             'warnings' => $distribution['warnings'],
             'data' => $proposals,
+            'removals' => $removals,
         ]);
     }
 

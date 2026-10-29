@@ -120,6 +120,7 @@
                         <div class="modal-body">
                             <div id="previewCounts" class="mb-2"></div>
                             <div id="previewWarnings"></div>
+                            <div id="previewRemovals"></div>
                             <div class="row">
                                 <div class="col-md-4 border-right" style="max-height:60vh; overflow:auto;">
                                     <h6>Evaluators</h6>
@@ -285,6 +286,50 @@ $(function(){
 
     // Start assessment -> preview flow (two-column modal)
     var previewPeriodId = null;
+    var previewIsSync = false;
+    var previewAllowed = false;
+
+    var typeLabels = { direct_parent: 'Atasan langsung', specific_position: 'Penilai khusus', bottom_up: 'Bawahan' };
+
+    // sync only: existing assessments the current setup no longer generates; filled ones are always kept,
+    // unfilled ones are deleted only when ticked
+    function renderRemovals(removals) {
+        var $box = $('#previewRemovals').empty();
+        if (removals === null) return;
+        if (!removals.length) {
+            $box.html('<div class="mb-2"><strong class="mr-1"><i class="fas fa-minus-circle text-danger"></i> Akan dihapus:</strong><span class="text-muted small">tidak ada</span></div>');
+            return;
+        }
+
+        var html = '<div class="mb-2"><strong><i class="fas fa-minus-circle text-danger"></i> Tidak lagi sesuai setup sekarang (' + removals.length + ')</strong>'
+            + '<div class="small text-muted mb-1">Posisi, atasan/bawahan, atau indikatornya berubah setelah periode dimulai. '
+            + 'Yang sudah diisi selalu disimpan; yang belum diisi hanya dihapus kalau dicentang.</div>'
+            + '<div class="table-responsive" style="max-height:200px; overflow:auto;"><table class="table table-sm table-bordered mb-0">'
+            + '<thead><tr><th style="width:70px;">Hapus</th><th>Penilai</th><th>Dinilai</th><th>Tipe</th><th>Status</th></tr></thead><tbody>';
+        removals.forEach(function (r) {
+            html += '<tr>'
+                + '<td class="text-center">' + (r.filled ? '<i class="fas fa-lock text-muted" title="Sudah diisi, tidak bisa dihapus"></i>'
+                    : '<input type="checkbox" class="sync-remove-check" value="' + r.id + '">') + '</td>'
+                + '<td>' + escapeHtml(r.evaluator_name) + '<div class="small text-muted">' + escapeHtml(r.evaluator_position_name) + '</div></td>'
+                + '<td>' + escapeHtml(r.evaluatee_name) + '<div class="small text-muted">' + escapeHtml(r.evaluatee_position_name) + '</div></td>'
+                + '<td class="small">' + escapeHtml(typeLabels[r.assessment_type] || r.assessment_type) + '</td>'
+                + '<td>' + (r.filled ? '<span class="badge badge-success">Sudah diisi - tetap disimpan</span>' : '<span class="badge badge-secondary">Belum diisi</span>') + '</td>'
+                + '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+        $box.html(html);
+    }
+
+    function selectedRemoveIds() {
+        return $('#previewRemovals .sync-remove-check:checked').map(function () { return $(this).val(); }).get();
+    }
+
+    function updateConfirmButton() {
+        var hasChange = previewData.length > 0 || (previewIsSync && selectedRemoveIds().length > 0);
+        $('#confirmStartBtn').prop('disabled', !previewAllowed || !hasChange);
+    }
+
+    $(document).on('change', '.sync-remove-check', updateConfirmButton);
     var previewData = [];
     function fmtPct(n){
         if (n === undefined || n === null || n === '') return '';
@@ -305,9 +350,13 @@ $(function(){
         return out;
     }
 
-    $(document).on('click', '.btn-start-period', function(){
+    $(document).on('click', '.btn-start-period, .btn-sync-period', function(){
         var id = $(this).data('id');
         previewPeriodId = id;
+        // sync = a started/open period only gets the assessments it is still missing
+        previewIsSync = $(this).hasClass('btn-sync-period');
+        $('#previewModalLabel').text(previewIsSync ? 'Sync: Assessment yang Belum Dibuat' : 'Preview Assessments to Generate');
+        $('#confirmStartBtn').text(previewIsSync ? 'Confirm & Sync' : 'Confirm & Generate');
         // fetch preview
         $.get('/kpi/periods/' + id + '/start/preview', function(res){
             if (!res.success) return showAjaxError({ responseJSON: res }, 'Failed to preview');
@@ -316,7 +365,8 @@ $(function(){
             var warnings = res.warnings || [];
 
             $('#previewCounts').html(
-                '<span class="badge badge-primary mr-1">' + (counts.evaluatees || 0) + ' karyawan dinilai</span>'
+                (previewIsSync ? '<strong class="mr-1"><i class="fas fa-plus-circle text-success"></i> Akan ditambah:</strong>' : '')
+                + '<span class="badge badge-primary mr-1">' + (counts.evaluatees || 0) + ' karyawan dinilai</span>'
                 + '<span class="badge badge-primary mr-1">' + (counts.assessments || 0) + ' assessment</span>'
                 + '<span class="badge badge-primary">' + (counts.proposals || 0) + ' indikator penilaian</span>'
             );
@@ -334,8 +384,11 @@ $(function(){
                 $('#previewWarnings').html('<div class="alert alert-success py-2 small"><i class="fas fa-check-circle mr-1"></i>Semua indikator punya penilai dan bobotnya 100%.</div>');
             }
 
-            $('#confirmStartBtn').prop('disabled', previewData.length === 0 || res.status !== 'draft');
-            $('#previewSummary').empty();
+            previewAllowed = previewIsSync ? (res.status === 'started' || res.status === 'open') : res.status === 'draft';
+            renderRemovals(previewIsSync ? (res.removals || []) : null);
+            updateConfirmButton();
+            $('#previewSummary').html(previewIsSync && previewData.length === 0
+                ? '<div class="alert alert-light border py-2 small mb-0">Tidak ada assessment baru yang perlu ditambah.</div>' : '');
 
             // build unique evaluators list
             var evaluatorsMap = {};
@@ -442,15 +495,15 @@ $(function(){
         var $btn = $(this);
         var originalText = $btn.text();
         // disabled while generating, so a double click cannot start the period twice
-        $btn.prop('disabled', true).text('Generating...');
+        $btn.prop('disabled', true).text(previewIsSync ? 'Syncing...' : 'Generating...');
         $.ajax({
-            url: '/kpi/periods/' + previewPeriodId + '/start',
+            url: '/kpi/periods/' + previewPeriodId + (previewIsSync ? '/sync' : '/start'),
             type: 'POST',
-            data: { _token: $('meta[name="csrf-token"]').attr('content') },
+            data: { _token: $('meta[name="csrf-token"]').attr('content'), remove_ids: previewIsSync ? selectedRemoveIds() : [] },
             success: function(r){
                 $('#previewModal').modal('hide');
                 periodsTable.ajax.reload(null,false);
-                Swal.fire({icon:'success', title:'Started', text: r.message});
+                Swal.fire({icon:'success', title: previewIsSync ? 'Synced' : 'Started', text: r.message});
             },
             error: function(xhr){
                 $btn.prop('disabled', false);

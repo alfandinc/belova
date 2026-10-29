@@ -2032,6 +2032,7 @@ Route::prefix('kpi/periods')->name('kpi.periods.')->middleware(['auth', 'role:Em
     Route::get('/{period}/start/preview', [KpiPeriodController::class, 'previewStart'])->name('start.preview');
     Route::get('/{period}/details', [KpiPeriodController::class, 'details'])->name('details');
     Route::post('/{period}/start', [KpiPeriodController::class, 'startAssessment'])->name('start');
+    Route::post('/{period}/sync', [KpiPeriodController::class, 'syncAssessment'])->name('sync');
     Route::post('/{period}/open', [KpiPeriodController::class, 'openPeriod'])->name('open');
     Route::post('/{period}/close', [KpiPeriodController::class, 'closePeriod'])->name('close');
 });
