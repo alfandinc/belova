@@ -8,9 +8,13 @@
     <div class="dw-clinics">
         @foreach ($data['clinics'] as $c)
             <x-dash.clinic :klinik="$c['klinik']" :meta="Fmt::num($c['periodPatients']) . ' pasien periode ini'">
+                {{-- Period patients = kembali + baru (100%); kembali in the clinic color, baru a light tint of it --}}
+                <x-dash.stack class="dw-retensi-split" :segments="[
+                    ['label' => 'Pasien kembali', 'value' => Fmt::num($c['returning']), 'pct' => $c['returningPct'], 'color' => $c['klinik']->color],
+                    ['label' => 'Pasien baru', 'value' => Fmt::num($c['newPatients']), 'pct' => $c['newPct'], 'color' => 'color-mix(in srgb, ' . $c['klinik']->color . ' 30%, transparent)'],
+                ]" />
+
                 <div class="dw-stats">
-                    <x-dash.stat label="Pasien kembali" :value="$c['periodPatients'] > 0 ? Fmt::pct($c['returningPct']) : '–'"
-                        :meta="Fmt::num($c['returning']) . ' dari ' . Fmt::num($c['periodPatients']) . ' pasien'" />
                     <x-dash.stat label="Retensi 90 hari" :value="$c['retention90'] !== null ? Fmt::pct($c['retention90']) : '–'"
                         meta="pasien baru yang kembali ≤ 90 hari" />
                     <x-dash.stat label="Frekuensi kunjungan" :value="$c['frequency'] > 0 ? Fmt::num($c['frequency'], 1) . 'x' : '–'"
@@ -64,11 +68,12 @@
         @endforeach
     </div>
 
-    <p class="dw-note">Pasien dihitung kembali hanya kalau datang lagi ke klinik yang sama. "–" di kohort berarti bulan itu belum cukup lama untuk diukur, misalnya pasien baru bulan ini baru bisa dinilai 90 hari setelah akhir bulan.</p>
+    <p class="dw-note">Pasien periode ini = pasien kembali + pasien baru (100%). Pasien dihitung kembali hanya kalau sebelumnya pernah diperiksa di klinik yang sama; pasien yang pindah dari klinik lain dihitung baru di klinik ini. "–" di kohort berarti bulan itu belum cukup lama untuk diukur, misalnya pasien baru bulan ini baru bisa dinilai 90 hari setelah akhir bulan.</p>
 </x-dash.card>
 
 @once
     <style>
+        .dw-retensi-split { margin-bottom: 10px; }
         .dw-retensi-cohort { margin-top: 10px; }
         .dw-retensi-cohort > summary { cursor: pointer; list-style: none; margin: 0 0 6px; user-select: none; }
         .dw-retensi-cohort > summary::-webkit-details-marker { display: none; }

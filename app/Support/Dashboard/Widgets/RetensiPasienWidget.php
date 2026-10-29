@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Do patients come back? Per clinic only: the clinics are managed separately, so a return counts only to the
  * same clinic (Premiere → Skin is a new patient for Skin). All counts use examined visits (status_kunjungan 2):
- *  - returning rate: patients seen at the clinic in the period who had been seen there before it;
+ *  - returning vs new: patients seen at the clinic in the period who had been seen there before it, and the rest
+ *    (first visit to that clinic) — together 100% of the period's patients;
  *  - cohorts: the clinic's new patients of each of the last 6 months and the share whose next visit there came
  *    within 30 / 60 / 90 days (a cell is only shown once every patient of that month had the full window);
  *  - visit frequency over the last 12 months, and patients not seen there for 6–12 months (at risk of churn).
@@ -188,10 +189,16 @@ class RetensiPasienWidget implements Widget
                 ? $mature->sum(fn ($c) => $c['cells'][90] * $c['size']) / $mature->sum('size')
                 : null;
 
+            $returning = $p['returning'] ?? 0;
+            $returningPct = Fmt::share($returning, $patients);
+
             return [
+                // Period patients split in two that make 100%: back again, or new to this clinic
                 'periodPatients' => $patients,
-                'returning' => $p['returning'] ?? 0,
-                'returningPct' => Fmt::share($p['returning'] ?? 0, $patients),
+                'returning' => $returning,
+                'returningPct' => $returningPct,
+                'newPatients' => $patients - $returning,
+                'newPct' => $patients > 0 ? 100 - $returningPct : 0,
                 'retention90' => $retention90,
                 'frequency' => !empty($r['patients12']) ? $r['visits'] / $r['patients12'] : 0,
                 'atRisk' => $r['atRisk'] ?? 0,
