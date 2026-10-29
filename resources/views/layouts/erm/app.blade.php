@@ -213,6 +213,7 @@
         return '<div style="text-align:left;line-height:1.7">' + $('<div>').text(message || '').html().replace(/\n/g, '<br>') + '</div>';
     };
     </script>
+    @include('erm.partials.notif-queue')
     @include('erm.partials.perawat-notif')
     @include('partials.farmasi-notif')
     @php $user = auth()->user(); @endphp

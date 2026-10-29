@@ -229,14 +229,21 @@
         }).join('') : '<tr><td colspan="5" class="text-muted">Belum ada riwayat perawatan.</td></tr>');
     }
 
+    // The form is usable right away (inv_number comes from the clicked row); details and history load
+    // alongside without touching what the user already typed.
     function openMaint(inv) {
+        current = { inv_number: String(inv), history: [] };
+        resetMaintForm();
+        $('#mt_title').text('· ' + inv);
         $('#mt_history').html('<tr><td colspan="5" class="text-muted">Memuat...</td></tr>');
         $('#mt_info').empty();
         $('#md_maint').modal('show');
-        $.getJSON(url('show', inv), { id: inv }).done(function (data) {
-            renderMaint(data);
-            resetMaintForm();
-        });
+        $.getJSON(url('show', inv), { id: inv })
+            .done(renderMaint)
+            .fail(function (xhr) {
+                $('#mt_history').html('<tr><td colspan="5" class="text-danger">Riwayat gagal dimuat. Perawatan tetap bisa dicatat.</td></tr>');
+                toast(ajaxError(xhr, 'Gagal memuat detail inventaris.'), 'error');
+            });
     }
 
     $(document).on('click', '.js-maint, .js-history', function (e) {
@@ -266,13 +273,15 @@
     $('#form_maint').on('submit', function (e) {
         e.preventDefault();
         var editing = !!$('#mt_id').val();
+        if (!$('#mt_inv').val() && current) $('#mt_inv').val(current.inv_number);
         $('#mt_cost').val(digits($('#mt_cost').val()) || '');
         var $btn = $('#mt_submit').prop('disabled', true);
         $.ajax({ url: editing ? cfg.urls.maintUpdate : cfg.urls.maintStore, type: 'POST', data: new FormData(this), processData: false, contentType: false, headers: { Accept: 'application/json' } })
             .done(function (res) {
                 toast(res.message);
                 refresh();
-                $.getJSON(url('show', current.inv_number), { id: current.inv_number }).done(function (data) { renderMaint(data); resetMaintForm(); });
+                resetMaintForm();
+                $.getJSON(url('show', current.inv_number), { id: current.inv_number }).done(renderMaint);
             })
             .fail(function (xhr) { toast(ajaxError(xhr, 'Gagal menyimpan perawatan.'), 'error'); })
             .always(function () { $btn.prop('disabled', false); });

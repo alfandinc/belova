@@ -166,7 +166,7 @@ class InventoriesController extends Controller
     public function show(Request $request)
     {
         $inventory = Inventory::with('room')->where('inv_number', $request->id)->firstOrFail();
-        $status = $this->statusQuery()->where('id', $inventory->id)->first();
+        $status = $this->statusQuery($inventory->id)->first();
         $history = InventoryMaintenance::where('inv_number', $inventory->inv_number)->orderByDesc('tanggal')->orderByDesc('id')->get();
         // The payment method sits on the cash (credit) line of each maintenance expense.
         $methods = Fin_jurnal::whereIn('doc_id', $history->pluck('doc_id')->filter())->where('pos', 'K')->pluck('metode_bayar', 'doc_id');
@@ -304,9 +304,10 @@ class InventoriesController extends Controller
     /**
      * Inventory rows with last maintenance (maintenance log or older expense entries), the next due date
      * (from the last maintenance, or from when the item was registered) and a status:
-     * none (no routine) | overdue | soon (within 7 days) | ok.
+     * none (no routine) | overdue | soon (within 7 days) | ok. $inventoryId limits it to one item
+     * (filtering the outer query still computed every item first).
      */
-    public function statusQuery()
+    public function statusQuery(?int $inventoryId = null)
     {
         // Small derived tables joined once (a correlated FIND_IN_SET per row took ~2 s on 700 items).
         $maintLog = DB::table('bcl_inventory_maintenances')->whereNull('deleted_at')
@@ -322,6 +323,7 @@ class InventoriesController extends Controller
             ->leftJoinSub($expenseLines, 'el', function ($join) {
                 $join->whereRaw('FIND_IN_SET(i.inv_number, el.kode_subledger) > 0');
             })
+            ->when($inventoryId, fn ($q) => $q->where('i.id', $inventoryId))
             ->groupBy('i.id')
             ->select('i.id')
             ->selectRaw('MAX(i.inv_number) as inv_number, MAX(i.name) as name, MAX(i.notes) as notes, MAX(i.type) as type, MAX(i.assigned_to) as assigned_to')

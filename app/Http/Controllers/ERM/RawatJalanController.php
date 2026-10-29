@@ -397,6 +397,30 @@ class RawatJalanController extends Controller
             session(['rawatjalan_realtime_notification_since_ms' => $sessionSinceMs]);
         }
 
+        $freshnessFloorMs = now()->subMinutes(self::REALTIME_NOTIFICATION_MAX_AGE_MINUTES)->valueOf();
+
+        // Queue mode (erm.partials.notif-queue): every unread notification of this login, max 15 minutes old,
+        // oldest first, until it is read. Nothing is marked delivered here: the browser shows each one once,
+        // after any popup already open, so a notification arriving during another popup is no longer lost.
+        // The client's since_ms is ignored, it could move past a notification still waiting in the queue.
+        if ($request->boolean('queue')) {
+            $since = Carbon::createFromTimestampMs(max($sessionSinceMs, $freshnessFloorMs), config('app.timezone'));
+            $items = (clone $latestUnreadQuery)
+                ->where('created_at', '>=', $since)
+                ->reorder('created_at') // the notifications relation orders newest first
+                ->limit(20)
+                ->get()
+                ->map(fn ($notif) => $this->realtimeNotificationPayload($notif, $user))
+                ->values();
+
+            return response()->json([
+                'new' => $items->isNotEmpty(),
+                'items' => $items,
+                'unread_count' => $user->unreadNotifications()->whereIn('type', $notificationClasses)->count(),
+            ]);
+        }
+
+        // Legacy single-notification mode, for pages loaded before the queue (until they are reloaded)
         $effectiveSinceMs = $sessionSinceMs;
         if ($request->filled('since_ms')) {
             try {
@@ -409,7 +433,6 @@ class RawatJalanController extends Controller
             }
         }
 
-        $freshnessFloorMs = now()->subMinutes(self::REALTIME_NOTIFICATION_MAX_AGE_MINUTES)->valueOf();
         $since = Carbon::createFromTimestampMs(max($effectiveSinceMs, $freshnessFloorMs), config('app.timezone'));
         $latestUnreadQuery->where('created_at', '>=', $since);
 
@@ -433,22 +456,26 @@ class RawatJalanController extends Controller
             $deliveredNotificationIds[] = $notif->id;
             session(['rawatjalan_delivered_notification_ids' => array_values(array_unique($deliveredNotificationIds))]);
 
-            return response()->json([
-                'new' => true,
-                'id' => $notif->id,
-                'title' => $notif->data['title'] ?? $this->notificationTitleForUser($user),
-                'message' => $notif->data['message'],
-                'sender' => $notif->data['sender'],
-                'dokumen_url' => $notif->data['dokumen_url'] ?? null,
-                'kind' => $notif->data['kind'] ?? null,
-                'multiline' => !empty($notif->data['multiline']),
-                'unread_count' => $unreadCount,
-            ]);
+            return response()->json(['new' => true] + $this->realtimeNotificationPayload($notif, $user) + ['unread_count' => $unreadCount]);
         }
         $unreadCount = $user->unreadNotifications()
             ->whereIn('type', $notificationClasses)
             ->count();
         return response()->json(['new' => false, 'unread_count' => $unreadCount]);
+    }
+
+    /** Popup fields of a realtime notification (both getNotif modes). */
+    private function realtimeNotificationPayload($notif, $user): array
+    {
+        return [
+            'id' => $notif->id,
+            'title' => $notif->data['title'] ?? $this->notificationTitleForUser($user),
+            'message' => $notif->data['message'] ?? '',
+            'sender' => $notif->data['sender'] ?? null,
+            'dokumen_url' => $notif->data['dokumen_url'] ?? null,
+            'kind' => $notif->data['kind'] ?? null,
+            'multiline' => !empty($notif->data['multiline']),
+        ];
     }
 
     public function markNotifRead(Request $request)

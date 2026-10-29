@@ -1,20 +1,9 @@
-{{-- Perawat Notification Polling & Sound --}}
+{{-- Perawat / Pendaftaran / Lab notification polling & sound (popups: erm.partials.notif-queue) --}}
 @if (Auth::user()->hasAnyRole(['Perawat', 'Pendaftaran', 'Lab']))
 <script>
 if (document.getElementById('rawatjalan-table')) {
-    // Rawat Jalan has its own notification handler with richer behavior.
+    // Rawat Jalan polls itself (rawatjalans/assets/index_js) into the same queue, with the unread badge.
 } else {
-if (!document.getElementById('erm-perawat-notification-popup-style')) {
-    $('head').append(
-        '<style id="erm-perawat-notification-popup-style">'
-        + '.swal2-icon.swal2-info.swal2-door-icon{border-color:#17a2b8;color:#17a2b8;}'
-        + '.swal2-door-icon .fas{font-size:2.2rem;color:#17a2b8;line-height:1;}'
-        + '.swal2-icon.swal2-info.swal2-call-icon{border-color:#f59e0b;color:#f59e0b;}'
-        + '.swal2-call-icon .fas{font-size:2.2rem;color:#f59e0b;line-height:1;}'
-        + '</style>'
-    );
-}
-
 window.soundEnabled = false;
 $(function() {
     Swal.fire({
@@ -29,10 +18,6 @@ $(function() {
     });
 });
 
-if (typeof window.__ermRealtimeNotificationSinceMs === 'undefined') {
-    window.__ermRealtimeNotificationSinceMs = Date.now();
-}
-
 if (window.__ermPerawatNotifTimer) {
     clearInterval(window.__ermPerawatNotifTimer);
 }
@@ -44,48 +29,10 @@ BelovaTabLeader.run('erm-get-notif', 2000, function() {
     if (perawatPollBusy) return;
     perawatPollBusy = true;
 
-    // Continue from the previous leader tab's last poll so nothing falls in the hand-over gap
-    // (the server de-duplicates delivered notifications per session)
-    var requestStartedMs = Date.now();
-    var sharedSinceMs = parseInt(BelovaTabLeader.shared('erm-get-notif'), 10);
-    var sinceMs = sharedSinceMs ? Math.min(window.__ermRealtimeNotificationSinceMs, sharedSinceMs) : window.__ermRealtimeNotificationSinceMs;
-
-    $.get('/erm/get-notif', {
-        since_ms: sinceMs
-    }, function(data) {
-        BelovaTabLeader.share('erm-get-notif', requestStartedMs);
-        if (data.new) {
-            let soundFile = '/sounds/notif.mp3';
-            let popupIconHtml = null;
-            let popupCustomClass = {};
-            if (data.message === 'Mohon buka pintu untuk pasien.') {
-                soundFile = '/sounds/bell.wav';
-                popupIconHtml = '<i class="fas fa-door-open"></i>';
-                popupCustomClass = {
-                    icon: 'swal2-door-icon'
-                };
-            } else if (data.message === 'Mohon datang ke ruang dokter.') {
-                popupIconHtml = '<i class="fas fa-user-md"></i>';
-                popupCustomClass = {
-                    icon: 'swal2-call-icon'
-                };
-            }
-            // Rujukan / permintaan lab: message already lists one field per line
-            var isMultiline = !!data.multiline;
-            Swal.fire({
-                title: data.title || 'Notifikasi dari Dokter',
-                text: isMultiline ? undefined : data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
-                html: isMultiline ? window.rujukanNotifHtml(data.message) : undefined,
-                icon: 'info',
-                iconHtml: popupIconHtml,
-                customClass: popupCustomClass,
-                confirmButtonText: 'OK'
-            });
-            if (window.soundEnabled) {
-                var audio = new Audio(soundFile);
-                audio.play();
-            }
-        }
+    // Every unread notification of this login (max 15 minutes old) comes back until it is read;
+    // the queue shows each once per browser, never over another popup, and marks it read on OK
+    $.get('/erm/get-notif', { queue: 1 }, function(data) {
+        window.BelovaNotifQueue.push(data.items || [], window.BelovaNotifQueue.ermPopup);
     }).always(function() {
         perawatPollBusy = false;
     });

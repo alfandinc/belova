@@ -1,10 +1,6 @@
 @if (Auth::user() && Auth::user()->hasRole('Farmasi'))
 <script>
 window.soundEnabled = false;
-// Initialize last check to server time so existing unread notifications
-// prior to this page load are not shown as 'new' immediately after login.
-// Use a small buffer to avoid missing notifications created in the same second.
-window.lastFarmasiNotifCheck = window.lastFarmasiNotifCheck || {{ time() - 3 }};
 // Optional: allow overriding page context from a global variable
 window.farmasiNotifPage = window.farmasiNotifPage || 'index';
 $(function() {
@@ -22,53 +18,46 @@ $(function() {
     });
 });
 
+// One Farmasi popup (erm.partials.notif-queue shows them one at a time); a database notification is marked
+// read when the user clicks OK, so it comes back (on any page) until then
+function farmasiNotifPopup(item) {
+    var title = 'Notifikasi';
+    if (item.type === 'pasien_keluar') title = 'Pasien Keluar!';
+    else if (item.type) title = item.type;
+
+    var text = item.message || '';
+    if (!text && item.sender) text = '(Dari: ' + item.sender + ')';
+
+    var popup = Swal.fire({
+        title: title,
+        text: item.multiline ? undefined : text,
+        html: item.multiline ? window.rujukanNotifHtml(item.message) : undefined,
+        icon: 'info',
+        confirmButtonText: 'OK'
+    });
+    window.BelovaNotifQueue.playSound(localStorage.getItem('notifSoundType') === 'bell' ? '/sounds/bell.wav' : '/sounds/notif.mp3');
+
+    return popup.then(function(result) {
+        if (item.source === 'database' && result && (result.value === true || result.isConfirmed)) {
+            $.post('{{ url("erm/farmasi/notifications") }}/' + encodeURIComponent(item.id) + '/mark-read', {
+                _token: '{{ csrf_token() }}'
+            });
+        }
+        return result;
+    });
+}
+
 var farmasiPollBusy = false;
 function pollFarmasiNotifications() {
     if (farmasiPollBusy) return;
     farmasiPollBusy = true;
 
-    // Continue from the previous leader tab's last check so nothing falls in the hand-over gap
-    var sharedLastCheck = parseInt(BelovaTabLeader.shared('farmasi-notif'), 10);
-    if (sharedLastCheck && sharedLastCheck < window.lastFarmasiNotifCheck) {
-        window.lastFarmasiNotifCheck = sharedLastCheck;
-    }
-
-    // Send lastCheck and page so server can correctly compare timestamps
-    $.get('{{ route("erm.check.notifications") }}', { lastCheck: window.lastFarmasiNotifCheck, page: window.farmasiNotifPage }, function(data) {
-        // update last check timestamp from server to avoid re-processing
-        if (data && data.timestamp) {
-            try { window.lastFarmasiNotifCheck = parseInt(data.timestamp) || window.lastFarmasiNotifCheck; } catch(e) {}
-            BelovaTabLeader.share('farmasi-notif', window.lastFarmasiNotifCheck);
-        }
-
-        if (data && data.hasNew) {
-            // same sound selection logic as perawat
-            var soundFile = '/sounds/notif.mp3';
-            if (localStorage.getItem('notifSoundType') === 'bell') {
-                soundFile = '/sounds/bell.wav';
-            }
-            var title = 'Notifikasi';
-            if (data.type === 'pasien_keluar') title = 'Pasien Keluar!';
-            else if (data.type) title = data.type;
-
-            var text = data.message || '';
-            if (!text && data.sender) text = '(Dari: ' + data.sender + ')';
-
-            Swal.fire({
-                title: title,
-                text: data.multiline ? undefined : text,
-                html: data.multiline ? window.rujukanNotifHtml(data.message) : undefined,
-                icon: 'info',
-                confirmButtonText: 'OK'
-            });
-            if (window.soundEnabled) {
-                var audio = new Audio(soundFile);
-                audio.play();
-            }
+    $.get('{{ route("erm.check.notifications") }}', { page: window.farmasiNotifPage, queue: 1 }, function(data) {
+        if (data && data.items) {
+            window.BelovaNotifQueue.push(data.items, farmasiNotifPopup);
         }
     }).fail(function(xhr, status, err) {
         // silently ignore (could be auth redirect when session expires)
-        //console.warn('farmasi poll failed', status);
     }).always(function() {
         farmasiPollBusy = false;
     });

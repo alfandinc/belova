@@ -22,11 +22,15 @@ class NotificationController extends Controller
         $lastCheck = $request->get('lastCheck', 0);
         $currentPage = $request->get('page', 'index'); // Get current page parameter
         $currentTime = time();
-        
+
+        if ($request->boolean('queue')) {
+            return response()->json($this->queuedFarmasiNotifications($request, $currentPage, $currentTime));
+        }
+
         // Check for new notifications in cache based on page
         $notificationKey = 'farmasi_notification_' . $currentPage . '_' . Auth::id();
         $notification = Cache::get($notificationKey);
-        
+
         if ($notification && $notification['timestamp'] > $lastCheck) {
             // Clear the notification after reading
             Cache::forget($notificationKey);
@@ -76,6 +80,61 @@ class NotificationController extends Controller
         ]);
     }
     
+    /**
+     * Queue mode (partials.farmasi-notif with erm.partials.notif-queue): the page's cache notification (a one-shot
+     * "pasien keluar" signal, consumed here) plus every unread database notification of this login (first queue
+     * poll of the session), max 15 minutes old, oldest first. Database ones stay unread until the user clicks OK on the popup, so one
+     * arriving while another popup is open is shown afterwards instead of being lost. cache_only=1 skips them
+     * (the farmasi create page, whose own popup is only about recipe changes).
+     */
+    private function queuedFarmasiNotifications(Request $request, string $currentPage, int $currentTime): array
+    {
+        $items = [];
+
+        $notificationKey = 'farmasi_notification_' . $currentPage . '_' . Auth::id();
+        if ($notification = Cache::pull($notificationKey)) {
+            $items[] = [
+                'id' => 'cache-' . $currentPage . '-' . ($notification['timestamp'] ?? $currentTime),
+                'source' => 'cache',
+                'type' => $notification['type'] ?? null,
+                'message' => $notification['message'] ?? '',
+            ];
+        }
+
+        if (!$request->boolean('cache_only')) {
+            // Not the page's own time: a notification still queued when the user moves to another page must come back
+            $sessionSince = (int) session('farmasi_notification_since', 0);
+            if ($sessionSince <= 0) {
+                $sessionSince = $currentTime;
+                session(['farmasi_notification_since' => $sessionSince]);
+            }
+            $sinceTs = max($sessionSince, $currentTime - 15 * 60);
+            try {
+                Auth::user()->unreadNotifications()
+                    ->whereNotIn('type', \App\Support\NotificationTypes::OWN_UI)
+                    ->where('created_at', '>=', \Carbon\Carbon::createFromTimestamp($sinceTs, config('app.timezone')))
+                    ->reorder('created_at') // the notifications relation orders newest first
+                    ->limit(20)
+                    ->get()
+                    ->each(function ($n) use (&$items) {
+                        $items[] = [
+                            'id' => $n->id,
+                            'source' => 'database',
+                            'type' => $n->data['title'] ?? 'notification',
+                            'message' => $n->data['message'] ?? '',
+                            'sender' => $n->data['sender'] ?? null,
+                            'kind' => $n->data['kind'] ?? null,
+                            'multiline' => !empty($n->data['multiline']),
+                        ];
+                    });
+            } catch (\Exception $e) {
+                Log::error('Error checking DB notifications for Farmasi: ' . $e->getMessage());
+            }
+        }
+
+        return ['hasNew' => !empty($items), 'items' => $items, 'timestamp' => $currentTime];
+    }
+
     public function notifyPasienKeluar(Request $request)
     {
         $pasienName = $request->input('pasien_name');

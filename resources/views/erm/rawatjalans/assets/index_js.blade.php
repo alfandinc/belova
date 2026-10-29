@@ -1,60 +1,4 @@
 ﻿$(document).ready(function () {
-    function getShownDokterNotificationIds() {
-        try {
-            var raw = sessionStorage.getItem('rawatjalan_shown_dokter_notifications');
-            return raw ? JSON.parse(raw) : {};
-        } catch (e) {
-            return {};
-        }
-    }
-
-    function saveShownDokterNotificationIds(ids) {
-        try {
-            sessionStorage.setItem('rawatjalan_shown_dokter_notifications', JSON.stringify(ids || {}));
-        } catch (e) {
-            // Ignore storage failures; in-memory fallback still works.
-        }
-    }
-
-    function getLastAlertedDokterNotificationId() {
-        try {
-            return sessionStorage.getItem('rawatjalan_last_alerted_dokter_notification_id') || null;
-        } catch (e) {
-            return null;
-        }
-    }
-
-    function setLastAlertedDokterNotificationId(id) {
-        try {
-            if (id) {
-                sessionStorage.setItem('rawatjalan_last_alerted_dokter_notification_id', String(id));
-            }
-        } catch (e) {
-            // Ignore storage failures.
-        }
-    }
-
-    if (typeof window.__rawatjalanRealtimeNotificationSinceMs === 'undefined') {
-        window.__rawatjalanRealtimeNotificationSinceMs = Date.now();
-    }
-
-    function getRealtimeNotificationSinceMs() {
-        return window.__rawatjalanRealtimeNotificationSinceMs;
-    }
-
-    if (!window.__rawatjalanShownDokterNotificationIds) {
-        window.__rawatjalanShownDokterNotificationIds = getShownDokterNotificationIds();
-    }
-    var shownDokterNotificationIds = window.__rawatjalanShownDokterNotificationIds;
-
-    if (typeof window.__rawatjalanActiveDokterNotificationId === 'undefined') {
-        window.__rawatjalanActiveDokterNotificationId = null;
-    }
-
-    if (typeof window.__rawatjalanLastAlertedDokterNotificationId === 'undefined') {
-        window.__rawatjalanLastAlertedDokterNotificationId = getLastAlertedDokterNotificationId();
-    }
-
     function updateNotificationBadge(count) {
         var unreadCount = parseInt(count || 0, 10);
         var $badge = $('#notification-unread-badge');
@@ -80,23 +24,8 @@
             });
     }
 
-    function markRawatJalanNotificationRead(notificationId) {
-        return $.post('{{ route("erm.rawatjalans.notification-mark-read") }}', {
-            _token: '{{ csrf_token() }}',
-            notification_id: notificationId
-        });
-    }
-
-    if (!document.getElementById('rawatjalan-notification-popup-style')) {
-        $('head').append(
-            '<style id="rawatjalan-notification-popup-style">'
-            + '.swal2-icon.swal2-info.swal2-door-icon{border-color:#17a2b8;color:#17a2b8;}'
-            + '.swal2-door-icon .fas{font-size:2.2rem;color:#17a2b8;line-height:1;}'
-            + '.swal2-icon.swal2-info.swal2-call-icon{border-color:#f59e0b;color:#f59e0b;}'
-            + '.swal2-call-icon .fas{font-size:2.2rem;color:#f59e0b;line-height:1;}'
-            + '</style>'
-        );
-    }
+    // Popups of erm.partials.notif-queue report the unread count after OK
+    window.belovaNotifBadge = updateNotificationBadge;
 
     refreshNotificationBadge();
 
@@ -216,86 +145,12 @@
         if (rawatjalanNotifPollBusy) return;
         rawatjalanNotifPollBusy = true;
 
-        // Continue from the previous leader tab's last poll (server de-duplicates delivered notifications per session)
-        var requestStartedMs = Date.now();
-        var ownSinceMs = getRealtimeNotificationSinceMs();
-        var sharedSinceMs = window.BelovaTabLeader ? parseInt(window.BelovaTabLeader.shared('erm-get-notif'), 10) : 0;
-        var sinceMs = sharedSinceMs && ownSinceMs ? Math.min(ownSinceMs, sharedSinceMs) : ownSinceMs;
-
-        $.get('/erm/get-notif', {
-            since_ms: sinceMs
-        }, function(data) {
-            if (window.BelovaTabLeader) window.BelovaTabLeader.share('erm-get-notif', requestStartedMs);
+        // Every unread notification of this login (max 15 minutes old) comes back until it is read;
+        // erm.partials.notif-queue shows each once per browser, never over another popup
+        $.get('/erm/get-notif', { queue: 1 }, function(data) {
             updateNotificationBadge(data.unread_count || 0);
-            if (
-                data.new &&
-                data.id &&
-                String(window.__rawatjalanLastAlertedDokterNotificationId || '') !== String(data.id) &&
-                !shownDokterNotificationIds[data.id] &&
-                window.__rawatjalanActiveDokterNotificationId !== data.id &&
-                !(typeof Swal !== 'undefined' && Swal.isVisible && Swal.isVisible())
-            ) {
-                shownDokterNotificationIds[data.id] = true;
-                saveShownDokterNotificationIds(shownDokterNotificationIds);
-                window.__rawatjalanLastAlertedDokterNotificationId = String(data.id);
-                setLastAlertedDokterNotificationId(data.id);
-                window.__rawatjalanActiveDokterNotificationId = data.id;
-                let shouldPlaySound = !data.dokumen_url;
-                let soundFile = '/sounds/notif.mp3';
-                let popupText = data.message || 'Ada notifikasi baru.';
-                let popupIconHtml = null;
-                let popupIcon = 'info';
-                let popupCustomClass = {};
-                if (data.message === 'Mohon buka pintu untuk pasien.') {
-                    soundFile = '/sounds/bell.wav';
-                    popupIconHtml = '<i class="fas fa-door-open"></i>';
-                    popupCustomClass = {
-                        icon: 'swal2-door-icon'
-                    };
-                } else if (data.message === 'Mohon datang ke ruang dokter.') {
-                    popupIconHtml = '<i class="fas fa-user-md"></i>';
-                    popupCustomClass = {
-                        icon: 'swal2-call-icon'
-                    };
-                } else if (data.dokumen_url && data.sender) {
-                    popupText = data.message + '\n(Dari: ' + data.sender + ')';
-                }
-
-                if (!data.dokumen_url && data.sender && !data.multiline) {
-                    popupText += '\n(Dari: ' + data.sender + ')';
-                }
-                // Rujukan / permintaan lab: message already lists one field per line
-                var isMultiline = !!data.multiline && window.rujukanNotifHtml;
-                Swal.fire({
-                    title: data.title || 'Notifikasi',
-                    text: isMultiline ? undefined : popupText,
-                    html: isMultiline ? window.rujukanNotifHtml(data.message) : undefined,
-                    icon: popupIcon,
-                    iconHtml: popupIconHtml,
-                    customClass: popupCustomClass,
-                    confirmButtonText: 'OK',
-                    showCancelButton: !!data.dokumen_url,
-                    cancelButtonText: 'Buka Dokumen',
-                    cancelButtonColor: '#28a745',
-                    reverseButtons: true
-                }).then(function(result) {
-                    window.__rawatjalanActiveDokterNotificationId = null;
-                    if (result && (result.isConfirmed || result.dismiss === Swal.DismissReason.cancel || result.value === true)) {
-                        markRawatJalanNotificationRead(data.id).done(function(response) {
-                            updateNotificationBadge(response.unread_count || 0);
-                        }).fail(function(xhr) {
-                            console.error('Failed to mark notification as read', xhr);
-                        }).always(function() {
-                            if (result.dismiss === Swal.DismissReason.cancel && data.dokumen_url) {
-                                window.location.href = data.dokumen_url;
-                            }
-                        });
-                    }
-                });
-                if (window.soundEnabled && shouldPlaySound) {
-                    var audio = new Audio(soundFile);
-                    audio.play();
-                }
+            if (window.BelovaNotifQueue) {
+                window.BelovaNotifQueue.push(data.items || [], window.BelovaNotifQueue.ermPopup);
             }
         }).always(function() {
             rawatjalanNotifPollBusy = false;

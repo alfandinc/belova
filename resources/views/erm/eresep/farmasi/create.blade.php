@@ -2664,31 +2664,35 @@ $(document).ready(function () {
 // Notification polling for farmasi create page
 @if(auth()->user()->hasRole('Farmasi'))
 $(document).ready(function() {
-    // Use small buffer to avoid missing notifications created in the same second.
-    let lastCheck = {{ time() - 3 }};
     let isPolling = false;
-    
+
+    // Only this page's "resep diubah" signal (cache_only): database notifications (rujukan, lab, …) are shown
+    // by the global partials.farmasi-notif poller. Both go through erm.partials.notif-queue, one popup at a time.
+    function resepChangedPopup(item) {
+        return Swal.fire({
+            title: 'Ada Perubahan di Resep Dokter!',
+            text: item.message,
+            icon: 'info',
+            confirmButtonText: 'OK'
+        });
+    }
+
     function checkForNewNotifications() {
         if (isPolling) return;
         isPolling = true;
-        
+
         $.ajax({
             url: '{{ route("erm.check.notifications") }}',
             type: 'GET',
             data: {
-                lastCheck: lastCheck,
-                page: 'create'
+                page: 'create',
+                queue: 1,
+                cache_only: 1
             },
             success: function(response) {
-                if (response.hasNew && response.message) {
-                    Swal.fire({
-                        title: 'Ada Perubahan di Resep Dokter!',
-                        text: response.message,
-                        icon: 'info',
-                        confirmButtonText: 'OK'
-                    });
+                if (response && response.items && window.BelovaNotifQueue) {
+                    window.BelovaNotifQueue.push(response.items, resepChangedPopup);
                 }
-                if (response && response.timestamp) lastCheck = response.timestamp;
             },
             error: function(xhr, status, error) {
                 console.error('Error checking for notifications:', error);
