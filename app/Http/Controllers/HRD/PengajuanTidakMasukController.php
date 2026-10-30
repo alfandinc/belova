@@ -65,15 +65,18 @@ class PengajuanTidakMasukController extends Controller
                     return $row->status_manager === 'menunggu';
                 };
             } elseif ($viewType === 'approval' && $isHrd) {
-                // Manager-approved requests in range, plus anything still waiting for HRD
-                $query = PengajuanTidakMasuk::where('status_manager', 'disetujui')
-                    ->where(function ($q) use ($filterStart, $filterEnd) {
-                        $q->where(function ($q) use ($filterStart, $filterEnd) {
-                            $this->overlapFilter($q, $filterStart, $filterEnd);
-                        })->orWhere(function ($q) {
+                // HRD sees every request in range (incl. those still waiting for the atasan),
+                // plus anything still open outside the range; approving stays gated on the manager step
+                $query = PengajuanTidakMasuk::where(function ($q) use ($filterStart, $filterEnd) {
+                    $q->where(function ($q) use ($filterStart, $filterEnd) {
+                        $this->overlapFilter($q, $filterStart, $filterEnd);
+                    })->orWhere(function ($q) {
+                        // Legacy rows with status_manager NULL are left to the date range only
+                        $q->whereIn('status_manager', ['menunggu', 'disetujui'])->where(function ($q) {
                             $this->waitingHrd($q);
                         });
                     });
+                });
                 $needsAction = function ($row) {
                     return $row->status_manager === 'disetujui' && $this->isWaitingHrd($row);
                 };
