@@ -71,6 +71,7 @@ class ChatController extends Controller
                 'employee.position:id,name',
             ])
             ->whereKeyNot($authId)
+            ->active()
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($searchQuery) use ($search) {
                     $searchQuery
@@ -249,6 +250,7 @@ class ChatController extends Controller
     {
         $authId = (int) Auth::id();
         $this->ensureValidParticipant($user, $authId);
+        abort_unless(User::whereKey($user->id)->active()->exists(), 422, 'Pengguna ini sudah tidak aktif.');
 
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],

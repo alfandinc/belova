@@ -67,6 +67,11 @@ class User extends Authenticatable
     {
         return $this->hasOne(\App\Models\HRD\Employee::class, 'user_id')->withInactive();
     }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
     
     /**
      * Finance pengajuan dana created by this user (if employee relation exists)
