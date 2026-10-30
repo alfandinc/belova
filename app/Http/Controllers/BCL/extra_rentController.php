@@ -53,7 +53,8 @@ class extra_rentController extends Controller
         $request->merge([
             'jml_item' => (int) RentalService::amount($request->jml_item),
             'lama_sewa' => (int) RentalService::amount($request->lama_sewa),
-            'harga_custom' => RentalService::amount($request->harga_custom),
+            // Only a custom charge has a price field; parsing an empty one would give 0 and fail min:1.
+            'harga_custom' => $request->pricelist === 'custom' ? RentalService::amount($request->harga_custom) : null,
         ]);
 
         try {

@@ -2,7 +2,7 @@
 @php
     // Kategori => badge color; which klinik offers each one is in FollowUp::KATEGORI
     $followUpKategori = array_map(fn ($k) => $k['color'], \App\Models\Marketing\FollowUp::KATEGORI);
-    $kategoriHex = ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8'];
+    $kategoriHex = ['primary' => '#1e88e5', 'pink' => '#e83e8c', 'warning' => '#f5a623', 'purple' => '#6f42c1', 'info' => '#17a2b8', 'success' => '#28a745'];
 @endphp
 <div class="card">
     <div class="card-body">
@@ -316,18 +316,27 @@ $(function () {
         $('#followup_id').val('');
         clearBukti();
         setToggle($('#kategoriGroup'), null);
+        savedKategori = [];
         $('#bookingEditWrap').addClass('d-none');
         klinikPicked = false;
         setKlinik('', 'Otomatis dari kunjungan terakhir pasien.');
     }
 
-    // Kategori offered for the chosen klinik; a checked one stays visible (older follow ups)
+    var savedKategori = []; // kategori of the follow up being edited: kept even when no longer offered for its klinik
+
+    // Kategori offered for the chosen klinik; one not offered is unticked and hidden (the server refuses it too)
     function syncKategoriForKlinik() {
         var klinikId = $('#klinikSelect').val();
         $('#kategoriGroup label').each(function () {
+            var $input = $(this).find('input');
             var kliniks = String($(this).data('kliniks') || '');
-            var offered = !kliniks || !klinikId || kliniks.split(',').indexOf(klinikId) !== -1;
-            $(this).toggleClass('d-none', !offered && !$(this).find('input').prop('checked'));
+            var keep = !kliniks || !klinikId || kliniks.split(',').indexOf(klinikId) !== -1
+                || savedKategori.indexOf($input.val()) !== -1;
+            if (!keep && $input.prop('checked')) {
+                $input.prop('checked', false);
+                $(this).removeClass('active');
+            }
+            $(this).toggleClass('d-none', !keep);
         });
     }
 
@@ -464,6 +473,7 @@ $(function () {
                 try { kategori = JSON.parse(kategori); } catch (e) { kategori = [kategori]; }
             }
             setToggle($('#kategoriGroup'), kategori);
+            savedKategori = [].concat(kategori || []);
             setKlinik(data.klinik_id, data.klinik_id ? '' : 'Follow up lama: klinik belum ditentukan, pilih klinik.');
             setToggle($('#statusResponGroup'), data.status_respon);
             // Booking: shown read-only, Batal is the only manual change (Sukses comes from the visit)

@@ -17,15 +17,25 @@ class FollowUp extends Model
 
     /**
      * Kategori => [badge color, klinik ids it is offered for (null = every klinik)].
+     * Klinik ids: 1 Premiere Belova, 2 Belova Skin, 3 Belova Dental.
      * Old follow ups keep their kategori even when it is no longer offered for their klinik.
      */
     public const KATEGORI = [
-        'Produk' => ['color' => 'primary', 'kliniks' => null],
-        'Perawatan' => ['color' => 'pink', 'kliniks' => null],
-        'Reseller' => ['color' => 'warning', 'kliniks' => null],
-        'Slimming' => ['color' => 'purple', 'kliniks' => null],
+        'Produk' => ['color' => 'primary', 'kliniks' => [1, 2]],
+        'Perawatan' => ['color' => 'pink', 'kliniks' => [2, 3]],
+        // Premiere: follow up after a konsultasi that had no perawatan
+        'Konsultasi' => ['color' => 'success', 'kliniks' => [1]],
+        'Reseller' => ['color' => 'warning', 'kliniks' => [2]],
+        'Slimming' => ['color' => 'purple', 'kliniks' => [2]],
         self::KATEGORI_ULANG_TAHUN => ['color' => 'info', 'kliniks' => null],
     ];
+
+    public static function kategoriOfferedFor(string $kategori, $klinikId): bool
+    {
+        $kliniks = self::KATEGORI[$kategori]['kliniks'] ?? null;
+
+        return $kliniks === null || in_array((int) $klinikId, $kliniks, true);
+    }
 
     /** Status respon: "Menunggu" = contacted, no reply yet. */
     public const STATUS_RESPON = ['Direspon', 'Tidak Direspon', 'Menunggu'];

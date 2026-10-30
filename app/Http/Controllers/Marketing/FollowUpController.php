@@ -9,6 +9,7 @@ use App\Models\ERM\Pasien;
 use App\Models\ERM\Klinik;
 use App\Models\HRD\Employee;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Yajra\DataTables\DataTables;
 
 class FollowUpController extends Controller
@@ -104,9 +105,21 @@ class FollowUpController extends Controller
         ];
     }
 
+    // Every kategori must be offered for the klinik (FollowUp::KATEGORI), except ones the follow up already had
+    private function assertKategoriForKlinik(array $kategori, $klinikId, array $kept = []): void
+    {
+        $refused = array_filter($kategori, fn ($k) => !in_array($k, $kept, true) && !FollowUp::kategoriOfferedFor($k, $klinikId));
+        if ($refused) {
+            throw ValidationException::withMessages([
+                'kategori' => 'Kategori ' . implode(', ', $refused) . ' tidak tersedia untuk klinik ini.',
+            ]);
+        }
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate($this->rules(), [], ['klinik_id' => 'klinik']);
+        $this->assertKategoriForKlinik($validated['kategori'], $validated['klinik_id']);
         $validated['kategori'] = json_encode($validated['kategori']);
         // A new follow up waits for its booking; the pasien's visit turns it Sukses (FollowUp::markBookedBy)
         unset($validated['booking_batal']);
@@ -129,8 +142,9 @@ class FollowUpController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate($this->rules(), [], ['klinik_id' => 'klinik']);
-        $validated['kategori'] = json_encode($validated['kategori']);
         $followup = FollowUp::findOrFail($id);
+        $this->assertKategoriForKlinik($validated['kategori'], $validated['klinik_id'], (array) json_decode($followup->kategori ?? '[]', true));
+        $validated['kategori'] = json_encode($validated['kategori']);
 
         // Booking by hand is only Batal (or undoing it); Sukses is left to the visit
         unset($validated['booking_batal']);
