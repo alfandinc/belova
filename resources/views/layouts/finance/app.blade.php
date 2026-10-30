@@ -264,5 +264,6 @@
         });
     </script>
     @endif
+    @include('partials.session_watch')
 </body>
 </html>

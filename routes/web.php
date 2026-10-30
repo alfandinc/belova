@@ -118,6 +118,17 @@ Route::get('/', function (\Illuminate\Http\Request $request) {
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1')->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Still logged in? (partials.session_watch) Runs without a session so polling does not keep the session alive
+Route::get('/session-status', \App\Http\Controllers\SessionStatusController::class)
+    ->withoutMiddleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+        \App\Http\Middleware\EnsureUserIsActive::class,
+        \App\Http\Middleware\RefreshActiveUserEmotion::class,
+    ])
+    ->name('session.status');
+
 // Clinic choice session route
 Route::post('/set-clinic-choice', [AuthController::class, 'setClinicChoice'])->name('set.clinic.choice');
 Route::fallback(function () {

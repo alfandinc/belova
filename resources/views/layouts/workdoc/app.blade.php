@@ -133,5 +133,6 @@
     @include('partials.global_chat_widget')
     @yield('scripts')
     @stack('scripts')
+    @include('partials.session_watch')
 </body>
 </html>

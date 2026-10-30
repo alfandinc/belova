@@ -62,6 +62,10 @@
                 $.ajax(retry);
             }, function () {
                 // Session really ended (logged out / expired): a new token can't help, the user has to log in
+                if (window.belovaSessionWatch) {
+                    window.belovaSessionWatch.check();
+                    return;
+                }
                 if (!window.Swal) {
                     if (originalError) originalError.apply(ctx, args);
                     return;

@@ -145,5 +145,6 @@
     @include('partials.global_chat_widget')
     @yield('scripts')
     @stack('scripts')  <!-- Add this line -->
+    @include('partials.session_watch')
 </body>
 </html>
