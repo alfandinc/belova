@@ -26,6 +26,17 @@ class PengajuanTidakMasukController extends Controller
             ->whereDate('tanggal_selesai', '>=', $filterStart);
     }
 
+    // Older rows were saved with status_hrd NULL (no column default); treat them as waiting
+    private function waitingHrd($query)
+    {
+        return $query->where('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+    }
+
+    private function isWaitingHrd($row): bool
+    {
+        return $row->status_hrd === null || $row->status_hrd === 'menunggu';
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -59,10 +70,12 @@ class PengajuanTidakMasukController extends Controller
                     ->where(function ($q) use ($filterStart, $filterEnd) {
                         $q->where(function ($q) use ($filterStart, $filterEnd) {
                             $this->overlapFilter($q, $filterStart, $filterEnd);
-                        })->orWhere('status_hrd', 'menunggu');
+                        })->orWhere(function ($q) {
+                            $this->waitingHrd($q);
+                        });
                     });
                 $needsAction = function ($row) {
-                    return $row->status_manager === 'disetujui' && $row->status_hrd === 'menunggu';
+                    return $row->status_manager === 'disetujui' && $this->isWaitingHrd($row);
                 };
             } else {
                 return DataTables::of(collect())->make(true);
@@ -127,7 +140,9 @@ class PengajuanTidakMasukController extends Controller
             ? PengajuanTidakMasuk::whereIn('employee_id', $subordinateIds)->where('status_manager', 'menunggu')->count()
             : 0;
         $hrdPending = $isHrd
-            ? PengajuanTidakMasuk::where('status_manager', 'disetujui')->where('status_hrd', 'menunggu')->count()
+            ? PengajuanTidakMasuk::where('status_manager', 'disetujui')->where(function ($q) {
+                $this->waitingHrd($q);
+            })->count()
             : 0;
 
         return view('hrd.tidakmasuk.index', [
@@ -195,6 +210,8 @@ class PengajuanTidakMasukController extends Controller
             'total_hari' => $totalHari,
             'alasan' => $request->alasan,
             'bukti' => $buktiPath,
+            // The table has no default for status_hrd (unlike pengajuan_libur)
+            'status_hrd' => 'menunggu',
         ];
 
         // Manager step goes to the direct superior of the employee's position
@@ -268,7 +285,7 @@ class PengajuanTidakMasukController extends Controller
                 if ($pengajuan->status_manager !== 'disetujui') {
                     throw new \DomainException('Approval final HRD hanya bisa dilakukan setelah approval atasan langsung disetujui.');
                 }
-                if ($pengajuan->status_hrd !== 'menunggu') {
+                if (!$this->isWaitingHrd($pengajuan)) {
                     throw new \DomainException('Pengajuan ini sudah diproses pada approval final HRD.');
                 }
 
