@@ -392,6 +392,7 @@ class MainNavigation
             $admin ? $this->item('ICD 10', 'hash', $this->route('admin.icd10.index')) : null,
             $admin ? $this->item('Satuan', 'layers', $this->route('erm.satuan.index')) : null,
             $admin ? $this->item('Metode Bayar', 'credit-card', $this->route('finance.metode-bayar.index')) : null,
+            $admin ? $this->item('Referral Marketing', 'share-2', $this->route('admin.referral_mapping.index')) : null,
             $this->heading('Pengaturan'),
             $dashboardWidgets ? $this->item('Widget Dashboard', 'layout', $this->route('dashboard.widgets.index')) : null,
             $admin ? $this->item('Klinik Setting', 'settings', $this->route('admin.klinik_settings.index')) : null,

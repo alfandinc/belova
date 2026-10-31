@@ -2094,6 +2094,10 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         Route::put('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'update'])->name('admin.klinik_settings.update');
         Route::delete('/klinik-settings/{id}', [\App\Http\Controllers\Admin\KlinikSettingController::class, 'destroy'])->name('admin.klinik_settings.destroy');
 
+        // Referral Marketing: which visit referrals count as Marketing & Sales (dashboard widget)
+        Route::get('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'index'])->name('admin.referral_mapping.index');
+        Route::post('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'update'])->name('admin.referral_mapping.update');
+
         // Obat & Gudang Mapping (CRUD endpoints remain under erm.obat-mapping.* / erm.gudang-mapping.*)
         Route::get('/obat-gudang-mapping', [\App\Http\Controllers\Admin\ObatGudangMappingController::class, 'index'])->name('admin.obat_gudang_mapping.index');
 

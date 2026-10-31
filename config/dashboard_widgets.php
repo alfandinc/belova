@@ -135,6 +135,16 @@ return [
         'order' => 95,
         'uses_period' => true,
     ],
+    'omset_marketing' => [
+        'name' => 'Omset Marketing & Sales',
+        'description' => 'Omset dan jumlah invoice dari referral yang dipetakan sebagai Marketing & Sales (Admin Panel > Referral Marketing), porsi dari omset, per klinik, per sumber. Saran: Ceo, Head Manager, Marketing.',
+        'icon' => 'share-2',
+        'class' => Widgets\OmsetMarketingWidget::class,
+        'view' => 'dashboard.custom_widgets.omset_marketing_widget',
+        'span' => 6,
+        'order' => 96,
+        'uses_period' => true,
+    ],
     'kinerja_dokter' => [
         'name' => 'Kinerja Dokter',
         'description' => 'Omset, pasien, dan rata-rata per kunjungan setiap dokter, dengan growth. Saran: Ceo, Head Manager.',
