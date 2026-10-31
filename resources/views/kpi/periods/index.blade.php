@@ -719,12 +719,39 @@ $(function(){
         return group.items.reduce(function (sum, s) { return sum + (Number(s.final_calculated_score) || 0); }, 0);
     }
 
+    // raw 1-5 average of an evaluation's scored items: the only meaningful number for a 0% category
+    function rawAverage(a, items) {
+        var values = items.filter(function (s) { return hasScoreValue(a, s); }).map(function (s) { return Number(s.score) || 0; });
+        return values.length ? values.reduce(function (x, y) { return x + y; }, 0) / values.length : null;
+    }
+
+    // every category of the evaluation has 0% weight: its weighted total is always 0
+    function isInfoOnlyEvaluation(a) {
+        var scores = a.scores || [];
+        return scores.length > 0 && scores.every(function (s) { return (Number(s.category_weight) || 0) === 0; });
+    }
+
+    // card header of a done evaluation: the counted score (bobot > 0) and the info-only average (bobot 0%) side by side, never summed
+    function evaluationScoreHeaderHtml(a) {
+        var infoItems = (a.scores || []).filter(function (s) { return (Number(s.category_weight) || 0) === 0; });
+        var infoAverage = infoItems.length ? rawAverage(a, infoItems) : null;
+        var infoHtml = infoAverage === null ? '' : fmtNum(infoAverage) + ' <small class="text-muted">/ 5</small>';
+
+        if (isInfoOnlyEvaluation(a)) {
+            return '<div class="font-weight-bold" style="font-size:1.1rem; line-height:1">' + (infoHtml || '-') + '</div>'
+                + '<div class="small text-muted">bobot 0% &middot; tidak dihitung</div>';
+        }
+        return '<div class="font-weight-bold" style="font-size:1.1rem; line-height:1">' + fmtNum(a.total_score) + '</div>'
+            + (infoHtml ? '<div class="small text-muted">info 0%: ' + infoHtml + '</div>' : '');
+    }
+
     function categoryHeaderRow(a, group, colspan) {
         var subtotal = categorySubtotal(a, group);
+        var infoAverage = group.weight === 0 ? rawAverage(a, group.items) : null;
         return '<tr class="kpi-category-row">'
             + '<td colspan="' + (colspan - 1) + '">' + escapeHtml(group.name)
-                + ' <span class="kpi-sub">&middot; bobot ' + fmtNum(group.weight) + '%' + (group.weight === 0 ? ' (tidak dihitung)' : '') + '</span></td>'
-            + '<td class="kpi-num">' + (subtotal === null ? '' : fmtNum(subtotal)) + '</td>'
+                + ' <span class="kpi-sub">&middot; bobot ' + fmtNum(group.weight) + '%' + (group.weight === 0 ? ' (info saja, tidak dihitung ke skor akhir)' : '') + '</span></td>'
+            + '<td class="kpi-num">' + (infoAverage !== null ? fmtNum(infoAverage) + ' <small class="text-muted">/ 5</small>' : (subtotal === null ? '' : fmtNum(subtotal))) + '</td>'
             + '</tr>';
     }
 
@@ -747,7 +774,7 @@ $(function(){
                 html += '<tr>'
                     + '<td>' + indicatorCellHtml(s, true) + '</td>'
                     + '<td class="kpi-mid">' + (scored ? '<span class="kpi-score-pill">' + fmtNum(s.score) + ' <small>/ 5</small></span>' : '<span class="text-muted">&ndash;</span>') + '</td>'
-                    + '<td class="kpi-num">' + (scored ? fmtNum(s.final_calculated_score) : '<span class="text-muted">&ndash;</span>') + '</td>'
+                    + '<td class="kpi-num">' + (scored && group.weight !== 0 ? fmtNum(s.final_calculated_score) : '<span class="text-muted">&ndash;</span>') + '</td>'
                     + '</tr>';
             });
         });
@@ -834,24 +861,43 @@ $(function(){
         var html = '<table class="table table-sm table-bordered mb-3">'
             + '<thead class="small text-muted"><tr><th>Kategori</th><th class="text-right" style="width:70px">Bobot</th><th>Penilai</th>'
             + '<th class="text-center" style="width:110px">Rata-rata nilai</th><th class="text-right" style="width:90px">Kontribusi</th></tr></thead><tbody>';
+        var categories = categorySummary(row);
+        // counted (bobot > 0) and info-only (bobot 0%) categories are listed apart and never summed together
+        var counted = categories.filter(function (c) { return c.weight > 0; });
+        var infoOnly = categories.filter(function (c) { return c.weight === 0; });
 
-        categorySummary(row).forEach(function (c) {
+        function sectionRow(label, note) {
+            return '<tr class="kpi-category-row"><td colspan="5">' + label + (note ? ' <span class="kpi-sub">&middot; ' + note + '</span>' : '') + '</td></tr>';
+        }
+
+        function categoryRow(c, isCounted) {
             var evaluators = $.map(c.evaluators, function (e) {
                 return '<span class="mr-2 text-nowrap">' + (e.done ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="far fa-clock text-warning"></i>')
                     + ' ' + escapeHtml(e.name || '-') + '</span>';
             }).join('');
 
-            html += '<tr>'
+            return '<tr>'
                 + '<td class="font-weight-bold">' + escapeHtml(c.name) + '</td>'
                 + '<td class="text-right">' + fmtNum(c.weight) + '%</td>'
                 + '<td class="small">' + evaluators + '</td>'
                 + '<td class="text-center">' + (c.rawCount ? '<strong>' + fmtNum(c.rawSum / c.rawCount) + '</strong><span class="small text-muted"> / 5</span>' : '<span class="text-muted">-</span>') + '</td>'
-                + '<td class="text-right">' + (c.rawCount ? '<strong>' + fmtNum(c.contribution) + '</strong>' : '<span class="text-muted">-</span>')
-                + (c.weight === 0 ? '<div class="small text-muted">tidak dihitung</div>' : '') + '</td>'
+                + '<td class="text-right">' + (isCounted
+                    ? (c.rawCount ? '<strong>' + fmtNum(c.contribution) + '</strong>' : '<span class="text-muted">-</span>')
+                    : '<span class="small text-muted">tidak dihitung</span>') + '</td>'
                 + '</tr>';
-        });
+        }
 
-        return html + '</tbody></table>';
+        if (counted.length) {
+            html += sectionRow('Dihitung ke skor akhir', 'total kontribusi = skor akhir');
+            counted.forEach(function (c) { html += categoryRow(c, true); });
+        }
+        if (infoOnly.length) {
+            html += sectionRow('Info saja (bobot 0%)', 'tidak dihitung ke skor akhir');
+            infoOnly.forEach(function (c) { html += categoryRow(c, false); });
+        }
+
+        return html + '</tbody></table>'
+            + (infoOnly.length ? '<div class="small text-muted mt-n2 mb-3"><i class="fas fa-info-circle mr-1"></i>Kategori dengan bobot 0% hanya ditampilkan sebagai info (rata-rata nilai 1&ndash;5) dan tidak dihitung ke skor akhir.</div>' : '');
     }
 
     function renderEvaluateeDetailsModal(rowKey) {
@@ -907,7 +953,7 @@ $(function(){
                 + '</div>'
                 + '<div class="text-right text-nowrap">'
                     + (isDone
-                        ? '<div class="font-weight-bold" style="font-size:1.1rem; line-height:1">' + fmtNum(a.total_score) + '</div><span class="badge badge-success">Selesai</span>'
+                        ? evaluationScoreHeaderHtml(a) + '<span class="badge badge-success">Selesai</span>'
                         : '<span class="badge badge-warning">Belum dinilai</span>')
                 + '</div></div>'
                 + '<div id="' + bodyId + '" class="collapse' + (expanded ? ' show' : '') + '">'

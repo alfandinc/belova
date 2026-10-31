@@ -403,11 +403,11 @@ class KpiPeriodController extends Controller
                         if (empty($pool) || $assessment->scores->isEmpty()) {
                             continue;
                         }
-                        // Indicators the evaluator did not score elsewhere take their average raw score
-                        $averageScore = array_sum(array_map(fn($s) => (float) $s->score, $pool)) / count($pool);
+                        // Indicators the evaluator did not score elsewhere take their average raw score,
+                        // counted (bobot > 0) and info-only (bobot 0%) categories averaged separately
                         foreach ($assessment->scores as $s) {
                             $source = $pool[$s->indicators_id] ?? null;
-                            $rawScore = $source ? (float) $source->score : $averageScore;
+                            $rawScore = $source ? (float) $source->score : KpiScore::fallbackRawScore(collect($pool), $s);
                             $s->score = round($rawScore, 2);
                             $s->notes = $source?->notes;
                             $s->final_calculated_score = round(($rawScore / 5.0) * (((float) ($s->ss_indicator_weight_percentage ?? 0)) / 100.0) * ((float) ($s->ss_category_weight_percentage ?? 0)), 2);

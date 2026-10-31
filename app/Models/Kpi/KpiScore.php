@@ -23,6 +23,22 @@ class KpiScore extends Model
         'notes',
     ];
 
+    public function isCounted(): bool
+    {
+        return (float) ($this->ss_category_weight_percentage ?? 0) > 0;
+    }
+
+    /**
+     * Raw score for an indicator the source assessment did not score: the average of the source scores
+     * in the same group, so a counted (bobot > 0) indicator never takes an info-only (bobot 0%) score or vice versa.
+     */
+    public static function fallbackRawScore($pool, KpiScore $target): float
+    {
+        $sameGroup = $pool->filter(fn (KpiScore $s) => $s->isCounted() === $target->isCounted());
+
+        return (float) ($sameGroup->isNotEmpty() ? $sameGroup : $pool)->avg(fn (KpiScore $s) => (float) $s->score);
+    }
+
     public function assessment()
     {
         return $this->belongsTo(KpiAssessment::class, 'assessment_id');

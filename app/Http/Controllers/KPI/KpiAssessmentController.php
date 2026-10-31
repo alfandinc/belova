@@ -124,9 +124,7 @@ class KpiAssessmentController extends Controller
         if ($pool->isEmpty()) {
             return response()->json(['message' => 'Penilaian ini belum punya nilai.'], 422);
         }
-        $averageScore = $pool->avg(fn ($s) => (float) $s->score);
-
-        $applied = DB::transaction(function () use ($assessment, $pool, $averageScore) {
+        $applied = DB::transaction(function () use ($assessment, $pool) {
             $applied = 0;
             foreach ($this->pendingSpecificSiblings($assessment) as $sibling) {
                 if ($sibling->scores->isEmpty()) {
@@ -134,7 +132,7 @@ class KpiAssessmentController extends Controller
                 }
                 foreach ($sibling->scores as $s) {
                     $source = $pool->get($s->indicators_id);
-                    $rawScore = $source ? (float) $source->score : $averageScore;
+                    $rawScore = $source ? (float) $source->score : \App\Models\KPI\KpiScore::fallbackRawScore($pool, $s);
                     $s->score = round($rawScore, 2);
                     $s->notes = $source?->notes;
                     $s->final_calculated_score = round(($rawScore / 5.0) * (((float) ($s->ss_indicator_weight_percentage ?? 0)) / 100.0) * ((float) ($s->ss_category_weight_percentage ?? 0)), 2);
