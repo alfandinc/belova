@@ -536,7 +536,7 @@ class KpiPeriodController extends Controller
     /**
      * Bring a started or open period in line with the current setup: add the assessments it is missing
      * (e.g. indicators mapped to a position after the start) and delete the stale ones the user ticked.
-     * Existing assessments never get new scores, and a filled ('done') assessment is never deleted.
+     * Existing assessments never get new scores, and a filled assessment (see isFilled) is never deleted.
      */
     public function syncAssessment(Request $request, KpiPeriod $period)
     {
@@ -553,7 +553,7 @@ class KpiPeriodController extends Controller
                 $assignments = $this->missingAssignments($lockedPeriod, $distribution);
                 // re-checked here under the lock: only stale and still unfilled assessments can go
                 $removals = $this->staleAssessments($lockedPeriod, $distribution)
-                    ->filter(fn (KpiAssessment $a) => $a->status !== 'done' && $removeIds->contains((int) $a->id));
+                    ->filter(fn (KpiAssessment $a) => !$this->isFilled($a) && $removeIds->contains((int) $a->id));
 
                 if (empty($assignments) && $removals->isEmpty()) {
                     throw new \RuntimeException('Tidak ada perubahan. Semua assessment periode ini sudah sesuai.');
@@ -582,6 +582,14 @@ class KpiPeriodController extends Controller
                 . $result['removed'] . ' assessment dihapus.',
             'counts' => $result,
         ]);
+    }
+
+    /**
+     * Done, or holding any real score (scores are 0 until submitted): such an assessment is never deleted by sync.
+     */
+    private function isFilled(KpiAssessment $assessment): bool
+    {
+        return $assessment->status === 'done' || $assessment->scores()->where('score', '>', 0)->exists();
     }
 
     private function assignmentKey(array $assignment): string
@@ -713,7 +721,7 @@ class KpiPeriodController extends Controller
                     'evaluatee_name' => optional($a->evaluateeEmployee)->nama ?? '-',
                     'evaluatee_position_name' => optional($a->evaluateePosition)->name ?? '-',
                     'assessment_type' => $a->assessment_type,
-                    'filled' => $a->status === 'done',
+                    'filled' => $this->isFilled($a),
                 ])
                 ->values()
                 ->all();

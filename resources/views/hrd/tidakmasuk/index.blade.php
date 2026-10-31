@@ -183,15 +183,7 @@
 </div>
 
 @include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalManagerTidakMasuk', 'title' => 'Persetujuan Manager', 'commentName' => 'komentar_manager', 'adjust' => 'date'])
-@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalHRDTidakMasuk', 'title' => 'Persetujuan HRD', 'commentName' => 'komentar_hrd', 'adjust' => 'date',
-    'extra' => '<div class="border rounded p-2" id="potongCutiBox">'
-        . '<div class="custom-control custom-checkbox">'
-        . '<input type="checkbox" class="custom-control-input" value="1" id="potong_dari_cuti" name="potong_dari_cuti">'
-        . '<label class="custom-control-label font-weight-bold" for="potong_dari_cuti">Potong dari Cuti Tahunan</label>'
-        . '</div>'
-        . '<small class="d-block text-muted mt-1">Hari tidak masuk dicatat sebagai cuti tahunan dan saldo cuti karyawan dikurangi. Hanya berlaku bila disetujui.</small>'
-        . '<div id="potongCutiInfo" class="small mt-2"></div>'
-        . '</div>'])
+@include('hrd.pengajuan._approval_modal', ['modalId' => 'modalApprovalHRDTidakMasuk', 'title' => 'Persetujuan HRD', 'commentName' => 'komentar_hrd', 'adjust' => 'date'])
 @endsection
 
 @section('scripts')
@@ -241,78 +233,11 @@ $(function () {
         onStale: function () { P.reloadTables(tables); }
     });
 
-    // ---- HRD: optional "potong dari cuti tahunan" ----
-    var $hrdModal = $('#modalApprovalHRDTidakMasuk');
-    var $potong = $('#potong_dari_cuti'), $potongInfo = $('#potongCutiInfo');
-    $potong.on('change', function () { P.refreshApproveLabel($hrdModal); });
-
-    // saldo: null while loading, false when unavailable, {saldo, pending} when loaded
-    var saldoRequestId = null, saldoCuti = null, approvedDays = 0;
-
-    // Re-render the "potong cuti" info for the days currently being approved
-    function renderPotongInfo() {
-        if (saldoCuti === null) {
-            $potongInfo.html('<span class="text-muted"><i class="fa fa-spinner fa-spin mr-1"></i>Memuat saldo cuti...</span>');
-            return;
-        }
-        if (saldoCuti === false) {
-            // Server still validates the balance; let HRD choose
-            $potong.prop('disabled', false);
-            $potongInfo.html('<span class="text-muted">Saldo cuti gagal dimuat. Saldo tetap diperiksa saat disimpan.</span>');
-            return;
-        }
-        var s = saldoCuti, sisa = s.saldo - approvedDays;
-        var pending = s.pending > 0 ? ' <span class="text-muted">(' + s.pending + ' hari lagi sedang menunggu persetujuan cuti)</span>' : '';
-        if (!approvedDays) {
-            $potong.prop('disabled', true);
-            $potongInfo.html('<span class="text-muted">Saldo cuti tahunan: <strong>' + s.saldo + ' hari</strong>. Perbaiki tanggal yang disetujui terlebih dahulu.</span>');
-        } else if (sisa < 0) {
-            $potong.prop('checked', false).prop('disabled', true);
-            $potongInfo.html('<div class="text-danger"><i class="fas fa-exclamation-triangle mr-1"></i>Saldo cuti tahunan <strong>'
-                + s.saldo + ' hari</strong>, tidak cukup untuk ' + approvedDays + ' hari. Tidak dapat dipotong.</div>');
-        } else {
-            $potong.prop('disabled', false);
-            $potongInfo.html('Saldo cuti tahunan: <strong>' + s.saldo + ' hari</strong>. Jika dipotong ' + approvedDays
-                + ' hari, sisa <strong>' + sisa + ' hari</strong>.' + pending);
-        }
-        P.refreshApproveLabel($hrdModal);
-    }
-
-    // Follow the "tanggal yang disetujui" inputs: only the approved days are cut from leave
-    $hrdModal.on('adjust:change', function (e, r) {
-        approvedDays = r && r.ok ? r.amount : 0;
-        renderPotongInfo();
-    });
-
-    function loadSaldoCuti(id) {
-        saldoRequestId = id;
-        saldoCuti = null;
-        var r = $hrdModal.find('.approval-adjust').data('result');
-        approvedDays = r && r.ok ? r.amount : 0;
-        $potong.prop('checked', false).prop('disabled', true);
-        renderPotongInfo();
-
-        $.getJSON(baseUrl + '/' + id + '/approval-status')
-            .done(function (res) {
-                if (saldoRequestId !== id) return; // another request was opened meanwhile
-                var d = (res && res.data) || {};
-                saldoCuti = d.saldo_cuti || false;
-                if (!approvedDays) approvedDays = d.total_hari || 0;
-                renderPotongInfo();
-            })
-            .fail(function () {
-                if (saldoRequestId !== id) return;
-                saldoCuti = false;
-                renderPotongInfo();
-            });
-    }
-
     P.bindApproval({
         modal: '#modalApprovalHRDTidakMasuk',
         trigger: '.btn-approve-hrd',
         method: 'PUT',
         url: function (id) { return baseUrl + '/' + id + '/hrd'; },
-        onOpen: function ($m, id) { loadSaldoCuti(id); },
         onSuccess: function () { P.decrementBadge('#badgeHrdPending'); P.reloadTables(tables); },
         onStale: function () { P.reloadTables(tables); }
     });
