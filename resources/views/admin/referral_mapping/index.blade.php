@@ -123,7 +123,7 @@ $(function () {
                 $type.find('.js-overrides').text($type.find('.rm-detail').filter(function () { return String($(this).data('rule')) !== 'inherit'; }).length);
             }
             refreshDetails($type, !!res.type_is_marketing);
-            if (window.toastr) toastr.success(res.message);
+            Swal.fire({ icon: 'success', title: 'Berhasil disimpan', text: res.message, timer: 1500, showConfirmButton: false });
         }).fail(function (xhr) {
             Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal menyimpan mapping.', 'error');
         }).always(function () {

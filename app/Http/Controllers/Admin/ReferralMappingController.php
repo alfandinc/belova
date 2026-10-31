@@ -96,7 +96,8 @@ class ReferralMappingController extends Controller
         MarketingReferrals::forgetRules();
 
         return response()->json([
-            'message' => 'Mapping disimpan.',
+            'message' => Pasien::referralTypeLabel($data['type']) . ($key !== '' ? ' · ' . (MarketingReferrals::detailLabels([[$data['type'], $key]])[$data['type']][$key] ?? $key) : '')
+                . ' → ' . ['inherit' => 'ikut tipe', '1' => 'dihitung Marketing & Sales', '0' => 'tidak dihitung'][$data['value']],
             'type_is_marketing' => MarketingReferrals::isMarketing($data['type'], ''),
         ]);
     }
