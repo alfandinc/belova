@@ -11,6 +11,7 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\ObatStokGudang;
 use App\Services\ERM\GudangExpiredService;
 use App\Services\ERM\StokService;
+use App\Support\Stok\MutasiAkses;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -22,9 +23,6 @@ use Illuminate\Support\Facades\DB;
  */
 class MutasiGudangController extends Controller
 {
-    // Roles that see the menu may also approve or reject; the requester may approve their own request
-    private const APPROVER_ROLES = ['Admin', 'Farmasi', 'Beautician', 'Lab', 'Marketing'];
-
     // Inactive obat keep their name on old transfers (the Obat model hides them by default)
     private function relations(): array
     {
@@ -43,10 +41,22 @@ class MutasiGudangController extends Controller
         ];
     }
 
-    private function canDecide($user = null): bool
+    // Approver for the gudang asal (Admin Panel > Akses Mutasi Stok); own requests depend on the module setting
+    private function canDecide(MutasiGudang $mutasi): bool
     {
-        $user = $user ?: Auth::user();
-        return $user && $user->hasAnyRole(self::APPROVER_ROLES);
+        if (!MutasiAkses::canApprove(MutasiAkses::MUTASI_GUDANG, $mutasi->gudang_asal_id)) {
+            return false;
+        }
+
+        return MutasiAkses::bolehApproveSendiri(MutasiAkses::MUTASI_GUDANG)
+            || (int) $mutasi->requested_by !== (int) Auth::id();
+    }
+
+    private function decideError(MutasiGudang $mutasi): string
+    {
+        return MutasiAkses::canApprove(MutasiAkses::MUTASI_GUDANG, $mutasi->gudang_asal_id)
+            ? 'Peminta transfer tidak boleh menyetujui atau menolak permintaannya sendiri.'
+            : 'Role Anda tidak diizinkan menyetujui atau menolak transfer dari gudang ini (Admin Panel > Akses Mutasi Stok).';
     }
 
     /**
@@ -120,7 +130,9 @@ class MutasiGudangController extends Controller
             return $expiredGudangId && (int) $g->id === (int) $expiredGudangId;
         })->values();
 
-        return view('erm.mutasi-gudang.index', compact('gudangs', 'gudangTransfer'));
+        $canRequest = MutasiAkses::canAny(MutasiAkses::MUTASI_GUDANG, 'request');
+
+        return view('erm.mutasi-gudang.index', compact('gudangs', 'gudangTransfer', 'canRequest'));
     }
 
     public function data(Request $request)
@@ -306,10 +318,6 @@ class MutasiGudangController extends Controller
 
     public function store(Request $request)
     {
-        if (!$this->canDecide()) {
-            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk membuat transfer antar gudang.'], 403);
-        }
-
         $items = collect($request->input('items', []))->map(function ($item) {
             if (is_array($item) && array_key_exists('jumlah', $item)) {
                 $item['jumlah'] = str_replace(',', '.', (string) $item['jumlah']);
@@ -330,6 +338,12 @@ class MutasiGudangController extends Controller
             'items.required' => 'Tambahkan minimal satu obat.',
             'items.*.jumlah.min' => 'Jumlah setiap obat harus lebih dari 0.',
         ]);
+
+        // A role may request transfers out of or into a gudang it is given request access to
+        if (!MutasiAkses::canRequest(MutasiAkses::MUTASI_GUDANG, $request->gudang_asal_id)
+            && !MutasiAkses::canRequest(MutasiAkses::MUTASI_GUDANG, $request->gudang_tujuan_id)) {
+            return response()->json(['success' => false, 'message' => 'Role Anda tidak diizinkan membuat transfer untuk gudang asal maupun tujuan ini (Admin Panel > Akses Mutasi Stok).'], 403);
+        }
 
         try {
             // Begin first: the catch below rolls back, and must only undo this method's own transaction
@@ -482,16 +496,12 @@ class MutasiGudangController extends Controller
             })->values(),
             'stok_kurang' => $kurang,
             'jumlah_obat_ed' => $jumlahEd,
-            'can_approve' => $mutasi->status === 'pending' && $this->canDecide(),
+            'can_approve' => $mutasi->status === 'pending' && $this->canDecide($mutasi),
         ]);
     }
 
     public function approve($id)
     {
-        if (!$this->canDecide()) {
-            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menyetujui transfer.'], 403);
-        }
-
         try {
             DB::beginTransaction();
 
@@ -499,6 +509,9 @@ class MutasiGudangController extends Controller
             $mutasi = MutasiGudang::lockForUpdate()->findOrFail($id);
             if ($mutasi->status !== 'pending') {
                 throw new \Exception('Transfer ini sudah diproses.');
+            }
+            if (!$this->canDecide($mutasi)) {
+                throw new \Exception($this->decideError($mutasi));
             }
 
             // Re-checked at approval: requests created before these rules may still involve the gudang expired
@@ -591,10 +604,6 @@ class MutasiGudangController extends Controller
 
     public function reject(Request $request, $id)
     {
-        if (!$this->canDecide()) {
-            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menolak transfer.'], 403);
-        }
-
         $request->validate(
             ['reason' => 'required|string|max:200'],
             ['reason.required' => 'Alasan penolakan wajib diisi.']
@@ -607,6 +616,9 @@ class MutasiGudangController extends Controller
 
                 if ($mutasi->status !== 'pending') {
                     throw new \Exception('Transfer ini sudah diproses.');
+                }
+                if (!$this->canDecide($mutasi)) {
+                    throw new \Exception($this->decideError($mutasi));
                 }
 
                 $mutasi->update([

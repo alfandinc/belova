@@ -10,6 +10,7 @@ use App\Models\ERM\MutasiStokItem;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ObatStokGudang;
 use App\Services\ERM\StokService;
+use App\Support\Stok\MutasiAkses;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -43,11 +44,17 @@ class MutasiStokController extends Controller
     public function index(Request $request)
     {
         $gudangs = Gudang::orderBy('nama')->get();
+        // The form offers only the gudang the user may make a penyesuaian for (Admin Panel > Akses Mutasi Stok)
+        $requestIds = MutasiAkses::gudangIds(MutasiAkses::PENYESUAIAN, 'request');
+        $gudangsRequest = $requestIds === null ? $gudangs : $gudangs->whereIn('id', $requestIds)->values();
         $alasan = self::ALASAN;
         $canMasuk = $this->canMasuk();
-        $isApprover = $this->isApprover();
+        $approveIds = MutasiAkses::gudangIds(MutasiAkses::PENYESUAIAN, 'approve');
+        $isApprover = $approveIds === null || count($approveIds) > 0;
         $approvalThreshold = (float) config('stok.penyesuaian.approval_threshold');
-        $pendingCount = MutasiStok::where('status', MutasiStok::STATUS_PENDING)->count();
+        $pendingCount = MutasiStok::where('status', MutasiStok::STATUS_PENDING)
+            ->when($approveIds !== null, fn ($q) => $q->whereIn('gudang_id', $approveIds))
+            ->count();
 
         // Opened from Manajemen Stok with the form pre-filled (gudang, jenis, obat, batch, jumlah)
         $prefill = null;
@@ -68,7 +75,7 @@ class MutasiStokController extends Controller
             }
         }
 
-        return view('erm.mutasi-stok.index', compact('gudangs', 'alasan', 'canMasuk', 'isApprover', 'approvalThreshold', 'pendingCount', 'prefill'));
+        return view('erm.mutasi-stok.index', compact('gudangs', 'gudangsRequest', 'alasan', 'canMasuk', 'isApprover', 'approvalThreshold', 'pendingCount', 'prefill'));
     }
 
     private function canMasuk(): bool
@@ -76,9 +83,10 @@ class MutasiStokController extends Controller
         return (bool) optional(Auth::user())->hasAnyRole(self::MASUK_ROLES);
     }
 
-    private function isApprover(): bool
+    // Approver for the document's gudang (Admin Panel > Akses Mutasi Stok)
+    private function isApprover(MutasiStok $mutasi): bool
     {
-        return (bool) optional(Auth::user())->hasAnyRole(config('stok.penyesuaian.approver_roles', ['Admin']));
+        return MutasiAkses::canApprove(MutasiAkses::PENYESUAIAN, $mutasi->gudang_id);
     }
 
     /**
@@ -277,6 +285,15 @@ class MutasiStokController extends Controller
             ], 403);
         }
 
+        // An approver may also correct someone's pending document for a gudang they approve
+        if (!MutasiAkses::canRequest(MutasiAkses::PENYESUAIAN, $request->gudang_id)
+            && !($request->filled('edit_id') && MutasiAkses::canApprove(MutasiAkses::PENYESUAIAN, $request->gudang_id))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Role Anda tidak diizinkan membuat penyesuaian stok untuk gudang ini (Admin Panel > Akses Mutasi Stok).',
+            ], 403);
+        }
+
         try {
             if ($request->jenis_mutasi === 'keluar') {
                 // Stok in the gudang expired may only leave through Retur Pembelian or Pemusnahan
@@ -290,7 +307,7 @@ class MutasiStokController extends Controller
                     if ($mutasi->status !== MutasiStok::STATUS_PENDING) {
                         throw new \RuntimeException('Dokumen yang sudah diposting tidak bisa diubah. Batalkan dokumen ini lalu buat dokumen baru.');
                     }
-                    if ((int) $mutasi->user_id !== (int) Auth::id() && !$this->isApprover()) {
+                    if ((int) $mutasi->user_id !== (int) Auth::id() && !$this->isApprover($mutasi)) {
                         throw new \RuntimeException('Hanya pembuat dokumen atau approver yang bisa mengubah dokumen ini.');
                     }
                     $mutasi->items()->delete();
@@ -443,10 +460,10 @@ class MutasiStokController extends Controller
             // Own pending document the current user may not approve (only when self-approval is disabled)
             'is_own_pending' => $mutasi->status === MutasiStok::STATUS_PENDING
                 && (int) $mutasi->user_id === (int) Auth::id()
-                && $this->isApprover()
+                && $this->isApprover($mutasi)
                 && !$this->canDecide($mutasi),
             'can_edit' => $mutasi->status === MutasiStok::STATUS_PENDING
-                && ((int) $mutasi->user_id === (int) Auth::id() || $this->isApprover()),
+                && ((int) $mutasi->user_id === (int) Auth::id() || $this->isApprover($mutasi)),
             'can_cancel' => $this->canCancel($mutasi),
             'cancelled_by' => optional($mutasi->cancelledBy)->name,
             'cancelled_at' => optional($mutasi->cancelled_at)->format('d/m/Y H:i'),
@@ -529,14 +546,14 @@ class MutasiStokController extends Controller
         return $total >= (float) config('stok.penyesuaian.approval_threshold', 1000000);
     }
 
-    // An approver (config stok.penyesuaian.approver_roles); approving one's own document depends on config (allowed by default)
+    // An approver for the gudang; approving one's own document depends on the module setting
     private function canDecide(MutasiStok $mutasi): bool
     {
-        if (!$this->isApprover()) {
+        if (!$this->isApprover($mutasi)) {
             return false;
         }
 
-        return config('stok.penyesuaian.boleh_approve_sendiri', true)
+        return MutasiAkses::bolehApproveSendiri(MutasiAkses::PENYESUAIAN)
             || (int) $mutasi->user_id !== (int) Auth::id();
     }
 
@@ -545,8 +562,8 @@ class MutasiStokController extends Controller
         if ($mutasi->status !== MutasiStok::STATUS_PENDING) {
             throw new \RuntimeException('Dokumen ini sudah diproses (status: ' . $mutasi->status . ').');
         }
-        if (!$this->isApprover()) {
-            throw new \RuntimeException('Hanya Admin, Farmasi, Marketing atau Beautician yang bisa meng-approve atau menolak penyesuaian stok.');
+        if (!$this->isApprover($mutasi)) {
+            throw new \RuntimeException('Role Anda tidak diizinkan meng-approve atau menolak penyesuaian stok gudang ini (Admin Panel > Akses Mutasi Stok).');
         }
         if (!$this->canDecide($mutasi)) {
             throw new \RuntimeException('Pembuat dokumen tidak boleh meng-approve atau menolak dokumennya sendiri.');
@@ -556,10 +573,10 @@ class MutasiStokController extends Controller
     private function canCancel(MutasiStok $mutasi): bool
     {
         if ($mutasi->status === MutasiStok::STATUS_PENDING) {
-            return (int) $mutasi->user_id === (int) Auth::id() || $this->isApprover();
+            return (int) $mutasi->user_id === (int) Auth::id() || $this->isApprover($mutasi);
         }
 
-        return $mutasi->status === MutasiStok::STATUS_DONE && $this->isApprover();
+        return $mutasi->status === MutasiStok::STATUS_DONE && $this->isApprover($mutasi);
     }
 
     /**

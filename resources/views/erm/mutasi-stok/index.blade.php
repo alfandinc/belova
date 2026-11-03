@@ -11,7 +11,7 @@
             <div class="page-title-box">
                 <h4 class="page-title">Penyesuaian Stok</h4>
                 <small class="text-muted">Satu-satunya dokumen koreksi stok di luar pembelian, penjualan, transfer, dan retur. Setiap item wajib beralasan dan tercatat di kartu stok.
-                    Dokumen bernilai &ge; Rp {{ number_format($approvalThreshold, 0, ',', '.') }} dan semua penyesuaian masuk menunggu approval Admin/Farmasi/Marketing/Beautician sebelum stok berubah.</small>
+                    Dokumen bernilai &ge; Rp {{ number_format($approvalThreshold, 0, ',', '.') }} dan semua penyesuaian masuk menunggu approval sebelum stok berubah. Siapa yang boleh membuat dan meng-approve diatur per role per gudang di Admin Panel &gt; Akses Mutasi Stok.</small>
             </div>
         </div>
     </div>
@@ -53,9 +53,11 @@
                             </select>
                         </div>
                         <div class="col-md-3 text-md-right">
+                            @if ($gudangsRequest->isNotEmpty())
                             <button type="button" class="btn btn-primary" id="btn-buat-mutasi">
                                 <i class="fas fa-plus"></i> Buat Penyesuaian
                             </button>
+                            @endif
                         </div>
                     </div>
 
@@ -102,7 +104,7 @@
                                 <label for="gudang_id">Gudang <span class="text-danger">*</span></label>
                                 <select class="form-control" name="gudang_id" id="gudang_id" required>
                                     <option value="">Pilih Gudang</option>
-                                    @foreach($gudangs as $gudang)
+                                    @foreach($gudangsRequest as $gudang)
                                         <option value="{{ $gudang->id }}">{{ $gudang->nama }}</option>
                                     @endforeach
                                 </select>
@@ -742,6 +744,10 @@ $(function () {
             $('#edit_id').val(response.id);
             $('#tanggal_mutasi').val(response.tanggal_mutasi || getCurrentDateValue());
             $('#tanggal_input_preview').val(response.tanggal_input || getCurrentTimestampLabel());
+            // An approver may edit a document for a gudang they cannot make penyesuaian for themselves
+            if (!$('#gudang_id option[value="' + response.gudang_id + '"]').length) {
+                $('#gudang_id').append(new Option(response.gudang, response.gudang_id));
+            }
             $('#gudang_id').val(response.gudang_id).trigger('change.select2');
             $('#jenis_mutasi').val(response.jenis_mutasi).trigger('change.select2');
             updateInfoBox();

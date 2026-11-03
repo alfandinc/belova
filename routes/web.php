@@ -2098,6 +2098,10 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         Route::get('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'index'])->name('admin.referral_mapping.index');
         Route::post('/referral-marketing', [\App\Http\Controllers\Admin\ReferralMappingController::class, 'update'])->name('admin.referral_mapping.update');
 
+        // Akses Mutasi Stok: who may request / approve Penyesuaian Stok and Transfer Antar Gudang, per role per gudang
+        Route::get('/akses-mutasi-stok', [\App\Http\Controllers\Admin\MutasiAksesController::class, 'index'])->name('admin.mutasi_akses.index');
+        Route::post('/akses-mutasi-stok', [\App\Http\Controllers\Admin\MutasiAksesController::class, 'update'])->name('admin.mutasi_akses.update');
+
         // Obat & Gudang Mapping (CRUD endpoints remain under erm.obat-mapping.* / erm.gudang-mapping.*)
         Route::get('/obat-gudang-mapping', [\App\Http\Controllers\Admin\ObatGudangMappingController::class, 'index'])->name('admin.obat_gudang_mapping.index');
 

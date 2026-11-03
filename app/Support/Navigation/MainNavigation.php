@@ -395,6 +395,7 @@ class MainNavigation
             $admin ? $this->item('Referral Marketing', 'share-2', $this->route('admin.referral_mapping.index')) : null,
             $this->heading('Pengaturan'),
             $dashboardWidgets ? $this->item('Widget Dashboard', 'layout', $this->route('dashboard.widgets.index')) : null,
+            $admin ? $this->item('Akses Mutasi Stok', 'lock', $this->route('admin.mutasi_akses.index')) : null,
             $admin ? $this->item('Klinik Setting', 'settings', $this->route('admin.klinik_settings.index')) : null,
             $admin ? $this->item('Settings', 'tool', url('/admin/settings')) : null,
         ]);

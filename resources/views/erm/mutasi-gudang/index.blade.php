@@ -10,9 +10,11 @@
             <h4 class="page-title mb-0">Transfer Antar Gudang</h4>
             <small class="text-muted">Pindahkan stok antar gudang. Stok baru berpindah setelah transfer disetujui.</small>
         </div>
+        @if ($canRequest)
         <button type="button" class="btn btn-primary mt-2 mt-md-0" id="btn-buat-transfer">
             <i class="fas fa-plus"></i> Buat Transfer
         </button>
+        @endif
     </div>
 
     <div class="card">
