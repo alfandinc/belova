@@ -24,6 +24,21 @@ class Konsultasi extends Model
             ->withTimestamps();
     }
 
+    /** Radiologi included in this konsultasi (paket, e.g. "+ USG"), pivot harga = its part of the konsultasi harga */
+    public function radiologiTests()
+    {
+        return $this->belongsToMany(RadiologiTest::class, 'erm_konsultasi_radiologi', 'konsultasi_id', 'radiologi_test_id')
+            ->withPivot('harga')->withTimestamps();
+    }
+
+    private static ?bool $hasRadiologiPaket = null;
+
+    /** Guard for servers that haven't run the erm_konsultasi_radiologi migration yet. */
+    public static function hasRadiologiPaket(): bool
+    {
+        return self::$hasRadiologiPaket ??= Schema::hasTable('erm_konsultasi_radiologi');
+    }
+
     private static ?bool $hasSpesialisasiMapping = null;
 
     /** Guard for servers that haven't run the erm_konsultasi_spesialisasi migration yet. */

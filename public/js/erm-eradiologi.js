@@ -5,6 +5,8 @@ $(document).ready(function () {
     const visitationId = cfg.visitationId;
     // radiologi_test_id => status of what is already saved for this visit
     const existingStatuses = cfg.existingStatuses;
+    // Tests from a paket biaya konsultasi (e.g. Konsultasi + USG): follow the jenis konsultasi, billed at the paket harga
+    let paketTests = cfg.paketTests || {};
     // Diproses / Selesai is set by the lab; the others only see it
     const canEditStatus = cfg.canEditStatus;
 
@@ -34,17 +36,26 @@ $(document).ready(function () {
         return `<span class="elab-status is-${key}${canEditStatus ? '' : ' is-readonly'}">${STATUS[key]}</span>`;
     }
 
-    // Saved as Diproses / Selesai: already being worked on, so it can not be removed here
+    function paketOf(testId) {
+        return paketTests[String(testId)] || null;
+    }
+
+    // Saved as Diproses / Selesai: already being worked on, so it can not be removed here; paket tests neither
     function isLocked(testId) {
         const status = existingStatuses[String(testId)];
-        return status === 'processing' || status === 'completed';
+        return status === 'processing' || status === 'completed' || !!paketOf(testId);
+    }
+
+    function lockTitle(testId) {
+        const paket = paketOf(testId);
+        return paket ? 'Bagian dari paket ' + (paket.konsultasi || 'konsultasi') + ': ganti jenis konsultasi untuk menghapus' : 'Sudah diproses, tidak bisa dihapus';
     }
 
     function applyLocks() {
         $('.test-checkbox').each(function () {
             const locked = isLocked($(this).data('id'));
             $(this).prop('disabled', locked).closest('label').toggleClass('is-locked', locked)
-                .attr('title', locked ? 'Sudah diproses, tidak bisa dihapus' : null);
+                .attr('title', locked ? lockTitle($(this).data('id')) : null);
         });
     }
 
@@ -88,7 +99,7 @@ $(document).ready(function () {
         let total = 0;
         $('.test-checkbox:checked').each(function (idx) {
             const testId = String($(this).data('id'));
-            const price = Number($(this).data('price') || 0);
+            const price = paketOf(testId) ? Number(paketOf(testId).harga || 0) : Number($(this).data('price') || 0);
             const status = statusStates[testId] || existingStatuses[testId] || 'requested';
             total += price;
             const noCell = canEditStatus
@@ -97,7 +108,7 @@ $(document).ready(function () {
                         <label class="custom-control-label" for="rowCheck-${testId}">${idx + 1}</label>
                     </div>`
                 : `<span class="text-muted font-weight-bold">${idx + 1}</span>`;
-            const lock = isLocked(testId) ? '<i class="fas fa-lock elab-lock-icon" title="Sudah diproses, tidak bisa dihapus"></i>' : '';
+            const lock = isLocked(testId) ? `<i class="fas fa-lock elab-lock-icon" title="${escapeHtml(lockTitle(testId))}"></i>` : '';
             html += `<tr data-test-id="${testId}">
                     <td>${noCell}</td>
                     <td>${escapeHtml($(this).data('name'))}${lock}</td>
@@ -226,6 +237,7 @@ $(document).ready(function () {
                 // What the server saved is the new baseline (it keeps tests already being worked on)
                 Object.keys(existingStatuses).forEach(function (k) { delete existingStatuses[k]; });
                 $.each(response.statuses || {}, function (testId, status) { existingStatuses[String(testId)] = status; });
+                paketTests = response.paket || {};
                 $('.test-checkbox').each(function () {
                     $(this).prop('checked', Object.prototype.hasOwnProperty.call(existingStatuses, String($(this).data('id'))));
                 });

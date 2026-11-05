@@ -1274,6 +1274,43 @@ Route::prefix('erm')->middleware('role:Dokter|Admin|Farmasi')->group(function ()
     Route::get('/aturan-pakai/list/suggest', [AturanPakaiController::class, 'suggest'])->name('erm.aturan-pakai.list.suggest');
 });
 
+// SPK Tindakan: jam mulai/selesai + petugas per tindakan (jasa medis)
+Route::prefix('erm/spk-tindakan')->middleware(['auth', 'role:Dokter|Perawat|Beautician|Admin|Manager'])->group(function () {
+    Route::get('/', [App\Http\Controllers\ERM\SpkController::class, 'index'])->name('erm.spk-tindakan.index');
+    Route::get('/data', [App\Http\Controllers\ERM\SpkController::class, 'data'])->name('erm.spk-tindakan.data');
+    // Per visit (one invoice): every paket tindakan of the visit in one form
+    Route::get('/{visitation}', [App\Http\Controllers\ERM\SpkController::class, 'show'])->name('erm.spk-tindakan.show');
+    Route::post('/{visitation}', [App\Http\Controllers\ERM\SpkController::class, 'save'])->name('erm.spk-tindakan.save');
+});
+
+// Jasa medis: tarif per tindakan (Admin / Finance) and the rekap per petugas (also HRD)
+Route::prefix('erm/jasa-medis')->middleware('auth')->group(function () {
+    Route::middleware('role:Admin|Finance|Hrd')->group(function () {
+        Route::get('/rekap', [App\Http\Controllers\ERM\JasaMedisController::class, 'rekap'])->name('erm.jasa-medis.rekap');
+        Route::get('/rekap/data', [App\Http\Controllers\ERM\JasaMedisController::class, 'rekapData'])->name('erm.jasa-medis.rekap.data');
+        Route::get('/rekap/export', [App\Http\Controllers\ERM\JasaMedisController::class, 'rekapExport'])->name('erm.jasa-medis.rekap.export');
+    });
+    Route::middleware('role:Admin|Finance')->group(function () {
+        Route::get('/', [App\Http\Controllers\ERM\JasaMedisController::class, 'index'])->name('erm.jasa-medis.index');
+        Route::get('/data', [App\Http\Controllers\ERM\JasaMedisController::class, 'data'])->name('erm.jasa-medis.data');
+        Route::post('/import', [App\Http\Controllers\ERM\JasaMedisController::class, 'import'])->name('erm.jasa-medis.import');
+        Route::post('/{kodeTindakan}', [App\Http\Controllers\ERM\JasaMedisController::class, 'save'])->name('erm.jasa-medis.save');
+        Route::get('/{kodeTindakan}/riwayat', [App\Http\Controllers\ERM\JasaMedisController::class, 'riwayat'])->name('erm.jasa-medis.riwayat');
+    });
+});
+
+// Master radiologi: pemeriksaan + kategori (same roles as Master Lab)
+Route::prefix('erm/master-radiologi')->middleware(['auth', 'role:Lab|Admin'])->group(function () {
+    Route::get('/', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'index'])->name('erm.radiologi-master.index');
+    Route::get('/data', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'data'])->name('erm.radiologi-master.data');
+    Route::post('/test', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'storeTest'])->name('erm.radiologi-master.test.store');
+    Route::put('/test/{test}', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'updateTest'])->name('erm.radiologi-master.test.update');
+    Route::delete('/test/{test}', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'destroyTest'])->name('erm.radiologi-master.test.destroy');
+    Route::post('/kategori', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'storeKategori'])->name('erm.radiologi-master.kategori.store');
+    Route::put('/kategori/{kategori}', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'updateKategori'])->name('erm.radiologi-master.kategori.update');
+    Route::delete('/kategori/{kategori}', [App\Http\Controllers\ERM\RadiologiMasterController::class, 'destroyKategori'])->name('erm.radiologi-master.kategori.destroy');
+});
+
 Route::prefix('workdoc')->middleware('role:Hrd|Manager|Head Manager|Employee|Admin')->group(function () {
     Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
     Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('workdoc.documents.index');

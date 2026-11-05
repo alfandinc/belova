@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Konsultasi;
+use App\Models\ERM\RadiologiPermintaan;
+use App\Models\Finance\Billing;
+use App\Models\ERM\RadiologiTest;
 use App\Models\ERM\Spesialisasi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,12 +18,20 @@ class KonsultasiMasterController extends Controller
     public function index()
     {
         $hasSpesialisasi = Konsultasi::hasSpesialisasiMapping();
+        $hasRadiologi = Konsultasi::hasRadiologiPaket();
         $konsultasis = Konsultasi::query()
             ->when($hasSpesialisasi, fn ($q) => $q->with('spesialisasis:id,nama'))
+            ->when($hasRadiologi, fn ($q) => $q->with('radiologiTests:id,nama'))
             ->orderBy('kategori')->orderBy('nama')->get();
         $spesialisasis = Spesialisasi::orderBy('nama')->get(['id', 'nama']);
+        $radiologiTests = $hasRadiologi ? RadiologiTest::orderBy('nama')->get(['id', 'nama', 'harga']) : collect();
+        // Used in a billing / invoice: can not be deleted. Paket radiologi already billed: its radiologi is locked.
+        $dipakaiIds = self::dipakaiQuery()->flip();
+        $terkunciIds = $hasRadiologi
+            ? RadiologiPermintaan::whereNotNull('konsultasi_id')->distinct()->pluck('konsultasi_id')->flip()
+            : collect();
 
-        return view('marketing.konsultasi.index', compact('konsultasis', 'spesialisasis', 'hasSpesialisasi'));
+        return view('marketing.konsultasi.index', compact('konsultasis', 'spesialisasis', 'hasSpesialisasi', 'hasRadiologi', 'radiologiTests', 'dipakaiIds', 'terkunciIds'));
     }
 
     public function store(Request $request): JsonResponse
@@ -30,6 +41,7 @@ class KonsultasiMasterController extends Controller
         $konsultasi = DB::transaction(function () use ($validated) {
             $konsultasi = Konsultasi::create(collect($validated)->only(['nama', 'kategori', 'harga'])->all());
             $this->syncSpesialisasi($konsultasi, $validated);
+            $this->syncRadiologi($konsultasi, $validated);
 
             return $konsultasi;
         });
@@ -44,10 +56,12 @@ class KonsultasiMasterController extends Controller
     public function update(Request $request, Konsultasi $konsultasi): JsonResponse
     {
         $validated = $request->validate($this->rules($request, $konsultasi), self::MESSAGES);
+        $this->assertRadiologiTidakBerubah($konsultasi, $validated);
 
         DB::transaction(function () use ($konsultasi, $validated) {
             $konsultasi->update(collect($validated)->only(['nama', 'kategori', 'harga'])->all());
             $this->syncSpesialisasi($konsultasi, $validated);
+            $this->syncRadiologi($konsultasi, $validated);
         });
 
         return response()->json([
@@ -59,6 +73,14 @@ class KonsultasiMasterController extends Controller
 
     public function destroy(Konsultasi $konsultasi): JsonResponse
     {
+        if (self::dipakaiQuery($konsultasi->id)->isNotEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => '"' . $konsultasi->nama . '" sudah dipakai di billing / invoice, jadi tidak bisa dihapus (riwayatnya akan hilang). '
+                    . 'Centang "Nonaktif" di Edit agar tidak muncul lagi di dokter.',
+            ], 422);
+        }
+
         DB::transaction(function () use ($konsultasi) {
             if (Konsultasi::hasSpesialisasiMapping()) {
                 $konsultasi->spesialisasis()->detach();
@@ -75,6 +97,9 @@ class KonsultasiMasterController extends Controller
     private const MESSAGES = [
         'spesialisasi_ids.required' => 'Pilih minimal satu spesialisasi (jenis konsultasi tanpa spesialisasi tidak muncul di dokter).',
         'spesialisasi_ids.min' => 'Pilih minimal satu spesialisasi (jenis konsultasi tanpa spesialisasi tidak muncul di dokter).',
+        'radiologi.*.test_id.distinct' => 'Pemeriksaan radiologi yang sama dipilih dua kali.',
+        'radiologi.*.test_id.required' => 'Pilih pemeriksaan radiologi.',
+        'radiologi.*.harga.required' => 'Isi harga radiologi dalam paket.',
     ];
 
     /**
@@ -83,22 +108,74 @@ class KonsultasiMasterController extends Controller
      */
     private function rules(Request $request, ?Konsultasi $konsultasi = null): array
     {
-        $wajib = Konsultasi::hasSpesialisasiMapping() && str_contains(mb_strtolower((string) $request->input('nama')), 'konsultasi');
+        $wajib = Konsultasi::hasSpesialisasiMapping() && !$request->boolean('nonaktif')
+            && str_contains(mb_strtolower((string) $request->input('nama')), 'konsultasi');
 
         return [
             'nama' => ['required', 'string', 'max:255', Rule::unique('erm_konsultasi', 'nama')->ignore($konsultasi?->id)],
             'kategori' => ['nullable', 'string', 'max:255'],
+            'nonaktif' => ['nullable', 'boolean'],
             'spesialisasi_ids' => $wajib ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
             'spesialisasi_ids.*' => ['integer', 'exists:erm_spesialisasis,id'],
             'harga' => ['required', 'numeric', 'min:0'],
+            // Radiologi included in the harga (paket): harga = its part, the konsultasi billing is the rest
+            'radiologi' => ['nullable', 'array'],
+            'radiologi.*.test_id' => ['required', 'integer', 'distinct', 'exists:erm_radiologi_test,id'],
+            'radiologi.*.harga' => ['required', 'numeric', 'min:0'],
         ];
+    }
+
+    /** Konsultasi ids found in a billing (also deleted ones) or an invoice item; one id when given */
+    private static function dipakaiQuery(?int $id = null)
+    {
+        $billing = Billing::withTrashed()->where('billable_type', Konsultasi::class)
+            ->when($id, fn ($q) => $q->where('billable_id', $id))->distinct()->pluck('billable_id');
+        $invoice = DB::table('finance_invoice_items')->where('billable_type', Konsultasi::class)
+            ->when($id, fn ($q) => $q->where('billable_id', $id))->distinct()->pluck('billable_id');
+
+        return $billing->concat($invoice)->map(fn ($v) => (int) $v)->unique()->values();
+    }
+
+    /**
+     * Once a paket created radiologi permintaan, its radiologi (test + harga) is fixed: the rekap counts the
+     * invoices from before the paket with it, so changing it would rewrite history. A new rule = a new item.
+     */
+    private function assertRadiologiTidakBerubah(Konsultasi $konsultasi, array $validated): void
+    {
+        if (!Konsultasi::hasRadiologiPaket() || !RadiologiPermintaan::where('konsultasi_id', $konsultasi->id)->exists()) {
+            return;
+        }
+        $lama = $konsultasi->radiologiTests()->get()->mapWithKeys(fn ($t) => [$t->id => round((float) $t->pivot->harga, 2)])->sortKeys()->all();
+        $baru = collect($validated['radiologi'] ?? [])->mapWithKeys(fn ($r) => [(int) $r['test_id'] => round((float) $r['harga'], 2)])->sortKeys()->all();
+
+        if ($lama != $baru) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'radiologi' => 'Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah. Buat item baru untuk aturan baru, lalu nonaktifkan item ini.',
+            ]);
+        }
+    }
+
+    private function syncRadiologi(Konsultasi $konsultasi, array $validated): void
+    {
+        if (!Konsultasi::hasRadiologiPaket()) {
+            return;
+        }
+        $rows = collect($validated['radiologi'] ?? []);
+        if ($rows->sum('harga') > (float) $validated['harga']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'radiologi' => 'Total harga radiologi dalam paket melebihi harga konsultasi.',
+            ]);
+        }
+        $konsultasi->radiologiTests()->sync($rows->mapWithKeys(fn ($r) => [(int) $r['test_id'] => ['harga' => $r['harga']]])->all());
     }
 
     /** Before the pivot migration ran (prod) the spesialisasi choice is simply not saved. */
     private function syncSpesialisasi(Konsultasi $konsultasi, array $validated): void
     {
         if (Konsultasi::hasSpesialisasiMapping()) {
-            $konsultasi->spesialisasis()->sync(array_unique(array_map('intval', $validated['spesialisasi_ids'] ?? [])));
+            // Nonaktif = no spesialisasi: offered to no dokter, the item and its history stay
+            $ids = !empty($validated['nonaktif']) ? [] : ($validated['spesialisasi_ids'] ?? []);
+            $konsultasi->spesialisasis()->sync(array_unique(array_map('intval', $ids)));
         }
     }
 }

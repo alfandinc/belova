@@ -122,15 +122,14 @@ class CPPTController extends Controller
             );
 
             // Store konsultasi billing if selected
-            if ($request->filled('jenis_konsultasi')) {
-                $this->storeJenisKonsultasi($request);
-            }
+            $notes = $request->filled('jenis_konsultasi') ? $this->storeJenisKonsultasi($request) : [];
 
             // "Lanjut simpan" in the biaya konsultasi popup also marks every CPPT of the patient read
             $markedRead = $request->boolean('mark_all_read') ? $this->markAllReadFor($visitation) : 0;
 
             return response()->json([
-                'message' => 'CPPT berhasil disimpan.',
+                'message' => trim('CPPT berhasil disimpan. ' . implode(' ', $notes)),
+                'notes' => $notes,
                 'data'    => $cppt,
                 'marked_read' => $markedRead,
             ]);
@@ -156,38 +155,7 @@ class CPPTController extends Controller
             ]);
         }
 
-        $consultationBillings = \App\Models\Finance\Billing::where('visitation_id', $visitationId)
-            ->where('billable_type', \App\Models\ERM\Konsultasi::class)
-            ->whereHasMorph('billable', [\App\Models\ERM\Konsultasi::class], function ($query) {
-                $query->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%']);
-            })
-            ->orderBy('id')
-            ->get();
-
-        $billing = $consultationBillings->first();
-
-        if ($billing) {
-            $billing->update([
-                'billable_id' => $jasa->id,
-                'billable_type' => \App\Models\ERM\Konsultasi::class,
-                'keterangan' => 'Tindakan: ' . $jasa->nama,
-                'jumlah' => $jasa->harga,
-            ]);
-
-            if ($consultationBillings->count() > 1) {
-                \App\Models\Finance\Billing::whereIn('id', $consultationBillings->slice(1)->pluck('id'))->delete();
-            }
-
-            return;
-        }
-
-        \App\Models\Finance\Billing::create([
-            'visitation_id' => $visitationId,
-            'billable_id' => $jasa->id,
-            'billable_type' => \App\Models\ERM\Konsultasi::class,
-            'keterangan' => 'Tindakan: ' . $jasa->nama,
-            'jumlah' => $jasa->harga,
-        ]);
+        return app(\App\Services\ERM\KonsultasiBillingService::class)->apply((string) $visitationId, $jasa);
     }
 
 

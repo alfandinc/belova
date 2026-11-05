@@ -440,6 +440,7 @@ class KodeTindakanController extends Controller
             'paket tindakan' => $kodeTindakan->tindakans()->count(),
             'riwayat tindakan' => DB::table('erm_riwayat_tindakan_obat')->where('kode_tindakan_id', $id)->count(),
             'SPK' => DB::table('erm_spk_tindakan_items')->where('kode_tindakan_id', $id)->count(),
+            'petugas SPK (jasa medis)' => DB::table('erm_spk_petugas')->where('kode_tindakan_id', $id)->count(),
         ];
         $usedIn = [];
         foreach ($usage as $label => $count) {

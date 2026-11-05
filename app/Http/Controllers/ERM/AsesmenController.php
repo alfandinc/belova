@@ -109,7 +109,8 @@ class AsesmenController extends Controller
         // All parts in one transaction: a failure must not leave the asesmen half saved.
         // Validation errors go through as usual (422); anything else returns a readable message for the Swal.
         try {
-            DB::transaction(function () use ($request, $spesialisasi) {
+            $notes = [];
+            DB::transaction(function () use ($request, $spesialisasi, &$notes) {
                 // Call spesialisasi-based save function
                 if ($spesialisasi === 'penyakit dalam') {
                     $this->storeAsesmenDalam($request);
@@ -130,7 +131,7 @@ class AsesmenController extends Controller
                 // Shared Penunjang logic
                 $this->storeAsesmenPenunjang($request);
 
-                $this->storeJenisKonsultasi($request);
+                $notes = $this->storeJenisKonsultasi($request);
 
                 Visitation::where('id', $request->visitation_id)->update(['status_kunjungan' => 2]);
             });
@@ -143,7 +144,7 @@ class AsesmenController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Asesmen Dokter berhasil disimpan.'
+            'message' => trim('Asesmen Dokter berhasil disimpan. ' . e(implode(' ', $notes))),
         ]);
     }
 
@@ -514,37 +515,6 @@ class AsesmenController extends Controller
             ]);
         }
 
-        $consultationBillings = Billing::where('visitation_id', $visitationId)
-            ->where('billable_type', Konsultasi::class)
-            ->whereHasMorph('billable', [Konsultasi::class], function ($query) {
-                $query->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%']);
-            })
-            ->orderBy('id')
-            ->get();
-
-        $billing = $consultationBillings->first();
-
-        if ($billing) {
-            $billing->update([
-                'billable_id' => $jasa->id,
-                'billable_type' => Konsultasi::class,
-                'jumlah' => $jasa->harga,
-                'keterangan' => 'Tindakan: ' . $jasa->nama,
-            ]);
-
-            if ($consultationBillings->count() > 1) {
-                Billing::whereIn('id', $consultationBillings->slice(1)->pluck('id'))->delete();
-            }
-
-            return;
-        }
-
-        Billing::create([
-            'visitation_id' => $visitationId,
-            'billable_id' => $jasa->id,
-            'billable_type' => Konsultasi::class,
-            'jumlah' => $jasa->harga,
-            'keterangan' => 'Tindakan: ' . $jasa->nama,
-        ]);
+        return app(\App\Services\ERM\KonsultasiBillingService::class)->apply((string) $visitationId, $jasa);
     }
 }

@@ -540,7 +540,12 @@ $(document).ready(function () {
                 Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             },
             success: function (res) {
-                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SOAP berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
+                // Notes about the radiologi of a paket biaya konsultasi stay until the dokter closes them
+                if (res.notes && res.notes.length) {
+                    Swal.fire({ icon: 'info', title: 'SOAP berhasil disimpan', text: res.notes.join(' ') });
+                } else {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SOAP berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
+                }
                 $('#form-cppt-soap')[0].reset();
                 refreshCpptHistory(visitationId);
             },
@@ -575,7 +580,12 @@ $(document).ready(function () {
                 Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             },
             success: function (res) {
-                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SBAR berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
+                // Notes about the radiologi of a paket biaya konsultasi stay until the dokter closes them
+                if (res.notes && res.notes.length) {
+                    Swal.fire({ icon: 'info', title: 'SBAR berhasil disimpan', text: res.notes.join(' ') });
+                } else {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: 'SBAR berhasil disimpan. Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
+                }
                 $('#form-cppt-sbar')[0].reset();
                 refreshCpptHistory(visitationId);
             },

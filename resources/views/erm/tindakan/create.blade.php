@@ -934,10 +934,9 @@
                         <div class='col-md-4'><b>Nama Tindakan:</b> ${escapeHtml(data.tindakan_nama)}</div>
                         <div class='col-md-4'><b>Harga:</b> ${escapeHtml(data.harga)}</div>
                     </div>
-                    <div class='row mb-2'>
-                        <div class='col-md-4'><b>Jam Mulai:</b> ${data.spk?.waktu_mulai ? escapeHtml(data.spk.waktu_mulai.substring(0, 5)) : '-'}</div>
-                        <div class='col-md-4'><b>Jam Selesai:</b> ${data.spk?.waktu_selesai ? escapeHtml(data.spk.waktu_selesai.substring(0, 5)) : '-'}</div>
-                    </div>`);
+                    <div class='mb-0'><b>Petugas:</b> ${(data.petugas || []).length
+                        ? '<ul class="mb-0 pl-3">' + data.petugas.map(p => `<li>${escapeHtml(p.tindakan)}: ${escapeHtml(p.nama)}</li>`).join('') + '</ul>'
+                        : '<span class="text-muted">belum diisi</span>'}</div>`);
             }).fail(function () {
                 $('#modalSpkReadOnlyBody').html('<div class="alert alert-danger">Data SPK gagal dimuat.</div>');
             });

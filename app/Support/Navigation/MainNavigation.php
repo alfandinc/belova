@@ -108,6 +108,7 @@ class MainNavigation
             $this->can('Pendaftaran', 'Perawat', 'Farmasi', 'Admin', 'Beautician', 'Lab', 'Manager') ? $this->item('Data Pasien', 'user', url('/erm/pasiens')) : null,
             $this->can('Dokter', 'Perawat', 'Admin', 'Lab', 'Manager') ? $this->item('Rawat Jalan', 'activity', url('/erm/rawatjalans')) : null,
             $this->can('Farmasi', 'Admin', 'Manager') ? $this->item('E-Resep', 'file-text', url('/erm/eresepfarmasi')) : null,
+            $this->can('Dokter', 'Perawat', 'Beautician', 'Admin', 'Manager') ? $this->item('SPK Tindakan', 'clipboard', $this->route('erm.spk-tindakan.index')) : null,
         ]);
     }
 
@@ -251,9 +252,11 @@ class MainNavigation
             $marketing ? $this->item('Paket Tindakan', 'layers', url('/marketing/tindakan')) : null,
             $marketing ? $this->item('Tindakan', 'hash', url('/marketing/kodetindakan')) : null,
             $marketing ? $this->item('Kategori Tindakan', 'folder', url('/erm/marketing/kategori-tindakan')) : null,
+            $this->can('Admin', 'Finance') ? $this->item('Jasa Medis', 'award', $this->route('erm.jasa-medis.index')) : null,
             
-            $this->heading('Laboratorium'),
+            $this->heading('Laboratorium & Radiologi'),
             $lab ? $this->item('Pemeriksaan Lab', 'thermometer', $this->route('erm.labtests.master')) : null,
+            $lab ? $this->item('Pemeriksaan Radiologi', 'aperture', $this->route('erm.radiologi-master.index')) : null,
         ]);
     }
 
@@ -334,6 +337,7 @@ class MainNavigation
             $kepegawaian ? $this->item('Payroll Dokter', 'credit-card', $this->route('hrd.payroll.slip_gaji_dokter.index')) : null,
             $gajiDokter ? $this->item('Gaji Dokter', 'dollar-sign', '#', [], ['onclick' => 'checkGajiDokter(event)']) : null,
             $hasEmployeeOrDokter ? $this->item('My Payroll', 'pocket', '#', [], ['onclick' => 'checkSlipGaji(event)']) : null,
+            $this->can('Admin', 'Finance', 'Hrd') ? $this->item('Rekap Jasa Medis', 'bar-chart-2', $this->route('erm.jasa-medis.rekap')) : null,
             $kepegawaian ? $this->heading('Master') : null,
             $kepegawaian ? $this->item('Master Payroll', 'sliders', $this->route('hrd.payroll.master.index')) : null,
         ]);

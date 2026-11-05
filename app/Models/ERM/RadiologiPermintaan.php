@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class RadiologiPermintaan extends Model
 {
     protected $table = 'erm_radiologi_permintaan';
-    protected $fillable = ['visitation_id', 'radiologi_test_id', 'status', 'hasil', 'dokter_id'];
+    protected $fillable = ['visitation_id', 'radiologi_test_id', 'konsultasi_id', 'status', 'hasil', 'dokter_id'];
 
     public function visitation()
     {
@@ -23,6 +23,12 @@ class RadiologiPermintaan extends Model
     public function dokter()
     {
         return $this->belongsTo(Dokter::class);
+    }
+
+    /** Set when the permintaan was created by picking a biaya konsultasi that includes it (paket) */
+    public function konsultasi()
+    {
+        return $this->belongsTo(Konsultasi::class);
     }
 
     public function billings()

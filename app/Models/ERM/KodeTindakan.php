@@ -14,6 +14,11 @@ class KodeTindakan extends Model
     {
         return $this->belongsToMany(Tindakan::class, 'erm_tindakan_kode_tindakan', 'kode_tindakan_id', 'tindakan_id');
     }
+
+    public function jasaMedis()
+    {
+        return $this->hasOne(JasaMedis::class, 'kode_tindakan_id');
+    }
     use HasFactory;
 
     protected $table = 'erm_kode_tindakan';

@@ -54,4 +54,10 @@ class RiwayatTindakan extends Model
     {
         return $this->hasOne(Spk::class, 'riwayat_tindakan_id');
     }
+
+    /** Who did each tindakan of this riwayat (jasa medis) */
+    public function petugas()
+    {
+        return $this->hasMany(SpkPetugas::class, 'riwayat_tindakan_id');
+    }
 }

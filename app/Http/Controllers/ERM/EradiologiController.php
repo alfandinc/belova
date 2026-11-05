@@ -19,6 +19,23 @@ use Yajra\DataTables\Facades\DataTables;
 
 class EradiologiController extends Controller
 {
+    private const PAKET_MESSAGE = 'Pemeriksaan ini bagian dari paket biaya konsultasi. Ganti jenis konsultasi untuk menghapusnya.';
+
+    /** radiologi_test_id => [harga, konsultasi] of the visit's permintaan that come from a paket biaya konsultasi */
+    private function paketTests($visitationId): array
+    {
+        if (!\App\Models\ERM\Konsultasi::hasRadiologiPaket()) {
+            return [];
+        }
+
+        return RadiologiPermintaan::with(['konsultasi:id,nama', 'billings'])
+            ->where('visitation_id', $visitationId)->whereNotNull('konsultasi_id')->get()
+            ->mapWithKeys(fn ($p) => [$p->radiologi_test_id => [
+                'harga' => (float) optional($p->billings->first())->jumlah,
+                'konsultasi' => optional($p->konsultasi)->nama,
+            ]])->all();
+    }
+
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
@@ -29,6 +46,7 @@ class EradiologiController extends Controller
         // radiologi_test_id => status of what is already saved for this visit
         $existingStatuses = RadiologiPermintaan::where('visitation_id', $visitationId)
             ->pluck('status', 'radiologi_test_id')->toArray();
+        $paketTests = $this->paketTests($visitationId);
 
         $pasienVisitIds = Visitation::select('id')->where('pasien_id', $visitation->pasien_id);
         // Last earlier visit with radiologi requests, for "ulangi permintaan sebelumnya"
@@ -50,6 +68,7 @@ class EradiologiController extends Controller
             'visitation' => $visitation,
             'radiologiCategories' => $radiologiCategories,
             'existingStatuses' => $existingStatuses,
+            'paketTests' => $paketTests,
             'previousRadiologi' => $previousRadiologi,
             'hasilCount' => RadiologiHasil::whereIn('visitation_id', $pasienVisitIds)->count(),
             'hasilThisVisit' => RadiologiHasil::where('visitation_id', $visitation->id)->count(),
@@ -90,7 +109,8 @@ class EradiologiController extends Controller
                     if ($canEditStatus && $permintaan->status !== $status) {
                         $permintaan->update(['status' => $status]);
                     }
-                } elseif ($permintaan->status === 'requested') {
+                } elseif ($permintaan->status === 'requested' && !$permintaan->konsultasi_id) {
+                    // Paket permintaan (from the biaya konsultasi) follow the jenis konsultasi, not this page
                     $permintaan->billings()->delete();
                     $permintaan->delete();
                 }
@@ -121,6 +141,7 @@ class EradiologiController extends Controller
             'success' => true,
             'message' => 'Permintaan radiologi berhasil disimpan',
             'statuses' => RadiologiPermintaan::where('visitation_id', $visitationId)->pluck('status', 'radiologi_test_id'),
+            'paket' => (object) $this->paketTests($visitationId),
         ]);
     }
 
@@ -158,14 +179,15 @@ class EradiologiController extends Controller
     public function visitationDetail($visitationId)
     {
         $labels = ['requested' => 'Diminta', 'processing' => 'Diproses', 'completed' => 'Selesai'];
-        $data = RadiologiPermintaan::with('radiologiTest.radiologiKategori')
+        $data = RadiologiPermintaan::with(['radiologiTest.radiologiKategori', 'billings'])
             ->where('visitation_id', $visitationId)
             ->orderBy('created_at')
             ->get()
             ->map(fn ($item) => [
                 'nama_pemeriksaan' => optional($item->radiologiTest)->nama,
                 'kategori' => optional(optional($item->radiologiTest)->radiologiKategori)->nama,
-                'harga' => 'Rp ' . number_format((float) optional($item->radiologiTest)->harga, 0, ',', '.'),
+                // What was billed (a paket biaya konsultasi bills its own harga), else the master harga
+                'harga' => 'Rp ' . number_format((float) (optional($item->billings->first())->jumlah ?? optional($item->radiologiTest)->harga), 0, ',', '.'),
                 'status' => $item->status,
                 'status_text' => $labels[$item->status] ?? $item->status,
             ]);
@@ -295,6 +317,9 @@ class EradiologiController extends Controller
         try {
             $permintaan = RadiologiPermintaan::findOrFail($id);
             $visitation_id = $permintaan->visitation_id;
+            if ($permintaan->konsultasi_id) {
+                return response()->json(['success' => false, 'message' => self::PAKET_MESSAGE], 422);
+            }
             
             // Delete related billing entries
             $permintaan->billings()->delete();
@@ -365,6 +390,9 @@ class EradiologiController extends Controller
             
             // Get all radiologi permintaan records
             $permintaans = RadiologiPermintaan::whereIn('id', $request->ids)->get();
+            if ($permintaans->whereNotNull('konsultasi_id')->isNotEmpty()) {
+                return response()->json(['success' => false, 'message' => self::PAKET_MESSAGE], 422);
+            }
             
             // Delete related billing entries and radiologi permintaan
             foreach ($permintaans as $permintaan) {

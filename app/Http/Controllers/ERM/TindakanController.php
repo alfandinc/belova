@@ -515,9 +515,10 @@ class TindakanController extends Controller
      */
     private function consentReplaceBlocker(RiwayatTindakan $riwayat): string
     {
+        // Petugas filled in SPK Tindakan (or the old jam mulai / selesai) = tindakan done
         $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->first();
-        if ($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai))) {
-            return 'Tindakan ini sudah dikerjakan (SPK berjalan / selesai), inform consent tidak bisa diisi ulang.';
+        if (($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai))) || $riwayat->petugas()->exists()) {
+            return 'Tindakan ini sudah dikerjakan (SPK sudah diisi), inform consent tidak bisa diisi ulang.';
         }
         if ($this->riwayatBillingState(collect([$riwayat]))[$riwayat->id]['locked'] ?? false) {
             return 'Tindakan ini sudah masuk invoice / dibayar, inform consent tidak bisa diisi ulang.';
@@ -1014,6 +1015,8 @@ class TindakanController extends Controller
         // Batched lookups (no query per row)
         $billing = $this->riwayatBillingState($riwayats);
         $spks = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayats->pluck('id'))->get()->keyBy('riwayat_tindakan_id');
+        // SPK filled (petugas) = selesai; jam mulai / selesai only exist on SPK filled before the petugas page
+        $withPetugas = \App\Models\ERM\SpkPetugas::whereIn('riwayat_tindakan_id', $riwayats->pluck('id'))->distinct()->pluck('riwayat_tindakan_id')->flip();
         $usageIds = $riwayats->pluck('multi_visit_usage_id')->filter()->unique();
         $usages = MultiVisitUsage::whereIn('id', $usageIds)->get()->keyBy('id');
         // Session number inside a multi visit package = order of its riwayat ids
@@ -1024,7 +1027,7 @@ class TindakanController extends Controller
             }
         }
 
-        $history = $riwayats->map(function ($r) use ($visitationId, $billing, $spks, $usages, $sessionNo) {
+        $history = $riwayats->map(function ($r) use ($visitationId, $billing, $spks, $usages, $sessionNo, $withPetugas) {
             $tanggalRaw = $r->visitation->tanggal_visitation ?? null;
             $spk = $spks[$r->id] ?? null;
             $usage = $r->multi_visit_usage_id ? ($usages[$r->multi_visit_usage_id] ?? null) : null;
@@ -1043,14 +1046,15 @@ class TindakanController extends Controller
                 'current' => $r->visitation_id == $visitationId,
                 // Multi visit package: session n of total (session 1 carries the package price)
                 'paket' => $usage ? ['sesi' => $sessionNo[$r->id] ?? null, 'total' => (int) $usage->total] : null,
-                'spk' => $spk ? (!empty($spk->waktu_selesai) ? 'selesai' : (!empty($spk->waktu_mulai) ? 'berjalan' : 'dibuat')) : null,
+                'spk' => $spk ? ((isset($withPetugas[$r->id]) || !empty($spk->waktu_selesai)) ? 'selesai' : (!empty($spk->waktu_mulai) ? 'berjalan' : 'dibuat')) : null,
                 'bayar' => $billing[$r->id]['status'] ?? null,
                 'bayar_label' => self::INVOICE_STATUS[$billing[$r->id]['status'] ?? ''] ?? 'Belum ditagih',
                 'locked' => $billing[$r->id]['locked'] ?? false,
                 // "Isi ulang" inform consent: this visit, filled, tindakan not started (SPK) and not billed
                 'can_refill' => $r->visitation_id == $visitationId && $r->informConsent
                     && !($billing[$r->id]['locked'] ?? false)
-                    && !($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai))),
+                    && !($spk && (!empty($spk->waktu_mulai) || !empty($spk->waktu_selesai)))
+                    && !isset($withPetugas[$r->id]),
             ];
         })
             // Newest visit first, then the latest added
@@ -1410,7 +1414,14 @@ class TindakanController extends Controller
                 'pasien_id' => $riwayat->visitation?->pasien?->id ?? '',
                 'tindakan_nama' => $riwayat->tindakan?->nama ?? '',
                 'dokter_nama' => $riwayat->visitation?->dokter?->user?->name ?? '',
-                'harga' => $riwayat->tindakan?->harga ?? ''
+                'harga' => $riwayat->tindakan?->harga ?? '',
+                // Who did each tindakan (SPK Tindakan page)
+                'petugas' => $riwayat->petugas()->with(['kodeTindakan:id,nama', 'dokter.user:id,name', 'employee:id,nama'])->get()
+                    ->groupBy('kode_tindakan_id')
+                    ->map(fn ($rows) => [
+                        'tindakan' => $rows->first()->kodeTindakan->nama ?? '-',
+                        'nama' => $rows->map(fn ($p) => $p->tipe === 'dokter' ? ($p->dokter->user->name ?? '-') : ($p->employee->nama ?? '-'))->implode(', '),
+                    ])->values(),
             ]
         ]);
     }

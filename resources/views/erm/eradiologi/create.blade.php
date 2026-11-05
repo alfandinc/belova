@@ -230,6 +230,7 @@
     'visitationId' => $visitation->id,
     'pasienId' => (string) $visitation->pasien_id,
     'existingStatuses' => (object) $existingStatuses,
+    'paketTests' => (object) $paketTests,
     'previous' => $previousRadiologi,
     'canEditStatus' => (bool) $canEditStatus,
     'routes' => [
