@@ -162,7 +162,7 @@ class KonsultasiMasterController extends Controller
 
         if ($lama != $baru) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'radiologi' => 'Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah. Buat item baru untuk aturan baru, lalu nonaktifkan item ini.',
+                'radiologi' => 'Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah. Untuk aturan baru nonaktifkan item ini dan pakai Tambahan konsultasi di Master Radiologi.',
             ]);
         }
     }
@@ -173,6 +173,13 @@ class KonsultasiMasterController extends Controller
             return;
         }
         $rows = collect($validated['radiologi'] ?? []);
+        // Paket only records the USG of old items already billed that way; new rules use Tambahan (Master Radiologi)
+        if ($rows->isNotEmpty() && !$konsultasi->radiologiTests()->exists()
+            && ($konsultasi->wasRecentlyCreated || self::dipakaiQuery($konsultasi->id)->isEmpty())) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'radiologi' => 'Termasuk radiologi hanya untuk item lama yang sudah punya transaksi. Untuk konsultasi baru centang Tambahan konsultasi di Master Radiologi.',
+            ]);
+        }
         if ($rows->sum('harga') > (float) $validated['harga']) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'radiologi' => 'Total harga radiologi dalam paket melebihi harga konsultasi.',

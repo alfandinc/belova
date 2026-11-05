@@ -7,8 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 class RadiologiTest extends Model
 {
     protected $table = 'erm_radiologi_test';
-    protected $fillable = ['nama', 'radiologi_kategori_id', 'harga', 'tambahan_konsultasi', 'deskripsi'];
-    protected $casts = ['tambahan_konsultasi' => 'boolean'];
+    protected $fillable = ['nama', 'radiologi_kategori_id', 'harga', 'tambahan_konsultasi', 'harga_tambahan', 'dikerjakan_dokter', 'deskripsi'];
+    protected $casts = ['tambahan_konsultasi' => 'boolean', 'dikerjakan_dokter' => 'boolean'];
+
+    /** Price as a tambahan konsultasi (add-on), the normal harga when none is set */
+    public function hargaTambahan(): float
+    {
+        return (float) ($this->harga_tambahan ?? $this->harga);
+    }
 
     public function radiologiKategori()
     {
@@ -36,6 +42,7 @@ class RadiologiTest extends Model
 
         return static::where('tambahan_konsultasi', true)
             ->whereHas('spesialisasis', fn ($q) => $q->whereKey($spesialisasiId))
-            ->orderBy('harga')->orderBy('nama')->get(['id', 'nama', 'harga']);
+            ->orderByRaw('COALESCE(harga_tambahan, harga)')->orderBy('nama')
+            ->get(['id', 'nama', 'harga', 'harga_tambahan', 'dikerjakan_dokter']);
     }
 }

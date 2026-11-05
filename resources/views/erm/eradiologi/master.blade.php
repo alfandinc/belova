@@ -12,7 +12,7 @@
 <div class="container-fluid">
     <div class="mt-3 mb-3">
         <h4 class="page-title mb-0">Master Radiologi</h4>
-        <small class="text-muted">Pemeriksaan radiologi dan kategorinya. Pemeriksaan bertanda <strong>Tambahan konsultasi</strong> bisa dicentang dokter langsung di popup Pilih Biaya Konsultasi (mis. + USG), ditagih dengan harganya.</small>
+        <small class="text-muted">Pemeriksaan radiologi dan kategorinya. Pemeriksaan bertanda <strong>Tambahan konsultasi</strong> bisa dicentang dokter langsung di popup Pilih Biaya Konsultasi (mis. + USG), ditagih dengan harga tambahannya.</small>
     </div>
 
     <div class="row">
@@ -97,7 +97,18 @@
                                     <option value="{{ $sp->id }}">{{ $sp->nama }}</option>
                                 @endforeach
                             </select>
-                            <small class="form-text text-muted">Hanya dokter spesialisasi ini yang melihatnya (mis. USG untuk Penyakit Dalam). Ditagih dengan harga di atas.</small>
+                            <small class="form-text text-muted">Hanya dokter spesialisasi ini yang melihatnya (mis. USG untuk Penyakit Dalam).</small>
+                            <label for="testHargaTambahan" class="mt-3">Harga sebagai tambahan konsultasi</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                <input type="number" min="0" step="1" class="form-control" id="testHargaTambahan">
+                            </div>
+                            <small class="form-text text-muted">Ditagih dengan harga ini bila dicentang bersama konsultasi (mis. USG Cepat 25.000); diminta terpisah tetap harga normal.</small>
+                            <div class="custom-control custom-checkbox mt-3">
+                                <input type="checkbox" class="custom-control-input" id="testDikerjakanDokter">
+                                <label class="custom-control-label" for="testDikerjakanDokter"><b>Dikerjakan dokter</b> saat konsultasi</label>
+                            </div>
+                            <small class="form-text text-muted">Langsung tercatat <b>Selesai</b> tanpa notifikasi ke Lab (mis. USG oleh dokter penyakit dalam). Hasil ditulis di Asesmen / CPPT.</small>
                         </div>
                     </div>
                     @endif
@@ -151,6 +162,8 @@ $(function () {
                     if (t !== 'display') return r.tambahan ? 'ya' : '';
                     return r.tambahan
                         ? (d || []).map(function (s) { return '<span class="badge badge-soft-primary mr-1">' + esc(s.nama) + '</span>'; }).join('')
+                            + '<div class="small">' + rupiah(r.harga_tambahan !== null ? r.harga_tambahan : r.harga)
+                            + (r.dikerjakan_dokter ? ' <span class="text-muted">· dikerjakan dokter</span>' : '') + '</div>'
                         : '<span class="text-muted">-</span>';
                 }
             },
@@ -222,6 +235,8 @@ $(function () {
         $('#testDeskripsi').val(t ? t.deskripsi : '');
         $('#testTambahan').prop('checked', !!(t && t.tambahan)).trigger('change');
         $('#testSpesialisasi').val(t ? (t.spesialisasi || []).map(function (s) { return String(s.id); }) : []).trigger('change');
+        $('#testHargaTambahan').val(t && t.harga_tambahan !== null ? t.harga_tambahan : '');
+        $('#testDikerjakanDokter').prop('checked', !!(t && t.dikerjakan_dokter));
         $('#testModalLabel').text(t ? 'Edit Pemeriksaan' : 'Tambah Pemeriksaan');
         $('#testModal').modal('show');
     }
@@ -235,6 +250,8 @@ $(function () {
         if ($('#testTambahan').length) {
             data.tambahan_konsultasi = $('#testTambahan').is(':checked') ? 1 : 0;
             data.spesialisasi_ids = data.tambahan_konsultasi ? ($('#testSpesialisasi').val() || []) : [];
+            data.harga_tambahan = data.tambahan_konsultasi ? $('#testHargaTambahan').val() : '';
+            data.dikerjakan_dokter = data.tambahan_konsultasi && $('#testDikerjakanDokter').is(':checked') ? 1 : 0;
         }
         var $btn = $(this).find('[type=submit]').prop('disabled', true);
         send(id ? 'PUT' : 'POST', id ? urls.test + '/' + id : urls.test, data)

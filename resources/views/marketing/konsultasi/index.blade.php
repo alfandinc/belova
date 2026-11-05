@@ -64,6 +64,7 @@
                                         data-harga="{{ $konsultasi->harga }}"
                                         data-radiologi="{{ $radiologiList->map(fn ($t) => ['test_id' => $t->id, 'harga' => (float) $t->pivot->harga])->values()->toJson() }}"
                                         data-terkunci="{{ $terkunciIds->has($konsultasi->id) ? 1 : 0 }}"
+                                        data-bisa-paket="{{ $dipakaiIds->has($konsultasi->id) || $radiologiList->isNotEmpty() ? 1 : 0 }}"
                                     >
                                         Edit
                                     </button>
@@ -139,7 +140,7 @@
                         <label for="harga">Harga</label>
                         <input type="number" min="0" step="0.01" class="form-control" id="harga" name="harga" required>
                     </div>
-                    <div class="form-group mb-0">
+                    <div class="form-group mb-0 d-none" id="radiologiSection">
                         <label class="d-flex justify-content-between align-items-center">
                             <span>Termasuk radiologi <small class="text-muted">(item paket lama, mis. + USG)</small></span>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRadiologi" @unless($hasRadiologi) disabled @endunless>
@@ -148,12 +149,12 @@
                         </label>
                         <div class="alert alert-warning py-1 px-2 small mb-2 d-none" id="radiologiLocked">
                             <i class="mdi mdi-lock"></i> Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah lagi (koreksi hanya di hari pengisian) agar riwayat USG lama tetap benar.
-                            Untuk aturan baru: buat item baru, lalu centang <b>Nonaktif</b> di item ini. Harga paket tetap boleh diubah.
+                            Untuk aturan baru: centang <b>Nonaktif</b> di item ini dan pakai <b>Tambahan konsultasi</b> di Master Radiologi.
                         </div>
                         <div id="radiologiRows"></div>
                         <small class="form-text text-muted" id="radiologiInfo">
                             @if($hasRadiologi)
-                                Hanya untuk item yang harganya sudah termasuk radiologi, agar USG di transaksinya tercatat. Untuk konsultasi baru tidak perlu: centang <b>Tambahan konsultasi</b> di Master Radiologi, dokter tinggal mencentang USG di popup.
+                                Hanya untuk item lama yang harganya sudah termasuk radiologi (mis. "+ USG"): <b>semua transaksi item ini</b>, juga yang lama, dihitung termasuk radiologi tersebut. Jangan isi untuk item tanpa radiologi. Setelah diisi, centang <b>Nonaktif</b>; aturan baru memakai Tambahan konsultasi di Master Radiologi.
                             @else
                                 Belum aktif: jalankan migration dulu.
                             @endif
@@ -194,6 +195,7 @@ $(function () {
         $spesialisasi.val([]).trigger('change');
         $('#radiologiRows').empty();
         setRadiologiLocked(false);
+        $('#radiologiSection').addClass('d-none');
         $('#nonaktif').prop('checked', false).trigger('change');
         updateRadiologiInfo();
         $('#konsultasiId').val('');
@@ -284,6 +286,7 @@ $(function () {
         $('#harga').val($(this).data('harga'));
         ($(this).data('radiologi') || []).forEach(function (r) { addRadiologiRow(r.test_id, r.harga); });
         setRadiologiLocked(Number($(this).data('terkunci')) === 1);
+        $('#radiologiSection').toggleClass('d-none', Number($(this).data('bisa-paket')) !== 1);
         const tanpaSpesialisasi = !($(this).data('spesialisasi-ids') || []).length;
         $('#nonaktif').prop('checked', tanpaSpesialisasi && String($(this).data('nama')).toLowerCase().indexOf('konsultasi') !== -1).trigger('change');
         $('#formMethod').val('PUT');

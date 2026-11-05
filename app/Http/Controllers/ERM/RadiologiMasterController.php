@@ -45,6 +45,8 @@ class RadiologiMasterController extends Controller
                 'harga' => (float) $t->harga,
                 'deskripsi' => $t->deskripsi,
                 'tambahan' => $hasTambahan && $t->tambahan_konsultasi,
+                'harga_tambahan' => $hasTambahan && $t->harga_tambahan !== null ? (float) $t->harga_tambahan : null,
+                'dikerjakan_dokter' => $hasTambahan && $t->dikerjakan_dokter,
                 'spesialisasi' => $hasTambahan ? $t->spesialisasis->sortBy('nama')->map(fn ($sp) => ['id' => $sp->id, 'nama' => $sp->nama])->values() : [],
                 'dipakai' => (int) $t->radiologi_permintaan_count,
                 'paket' => collect($paket->get($t->id, []))->map(fn ($p) => ['nama' => $p->nama, 'harga' => (float) $p->harga])->values(),
@@ -106,7 +108,11 @@ class RadiologiMasterController extends Controller
             return;
         }
         $on = $request->boolean('tambahan_konsultasi');
-        $test->update(['tambahan_konsultasi' => $on]);
+        $test->update([
+            'tambahan_konsultasi' => $on,
+            'harga_tambahan' => $on ? $request->input('harga_tambahan') : null,
+            'dikerjakan_dokter' => $on && $request->boolean('dikerjakan_dokter'),
+        ]);
         $test->spesialisasis()->sync($on ? array_unique(array_map('intval', (array) $request->input('spesialisasi_ids', []))) : []);
     }
 
@@ -117,7 +123,10 @@ class RadiologiMasterController extends Controller
             'tambahan_konsultasi' => ['nullable', 'boolean'],
             'spesialisasi_ids' => $tambahan ? ['required', 'array', 'min:1'] : ['nullable', 'array'],
             'spesialisasi_ids.*' => ['integer', 'exists:erm_spesialisasis,id'],
+            'harga_tambahan' => $tambahan ? ['required', 'numeric', 'min:0', 'max:999999999'] : ['nullable'],
+            'dikerjakan_dokter' => ['nullable', 'boolean'],
         ], [
+            'harga_tambahan.required' => 'Isi harga sebagai tambahan konsultasi.',
             'spesialisasi_ids.required' => 'Pilih spesialisasi yang boleh memakai tambahan ini.',
             'spesialisasi_ids.min' => 'Pilih spesialisasi yang boleh memakai tambahan ini.',
         ]);

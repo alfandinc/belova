@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Log;
 /**
  * Billing of the jenis konsultasi the dokter picks (Asesmen / CPPT), with the radiologi picked in the same popup,
  * so the USG is recorded in Radiologi (permintaan + its own billing) while the dokter clicks once:
- * - tambahan: tests the dokter ticks under the konsultasi (e.g. + USG Cepat), billed at their harga;
+ * - tambahan: tests the dokter ticks under the konsultasi (e.g. + USG Cepat), billed at their harga tambahan;
+ *   one done by the dokter himself (dikerjakan_dokter, USG penyakit dalam) is selesai at once, Lab not notified;
  * - paket: a konsultasi that includes radiologi (old "+ USG" items): its part of the harga is billed on the
  *   permintaan, the konsultasi billing being the rest.
  */
@@ -78,7 +79,7 @@ class KonsultasiBillingService
     public static function tambahanUntuk(Visitation $visitation): array
     {
         $options = RadiologiTest::tambahanUntuk($visitation->resolvedSpesialisasiId())
-            ->map(fn ($t) => ['id' => (string) $t->id, 'nama' => $t->nama, 'harga' => (float) $t->harga])->values();
+            ->map(fn ($t) => ['id' => (string) $t->id, 'nama' => $t->nama, 'harga' => $t->hargaTambahan()])->values();
         $terpilih = $options->isEmpty() ? collect() : RadiologiPermintaan::where('visitation_id', $visitation->id)
             ->where('sumber_konsultasi', RadiologiPermintaan::SUMBER_TAMBAHAN)
             ->pluck('radiologi_test_id')->map(fn ($id) => (string) $id)->values();
@@ -102,7 +103,7 @@ class KonsultasiBillingService
             }
             if (in_array((int) $testId, $tambahanIds, true) && $permintaan->radiologiTest) {
                 // Old paket item -> konsultasi + the same test ticked as tambahan: keep the permintaan, at the test harga
-                $this->simpan($visitationId, $jasa, $permintaan, $permintaan->radiologiTest, (float) RadiologiTest::whereKey($testId)->value('harga'),
+                $this->simpan($visitationId, $jasa, $permintaan, $permintaan->radiologiTest, $permintaan->radiologiTest->hargaTambahan(),
                     RadiologiPermintaan::SUMBER_TAMBAHAN, '', $added);
             } else {
                 $this->lepas($permintaan, 'paket konsultasi sebelumnya', $notes);
@@ -135,32 +136,37 @@ class KonsultasiBillingService
         foreach ($wanted as $testId => $test) {
             $permintaan = $existing->get($testId);
             if (!$permintaan) {
-                $this->simpan($visitationId, $jasa, null, $test, (float) $test->harga, RadiologiPermintaan::SUMBER_TAMBAHAN, '', $added);
+                $this->simpan($visitationId, $jasa, null, $test, $test->hargaTambahan(), RadiologiPermintaan::SUMBER_TAMBAHAN, '', $added);
             } elseif (!$permintaan->sumber_konsultasi) {
-                // Already requested in E-Radiologi: now ticked here, it follows the popup (billing kept, no double)
-                $permintaan->update(['konsultasi_id' => $jasa->id, 'sumber_konsultasi' => RadiologiPermintaan::SUMBER_TAMBAHAN]);
+                // Already requested in E-Radiologi: now ticked here, it follows the popup at the harga tambahan (one
+                // billing, no double); once paid the invoice stays as it is
+                if ($this->dibayar($permintaan)) {
+                    $permintaan->update(['konsultasi_id' => $jasa->id, 'sumber_konsultasi' => RadiologiPermintaan::SUMBER_TAMBAHAN]);
+                } else {
+                    $this->simpan($visitationId, $jasa, $permintaan, $test, $test->hargaTambahan(), RadiologiPermintaan::SUMBER_TAMBAHAN, '', $added);
+                }
             }
         }
     }
 
     private function existing(string $visitationId): Collection
     {
-        return RadiologiPermintaan::with('radiologiTest:id,nama')->where('visitation_id', $visitationId)->get()
+        return RadiologiPermintaan::with('radiologiTest')->where('visitation_id', $visitationId)->get()
             ->keyBy('radiologi_test_id');
     }
 
-    /** No longer chosen: removed while still "Diminta", else kept as a normal permintaan (already being done) */
+    /**
+     * No longer chosen: removed while still "Diminta" (or done by the dokter himself: unticked = not done), else kept
+     * as a normal permintaan (Lab already works on it). Never removed once paid.
+     */
     private function lepas(RadiologiPermintaan $permintaan, string $asal, array &$notes): void
     {
         $nama = optional($permintaan->radiologiTest)->nama;
-        $dibayar = DB::table('finance_invoice_items as ii')->join('finance_invoices as i', 'i.id', '=', 'ii.invoice_id')
-            ->where('ii.billable_type', RadiologiPermintaan::class)->where('ii.billable_id', $permintaan->id)
-            ->whereIn('i.status', ['paid', 'partial'])->exists();
-        if ($dibayar) {
+        if ($this->dibayar($permintaan)) {
             // Removing it would leave a paid invoice without its permintaan: keep it, the kasir handles a refund
             $permintaan->update(['konsultasi_id' => null, 'sumber_konsultasi' => null]);
             $notes[] = "{$nama} sudah dibayar di invoice, jadi tidak dihapus. Hubungi kasir bila perlu dibatalkan.";
-        } elseif ($permintaan->status === 'requested') {
+        } elseif ($permintaan->status === 'requested' || optional($permintaan->radiologiTest)->dikerjakan_dokter) {
             $permintaan->billings()->delete();
             $permintaan->delete();
             $notes[] = "Permintaan {$nama} dari {$asal} dihapus; minta lagi bila tetap diperlukan.";
@@ -168,6 +174,14 @@ class KonsultasiBillingService
             $permintaan->update(['konsultasi_id' => null, 'sumber_konsultasi' => null]);
             $notes[] = "{$nama} sudah diproses radiologi, jadi tetap ditagih.";
         }
+    }
+
+    /** In a paid / partly paid invoice */
+    private function dibayar(RadiologiPermintaan $permintaan): bool
+    {
+        return DB::table('finance_invoice_items as ii')->join('finance_invoices as i', 'i.id', '=', 'ii.invoice_id')
+            ->where('ii.billable_type', RadiologiPermintaan::class)->where('ii.billable_id', $permintaan->id)
+            ->whereIn('i.status', ['paid', 'partial'])->exists();
     }
 
     /** Creates the permintaan with its billing, or takes over the existing one at this harga */
@@ -193,11 +207,14 @@ class KonsultasiBillingService
             'radiologi_test_id' => $test->id,
             'konsultasi_id' => $jasa->id,
             'sumber_konsultasi' => $sumber,
-            'status' => 'requested',
+            // Done by the dokter during the konsultasi: selesai, nothing for Lab to do
+            'status' => $test->dikerjakan_dokter ? 'completed' : 'requested',
             'dokter_id' => Auth::id(),
         ]);
         $permintaan->billings()->save(new Billing($billingValues));
-        $added[] = $test->nama;
+        if (!$test->dikerjakan_dokter) {
+            $added[] = $test->nama;
+        }
     }
 
     /** Same notification as a permintaan from E-Radiologi. Never fails the save. */

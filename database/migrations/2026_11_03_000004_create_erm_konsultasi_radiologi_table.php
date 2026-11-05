@@ -7,7 +7,9 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Radiologi picked together with the biaya konsultasi (one click for the dokter):
  * - tambahan: radiologi tests offered as optional add-ons in the "Pilih Biaya Konsultasi" popup, per spesialisasi
- *   (erm_radiologi_test.tambahan_konsultasi + erm_radiologi_test_spesialisasi), billed at their harga;
+ *   (erm_radiologi_test.tambahan_konsultasi + erm_radiologi_test_spesialisasi), billed at harga_tambahan (the
+ *   add-on price, cheaper than the harga of a request on its own); dikerjakan_dokter = done by the dokter himself
+ *   during the konsultasi (USG penyakit dalam): selesai at once, not sent to Lab;
  * - paket: a biaya konsultasi that includes radiologi (old "+ USG" items), pivot harga = its part of the harga, so
  *   the old invoices of those items still count their USG.
  * erm_radiologi_permintaan.konsultasi_id / sumber_konsultasi mark the permintaan made that way, so changing the
@@ -34,6 +36,12 @@ return new class extends Migration
         if (!Schema::hasColumn('erm_radiologi_test', 'tambahan_konsultasi')) {
             Schema::table('erm_radiologi_test', function (Blueprint $table) {
                 $table->boolean('tambahan_konsultasi')->default(false)->after('harga');
+            });
+        }
+        if (!Schema::hasColumn('erm_radiologi_test', 'harga_tambahan')) {
+            Schema::table('erm_radiologi_test', function (Blueprint $table) {
+                $table->decimal('harga_tambahan', 15, 2)->nullable()->after('tambahan_konsultasi');
+                $table->boolean('dikerjakan_dokter')->default(false)->after('harga_tambahan');
             });
         }
 
@@ -68,6 +76,11 @@ return new class extends Migration
             });
         }
         Schema::dropIfExists('erm_radiologi_test_spesialisasi');
+        if (Schema::hasColumn('erm_radiologi_test', 'harga_tambahan')) {
+            Schema::table('erm_radiologi_test', function (Blueprint $table) {
+                $table->dropColumn(['harga_tambahan', 'dikerjakan_dokter']);
+            });
+        }
         if (Schema::hasColumn('erm_radiologi_test', 'tambahan_konsultasi')) {
             Schema::table('erm_radiologi_test', function (Blueprint $table) {
                 $table->dropColumn('tambahan_konsultasi');
