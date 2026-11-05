@@ -100,7 +100,7 @@
         </tr>
         <tr>
             <td><strong>Bulan</strong></td><td>: {{ $bulanTahun }}</td>
-            <td></td><td></td>
+            <td><strong>Klinik</strong></td><td>: {{ $slip->klinik->nama ?? '-' }}</td>
         </tr>
     </table>
     <table style="width:100%; border:none; border-collapse:collapse;">

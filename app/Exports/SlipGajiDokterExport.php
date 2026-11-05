@@ -18,7 +18,7 @@ class SlipGajiDokterExport implements FromCollection, WithHeadings, ShouldAutoSi
     public function headings(): array
     {
         return [
-            'Dokter', 'Bulan',
+            'Dokter', 'Klinik', 'Bulan',
             'Jasa Konsultasi', 'Jasa Tindakan', 'Uang Duduk', 'Tunjangan Jabatan', 'Peresepan Obat', 'Rujuk Lab',
             'Pembuatan Konten', 'Overtime', 'Pendapatan Tambahan', 'Rincian Pendapatan Tambahan', 'Total Pendapatan',
             'Bagi Hasil', 'Pot Pajak', 'Potongan Lain', 'Total Potongan', 'Total Gaji', 'Status',
@@ -36,6 +36,7 @@ class SlipGajiDokterExport implements FromCollection, WithHeadings, ShouldAutoSi
 
             return [
                 optional(optional($s->dokter)->user)->name ?? ('Dokter ' . $s->dokter_id),
+                optional($s->klinik)->nama ?? '-',
                 $s->bulan,
                 $num($s->jasa_konsultasi),
                 $num($s->jasa_tindakan),
@@ -61,7 +62,7 @@ class SlipGajiDokterExport implements FromCollection, WithHeadings, ShouldAutoSi
     public function columnFormats(): array
     {
         $formats = [];
-        foreach (['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'M', 'N', 'O', 'P', 'Q', 'R'] as $col) {
+        foreach (['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'N', 'O', 'P', 'Q', 'R', 'S'] as $col) {
             $formats[$col] = '#,##0.00';
         }
         return $formats;

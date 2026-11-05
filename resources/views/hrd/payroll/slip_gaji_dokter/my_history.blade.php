@@ -42,6 +42,7 @@
                             <tr>
                                 <th style="display:none;">Sort</th>
                                 <th>Bulan</th>
+                                <th>Klinik</th>
                                 <th>Total Pendapatan</th>
                                 <th>Total Potongan</th>
                                 <th>Total Gaji</th>
@@ -89,6 +90,7 @@
             columns: [
                 { data: 'bulan', visible: false },
                 { data: 'bulan_label', orderData: [0] },
+                { data: 'klinik_nama', render: function(d, type){ return type === 'display' ? $('<div>').text(d).html() : d; } },
                 { data: 'total_pendapatan', className: 'text-right text-nowrap', render: money },
                 { data: 'total_potongan', className: 'text-right text-nowrap', render: money },
                 { data: 'total_gaji', className: 'text-right text-nowrap font-weight-bold', render: function(d, type, row){

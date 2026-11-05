@@ -12,6 +12,7 @@ class PrSlipGajiDokter extends Model
 
     protected $fillable = [
         'dokter_id',
+        'klinik_id',
         'bulan',
         'jasa_konsultasi',
         'jasa_tindakan',
@@ -56,5 +57,10 @@ class PrSlipGajiDokter extends Model
     public function dokter()
     {
         return $this->belongsTo(\App\Models\ERM\Dokter::class, 'dokter_id');
+    }
+
+    public function klinik()
+    {
+        return $this->belongsTo(\App\Models\ERM\Klinik::class, 'klinik_id');
     }
 }

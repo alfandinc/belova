@@ -85,7 +85,7 @@ class PrSlipGajiDokterController extends Controller
         $bulan = $request->get('bulan');
         $status = strtolower(trim((string) $request->get('status', '')));
         // eager load dokter.user so we can display dokter's user name in the table
-        $query = PrSlipGajiDokter::with(['dokter.user'])->orderBy('id', 'desc');
+        $query = PrSlipGajiDokter::with(['dokter.user', 'klinik'])->orderBy('id', 'desc');
         if ($bulan) {
             $query->where('bulan', $bulan);
         }
@@ -100,20 +100,22 @@ class PrSlipGajiDokterController extends Controller
         $user = Auth::user();
         $rows = $this->filteredQuery($request)->get();
 
-        // last month's total per dokter (for the CEO comparison)
+        // last month's total per dokter per klinik (for the CEO comparison)
         $prevTotals = collect();
         if ($request->get('bulan') && preg_match('/^\d{4}-\d{2}$/', $request->get('bulan'))) {
             $prevBulan = \Carbon\Carbon::createFromFormat('Y-m-d', $request->get('bulan') . '-01')->subMonth()->format('Y-m');
             $prevTotals = PrSlipGajiDokter::where('bulan', $prevBulan)
                 ->whereIn('dokter_id', $rows->pluck('dokter_id')->filter()->unique())
-                ->pluck('total_gaji', 'dokter_id');
+                ->get(['dokter_id', 'klinik_id', 'total_gaji'])
+                ->mapWithKeys(fn($s) => [$s->dokter_id . '|' . $s->klinik_id => $s->total_gaji]);
         }
 
         $rows->each(function ($row) use ($user, $prevTotals) {
+            $prevKey = $row->dokter_id . '|' . $row->klinik_id;
             $row->status_gaji = $this->normalizeStatus($row->status_gaji);
             $row->setAttribute('allowed_transitions', $this->allowedTransitions($user, $row->status_gaji));
             $row->setAttribute('editable', $this->isEditable($row) && $this->isPayrollOperator($user));
-            $row->setAttribute('last_month_total_gaji', $prevTotals->has($row->dokter_id) ? (float) $prevTotals[$row->dokter_id] : null);
+            $row->setAttribute('last_month_total_gaji', $prevTotals->has($prevKey) ? (float) $prevTotals[$prevKey] : null);
         });
 
         return response()->json([
@@ -125,7 +127,7 @@ class PrSlipGajiDokterController extends Controller
     public function export(Request $request)
     {
         $rows = $this->filteredQuery($request)->get()->sortBy(function ($s) {
-            return optional(optional($s->dokter)->user)->name;
+            return optional(optional($s->dokter)->user)->name . '|' . optional($s->klinik)->nama;
         })->values();
         $bulan = $request->get('bulan') ?: 'semua';
 
@@ -142,6 +144,7 @@ class PrSlipGajiDokterController extends Controller
     {
         $rules = [
             'dokter_id' => 'required|integer|exists:erm_dokters,id',
+            'klinik_id' => 'required|integer|exists:erm_klinik,id',
             'bulan' => ['required', 'string', 'regex:/^\d{4}-\d{2}$/'],
             'jasmed_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'pot_pajak' => 'nullable|numeric',
@@ -156,17 +159,41 @@ class PrSlipGajiDokterController extends Controller
         return $request->validate($rules, [
             'dokter_id.required' => 'Dokter wajib dipilih.',
             'dokter_id.exists' => 'Dokter tidak ditemukan.',
+            'klinik_id.required' => 'Klinik wajib dipilih.',
+            'klinik_id.exists' => 'Klinik tidak ditemukan.',
             'bulan.regex' => 'Format bulan harus YYYY-MM.',
             'jasmed_file.mimes' => 'Lampiran harus berupa PDF, JPG, atau PNG.',
         ]);
     }
 
     /**
-     * One slip per dokter per bulan.
+     * Kliniks the dokter practises in, default klinik first.
      */
-    protected function duplicateSlipExists($dokterId, $bulan, $ignoreId = null)
+    protected function kliniksOfDokter(Dokter $dokter)
+    {
+        return collect([$dokter->klinik])->filter()->merge($dokter->kliniks)->unique('id')->values();
+    }
+
+    /**
+     * The klinik must be one of the dokter's, unless the slip already had this dokter & klinik
+     * (older slips stay editable after the dokter stops practising there).
+     */
+    protected function klinikAllowed($dokterId, $klinikId, ?PrSlipGajiDokter $slip = null)
+    {
+        if ($slip && (int) $slip->dokter_id === (int) $dokterId && (int) $slip->klinik_id === (int) $klinikId) {
+            return true;
+        }
+        return $this->kliniksOfDokter(Dokter::with('klinik', 'kliniks')->findOrFail($dokterId))
+            ->contains('id', (int) $klinikId);
+    }
+
+    /**
+     * One slip per dokter per klinik per bulan.
+     */
+    protected function duplicateSlipExists($dokterId, $klinikId, $bulan, $ignoreId = null)
     {
         return PrSlipGajiDokter::where('dokter_id', $dokterId)
+            ->where('klinik_id', $klinikId)
             ->where('bulan', $bulan)
             ->when($ignoreId, function ($q) use ($ignoreId) {
                 $q->where('id', '!=', $ignoreId);
@@ -235,15 +262,20 @@ class PrSlipGajiDokterController extends Controller
 
         $validated = $this->validateSlip($request);
 
-        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['bulan'])) {
+        if (!$this->klinikAllowed($validated['dokter_id'], $validated['klinik_id'])) {
+            return response()->json(['success' => false, 'message' => 'Dokter ini tidak terdaftar di klinik tersebut.'], 422);
+        }
+
+        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['klinik_id'], $validated['bulan'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Slip gaji untuk dokter ini pada bulan tersebut sudah ada. Silakan edit slip yang sudah ada.'
+                'message' => 'Slip gaji untuk dokter ini di klinik tersebut pada bulan tersebut sudah ada. Silakan edit slip yang sudah ada.'
             ], 422);
         }
 
         $slip = new PrSlipGajiDokter();
         $slip->dokter_id = $validated['dokter_id'];
+        $slip->klinik_id = $validated['klinik_id'];
         $slip->bulan = $validated['bulan'];
         // new slips always start as Draft; status changes go through changeStatus()
         $slip->status_gaji = 'draft';
@@ -259,16 +291,16 @@ class PrSlipGajiDokterController extends Controller
 
     public function show($id)
     {
-        $slip = PrSlipGajiDokter::with('dokter')->findOrFail($id);
+        $slip = PrSlipGajiDokter::with(['dokter', 'klinik'])->findOrFail($id);
         return response()->json(['data' => $slip]);
     }
 
     /**
-     * Return basic dokter info used by the create/edit JS (klinik_id).
+     * Return basic dokter info used by the create/edit JS (klinik_id, kliniks).
      */
     public function dokterInfo($id)
     {
-        $dokter = Dokter::with('klinik')->find($id);
+        $dokter = Dokter::with('klinik', 'kliniks')->find($id);
         if (!$dokter) {
             return response()->json(['data' => null], 404);
         }
@@ -276,6 +308,7 @@ class PrSlipGajiDokterController extends Controller
             'id' => $dokter->id,
             'klinik_id' => $dokter->klinik_id,
             'klinik' => $dokter->klinik ? ['id' => $dokter->klinik->id, 'nama' => $dokter->klinik->nama ?? null] : null,
+            'kliniks' => $this->kliniksOfDokter($dokter)->map(fn($k) => ['id' => $k->id, 'nama' => $k->nama])->all(),
         ]]);
     }
 
@@ -292,14 +325,19 @@ class PrSlipGajiDokterController extends Controller
 
         $validated = $this->validateSlip($request);
 
-        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['bulan'], $slip->id)) {
+        if (!$this->klinikAllowed($validated['dokter_id'], $validated['klinik_id'], $slip)) {
+            return response()->json(['success' => false, 'message' => 'Dokter ini tidak terdaftar di klinik tersebut.'], 422);
+        }
+
+        if ($this->duplicateSlipExists($validated['dokter_id'], $validated['klinik_id'], $validated['bulan'], $slip->id)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Slip gaji untuk dokter ini pada bulan tersebut sudah ada.'
+                'message' => 'Slip gaji untuk dokter ini di klinik tersebut pada bulan tersebut sudah ada.'
             ], 422);
         }
 
         $slip->dokter_id = $validated['dokter_id'];
+        $slip->klinik_id = $validated['klinik_id'];
         $slip->bulan = $validated['bulan'];
         $this->fillAmounts($slip, $request);
 
@@ -432,7 +470,7 @@ class PrSlipGajiDokterController extends Controller
         }
 
         $year = (string) $request->input('year');
-        $query = PrSlipGajiDokter::where('dokter_id', $dokter->id)->where('status_gaji', 'paid');
+        $query = PrSlipGajiDokter::with('klinik')->where('dokter_id', $dokter->id)->where('status_gaji', 'paid');
         if (preg_match('/^\d{4}$/', $year)) {
             $query->where('bulan', 'like', $year . '-%');
         }
@@ -442,7 +480,8 @@ class PrSlipGajiDokterController extends Controller
 
         $data = $rows->map(function ($s, $i) use ($rows, $months) {
             $m = (int) substr((string) $s->bulan, 5, 2);
-            $prev = $rows->get($i + 1);
+            // previous slip of the same klinik (a month can hold one slip per klinik)
+            $prev = $rows->slice($i + 1)->firstWhere('klinik_id', $s->klinik_id);
             $trend = null;
             if ($prev) {
                 $trend = $s->total_gaji > $prev->total_gaji ? 'up' : ($s->total_gaji < $prev->total_gaji ? 'down' : 'same');
@@ -451,6 +490,7 @@ class PrSlipGajiDokterController extends Controller
                 'id' => $s->id,
                 'bulan' => $s->bulan,
                 'bulan_label' => ($months[$m] ?? $s->bulan) . ' ' . substr((string) $s->bulan, 0, 4),
+                'klinik_nama' => optional($s->klinik)->nama ?? '-',
                 'total_pendapatan' => (float) $s->total_pendapatan,
                 'total_potongan' => (float) $s->total_potongan,
                 'total_gaji' => (float) $s->total_gaji,
@@ -473,7 +513,7 @@ class PrSlipGajiDokterController extends Controller
             return redirect()->route('hrd.payroll.slip_gaji_dokter.my');
         }
 
-        $slip = PrSlipGajiDokter::with('dokter.user')
+        $slip = PrSlipGajiDokter::with(['dokter.user', 'klinik'])
             ->where('id', $id)
             ->where('dokter_id', $dokter->id)
             ->where('status_gaji', 'paid')
@@ -484,7 +524,7 @@ class PrSlipGajiDokterController extends Controller
 
     public function print($id)
     {
-        $slip = PrSlipGajiDokter::with('dokter.user')->findOrFail($id);
+        $slip = PrSlipGajiDokter::with(['dokter.user', 'klinik'])->findOrFail($id);
         return $this->renderSlipPdf($slip);
     }
 
@@ -530,7 +570,9 @@ class PrSlipGajiDokterController extends Controller
 
             $dokterName = $slip->dokter && $slip->dokter->user ? $slip->dokter->user->name : 'dokter';
             // names contain dots/commas ("dr. X, Sp.PD") -> keep the header filename safe
-            $filename = 'slip-gaji-dokter-' . trim(preg_replace('/[^A-Za-z0-9_\-]+/', '-', $dokterName), '-') . '-' . $slip->bulan . '.pdf';
+            $safeName = fn($name) => trim(preg_replace('/[^A-Za-z0-9_\-]+/', '-', (string) $name), '-');
+            $klinikPart = $slip->klinik ? $safeName($slip->klinik->nama) . '-' : '';
+            $filename = 'slip-gaji-dokter-' . $safeName($dokterName) . '-' . $klinikPart . $slip->bulan . '.pdf';
 
             if ($attachmentPath) {
                 $mime = @mime_content_type($attachmentPath) ?: 'application/octet-stream';

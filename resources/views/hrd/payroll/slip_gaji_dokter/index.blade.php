@@ -49,6 +49,7 @@
                                     <tr>
                                         <th>No.</th>
                                         <th>Dokter</th>
+                                        <th>Klinik</th>
                                         <th>Bulan</th>
                                         <th>Total Pendapatan</th>
                                         <th>Total Potongan</th>
@@ -143,6 +144,10 @@
                     if (data.dokter && data.dokter.user && data.dokter.user.name) name = data.dokter.user.name;
                     else if (data.dokter && data.dokter.id) name = 'Dokter ' + data.dokter.id;
                     return type === 'display' ? escapeHtml(name) : name;
+                }, defaultContent: '-' },
+                { data: null, render: function(data, type){
+                    var klinik = data.klinik && data.klinik.nama ? data.klinik.nama : '-';
+                    return type === 'display' ? escapeHtml(klinik) : klinik;
                 }, defaultContent: '-' },
                 { data: 'bulan' },
                 { data: 'total_pendapatan', className: 'text-right text-nowrap', render: function(d, type){ return type === 'display' ? formatRupiah(d) : d; } },
@@ -249,11 +254,11 @@
             $('#jasmed_file').val('');
             // pot pajak starts in auto (2.5%) mode
             $('#pot_pajak').data('manual', false);
-            setFieldVisibility('', 0);
+            fetchAndApplyDokter('', '');
             $('#createSlipModal').modal('show');
         });
 
-        // Adjust visible pendapatan fields based on dokter's klinik
+        // Adjust visible pendapatan fields based on the slip's klinik
         function setFieldVisibility(prefix, klinikId) {
             // prefix: '' for create, 'edit_' for edit
             const hideExtra = (parseInt(klinikId) === 2);
@@ -273,21 +278,44 @@
             });
         }
 
-        // Fetch dokter klinik and apply visibility for create & edit
-        function fetchAndApplyDokter(dokterId, prefix) {
+        function formIdPrefix(prefix) {
+            return prefix === 'edit_' ? 'edit_' : 'create_';
+        }
+
+        // Fill the klinik select with the dokter's kliniks; a dokter with one klinik gets it selected.
+        // selected: the slip's stored klinik {id, nama} when editing (kept even if the dokter left that klinik)
+        function fillKlinikOptions(prefix, kliniks, selected) {
+            const $select = $('#' + formIdPrefix(prefix) + 'klinik_id');
+            const list = kliniks.slice();
+            if (selected && selected.id && !list.some(function(k){ return k.id == selected.id; })) {
+                list.push(selected);
+            }
+            let html = '<option value="">-- Pilih Klinik --</option>';
+            list.forEach(function(k){
+                html += '<option value="' + k.id + '">' + escapeHtml(k.nama) + '</option>';
+            });
+            $select.html(html);
+            if (selected && selected.id) {
+                $select.val(selected.id);
+            } else if (list.length === 1) {
+                $select.val(list[0].id);
+            }
+            setFieldVisibility(prefix, $select.val() || 0);
+        }
+
+        // Fetch dokter's kliniks and apply visibility for create & edit
+        function fetchAndApplyDokter(dokterId, prefix, selected) {
+            fillKlinikOptions(prefix, [], selected);
             if (!dokterId) {
                 // default: show all
-                setFieldVisibility(prefix, 0);
                 recalcTotalsFor(prefix);
                 return;
             }
             $.get(`{{ url('hrd/payroll/slip-gaji-dokter/dokter') }}/${dokterId}`)
                 .done(function(res){
-                    const klinikId = res && res.data ? res.data.klinik_id : null;
-                    setFieldVisibility(prefix, klinikId);
-                }).fail(function(){
-                    // on error, default to show all
-                    setFieldVisibility(prefix, 0);
+                    // a newer dokter was picked while this request was running
+                    if ($('#' + formIdPrefix(prefix) + 'dokter_id').val() != dokterId) return;
+                    fillKlinikOptions(prefix, res && res.data && res.data.kliniks ? res.data.kliniks : [], selected);
                 }).always(function(){
                     // hidden fields may have been zeroed -> refresh totals
                     recalcTotalsFor(prefix);
@@ -300,6 +328,14 @@
         });
         $(document).on('change', '#edit_dokter_id', function(){
             fetchAndApplyDokter($(this).val(), 'edit_');
+        });
+        $(document).on('change', '#create_klinik_id', function(){
+            setFieldVisibility('', $(this).val() || 0);
+            recalcTotalsFor('');
+        });
+        $(document).on('change', '#edit_klinik_id', function(){
+            setFieldVisibility('edit_', $(this).val() || 0);
+            recalcTotalsFor('edit_');
         });
 
         // helper: parse float safe
@@ -526,8 +562,9 @@
                 const storedPajak = parseFloat(data.pot_pajak || 0);
                 const computedPajak = computePotPajak('edit_').potPajak;
                 $('#edit_pot_pajak').val(storedPajak.toFixed(2)).data('manual', Math.abs(storedPajak - computedPajak) > 0.01);
-                // adjust visible fields according to dokter's klinik (recalcs totals when done)
-                fetchAndApplyDokter(data.dokter_id, 'edit_');
+                // load the dokter's kliniks and adjust visible fields for the slip's klinik (recalcs totals when done)
+                const storedKlinik = data.klinik_id ? { id: data.klinik_id, nama: data.klinik && data.klinik.nama ? data.klinik.nama : ('Klinik ' + data.klinik_id) } : null;
+                fetchAndApplyDokter(data.dokter_id, 'edit_', storedKlinik);
                 recalcTotalsFor('edit_');
                 $('#editSlipModal').modal('show');
             };
@@ -651,6 +688,13 @@
                                         <option value="{{ $d->id }}">{{ $d->user->name ?? ('Dokter ' . $d->id) }}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Klinik <span class="text-danger">*</span></label>
+                                <select name="klinik_id" id="create_klinik_id" class="form-control" required>
+                                    <option value="">-- Pilih Klinik --</option>
+                                </select>
+                                <small class="text-muted">Dokter yang praktik di beberapa klinik dibuatkan 1 slip untuk tiap klinik.</small>
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -792,6 +836,12 @@
                                     @foreach($dokters as $d)
                                         <option value="{{ $d->id }}">{{ $d->user->name ?? ('Dokter ' . $d->id) }}{{ $d->is_active === false ? ' (nonaktif)' : '' }}</option>
                                     @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Klinik <span class="text-danger">*</span></label>
+                                <select name="klinik_id" id="edit_klinik_id" class="form-control" required>
+                                    <option value="">-- Pilih Klinik --</option>
                                 </select>
                             </div>
                         </div>
