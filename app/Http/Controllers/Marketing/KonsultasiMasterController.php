@@ -27,9 +27,7 @@ class KonsultasiMasterController extends Controller
         $radiologiTests = $hasRadiologi ? RadiologiTest::orderBy('nama')->get(['id', 'nama', 'harga']) : collect();
         // Used in a billing / invoice: can not be deleted. Paket radiologi already billed: its radiologi is locked.
         $dipakaiIds = self::dipakaiQuery()->flip();
-        $terkunciIds = $hasRadiologi
-            ? RadiologiPermintaan::whereNotNull('konsultasi_id')->distinct()->pluck('konsultasi_id')->flip()
-            : collect();
+        $terkunciIds = $hasRadiologi ? self::radiologiTerkunciIds($dipakaiIds->keys()->all())->flip() : collect();
 
         return view('marketing.konsultasi.index', compact('konsultasis', 'spesialisasis', 'hasSpesialisasi', 'hasRadiologi', 'radiologiTests', 'dipakaiIds', 'terkunciIds'));
     }
@@ -137,12 +135,26 @@ class KonsultasiMasterController extends Controller
     }
 
     /**
-     * Once a paket created radiologi permintaan, its radiologi (test + harga) is fixed: the rekap counts the
+     * Paket whose radiologi is fixed: used in a billing / invoice (the rekap counts those transactions with it) and
+     * set before today (the day it is set it can still be corrected), or that already created paket permintaan.
+     */
+    private static function radiologiTerkunciIds(array $dipakaiIds)
+    {
+        $lama = $dipakaiIds ? DB::table('erm_konsultasi_radiologi')->whereIn('konsultasi_id', $dipakaiIds)
+            ->where('created_at', '<', now()->startOfDay())->distinct()->pluck('konsultasi_id') : collect();
+        $paket = RadiologiPermintaan::where('sumber_konsultasi', RadiologiPermintaan::SUMBER_PAKET)->distinct()->pluck('konsultasi_id');
+
+        return $lama->concat($paket)->map(fn ($id) => (int) $id)->unique()->values();
+    }
+
+    /**
+     * Once a paket is locked (see radiologiTerkunciIds), its radiologi (test + harga) is fixed: the rekap counts the
      * invoices from before the paket with it, so changing it would rewrite history. A new rule = a new item.
      */
     private function assertRadiologiTidakBerubah(Konsultasi $konsultasi, array $validated): void
     {
-        if (!Konsultasi::hasRadiologiPaket() || !RadiologiPermintaan::where('konsultasi_id', $konsultasi->id)->exists()) {
+        if (!Konsultasi::hasRadiologiPaket()
+            || self::radiologiTerkunciIds(self::dipakaiQuery($konsultasi->id)->all())->doesntContain($konsultasi->id)) {
             return;
         }
         $lama = $konsultasi->radiologiTests()->get()->mapWithKeys(fn ($t) => [$t->id => round((float) $t->pivot->harga, 2)])->sortKeys()->all();

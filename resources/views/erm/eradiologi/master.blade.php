@@ -12,7 +12,7 @@
 <div class="container-fluid">
     <div class="mt-3 mb-3">
         <h4 class="page-title mb-0">Master Radiologi</h4>
-        <small class="text-muted">Pemeriksaan radiologi dan kategorinya. <strong>Harga normal</strong> dipakai bila dokter meminta lewat E-Radiologi; di paket biaya konsultasi (mis. + USG) berlaku harga paketnya.</small>
+        <small class="text-muted">Pemeriksaan radiologi dan kategorinya. Pemeriksaan bertanda <strong>Tambahan konsultasi</strong> bisa dicentang dokter langsung di popup Pilih Biaya Konsultasi (mis. + USG), ditagih dengan harganya.</small>
     </div>
 
     <div class="row">
@@ -33,6 +33,7 @@
                                 <th>Pemeriksaan</th>
                                 <th>Kategori</th>
                                 <th class="text-right">Harga Normal</th>
+                                <th>Tambahan Konsultasi</th>
                                 <th>Paket Biaya Konsultasi</th>
                                 <th class="text-right">Dipakai</th>
                                 <th class="text-right" style="width:1%">Aksi</th>
@@ -84,6 +85,22 @@
                         </div>
                         <small class="form-text text-muted">Harga bila diminta terpisah di E-Radiologi. Mengubahnya tidak mengubah permintaan / invoice yang sudah ada.</small>
                     </div>
+                    @if($hasTambahan)
+                    <div class="form-group">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="testTambahan">
+                            <label class="custom-control-label" for="testTambahan">Tampil sebagai <b>tambahan</b> di pilihan biaya konsultasi</label>
+                        </div>
+                        <div id="testSpesialisasiWrap" class="mt-2" style="display:none">
+                            <select id="testSpesialisasi" multiple style="width:100%">
+                                @foreach($spesialisasis as $sp)
+                                    <option value="{{ $sp->id }}">{{ $sp->nama }}</option>
+                                @endforeach
+                            </select>
+                            <small class="form-text text-muted">Hanya dokter spesialisasi ini yang melihatnya (mis. USG untuk Penyakit Dalam). Ditagih dengan harga di atas.</small>
+                        </div>
+                    </div>
+                    @endif
                     <div class="form-group mb-0">
                         <label for="testDeskripsi">Deskripsi <small class="text-muted">(opsional)</small></label>
                         <textarea class="form-control" id="testDeskripsi" rows="2" maxlength="2000"></textarea>
@@ -130,6 +147,14 @@ $(function () {
             { data: 'kategori', render: function (d) { return esc(d || '-'); } },
             { data: 'harga', className: 'text-right', render: function (d, t) { return t === 'display' ? rupiah(d) : d; } },
             {
+                data: 'spesialisasi', orderable: false, render: function (d, t, r) {
+                    if (t !== 'display') return r.tambahan ? 'ya' : '';
+                    return r.tambahan
+                        ? (d || []).map(function (s) { return '<span class="badge badge-soft-primary mr-1">' + esc(s.nama) + '</span>'; }).join('')
+                        : '<span class="text-muted">-</span>';
+                }
+            },
+            {
                 data: 'paket', orderable: false, render: function (d, t) {
                     if (t !== 'display') return (d || []).map(function (p) { return p.nama; }).join(' ');
                     return (d || []).length
@@ -150,6 +175,11 @@ $(function () {
         ]
     });
     var tests = {};
+
+    if ($.fn.select2) {
+        $('#testSpesialisasi').select2({ dropdownParent: $('#testModal'), placeholder: 'Pilih spesialisasi...', width: '100%' });
+    }
+    $('#testTambahan').on('change', function () { $('#testSpesialisasiWrap').toggle(this.checked); });
 
     function renderKategori() {
         var html = kategoris.map(function (k) {
@@ -190,6 +220,8 @@ $(function () {
         $('#testKategori').val(t ? t.kategori_id : ($('#mrFilterKategori').val() || ''));
         $('#testHarga').val(t ? t.harga : '');
         $('#testDeskripsi').val(t ? t.deskripsi : '');
+        $('#testTambahan').prop('checked', !!(t && t.tambahan)).trigger('change');
+        $('#testSpesialisasi').val(t ? (t.spesialisasi || []).map(function (s) { return String(s.id); }) : []).trigger('change');
         $('#testModalLabel').text(t ? 'Edit Pemeriksaan' : 'Tambah Pemeriksaan');
         $('#testModal').modal('show');
     }
@@ -200,6 +232,10 @@ $(function () {
         e.preventDefault();
         var id = $('#testId').val();
         var data = { nama: $('#testNama').val(), radiologi_kategori_id: $('#testKategori').val(), harga: $('#testHarga').val(), deskripsi: $('#testDeskripsi').val() };
+        if ($('#testTambahan').length) {
+            data.tambahan_konsultasi = $('#testTambahan').is(':checked') ? 1 : 0;
+            data.spesialisasi_ids = data.tambahan_konsultasi ? ($('#testSpesialisasi').val() || []) : [];
+        }
         var $btn = $(this).find('[type=submit]').prop('disabled', true);
         send(id ? 'PUT' : 'POST', id ? urls.test + '/' + id : urls.test, data)
             .done(function (res) { $('#testModal').modal('hide'); ok(res); })

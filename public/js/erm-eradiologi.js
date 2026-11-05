@@ -5,7 +5,7 @@ $(document).ready(function () {
     const visitationId = cfg.visitationId;
     // radiologi_test_id => status of what is already saved for this visit
     const existingStatuses = cfg.existingStatuses;
-    // Tests from a paket biaya konsultasi (e.g. Konsultasi + USG): follow the jenis konsultasi, billed at the paket harga
+    // Tests picked with the biaya konsultasi (paket or tambahan, e.g. + USG): follow that choice, billed at their own harga
     let paketTests = cfg.paketTests || {};
     // Diproses / Selesai is set by the lab; the others only see it
     const canEditStatus = cfg.canEditStatus;
@@ -48,7 +48,9 @@ $(document).ready(function () {
 
     function lockTitle(testId) {
         const paket = paketOf(testId);
-        return paket ? 'Bagian dari paket ' + (paket.konsultasi || 'konsultasi') + ': ganti jenis konsultasi untuk menghapus' : 'Sudah diproses, tidak bisa dihapus';
+        if (!paket) return 'Sudah diproses, tidak bisa dihapus';
+        return (paket.sumber === 'tambahan' ? 'Tambahan biaya konsultasi' : 'Bagian dari paket ' + (paket.konsultasi || 'konsultasi'))
+            + ': ubah lewat pilihan biaya konsultasi';
     }
 
     function applyLocks() {

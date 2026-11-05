@@ -350,6 +350,9 @@
     const konsultasiOptions = @json($konsultasiPopupOptions);
     const konsultasiItems = @json($konsultasiItems);
     let selectedJenisKonsultasi = @json($defaultJenisKonsultasi);
+    // Radiologi the dokter may tick under the konsultasi (e.g. + USG), and the ones already ticked
+    const radiologiTambahan = @json($radiologiTambahan[0] ?? []);
+    let selectedTambahan = @json($radiologiTambahan[1] ?? []);
 
     function updateTimer() {
         const hours = String(Math.floor(secondsElapsed / 3600)).padStart(2, '0');
@@ -380,6 +383,13 @@
         timerInterval = setInterval(updateTimer, 1000);
     }
 
+    function appendTambahan(formData) {
+        if (!radiologiTambahan.length) return;
+        formData.set('radiologi_tambahan_kirim', '1');
+        formData.delete('radiologi_tambahan[]');
+        selectedTambahan.forEach(function (id) { formData.append('radiologi_tambahan[]', id); });
+    }
+
     async function promptJenisKonsultasi() {
         const availableOptions = Object.keys(konsultasiOptions);
 
@@ -398,12 +408,14 @@
         }
 
         // Card list (name + harga), see erm.partials.konsultasi-picker
-        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi);
+        const pickerOpts = { tambahan: radiologiTambahan, tambahanSelected: selectedTambahan };
+        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi, pickerOpts);
         if (!chosen) {
             return null;
         }
 
         selectedJenisKonsultasi = chosen;
+        selectedTambahan = pickerOpts.tambahanChosen || [];
         return chosen;
     }
 
@@ -550,6 +562,7 @@
         let form = $(this);
         let formData = new FormData(this);
         formData.set('jenis_konsultasi', jenisKonsultasi);
+        appendTambahan(formData);
         // Guard against double submit while saving
         let saveBtn = $('#btn-simpan-asesmen-dokter');
         if (saveBtn.prop('disabled')) {

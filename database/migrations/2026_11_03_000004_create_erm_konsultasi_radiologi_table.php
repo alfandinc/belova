@@ -5,9 +5,13 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Biaya konsultasi that include radiologi (e.g. "Konsultasi PD + USG"): picking it creates the radiologi permintaan
- * with the harga given here, the konsultasi billing being the rest. erm_radiologi_permintaan.konsultasi_id marks the
- * permintaan made that way, so changing the jenis konsultasi removes only those.
+ * Radiologi picked together with the biaya konsultasi (one click for the dokter):
+ * - tambahan: radiologi tests offered as optional add-ons in the "Pilih Biaya Konsultasi" popup, per spesialisasi
+ *   (erm_radiologi_test.tambahan_konsultasi + erm_radiologi_test_spesialisasi), billed at their harga;
+ * - paket: a biaya konsultasi that includes radiologi (old "+ USG" items), pivot harga = its part of the harga, so
+ *   the old invoices of those items still count their USG.
+ * erm_radiologi_permintaan.konsultasi_id / sumber_konsultasi mark the permintaan made that way, so changing the
+ * choice removes only those.
  */
 return new class extends Migration
 {
@@ -27,9 +31,29 @@ return new class extends Migration
             });
         }
 
+        if (!Schema::hasColumn('erm_radiologi_test', 'tambahan_konsultasi')) {
+            Schema::table('erm_radiologi_test', function (Blueprint $table) {
+                $table->boolean('tambahan_konsultasi')->default(false)->after('harga');
+            });
+        }
+
+        if (!Schema::hasTable('erm_radiologi_test_spesialisasi')) {
+            Schema::create('erm_radiologi_test_spesialisasi', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('radiologi_test_id');
+                $table->unsignedBigInteger('spesialisasi_id');
+                $table->timestamps();
+
+                $table->unique(['radiologi_test_id', 'spesialisasi_id'], 'radiologi_test_spesialisasi_unique');
+                $table->foreign('radiologi_test_id')->references('id')->on('erm_radiologi_test')->cascadeOnDelete();
+                $table->foreign('spesialisasi_id')->references('id')->on('erm_spesialisasis')->cascadeOnDelete();
+            });
+        }
+
         if (!Schema::hasColumn('erm_radiologi_permintaan', 'konsultasi_id')) {
             Schema::table('erm_radiologi_permintaan', function (Blueprint $table) {
                 $table->unsignedBigInteger('konsultasi_id')->nullable()->after('radiologi_test_id');
+                $table->enum('sumber_konsultasi', ['paket', 'tambahan'])->nullable()->after('konsultasi_id');
                 $table->index('konsultasi_id');
             });
         }
@@ -40,7 +64,13 @@ return new class extends Migration
         if (Schema::hasColumn('erm_radiologi_permintaan', 'konsultasi_id')) {
             Schema::table('erm_radiologi_permintaan', function (Blueprint $table) {
                 $table->dropIndex(['konsultasi_id']);
-                $table->dropColumn('konsultasi_id');
+                $table->dropColumn(['konsultasi_id', 'sumber_konsultasi']);
+            });
+        }
+        Schema::dropIfExists('erm_radiologi_test_spesialisasi');
+        if (Schema::hasColumn('erm_radiologi_test', 'tambahan_konsultasi')) {
+            Schema::table('erm_radiologi_test', function (Blueprint $table) {
+                $table->dropColumn('tambahan_konsultasi');
             });
         }
         Schema::dropIfExists('erm_konsultasi_radiologi');

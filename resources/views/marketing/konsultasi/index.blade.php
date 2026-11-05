@@ -141,19 +141,19 @@
                     </div>
                     <div class="form-group mb-0">
                         <label class="d-flex justify-content-between align-items-center">
-                            <span>Termasuk radiologi <small class="text-muted">(paket, mis. + USG)</small></span>
+                            <span>Termasuk radiologi <small class="text-muted">(item paket lama, mis. + USG)</small></span>
                             <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddRadiologi" @unless($hasRadiologi) disabled @endunless>
                                 <i class="mdi mdi-plus"></i> Radiologi
                             </button>
                         </label>
                         <div class="alert alert-warning py-1 px-2 small mb-2 d-none" id="radiologiLocked">
-                            <i class="mdi mdi-lock"></i> Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah (riwayat USG lama tetap benar).
+                            <i class="mdi mdi-lock"></i> Radiologi paket ini sudah dipakai transaksi, jadi tidak bisa diubah lagi (koreksi hanya di hari pengisian) agar riwayat USG lama tetap benar.
                             Untuk aturan baru: buat item baru, lalu centang <b>Nonaktif</b> di item ini. Harga paket tetap boleh diubah.
                         </div>
                         <div id="radiologiRows"></div>
                         <small class="form-text text-muted" id="radiologiInfo">
                             @if($hasRadiologi)
-                                Saat dokter memilih konsultasi ini, permintaan radiologinya dibuat otomatis dengan harga di sini; tagihan konsultasi = harga dikurangi radiologi.
+                                Hanya untuk item yang harganya sudah termasuk radiologi, agar USG di transaksinya tercatat. Untuk konsultasi baru tidak perlu: centang <b>Tambahan konsultasi</b> di Master Radiologi, dokter tinggal mencentang USG di popup.
                             @else
                                 Belum aktif: jalankan migration dulu.
                             @endif

@@ -19,9 +19,9 @@ use Yajra\DataTables\Facades\DataTables;
 
 class EradiologiController extends Controller
 {
-    private const PAKET_MESSAGE = 'Pemeriksaan ini bagian dari paket biaya konsultasi. Ganti jenis konsultasi untuk menghapusnya.';
+    private const PAKET_MESSAGE = 'Pemeriksaan ini dipilih bersama biaya konsultasi. Hapus lewat pilihan biaya konsultasi (simpan ulang Asesmen / CPPT).';
 
-    /** radiologi_test_id => [harga, konsultasi] of the visit's permintaan that come from a paket biaya konsultasi */
+    /** radiologi_test_id => [harga, konsultasi, sumber] of the visit's permintaan picked with the biaya konsultasi */
     private function paketTests($visitationId): array
     {
         if (!\App\Models\ERM\Konsultasi::hasRadiologiPaket()) {
@@ -33,6 +33,7 @@ class EradiologiController extends Controller
             ->mapWithKeys(fn ($p) => [$p->radiologi_test_id => [
                 'harga' => (float) optional($p->billings->first())->jumlah,
                 'konsultasi' => optional($p->konsultasi)->nama,
+                'sumber' => $p->sumber_konsultasi,
             ]])->all();
     }
 
@@ -110,7 +111,7 @@ class EradiologiController extends Controller
                         $permintaan->update(['status' => $status]);
                     }
                 } elseif ($permintaan->status === 'requested' && !$permintaan->konsultasi_id) {
-                    // Paket permintaan (from the biaya konsultasi) follow the jenis konsultasi, not this page
+                    // Permintaan picked with the biaya konsultasi (paket / tambahan) follow that choice, not this page
                     $permintaan->billings()->delete();
                     $permintaan->delete();
                 }

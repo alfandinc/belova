@@ -82,6 +82,7 @@ class CPPTController extends Controller
             'visitation' => $visitation,
             'cpptList' => $cpptList,
             'jenisKonsultasi' => $jenisKonsultasi,
+            'radiologiTambahan' => \App\Services\ERM\KonsultasiBillingService::tambahanUntuk($visitation),
         ], $pasienData, $createKunjunganData));
     }
 
@@ -155,7 +156,19 @@ class CPPTController extends Controller
             ]);
         }
 
-        return app(\App\Services\ERM\KonsultasiBillingService::class)->apply((string) $visitationId, $jasa);
+        // Radiologi ticked as tambahan in the same popup (only the ones offered to this visit); not sent = unchanged
+        $tambahan = null;
+        if ($request->boolean('radiologi_tambahan_kirim')) {
+            [$offered, $terpilih] = \App\Services\ERM\KonsultasiBillingService::tambahanUntuk(Visitation::findOrFail($visitationId));
+            $offeredIds = array_map(fn ($o) => (int) $o['id'], $offered);
+            // Ticked ones the popup offers, plus tambahan no longer offered (setting changed): those are not touched
+            $tambahan = array_values(array_unique(array_merge(
+                array_intersect(array_map('intval', (array) $request->input('radiologi_tambahan', [])), $offeredIds),
+                array_diff(array_map('intval', $terpilih), $offeredIds)
+            )));
+        }
+
+        return app(\App\Services\ERM\KonsultasiBillingService::class)->apply((string) $visitationId, $jasa, $tambahan);
     }
 
 

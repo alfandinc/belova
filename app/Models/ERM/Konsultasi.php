@@ -33,10 +33,10 @@ class Konsultasi extends Model
 
     private static ?bool $hasRadiologiPaket = null;
 
-    /** Guard for servers that haven't run the erm_konsultasi_radiologi migration yet. */
+    /** Guard for servers that haven't run the konsultasi radiologi migration yet (checks what it adds last). */
     public static function hasRadiologiPaket(): bool
     {
-        return self::$hasRadiologiPaket ??= Schema::hasTable('erm_konsultasi_radiologi');
+        return self::$hasRadiologiPaket ??= Schema::hasColumn('erm_radiologi_permintaan', 'sumber_konsultasi');
     }
 
     private static ?bool $hasSpesialisasiMapping = null;

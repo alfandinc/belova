@@ -344,6 +344,16 @@ $(document).ready(function () {
     const konsultasiOptions = @json($konsultasiPopupOptions);
     const konsultasiItems = @json($konsultasiItems);
     let selectedJenisKonsultasi = @json($defaultJenisKonsultasi);
+    // Radiologi the dokter may tick under the konsultasi (e.g. + USG), and the ones already ticked
+    const radiologiTambahan = @json($radiologiTambahan[0] ?? []);
+    let selectedTambahan = @json($radiologiTambahan[1] ?? []);
+
+    function appendTambahan(formData) {
+        if (!radiologiTambahan.length) return;
+        formData.set('radiologi_tambahan_kirim', '1');
+        formData.delete('radiologi_tambahan[]');
+        selectedTambahan.forEach(function (id) { formData.append('radiologi_tambahan[]', id); });
+    }
 
     async function promptJenisKonsultasi() {
         const availableOptions = Object.keys(konsultasiOptions);
@@ -363,14 +373,18 @@ $(document).ready(function () {
         }
 
         // Card list (name + harga), see erm.partials.konsultasi-picker. Saving also marks every CPPT read (mark_all_read)
-        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi, {
-            note: 'Dengan klik "Lanjut simpan", semua CPPT pasien ini otomatis ditandai sudah dibaca.'
-        });
+        const pickerOpts = {
+            note: 'Dengan klik "Lanjut simpan", semua CPPT pasien ini otomatis ditandai sudah dibaca.',
+            tambahan: radiologiTambahan,
+            tambahanSelected: selectedTambahan
+        };
+        const chosen = await window.belovaPilihKonsultasi(konsultasiItems, selectedJenisKonsultasi, pickerOpts);
         if (!chosen) {
             return null;
         }
 
         selectedJenisKonsultasi = chosen;
+        selectedTambahan = pickerOpts.tambahanChosen || [];
         return chosen;
     }
 
@@ -528,6 +542,7 @@ $(document).ready(function () {
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
         formData.set('jenis_konsultasi', jenisKonsultasi);
+        appendTambahan(formData);
         formData.set('mark_all_read', '1');
 
         $.ajax({
@@ -568,6 +583,7 @@ $(document).ready(function () {
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
         formData.set('jenis_konsultasi', jenisKonsultasi);
+        appendTambahan(formData);
         formData.set('mark_all_read', '1');
 
         $.ajax({
