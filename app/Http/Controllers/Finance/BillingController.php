@@ -77,7 +77,14 @@ class BillingController extends Controller
         // Total pendapatan, nota, kunjungan
         $invoiceQuery = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate])
-            ->where('finance_invoices.amount_paid', '>', 0);
+            // Paid invoices, plus free ones (Rp 0, already processed): they still count as a nota
+            ->where(function ($q) {
+                $q->where('finance_invoices.amount_paid', '>', 0)
+                    ->orWhere(function ($free) {
+                        $free->where('finance_invoices.total_amount', '<=', 0)
+                            ->where('finance_invoices.status', 'paid');
+                    });
+            });
         if ($klinikId) {
             $invoiceQuery->where('erm_visitations.klinik_id', $klinikId);
         }
@@ -199,7 +206,7 @@ class BillingController extends Controller
             ->addColumn('status', function($item){
                 $invoice = $item->invoice;
                 $total = floatval($invoice->total_amount ?? 0); $paid = floatval($invoice->amount_paid ?? 0);
-                if ($total > 0 && $paid >= $total) return 'Sudah Dibayar';
+                if ($invoice?->isLunas()) return 'Sudah Dibayar';
                 if ($paid > 0 && $paid < $total) return 'Belum Lunas';
                 return 'Belum Dibayar';
             })
@@ -226,7 +233,7 @@ class BillingController extends Controller
                 if (!$invoice) return '';
                 $total = floatval($invoice->total_amount ?? 0);
                 $paid = floatval($invoice->amount_paid ?? 0);
-                $invoiceRemaining = max(0, $total - $paid);
+                $invoiceRemaining = max(0, $invoice->billAfterRetur() - $paid);
 
                 $piutangs = $invoice->relationLoaded('piutangs') ? ($invoice->piutangs ?? collect()) : ($invoice->piutangs ?? collect());
                 $latestPiutang = $piutangs ? $piutangs->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first() : null;
@@ -255,7 +262,7 @@ class BillingController extends Controller
                     return 'Kekurangan: Rp ' . number_format($remaining, 0, ',', '.');
                 }
 
-                if ($total > 0 && $paid < $total) {
+                if ($total > 0 && $invoiceRemaining > 0) {
                     return 'Kekurangan: Rp ' . number_format($invoiceRemaining, 0, ',', '.');
                 }
                 return '';
@@ -2368,7 +2375,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $invoiceNeedsUpdate = false;
             $invoiceChanges = null;
             try {
-                $latestInvoice = Invoice::with('items')->where('visitation_id', $visitation_id)->latest()->first();
+                $latestInvoice = Invoice::with('items')->where('visitation_id', $visitation_id)->orderByDesc('id')->first();
                 if ($latestInvoice) {
                     $invoiceNeedsUpdate = !$this->invoiceSnapshotMatchesProcessedBillings($processedBillings, $latestInvoice);
                     // What changed, for the warning above the billing table (unpaid invoice only reaches here)
@@ -2822,7 +2829,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         if ($visitation) {
             $invoice = Invoice::with(['piutangs', 'returPembelians.items'])
                 ->where('visitation_id', $visitation->id)
-                ->latest()
+                ->orderByDesc('id')
                 ->first();
 
             if ($invoice) {
@@ -3238,6 +3245,46 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         return $this->upsertInvoiceInternal($request, 'payment');
     }
 
+    /**
+     * Grand total of a visit that is not processed yet, from the same rows the billing page shows (promo, grouped
+     * tindakan, racikan and jasa farmasi included) plus the invoice discount, tax and fees the kasir set on the page.
+     */
+    private function expectedGrandTotal($visitationId, array $totals): float
+    {
+        $rowsRequest = Request::create('/', 'GET', ['draw' => 1, 'start' => 0, 'length' => -1, 'light' => 1]);
+        $rowsRequest->headers->set('X-Requested-With', 'XMLHttpRequest');
+
+        $currentRequest = app('request');
+        app()->instance('request', $rowsRequest);
+        try {
+            $rows = $this->create($rowsRequest, $visitationId)->getData(true)['data'] ?? [];
+        } finally {
+            app()->instance('request', $currentRequest);
+        }
+
+        $subtotal = 0.0;
+        foreach ($rows as $row) {
+            $lineTotal = floatval($row['harga_akhir_raw'] ?? 0);
+            if ($lineTotal > 0) {
+                $subtotal += $lineTotal;
+            }
+        }
+
+        $discountValue = max(0, floatval($totals['discountValue'] ?? 0));
+        $discountAmount = 0.0;
+        if ($discountValue > 0) {
+            $discountAmount = ($totals['discountType'] ?? null) === '%'
+                ? $subtotal * ($discountValue / 100)
+                : $discountValue;
+        }
+        $afterDiscount = $subtotal - $discountAmount;
+        $taxAmount = $afterDiscount * (max(0, floatval($totals['taxPercentage'] ?? 0)) / 100);
+
+        return $afterDiscount + $taxAmount
+            + max(0, floatval($totals['adminFee'] ?? 0))
+            + max(0, floatval($totals['shippingFee'] ?? 0));
+    }
+
     private function upsertInvoiceInternal(Request $request, string $mode)
     {
         $request->validate([
@@ -3265,24 +3312,20 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         DB::beginTransaction();
 
         try {
-            $visitation = Visitation::find($request->visitation_id);
+            // One invoice process per visit at a time: a double click or a second kasir waits here, then sees the
+            // result of the first one (no second invoice, no payment recorded twice).
+            $visitation = Visitation::whereKey($request->visitation_id)->lockForUpdate()->first();
             if (!$visitation) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Visitation not found with ID: ' . $request->visitation_id
                 ], 404);
             }
 
-            // Find existing invoice (prefer explicit invoice_id, then latest-by-visitation).
-            $existingInvoice = null;
-            if ($request->filled('invoice_id')) {
-                $existingInvoice = Invoice::where('id', $request->input('invoice_id'))
-                    ->where('visitation_id', $request->visitation_id)
-                    ->first();
-            }
-            if (!$existingInvoice) {
-                $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->latest()->first();
-            }
+            // The visit's invoice: always the newest, whatever the page sent, so older visits holding two
+            // invoices can't have a payment land on the other one.
+            $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->orderByDesc('id')->first();
 
             // Strict separation:
             // - unpaid mode is allowed when there is no invoice yet OR when updating an existing invoice
@@ -3300,6 +3343,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
 
                 if ($hasPaymentProcessed || $hasStockLedger) {
+                    DB::rollBack();
                     return response()->json([
                         'success' => false,
                         'message' => 'Invoice sudah diproses pembayaran. Gunakan Terima Pembayaran untuk melanjutkan.'
@@ -3309,6 +3353,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             if ($mode === 'payment' && !$existingInvoice) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Invoice belum dibuat. Silakan klik Buat Invoice terlebih dahulu.'
@@ -3508,6 +3553,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             if (!empty($stockErrors) && !$alreadyReduced) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Stok tidak mencukupi untuk beberapa obat:\n' . implode('\n', $stockErrors)
@@ -3528,20 +3574,89 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $transactionType = 'Patient';
             }
 
+            $refuse = function (string $message, int $status = 422) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $message], $status);
+            };
+
+            if ((int) $visitation->status_kunjungan === Visitation::STATUS_DIBATALKAN) {
+                return $refuse('Kunjungan ini sudah dibatalkan, invoice tidak dapat diproses.');
+            }
+            if ($billingItems->isEmpty() && !($existingInvoice && !empty($existingInvoice->payment_method))) {
+                return $refuse('Tidak ada item billing untuk kunjungan ini.');
+            }
+
+            if (!isset($totals['grandTotal']) && !isset($totals['grandTotalInt'])) {
+                return $refuse('Data total tidak valid. Muat ulang halaman lalu ulangi.');
+            }
+            if (floatval($amountPaid ?? 0) < 0) {
+                return $refuse('Jumlah dibayar tidak boleh negatif.');
+            }
+
+            // What this invoice already took in, before this request changes it
+            $wasProcessed = $existingInvoice && !empty($existingInvoice->payment_method);
+
+            // Older invoices may hold a method no longer offered; they can keep it
+            $requestedMethod = is_string($paymentMethod) ? trim($paymentMethod) : '';
+            if ($mode === 'payment' && $requestedMethod !== ''
+                && !array_key_exists($requestedMethod, Invoice::PAYMENT_METHODS)
+                && !($wasProcessed && $requestedMethod === $existingInvoice->payment_method)) {
+                return $refuse('Metode pembayaran tidak dikenal.');
+            }
+
+            // Invoice-level discount follows the same rule as the item discounts in saveBilling
+            if (!$wasProcessed && !$this->canSetPrice($visitation)) {
+                $discountBefore = $existingInvoice ? floatval($existingInvoice->discount_value ?? 0) : 0.0;
+                $discountNow = floatval($totals['discountValue'] ?? 0);
+                $typeChanged = $existingInvoice && $discountNow > 0 && ($totals['discountType'] ?? null) !== $existingInvoice->discount_type;
+                if ($discountNow > $discountBefore + 0.01 || $typeChanged) {
+                    return $refuse('Hanya Admin, Kasir, dan Finance yang dapat memberi diskon.', 403);
+                }
+            }
+            $paidBefore = $existingInvoice ? floatval($existingInvoice->amount_paid ?? 0) : 0.0;
+            $changeBefore = $existingInvoice ? floatval($existingInvoice->change_amount ?? 0) : 0.0;
+
+            if ($wasProcessed) {
+                if ($mode === 'payment' && $existingInvoice->isLunas()) {
+                    return $refuse('Invoice ini sudah lunas, pembayaran tidak diproses lagi. Muat ulang halaman untuk melihat data terbaru.', 409);
+                }
+                if (floatval($amountPaid ?? 0) < $paidBefore) {
+                    return $refuse('Jumlah dibayar tidak boleh lebih kecil dari yang sudah diterima (Rp ' . number_format($paidBefore, 0, ',', '.') . '). Isi total yang sudah diterima termasuk pembayaran ini.');
+                }
+
+                // The billing page is locked on the invoice lines here, so the amounts stay as they are
+                // (an admin edit included); the page only brings the new payment.
+                $subtotal = floatval($existingInvoice->subtotal ?? 0);
+                $discountAmount = floatval($existingInvoice->discount ?? 0);
+                $taxAmount = floatval($existingInvoice->tax ?? 0);
+                $grandTotal = floatval($existingInvoice->total_amount ?? 0);
+                $totals['discountType'] = $existingInvoice->discount_type;
+                $totals['discountValue'] = $existingInvoice->discount_value;
+                $totals['taxPercentage'] = $existingInvoice->tax_percentage;
+                // admin / ongkir lines are carried over from the invoice below
+                $totals['adminFee'] = 0;
+                $totals['shippingFee'] = 0;
+            } else {
+                $expectedTotal = $this->expectedGrandTotal($request->visitation_id, $totals);
+                if ($expectedTotal < 0) {
+                    return $refuse('Diskon melebihi total billing. Periksa kembali diskon invoice.');
+                }
+                if (abs(intval(ceil($expectedTotal)) - intval(ceil(floatval($grandTotal ?? 0)))) > 1) {
+                    Log::warning('Invoice total differs from billing', [
+                        'visitation_id' => $request->visitation_id,
+                        'mode' => $mode,
+                        'page_total' => $grandTotal,
+                        'billing_total' => $expectedTotal,
+                        'user_id' => Auth::id(),
+                    ]);
+
+                    return $refuse('Total di halaman (Rp ' . number_format(floatval($grandTotal ?? 0), 0, ',', '.') . ') berbeda dengan data billing terbaru (Rp ' . number_format(ceil($expectedTotal), 0, ',', '.') . '). Muat ulang halaman, periksa kembali, lalu ulangi.', 409);
+                }
+            }
+
             $amountPaidNumeric = floatval($amountPaid ?? 0);
             $grandTotalNumeric = floatval($grandTotal ?? 0);
-
-            // "Buat Invoice" with nothing to pay (e.g. multi-visit session 2/3, 100% discount): settle it right away,
-            // as "Terima Pembayaran" of Rp 0 would. Stock is only cut when the payment is processed, and the kasir
-            // often stopped here because there was nothing to pay, so that stock was never cut.
-            $autoSettledZero = false;
-            if ($mode === 'unpaid' && $request->has('totals') && $billingItems->isNotEmpty() && intval(ceil($grandTotalNumeric)) <= 0) {
-                $mode = 'payment';
-                $amountPaid = 0;
-                $amountPaidNumeric = 0.0;
-                $paymentMethod = null;
-                $autoSettledZero = true;
-            }
 
             // Force unpaid for the Buat Invoice endpoint.
             if ($mode === 'unpaid') {
@@ -3554,8 +3669,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // - issued: unpaid (amount_paid == 0)
             // - partial: amount_paid > 0 but not fully paid (shortage -> piutang)
             // - paid: fully covered
+            // Approved returs stay out of the total as sold, but the patient no longer owes them
+            $billNumeric = max(0, $grandTotalNumeric - ($existingInvoice ? floatval($existingInvoice->retur_amount ?? 0) : 0.0));
             $amountPaidIntForStatus = intval(ceil($amountPaidNumeric));
-            $grandTotalIntForStatus = intval(ceil($grandTotalNumeric));
+            $grandTotalIntForStatus = intval(ceil($billNumeric));
             $invoiceStatus = 'issued';
             // Nothing to pay (e.g. everything covered by free vouchers): processing it settles the invoice.
             $isZeroTotalPayment = ($mode === 'payment' && $grandTotalIntForStatus <= 0);
@@ -3603,10 +3720,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             $changeAmount = 0.0;
             $shortageAmount = 0.0;
-            if ($amountPaidNumeric >= $grandTotalNumeric) {
-                $changeAmount = $amountPaidNumeric - $grandTotalNumeric;
+            if ($amountPaidNumeric >= $billNumeric) {
+                $changeAmount = $amountPaidNumeric - $billNumeric;
             } else {
-                $shortageAmount = max(0, $grandTotalNumeric - $amountPaidNumeric);
+                $shortageAmount = max(0, $billNumeric - $amountPaidNumeric);
             }
 
             // Unpaid invoice creation keeps payment_method NULL.
@@ -3618,7 +3735,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $paymentDate = $existingInvoice ? $existingInvoice->payment_date : null;
             if ($mode === 'payment') {
                 $amountPaidIntForDate = intval(ceil($amountPaidNumeric));
-                $totalAmountIntForDate = intval(ceil($grandTotalNumeric));
+                $totalAmountIntForDate = intval(ceil($billNumeric));
                 if ($isZeroTotalPayment || ($amountPaidIntForDate > 0 && $amountPaidIntForDate >= $totalAmountIntForDate)) {
                     if (!$paymentDate) {
                         $paymentDate = now();
@@ -3661,9 +3778,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // Get old items for comparison if invoice exists
             $oldInvoiceItems = [];
-            $previousAmountPaid = 0;
+            $oldFeeItems = collect();
             if ($existingInvoice) {
-                $previousAmountPaid = floatval($existingInvoice->amount_paid ?? 0);
+                if ($wasProcessed) {
+                    $oldFeeItems = $invoice->items()->whereNull('billable_type')
+                        ->whereIn('name', ['Biaya Administrasi', 'Biaya Ongkir'])
+                        ->get();
+                }
                 $oldInvoiceItems = $invoice->items()
                     ->get()
                     ->keyBy(function($item) {
@@ -4454,6 +4575,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
             
+            foreach ($oldFeeItems as $oldFeeItem) {
+                $oldFeeItem->replicate()->save();
+            }
+
             // Add biaya administrasi and biaya ongkir as invoice items if present
             if (!empty($totals['adminFee']) && $totals['adminFee'] > 0) {
                 InvoiceItem::create([
@@ -4498,11 +4623,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $piutang = $existingPiutang ?: new Piutang();
                     $piutang->visitation_id = $request->visitation_id;
                     $piutang->invoice_id = $invoice->id;
-                    $piutang->amount = floatval($shortageAmount);
 
                     if ($piutang->paid_amount === null) {
                         $piutang->paid_amount = 0;
                     }
+
+                    // The shortage is already net of what was paid on this piutang (that money is in
+                    // amount_paid), and sisa = amount - paid_amount, so the payments stay in the amount.
+                    $piutang->amount = floatval($shortageAmount) + floatval($piutang->paid_amount);
 
                     $paidPiutang = floatval($piutang->paid_amount ?? 0);
                     $totalPiutang = floatval($piutang->amount ?? 0);
@@ -4533,7 +4661,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // No shortage: if there was an outstanding piutang linked to this invoice,
                     // settle it to avoid stale outstanding amounts.
                     if ($existingPiutang && floatval($existingPiutang->amount ?? 0) > 0) {
-                        $existingPiutang->amount = 0;
+                        $existingPiutang->amount = floatval($existingPiutang->paid_amount ?? 0);
                         $existingPiutang->payment_status = 'paid';
                         if (empty($existingPiutang->payment_date)) {
                             $existingPiutang->payment_date = now();
@@ -4545,20 +4673,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
 
-                if ($amountPaidNumeric > 0) {
+                // Only the money that is new in this request: amount_paid is a running total
+                $newCashIn = max(0, $amountPaidNumeric - $paidBefore);
+                $newChange = max(0, $changeAmount - $changeBefore);
+
+                if ($newCashIn > 0) {
                     $invoiceReference = $invoice->invoice_number ?? $invoice->id;
                     $paymentDescription = $shortageAmount > 0
                         ? 'Pembayaran awal billing invoice ' . $invoiceReference
                         : 'Pembayaran billing invoice ' . $invoiceReference;
 
-                    $changeDescription = $changeAmount > 0
+                    $changeDescription = $newChange > 0
                         ? 'Kembalian billing invoice ' . $invoiceReference
                         : null;
 
                     app(TransactionRecorderService::class)->recordInvoiceSettlement(
                         $invoice,
-                        $amountPaidNumeric,
-                        $changeAmount,
+                        $newCashIn,
+                        $newChange,
                         $paymentMethod,
                         $paymentDescription,
                         $changeDescription,
@@ -4595,12 +4727,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // A zero-total invoice (e.g. 100% discount) is only paid once the payment has been processed;
             // right after "Buat Invoice" it still needs the Pembayaran step.
             $isPaid = $invoiceTotalAmountInt > 0
-                ? $invoiceAmountPaidInt >= $invoiceTotalAmountInt
+                ? $invoice->isLunas()
                 : !empty($invoice->payment_method);
 
-            $responseMessage = $autoSettledZero
-                ? 'Invoice dibuat dan langsung selesai (total Rp 0, tidak ada yang perlu dibayar).'
-                : ($mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat');
+            $responseMessage = $mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat';
 
             $computedStockMessage = null;
             $toppedUp = !empty($shouldReduceStock) && !empty($alreadyReduced);
@@ -4686,6 +4816,98 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
     }
 
+    /** Prices and discounts are set by Admin, Kasir and Finance; event billing keeps its own access rules. */
+    private function canSetPrice($visitation): bool
+    {
+        $user = Auth::user();
+
+        return ($user && $user->hasAnyRole(['Admin', 'Kasir', 'Finance']))
+            || (bool) $this->resolveEventForVisitation($visitation);
+    }
+
+    private function hasNegativeAmount(Request $request): bool
+    {
+        $items = array_merge((array) $request->input('edited_items', []), (array) $request->input('new_items', []));
+        foreach ($items as $item) {
+            foreach (['jumlah_raw', 'harga_akhir_raw', 'racikan_total_price', 'diskon_raw', 'diskon'] as $field) {
+                if (is_numeric($item[$field] ?? null) && floatval($item[$field]) < 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** A changed price, a raised discount, or a new item that arrives with a discount. */
+    private function changesPriceOrDiscount(Request $request): bool
+    {
+        foreach ((array) $request->input('edited_items', []) as $item) {
+            $billing = is_numeric($item['id'] ?? null) ? Billing::find($item['id']) : null;
+            if (!$billing) {
+                continue;
+            }
+            if (isset($item['jumlah_raw']) && abs(floatval($item['jumlah_raw']) - floatval($billing->jumlah)) > 0.01) {
+                return true;
+            }
+            if (isset($item['diskon_raw']) && floatval($item['diskon_raw']) > floatval($billing->diskon ?? 0) + 0.01) {
+                return true;
+            }
+        }
+
+        foreach ((array) $request->input('new_items', []) as $item) {
+            if (!empty($item['deleted'])) {
+                continue;
+            }
+            if (floatval($item['diskon_raw'] ?? 0) > 0 || (is_numeric($item['diskon'] ?? null) && floatval($item['diskon']) > 0)) {
+                return true;
+            }
+            if ($this->isOffMasterPrice($item)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** A new tindakan / obat whose price is not one of its master prices. Other item types have no single master price. */
+    private function isOffMasterPrice(array $item): bool
+    {
+        $type = $item['billable_type'] ?? null;
+        $id = $item['billable_id'] ?? null;
+
+        if ($type === \App\Models\ERM\Tindakan::class) {
+            $master = \App\Models\ERM\Tindakan::find($id);
+            $prices = $master ? [$master->harga, $master->harga_diskon] : [];
+        } elseif ($type === \App\Models\ERM\Obat::class) {
+            $master = \App\Models\ERM\Obat::withInactive()->find($id);
+            // not every erm_obat has harga_diskon
+            $prices = $master ? [$master->harga_nonfornas, $master->harga_net, $master->getAttributes()['harga_diskon'] ?? null] : [];
+        } else {
+            return false;
+        }
+
+        $price = floatval($item['jumlah_raw'] ?? 0);
+        foreach ($prices as $allowed) {
+            if ($allowed !== null && abs(floatval($allowed) - $price) <= 0.01) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Refusal when the visit's invoice was already processed: stock and money moved with these billing rows,
+     * so they stay. Null when the rows can be changed.
+     */
+    private function billingRowsLockedResponse($visitationId)
+    {
+        return Invoice::isLockedForVisitation($visitationId)
+            ? response()->json(['message' => 'Billing tidak dapat diubah karena pembayaran sudah diproses. Gunakan retur untuk mengembalikan item.'], 423)
+            : null;
+    }
+
     public function saveBilling(Request $request)
     {
         // Log::info('=== SAVE BILLING REQUEST START ===');
@@ -4739,6 +4961,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $visitation = Visitation::with('pasien')->find($request->visitation_id);
         $eventForVisitation = $this->resolveEventForVisitation($visitation);
         $allowedEventPromoItems = $eventForVisitation ? $this->getEventPromoItemMap($eventForVisitation) : [];
+
+        if ($this->hasNegativeAmount($request)) {
+            return response()->json(['success' => false, 'message' => 'Harga dan diskon tidak boleh negatif.'], 422);
+        }
+
+        if (!$this->canSetPrice($visitation) && $this->changesPriceOrDiscount($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya Admin, Kasir, dan Finance yang dapat mengubah harga atau memberi diskon.',
+            ], 403);
+        }
 
         if ($eventForVisitation && !empty($request->new_items)) {
             $invalidItems = [];
@@ -5448,6 +5681,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $item = Billing::findOrFail($id);
+        if ($locked = $this->billingRowsLockedResponse($item->visitation_id)) {
+            return $locked;
+        }
         $item->delete();
 
         return response()->json(['message' => 'Item billing dihapus']);
@@ -5458,7 +5694,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function restore($id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $item = Billing::withTrashed()->findOrFail($id);
+        if ($locked = $this->billingRowsLockedResponse($item->visitation_id)) {
+            return $locked;
+        }
         if ($item->trashed()) {
             $item->restore();
             return response()->json(['message' => 'Item billing berhasil dikembalikan']);
@@ -5477,6 +5721,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $item = Billing::withTrashed()->findOrFail($id);
+        if ($locked = $this->billingRowsLockedResponse($item->visitation_id)) {
+            return $locked;
+        }
         $item->forceDelete();
         return response()->json(['message' => 'Item billing dihapus permanen']);
     }
@@ -5492,6 +5739,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        if ($locked = $this->billingRowsLockedResponse($visitation_id)) {
+            return $locked;
+        }
         $count = Billing::where('visitation_id', $visitation_id)->delete();
         return response()->json(['message' => 'Billing untuk kunjungan dipindahkan ke trash', 'count' => $count]);
     }
@@ -5507,6 +5757,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        if ($locked = $this->billingRowsLockedResponse($visitation_id)) {
+            return $locked;
+        }
         $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->restore();
         return response()->json(['message' => 'Billing untuk kunjungan dikembalikan', 'count' => $count]);
     }
@@ -5522,6 +5775,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
 
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        if ($locked = $this->billingRowsLockedResponse($visitation_id)) {
+            return $locked;
+        }
         $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->forceDelete();
         return response()->json(['message' => 'Billing untuk kunjungan dihapus permanen', 'count' => $count]);
     }
@@ -5645,7 +5901,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
 
                     // Paid invoice: start a retur straight from this row (opens the Retur modal on this invoice).
-                    if (!is_null($visitation->invoice->amount_paid) && (int) ($visitation->invoice->items_count ?? 1) > 0) {
+                    if (!empty($visitation->invoice->payment_method) && (int) ($visitation->invoice->items_count ?? 1) > 0) {
                         $action .= ' <button type="button" data-no-icon="1" class="btn btn-sm btn-danger btn-retur-from-row" data-invoice-id="'.$visitation->invoice->id.'" title="Retur"><i class="fas fa-undo-alt mr-1" aria-hidden="true"></i>Retur</button>';
                     }
 
@@ -5857,7 +6113,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $q->where(function($qq) {
                     $qq->where(function($n) {
                         $n->where('amount_paid', '>', 0)
-                          ->whereColumn('amount_paid', '<', 'total_amount');
+                          ->whereRaw('amount_paid < total_amount - COALESCE(retur_amount, 0)');
                     })->orWhere(function($p) {
                         $p->where('payment_method', 'piutang')
                           ->whereHas('piutangs', function($pq) {
@@ -5865,6 +6121,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                           });
                     })->orWhere(function($insurance) {
                         $insurance->where('payment_method', 'like', 'asuransi_%')
+                            ->where(fn ($open) => $this->exceptSettledZeroTotal($open))
                             ->where(function($piu) {
                                 $piu->whereDoesntHave('piutangs')
                                     ->orWhereHas('piutangs', function($pq) {
@@ -5883,7 +6140,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $q->where(function($paid) {
                     $paid->where(function($full) {
                             $full->where('total_amount', '>', 0)
-                                ->whereColumn('amount_paid', '>=', 'total_amount');
+                                ->whereRaw('amount_paid >= total_amount - COALESCE(retur_amount, 0)');
                         })
                         // zero total (e.g. free voucher) counts as Lunas only once it was processed
                         ->orWhere(function($zero) {
@@ -5995,6 +6252,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     /**
+     * Leaves out invoices of Rp 0 that were already processed: nothing to claim, so they are Lunas
+     * even on an insurance visit, which has no piutang record to settle.
+     */
+    private function exceptSettledZeroTotal($query)
+    {
+        return $query->where('total_amount', '>', 0)->orWhere('status', '!=', 'paid');
+    }
+
+    /**
      * Get badge counts for billing index tabs (Umum vs Asuransi).
      * Counts visitations that are NOT "Lunas" (Belum Transaksi + Belum Lunas + Piutang),
      * while respecting date/dokter/klinik filters.
@@ -6055,6 +6321,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         });
                     })->orWhere(function ($insurance) {
                         $insurance->where('payment_method', 'like', 'asuransi_%')
+                            ->where(fn ($open) => $this->exceptSettledZeroTotal($open))
                             ->where(function ($ps) {
                                 $ps->whereDoesntHave('piutangs')
                                    ->orWhereHas('piutangs', function ($pq) {

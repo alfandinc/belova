@@ -861,6 +861,11 @@
                     <td class="label summary-total" style="text-align:left;">TOTAL AMOUNT</td>
                     <td class="value summary-total" style="text-align:right;">Rp&nbsp;{{ number_format($computedTotalAmount, 0, ',', '.') }}</td>
                 </tr>
+                @if(empty($invoice->payment_method))
+                <tr>
+                    <td colspan="2" style="text-align:right; padding-top:4px;"><strong>BELUM DIBAYAR</strong></td>
+                </tr>
+                @endif
                 <tr>
                     <td colspan="2" style="text-align:right; padding-top:8px;">
                         <div class="summary-terbilang" style="display:inline-block;">

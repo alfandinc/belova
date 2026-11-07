@@ -13,6 +13,25 @@ class Invoice extends Model
 
     protected $table = 'finance_invoices';
 
+    /** Payment methods the kasir can choose, with their printed label. */
+    public const PAYMENT_METHODS = [
+        'cash' => 'Tunai',
+        'piutang' => 'Piutang',
+        'edc_bca' => 'EDC BCA',
+        'edc_bni' => 'EDC BNI',
+        'edc_bri' => 'EDC BRI',
+        'edc_mandiri' => 'EDC Mandiri',
+        'qris' => 'QRIS',
+        'transfer' => 'Transfer',
+        'shopee' => 'Shopee',
+        'tiktokshop' => 'Tiktokshop',
+        'tokopedia' => 'Tokopedia',
+        'asuransi_inhealth' => 'Asuransi InHealth',
+        'asuransi_brilife' => 'Asuransi Brilife',
+        'asuransi_admedika' => 'Asuransi Admedika',
+        'asuransi_bcalife' => 'Asuransi BCA Life',
+    ];
+
     protected $fillable = [
         'visitation_id',
         'invoice_number',
@@ -52,6 +71,13 @@ class Invoice extends Model
 
     protected static function booted(): void
     {
+        // One invoice per visit. Older visits may still hold two; those stay, and the newest one is the one used.
+        static::creating(function (Invoice $invoice) {
+            if (self::where('visitation_id', $invoice->visitation_id)->exists()) {
+                throw new \RuntimeException('Kunjungan ini sudah memiliki invoice.');
+            }
+        });
+
         // Transaction date = first time the payment is processed (paid / piutang / asuransi; stock cut).
         // Set once and never moved: omset is dated by it.
         static::saving(function (Invoice $invoice) {
@@ -67,6 +93,60 @@ class Invoice extends Model
     public static function hasTransactionDateColumn(): bool
     {
         return self::$hasTransactionDate ??= \Illuminate\Support\Facades\Schema::hasColumn('finance_invoices', 'transaction_date');
+    }
+
+    /** Payment processed for this visit (paid or piutang): what it is billed for can't change any more. */
+    public static function isLockedForVisitation($visitationId): bool
+    {
+        $invoice = self::where('visitation_id', $visitationId)->orderByDesc('id')->first(['id', 'payment_method', 'amount_paid']);
+        if (!$invoice) {
+            return false;
+        }
+
+        return !empty($invoice->payment_method)
+            || (float) $invoice->amount_paid > 0
+            || \App\Models\ERM\KartuStok::where('ref_type', 'invoice_penjualan')->where('ref_id', $invoice->id)->exists();
+    }
+
+    /** @throws \App\Exceptions\InvoiceLockedException */
+    public static function assertNotLocked($visitationId, ?string $message = null): void
+    {
+        if (self::isLockedForVisitation($visitationId)) {
+            throw $message ? new \App\Exceptions\InvoiceLockedException($message) : new \App\Exceptions\InvoiceLockedException();
+        }
+    }
+
+    public function paymentMethodLabel(): string
+    {
+        if (empty($this->payment_method)) {
+            return 'BELUM DIBAYAR';
+        }
+        if ($this->payment_method === 'non_cash') {
+            return 'Non Tunai'; // older invoices
+        }
+
+        return self::PAYMENT_METHODS[$this->payment_method] ?? 'Campuran';
+    }
+
+    /**
+     * Fully settled: paid up to the total, or a zero total (100% discount, free voucher) that was processed.
+     * Piutang / asuransi settled through a piutang record are checked by the callers.
+     */
+    public function isLunas(): bool
+    {
+        if ($this->status === 'canceled') {
+            return false;
+        }
+
+        return (float) ($this->total_amount ?? 0) > 0
+            ? (float) ($this->amount_paid ?? 0) + 0.005 >= $this->billAfterRetur()
+            : $this->status === 'paid';
+    }
+
+    /** What the patient has to pay in the end: approved returs leave the invoice total as sold. */
+    public function billAfterRetur(): float
+    {
+        return max(0.0, (float) ($this->total_amount ?? 0) - (float) ($this->retur_amount ?? 0));
     }
 
     public function items()

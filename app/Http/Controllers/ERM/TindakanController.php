@@ -172,7 +172,9 @@ class TindakanController extends Controller
         $pasienId = $request->filled('visitation_id') ? Visitation::whereKey($request->query('visitation_id'))->value('pasien_id') : null;
         $openUsages = $pasienId
             ? MultiVisitUsage::where('pasien_id', $pasienId)->whereColumn('used', '<', 'total')
-                ->orderByDesc('created_at')->get(['tindakan_id', 'used', 'total'])->unique('tindakan_id')->keyBy('tindakan_id')
+                ->orderByDesc('created_at')->get(['tindakan_id', 'used', 'total', 'first_visitation_id'])
+                ->reject(fn (MultiVisitUsage $usage) => $usage->isVoid())
+                ->unique('tindakan_id')->keyBy('tindakan_id')
             : collect();
 
         return datatables()->of($tindakan)
@@ -270,7 +272,8 @@ class TindakanController extends Controller
             ->where('tindakan_id', $id)
             ->whereColumn('used', '<', 'total')
             ->orderByDesc('created_at')
-            ->first();
+            ->get()
+            ->first(fn (MultiVisitUsage $open) => !$open->isVoid());
 
         if ($usage) {
             return response()->json(['success' => true, 'used' => (int)$usage->used, 'total' => (int)$usage->total]);
@@ -621,6 +624,8 @@ class TindakanController extends Controller
         ];
         $data = $request->validate($rules);
 
+        \App\Models\Finance\Invoice::assertNotLocked($data['visitation_id']);
+
         $visitation = Visitation::findOrFail($data['visitation_id']);
         $pasien = $visitation->pasien;
         $tindakan = Tindakan::with('kodeTindakans.kategoris.icd10s')->findOrFail($data['tindakan_id']);
@@ -682,11 +687,23 @@ class TindakanController extends Controller
         $multiVisitLabel = $multiVisitTotal . 'x Visit';
 
         if ($hargaType === '3x' && !empty($tindakan->harga_paket_visit)) {
-            // Check for existing unused multi-visit usage for this patient & tindakan
-            $existingUsage = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
+            // Check for existing unused multi-visit usage for this patient & tindakan.
+            // A package from a cancelled visit doesn't count; one not fully paid can't give a free session yet.
+            $openUsages = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
                 ->where('tindakan_id', $tindakan->id)
                 ->whereColumn('used', '<', 'total')
-                ->first();
+                ->orderBy('id')
+                ->get()
+                ->reject(fn (MultiVisitUsage $usage) => $usage->isVoid());
+            $existingUsage = $openUsages->first(fn (MultiVisitUsage $usage) => $usage->isPaidFor($data['visitation_id']));
+
+            if (!$existingUsage && $openUsages->isNotEmpty()) {
+                // Thrown so saveInformConsent rolls back the riwayat and any PDF already made
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                    'success' => false,
+                    'message' => 'Paket ' . $multiVisitLabel . ' ' . $tindakan->nama . ' belum lunas, jadi sesi berikutnya belum bisa dipakai. Selesaikan dulu pembayaran invoice pembelian paketnya.',
+                ], 422));
+            }
 
             if ($existingUsage) {
                 // This patient already has remaining sessions: consume one

@@ -28,6 +28,13 @@ class KonsultasiBillingService
      */
     public function apply(string $visitationId, Konsultasi $jasa, ?array $tambahanIds = null): array
     {
+        // Payment processed: the bill stands. The dokter's document is still saved, so only tell when this differs.
+        if (\App\Models\Finance\Invoice::isLockedForVisitation($visitationId)) {
+            return $this->differsFromBill($visitationId, $jasa, $tambahanIds)
+                ? ['Pembayaran kunjungan ini sudah diproses, jadi jenis konsultasi dan radiologi tambahan di tagihan tidak berubah. Buat kunjungan baru untuk layanan tambahan.']
+                : [];
+        }
+
         $tests = Konsultasi::hasRadiologiPaket() ? $jasa->radiologiTests()->get() : collect();
         $jumlah = max(0, (float) $jasa->harga - (float) $tests->sum(fn ($t) => $t->pivot->harga));
 
@@ -73,6 +80,29 @@ class KonsultasiBillingService
         }
 
         return $notes;
+    }
+
+    private function differsFromBill(string $visitationId, Konsultasi $jasa, ?array $tambahanIds): bool
+    {
+        $billed = Billing::where('visitation_id', $visitationId)
+            ->where('billable_type', Konsultasi::class)
+            ->whereHasMorph('billable', [Konsultasi::class], fn ($query) => $query->whereRaw('LOWER(nama) LIKE ?', ['%konsultasi%']))
+            ->orderBy('id')
+            ->value('billable_id');
+        if ((int) $billed !== (int) $jasa->id) {
+            return true;
+        }
+
+        if ($tambahanIds === null || !Konsultasi::hasRadiologiPaket()) {
+            return false;
+        }
+
+        $current = RadiologiPermintaan::where('visitation_id', $visitationId)
+            ->where('sumber_konsultasi', RadiologiPermintaan::SUMBER_TAMBAHAN)
+            ->pluck('radiologi_test_id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $wanted = collect($tambahanIds)->map(fn ($id) => (int) $id)->unique()->sort()->values()->all();
+
+        return $current !== $wanted;
     }
 
     /** Tambahan the popup offers to this visit, and the ones already ticked: [[{id, nama, harga}], [ids]] */

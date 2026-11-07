@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Models\Finance\FinanceTransaction;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceEditLog;
 use App\Models\Finance\Piutang;
 use App\Models\Finance\ReturPembelian;
 use App\Services\Finance\PasienMembershipStatusService;
+use App\Services\Finance\TransactionRecorderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 class InvoiceEditController extends Controller
 {
     private const FEE_ITEM_NAMES = ['Biaya Administrasi', 'Biaya Ongkir'];
+    private const REFUND_DESCRIPTION = 'Pengembalian kelebihan bayar invoice';
 
     public function show($id)
     {
@@ -43,6 +46,8 @@ class InvoiceEditController extends Controller
                 'retur_number' => $log->new_values['retur_number'] ?? null,
                 'old_retur_date' => $log->old_values['retur_date'] ?? null,
                 'new_retur_date' => $log->new_values['retur_date'] ?? null,
+                // set when the log is a confirmed refund of an overpayment
+                'refund_amount' => $log->new_values['refund_amount'] ?? null,
             ]);
 
         return response()->json([
@@ -50,6 +55,7 @@ class InvoiceEditController extends Controller
             'invoice_number' => $invoice->invoice_number,
             'pasien' => optional(optional($invoice->visitation)->pasien)->nama,
             'editable_error' => $this->notEditableReason($invoice),
+            'refund_due' => $this->refundDue($invoice),
             'payment_method' => $invoice->payment_method,
             'amount_paid' => (float) $invoice->amount_paid,
             'total_amount' => (float) $invoice->total_amount,
@@ -186,7 +192,7 @@ class InvoiceEditController extends Controller
             $message = 'Invoice berhasil diperbarui.';
             if ($invoice->change_amount > 0 && $newTotal < $oldTotal) {
                 $message .= ' Total baru lebih kecil dari yang sudah dibayar: kelebihan Rp '
-                    . number_format($invoice->change_amount, 0, ',', '.') . ' perlu dikembalikan manual.';
+                    . number_format($this->refundDue($invoice), 0, ',', '.') . ' perlu dikembalikan. Setelah uangnya diserahkan, klik Konfirmasi Pengembalian di form ini.';
             } elseif ($invoice->shortage_amount > 0) {
                 $message .= ' Kekurangan Rp ' . number_format($invoice->shortage_amount, 0, ',', '.') . ' dicatat sebagai piutang.';
             }
@@ -196,12 +202,83 @@ class InvoiceEditController extends Controller
     }
 
     /**
+     * The admin confirms the overpayment left by an edit was handed back: only now it counts as cash out.
+     */
+    public function confirmRefund(Request $request, $id)
+    {
+        $data = $request->validate(['note' => 'nullable|string|max:1000']);
+
+        return DB::transaction(function () use ($data, $id) {
+            $invoice = Invoice::lockForUpdate()->findOrFail($id);
+
+            $amount = $this->refundDue($invoice);
+            if ($amount <= 0) {
+                return response()->json(['success' => false, 'message' => 'Tidak ada kelebihan bayar yang perlu dikembalikan.'], 422);
+            }
+
+            app(TransactionRecorderService::class)->recordInvoicePayment(
+                $invoice,
+                $amount,
+                app(TransactionRecorderService::class)->refundMethodFor($invoice),
+                self::REFUND_DESCRIPTION . ' ' . $invoice->invoice_number,
+                now(),
+                'out'
+            );
+
+            InvoiceEditLog::create([
+                'invoice_id' => $invoice->id,
+                'user_id' => Auth::id(),
+                'reason' => $data['note'] ?? 'Konfirmasi pengembalian kelebihan bayar',
+                'old_values' => [],
+                'new_values' => ['refund_amount' => $amount],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengembalian Rp ' . number_format($amount, 0, ',', '.') . ' tercatat sebagai kas keluar.',
+            ]);
+        });
+    }
+
+    /**
+     * Overpayment created by admin edits and not handed back yet. Taken from the edit logs, so change given
+     * at the kasir (already recorded as cash out when it was paid) is left out.
+     */
+    private function refundDue(Invoice $invoice): float
+    {
+        $changes = InvoiceEditLog::where('invoice_id', $invoice->id)
+            ->orderBy('id')
+            ->get(['old_values', 'new_values'])
+            ->filter(fn ($log) => isset($log->old_values['change_amount'], $log->new_values['change_amount']));
+
+        if ($changes->isEmpty()) {
+            return 0.0;
+        }
+
+        $fromEdits = (float) $changes->last()->new_values['change_amount'] - (float) $changes->first()->old_values['change_amount'];
+
+        return max(0.0, round($fromEdits - $this->refundedAmount($invoice), 2));
+    }
+
+    private function refundedAmount(Invoice $invoice): float
+    {
+        return (float) FinanceTransaction::where('invoice_id', $invoice->id)
+            ->where('jenis_transaksi', 'out')
+            ->where('deskripsi', 'like', self::REFUND_DESCRIPTION . '%')
+            ->sum('jumlah');
+    }
+
+    /**
      * Null when the invoice can be edited, otherwise why not.
      */
     private function notEditableReason(Invoice $invoice): ?string
     {
         if (empty($invoice->payment_method)) {
             return 'Invoice belum diproses pembayaran: ubah harga / diskon lewat halaman Billing.';
+        }
+        // amount_paid still holds the refunded money, so a new total would be measured against money no longer here
+        if ($this->refundedAmount($invoice) > 0) {
+            return 'Kelebihan bayar invoice ini sudah dikembalikan, tidak dapat diedit lagi.';
         }
         if (ReturPembelian::where('invoice_id', $invoice->id)->exists()) {
             return 'Invoice ini sudah memiliki retur, tidak dapat diedit.';

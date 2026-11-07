@@ -102,8 +102,8 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
 
         $totalAmount = $invoice ? floatval($invoice->total_amount ?? 0) : 0;
         $amountPaid = $invoice ? floatval($invoice->amount_paid ?? 0) : 0;
-        $invoiceRemaining = max(0, $totalAmount - $amountPaid);
-        $isInvoiceFullyPaid = ($totalAmount > 0) && ($amountPaid >= $totalAmount);
+        $invoiceRemaining = max(0, ($invoice ? $invoice->billAfterRetur() : $totalAmount) - $amountPaid);
+        $isInvoiceFullyPaid = (bool) $invoice?->isLunas();
 
         $paidMethod = $invoice ? $invoice->payment_method : null;
         $notes = '';

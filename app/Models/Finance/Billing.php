@@ -15,6 +15,9 @@ class Billing extends Model
     protected $table = 'finance_billing';
     protected $fillable = ['visitation_id', 'billable_id', 'billable_type', 'jumlah', 'qty', 'keterangan', 'diskon' , 'diskon_type'];
 
+    /** What the visit is charged, as opposed to notes */
+    private const CHARGE_FIELDS = ['billable_id', 'billable_type', 'jumlah', 'qty', 'diskon', 'diskon_type'];
+
     protected static function booted(): void
     {
         // A percentage discount is kept within 0-100 (e.g. 200% used to be stored and then shown as a
@@ -24,7 +27,13 @@ class Billing extends Model
             if ($billing->diskon_type === '%' && $billing->diskon !== null && $billing->diskon !== '') {
                 $billing->diskon = min(100, max(0, (float) $billing->diskon));
             }
+
+            if ($billing->isDirty(self::CHARGE_FIELDS)) {
+                Invoice::assertNotLocked($billing->visitation_id);
+            }
         });
+        static::deleting(fn (Billing $billing) => Invoice::assertNotLocked($billing->visitation_id));
+        static::restoring(fn (Billing $billing) => Invoice::assertNotLocked($billing->visitation_id));
     }
 
     public function billable()

@@ -5,7 +5,6 @@ namespace App\Models\ERM;
 use App\Models\Finance\Billing;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Finance\InvoiceItem;
 use App\Models\Finance\Invoice;
 use Illuminate\Support\Facades\Log;
 
@@ -145,8 +144,13 @@ class ResepFarmasi extends Model
         return self::$paketNameCache[$cacheKey] = $name;
     }
 
+    /** What decides the price or the stock of a resep, as opposed to labels such as aturan pakai or the paket link */
+    private const CHARGE_FIELDS = ['visitation_id', 'obat_id', 'jumlah', 'jumlah_racikan', 'dosis', 'bungkus', 'racikan_ke', 'wadah_id', 'harga', 'diskon', 'total'];
+
     /**
-     * Keep billing/invoice in sync when resep is updated or deleted
+     * Keep billing in sync when resep is updated or deleted. The invoice itself is not touched: while unpaid the
+     * billing page shows it needs "Update Invoice" (which applies discount and tax); once payment is processed the
+     * resep can't change at all. A retur goes around this on purpose (saveQuietly / deleteQuietly).
      */
     protected static function booted()
     {
@@ -154,10 +158,22 @@ class ResepFarmasi extends Model
         static::saved(fn () => self::$paketNameCache = []);
         static::deleted(fn () => self::$paketNameCache = []);
 
-        // On update: sync billing and invoice item values
+        static::saving(function (ResepFarmasi $resep) {
+            if ($resep->isDirty(self::CHARGE_FIELDS)) {
+                Invoice::assertNotLocked($resep->visitation_id, 'Resep tidak dapat diubah karena pembayaran sudah diproses (lunas / piutang). Gunakan retur.');
+            }
+        });
+        static::deleting(function (ResepFarmasi $resep) {
+            Invoice::assertNotLocked($resep->visitation_id, 'Resep tidak dapat dihapus karena pembayaran sudah diproses (lunas / piutang). Gunakan retur.');
+        });
+
         static::updated(function (ResepFarmasi $resep) {
+            // Only labels can still change here (saving above): the bill stays as it was paid
+            if (Invoice::isLockedForVisitation($resep->visitation_id)) {
+                return;
+            }
+
             try {
-                // Update billing record if exists
                 $billing = Billing::where('billable_type', ResepFarmasi::class)
                                   ->where('billable_id', $resep->id)
                                   ->first();
@@ -168,92 +184,26 @@ class ResepFarmasi extends Model
                         ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : '');
                     $billing->save();
                 }
-
-                // Update any invoice items referencing this resep
-                $items = InvoiceItem::where('billable_type', ResepFarmasi::class)
-                                    ->where('billable_id', $resep->id)
-                                    ->get();
-                foreach ($items as $item) {
-                    $item->unit_price = $resep->harga ?? $item->unit_price;
-                    $item->quantity = $resep->racikan_ke ? ($resep->bungkus ?? $item->quantity) : ($resep->jumlah ?? $item->quantity);
-                    $item->description = 'Obat: ' . (($resep->obat->nama ?? null) ?: 'Tanpa Nama') .
-                        ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : '');
-                    // recompute final_amount conservatively using existing discount fields
-                    $unit = (float) $item->unit_price;
-                    $discount = (float) ($item->discount ?? 0);
-                    if (!empty($discount) && $item->discount_type === '%') {
-                        $unitAfter = $unit - ($unit * ($discount / 100));
-                    } else {
-                        $unitAfter = $unit - $discount;
-                    }
-                    $unitAfter = max(0, $unitAfter);
-                    $item->final_amount = $unitAfter * (float) $item->quantity;
-                    $item->save();
-
-                    // Recalculate parent invoice totals
-                    if ($item->invoice_id) {
-                        try {
-                            $inv = Invoice::find($item->invoice_id);
-                            if ($inv) {
-                                $subtotal = (float) $inv->items()->sum('final_amount');
-                                $inv->subtotal = $subtotal;
-                                // Keep other fields intact; set total_amount to subtotal unless tax/discount exist
-                                $inv->total_amount = $subtotal;
-                                $inv->save();
-                            }
-                        } catch (\Exception $e) {
-                            Log::warning('Failed to recalc invoice after resep update: ' . $e->getMessage());
-                        }
-                    }
-                }
+            } catch (\App\Exceptions\InvoiceLockedException $e) {
+                throw $e;
             } catch (\Exception $e) {
-                Log::warning('Error syncing billing/invoice on resep update: ' . $e->getMessage());
+                Log::warning('Error syncing billing on resep update: ' . $e->getMessage());
             }
         });
 
-        // On delete: remove related billing and invoice items, then recalc invoices
         static::deleted(function (ResepFarmasi $resep) {
             try {
                 if (method_exists($resep, 'isForceDeleting') && !$resep->isForceDeleting()) {
                     return;
                 }
 
-                // Delete billing(s)
                 Billing::where('billable_type', ResepFarmasi::class)
                        ->where('billable_id', $resep->id)
                        ->delete();
-
-                // Find invoice items referencing this resep
-                $items = InvoiceItem::where('billable_type', ResepFarmasi::class)
-                                    ->where('billable_id', $resep->id)
-                                    ->get();
-                $affectedInvoiceIds = $items->pluck('invoice_id')->unique()->filter()->all();
-
-                // Delete the items
-                foreach ($items as $it) {
-                    $it->delete();
-                }
-
-                // Recalculate invoices and if they became empty, optionally delete them
-                foreach ($affectedInvoiceIds as $invId) {
-                    try {
-                        $inv = Invoice::find($invId);
-                        if (!$inv) continue;
-                        $subtotal = (float) $inv->items()->sum('final_amount');
-                        if ($subtotal <= 0) {
-                            // If invoice has no positive subtotal, delete it
-                            $inv->delete();
-                        } else {
-                            $inv->subtotal = $subtotal;
-                            $inv->total_amount = $subtotal;
-                            $inv->save();
-                        }
-                    } catch (\Exception $e) {
-                        Log::warning('Failed to recalc/delete invoice after resep delete: ' . $e->getMessage());
-                    }
-                }
+            } catch (\App\Exceptions\InvoiceLockedException $e) {
+                throw $e;
             } catch (\Exception $e) {
-                Log::warning('Error syncing billing/invoice on resep delete: ' . $e->getMessage());
+                Log::warning('Error syncing billing on resep delete: ' . $e->getMessage());
             }
         });
     }

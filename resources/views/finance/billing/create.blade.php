@@ -101,6 +101,7 @@
             admin_fee: @json($invoice?->items?->first(function($item) { return stripos($item->name ?? '', 'Biaya Administrasi') !== false; })?->unit_price ?? ''),
             shipping_fee: @json($invoice?->items?->where('name', 'Biaya Ongkir')->first()?->unit_price ?? ''),
             amount_paid: @json($invoice?->amount_paid ?? ''),
+            retur_amount: @json($invoice?->retur_amount ?? 0),
             payment_method: @json($invoice?->payment_method ?? ''),
             piutang_payment_status: @json($latestPiutang?->payment_status ?? null),
             piutang_id: @json($latestPiutang?->id ?? null),
@@ -184,13 +185,18 @@
                     let bg = '#dc3545';
 
                     const pm = (paymentMethod || '').toString().trim().toLowerCase();
+                    // what is owed after approved returs (they stay in the total as sold)
+                    const billAfterRetur = Math.max(0, Number(totalAmount || 0) - Number((window.oldInvoice && window.oldInvoice.retur_amount) || 0));
                     const paid = Number(totalAmount || 0) > 0
-                        ? Math.ceil(Number(amountPaid || 0)) >= Math.ceil(Number(totalAmount || 0))
+                        ? Math.ceil(Number(amountPaid || 0)) >= Math.ceil(billAfterRetur)
                         // zero total (e.g. 100% discount): paid once the payment was processed
                         : pm !== '';
-                    const partial = Number(amountPaid || 0) > 0 && Number(totalAmount || 0) > 0 && Number(amountPaid || 0) < Number(totalAmount || 0);
+                    const partial = Number(amountPaid || 0) > 0 && Number(totalAmount || 0) > 0 && Number(amountPaid || 0) < billAfterRetur;
 
-                    if (pm === 'piutang' || pm.startsWith('asuransi_')) {
+                    // Rp 0 on an insurance visit: nothing to claim, so it does not wait for a piutang settlement
+                    const isFreeInsurance = pm.startsWith('asuransi_') && Number(totalAmount || 0) <= 0;
+
+                    if (pm === 'piutang' || (pm.startsWith('asuransi_') && !isFreeInsurance)) {
                         const ps = (piutangPaymentStatus || '').toString().trim().toLowerCase();
                         if (ps === 'paid') {
                             text = 'Lunas';
@@ -642,6 +648,10 @@
                             } elseif (!$hasInvoice) {
                                 $badgeText = 'Belum Transaksi';
                                 $badgeBg = '#dc3545';
+                            } elseif ($totalAmount <= 0 && $invoice->isLunas()) {
+                                // Rp 0 already processed (also on an insurance visit): nothing to settle through piutang
+                                $badgeText = 'Lunas';
+                                $badgeBg = '#28a745';
                             } elseif ($paymentMethod === 'piutang' || str_starts_with($paymentMethod, 'asuransi_')) {
                                 if ($piutangStatus === 'paid') {
                                     $badgeText = 'Lunas';
@@ -659,7 +669,7 @@
                                     }
                                 }
                             } else {
-                                $isPaid = ($totalAmount > 0 && $amountPaid >= $totalAmount);
+                                $isPaid = $invoice->isLunas();
                                 $isPartial = ($amountPaid > 0 && $amountPaid < $totalAmount);
                                 if ($isPaid) {
                                     $badgeText = 'Lunas';
@@ -1012,8 +1022,9 @@
         try {
             const paidRaw = parseFloat((window.oldInvoice && window.oldInvoice.amount_paid) ? window.oldInvoice.amount_paid : 0);
             const totalRaw = parseFloat((window.oldInvoice && window.oldInvoice.total_amount) ? window.oldInvoice.total_amount : 0);
+            const returRaw = parseFloat((window.oldInvoice && window.oldInvoice.retur_amount) ? window.oldInvoice.retur_amount : 0);
             currentInvoiceIsPaid = (Number(totalRaw) > 0)
-                ? (Math.ceil(paidRaw) >= Math.ceil(totalRaw))
+                ? (Math.ceil(paidRaw) >= Math.ceil(Math.max(0, totalRaw - returRaw)))
                 // zero total (e.g. 100% discount): paid once the payment was processed
                 : !!(window.oldInvoice && window.oldInvoice.payment_method);
         } catch (e) {

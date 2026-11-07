@@ -1771,6 +1771,7 @@ class RawatJalanController extends Controller
 
         // update kunjungan lama jadi progress 7
         if ($request->has('visitation_id')) {
+            \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id, 'Kunjungan ini sudah dibayar (lunas / piutang), jadi tidak dapat dijadwalkan ulang. Gunakan retur bila perlu dibatalkan.');
             Visitation::where('id', $request->visitation_id)->update([
                 'status_kunjungan' => 7
             ]);
@@ -1806,6 +1807,7 @@ class RawatJalanController extends Controller
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
         ]);
+        \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id, 'Kunjungan ini sudah dibayar (lunas / piutang), jadi tidak dapat dibatalkan. Gunakan retur bila perlu dibatalkan.');
         $visitation = Visitation::findOrFail($request->visitation_id);
         $visitation->status_kunjungan = 7;
         $visitation->no_antrian = null;
@@ -1834,6 +1836,9 @@ class RawatJalanController extends Controller
         if ($visitation->status_kunjungan != 7) {
             return response()->json(['success' => false, 'message' => 'Visitation is not in dibatalkan status'], 400);
         }
+
+        // Deleting the visit takes its invoice with it (cascade): never when money or stock moved for it
+        \App\Models\Finance\Invoice::assertNotLocked($visitation->id, 'Kunjungan ini sudah dibayar (lunas / piutang), jadi tidak dapat dihapus.');
 
         DB::beginTransaction();
         try {

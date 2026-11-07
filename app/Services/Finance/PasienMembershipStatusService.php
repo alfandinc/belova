@@ -25,6 +25,11 @@ class PasienMembershipStatusService
             return null;
         }
 
+        // A piutang not settled yet doesn't give the membership; the payment that settles it does
+        if (!$resolvedInvoice->isLunas()) {
+            return null;
+        }
+
         $memberStatus = $this->detectMembershipStatus($resolvedInvoice);
         if (!$memberStatus) {
             return null;
@@ -39,10 +44,54 @@ class PasienMembershipStatusService
         return $memberStatus;
     }
 
+    /**
+     * After a retur: the membership this invoice gave ends once its item is fully returned, unless another paid
+     * invoice of the pasien still gives one. A status this invoice did not give (set by hand, or from another
+     * invoice) is left alone.
+     */
+    public function reviewAfterRetur(Invoice $invoice): void
+    {
+        $invoice = Invoice::with(['visitation.pasien', 'items.billable'])->find($invoice->id);
+        $pasien = $invoice && $invoice->visitation ? $invoice->visitation->pasien : null;
+        if (!$pasien) {
+            return;
+        }
+
+        $given = $invoice->items->map(fn ($item) => $this->detectMembershipStatusFromItem($item))->filter();
+        if (!$given->contains((string) $pasien->status_pasien) || $this->detectMembershipStatus($invoice)) {
+            return;
+        }
+
+        $other = Invoice::with('items.billable')
+            ->whereHas('visitation', fn ($q) => $q->where('pasien_id', $pasien->id))
+            ->where('id', '!=', $invoice->id)
+            ->orderByDesc('id')
+            ->get()
+            ->filter(fn (Invoice $candidate) => $candidate->isLunas())
+            ->map(fn (Invoice $candidate) => $this->detectMembershipStatus($candidate))
+            ->filter()
+            ->first();
+
+        $pasien->status_pasien = $other ?: 'Regular';
+        $pasien->save();
+    }
+
+    private function isFullyReturned(InvoiceItem $item): bool
+    {
+        $returned = \App\Models\Finance\ReturPembelianItem::where('invoice_item_id', $item->id)
+            ->whereHas('returPembelian', fn ($q) => $q->approved())
+            ->sum('quantity_returned');
+
+        return (float) $returned >= (float) $item->quantity;
+    }
+
     private function detectMembershipStatus(Invoice $invoice): ?string
     {
         foreach ($invoice->items as $item) {
             $memberStatus = $this->detectMembershipStatusFromItem($item);
+            if ($memberStatus && $this->isFullyReturned($item)) {
+                continue;
+            }
             if ($memberStatus) {
                 return $memberStatus;
             }

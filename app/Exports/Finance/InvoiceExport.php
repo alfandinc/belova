@@ -170,7 +170,7 @@ class InvoiceExport extends DefaultValueBinder implements FromQuery, WithHeading
 
         $totalAmount = floatval($invoice->total_amount ?? 0);
         $amountPaid = floatval($invoice->amount_paid ?? 0);
-        $isInvoiceFullyPaid = ($totalAmount > 0) && ($amountPaid >= $totalAmount);
+        $isInvoiceFullyPaid = $totalAmount > 0 && $invoice->isLunas();
 
         $piutangs = $invoice->piutangs ?? collect();
 
@@ -185,7 +185,7 @@ class InvoiceExport extends DefaultValueBinder implements FromQuery, WithHeading
         $piutangPaid = $latestPiutang ? floatval($latestPiutang->paid_amount ?? 0) : 0;
         $piutangRemaining = max(0, $piutangAmount - $piutangPaid);
 
-        $invoiceRemaining = max(0, $totalAmount - $amountPaid);
+        $invoiceRemaining = max(0, $invoice->billAfterRetur() - $amountPaid);
 
         $formatRupiah = function ($value) {
             return 'Rp ' . number_format(floatval($value), 0, ',', '.');

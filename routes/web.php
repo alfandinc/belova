@@ -1420,7 +1420,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::post('/transactions/backfill-change/process', [FinanceTransactionController::class, 'processBackfillChangeTransactions'])->name('finance.transactions.backfill.process');
         Route::middleware('role:Admin|Finance|Kasir')->group(function () {
             Route::get('/laporan-keuangan', [FinanceReportController::class, 'index'])->name('finance.laporan-keuangan.index');
-            Route::post('/laporan-keuangan/cutoffs', [FinanceReportController::class, 'updateCutoffs'])->name('finance.laporan-keuangan.cutoffs.update');
+            Route::post('/laporan-keuangan/cutoffs', [FinanceReportController::class, 'updateCutoffs'])->middleware('role:Admin|Finance')->name('finance.laporan-keuangan.cutoffs.update');
             Route::get('/laporan-keuangan/daily-data', [FinanceReportController::class, 'dailyData'])->name('finance.laporan-keuangan.daily-data');
             Route::get('/laporan-keuangan/monthly-data', [FinanceReportController::class, 'monthlyData'])->name('finance.laporan-keuangan.monthly-data');
             Route::get('/laporan-keuangan/detail-data', [FinanceReportController::class, 'detailData'])->name('finance.laporan-keuangan.detail-data');
@@ -1451,7 +1451,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
-    Route::post('/billing/receive-payment', [BillingController::class, 'receivePayment'])->name('finance.billing.receivePayment');
+    Route::post('/billing/receive-payment', [BillingController::class, 'receivePayment'])->middleware('role:Admin|Kasir|Finance')->name('finance.billing.receivePayment');
 
 
         Route::post('/billing', [BillingController::class, 'store'])->name('finance.billing.store');
@@ -1485,17 +1485,18 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');
-        Route::get('/invoice', [InvoiceController::class, 'index'])->name('finance.invoice.index');
-        Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
-        Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
+        Route::get('/invoice', [InvoiceController::class, 'index'])->middleware('role:Admin|Kasir|Finance|Farmasi')->name('finance.invoice.index');
+        Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->middleware('role:Admin|Kasir|Finance|Farmasi')->name('finance.invoice.show');
+        Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->middleware('role:Admin|Finance')->name('finance.invoice.updateStatus');
         // Admin edit of a processed invoice (prices / discounts only, logged with a reason)
         Route::middleware('role:Admin')->group(function () {
             Route::get('/invoice/{id}/admin-edit', [\App\Http\Controllers\Finance\InvoiceEditController::class, 'show'])->whereNumber('id')->name('finance.invoice.admin-edit.show');
             Route::put('/invoice/{id}/admin-edit', [\App\Http\Controllers\Finance\InvoiceEditController::class, 'update'])->whereNumber('id')->name('finance.invoice.admin-edit.update');
+            Route::post('/invoice/{id}/admin-edit/refund', [\App\Http\Controllers\Finance\InvoiceEditController::class, 'confirmRefund'])->whereNumber('id')->name('finance.invoice.admin-edit.refund');
         });
-        Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
-        Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
-        Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->name('finance.invoice.print-nota-v2');
+        Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->middleware('role:Admin|Kasir|Finance|Farmasi')->name('finance.invoice.print');
+        Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->middleware('role:Admin|Kasir|Finance|Farmasi')->name('finance.invoice.print-nota');
+        Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->middleware('role:Admin|Kasir|Finance|Farmasi')->name('finance.invoice.print-nota-v2');
         Route::middleware('role:Kasir|Admin|Farmasi|Finance|Employee|Manager|Head Manager|Hrd')->group(function () {
         // Rekap Penjualan / Invoice export: "Download Invoice" modal on the Billing page (old page URLs open it)
         Route::get('/rekap-penjualan', fn () => redirect()->route('finance.billing.index', ['download_invoice' => 1]))->name('finance.rekap-penjualan.form');

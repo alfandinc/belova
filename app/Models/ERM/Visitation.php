@@ -446,7 +446,8 @@ class Visitation extends Model
 
     public function invoice()
     {
-        return $this->hasOne(\App\Models\Finance\Invoice::class, 'visitation_id');
+        // Newest first: a few older visits hold two invoices, and the same one must be used everywhere
+        return $this->hasOne(\App\Models\Finance\Invoice::class, 'visitation_id')->orderByDesc('finance_invoices.id');
     }
 
     public function billings()

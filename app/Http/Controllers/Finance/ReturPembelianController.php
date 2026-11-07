@@ -103,7 +103,8 @@ class ReturPembelianController extends Controller
                         });
                 });
             })
-            ->whereNotNull('amount_paid')
+            ->whereNotNull('payment_method')
+            ->where('payment_method', '!=', '')
             ->orderBy('created_at', 'desc')
             ->limit($q !== '' || $startDate || $endDate ? 50 : 20)
             ->get();
@@ -174,6 +175,10 @@ class ReturPembelianController extends Controller
 
         try {
             DB::beginTransaction();
+
+            if (empty(Invoice::whereKey($request->invoice_id)->value('payment_method'))) {
+                throw new \Exception('Invoice belum diproses pembayaran, tidak ada yang bisa diretur.');
+            }
 
             // Create the retur as PENDING: stock and cash are only touched on approve().
             $retur = ReturPembelian::create([
@@ -295,6 +300,10 @@ class ReturPembelianController extends Controller
     {
         $retur->loadMissing('items');
 
+        if (empty(Invoice::whereKey($retur->invoice_id)->value('payment_method'))) {
+            throw new \Exception('Invoice belum diproses pembayaran, retur tidak dapat di-approve.');
+        }
+
         $retur->forceFill([
             'status' => ReturPembelian::STATUS_APPROVED,
             'approved_by' => Auth::id(),
@@ -318,6 +327,10 @@ class ReturPembelianController extends Controller
 
             if ($quantityReturned > ($invoiceItem->quantity - $approvedElsewhere)) {
                 throw new \Exception("Jumlah retur melebihi sisa yang bisa diretur untuk item: {$invoiceItem->name}");
+            }
+
+            if ($quantityReturned + $approvedElsewhere >= (float) $invoiceItem->quantity) {
+                $this->closeMultiVisitPackage($invoiceItem);
             }
 
             // Handle stock return if it's an Obat (medicine) or ResepFarmasi
@@ -345,13 +358,22 @@ class ReturPembelianController extends Controller
         $invoice = Invoice::find($retur->invoice_id);
         $totalAmount = (float) $retur->total_amount;
 
+        // A retur first cancels what the patient still owes; only money actually received above the
+        // new bill goes back as cash.
+        $refundAmount = $invoice ? $this->refundFor($invoice, $totalAmount) : 0.0;
+        $piutangReduction = $totalAmount - $refundAmount;
+
         // Keep the invoice's retur total in sync. Plain query: no model events and no updated_at
         // bump (reports use invoices.updated_at as the invoice date), items/totals untouched.
         if ($invoice && $totalAmount > 0) {
             DB::table('finance_invoices')->where('id', $invoice->id)->increment('retur_amount', $totalAmount);
         }
 
-        if ($invoice && $totalAmount > 0) {
+        if ($invoice && $piutangReduction > 0) {
+            $this->reducePiutang($invoice, $piutangReduction);
+        }
+
+        if ($invoice && $refundAmount > 0) {
             $returnedItemDescriptions = $retur->items
                 ->map(function ($item) {
                     $qty = rtrim(rtrim(number_format((float) ($item->quantity_returned ?? 0), 2, '.', ''), '0'), '.');
@@ -367,13 +389,82 @@ class ReturPembelianController extends Controller
 
             app(TransactionRecorderService::class)->recordInvoicePayment(
                 $invoice,
-                $totalAmount,
-                $invoice->payment_method,
+                $refundAmount,
+                app(TransactionRecorderService::class)->refundMethodFor($invoice),
                 $description,
                 $retur->processed_date,
                 'out'
             );
         }
+
+        if ($invoice) {
+            $membership = app(\App\Services\Finance\PasienMembershipStatusService::class);
+            $membership->reviewAfterRetur($invoice);
+            // A retur can settle the invoice (what remained was cancelled), which is when other member items count
+            $membership->syncFromInvoice($invoice->id);
+        }
+    }
+
+    /**
+     * The line that bought a multi-visit package was fully returned: its remaining sessions end here, the ones
+     * already used stay on record. A free session's own line (2/3, 3/3) doesn't end the package.
+     */
+    private function closeMultiVisitPackage(InvoiceItem $invoiceItem): void
+    {
+        if ($invoiceItem->billable_type !== \App\Models\ERM\RiwayatTindakan::class || !$invoiceItem->billable_id) {
+            return;
+        }
+
+        $riwayat = \App\Models\ERM\RiwayatTindakan::find($invoiceItem->billable_id);
+        if (!$riwayat || !$riwayat->multi_visit_usage_id) {
+            return;
+        }
+
+        $usage = \App\Models\ERM\MultiVisitUsage::find($riwayat->multi_visit_usage_id);
+        if ($usage && (string) $usage->first_visitation_id === (string) $riwayat->visitation_id && $usage->used < $usage->total) {
+            $usage->total = $usage->used;
+            $usage->save();
+        }
+    }
+
+    /**
+     * Cash to give back for a retur of $returAmount, given what was received so far and the bill after the retur.
+     */
+    private function refundFor(Invoice $invoice, float $returAmount): float
+    {
+        $earlierRefunds = (float) \App\Models\Finance\FinanceTransaction::where('invoice_id', $invoice->id)
+            ->where('jenis_transaksi', 'out')
+            ->where('deskripsi', 'like', 'No retur:%')
+            ->sum('jumlah');
+
+        $received = (float) $invoice->amount_paid - (float) $invoice->change_amount - $earlierRefunds;
+        $billAfter = (float) $invoice->total_amount - (float) $invoice->retur_amount - $returAmount;
+
+        return min($returAmount, max(0, $received - max(0, $billAfter)));
+    }
+
+    /** The part of a retur that cancels debt: the piutang and the invoice's kekurangan go down by it. */
+    private function reducePiutang(Invoice $invoice, float $amount): void
+    {
+        $piutang = \App\Models\Finance\Piutang::where('invoice_id', $invoice->id)->orderByDesc('id')->lockForUpdate()->first();
+        if ($piutang) {
+            $paid = (float) ($piutang->paid_amount ?? 0);
+            $piutang->amount = max($paid, (float) $piutang->amount - $amount);
+            if ($paid >= (float) $piutang->amount) {
+                $piutang->payment_status = 'paid';
+                $piutang->payment_date = $piutang->payment_date ?: now();
+            }
+            $piutang->save();
+        }
+
+        // Plain query, as with retur_amount above: no updated_at bump. retur_amount already includes this retur.
+        $invoice->refresh();
+        $settled = $invoice->isLunas();
+        DB::table('finance_invoices')->where('id', $invoice->id)->update(array_filter([
+            'shortage_amount' => max(0, (float) $invoice->shortage_amount - $amount),
+            'status' => $settled ? 'paid' : null,
+            'payment_date' => $settled && !$invoice->payment_date ? now() : null,
+        ], fn ($value) => $value !== null));
     }
 
     /**

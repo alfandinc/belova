@@ -153,20 +153,43 @@ class PiutangController extends Controller
         $request->validate([
             'amount' => 'required|numeric|min:0',
             'payment_date' => 'required|date',
-            'payment_method' => 'required|string'
+            // Settling a piutang needs a real way of paying, so "piutang" itself is not one
+            'payment_method' => ['required', 'string', \Illuminate\Validation\Rule::in(array_diff(array_keys(\App\Models\Finance\Invoice::PAYMENT_METHODS), ['piutang']))],
         ]);
 
-        $piutang = Piutang::findOrFail($id);
-        $invoice = $piutang->invoice;
+        // A late entry can be dated back; money can't be received on a day that hasn't come yet
+        if (\Illuminate\Support\Carbon::parse($request->input('payment_date'))->startOfDay()->gt(today())) {
+            return response()->json(['success' => false, 'message' => 'Tanggal pembayaran tidak boleh melebihi hari ini.'], 422);
+        }
 
         DB::beginTransaction();
         try {
+            // Locked so a double click or a second kasir sees the first payment before checking the sisa
+            $piutang = Piutang::lockForUpdate()->findOrFail($id);
+            $invoice = $piutang->invoice;
+
             $amount = floatval($request->input('amount'));
             $paymentDate = $request->input('payment_date');
             $paymentMethod = $request->input('payment_method');
 
             // Update piutang record: increment paid_amount and set metadata
             $currentPaid = floatval($piutang->paid_amount ?? 0);
+            $remaining = max(0, floatval($piutang->amount ?? 0) - $currentPaid);
+
+            $refusal = null;
+            if ($remaining <= 0 || strtolower((string) $piutang->payment_status) === 'paid') {
+                $refusal = 'Piutang ini sudah lunas.';
+            } elseif ($amount <= 0) {
+                $refusal = 'Jumlah pembayaran harus lebih dari 0.';
+            } elseif (intval(ceil($amount)) > intval(ceil($remaining))) {
+                $refusal = 'Jumlah pembayaran melebihi sisa piutang (Rp ' . number_format($remaining, 0, ',', '.') . ').';
+            }
+            if ($refusal) {
+                DB::rollBack();
+
+                return response()->json(['success' => false, 'message' => $refusal], 422);
+            }
+
             $piutang->paid_amount = $currentPaid + $amount;
             $piutang->payment_date = $paymentDate;
             $piutang->payment_method = $paymentMethod;
@@ -189,7 +212,8 @@ class PiutangController extends Controller
             if ($invoice) {
                 $currentInvPaid = floatval($invoice->amount_paid ?? 0);
                 $newInvPaid = $currentInvPaid + $amount;
-                $total = floatval($invoice->total_amount ?? 0);
+                // The bill after approved returs: that is what this payment settles
+                $total = $invoice->billAfterRetur();
 
                 $invoice->amount_paid = $newInvPaid;
 

@@ -68,7 +68,6 @@
                                             <label>Metode Pembayaran</label>
                                             <select name="payment_method" id="piutang_payment_method" class="form-control">
                                                 <option value="cash">Tunai</option>
-                                                <option value="piutang">Piutang</option>
                                                 <option value="edc_bca">EDC BCA</option>
                                                 <option value="edc_bni">EDC BNI</option>
                                                 <option value="edc_bri">EDC BRI</option>
@@ -80,6 +79,8 @@
                                                 <option value="tokopedia">Tokopedia</option>
                                                 <option value="asuransi_inhealth">Asuransi InHealth</option>
                                                 <option value="asuransi_brilife">Asuransi Brilife</option>
+                                                <option value="asuransi_admedika">Asuransi Admedika</option>
+                                                <option value="asuransi_bcalife">Asuransi BCA Life</option>
                                             </select>
                                         </div>
                                     </form>

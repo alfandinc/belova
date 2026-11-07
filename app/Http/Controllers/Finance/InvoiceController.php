@@ -156,21 +156,22 @@ class InvoiceController extends Controller
         // Allow explicit draft/canceled. Otherwise keep status consistent with payment amounts.
         $requested = $request->input('status');
         if (in_array($requested, ['draft', 'canceled'], true)) {
+            // This only changes the label, so it can't undo a payment: stock and money have to go back through retur
+            $processed = !empty($invoice->payment_method)
+                || floatval($invoice->amount_paid ?? 0) > 0
+                || \App\Models\ERM\KartuStok::where('ref_type', 'invoice_penjualan')->where('ref_id', $invoice->id)->exists();
+            if ($processed) {
+                return redirect()->back()->with('error', 'Invoice yang sudah diproses pembayaran tidak dapat dibatalkan dari sini. Gunakan retur untuk mengembalikan item.');
+            }
+
             $invoice->status = $requested;
         } else {
-            $paid = floatval($invoice->amount_paid ?? 0);
-            $total = floatval($invoice->total_amount ?? 0);
-            $paidInt = intval(ceil($paid));
-            $totalInt = intval(ceil($total));
-
-            if ($totalInt <= 0 && $invoice->status === 'paid') {
-                // zero total (e.g. free voucher) already settled: keep it paid
-            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
+            if ($invoice->isLunas()) {
                 $invoice->status = 'paid';
                 if (!$invoice->payment_date) {
                     $invoice->payment_date = now();
                 }
-            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+            } elseif (floatval($invoice->amount_paid ?? 0) > 0) {
                 $invoice->status = 'partial';
             } else {
                 $invoice->status = 'issued';
@@ -193,26 +194,6 @@ class InvoiceController extends Controller
             'items'
         ])->findOrFail($id);
         $invoice = $this->groupDuplicateTindakanItemsForPrint($invoice);
-        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
-        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
-            $paid = floatval($invoice->amount_paid ?? 0);
-            $total = floatval($invoice->total_amount ?? 0);
-            $paidInt = intval(ceil($paid));
-            $totalInt = intval(ceil($total));
-            if ($totalInt <= 0 && $invoice->status === 'paid') {
-                // zero total (e.g. free voucher) already settled: keep it paid
-            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
-                $invoice->status = 'paid';
-                if (!$invoice->payment_date) {
-                    $invoice->payment_date = now();
-                }
-            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
-                $invoice->status = 'partial';
-            } else {
-                $invoice->status = 'issued';
-            }
-            $invoice->save();
-        }
         $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
             ->setPaper('a5', 'portrait')
             ->setOptions([
@@ -244,26 +225,6 @@ class InvoiceController extends Controller
             'items'
         ])->findOrFail($id);
         $invoice = $this->groupDuplicateTindakanItemsForPrint($invoice);
-        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
-        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
-            $paid = floatval($invoice->amount_paid ?? 0);
-            $total = floatval($invoice->total_amount ?? 0);
-            $paidInt = intval(ceil($paid));
-            $totalInt = intval(ceil($total));
-            if ($totalInt <= 0 && $invoice->status === 'paid') {
-                // zero total (e.g. free voucher) already settled: keep it paid
-            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
-                $invoice->status = 'paid';
-                if (!$invoice->payment_date) {
-                    $invoice->payment_date = now();
-                }
-            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
-                $invoice->status = 'partial';
-            } else {
-                $invoice->status = 'issued';
-            }
-            $invoice->save();
-        }
         // Klinik logo as a small, pre-flattened data URI (the originals are several thousand px wide
         // with alpha, which dompdf decodes pixel by pixel and made this nota take ~6s to render)
         $klinikId = (int) ($invoice->visitation->klinik_id ?? 2);
@@ -346,26 +307,6 @@ class InvoiceController extends Controller
             'items'
         ])->findOrFail($id);
         $invoice = $this->groupDuplicateTindakanItemsForPrint($invoice);
-        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
-        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
-            $paid = floatval($invoice->amount_paid ?? 0);
-            $total = floatval($invoice->total_amount ?? 0);
-            $paidInt = intval(ceil($paid));
-            $totalInt = intval(ceil($total));
-            if ($totalInt <= 0 && $invoice->status === 'paid') {
-                // zero total (e.g. free voucher) already settled: keep it paid
-            } elseif ($totalInt > 0 && $paidInt >= $totalInt) {
-                $invoice->status = 'paid';
-                if (!$invoice->payment_date) {
-                    $invoice->payment_date = now();
-                }
-            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
-                $invoice->status = 'partial';
-            } else {
-                $invoice->status = 'issued';
-            }
-            $invoice->save();
-        }
         // Prepare logo paths for the PDF
         $premiereLogo = public_path('img/header-premiere.png');
         $belovaLogo = public_path('img/header-belova.png');

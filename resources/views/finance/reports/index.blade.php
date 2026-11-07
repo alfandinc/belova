@@ -113,9 +113,11 @@
                 <h3 class="mb-0 font-weight-bold">Laporan Keuangan</h3>
                 <div class="text-muted small">Pantau performa harian dan bulanan berdasarkan visit selesai serta pendapatan bersih transaksi.</div>
             </div>
+            @if(auth()->user()->hasAnyRole(['Admin', 'Finance']))
             <button type="button" class="btn btn-outline-primary report-settings-trigger" data-toggle="modal" data-target="#modal-report-cutoff">
                 Atur Cut Off Klinik
             </button>
+            @endif
             {{-- <div class="alert alert-light border mb-0 py-2 px-3">
                 <div class="small text-muted mb-1">Rumus pendapatan bersih</div>
                 <div class="font-weight-bold">Total transaksi masuk dikurangi transaksi keluar, termasuk kembalian.</div>

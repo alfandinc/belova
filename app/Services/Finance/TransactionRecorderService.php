@@ -51,6 +51,27 @@ class TransactionRecorderService
         return $transactions;
     }
 
+    /**
+     * The way money goes back to a patient: the invoice's method, or for piutang / asuransi (which are not ways of
+     * paying) the last way money actually came in on this invoice.
+     */
+    public function refundMethodFor(Invoice $invoice): string
+    {
+        $isNotPayment = fn ($method) => empty($method) || $method === 'piutang' || str_starts_with((string) $method, 'asuransi_');
+
+        if (!$isNotPayment($invoice->payment_method)) {
+            return $invoice->payment_method;
+        }
+
+        $lastReceived = FinanceTransaction::where('invoice_id', $invoice->id)
+            ->where('jenis_transaksi', 'in')
+            ->orderByDesc('id')
+            ->pluck('metode_bayar')
+            ->first(fn ($method) => !$isNotPayment($method));
+
+        return $lastReceived ?: 'cash';
+    }
+
     public function recordInvoicePayment(
         Invoice $invoice,
         float $jumlah,

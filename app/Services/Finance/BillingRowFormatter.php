@@ -33,7 +33,9 @@ class BillingRowFormatter
         $paymentMethod = strtolower((string)($invoice->payment_method ?? ''));
 
         // Fully paid (normal or after piutang settlement), or a zero total (e.g. free voucher) that was processed
-        if (($totalAmount > 0 && $amountPaid >= $totalAmount) || ($totalAmount <= 0 && $invoice->status === 'paid')) {
+        if ($invoice instanceof \App\Models\Finance\Invoice
+            ? $invoice->isLunas()
+            : (($totalAmount > 0 && $amountPaid >= $totalAmount) || ($totalAmount <= 0 && $invoice->status === 'paid'))) {
             return 'Lunas';
         }
 

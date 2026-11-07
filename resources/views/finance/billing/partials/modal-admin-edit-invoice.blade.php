@@ -20,6 +20,12 @@
                 <div class="aei-loading text-center py-4"><div class="spinner-border text-primary" role="status"><span class="sr-only">Memuat...</span></div></div>
                 <div class="aei-content" style="display:none;">
                     <div class="alert alert-danger aei-error" style="display:none;"></div>
+                    <div class="alert alert-warning py-2 mb-2 aei-refund" style="display:none;">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <div class="mr-2">Kelebihan bayar <strong class="aei-refund-amount"></strong> belum tercatat dikembalikan. Klik setelah uangnya diserahkan ke pasien.</div>
+                            <button type="button" class="btn btn-sm btn-warning" id="aei-refund-confirm"><i class="fas fa-hand-holding-usd mr-1"></i> Konfirmasi Pengembalian</button>
+                        </div>
+                    </div>
                     <div class="alert alert-info py-2 small mb-2">
                         Hanya harga dan diskon yang dapat diubah. Qty dan stok tidak berubah; jumlah yang sudah dibayar tetap, kekurangan / kelebihan dihitung ulang.
                     </div>
@@ -138,7 +144,7 @@ $(function() {
         $s('total').text(rupiah(total));
         $s('paid').text(rupiah(paid));
         if (paid > total) {
-            $s('diff_label').text('Kelebihan bayar (kembalikan manual)');
+            $s('diff_label').text('Kelebihan bayar (dikembalikan ke pasien)');
             $s('diff').text(rupiah(paid - total)).attr('class', 'text-right text-warning');
         } else {
             $s('diff_label').text('Kekurangan (piutang)');
@@ -175,9 +181,15 @@ $(function() {
         $modal.find('.aei-content').find('input, select, textarea').prop('disabled', !editable);
         $('#aei-save').prop('disabled', !editable);
 
+        var refundDue = Number(inv.refund_due) || 0;
+        $modal.find('.aei-refund').toggle(refundDue > 0);
+        $modal.find('.aei-refund-amount').text(rupiah(refundDue));
+
         var logs = '';
         $.each(inv.logs || [], function(i, log) {
-            var change = log.new_transaction_date
+            var change = log.refund_amount
+                ? 'kelebihan bayar ' + rupiah(log.refund_amount) + ' dikembalikan'
+                : log.new_transaction_date
                 ? 'tanggal transaksi ' + esc(log.old_transaction_date) + ' &rarr; ' + esc(log.new_transaction_date)
                 : log.new_retur_date
                     ? 'tanggal retur ' + esc(log.retur_number) + ' ' + esc(log.old_retur_date) + ' &rarr; ' + esc(log.new_retur_date)
@@ -213,6 +225,34 @@ $(function() {
     });
 
     $modal.on('input change', 'input, select', recalc);
+
+    $('#aei-refund-confirm').on('click', function() {
+        if (!current) return;
+        var id = current.id;
+        Swal.fire({
+            title: 'Konfirmasi Pengembalian',
+            html: 'Uang <strong>' + rupiah(current.refund_due) + '</strong> sudah diserahkan ke pasien?<br>Ini dicatat sebagai kas keluar, dan invoice tidak dapat diedit lagi.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, sudah diserahkan',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (!result.value) return;
+            var $btn = $('#aei-refund-confirm').prop('disabled', true);
+            $.ajax({
+                url: showUrl + id + '/admin-edit/refund',
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf }
+            }).done(function(res) {
+                Swal.fire('Tercatat', res.message, 'success');
+                $.getJSON(showUrl + id + '/admin-edit').done(render);
+            }).fail(function(xhr) {
+                Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal mencatat pengembalian.', 'error');
+            }).always(function() {
+                $btn.prop('disabled', false);
+            });
+        });
+    });
 
     $('#aei-save').on('click', function() {
         if (!current) return;

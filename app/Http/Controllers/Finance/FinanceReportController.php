@@ -43,7 +43,17 @@ class FinanceReportController extends Controller
             ->whereIn('id', $cutoffs->keys()->all())
             ->get()
             ->each(function (Klinik $clinic) use ($cutoffs) {
+                $old = $clinic->report_cutoff_time;
                 $clinic->report_cutoff_time = $cutoffs->get((string) $clinic->id, self::DEFAULT_REPORT_CUTOFF_TIME);
+                if ($clinic->isDirty('report_cutoff_time')) {
+                    // It moves transactions between report days, so keep who changed it
+                    \Illuminate\Support\Facades\Log::info('Cut off laporan diubah', [
+                        'klinik_id' => $clinic->id,
+                        'dari' => $old,
+                        'ke' => $clinic->report_cutoff_time,
+                        'user_id' => \Illuminate\Support\Facades\Auth::id(),
+                    ]);
+                }
                 $clinic->save();
             });
 

@@ -94,6 +94,8 @@ class EradiologiController extends Controller
             'requests.*' => 'in:requested,processing,completed',
         ]);
 
+        \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id);
+
         $visitationId = $request->visitation_id;
         $wanted = collect($request->input('requests', []))->mapWithKeys(fn ($status, $testId) => [(int) $testId => $status]);
         $canEditStatus = Auth::user() && Auth::user()->hasAnyRole(['Lab', 'Admin']);
@@ -276,6 +278,8 @@ class EradiologiController extends Controller
             'radiologi_test_id' => 'required|exists:erm_radiologi_test,id'
         ]);
 
+        \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id);
+
         // Create radiologi request
         $radiologiRequest = RadiologiPermintaan::create([
             'visitation_id' => $request->visitation_id,
@@ -315,6 +319,8 @@ class EradiologiController extends Controller
     
     public function destroy($id)
     {
+        \App\Models\Finance\Invoice::assertNotLocked(RadiologiPermintaan::whereKey($id)->value('visitation_id'));
+
         try {
             $permintaan = RadiologiPermintaan::findOrFail($id);
             $visitation_id = $permintaan->visitation_id;
@@ -385,7 +391,11 @@ class EradiologiController extends Controller
             'ids' => 'required|array',
             'ids.*' => 'integer|exists:erm_radiologi_permintaan,id'
         ]);
-        
+
+        foreach (RadiologiPermintaan::whereIn('id', $request->ids)->distinct()->pluck('visitation_id') as $lockedCheckVisitationId) {
+            \App\Models\Finance\Invoice::assertNotLocked($lockedCheckVisitationId);
+        }
+
         try {
             $visitation_id = RadiologiPermintaan::whereIn('id', $request->ids)->first()->visitation_id;
             

@@ -245,6 +245,8 @@ class ElabController extends Controller
             'lab_paket_id' => 'nullable|exists:erm_lab_paket,id'
         ]);
 
+        \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id);
+
         // Check if a lab request already exists for this visitation and lab test
         $existingRequest = LabPermintaan::where('visitation_id', $request->visitation_id)
             ->where('lab_test_id', $request->lab_test_id)
@@ -314,6 +316,8 @@ class ElabController extends Controller
     
     public function destroy($id)
     {
+        \App\Models\Finance\Invoice::assertNotLocked(LabPermintaan::whereKey($id)->value('visitation_id'));
+
         try {
             $permintaan = LabPermintaan::findOrFail($id);
             $visitation_id = $permintaan->visitation_id;
@@ -539,6 +543,8 @@ class ElabController extends Controller
             // allow requests to be nullable so client can send an empty payload to trigger deletions
             'requests' => 'nullable|array'
         ]);
+
+        \App\Models\Finance\Invoice::assertNotLocked($request->visitation_id);
 
         try {
             $visitationId = $request->visitation_id;
