@@ -34,6 +34,31 @@ class Merchandise extends Model
         return !empty($this->attributes['image']) ? asset('storage/' . $this->attributes['image']) : null;
     }
 
+    public function kliniks()
+    {
+        return $this->belongsToMany(Klinik::class, 'erm_merchandise_klinik', 'merchandise_id', 'klinik_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * "Milik bersama" when the item belongs to every klinik, otherwise the short klinik names.
+     */
+    public function klinikLabel(?int $totalKlinik = null): string
+    {
+        $kliniks = $this->kliniks;
+        $totalKlinik ??= Klinik::count();
+
+        if ($kliniks->isEmpty()) {
+            return 'Belum diatur';
+        }
+
+        if ($kliniks->count() >= $totalKlinik) {
+            return 'Milik bersama';
+        }
+
+        return $kliniks->sortBy('id')->map(fn (Klinik $k) => Klinik::shortName($k->nama))->implode(', ');
+    }
+
     public function pasienReceipts()
     {
         return $this->hasMany(PasienMerchandise::class, 'merchandise_id');

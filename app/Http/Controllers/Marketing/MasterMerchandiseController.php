@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
+use App\Models\ERM\Klinik;
 use App\Models\ERM\Merchandise;
 use App\Services\ERM\MerchandiseImageService;
 use App\Services\ERM\MerchandiseStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class MasterMerchandiseController extends Controller
 {
@@ -30,6 +32,8 @@ class MasterMerchandiseController extends Controller
 
         return view('marketing.master_merchandise.index', [
             'canManage' => $canManage,
+            'kliniks' => Klinik::orderBy('id')->get(['id', 'nama'])
+                ->map(fn (Klinik $k) => ['id' => $k->id, 'nama' => Klinik::shortName($k->nama)]),
             'pemasokNames' => $canManage ? $this->stock->pemasokNames() : collect(),
         ]);
     }
@@ -37,10 +41,14 @@ class MasterMerchandiseController extends Controller
     // Data for yajra DataTable
     public function data(Request $request)
     {
+        $klinikId = $request->query('klinik_id');
         $query = Merchandise::query()
+            ->with('kliniks:id,nama')
             ->when($request->query('status') === 'aktif', fn ($q) => $q->where('is_active', true))
-            ->when($request->query('status') === 'nonaktif', fn ($q) => $q->where('is_active', false));
+            ->when($request->query('status') === 'nonaktif', fn ($q) => $q->where('is_active', false))
+            ->when($klinikId, fn ($q) => $q->whereHas('kliniks', fn ($k) => $k->where('erm_klinik.id', $klinikId)));
         $canManage = $this->canManage();
+        $totalKlinik = Klinik::count();
 
         return datatables()->of($query)
             ->addColumn('thumb', function ($row) {
@@ -51,6 +59,12 @@ class MasterMerchandiseController extends Controller
             ->addColumn('item', function ($row) {
                 return '<div class="font-weight-bold">'.e($row->name).'</div>'
                     . ($row->description ? '<div class="small merch-muted">'.e($row->description).'</div>' : '');
+            })
+            ->addColumn('klinik_label', function ($row) use ($totalKlinik) {
+                $label = $row->klinikLabel($totalKlinik);
+                $class = $label === 'Milik bersama' ? 'badge-soft-info' : ($label === 'Belum diatur' ? 'badge-soft-danger' : 'badge-soft-primary');
+
+                return '<span class="badge '.$class.' merch-klinik-badge">'.e($label).'</span>';
             })
             ->addColumn('price_label', function ($row) use ($canManage) {
                 if (!$canManage) {
@@ -85,7 +99,7 @@ class MasterMerchandiseController extends Controller
                 return $buttons;
             })
             ->removeColumn('price')
-            ->rawColumns(['thumb', 'item', 'actions'])
+            ->rawColumns(['thumb', 'item', 'klinik_label', 'actions'])
             ->make(true);
     }
 
@@ -93,7 +107,7 @@ class MasterMerchandiseController extends Controller
     {
         $m = Merchandise::find($id);
         if (!$m) return response()->json(['error' => 'Not found'], 404);
-        return response()->json($m);
+        return response()->json($m->toArray() + ['klinik_ids' => $m->kliniks()->pluck('erm_klinik.id')]);
     }
 
     public function stockHistory($id)
@@ -122,7 +136,15 @@ class MasterMerchandiseController extends Controller
             $data['image'] = $this->images->store($request->file('image'), self::IMAGE_FOLDER, self::IMAGE_MAX_PX, 'image');
         }
 
-        $m = Merchandise::create($data);
+        $klinikIds = $data['klinik_ids'];
+        unset($data['klinik_ids']);
+
+        $m = DB::transaction(function () use ($data, $klinikIds) {
+            $m = Merchandise::create($data);
+            $m->kliniks()->sync($klinikIds);
+
+            return $m;
+        });
 
         return response()->json(['success' => true, 'data' => $m]);
     }
@@ -141,7 +163,13 @@ class MasterMerchandiseController extends Controller
             $data['image'] = null;
         }
 
-        $m->update($data);
+        $klinikIds = $data['klinik_ids'];
+        unset($data['klinik_ids']);
+
+        DB::transaction(function () use ($m, $data, $klinikIds) {
+            $m->update($data);
+            $m->kliniks()->sync($klinikIds);
+        });
 
         if (array_key_exists('image', $data)) {
             $this->images->delete($oldImage);
@@ -207,7 +235,11 @@ class MasterMerchandiseController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'klinik_ids' => 'required|array|min:1',
+            'klinik_ids.*' => 'integer|distinct|exists:erm_klinik,id',
         ], [
+            'klinik_ids.required' => 'Pilih minimal satu klinik pemilik.',
+            'klinik_ids.min' => 'Pilih minimal satu klinik pemilik.',
             'image.uploaded' => 'Gambar gagal diunggah karena ukurannya terlalu besar. Coba file yang lebih kecil.',
             'image.image' => 'File harus berupa gambar.',
             'image.mimes' => 'Gambar harus berformat JPG, PNG, atau WEBP.',

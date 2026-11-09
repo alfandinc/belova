@@ -2,6 +2,7 @@
 
 namespace App\Services\ERM;
 
+use App\Models\ERM\Klinik;
 use App\Models\ERM\Merchandise;
 use App\Models\ERM\MerchandiseKartuStok;
 use App\Models\ERM\MerchandisePemasok;
@@ -39,6 +40,8 @@ class MerchandiseStockService
      */
     public function catalog(?string $pasienId = null, bool $includeInactive = false): Collection
     {
+        $totalKlinik = Klinik::count();
+
         return Merchandise::query()
             ->unless($includeInactive, function ($query) use ($pasienId) {
                 $query->where(function ($query) use ($pasienId) {
@@ -49,12 +52,14 @@ class MerchandiseStockService
                     }
                 });
             })
+            ->with('kliniks:id,nama')
             ->orderBy('name')
             ->get()
             ->map(fn (Merchandise $item) => [
                 'id' => $item->id,
                 'kode' => $item->kode,
                 'name' => $item->name,
+                'klinik_label' => $item->klinikLabel($totalKlinik),
                 'description' => $item->description,
                 'image_url' => $item->image_url,
                 'is_active' => (bool) $item->is_active,

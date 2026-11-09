@@ -417,7 +417,7 @@
 
         function optionHtml(item) {
             var label = (item.kode ? item.kode + ' - ' : '') + (item.name || '-') + (item.is_active === false ? ' (nonaktif)' : '');
-            return '<option value="' + escapeHtml(item.id) + '" data-image="' + escapeHtml(item.image_url || '').replace(/"/g, '&quot;') + '">' + escapeHtml(label) + '</option>';
+            return '<option value="' + escapeHtml(item.id) + '" data-image="' + escapeHtml(item.image_url || '').replace(/"/g, '&quot;') + '" data-klinik="' + escapeHtml(item.klinik_label || '').replace(/"/g, '&quot;') + '">' + escapeHtml(label) + '</option>';
         }
 
         // Inactive items cannot be given anymore, but their history stays readable
@@ -438,7 +438,13 @@
             $('<img>').attr({ src: image, alt: '' }).css({ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px', marginRight: '8px' }).appendTo($wrap);
         }
 
-        return $wrap.append(document.createTextNode(option.text));
+        $wrap.append(document.createTextNode(option.text));
+        var klinik = $(option.element).attr('data-klinik');
+        if (klinik) {
+            $('<span class="badge badge-light ml-2"></span>').text(klinik).appendTo($wrap);
+        }
+
+        return $wrap;
     }
 
     function renderMerchandiseHistoryRows(rows) {

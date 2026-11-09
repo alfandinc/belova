@@ -43,6 +43,15 @@
                                 <option value="nonaktif">Nonaktif</option>
                             </select>
                         </div>
+                        <div class="col-md-3 col-6">
+                            <label for="filter-klinik" class="merch-filter-label d-block">Klinik</label>
+                            <select id="filter-klinik" class="form-control">
+                                <option value="">Semua</option>
+                                @foreach($kliniks as $klinik)
+                                    <option value="{{ $klinik['id'] }}">{{ $klinik['nama'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
                     <div class="table-responsive">
                         <table id="merch-table" class="table table-hover table-bordered w-100">
@@ -52,6 +61,7 @@
                                     <th style="width: 90px;">Kode</th>
                                     <th>Merchandise</th>
                                     <th>Deskripsi</th>
+                                    <th style="width: 160px;">Klinik</th>
                                     @if($canManage)
                                         <th style="width: 120px;">Harga Beli</th>
                                     @endif
@@ -91,6 +101,16 @@
                 <div class="form-group">
                     <label for="description">Deskripsi</label>
                     <textarea id="description" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="d-block mb-1">Milik Klinik</label>
+                    @foreach($kliniks as $klinik)
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input merch-klinik" id="merch-klinik-{{ $klinik['id'] }}" value="{{ $klinik['id'] }}">
+                            <label class="custom-control-label" for="merch-klinik-{{ $klinik['id'] }}">{{ $klinik['nama'] }}</label>
+                        </div>
+                    @endforeach
+                    <small class="form-text text-muted">Boleh lebih dari satu. Centang semua jika merchandise milik bersama. Stok tetap satu untuk semua klinik.</small>
                 </div>
                 <div class="form-group mb-0">
                     <label for="image">Gambar</label>
@@ -375,7 +395,8 @@ $(function () {
         { data: 'thumb', orderable: false, searchable: false },
         { data: 'kode', name: 'kode', className: 'text-nowrap' },
         { data: 'item', name: 'name' },
-        { data: 'description', name: 'description', visible: false }
+        { data: 'description', name: 'description', visible: false },
+        { data: 'klinik_label', orderable: false, searchable: false }
     ];
     if (canManage) {
         columns.push({ data: 'price_label', orderable: false, searchable: false, className: 'text-nowrap' });
@@ -407,12 +428,15 @@ $(function () {
         order: [[1, 'asc']],
         ajax: {
             url: @json(route('marketing.master_merchandise.data')),
-            data: function (d) { d.status = $('#filter-status').val(); }
+            data: function (d) {
+                d.status = $('#filter-status').val();
+                d.klinik_id = $('#filter-klinik').val();
+            }
         },
         columns: columns
     });
 
-    $('#filter-status').on('change', function () { table.ajax.reload(); });
+    $('#filter-status, #filter-klinik').on('change', function () { table.ajax.reload(); });
 
     /* Master form */
     function setImagePreview(url) {
@@ -436,6 +460,11 @@ $(function () {
             $('#name').val(item.name);
             $('#description').val(item.description);
         }
+        // New items start as milik bersama; edits show the saved kliniks
+        const klinikIds = item ? (item.klinik_ids || []).map(String) : null;
+        $('.merch-klinik').each(function () {
+            this.checked = klinikIds === null || klinikIds.indexOf(this.value) !== -1;
+        });
         setImagePreview(item ? item.image_url : null);
         $('#merchModal').modal('show');
     }
@@ -470,6 +499,12 @@ $(function () {
         formData.append('name', $('#name').val());
         formData.append('description', $('#description').val());
         formData.append('remove_image', $('#remove_image').val());
+        const klinikIds = $('.merch-klinik:checked').map(function () { return this.value; }).get();
+        if (!klinikIds.length) {
+            showError(null, 'Pilih minimal satu klinik pemilik.');
+            return;
+        }
+        klinikIds.forEach(function (klinikId) { formData.append('klinik_ids[]', klinikId); });
         // PHP only parses multipart bodies on POST, so PUT goes through method spoofing
         if (id) { formData.append('_method', 'PUT'); }
 

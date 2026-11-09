@@ -64,6 +64,7 @@ function renderMerchChecklist(masterList, pasienReceipts, canGive) {
             ? `<small class="text-muted ml-2">Stok: ${stock}</small>`
             : '<small class="text-danger ml-2">Stok habis</small>';
         let inactiveBadge = item.is_active === false ? '<span class="badge badge-secondary ml-2">Nonaktif</span>' : '';
+        let klinikBadge = item.klinik_label ? `<span class="badge badge-light ml-2">${escapeMerchandiseText(item.klinik_label)}</span>` : '';
         let thumb = item.image_url
             ? `<img src="${escapeMerchandiseAttr(item.image_url)}" alt="" class="mr-2" style="width:40px;height:40px;flex:0 0 40px;object-fit:cover;border-radius:6px;">`
             : '';
@@ -82,7 +83,7 @@ function renderMerchChecklist(masterList, pasienReceipts, canGive) {
                 <div class="pr-3 d-flex align-items-start" style="min-width:0;">
                     ${thumb}
                     <div>
-                        <div><strong>${escapeMerchandiseText(item.name)}</strong> <small class="text-muted">${escapeMerchandiseText(item.kode)}</small> ${stockBadge} ${inactiveBadge}</div>
+                        <div><strong>${escapeMerchandiseText(item.name)}</strong> <small class="text-muted">${escapeMerchandiseText(item.kode)}</small> ${stockBadge} ${klinikBadge} ${inactiveBadge}</div>
                         <div class="small text-muted">${escapeMerchandiseText(item.description)}</div>
                     </div>
                 </div>
