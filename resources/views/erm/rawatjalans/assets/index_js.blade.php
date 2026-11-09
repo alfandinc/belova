@@ -352,6 +352,14 @@
     });
 
     var merchandiseStockOutCatalog = null;
+    var merchandiseCanGive = true;
+
+    function applyMerchandiseGivePermission() {
+        $('#tab-berikan-merchandise').closest('.nav-item').toggleClass('d-none', !merchandiseCanGive);
+        if (!merchandiseCanGive) {
+            $('#tab-riwayat-merchandise').tab('show');
+        }
+    }
 
     function resetMerchandiseStockOutForm() {
         $('#form-merchandise-stock-out')[0].reset();
@@ -386,15 +394,8 @@
         }
 
         var currentStock = parseInt(item.current_stock || 0, 10);
-        var remaining = item.remaining_monthly_stock;
-        var summary = 'Stok saat ini: ' + currentStock;
-        if (remaining !== null && remaining !== undefined && remaining !== '') {
-            summary += ' | Sisa limit bulanan: ' + remaining;
-        } else {
-            summary += ' | Tanpa limit bulanan';
-        }
 
-        $('#merchandise-stock-out-summary').text(summary);
+        $('#merchandise-stock-out-summary').text('Stok saat ini: ' + currentStock);
         $('#merchandise-stock-out-qty').attr('max', Math.max(currentStock, 1));
     }
 
@@ -412,14 +413,32 @@
     function populateMerchandiseStockOutItems(items) {
         var $select = $('#merchandise-stock-out-item');
         var $historySelect = $('#merchandise-history-item');
-        var options = '<option value="">Pilih merchandise</option>';
+        var placeholder = '<option value="">Pilih merchandise</option>';
 
-        (items || []).forEach(function (item) {
-            options += '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(item.name || '-') + '</option>';
-        });
+        function optionHtml(item) {
+            var label = (item.kode ? item.kode + ' - ' : '') + (item.name || '-') + (item.is_active === false ? ' (nonaktif)' : '');
+            return '<option value="' + escapeHtml(item.id) + '" data-image="' + escapeHtml(item.image_url || '').replace(/"/g, '&quot;') + '">' + escapeHtml(label) + '</option>';
+        }
 
-        $select.html(options).trigger('change');
-        $historySelect.html(options).trigger('change');
+        // Inactive items cannot be given anymore, but their history stays readable
+        var activeItems = (items || []).filter(function (item) { return item.is_active !== false; });
+
+        $select.html(placeholder + activeItems.map(optionHtml).join('')).trigger('change');
+        $historySelect.html(placeholder + (items || []).map(optionHtml).join('')).trigger('change');
+    }
+
+    function renderMerchandiseOption(option) {
+        if (!option.id || !option.element) {
+            return option.text;
+        }
+
+        var image = $(option.element).attr('data-image');
+        var $wrap = $('<span class="d-inline-flex align-items-center"></span>');
+        if (image) {
+            $('<img>').attr({ src: image, alt: '' }).css({ width: '24px', height: '24px', objectFit: 'cover', borderRadius: '4px', marginRight: '8px' }).appendTo($wrap);
+        }
+
+        return $wrap.append(document.createTextNode(option.text));
     }
 
     function renderMerchandiseHistoryRows(rows) {
@@ -429,7 +448,7 @@
         }
 
         var html = '<table class="table table-sm table-bordered mb-0">'
-            + '<thead><tr><th>Tanggal</th><th>Tipe</th><th>Qty</th><th>Stok Saat Itu</th><th>Catatan</th></tr></thead><tbody>';
+            + '<thead><tr><th>Tanggal</th><th>Tipe</th><th>Qty</th><th>Stok Saat Itu</th><th>Catatan</th><th>Oleh</th></tr></thead><tbody>';
 
         rows.forEach(function (row) {
             var typeText = String((row.type || '').toUpperCase() || '-');
@@ -440,6 +459,7 @@
                 + '<td>' + escapeHtml(row.qty || 0) + '</td>'
                 + '<td>' + escapeHtml(row.current_stock || 0) + '</td>'
                 + '<td>' + escapeHtml(row.notes || '-') + '</td>'
+                + '<td>' + escapeHtml(row.user_name || '-') + '</td>'
                 + '</tr>';
         });
 
@@ -454,7 +474,7 @@
         }
 
         $('#merchandise-history-content').html('<div class="text-center text-muted"><span class="spinner-border spinner-border-sm mr-2"></span>Memuat riwayat...</div>');
-        $.get('{{ url("marketing/master-merchandise") }}/' + merchandiseId + '/stock-history')
+        $.get('{{ url("erm/merchandises") }}/' + merchandiseId + '/stock-history')
             .done(function (response) {
                 renderMerchandiseHistoryRows(response && response.data ? response.data : []);
             })
@@ -464,12 +484,9 @@
     }
 
     function loadMerchandiseStockOutCatalog() {
-        if (Array.isArray(merchandiseStockOutCatalog)) {
-            return $.Deferred().resolve(merchandiseStockOutCatalog).promise();
-        }
-
-        return $.get('{{ route("marketing.master_merchandise.data") }}').then(function (response) {
+        return $.get('{{ route("erm.merchandises.catalog") }}', { include_inactive: 1 }).then(function (response) {
             merchandiseStockOutCatalog = response && response.data ? response.data : [];
+            merchandiseCanGive = !response || response.can_give !== false;
             populateMerchandiseStockOutItems(merchandiseStockOutCatalog);
             return merchandiseStockOutCatalog;
         });
@@ -485,7 +502,9 @@
             $itemSelect.select2({
                 width: '100%',
                 dropdownParent: $modal,
-                placeholder: 'Pilih merchandise'
+                placeholder: 'Pilih merchandise',
+                templateResult: renderMerchandiseOption,
+                templateSelection: renderMerchandiseOption
             });
         }
 
@@ -513,7 +532,9 @@
             $historySelect.select2({
                 width: '100%',
                 dropdownParent: $modal,
-                placeholder: 'Pilih merchandise'
+                placeholder: 'Pilih merchandise',
+                templateResult: renderMerchandiseOption,
+                templateSelection: renderMerchandiseOption
             });
         }
     }
@@ -524,6 +545,7 @@
             resetMerchandiseStockOutForm();
 
             loadMerchandiseStockOutCatalog().done(function () {
+                applyMerchandiseGivePermission();
                 $('#modalMerchandiseStockOut').modal('show');
             }).fail(function () {
                 Swal.fire('Gagal', 'Tidak dapat memuat daftar merchandise.', 'error');
@@ -2713,142 +2735,7 @@ function displayScreeningVaksinData(data) {
 }
 
 // Manage Pasien modal handlers (mirrors pasien index behavior)
-function getMerchandiseErrorMessage(xhr, fallbackMessage) {
-    if (xhr && xhr.responseJSON) {
-        return xhr.responseJSON.message || xhr.responseJSON.error || fallbackMessage;
-    }
-
-    return fallbackMessage;
-}
-
-function getNullableInt(value) {
-    if (value === null || value === undefined || value === '') {
-        return null;
-    }
-
-    let parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? null : parsed;
-}
-
-function getMerchandiseMaxQty($input) {
-    let remaining = getNullableInt($input.data('remaining'));
-    let currentQty = parseInt($input.data('currentQty') || 0, 10);
-
-    if (remaining === null) {
-        return null;
-    }
-
-    return Math.max(0, remaining + currentQty);
-}
-
-function syncMerchandiseQtyControls($input) {
-    let qty = parseInt($input.val() || 1, 10);
-    let maxQty = getMerchandiseMaxQty($input);
-    let merchId = $input.data('id');
-    let $minus = $('.merch-qty-minus[data-id="' + merchId + '"]');
-    let $plus = $('.merch-qty-plus[data-id="' + merchId + '"]');
-
-    $minus.prop('disabled', qty <= 1);
-    $plus.prop('disabled', maxQty !== null && qty >= maxQty);
-}
-
-function validateMerchandiseQty($input, qty) {
-    let maxQty = getMerchandiseMaxQty($input);
-
-    if (maxQty !== null && maxQty <= 0) {
-        Swal.fire({ icon: 'warning', title: 'Limit bulanan habis', text: 'Merchandise ini sudah mencapai limit bulan berjalan.' });
-        return { valid: false, qty: 0 };
-    }
-
-    if (maxQty !== null && qty > maxQty) {
-        Swal.fire({ icon: 'warning', title: 'Melebihi limit bulanan', text: `Qty (${qty}) melebihi sisa limit yang tersedia (${maxQty}).` });
-        return { valid: false, qty: maxQty };
-    }
-
-    return { valid: true, qty: qty };
-}
-
-function loadManagePasienMerchandise(pasienId) {
-    $('#unifiedMerchChecklistContainer').html('<p class="text-muted">Memuat...</p>');
-
-    $.when(
-        $.get('/marketing/master-merchandise/data').fail(()=>{}),
-        $.get('/erm/pasiens/' + pasienId + '/merchandises').fail(()=>{})
-    ).done(function(masterResp, pasienResp){
-        let masterData = masterResp && masterResp[0] ? (masterResp[0].data || masterResp[0]) : [];
-        let pasienData = pasienResp && pasienResp[0] ? (pasienResp[0].data || pasienResp[0]) : [];
-        renderMerchChecklist(masterData, pasienData);
-    }).fail(function(){
-        $('#unifiedMerchChecklistContainer').html('<p class="text-danger">Gagal memuat data.</p>');
-    });
-}
-
-function renderMerchChecklist(masterList, pasienReceipts) {
-    let receivedIds = (pasienReceipts || []).map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
-    let $container = $('#unifiedMerchChecklistContainer');
-    $container.empty();
-
-    if (!masterList.length) {
-        $container.html('<p class="text-muted">No merchandise items available.</p>');
-        return;
-    }
-
-    let $form = $('<div class="list-group"></div>');
-    let qtyMap = {};
-    let pmIdMap = {};
-    (pasienReceipts || []).forEach(r => {
-        if (r.merchandise_id) {
-            qtyMap[r.merchandise_id] = r.quantity || 1;
-            pmIdMap[r.merchandise_id] = r.id || '';
-        }
-    });
-
-    masterList.forEach(item => {
-        let received = receivedIds.includes(item.id);
-        let qty = received ? (qtyMap[item.id] || 1) : 1;
-        let monthlyLimit = getNullableInt(item.monthly_limit_stock);
-        let remaining = getNullableInt(item.remaining_monthly_stock);
-        let maxQty = monthlyLimit === null ? null : Math.max(0, (remaining || 0) + (received ? qty : 0));
-        let exhausted = maxQty !== null && maxQty <= 0 && !received;
-        let disabledAttr = exhausted ? 'disabled' : '';
-        let limitBadge = monthlyLimit === null
-            ? '<small class="text-muted ml-2">Tanpa limit bulanan</small>'
-            : (exhausted
-                ? `<small class="text-danger ml-2">Limit: ${monthlyLimit} - habis bulan ini</small>`
-                : `<small class="text-muted ml-2">Limit: ${monthlyLimit}</small>`);
-        let statusBadge = received ? '<span class="badge badge-success ml-2">Sudah diberikan</span>' : '';
-
-        let $row = $(
-            `<div class="list-group-item merch-item-row" data-id="${item.id}">
-                <div class="d-flex align-items-start justify-content-between">
-                    <div class="pr-3">
-                        <div><strong>${item.name}</strong> ${limitBadge} ${statusBadge}</div>
-                        <div class="small text-muted">${item.description || ''}</div>
-                    </div>
-                    <div class="text-right" style="min-width: 190px;">
-                        <div class="input-group input-group-sm justify-content-end">
-                            <div class="input-group-prepend">
-                                <button type="button" class="btn btn-outline-secondary merch-qty-minus" data-id="${item.id}" ${disabledAttr}>-</button>
-                            </div>
-                                    <input type="number" min="1" ${maxQty !== null ? `max="${maxQty}"` : ''} class="form-control form-control-sm merch-qty text-center" data-id="${item.id}" data-pm-id="${pmIdMap[item.id] || ''}" data-current-qty="${received ? qty : 0}" data-remaining="${remaining ?? ''}" value="${qty}" style="max-width:70px;" ${disabledAttr}>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-outline-secondary merch-qty-plus" data-id="${item.id}" ${disabledAttr}>+</button>
-                            </div>
-                        </div>
-                        <div class="mt-2">
-                            <button type="button" class="btn btn-sm btn-primary merch-save" data-id="${item.id}" ${disabledAttr}>${received ? 'Ubah' : 'Beri'}</button>
-                            ${received ? `<button type="button" class="btn btn-sm btn-outline-danger merch-remove" data-id="${item.id}">Hapus</button>` : ''}
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        );
-        $form.append($row);
-    });
-
-    $container.append($form);
-    $('.merch-qty').each(function(){ syncMerchandiseQtyControls($(this)); });
-}
+@include('erm.partials.merchandise_checklist_js')
 
 function openManageModal(pasienId){
     if (!$('#modalManagePasien').length) {
@@ -3083,109 +2970,6 @@ $(document).on('click', '#saveManagePasien', function(){
     });
 });
 
-$(document).on('click', '.merch-qty-minus, .merch-qty-plus', function(){
-    let $button = $(this);
-    let merchId = $button.data('id');
-    let $input = $('.merch-qty[data-id="' + merchId + '"]');
-    let qty = parseInt($input.val() || 1, 10);
-    qty = $button.hasClass('merch-qty-plus') ? qty + 1 : Math.max(1, qty - 1);
-    let validation = validateMerchandiseQty($input, qty);
-    $input.val(validation.valid ? validation.qty : Math.max(1, validation.qty || qty));
-    syncMerchandiseQtyControls($input);
-});
-
-$(document).on('input change', '.merch-qty', function(){
-    let $input = $(this);
-    let qty = parseInt($input.val() || 1, 10);
-    if (qty < 1) {
-        qty = 1;
-    }
-    let validation = validateMerchandiseQty($input, qty);
-    $input.val(validation.valid ? validation.qty : Math.max(1, validation.qty || qty));
-    syncMerchandiseQtyControls($input);
-});
-
-$(document).on('click', '.merch-save', function(){
-    let merchId = $(this).data('id');
-    let pasienId = $('#modalManagePasien').data('pasien-id');
-    if (!pasienId) return alert('Pasien ID missing');
-
-    let $input = $('.merch-qty[data-id="' + merchId + '"]');
-    let qty = parseInt($input.val() || 1, 10);
-    let validation = validateMerchandiseQty($input, qty);
-    if (!validation.valid) {
-        $input.val(Math.max(1, validation.qty || qty));
-        return;
-    }
-    qty = validation.qty;
-
-    let pmId = $input.data('pm-id');
-    if (pmId) {
-        $.ajax({
-            url: '/erm/pasiens/' + pasienId + '/merchandises/' + pmId,
-            type: 'PUT',
-            data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty },
-            success: function(resp){
-                $input.data('currentQty', qty);
-                if (resp && Object.prototype.hasOwnProperty.call(resp, 'remaining_monthly_stock')) {
-                    $input.data('remaining', resp.remaining_monthly_stock);
-                }
-                loadManagePasienMerchandise(pasienId);
-            },
-            error: function(xhr){
-                Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to update quantity') });
-            }
-        });
-        return;
-    }
-
-    $.post('/erm/pasiens/' + pasienId + '/merchandises', {
-        _token: $('meta[name="csrf-token"]').attr('content'),
-        merchandise_id: merchId,
-        quantity: qty
-    }).done(function(resp){
-        if (resp && resp.id) {
-            $input.data('pm-id', resp.id);
-        }
-        loadManagePasienMerchandise(pasienId);
-    }).fail(function(xhr){
-        Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to add merchandise') });
-    });
-});
-
-$(document).on('click', '.merch-remove', function(){
-    let merchId = $(this).data('id');
-    let pasienId = $('#modalManagePasien').data('pasien-id');
-    if (!pasienId) return alert('Pasien ID missing');
-
-    let $input = $('.merch-qty[data-id="' + merchId + '"]');
-    let pmId = $input.data('pm-id');
-    let handleDelete = function(targetPmId) {
-        $.ajax({
-            url: '/erm/pasiens/' + pasienId + '/merchandises/' + targetPmId,
-            type: 'DELETE',
-            data: { _token: $('meta[name="csrf-token"]').attr('content') },
-            success: function(){
-                loadManagePasienMerchandise(pasienId);
-            },
-            error: function(xhr){
-                Swal.fire({ icon: 'error', title: 'Gagal', text: getMerchandiseErrorMessage(xhr, 'Failed to remove merchandise') });
-            }
-        });
-    };
-
-    if (pmId) {
-        handleDelete(pmId);
-        return;
-    }
-
-    $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
-        let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
-        if (!rec) return;
-        handleDelete(rec.id);
-    });
-});
-
 // Small edit-status handlers
 $(document).on('click', '.edit-status-akses-btn', function() {
     let pasienId = $(this).data('pasien-id');
@@ -3231,17 +3015,24 @@ $(document).on('click', '.pasien-merch', function(e) {
             if (res && res.data) {
                 var rows = '';
                 res.data.forEach(function(item, idx) {
+                    var status = item.cancelled_at
+                        ? '<span class="badge badge-secondary">Dibatalkan</span><br><small>'
+                            + escapeMerchandiseText(item.cancelled_at) + ' oleh ' + escapeMerchandiseText(item.cancelled_by || '-')
+                            + '<br>Alasan: ' + escapeMerchandiseText(item.cancel_reason || '-') + '</small>'
+                        : '<span class="badge badge-success">Diberikan</span>';
                     rows += '<tr>' +
                         '<td>' + (idx + 1) + '</td>' +
-                        '<td>' + (item.nama || '-') + '</td>' +
-                        '<td>' + (item.description || '-') + '</td>' +
-                        '<td>' + (item.quantity || '-') + '</td>' +
-                        '<td>' + (item.notes || '-') + '</td>' +
-                        '<td>' + (item.given_at || '-') + '</td>' +
+                        '<td>' + (item.image_url ? '<img src="' + escapeMerchandiseText(item.image_url).replace(/"/g, '&quot;') + '" alt="" class="mr-2" style="width:32px;height:32px;object-fit:cover;border-radius:4px;">' : '') + escapeMerchandiseText((item.kode ? item.kode + ' - ' : '') + (item.nama || '-')) + '</td>' +
+                        '<td>' + escapeMerchandiseText(item.description || '-') + '</td>' +
+                        '<td>' + escapeMerchandiseText(item.quantity || '-') + '</td>' +
+                        '<td>' + escapeMerchandiseText(item.notes || '-') + '</td>' +
+                        '<td>' + escapeMerchandiseText(item.given_at || '-') + '</td>' +
+                        '<td>' + escapeMerchandiseText(item.given_by || '-') + '</td>' +
+                        '<td>' + status + '</td>' +
                         '</tr>';
                 });
                 if (rows === '') {
-                    rows = '<tr><td colspan="6" class="text-center">Tidak ada merchandise.</td></tr>';
+                    rows = '<tr><td colspan="8" class="text-center">Tidak ada merchandise.</td></tr>';
                 }
                 $('#table-pasien-merch tbody').html(rows);
                 $('#modalPasienMerch').modal('show');

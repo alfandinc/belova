@@ -9,6 +9,8 @@ class MerchandiseKartuStok extends Model
 {
     use HasFactory;
 
+    public const SUMBER_OPNAME = 'opname';
+
     protected $table = 'erm_merchandise_kartu_stok';
 
     protected $fillable = [
@@ -18,6 +20,9 @@ class MerchandiseKartuStok extends Model
         'qty',
         'current_stock',
         'notes',
+        'user_id',
+        'sumber',
+        'pembelian_id',
     ];
 
     protected $casts = [
@@ -43,11 +48,21 @@ class MerchandiseKartuStok extends Model
             return $latest + $qty;
         }
 
-        return max(0, $latest - $qty);
+        return $latest - $qty;
     }
 
     public function merchandise()
     {
         return $this->belongsTo(Merchandise::class, 'merchandise_id');
+    }
+
+    public function pembelian()
+    {
+        return $this->belongsTo(MerchandisePembelian::class, 'pembelian_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
     }
 }

@@ -905,14 +905,14 @@
             piutangReceiveBase: '{{ url('/finance/piutang') }}',
             ermPasiensSelect2Url: '{{ route("erm.pasiens.select2") }}',
             ermPasienMerchandiseBaseUrl: '{{ url("erm/pasiens") }}',
-            marketingMasterMerchandiseDataUrl: '{{ route("marketing.master_merchandise.data") }}',
-            marketingMasterMerchandiseBaseUrl: '{{ url("marketing/master-merchandise") }}',
+            merchandiseCatalogUrl: '{{ route("erm.merchandises.catalog") }}',
+            merchandiseBaseUrl: '{{ url("erm/merchandises") }}',
             ermRawatjalanMerchandiseStockOutUrl: '{{ route("erm.rawatjalans.merchandise.stock-out") }}',
             csrfToken: '{{ csrf_token() }}'
         };
 
         var billingIndexModalsUrl = '{{ route('finance.billing.index-modals') }}';
-        var billingIndexModalsScriptUrl = '{{ asset('js/finance/billing/index-modals.js') }}';
+        var billingIndexModalsScriptUrl = '{{ asset('js/finance/billing/index-modals.js') }}?v={{ filemtime(public_path('js/finance/billing/index-modals.js')) }}';
         window.__billingIndexLazyAssetsReady = false;
         window.__billingIndexLazyAssetsPromise = null;
 

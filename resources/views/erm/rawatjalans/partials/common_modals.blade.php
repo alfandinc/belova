@@ -345,6 +345,8 @@ Terima kasih.
                                 <th>Qty</th>
                                 <th>Notes</th>
                                 <th>Diberikan Pada</th>
+                                <th>Oleh</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>

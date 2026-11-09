@@ -4,84 +4,56 @@ namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Merchandise;
-use App\Models\ERM\MerchandiseKartuStok;
+use App\Models\ERM\Pasien;
 use App\Models\ERM\PasienMerchandise;
+use App\Services\ERM\MerchandiseStockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use App\Models\ERM\Pasien;
 
 class PasienMerchandiseController extends Controller
 {
-    protected function getCurrentMonthNetUsedQty(int $merchandiseId): int
+    public function __construct(private MerchandiseStockService $stock)
     {
-        return (int) PasienMerchandise::where('merchandise_id', $merchandiseId)
-            ->whereBetween('given_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->sum('quantity');
     }
 
-    protected function getRemainingMonthlyLimit(Merchandise $merchandise): ?int
+    /**
+     * Items for the give/stock-out forms, for every role that has a Merchandise button.
+     *
+     * GET /erm/merchandises/catalog
+     */
+    public function catalog(Request $request)
     {
-        if ($merchandise->monthly_limit_stock === null) {
-            return null;
-        }
-
-        return max(0, (int) $merchandise->monthly_limit_stock - $this->getCurrentMonthNetUsedQty($merchandise->id));
-    }
-
-    protected function ensureMonthlyLimitAvailable(Merchandise $merchandise, int $requestedQty): void
-    {
-        $remaining = $this->getRemainingMonthlyLimit($merchandise);
-
-        if ($remaining !== null && $requestedQty > $remaining) {
-            abort(response()->json([
-                'success' => false,
-                'message' => 'Qty merchandise melebihi limit stock bulanan. Sisa limit bulan ini: ' . $remaining,
-                'remaining_monthly_stock' => $remaining,
-                'monthly_limit_stock' => (int) $merchandise->monthly_limit_stock,
-            ], 422));
-        }
-    }
-
-    protected function ensureCurrentStockAvailable(Merchandise $merchandise, int $requestedQty): void
-    {
-        $currentStock = MerchandiseKartuStok::getLatestCurrentStock($merchandise->id);
-
-        if ($requestedQty > $currentStock) {
-            abort(response()->json([
-                'success' => false,
-                'message' => 'Qty merchandise melebihi stok yang tersedia. Sisa stok saat ini: ' . $currentStock,
-                'current_stock' => $currentStock,
-            ], 422));
-        }
-    }
-
-    protected function recordKartuStok(Merchandise $merchandise, string $type, int $qty, string $notes): void
-    {
-        MerchandiseKartuStok::create([
-            'merchandise_id' => $merchandise->id,
-            'tanggal' => now(),
-            'type' => $type,
-            'qty' => $qty,
-            'current_stock' => MerchandiseKartuStok::calculateCurrentStock($merchandise->id, $type, $qty),
-            'notes' => $notes,
+        return response()->json([
+            'data' => $this->stock->catalog($request->query('pasien_id'), $request->boolean('include_inactive')),
+            'can_give' => (bool) Auth::user()?->hasAnyRole(MerchandiseStockService::GIVE_ROLES),
         ]);
     }
 
     /**
-     * Return a list of merchandises a pasien has received.
+     * GET /erm/merchandises/{id}/stock-history
+     */
+    public function stockHistory($id)
+    {
+        $merchandise = Merchandise::find($id);
+        if (!$merchandise) return response()->json(['error' => 'Not found'], 404);
+
+        return response()->json(['success' => true, 'data' => $this->stock->history($merchandise)]);
+    }
+
+    /**
+     * Return a list of merchandises a pasien currently holds.
      *
      * GET /erm/pasiens/{id}/merchandises
      */
     public function index(Request $request, $id)
     {
-        $pasien = Pasien::with(['pasienMerchandises.merchandise'])->find($id);
+        $pasien = Pasien::find($id);
 
         if (!$pasien) {
             return response()->json(['error' => 'Pasien not found'], 404);
         }
 
-        $items = $pasien->pasienMerchandises->map(function($rec) {
+        $items = $pasien->pasienMerchandises()->active()->with(['merchandise', 'givenBy:id,name'])->orderByDesc('given_at')->orderByDesc('id')->get()->map(function ($rec) {
             return [
                 'id' => $rec->id,
                 'merchandise_id' => $rec->merchandise->id ?? null,
@@ -89,6 +61,7 @@ class PasienMerchandiseController extends Controller
                 'quantity' => $rec->quantity,
                 'notes' => $rec->notes,
                 'given_by_user_id' => $rec->given_by_user_id,
+                'given_by_name' => $rec->givenBy->name ?? null,
                 'given_at' => $rec->given_at,
                 'created_at' => $rec->created_at,
             ];
@@ -112,37 +85,17 @@ class PasienMerchandiseController extends Controller
             'notes' => 'nullable|string'
         ]);
 
-        $quantity = (int) ($data['quantity'] ?? 1);
-        $merchandise = Merchandise::findOrFail($data['merchandise_id']);
-
-        $rec = DB::transaction(function () use ($pasien, $data, $quantity, $merchandise) {
-            $this->ensureMonthlyLimitAvailable($merchandise, $quantity);
-            $this->ensureCurrentStockAvailable($merchandise, $quantity);
-
-            $rec = PasienMerchandise::create([
-                'pasien_id' => $pasien->id,
-                'merchandise_id' => $data['merchandise_id'],
-                'quantity' => $quantity,
-                'notes' => $data['notes'] ?? null,
-                'given_by_user_id' => Auth::check() ? Auth::id() : null,
-                'given_at' => now()
-            ]);
-
-            $this->recordKartuStok(
-                $merchandise,
-                'out',
-                $quantity,
-                'Pemberian merchandise ke pasien ' . $pasien->id . ' - ' . ($pasien->nama ?? '-') . (!empty($data['notes']) ? ' | Catatan: ' . trim($data['notes']) : '')
-            );
-
-            return $rec;
-        });
+        $rec = $this->stock->giveToPasien(
+            $pasien,
+            (int) $data['merchandise_id'],
+            (int) ($data['quantity'] ?? 1),
+            $data['notes'] ?? null
+        );
 
         return response()->json([
             'success' => true,
             'id' => $rec->id,
             'data' => $rec,
-            'remaining_monthly_stock' => $this->getRemainingMonthlyLimit($merchandise),
         ]);
     }
 
@@ -155,7 +108,7 @@ class PasienMerchandiseController extends Controller
         $pasien = Pasien::find($id);
         if (!$pasien) return response()->json(['error' => 'Pasien not found'], 404);
 
-        $rec = PasienMerchandise::where('id', $pmId)->where('pasien_id', $pasien->id)->first();
+        $rec = PasienMerchandise::active()->where('id', $pmId)->where('pasien_id', $pasien->id)->first();
         if (!$rec) return response()->json(['error' => 'Record not found'], 404);
 
         $data = $request->validate([
@@ -163,42 +116,21 @@ class PasienMerchandiseController extends Controller
             'notes' => 'nullable|string'
         ]);
 
-        $merchandise = Merchandise::findOrFail($rec->merchandise_id);
-        $newQty = (int) ($data['quantity'] ?? $rec->quantity);
-        $oldQty = (int) $rec->quantity;
-        $delta = $newQty - $oldQty;
-
-        DB::transaction(function () use ($pasien, $data, $rec, $merchandise, $newQty, $delta) {
-            if ($delta > 0) {
-                $this->ensureMonthlyLimitAvailable($merchandise, $delta);
-                $this->ensureCurrentStockAvailable($merchandise, $delta);
-            }
-
-            if ($delta !== 0) {
-                $this->recordKartuStok(
-                    $merchandise,
-                    $delta > 0 ? 'out' : 'in',
-                    abs($delta),
-                    'Penyesuaian merchandise pasien ' . $pasien->id . ' - ' . ($pasien->nama ?? '-')
-                );
-            }
-
-            $rec->quantity = $newQty;
-            if (array_key_exists('notes', $data)) {
-                $rec->notes = $data['notes'];
-            }
-            $rec->save();
-        });
+        $rec = $this->stock->updatePasienRecord(
+            $pasien,
+            $rec,
+            (int) ($data['quantity'] ?? $rec->quantity),
+            array_intersect_key($data, ['notes' => true])
+        );
 
         return response()->json([
             'success' => true,
             'data' => $rec->fresh(),
-            'remaining_monthly_stock' => $this->getRemainingMonthlyLimit($merchandise),
         ]);
     }
 
     /**
-     * Remove a merchandise receipt from a pasien
+     * Cancel a merchandise receipt. The record stays for audit.
      * DELETE /erm/pasiens/{id}/merchandises/{pmId}
      */
     public function destroy(Request $request, $id, $pmId)
@@ -206,25 +138,26 @@ class PasienMerchandiseController extends Controller
         $pasien = Pasien::find($id);
         if (!$pasien) return response()->json(['error' => 'Pasien not found'], 404);
 
-        $rec = PasienMerchandise::where('id', $pmId)->where('pasien_id', $pasien->id)->first();
+        $rec = PasienMerchandise::active()->where('id', $pmId)->where('pasien_id', $pasien->id)->first();
         if (!$rec) return response()->json(['error' => 'Record not found'], 404);
 
-        $merchandise = Merchandise::findOrFail($rec->merchandise_id);
-
-        DB::transaction(function () use ($pasien, $rec, $merchandise) {
-            $this->recordKartuStok(
-                $merchandise,
-                'in',
-                (int) $rec->quantity,
-                'Pembatalan merchandise pasien ' . $pasien->id . ' - ' . ($pasien->nama ?? '-')
-            );
-
-            $rec->delete();
-        });
-
-        return response()->json([
-            'success' => true,
-            'remaining_monthly_stock' => $this->getRemainingMonthlyLimit($merchandise),
+        $data = $request->validate([
+            'reason' => 'required|string|max:255',
+            'return_stock' => 'required|boolean',
+        ], [
+            'reason.required' => 'Alasan pembatalan wajib diisi.',
+            'return_stock.required' => 'Pilih apakah barangnya kembali.',
         ]);
+
+        $returned = $this->stock->cancelPasienRecord($pasien, $rec, $data['reason'], (bool) $data['return_stock']);
+
+        $message = 'Pemberian dibatalkan. Stok tidak berubah.';
+        if ($returned > 0) {
+            $message = 'Pemberian dibatalkan. Stok kembali ' . $returned . '.';
+        } elseif ($data['return_stock']) {
+            $message = 'Pemberian dibatalkan. Stok tidak berubah karena pemberian ini tidak pernah mengurangi stok.';
+        }
+
+        return response()->json(['success' => true, 'stock_returned' => $returned, 'message' => $message]);
     }
 }

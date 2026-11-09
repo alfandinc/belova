@@ -14,8 +14,7 @@ use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\ScreeningVaksin;
 use App\Models\ERM\Rujuk;
 use App\Models\ERM\LabPermintaan;
-use App\Models\ERM\Merchandise;
-use App\Models\ERM\MerchandiseKartuStok;
+use App\Services\ERM\MerchandiseStockService;
 use App\Models\ERM\SuratMondok;
 use App\Models\HRD\Employee;
 use App\Models\Marketing\MarketingEvent;
@@ -206,7 +205,7 @@ class RawatJalanController extends Controller
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
-    public function merchandiseStockOut(Request $request)
+    public function merchandiseStockOut(Request $request, MerchandiseStockService $stock)
     {
         if (!Auth::check()) {
             return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
@@ -219,38 +218,13 @@ class RawatJalanController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $merchandise = Merchandise::findOrFail($data['merchandise_id']);
-        $quantity = (int) $data['quantity'];
-        $currentStock = MerchandiseKartuStok::getLatestCurrentStock($merchandise->id);
-
-        if ($quantity > $currentStock) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Qty merchandise melebihi stok yang tersedia. Sisa stok saat ini: ' . $currentStock,
-                'current_stock' => $currentStock,
-            ], 422);
-        }
-
-        DB::transaction(function () use ($merchandise, $quantity, $data) {
-            $notes = 'Pengeluaran merchandise untuk ' . trim($data['reason']);
-            if (!empty($data['notes'])) {
-                $notes .= ' | Catatan: ' . trim($data['notes']);
-            }
-
-            MerchandiseKartuStok::create([
-                'merchandise_id' => $merchandise->id,
-                'tanggal' => now(),
-                'type' => 'out',
-                'qty' => $quantity,
-                'current_stock' => MerchandiseKartuStok::calculateCurrentStock($merchandise->id, 'out', $quantity),
-                'notes' => $notes,
-            ]);
-        });
+        $merchandiseId = (int) $data['merchandise_id'];
+        $stock->stockOut($merchandiseId, (int) $data['quantity'], $data['reason'], $data['notes'] ?? null);
 
         return response()->json([
             'success' => true,
             'message' => 'Pengeluaran merchandise berhasil disimpan.',
-            'current_stock' => MerchandiseKartuStok::getLatestCurrentStock($merchandise->id),
+            'current_stock' => $stock->currentStock($merchandiseId),
         ]);
     }
 
@@ -867,7 +841,7 @@ class RawatJalanController extends Controller
                         'ap2.name as province_name',
                     ])
                     // include merchandise count per pasien using subquery
-                    ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
+                    ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id AND erm_pasien_merchandises.cancelled_at IS NULL) as merchandise_count')
                     // avoid eager-load queries by using cheap correlated subqueries
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
                     ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_vaksin sv WHERE sv.visitation_id = erm_visitations.id) as has_screening_vaksin')
@@ -2156,7 +2130,7 @@ class RawatJalanController extends Controller
     public function getPasienMerchandises($pasienId)
     {
         try {
-            $items = PasienMerchandise::with(['merchandise:id,name,description,price,monthly_limit_stock', 'pasien:id,nama'])
+            $items = PasienMerchandise::with(['merchandise', 'pasien:id,nama', 'givenBy:id,name', 'cancelledBy:id,name'])
                 ->where('pasien_id', $pasienId)
                 ->orderBy('given_at', 'desc')
                 ->get()
@@ -2165,10 +2139,15 @@ class RawatJalanController extends Controller
                         'id' => $m->id,
                         'nama' => $m->merchandise->name ?? '-',
                         'description' => $m->merchandise->description ?? null,
+                        'kode' => $m->merchandise->kode ?? null,
+                        'image_url' => $m->merchandise->image_url ?? null,
                         'quantity' => $m->quantity,
                         'notes' => $m->notes,
-                        'given_by' => $m->given_by_user_id,
+                        'given_by' => $m->givenBy->name ?? null,
                         'given_at' => $m->given_at ? (is_string($m->given_at) ? $m->given_at : $m->given_at->format('Y-m-d H:i')) : null,
+                        'cancelled_at' => optional($m->cancelled_at)->format('Y-m-d H:i'),
+                        'cancelled_by' => $m->cancelledBy->name ?? null,
+                        'cancel_reason' => $m->cancel_reason,
                     ];
                 });
 

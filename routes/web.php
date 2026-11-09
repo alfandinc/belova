@@ -738,7 +738,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance|Kasir|Manager')->group(function () {
     // Dokter to Perawat notification
-    Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
         Route::post('/send-notif-dokter', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToDokter'])->middleware('auth');
             // ...existing ERM routes...
@@ -869,11 +868,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
-    // Pasien merchandise listing
-    Route::get('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'index'])->name('erm.pasiens.merchandises.index');
-    Route::post('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'store'])->name('erm.pasiens.merchandises.store');
-    Route::put('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'update'])->name('erm.pasiens.merchandises.update');
-    Route::delete('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'destroy'])->name('erm.pasiens.merchandises.destroy');
 
     // Master Pemasok AJAX CRUD (managed from the Pemasok & Principal modal on Master Obat)
     Route::get('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'index']);
@@ -951,7 +945,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/modals/screening-batuk', [RawatJalanController::class, 'screeningBatukModals'])->name('erm.rawatjalans.modals.screeningBatuk');
     Route::get('/rawatjalans/modals/screening-vaksin', [RawatJalanController::class, 'screeningVaksinModals'])->name('erm.rawatjalans.modals.screeningVaksin');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
-    Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
     Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
     Route::post('/rawatjalans/update-referral', [RawatJalanController::class, 'updateReferral'])->name('erm.rawatjalans.updateReferral');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
@@ -1266,7 +1259,23 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     });
 
     Route::post('/rujuk', [App\Http\Controllers\ERM\VisitationController::class, 'storeRujuk'])->name('erm.rujuk.store');
-    
+
+});
+
+// Merchandise: viewing follows the pages that have a Merchandise button (ERM + Billing)
+Route::prefix('erm')->middleware('role:' . implode('|', \App\Services\ERM\MerchandiseStockService::VIEW_ROLES))->group(function () {
+    Route::get('/merchandises/catalog', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'catalog'])->name('erm.merchandises.catalog');
+    Route::get('/merchandises/{id}/stock-history', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'stockHistory'])->name('erm.merchandises.stock-history');
+    Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
+    Route::get('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'index'])->name('erm.pasiens.merchandises.index');
+});
+
+// Merchandise: giving to a patient and other stock out
+Route::prefix('erm')->middleware('role:' . implode('|', \App\Services\ERM\MerchandiseStockService::GIVE_ROLES))->group(function () {
+    Route::post('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'store'])->name('erm.pasiens.merchandises.store');
+    Route::put('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'update'])->name('erm.pasiens.merchandises.update');
+    Route::delete('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'destroy'])->name('erm.pasiens.merchandises.destroy');
+    Route::post('/rawatjalans/merchandise-stock-out', [RawatJalanController::class, 'merchandiseStockOut'])->name('erm.rawatjalans.merchandise.stock-out');
 });
 
 // Aturan pakai suggestions (from resep history) used by resep dokter/farmasi forms.
@@ -1851,11 +1860,18 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'index'])->name('marketing.master_merchandise.index');
     Route::get('/master-merchandise/data', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'data'])->name('marketing.master_merchandise.data');
     Route::get('/master-merchandise/{id}/stock-history', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'stockHistory'])->name('marketing.master_merchandise.stock_history');
-    Route::post('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'store'])->name('marketing.master_merchandise.store');
-    Route::post('/master-merchandise/{id}/add-stock', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'addStock'])->name('marketing.master_merchandise.add_stock');
-    Route::get('/master-merchandise/{id}/edit', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'edit']);
-    Route::put('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'update']);
-    Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);
+    Route::middleware('role:' . implode('|', \App\Services\ERM\MerchandiseStockService::MANAGE_ROLES))->group(function () {
+        Route::post('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'store'])->name('marketing.master_merchandise.store');
+        Route::post('/master-merchandise/opname', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'opname'])->name('marketing.master_merchandise.opname');
+        Route::get('/master-merchandise/{id}/pembelian', [\App\Http\Controllers\Marketing\MerchandisePembelianController::class, 'index'])->name('marketing.master_merchandise.pembelian.index');
+        Route::post('/master-merchandise/{id}/pembelian', [\App\Http\Controllers\Marketing\MerchandisePembelianController::class, 'store'])->name('marketing.master_merchandise.pembelian.store');
+        Route::put('/master-merchandise/pembelian/{id}', [\App\Http\Controllers\Marketing\MerchandisePembelianController::class, 'update'])->name('marketing.master_merchandise.pembelian.update');
+        Route::post('/master-merchandise/kartu/{id}/lengkapi', [\App\Http\Controllers\Marketing\MerchandisePembelianController::class, 'complete'])->name('marketing.master_merchandise.pembelian.complete');
+        Route::post('/master-merchandise/{id}/toggle-active', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'toggleActive'])->name('marketing.master_merchandise.toggle_active');
+        Route::get('/master-merchandise/{id}/edit', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'edit']);
+        Route::put('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'update']);
+        Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);
+    });
     Route::get('/biaya-konsultasi', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'index'])->name('marketing.konsultasi.index');
     Route::post('/biaya-konsultasi', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'store'])->name('marketing.konsultasi.store');
     Route::put('/biaya-konsultasi/{konsultasi}', [\App\Http\Controllers\Marketing\KonsultasiMasterController::class, 'update'])->name('marketing.konsultasi.update');

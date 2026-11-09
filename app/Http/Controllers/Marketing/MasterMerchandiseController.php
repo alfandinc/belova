@@ -3,62 +3,89 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\ERM\Merchandise;
-use App\Models\ERM\MerchandiseKartuStok;
-use App\Models\ERM\PasienMerchandise;
-use Illuminate\Support\Facades\DB;
+use App\Services\ERM\MerchandiseImageService;
+use App\Services\ERM\MerchandiseStockService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class MasterMerchandiseController extends Controller
 {
-    protected function getCurrentStock(int $merchandiseId): int
+    private const IMAGE_FOLDER = 'merchandise';
+
+    private const IMAGE_MAX_PX = 300;
+
+    public function __construct(private MerchandiseStockService $stock, private MerchandiseImageService $images)
     {
-        return MerchandiseKartuStok::getLatestCurrentStock($merchandiseId);
     }
 
-    protected function getCurrentMonthNetUsedQty(int $merchandiseId): int
+    private function canManage(): bool
     {
-        return (int) PasienMerchandise::where('merchandise_id', $merchandiseId)
-            ->whereBetween('given_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->sum('quantity');
-    }
-
-    protected function getRemainingMonthlyStock(Merchandise $merchandise): ?int
-    {
-        if ($merchandise->monthly_limit_stock === null) {
-            return null;
-        }
-
-        return max(0, (int) $merchandise->monthly_limit_stock - $this->getCurrentMonthNetUsedQty($merchandise->id));
+        return (bool) Auth::user()?->hasAnyRole(MerchandiseStockService::MANAGE_ROLES);
     }
 
     public function index(Request $request)
     {
-        return view('marketing.master_merchandise.index');
+        $canManage = $this->canManage();
+
+        return view('marketing.master_merchandise.index', [
+            'canManage' => $canManage,
+            'pemasokNames' => $canManage ? $this->stock->pemasokNames() : collect(),
+        ]);
     }
 
     // Data for yajra DataTable
     public function data(Request $request)
     {
-        $query = Merchandise::query();
+        $query = Merchandise::query()
+            ->when($request->query('status') === 'aktif', fn ($q) => $q->where('is_active', true))
+            ->when($request->query('status') === 'nonaktif', fn ($q) => $q->where('is_active', false));
+        $canManage = $this->canManage();
 
         return datatables()->of($query)
+            ->addColumn('thumb', function ($row) {
+                return $row->image_url
+                    ? '<img src="'.e($row->image_url).'" class="merch-thumb" alt="'.e($row->name).'">'
+                    : '<span class="merch-thumb is-empty" title="Belum ada gambar"><i class="mdi mdi-image-off-outline"></i></span>';
+            })
+            ->addColumn('item', function ($row) {
+                return '<div class="font-weight-bold">'.e($row->name).'</div>'
+                    . ($row->description ? '<div class="small merch-muted">'.e($row->description).'</div>' : '');
+            })
+            ->addColumn('price_label', function ($row) use ($canManage) {
+                if (!$canManage) {
+                    return null;
+                }
+
+                $price = $row->latestBuyPrice();
+
+                return $price === null ? '-' : 'Rp '.number_format($price, 0, ',', '.');
+            })
             ->addColumn('current_stock', function ($row) {
-                return $this->getCurrentStock($row->id);
+                return $this->stock->currentStock($row->id);
             })
-            ->addColumn('used_this_month', function ($row) {
-                return $this->getCurrentMonthNetUsedQty($row->id);
+            ->addColumn('actions', function ($row) use ($canManage) {
+                $buttons = '<button type="button" class="btn btn-sm btn-info btn-history" data-id="'.$row->id.'" data-name="'.e($row->name).'">Riwayat</button> ';
+
+                if (!$canManage) {
+                    return $buttons;
+                }
+
+                if ($row->is_active) {
+                    $buttons .= '<button type="button" class="btn btn-sm btn-success btn-stock" data-id="'.$row->id.'" data-name="'.e($row->name).'">Stok Masuk</button> ';
+                }
+
+                $buttons .= '<button type="button" class="btn btn-sm btn-warning btn-edit" data-id="'.$row->id.'">Edit</button> '
+                    . '<button type="button" class="btn btn-sm btn-secondary btn-toggle-active" data-id="'.$row->id.'" data-active="'.($row->is_active ? 1 : 0).'">'.($row->is_active ? 'Nonaktifkan' : 'Aktifkan').'</button> ';
+
+                if (!$row->hasHistory()) {
+                    $buttons .= '<button type="button" class="btn btn-sm btn-danger btn-delete" data-id="'.$row->id.'">Hapus</button>';
+                }
+
+                return $buttons;
             })
-            ->addColumn('remaining_monthly_stock', function ($row) {
-                return $this->getRemainingMonthlyStock($row);
-            })
-            ->addColumn('actions', function ($row) {
-                return '<button class="btn btn-sm btn-info btn-history mr-1" data-id="'.$row->id.'" data-name="'.e($row->name).'">Kartu Stok</button> '
-                     . '<button class="btn btn-sm btn-success btn-stock mr-1" data-id="'.$row->id.'" data-name="'.e($row->name).'">Add Stock</button> '
-                     . '<button class="btn btn-sm btn-primary btn-edit" data-id="'.$row->id.'">Edit</button> '
-                     . '<button class="btn btn-sm btn-danger btn-delete" data-id="'.$row->id.'">Delete</button>';
-            })
-            ->rawColumns(['actions'])
+            ->removeColumn('price')
+            ->rawColumns(['thumb', 'item', 'actions'])
             ->make(true);
     }
 
@@ -76,40 +103,24 @@ class MasterMerchandiseController extends Controller
             return response()->json(['error' => 'Not found'], 404);
         }
 
-        $items = MerchandiseKartuStok::query()
-            ->where('merchandise_id', $m->id)
-            ->orderByDesc('tanggal')
-            ->orderByDesc('id')
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'id' => $row->id,
-                    'tanggal' => optional($row->tanggal)->format('Y-m-d H:i:s') ?: $row->tanggal,
-                    'type' => $row->type,
-                    'qty' => (int) $row->qty,
-                    'current_stock' => (int) ($row->current_stock ?? 0),
-                    'notes' => $row->notes,
-                ];
-            });
-
         return response()->json([
             'success' => true,
             'merchandise' => [
                 'id' => $m->id,
+                'kode' => $m->kode,
                 'name' => $m->name,
             ],
-            'data' => $items,
+            'data' => $this->stock->history($m),
         ]);
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'nullable|numeric',
-            'monthly_limit_stock' => 'nullable|integer|min:0',
-        ]);
+        $data = $this->validateMaster($request);
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $this->images->store($request->file('image'), self::IMAGE_FOLDER, self::IMAGE_MAX_PX, 'image');
+        }
 
         $m = Merchandise::create($data);
 
@@ -121,53 +132,90 @@ class MasterMerchandiseController extends Controller
         $m = Merchandise::find($id);
         if (!$m) return response()->json(['error' => 'Not found'], 404);
 
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'price' => 'nullable|numeric',
-            'monthly_limit_stock' => 'nullable|integer|min:0',
-        ]);
+        $data = $this->validateMaster($request);
+        $oldImage = $m->image;
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $this->images->store($request->file('image'), self::IMAGE_FOLDER, self::IMAGE_MAX_PX, 'image');
+        } elseif ($request->boolean('remove_image')) {
+            $data['image'] = null;
+        }
 
         $m->update($data);
 
+        if (array_key_exists('image', $data)) {
+            $this->images->delete($oldImage);
+        }
+
         return response()->json(['success' => true, 'data' => $m]);
+    }
+
+    public function toggleActive($id)
+    {
+        $m = Merchandise::find($id);
+        if (!$m) return response()->json(['error' => 'Not found'], 404);
+
+        $m->update(['is_active' => !$m->is_active]);
+
+        return response()->json(['success' => true, 'is_active' => $m->is_active]);
     }
 
     public function destroy($id)
     {
         $m = Merchandise::find($id);
         if (!$m) return response()->json(['error' => 'Not found'], 404);
+
+        if ($m->hasHistory()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Merchandise sudah punya riwayat, jadi tidak bisa dihapus. Gunakan Nonaktifkan.',
+            ], 422);
+        }
+
+        $image = $m->image;
         $m->delete();
+        $this->images->delete($image);
+
         return response()->json(['success' => true]);
     }
 
-    public function addStock(Request $request, $id)
+    public function opname(Request $request)
     {
-        $m = Merchandise::find($id);
-        if (!$m) {
-            return response()->json(['error' => 'Not found'], 404);
-        }
-
         $data = $request->validate([
-            'qty' => 'required|integer|min:1',
-            'notes' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.id' => 'required|integer|distinct|exists:erm_merchandises,id',
+            'items.*.fisik' => 'required|integer|min:0|max:100000',
+            'items.*.stok_sistem' => 'required|integer',
+            'items.*.alasan' => 'nullable|string|max:255',
+        ], [
+            'items.required' => 'Isi stok fisik minimal satu merchandise.',
+            'items.*.fisik.min' => 'Stok fisik tidak boleh minus.',
+            'items.*.fisik.max' => 'Stok fisik terlalu besar.',
         ]);
 
-        DB::transaction(function () use ($m, $data) {
-            MerchandiseKartuStok::create([
-                'merchandise_id' => $m->id,
-                'tanggal' => now(),
-                'type' => 'in',
-                'qty' => (int) $data['qty'],
-                'current_stock' => MerchandiseKartuStok::calculateCurrentStock($m->id, 'in', (int) $data['qty']),
-                'notes' => $data['notes'] ?? 'Penambahan stok dari master merchandise',
-            ]);
-        });
+        $result = $this->stock->applyOpname($data['items']);
 
         return response()->json([
             'success' => true,
-            'message' => 'Stock added successfully',
-            'remaining_monthly_stock' => $this->getRemainingMonthlyStock($m->fresh()),
+            'message' => $result['counted'] . ' item dihitung, ' . $result['changed'] . ' item ada selisih dan stoknya sudah disesuaikan.',
         ]);
+    }
+
+    private function validateMaster(Request $request): array
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+        ], [
+            'image.uploaded' => 'Gambar gagal diunggah karena ukurannya terlalu besar. Coba file yang lebih kecil.',
+            'image.image' => 'File harus berupa gambar.',
+            'image.mimes' => 'Gambar harus berformat JPG, PNG, atau WEBP.',
+            'image.max' => 'Ukuran gambar maksimal 5 MB.',
+        ]);
+
+        unset($data['image']);
+
+        return $data;
     }
 }
