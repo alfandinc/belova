@@ -90,6 +90,19 @@ class Merchandise extends Model
         return $price === null ? null : (float) $price;
     }
 
+    /** Supplier of the most recent purchase (grants excluded). */
+    public function latestPemasok(): ?MerchandisePemasok
+    {
+        return $this->pembelian()
+            ->where('sumber', MerchandisePembelian::SUMBER_PEMBELIAN)
+            ->whereNotNull('pemasok_id')
+            ->with('pemasok:id,nama,no_telp')
+            ->orderByDesc('tanggal_beli')
+            ->orderByDesc('id')
+            ->first()
+            ?->pemasok;
+    }
+
     public function hasHistory(): bool
     {
         return $this->kartuStok()->exists() || $this->pasienReceipts()->exists();

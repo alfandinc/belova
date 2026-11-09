@@ -64,6 +64,7 @@
                                     <th style="width: 160px;">Klinik</th>
                                     @if($canManage)
                                         <th style="width: 120px;">Harga Beli</th>
+                                        <th style="width: 160px;">Pemasok</th>
                                     @endif
                                     <th style="width: 80px;">Stok</th>
                                     <th style="width: 90px;">Status</th>
@@ -405,6 +406,15 @@ $(function () {
     ];
     if (canManage) {
         columns.push({ data: 'price_label', orderable: false, searchable: false, className: 'text-nowrap' });
+        columns.push({
+            data: 'pemasok_info', name: 'pemasok_info', orderable: false, searchable: true,
+            render: function (info, type) {
+                if (!info) { return type === 'display' ? '<span class="merch-muted">-</span>' : ''; }
+                if (type !== 'display') { return info.nama; }
+                return escapeText(info.nama)
+                    + (info.telp ? '<div class="small">' + telpLink(info.telp) + '</div>' : '');
+            }
+        });
     }
     columns.push(
         {

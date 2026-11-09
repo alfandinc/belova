@@ -75,6 +75,24 @@ class MasterMerchandiseController extends Controller
 
                 return $price === null ? '-' : 'Rp '.number_format($price, 0, ',', '.');
             })
+            ->addColumn('pemasok_info', function ($row) use ($canManage) {
+                if (!$canManage) {
+                    return null;
+                }
+
+                $pemasok = $row->latestPemasok();
+
+                return $pemasok ? ['nama' => $pemasok->nama, 'telp' => $pemasok->no_telp] : null;
+            })
+            ->filterColumn('pemasok_info', function ($query, $keyword) use ($canManage) {
+                if (!$canManage) {
+                    return;
+                }
+
+                $query->whereHas('pembelian.pemasok', function ($q) use ($keyword) {
+                    $q->where('nama', 'like', '%'.$keyword.'%')->orWhere('no_telp', 'like', '%'.$keyword.'%');
+                });
+            })
             ->addColumn('current_stock', function ($row) {
                 return $this->stock->currentStock($row->id);
             })
