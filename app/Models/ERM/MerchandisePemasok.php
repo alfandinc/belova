@@ -8,5 +8,5 @@ class MerchandisePemasok extends Model
 {
     protected $table = 'erm_merchandise_pemasok';
 
-    protected $fillable = ['nama'];
+    protected $fillable = ['nama', 'no_telp'];
 }

@@ -97,7 +97,7 @@ class MerchandiseStockService
     {
         return [
             'purchases' => $merchandise->pembelian()
-                ->with(['pemasok:id,nama', 'user:id,name'])
+                ->with(['pemasok:id,nama,no_telp', 'user:id,name'])
                 ->orderByDesc('tanggal_beli')
                 ->orderByDesc('id')
                 ->get()
@@ -107,6 +107,7 @@ class MerchandiseStockService
                     'sumber' => $row->sumber,
                     'tanggal_beli' => $row->tanggal_beli->format('Y-m-d'),
                     'pemasok' => $row->pemasok->nama ?? null,
+                    'pemasok_telp' => $row->pemasok->no_telp ?? null,
                     'no_nota' => $row->no_nota,
                     'nota_url' => $row->nota_url,
                     'qty' => (int) $row->qty,
@@ -132,9 +133,25 @@ class MerchandiseStockService
         ];
     }
 
-    public function pemasokNames(): Collection
+    public function pemasokList(): Collection
     {
-        return MerchandisePemasok::query()->orderBy('nama')->pluck('nama');
+        return MerchandisePemasok::query()->orderBy('nama')->get(['nama', 'no_telp']);
+    }
+
+    /**
+     * Finds or creates the supplier by name. The saved phone number changes only when the user edited
+     * the field, so a form opened with an old number cannot overwrite a newer one.
+     */
+    private function pemasokId(string $nama, array $data): int
+    {
+        $pemasok = MerchandisePemasok::firstOrCreate(['nama' => $nama]);
+        $telp = trim((string) ($data['pemasok_telp'] ?? ''));
+
+        if (!empty($data['pemasok_telp_ubah']) && (string) $pemasok->no_telp !== $telp) {
+            $pemasok->update(['no_telp' => $telp !== '' ? $telp : null]);
+        }
+
+        return $pemasok->id;
     }
 
     /**
@@ -241,7 +258,7 @@ class MerchandiseStockService
         $attributes = [
             'sumber' => $data['sumber'],
             'tanggal_beli' => $data['tanggal_beli'],
-            'pemasok_id' => $pemasok !== '' ? MerchandisePemasok::firstOrCreate(['nama' => $pemasok])->id : null,
+            'pemasok_id' => $pemasok !== '' ? $this->pemasokId($pemasok, $data) : null,
             'no_nota' => $data['no_nota'] ?? null,
             'harga_satuan' => $isPurchase ? $data['harga_satuan'] : null,
             'ongkir' => $isPurchase ? (float) ($data['ongkir'] ?? 0) : 0,

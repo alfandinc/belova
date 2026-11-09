@@ -195,15 +195,20 @@
                     </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group col-md-6">
+                    <div class="form-group col-md-3">
                         <label for="stock_pemasok" id="stock_pemasok_label">Pemasok</label>
                         <select id="stock_pemasok" class="form-control" style="width: 100%;">
                             <option value=""></option>
-                            @foreach($pemasokNames as $pemasokName)
-                                <option value="{{ $pemasokName }}">{{ $pemasokName }}</option>
+                            @foreach($pemasokList as $pemasokRow)
+                                <option value="{{ $pemasokRow->nama }}" data-telp="{{ $pemasokRow->no_telp }}">{{ $pemasokRow->nama }}</option>
                             @endforeach
                         </select>
                         <small class="form-text text-muted">Pilih dari daftar atau ketik nama baru.</small>
+                    </div>
+                    <div class="form-group col-md-3">
+                        <label for="stock_pemasok_telp">No. Telp Pemasok</label>
+                        <input type="tel" id="stock_pemasok_telp" class="form-control" maxlength="30" placeholder="Opsional">
+                        <small class="form-text text-muted">Tersimpan ke data pemasok.</small>
                     </div>
                     <div class="form-group col-md-3 stock-purchase-only">
                         <label for="stock_nota">No. Nota</label>
@@ -539,12 +544,51 @@ $(function () {
         });
     }
 
-    function setPemasok(name) {
+    function pemasokOption(name) {
+        return $('#stock_pemasok option').filter(function () { return this.value === name; });
+    }
+
+    function setPemasok(name, telp) {
         const $select = $('#stock_pemasok');
-        if (name && !$select.find('option').filter(function () { return this.value === name; }).length) {
+        if (name && !pemasokOption(name).length) {
             $select.append(new Option(name, name));
         }
         $select.val(name || '').trigger('change');
+        if (telp) { fillPemasokTelp(telp); }
+    }
+
+    // Remembers the auto-filled number, so only a number the user typed is sent as a change.
+    function fillPemasokTelp(telp) {
+        $('#stock_pemasok_telp').val(telp).data('initial', telp);
+    }
+
+    function pemasokTelpChanged() {
+        const $input = $('#stock_pemasok_telp');
+        return $.trim($input.val()) !== $.trim($input.data('initial') || '');
+    }
+
+    // Picking a supplier fills in its saved phone number.
+    $('#stock_pemasok').on('change', function () {
+        const name = $(this).val() || '';
+        fillPemasokTelp(name ? (pemasokOption(name).attr('data-telp') || '') : '');
+    });
+
+    function rememberPemasokTelp(name, telp) {
+        if (!name) { return; }
+        const $option = pemasokOption(name);
+        if ($option.length) {
+            $option.attr('data-telp', telp || '');
+        } else {
+            $('#stock_pemasok').append($(new Option(name, name)).attr('data-telp', telp || ''));
+        }
+    }
+
+    function telpLink(telp) {
+        const digits = String(telp).replace(/[^0-9]/g, '');
+        let wa = digits;
+        if (digits.startsWith('0')) { wa = '62' + digits.slice(1); }
+        else if (digits.startsWith('8')) { wa = '62' + digits; }
+        return '<a href="https://wa.me/' + escapeAttr(wa) + '" target="_blank" rel="noopener" title="Buka WhatsApp">' + escapeText(telp) + '</a>';
     }
 
     function refreshStockTotal() {
@@ -578,7 +622,7 @@ $(function () {
         $('#stock_biaya_lain').val(entry.biaya_lain || '');
         $('#stock_catatan').val(entry.catatan || '');
         $('#stock_foto_help').text(entry.nota_url ? 'Sudah ada foto nota. Pilih file untuk menggantinya.' : 'JPG, PNG, atau WEBP. Otomatis diperkecil.');
-        setPemasok(entry.pemasok || '');
+        setPemasok(entry.pemasok || '', entry.pemasok_telp || '');
         applySumber();
         refreshStockTotal();
         $('#stockModal').modal('show');
@@ -604,6 +648,8 @@ $(function () {
         formData.append('tanggal_beli', $('#stock_tanggal').val());
         formData.append('qty', $('#stock_qty').val());
         formData.append('pemasok', $('#stock_pemasok').val() || '');
+        formData.append('pemasok_telp', $.trim($('#stock_pemasok_telp').val()));
+        formData.append('pemasok_telp_ubah', pemasokTelpChanged() ? '1' : '0');
         formData.append('no_nota', $('#stock_nota').val());
         formData.append('harga_satuan', $('#stock_harga').val());
         formData.append('ongkir', $('#stock_ongkir').val());
@@ -618,6 +664,9 @@ $(function () {
 
             $.ajax({ url: stockFormUrl, type: 'POST', data: formData, processData: false, contentType: false })
                 .done(function (response) {
+                    if (formData.get('pemasok_telp_ubah') === '1') {
+                        rememberPemasokTelp(formData.get('pemasok'), formData.get('pemasok_telp'));
+                    }
                     $('#stockModal').modal('hide');
                     table.ajax.reload(null, false);
                     showSuccess(response.message);
@@ -672,7 +721,8 @@ $(function () {
                 + '<td class="text-nowrap">' + escapeText(row.kode) + '</td>'
                 + '<td class="text-nowrap">' + escapeText(row.tanggal_beli) + '</td>'
                 + '<td>' + escapeText(sumberLabel(row.sumber)) + '</td>'
-                + '<td>' + escapeText(row.pemasok || '-') + '</td>'
+                + '<td>' + escapeText(row.pemasok || '-')
+                    + (row.pemasok_telp ? '<div class="small">' + telpLink(row.pemasok_telp) + '</div>' : '') + '</td>'
                 + '<td>' + nota + '</td>'
                 + '<td>' + escapeText(row.qty) + '</td>'
                 + '<td class="text-nowrap">' + (isPurchase ? escapeText(rupiah(row.harga_satuan)) : '-') + '</td>'

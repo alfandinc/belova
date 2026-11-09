@@ -34,7 +34,7 @@ class MasterMerchandiseController extends Controller
             'canManage' => $canManage,
             'kliniks' => Klinik::orderBy('id')->get(['id', 'nama'])
                 ->map(fn (Klinik $k) => ['id' => $k->id, 'nama' => Klinik::shortName($k->nama)]),
-            'pemasokNames' => $canManage ? $this->stock->pemasokNames() : collect(),
+            'pemasokList' => $canManage ? $this->stock->pemasokList() : collect(),
         ]);
     }
 
