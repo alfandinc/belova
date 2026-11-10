@@ -21,17 +21,20 @@ class Icd10Seeder extends Seeder
         }
 
         $file = fopen($path, 'r');
-        $isHeader = true;
 
+        // The CSV has no header row (its first line is A00), only a UTF-8 BOM; blank lines are skipped.
+        // Existing codes are left alone, so running it again does not duplicate anything.
+        $existing = DB::table('erm_icd10')->pluck('code')->flip();
         while (($row = fgetcsv($file)) !== false) {
-            if ($isHeader) {
-                $isHeader = false;
-                continue; // skip header
+            $code = trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) ($row[0] ?? '')));
+            if ($code === '' || isset($existing[$code])) {
+                continue;
             }
+            $existing[$code] = true;
 
             DB::table('erm_icd10')->insert([
-                'code' => $row[0],
-                'description' => $row[1],
+                'code' => $code,
+                'description' => $row[1] ?? '',
                 'category' => $row[2] ?? null,
                 'created_at' => now(),
                 'updated_at' => now(),

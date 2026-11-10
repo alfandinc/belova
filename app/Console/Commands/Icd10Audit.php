@@ -16,6 +16,7 @@ class Icd10Audit extends Command
 {
     protected $signature = 'icd10:audit
         {--hapus-kosong : Delete master rows that have no code and no description}
+        {--lengkapi : Add codes from database/data/icd-10.csv that are missing in the master (never duplicates)}
         {--contoh=10 : How many examples of free-text diagnoses to show}';
 
     protected $description = 'Cek kesiapan ICD-10 (master + diagnosa kerja) untuk dikirim ke SatuSehat';
@@ -39,6 +40,33 @@ class Icd10Audit extends Command
             $this->info("  Dihapus: {$deleted} baris kosong.");
         } elseif ($empty > 0) {
             $this->line('  (jalankan dengan --hapus-kosong untuk menghapusnya)');
+        }
+
+        // Compare with the ICD-10 2010 source file (the seeder skipped its first line as a header, so A00 was never loaded)
+        $csvPath = base_path('database/data/icd-10.csv');
+        if (is_readable($csvPath)) {
+            $existing = DB::table('erm_icd10')->where('code', '!=', '')->pluck('code')->flip();
+            $missing = [];
+            $file = fopen($csvPath, 'r');
+            while (($row = fgetcsv($file)) !== false) {
+                $code = trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) ($row[0] ?? '')));
+                if ($code === '' || isset($existing[$code]) || isset($missing[$code])) {
+                    continue;
+                }
+                $missing[$code] = ['code' => $code, 'description' => trim((string) ($row[1] ?? '')), 'category' => trim((string) ($row[2] ?? '')) ?: null];
+            }
+            fclose($file);
+            $this->line('  Kode di file ICD-10 2010 yang belum ada di master: ' . count($missing)
+                . ($missing ? ' (' . implode(', ', array_slice(array_keys($missing), 0, 10)) . (count($missing) > 10 ? ', ...' : '') . ')' : ''));
+            if ($missing && $this->option('lengkapi')) {
+                $now = now();
+                foreach (array_chunk(array_values($missing), 500) as $chunk) {
+                    DB::table('erm_icd10')->insert(array_map(fn ($r) => $r + ['created_at' => $now, 'updated_at' => $now], $chunk));
+                }
+                $this->info('  Ditambahkan: ' . count($missing) . ' kode.');
+            } elseif ($missing) {
+                $this->line('  (jalankan dengan --lengkapi untuk menambahkannya)');
+            }
         }
 
         $this->newLine();
