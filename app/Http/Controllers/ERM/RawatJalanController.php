@@ -1109,6 +1109,14 @@ class RawatJalanController extends Controller
                         } else {
                             $actionButtons[] = '<a href="' . $tindakanUrl . '" class="btn btn-sm btn-warning position-relative" style="font-weight:bold; overflow:visible;" title="Tindakan"><i class="fas fa-procedures mr-1"></i>Tindakan' . $tindakanBadge . '</a>';
                         }
+                    } elseif ($user->hasRole('Admin') && $isClinicalVisit) {
+                        // Admin (not Perawat / Dokter): every dokumen page of the visit, e.g. for checking and testing
+                        $adminLink = function (string $url, string $icon, string $label, string $class) {
+                            return '<a href="' . $url . '" class="btn btn-sm ' . $class . '" style="font-weight:bold;" title="' . e($label) . ' (akses Admin)"><i class="' . $icon . ' mr-1"></i>' . e($label) . '</a>';
+                        };
+                        $actionButtons[] = $adminLink(route('erm.asesmenperawat.create', $v->id), 'fas fa-file-alt', 'As. Perawat', 'btn-outline-primary');
+                        $actionButtons[] = $adminLink(route('erm.asesmendokter.create', $v->id), 'fas fa-user-md', 'Asesmen', 'btn-primary');
+                        $actionButtons[] = $adminLink(route('erm.cppt.create', $v->id), 'fas fa-notes-medical', 'CPPT', 'btn-success');
                     }
 
                     // Slimming / Vaksin / MCU visit: shortcut to its own page, for every role only once the

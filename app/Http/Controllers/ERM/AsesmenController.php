@@ -82,6 +82,27 @@ class AsesmenController extends Controller
             };
         }
 
+        // Gigi: an odontogram continues per patient, so a new visit starts from the latest earlier one
+        $odontogramSebelumnya = null;
+        if ($spesialisasi === 'gigi' && empty($currentAsesmen?->odontogram)
+            && \Illuminate\Support\Facades\Schema::hasColumn('erm_asesmen_gigi', 'odontogram')) {
+            $previous = AsesmenGigi::query()
+                ->join('erm_visitations as v', 'v.id', '=', 'erm_asesmen_gigi.visitation_id')
+                ->where('v.pasien_id', $visitation->pasien_id)
+                ->where('erm_asesmen_gigi.visitation_id', '!=', $visitationId)
+                ->where('v.tanggal_visitation', '<=', $visitation->tanggal_visitation)
+                ->whereNotNull('erm_asesmen_gigi.odontogram')
+                ->orderByDesc('v.tanggal_visitation')
+                ->orderByDesc('erm_asesmen_gigi.id')
+                ->first(['erm_asesmen_gigi.odontogram', 'v.tanggal_visitation']);
+            if ($previous && \App\Support\Odontogram::clean($previous->odontogram)) {
+                $odontogramSebelumnya = [
+                    'data' => \App\Support\Odontogram::clean($previous->odontogram),
+                    'tanggal' => $previous->tanggal_visitation,
+                ];
+            }
+        }
+
         // Prepare prefill values for penyakit_dalam fields
         $prefill_riwayat_penyakit_dahulu = $lastAsesmenDalam ? $lastAsesmenDalam->riwayat_penyakit_dahulu : '';
         $prefill_obat_dikonsumsi = $lastAsesmenDalam ? $lastAsesmenDalam->obat_dikonsumsi : '';
@@ -96,6 +117,8 @@ class AsesmenController extends Controller
             'radiologiTambahan' => \App\Services\ERM\KonsultasiBillingService::tambahanUntuk($visitation),
             'lokalisPath' => $lokalisPath,
             'lokalisBackground' => $lokalisBackground,
+            'lokalisTemplate' => $lokalisDefaults[$spesialisasi] ?? 'img/lokalis/default.png',
+            'odontogramSebelumnya' => $odontogramSebelumnya,
             'prefill_riwayat_penyakit_dahulu' => $prefill_riwayat_penyakit_dahulu,
             'prefill_obat_dikonsumsi' => $prefill_obat_dikonsumsi,
         ], $pasienData, $createKunjunganData));
@@ -161,9 +184,12 @@ class AsesmenController extends Controller
 
     private function storeAsesmenDalamLike(Request $request, string $modelClass)
     {
-        if ($request->has('status_lokalis_image')) {
+        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
             $this->saveLokalisImage($request);
         }
+
+        // Keep the saved drawing when no new one is sent
+        $existingLokalis = $modelClass::where('visitation_id', $request->visitation_id)->value('status_lokalis');
 
         $modelClass::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
@@ -188,7 +214,7 @@ class AsesmenController extends Controller
                 'genitalia' => $request->genitalia,
                 'ext_atas' => $request->ext_atas,
                 'ext_bawah' => $request->ext_bawah,
-                'status_lokalis' => $request->status_lokalis,
+                'status_lokalis' => $request->status_lokalis ?? $existingLokalis,
                 'ket_status_lokalis' => $request->ket_status_lokalis,
             ]
         );
@@ -394,7 +420,37 @@ class AsesmenController extends Controller
 
         // Retain the existing image if no new image is provided
         $existingAsesmen = AsesmenGigi::where('visitation_id', $request->visitation_id)->first();
-        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
+
+        // Only when the form has the odontogram, so a tab opened before this update does not wipe it
+        // and skipped while the columns do not exist yet (code pulled before the migration ran)
+        $odontogramFields = [];
+        if (\Illuminate\Support\Facades\Schema::hasColumns('erm_asesmen_gigi', ['odontogram', 'intra_oral'])) {
+            if ($request->has('odontogram')) {
+                $odontogramFields['odontogram'] = \App\Support\Odontogram::clean($request->input('odontogram'));
+            }
+            if ($request->has('intra_oral')) {
+                $odontogramFields['intra_oral'] = \App\Support\Odontogram::cleanIntraOral($request->input('intra_oral'));
+            }
+        } elseif ($request->has('odontogram')) {
+            Log::warning('Odontogram tidak tersimpan: kolom belum ada, jalankan migration 2026_11_10_000001', ['visitation_id' => $request->visitation_id]);
+        }
+
+        // Rekam medis: every change of the odontogram is kept (who, when, what); same transaction as the save
+        if (array_key_exists('odontogram', $odontogramFields) && \Illuminate\Support\Facades\Schema::hasTable('erm_odontogram_riwayat')) {
+            $before = \App\Support\Odontogram::clean($existingAsesmen?->odontogram);
+            $after = $odontogramFields['odontogram'];
+            $changes = \App\Support\Odontogram::changes($before, $after);
+            if ($changes) {
+                \App\Models\ERM\OdontogramRiwayat::create([
+                    'visitation_id' => $request->visitation_id,
+                    'pasien_id' => (string) Visitation::where('id', $request->visitation_id)->value('pasien_id'),
+                    'user_id' => auth()->id(),
+                    'sebelum' => $before,
+                    'sesudah' => $after,
+                    'perubahan' => $changes,
+                ]);
+            }
+        }
 
         AsesmenGigi::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
@@ -428,8 +484,7 @@ class AsesmenController extends Controller
                 'ext_bawah' => $request->ext_bawah,
                 'status_lokalis' => $request->status_lokalis ?? $existingAsesmen->status_lokalis ?? null,
                 'ket_status_lokalis' => $request->ket_status_lokalis,
-
-            ]
+            ] + $odontogramFields
         );
     }
 

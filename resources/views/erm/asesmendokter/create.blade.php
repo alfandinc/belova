@@ -51,6 +51,7 @@
     <!-- end page title end breadcrumb -->
 
 
+    @include('erm.partials.admin-dokumen-notice')
     @include('erm.partials.card-identitaspasien')
 
     @if(isset($spesialisasi) && $spesialisasi === 'estetika')
@@ -425,7 +426,8 @@
    $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
     $('.select2-icd10').select2({
-        placeholder: 'Search ICD-10 code...',
+        placeholder: 'Cari kode / nama ICD-10...',
+        allowClear: true,
         ajax: {
             url: '{{ route("icd10.search") }}',
             dataType: 'json',
@@ -439,13 +441,30 @@
                 return {
                     results: data.map(item => ({
                         id: `${item.code} - ${item.description}`,
-                        text: `${item.code} - ${item.description}`
+                        text: `${item.code} - ${item.description}`,
+                        // A category with subcodes is shown but cannot be picked: ICD-10 coding uses the subcode
+                        disabled: item.selectable === false,
+                        category: item.selectable === false
                     }))
                 };
             },
             cache: true
         },
+        templateResult: function (item) {
+            if (!item.category) return item.text;
+            return $('<span>').text(item.text).append(
+                $('<small class="d-block text-muted">').text('Kategori — pilih salah satu subkode di bawahnya (mis. ' + item.text.split(' ')[0] + '.x)')
+            );
+        },
         minimumInputLength: 2
+    });
+
+    // Diagnosa saved before as free text or as a category code: flag it, it cannot be sent to SatuSehat as is
+    $('.select2-icd10').each(function () {
+        var val = $(this).val();
+        if (val && !/^[A-Z]\d{2}(\.\d{1,2})?\s-\s/.test(val)) {
+            $(this).closest('.form-group').append('<small class="text-danger d-block">Bukan kode ICD-10 — pilih ulang dari daftar agar bisa dikirim ke SatuSehat.</small>');
+        }
     });
 
     function updateGCS() {
@@ -560,6 +579,10 @@
         }
 
         let form = $(this);
+        // Drawing on Status Lokalis is saved even when "Add" was not clicked
+        if (typeof window.captureLokalisIfDrawn === 'function') {
+            window.captureLokalisIfDrawn();
+        }
         let formData = new FormData(this);
         formData.set('jenis_konsultasi', jenisKonsultasi);
         appendTambahan(formData);
@@ -582,6 +605,10 @@
                 saveBtn.prop('disabled', false).html(saveBtnHtml);
             },
             success: function (response) {
+                // The drawing is stored: the next Simpan must not upload the same image again
+                if (typeof window.onLokalisSaved === 'function') {
+                    window.onLokalisSaved();
+                }
                 Swal.fire({
                     title: 'Sukses!',
                      html: response.message,
@@ -611,84 +638,191 @@
 
 });
 
-// Canvas-related functions - only run if elements exist
+// Status Lokalis drawing: set to true once the doctor draws (or resets) on the canvas
+window.__lokalisDirty = false;
+
+// Puts the canvas image into the hidden field; returns false if the canvas cannot be exported
+window.captureLokalisImage = function () {
+    const canvas = document.getElementById('drawingCanvas');
+    const input = document.getElementById('status_lokalis_image');
+    if (!canvas || !input || !canvas.width) return false;
+    try {
+        input.value = canvas.toDataURL('image/png');
+        return true;
+    } catch (err) {
+        console.error('[Status Lokalis] gambar tidak bisa diambil dari canvas', err);
+        return false;
+    }
+};
+
+// Called on Simpan: only sends an image when something was drawn, so plain saves do not create new files
+window.captureLokalisIfDrawn = function () {
+    if (window.__lokalisDirty) window.captureLokalisImage();
+};
+
 const addButton = document.getElementById('addButton');
 if (addButton) {
     addButton.addEventListener('click', function () {
-        let canvas = document.getElementById('drawingCanvas');
-        if (canvas) {
-            let base64Image = canvas.toDataURL('image/png');
-            const statusLokalisInput = document.getElementById('status_lokalis_image');
-            if (statusLokalisInput) {
-                statusLokalisInput.value = base64Image;
-            }
+        if (window.captureLokalisImage()) {
+            window.__lokalisDirty = true;
+            if (window.Swal) Swal.fire({ toast: true, position: 'top-end', timer: 1800, showConfirmButton: false, icon: 'success', title: 'Gambar status lokalis siap disimpan' });
+        } else if (window.Swal) {
+            Swal.fire('Gagal', 'Gambar status lokalis tidak bisa diambil. Coba muat ulang halaman.', 'error');
         }
     });
 }
 </script>
 
 <script>
-window.onload = function () {
+window.addEventListener('load', function () {
     const canvas = document.getElementById("drawingCanvas");
     if (!canvas) return; // Exit if canvas doesn't exist
     const ctx = canvas.getContext("2d");
+    // A saved drawing already contains the template, so it is used as the background
     const imagePath = "{{ asset($lokalisBackground) }}";
-    const savedImagePath = "{{ asset($lokalisPath) }}"; // Load the saved image path
+    // Blank template, for "Hapus coretan" (back to no marks at all, even after a drawing was saved)
+    const templatePath = "{{ asset($lokalisTemplate ?? $lokalisBackground) }}";
+    const templateImg = new Image();
+    templateImg.src = templatePath;
+
+    // Lets fingers / stylus draw on tablets instead of scrolling the page
+    canvas.style.touchAction = 'none';
 
     const img = new Image();
     img.onload = function () {
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
         ctx.drawImage(img, 0, 0);
 
-        // Load the saved image (if it exists)
-        if (savedImagePath) {
-            const savedImg = new Image();
-            savedImg.onload = function () {
-                ctx.drawImage(savedImg, 0, 0); // Draw the saved image on top of the background
-            };
-            savedImg.src = savedImagePath;
-        }
-
-        ctx.strokeStyle = "#00FF00";
-        ctx.lineWidth = 5;
+        const activeColor = document.querySelector('.lokalis-color.active');
+        ctx.strokeStyle = activeColor ? activeColor.dataset.color : "#00FF00";
+        const sizeSelect = document.getElementById('lokalisSize');
+        ctx.lineWidth = sizeSelect ? parseInt(sizeSelect.value, 10) : 5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
         let isDrawing = false;
         let lastX = 0;
         let lastY = 0;
 
-        canvas.addEventListener('mousedown', function (e) {
+        // Undo: a snapshot before each stroke (last 20)
+        const history = [];
+        const dirtyBadge = document.getElementById('lokalisDirtyBadge');
+        function setDirty(dirty) {
+            window.__lokalisDirty = dirty;
+            if (dirtyBadge) dirtyBadge.classList.toggle('d-none', !dirty);
+        }
+        // Is there a stored drawing for this visit (from before, or saved in this session)?
+        let drawingOnServer = {{ !empty($lokalisPath) ? 'true' : 'false' }};
+        window.onLokalisSaved = function () {
+            const input = document.getElementById('status_lokalis_image');
+            if (input && input.value) drawingOnServer = true;
+            setDirty(false);
+            if (input) input.value = '';
+        };
+
+        document.querySelectorAll('.lokalis-color').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.lokalis-color').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                ctx.strokeStyle = btn.dataset.color;
+            });
+        });
+        if (sizeSelect) {
+            sizeSelect.addEventListener('change', function () { ctx.lineWidth = parseInt(sizeSelect.value, 10) || 5; });
+        }
+
+        const undoButton = document.getElementById('lokalisUndo');
+        if (undoButton) {
+            undoButton.addEventListener('click', function () {
+                if (!history.length) return;
+                ctx.putImageData(history.pop(), 0, 0);
+                setDirty(history.length > 0);
+            });
+        }
+
+        const fullscreenButton = document.getElementById('lokalisFullscreen');
+        const fullscreenTarget = canvas.closest('.form-group');
+        if (fullscreenButton && fullscreenTarget && fullscreenTarget.requestFullscreen) {
+            fullscreenButton.addEventListener('click', function () {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    fullscreenTarget.requestFullscreen().catch(function () { });
+                }
+            });
+            document.addEventListener('fullscreenchange', function () {
+                const on = document.fullscreenElement === fullscreenTarget;
+                fullscreenTarget.classList.toggle('lokalis-fullscreen', on);
+                fullscreenButton.innerHTML = on ? '<i class="fas fa-compress mr-1"></i>Kecilkan' : '<i class="fas fa-expand mr-1"></i>Perbesar';
+            });
+        } else if (fullscreenButton) {
+            fullscreenButton.classList.add('d-none');
+        }
+
+        // The canvas is shrunk by CSS (img-fluid), so convert screen position to canvas pixels
+        function pointFromEvent(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                y: (e.clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        canvas.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
             isDrawing = true;
-            lastX = e.offsetX;
-            lastY = e.offsetY;
+            try {
+                history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                if (history.length > 20) history.shift();
+            } catch (err) { }
+            const p = pointFromEvent(e);
+            lastX = p.x;
+            lastY = p.y;
+            try { canvas.setPointerCapture(e.pointerId); } catch (err) { }
         });
 
-        canvas.addEventListener('mousemove', function (e) {
-            if (isDrawing) {
-                ctx.beginPath();
-                ctx.moveTo(lastX, lastY);
-                ctx.lineTo(e.offsetX, e.offsetY);
-                ctx.stroke();
-                lastX = e.offsetX;
-                lastY = e.offsetY;
-            }
+        canvas.addEventListener('pointermove', function (e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const p = pointFromEvent(e);
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            lastX = p.x;
+            lastY = p.y;
+            setDirty(true);
         });
 
-        canvas.addEventListener('mouseup', function () {
-            isDrawing = false;
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (evt) {
+            canvas.addEventListener(evt, function () { isDrawing = false; });
         });
 
         const resetButton = document.getElementById('resetButton');
         if (resetButton) {
             resetButton.addEventListener('click', function () {
+                // Undo can bring the marks back
+                try {
+                    history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                    if (history.length > 20) history.shift();
+                } catch (err) { }
+                const blank = (templateImg.complete && templateImg.naturalWidth) ? templateImg : img;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0); // Reset to background image
+                ctx.drawImage(blank, 0, 0, canvas.width, canvas.height);
+                // A drawing already on the server must be replaced by the blank template; otherwise nothing to send
+                setDirty(drawingOnServer);
+                const input = document.getElementById('status_lokalis_image');
+                if (input) input.value = '';
             });
         }
     };
+    img.onerror = function () {
+        console.error('[Status Lokalis] gambar tidak bisa dimuat: ' + imagePath);
+    };
 
     img.src = imagePath;
-};
+});
 </script>
 
 <script>

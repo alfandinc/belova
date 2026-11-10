@@ -553,9 +553,42 @@
             loadMerchandiseStockOutCatalog().done(function () {
                 applyMerchandiseGivePermission();
                 $('#modalMerchandiseStockOut').modal('show');
-            }).fail(function () {
-                Swal.fire('Gagal', 'Tidak dapat memuat daftar merchandise.', 'error');
+            }).fail(function (xhrOrError) {
+                showMerchandiseLoadError('Tidak dapat memuat daftar merchandise.', xhrOrError);
             });
+        }).fail(function (xhr) {
+            showMerchandiseLoadError('Tidak dapat membuka form merchandise.', xhr);
+        });
+    }
+
+    // Turns a failed request (jqXHR) or a JS error into "status + reason" for the error popup
+    function describeMerchandiseRequestError(xhrOrError) {
+        if (!xhrOrError) return 'Tidak ada detail error.';
+        if (xhrOrError instanceof Error) return 'Error JavaScript: ' + xhrOrError.message;
+
+        var xhr = xhrOrError;
+        var status = xhr.status || 0;
+        var json = xhr.responseJSON || null;
+        var reason = json ? (json.message || json.error || '') : '';
+
+        if (status === 0) return 'Tidak ada respon dari server (koneksi terputus atau timeout).';
+        if (status === 401) reason = reason || 'Sesi login habis, silakan login ulang.';
+        if (status === 403) reason = 'Role akun ini tidak diizinkan membuka data ini' + (reason ? ' (' + reason + ')' : '') + '.';
+        if (status === 419) reason = 'Sesi kedaluwarsa, silakan refresh halaman.';
+        if (!reason && xhr.responseText) {
+            reason = String(xhr.responseText).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        }
+
+        return 'HTTP ' + status + (xhr.statusText ? ' ' + xhr.statusText : '') + (reason ? ' — ' + reason : '');
+    }
+
+    function showMerchandiseLoadError(title, xhrOrError) {
+        var detail = describeMerchandiseRequestError(xhrOrError);
+        console.error('[Merchandise] ' + title, xhrOrError);
+        Swal.fire({
+            icon: 'error',
+            title: 'Gagal',
+            html: $('<div>').text(title).html() + '<div class="mt-2 small text-left text-danger" style="word-break:break-word;">' + $('<div>').text(detail).html() + '</div>'
         });
     }
 

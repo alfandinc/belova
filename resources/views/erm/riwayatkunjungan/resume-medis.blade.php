@@ -96,6 +96,15 @@
     <td>Keadaan Umum : {{ $keadaan_umum }}, TD : {{ $td }}mmHg, N : {{ $n }} x/Menit, S : {{ $s }}°C, R : {{ $r }} x/Menit</td>
   </tr>
 
+  @if (!empty($odontogram))
+  <tr>
+    <td class="bold">Status Gigi (Odontogram) :</td>
+  </tr>
+  <tr>
+    <td>@include('erm.riwayatkunjungan.partials.odontogram-print', ['odontogram' => $odontogram])</td>
+  </tr>
+  @endif
+
 
 
   <tr>

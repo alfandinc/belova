@@ -42,6 +42,13 @@ class AsesmenGigi extends Model
         'ext_bawah',
         'status_lokalis',
         'ket_status_lokalis',
+        'odontogram',
+        'intra_oral',
+    ];
+
+    protected $casts = [
+        'odontogram' => 'array',
+        'intra_oral' => 'array',
     ];
 
     public function visitation()

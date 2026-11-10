@@ -50,6 +50,7 @@
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
+    @include('erm.partials.admin-dokumen-notice')
     @include('erm.partials.card-identitaspasien')
 
     @include('erm.partials.form-theme')

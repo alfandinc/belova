@@ -396,72 +396,18 @@ class PasienController extends Controller
         }
         $subjectRef = 'Patient/' . $patientMap->satusehat_patient_id;
 
-        // get diagnosa kerja from asesmen penunjang
+        // Diagnosa utama = the first diagnosa kerja that is a real ICD-10 code (never guessed from free text)
         $asesmen = \App\Models\ERM\AsesmenPenunjang::where('visitation_id', $visitationId)->first();
-        $diagnosa = null;
-        if ($asesmen) {
-            foreach (['diagnosakerja_1','diagnosakerja_2','diagnosakerja_3','diagnosakerja_4','diagnosakerja_5','diagnosakerja_6'] as $f) {
-                if (!empty($asesmen->{$f})) { $diagnosa = $asesmen->{$f}; break; }
-            }
-        }
-        if (!$diagnosa) {
-            return response()->json(['ok' => false, 'error' => 'No diagnosa kerja found in Asesmen Penunjang'], 400);
-        }
-
-        // resolve ICD-10 coding for Condition
-        $codingSystem = null;
-        $codingCode = null;
-        $codingDisplay = $diagnosa;
-        if (!empty($diagnosa)) {
-            $diagnosaTrim = trim($diagnosa);
-            $icd = null;
-            if (preg_match('/^([A-Za-z][0-9]{1,3}(?:\.[0-9]+)?)/', $diagnosaTrim, $m)) {
-                $maybeCode = strtoupper($m[1]);
-                $icd = Icd10::where('code', $maybeCode)->first();
-            }
-            if (!$icd) {
-                $icd = Icd10::where('code', $diagnosaTrim)->first();
-            }
-            if (!$icd) {
-                $icd = Icd10::where('description', 'like', '%' . $diagnosaTrim . '%')->first();
-            }
-            if ($icd) {
-                $codingSystem = 'http://hl7.org/fhir/sid/icd-10';
-                $codingCode = $icd->code;
-                $codingDisplay = $icd->description ?? $diagnosaTrim;
-            }
-        }
-
-        if (!$codingCode) {
+        $diagnoses = \App\Support\Icd10Code::diagnoses($asesmen);
+        if (!$diagnoses['coded']) {
             return response()->json([
                 'ok' => false,
                 'status' => 400,
-                'error' => 'No coding.code could be resolved for diagnosa kerja. Please map diagnosa to an ICD-10 or SNOMED code in the system before finishing the encounter.',
-                'diagnosa' => $diagnosa
+                'error' => \App\Support\Icd10Code::notSendableMessage($diagnoses),
+                'invalid' => $diagnoses['invalid'],
             ], 400);
         }
-
-        // Build Condition payload and POST to /Condition
-        $condition = [
-            'resourceType' => 'Condition',
-            'clinicalStatus' => ['coding' => [[
-                'system' => 'http://terminology.hl7.org/CodeSystem/condition-clinical',
-                'code' => 'active',
-                'display' => 'Active'
-            ]]],
-            'category' => [['coding' => [[
-                'system' => 'http://terminology.hl7.org/CodeSystem/condition-category',
-                'code' => 'encounter-diagnosis',
-                'display' => 'Encounter Diagnosis'
-            ]]]],
-            'code' => ['coding' => [[
-                'system' => $codingSystem,
-                'code' => $codingCode,
-                'display' => $codingDisplay
-            ]]],
-            'subject' => ['reference' => $subjectRef, 'display' => $visitation->pasien->nama ?? null],
-            'encounter' => ['reference' => 'Encounter/' . $encounterUuid, 'display' => 'Kunjungan ' . ($visitation->pasien->nama ?? '')]
-        ];
+        $codingSystem = \App\Support\Icd10Code::FHIR_SYSTEM;
 
         $bearer = null;
         if (!empty($clinicConfig->token)) {
@@ -482,101 +428,44 @@ class PasienController extends Controller
 
         $base = rtrim($clinicConfig->base_url, '/');
 
+        // One Condition per coded diagnosa kerja (1 = utama). The utama must succeed; a failed secondary
+        // diagnosis is reported but does not stop finishing the encounter.
         $insecureRetry = false;
-        try {
-            $req = Http::timeout(15)->withHeaders($headers);
-            if ($bearer) $req = $req->withToken($bearer);
-            $resCond = $req->post($base . '/Condition', $condition);
-        } catch (\Throwable $e) {
-            $msg = $e->getMessage();
-            if (stripos($msg, 'cURL error 60') !== false || stripos($msg, 'self-signed') !== false || stripos($msg, 'certificate') !== false) {
-                try {
-                    $insecureRetry = true;
-                    $req = Http::withoutVerifying()->timeout(15)->withHeaders($headers);
-                    if ($bearer) $req = $req->withToken($bearer);
-                    $resCond = $req->post($base . '/Condition', $condition);
-                } catch (\Throwable $e2) {
-                    return response()->json(['ok' => false, 'error' => 'SSL verify failed and insecure retry failed when creating Condition: ' . $e2->getMessage()], 500);
+        $sentDiagnoses = [];
+        $conditionResponses = [];
+        $diagnosisWarnings = [];
+        foreach ($diagnoses['coded'] as $i => $diag) {
+            $condition = [
+                'resourceType' => 'Condition',
+                'clinicalStatus' => ['coding' => [[
+                    'system' => 'http://terminology.hl7.org/CodeSystem/condition-clinical',
+                    'code' => 'active',
+                    'display' => 'Active'
+                ]]],
+                'category' => [['coding' => [[
+                    'system' => 'http://terminology.hl7.org/CodeSystem/condition-category',
+                    'code' => 'encounter-diagnosis',
+                    'display' => 'Encounter Diagnosis'
+                ]]]],
+                'code' => ['coding' => [[
+                    'system' => $codingSystem,
+                    'code' => $diag['code'],
+                    'display' => $diag['display']
+                ]]],
+                'subject' => ['reference' => $subjectRef, 'display' => $visitation->pasien->nama ?? null],
+                'encounter' => ['reference' => 'Encounter/' . $encounterUuid, 'display' => 'Kunjungan ' . ($visitation->pasien->nama ?? '')]
+            ];
+
+            $sent = $this->postCondition($condition, $base, $headers, $bearer, $subjectRef, $encounterUuid, $diag['code'], $visitationId, $insecureRetry);
+            $conditionResponses[] = $sent['body'];
+            if (empty($sent['id'])) {
+                if ($i === 0) {
+                    return response()->json(['ok' => false, 'status' => $sent['status'], 'error' => $sent['error'] ?? null, 'body' => $sent['body']], $sent['status']);
                 }
-            } else {
-                return response()->json(['ok' => false, 'error' => $msg], 500);
+                $diagnosisWarnings[] = 'Diagnosa ' . $diag['code'] . ' gagal dikirim: ' . ($sent['error'] ?? ('HTTP ' . $sent['status']));
+                continue;
             }
-        }
-
-        if (!isset($resCond) || !$resCond->successful()) {
-            $body = null; try { $body = $resCond ? $resCond->json() : null; } catch (\Throwable $e) { $body = $resCond ? $resCond->body() : null; }
-            $status = $resCond ? $resCond->status() : 500;
-
-            // Handle duplicate Condition case: try to search for existing Condition by subject, encounter and code
-            $conditionId = null;
-            try {
-                $isOpOutcomeDuplicate = false;
-                if (is_array($body) && !empty($body['resourceType']) && $body['resourceType'] === 'OperationOutcome' && !empty($body['issue']) && is_array($body['issue'])) {
-                    foreach ($body['issue'] as $iss) {
-                        if (!empty($iss['code']) && strtolower($iss['code']) === 'duplicate') { $isOpOutcomeDuplicate = true; break; }
-                        if (!empty($iss['details']['text']) && stripos($iss['details']['text'], 'duplicate') !== false) { $isOpOutcomeDuplicate = true; break; }
-                    }
-                }
-
-                if ($isOpOutcomeDuplicate) {
-                    // try search by subject+encounter+code
-                    $searchUrl = $base . '/Condition?subject=' . urlencode($subjectRef) . '&encounter=' . urlencode('Encounter/' . $encounterUuid) . '&code=' . urlencode($codingCode);
-                    try {
-                        $req2 = Http::timeout(15)->withHeaders($headers);
-                        if ($bearer) $req2 = $req2->withToken($bearer);
-                        $resSearch = $req2->get($searchUrl);
-                    } catch (\Throwable $e3) {
-                        $resSearch = null;
-                    }
-
-                    if (isset($resSearch) && $resSearch->successful()) {
-                        $b = $resSearch->json();
-                        if (is_array($b) && !empty($b['entry']) && is_array($b['entry'])) {
-                            $first = $b['entry'][0] ?? null;
-                            if ($first && !empty($first['resource']['id'])) {
-                                $conditionId = $first['resource']['id'];
-                                // Log duplicate OperationOutcome and the found existing Condition id
-                                try { Log::warning('Duplicate Condition detected; using existing Condition', ['visitation_id' => $visitationId, 'condition_id' => $conditionId, 'operation_outcome' => $body]); } catch (\Throwable $e) { }
-                            }
-                        }
-                    }
-
-                    // fallback: try search by subject+code only
-                    if (!$conditionId) {
-                        $searchUrl2 = $base . '/Condition?subject=' . urlencode($subjectRef) . '&code=' . urlencode($codingCode);
-                        try {
-                            $req3 = Http::timeout(15)->withHeaders($headers);
-                            if ($bearer) $req3 = $req3->withToken($bearer);
-                            $resSearch2 = $req3->get($searchUrl2);
-                        } catch (\Throwable $e4) {
-                            $resSearch2 = null;
-                        }
-                        if (isset($resSearch2) && $resSearch2->successful()) {
-                            $b2 = $resSearch2->json();
-                            if (is_array($b2) && !empty($b2['entry']) && is_array($b2['entry'])) {
-                                $first2 = $b2['entry'][0] ?? null;
-                                if ($first2 && !empty($first2['resource']['id'])) {
-                                    $conditionId = $first2['resource']['id'];
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (\Throwable $e) {
-                // ignore search failures and fall through to returning original error
-            }
-
-            if (!$conditionId) {
-                return response()->json(['ok' => false, 'status' => $status, 'body' => $body], $status);
-            }
-
-            // if found existing condition, continue using it
-            $bodyCond = $body;
-        } else {
-            $bodyCond = $resCond->json();
-            $conditionId = null;
-            if (is_array($bodyCond) && !empty($bodyCond['id'])) $conditionId = $bodyCond['id'];
-            if (!$conditionId && is_array($bodyCond) && !empty($bodyCond['resource']['id'])) $conditionId = $bodyCond['resource']['id'];
+            $sentDiagnoses[] = ['id' => $sent['id'], 'display' => $diag['display']];
         }
 
         // Build Encounter payload with diagnosis referencing created Condition
@@ -639,19 +528,17 @@ class PasienController extends Controller
             $encounter['serviceProvider'] = ['reference' => 'Organization/' . $clinicConfig->organization_id];
         }
 
-        // diagnosis array
-        if ($conditionId) {
-            $diagnosisRoleCode = 'DD';
-            $diagnosisRoleDisplay = 'Discharge diagnosis';
-            $encounter['diagnosis'] = [[
-                'condition' => ['reference' => 'Condition/' . $conditionId, 'display' => $codingDisplay],
+        // diagnosis array: every sent Condition, rank 1 = diagnosa utama
+        if ($sentDiagnoses) {
+            $encounter['diagnosis'] = array_map(fn ($d, $i) => [
+                'condition' => ['reference' => 'Condition/' . $d['id'], 'display' => $d['display']],
                 'use' => ['coding' => [[
                     'system' => 'http://terminology.hl7.org/CodeSystem/diagnosis-role',
-                    'code' => $diagnosisRoleCode,
-                    'display' => $diagnosisRoleDisplay
+                    'code' => 'DD',
+                    'display' => 'Discharge diagnosis'
                 ]]],
-                'rank' => 1
-            ]];
+                'rank' => $i + 1
+            ], $sentDiagnoses, array_keys($sentDiagnoses));
         }
 
         // PUT Encounter
@@ -701,8 +588,86 @@ class PasienController extends Controller
 
         if ($insecureRetry) $payload['warning'] = 'Request retried with SSL verification disabled';
         // include condition response for debugging
-        $payload['condition_response'] = $bodyCond ?? null;
+        $payload['condition_response'] = $conditionResponses[0] ?? null;
+        $payload['condition_responses'] = $conditionResponses;
+        $payload['diagnoses_sent'] = count($sentDiagnoses);
+        if ($diagnosisWarnings) $payload['diagnosis_warnings'] = $diagnosisWarnings;
+        if ($diagnoses['invalid']) {
+            $payload['diagnosis_skipped'] = array_map(fn ($d) => $d['text'], $diagnoses['invalid']);
+        }
         return response()->json($payload);
+    }
+
+    /**
+     * POST one Condition. On a "duplicate" OperationOutcome the existing Condition is looked up
+     * (subject + encounter + code, then subject + code) and used instead.
+     *
+     * @return array{id: ?string, body: mixed, status: int, error: ?string}
+     */
+    private function postCondition(array $condition, string $base, array $headers, ?string $bearer, string $subjectRef, string $encounterUuid, string $codingCode, $visitationId, bool &$insecureRetry): array
+    {
+        $resCond = null;
+        try {
+            $req = Http::timeout(15)->withHeaders($headers);
+            if ($bearer) $req = $req->withToken($bearer);
+            $resCond = $req->post($base . '/Condition', $condition);
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'cURL error 60') !== false || stripos($msg, 'self-signed') !== false || stripos($msg, 'certificate') !== false) {
+                try {
+                    $insecureRetry = true;
+                    $req = Http::withoutVerifying()->timeout(15)->withHeaders($headers);
+                    if ($bearer) $req = $req->withToken($bearer);
+                    $resCond = $req->post($base . '/Condition', $condition);
+                } catch (\Throwable $e2) {
+                    return ['id' => null, 'body' => null, 'status' => 500, 'error' => 'SSL verify failed and insecure retry failed when creating Condition: ' . $e2->getMessage()];
+                }
+            } else {
+                return ['id' => null, 'body' => null, 'status' => 500, 'error' => $msg];
+            }
+        }
+
+        if ($resCond && $resCond->successful()) {
+            $body = $resCond->json();
+            $id = null;
+            if (is_array($body) && !empty($body['id'])) $id = $body['id'];
+            if (!$id && is_array($body) && !empty($body['resource']['id'])) $id = $body['resource']['id'];
+            return ['id' => $id, 'body' => $body, 'status' => $resCond->status(), 'error' => $id ? null : 'Condition id not found in response'];
+        }
+
+        $body = null; try { $body = $resCond ? $resCond->json() : null; } catch (\Throwable $e) { $body = $resCond ? $resCond->body() : null; }
+        $status = $resCond ? $resCond->status() : 500;
+
+        // Duplicate: use the existing Condition
+        $isDuplicate = false;
+        if (is_array($body) && ($body['resourceType'] ?? null) === 'OperationOutcome' && !empty($body['issue']) && is_array($body['issue'])) {
+            foreach ($body['issue'] as $iss) {
+                if (!empty($iss['code']) && strtolower($iss['code']) === 'duplicate') { $isDuplicate = true; break; }
+                if (!empty($iss['details']['text']) && stripos($iss['details']['text'], 'duplicate') !== false) { $isDuplicate = true; break; }
+            }
+        }
+        if ($isDuplicate) {
+            $searches = [
+                $base . '/Condition?subject=' . urlencode($subjectRef) . '&encounter=' . urlencode('Encounter/' . $encounterUuid) . '&code=' . urlencode($codingCode),
+                $base . '/Condition?subject=' . urlencode($subjectRef) . '&code=' . urlencode($codingCode),
+            ];
+            foreach ($searches as $searchUrl) {
+                try {
+                    $req = Http::timeout(15)->withHeaders($headers);
+                    if ($bearer) $req = $req->withToken($bearer);
+                    $res = $req->get($searchUrl);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+                $found = $res->successful() ? ($res->json()['entry'][0]['resource']['id'] ?? null) : null;
+                if ($found) {
+                    try { Log::warning('Duplicate Condition detected; using existing Condition', ['visitation_id' => $visitationId, 'condition_id' => $found, 'operation_outcome' => $body]); } catch (\Throwable $e) { }
+                    return ['id' => $found, 'body' => $body, 'status' => 200, 'error' => null];
+                }
+            }
+        }
+
+        return ['id' => null, 'body' => $body, 'status' => $status, 'error' => null];
     }
 
     /**
@@ -860,54 +825,20 @@ class PasienController extends Controller
         }
         $subjectRef = 'Patient/' . $patientMap->satusehat_patient_id;
 
-        // get diagnosa kerja from asesmen penunjang
+        // Diagnosa utama = the first diagnosa kerja that is a real ICD-10 code (never guessed from free text)
         $asesmen = \App\Models\ERM\AsesmenPenunjang::where('visitation_id', $visitationId)->first();
-        $diagnosa = null;
-        if ($asesmen) {
-            foreach (['diagnosakerja_1','diagnosakerja_2','diagnosakerja_3','diagnosakerja_4','diagnosakerja_5','diagnosakerja_6'] as $f) {
-                if (!empty($asesmen->{$f})) { $diagnosa = $asesmen->{$f}; break; }
-            }
-        }
-        if (!$diagnosa) {
-            return response()->json(['ok' => false, 'error' => 'No diagnosa kerja found in Asesmen Penunjang'], 400);
-        }
-
-        // Build Condition payload
-        // Try to resolve diagnosa to a coding.code (prefer ICD-10 lookup)
-        $codingSystem = null;
-        $codingCode = null;
-        $codingDisplay = $diagnosa;
-        if (!empty($diagnosa)) {
-            $diagnosaTrim = trim($diagnosa);
-            $icd = null;
-            // try extract leading ICD code like 'R23' or 'S00.0' from strings like 'R23 - Other skin changes'
-            if (preg_match('/^([A-Za-z][0-9]{1,3}(?:\.[0-9]+)?)/', $diagnosaTrim, $m)) {
-                $maybeCode = strtoupper($m[1]);
-                $icd = Icd10::where('code', $maybeCode)->first();
-            }
-            // try exact code match (if diagnosa is exactly the code)
-            if (!$icd) {
-                $icd = Icd10::where('code', $diagnosaTrim)->first();
-            }
-            // try description partial match
-            if (!$icd) {
-                $icd = Icd10::where('description', 'like', '%' . $diagnosaTrim . '%')->first();
-            }
-            if ($icd) {
-                $codingSystem = 'http://hl7.org/fhir/sid/icd-10';
-                $codingCode = $icd->code;
-                $codingDisplay = $icd->description ?? $diagnosaTrim;
-            }
-        }
-
-        if (!$codingCode) {
+        $diagnoses = \App\Support\Icd10Code::diagnoses($asesmen);
+        if (!$diagnoses['coded']) {
             return response()->json([
                 'ok' => false,
                 'status' => 400,
-                'error' => 'No coding.code could be resolved for diagnosa kerja. Please map diagnosa to an ICD-10 or SNOMED code in the system before sending.',
-                'diagnosa' => $diagnosa
+                'error' => \App\Support\Icd10Code::notSendableMessage($diagnoses),
+                'invalid' => $diagnoses['invalid'],
             ], 400);
         }
+        $codingSystem = \App\Support\Icd10Code::FHIR_SYSTEM;
+        $codingCode = $diagnoses['coded'][0]['code'];
+        $codingDisplay = $diagnoses['coded'][0]['display'];
 
         $condition = [
             'resourceType' => 'Condition',

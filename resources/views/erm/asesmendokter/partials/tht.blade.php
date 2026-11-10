@@ -176,15 +176,11 @@
                                 </div>
                             </div>
 
-                            <!-- Tombol centered -->
-                            <div class="col-12 mb-3 d-flex justify-content-center">
-                                <button type="button" class="btn btn-secondary mr-2" id="resetButton">Reset</button>
-                                <button type="button" class="btn btn-primary" id="addButton">Add</button>
-                            </div>
+                            @include('erm.asesmendokter.partials.lokalis_toolbar')
 
                             <!-- Textarea -->
                             <div class="col-12 mb-3">
-                                <textarea class="form-control" rows="4" placeholder="Tulis status lokalis di sini..."></textarea>
+                                <textarea class="form-control" name="ket_status_lokalis" rows="4" placeholder="Tulis status lokalis di sini...">{{ old('ket_status_lokalis', $asesmen->ket_status_lokalis ?? '') }}</textarea>
                             </div>
 
                             <!-- Hidden field for image -->

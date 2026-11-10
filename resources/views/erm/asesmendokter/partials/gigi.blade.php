@@ -163,30 +163,4 @@
                                 </tr>
                             </tbody>
                         </table>    
-                       <div class="form-group">
-                        <label class="form-label">Status Lokalis</label>
-                            <!-- Gambar (Canvas + Img) centered -->
-                            <div class="col-12 mb-2 d-flex justify-content-center">
-                                <div>
-                                    @php
-                                        $lokalisPath = old('status_lokalis', $asesmen->status_lokalis ?? null);
-                                    @endphp
-
-                                    <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
-                                </div>
-                            </div>
-
-                            <!-- Tombol centered -->
-                            <div class="col-12 mb-3 d-flex justify-content-center">
-                                <button type="button" class="btn btn-secondary mr-2" id="resetButton">Reset</button>
-                                <button type="button" class="btn btn-primary" id="addButton">Add</button>
-                            </div>
-
-                            <!-- Textarea -->
-                            <div class="col-12 mb-3">
-                                <textarea class="form-control" rows="4" placeholder="Tulis status lokalis di sini..."></textarea>
-                            </div>
-
-                            <!-- Hidden field for image -->
-                            <input type="hidden" name="status_lokalis_image" id="status_lokalis_image">
-                        </div>
+                        @include('erm.asesmendokter.partials.gigi_odontogram', ['asesmen' => $asesmen ?? null])

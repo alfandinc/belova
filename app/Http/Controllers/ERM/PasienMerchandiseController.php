@@ -23,10 +23,19 @@ class PasienMerchandiseController extends Controller
      */
     public function catalog(Request $request)
     {
-        return response()->json([
-            'data' => $this->stock->catalog($request->query('pasien_id'), $request->boolean('include_inactive')),
-            'can_give' => (bool) Auth::user()?->hasAnyRole(MerchandiseStockService::GIVE_ROLES),
-        ]);
+        try {
+            return response()->json([
+                'data' => $this->stock->catalog($request->query('pasien_id'), $request->boolean('include_inactive')),
+                'can_give' => (bool) Auth::user()?->hasAnyRole(MerchandiseStockService::GIVE_ROLES),
+            ]);
+        } catch (\Throwable $e) {
+            // Still logged; the message goes back so the popup can say what broke
+            report($e);
+
+            return response()->json([
+                'message' => class_basename($e) . ': ' . \Illuminate\Support\Str::limit($e->getMessage(), 300),
+            ], 500);
+        }
     }
 
     /**

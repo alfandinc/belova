@@ -258,11 +258,7 @@
                                 </div>
                             </div>
 
-                            <!-- Tombol centered -->
-                            <div class="col-12 mb-3 d-flex justify-content-center">
-                                <button type="button" class="btn btn-secondary mr-2" id="resetButton">Reset</button>
-                                <button type="button" class="btn btn-primary" id="addButton">Add</button>
-                            </div>
+                            @include('erm.asesmendokter.partials.lokalis_toolbar')
 
                             <!-- Textarea -->
                             <div class="col-12 mb-3">

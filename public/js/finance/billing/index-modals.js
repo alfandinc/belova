@@ -26,6 +26,41 @@
         return fallbackMessage;
     }
 
+    // Turns a failed request (jqXHR) or a JS error into "status + reason" for the error popup
+    function describeRequestError(xhrOrError) {
+        if (!xhrOrError) return 'Tidak ada detail error.';
+        if (xhrOrError instanceof Error) return 'Error JavaScript: ' + xhrOrError.message;
+
+        var xhr = xhrOrError;
+        var status = xhr.status || 0;
+        var json = xhr.responseJSON || null;
+        var reason = json ? (json.message || json.error || '') : '';
+
+        if (status === 0) return 'Tidak ada respon dari server (koneksi terputus atau timeout).';
+        if (status === 401) reason = reason || 'Sesi login habis, silakan login ulang.';
+        if (status === 403) reason = 'Role akun ini tidak diizinkan membuka data ini' + (reason ? ' (' + reason + ')' : '') + '.';
+        if (status === 419) reason = 'Sesi kedaluwarsa, silakan refresh halaman.';
+        if (!reason && xhr.responseText) {
+            reason = String(xhr.responseText).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        }
+
+        return 'HTTP ' + status + (xhr.statusText ? ' ' + xhr.statusText : '') + (reason ? ' — ' + reason : '');
+    }
+
+    function showMerchandiseLoadError(title, xhrOrError) {
+        var detail = describeRequestError(xhrOrError);
+        if (window.console) console.error('[Merchandise] ' + title, xhrOrError);
+        if (window.Swal) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                html: escapeHtml(title) + '<div class="mt-2 small text-left text-danger" style="word-break:break-word;">' + escapeHtml(detail) + '</div>'
+            });
+        } else {
+            alert(title + '\n' + detail);
+        }
+    }
+
     function ensureModalElementsExist() {
         return (
             document.getElementById('modalOldNotificationsFinance') &&
@@ -246,8 +281,8 @@
         loadMerchandiseStockOutCatalog().done(function () {
             applyMerchandiseGivePermission();
             $('#modalMerchandiseStockOut').modal('show');
-        }).fail(function () {
-            if (window.Swal) Swal.fire('Gagal', 'Tidak dapat memuat daftar merchandise.', 'error');
+        }).fail(function (xhrOrError) {
+            showMerchandiseLoadError('Tidak dapat memuat daftar merchandise.', xhrOrError);
         });
     }
 
@@ -647,6 +682,7 @@
         openTerimaPembayaranModal: openTerimaPembayaranModal,
         submitTerimaPembayaran: submitTerimaPembayaran,
         loadOldFinNotifications: loadOldFinNotifications,
-        openMerchandiseStockOutModal: openMerchandiseStockOutModal
+        openMerchandiseStockOutModal: openMerchandiseStockOutModal,
+        showMerchandiseLoadError: showMerchandiseLoadError
     };
 })();

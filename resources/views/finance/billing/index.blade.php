@@ -1128,6 +1128,14 @@
                     if (window.financeBillingIndexModals && typeof window.financeBillingIndexModals.openMerchandiseStockOutModal === 'function') {
                         window.financeBillingIndexModals.openMerchandiseStockOutModal();
                     }
+                }).catch(function (err) {
+                    // The modal markup/script itself failed to load: show why instead of doing nothing
+                    window.__billingIndexLazyAssetsPromise = null;
+                    var detail = (err && err.status !== undefined)
+                        ? 'HTTP ' + err.status + (err.statusText ? ' ' + err.statusText : '')
+                        : (err && err.message ? err.message : String(err));
+                    console.error('[Merchandise] gagal memuat modal', err);
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak dapat membuka form merchandise. ' + detail });
                 });
                 return;
             }

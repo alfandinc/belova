@@ -30,7 +30,8 @@
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
-@include('erm.partials.card-identitaspasien')
+@include('erm.partials.admin-dokumen-notice')
+    @include('erm.partials.card-identitaspasien')
     
     @if(isset($visitation) && strtolower(optional($visitation->resolvedSpesialisasi())->nama ?? '') === 'estetika')
     @php

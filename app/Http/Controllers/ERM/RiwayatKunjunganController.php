@@ -357,6 +357,10 @@ class RiwayatKunjunganController extends Controller
             'nama_obat' => $obat->isNotEmpty() ? $obat->implode(', ') : '-',
             'diagnosis' => $diagnosis ? implode(', ', $diagnosis) : '-',
             'tindak_lanjut' => $pick([[$visitation->asesmenPenunjang, 'standing_order']]),
+            // Gigi: odontogram + status intra oral (only when the dentist filled them in)
+            'odontogram' => ($gigi = $visitation->asesmenGigi) && ($gigi->odontogram !== null || $gigi->intra_oral)
+                ? ['data' => \App\Support\Odontogram::clean($gigi->odontogram) ?? [], 'intra_oral' => $gigi->intra_oral ?? []]
+                : null,
         ]);
 
         return $this->streamPdf('erm.riwayatkunjungan.resume-medis', $data, $this->pdfFileName('Resume_Medis', $visitation), 'Gagal membuat resume medis');
