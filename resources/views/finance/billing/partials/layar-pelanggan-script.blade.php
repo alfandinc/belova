@@ -1,7 +1,12 @@
 {{--
     Layar Pelanggan: mirrors the bill on the patient's tablet and shows the satisfaction survey after payment.
     Hooks in create.blade.php: calculateTotals() → layarPelanggan.onTotals(snapshot); payment success → afterPayment(invoiceId).
-    A bill whose payment was already processed when the page opened is NOT shown automatically (kasir browsing old bills).
+
+    "Bagikan ke pasien" switch (per billing page):
+      ON  → the bill is mirrored live.
+      OFF → the tablet shows a neutral "mohon tunggu" screen (no name / items / prices) and nothing is sent,
+            so the kasir can adjust prices the patient should not watch; ON again shows the final bill.
+    Starts ON for an unpaid bill, OFF when the payment was already processed (kasir browsing old bills).
 --}}
 @if(auth()->check() && auth()->user()->hasAnyRole(['Admin', 'Kasir', 'Finance']) && !empty($visitation))
 <script>
@@ -13,16 +18,15 @@ window.layarPelanggan = (function () {
     var VISITATION_ID = @json($visitation->id ?? null);
     var PAID_AT_LOAD = @json(!empty($invoice?->payment_method));
     var LS_SEL = 'layarPelanggan.selected';
-    var LS_AUTO = 'layarPelanggan.auto';
 
     var layars = [];
     var selectedId = null;
-    var auto = true;
+    var sharing = !PAID_AT_LOAD;
     var snapshot = null;
     var lastSentJson = '';
     var pushTimer = null;
-    var showingBill = false;      // this page put its bill on the screen
-    var paidHere = false;         // payment processed on this page → stop auto bill pushes
+    var onScreen = false;         // this page's bill or its "mohon tunggu" screen is on the tablet
+    var paidHere = false;         // payment processed on this page → the survey takes over
     var ready = false;
 
     function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
@@ -32,6 +36,11 @@ window.layarPelanggan = (function () {
     }
     function pushUrl() { return PUSH_URL.replace('__ID__', String(selectedId)); }
     function currentLayar() { return layars.find(function (l) { return String(l.id) === String(selectedId); }) || null; }
+
+    function setSharingUi() {
+        $('#lpShare').prop('checked', sharing);
+        $('#lpPausedNote').toggle(!sharing && onScreen);
+    }
 
     function renderDot() {
         var l = currentLayar();
@@ -62,8 +71,9 @@ window.layarPelanggan = (function () {
 
             if (initial) {
                 ready = true;
-                if (auto && !PAID_AT_LOAD && snapshot) schedulePush(0);
-                else if (PAID_AT_LOAD) status('Billing sudah dibayar: tidak ditampilkan otomatis.');
+                setSharingUi();
+                if (sharing && snapshot) schedulePush(0);
+                else if (PAID_AT_LOAD) status('Billing sudah dibayar: tidak dibagikan otomatis.');
             }
         }).catch(function () { /* panel stays hidden */ });
     }
@@ -80,18 +90,21 @@ window.layarPelanggan = (function () {
     }
 
     function pushBilling(force) {
-        if (!selectedId || !snapshot || !VISITATION_ID) return;
+        if (!selectedId || !snapshot || !VISITATION_ID || !sharing) return;
         var body = { mode: 'billing', visitation_id: VISITATION_ID, items: snapshot.items, totals: snapshot.totals, force: !!force };
         var json = JSON.stringify([selectedId, body.items, body.totals]);
-        if (!force && showingBill && json === lastSentJson) return;   // nothing changed
+        if (!force && onScreen && json === lastSentJson) return;   // nothing changed
         post(body).then(function (res) {
+            if (!sharing) return;                                    // switched off while sending
             if (res && res.success) {
                 lastSentJson = json;
-                showingBill = true;
+                onScreen = true;
+                $('#lpForceBtn').hide();
                 status('Billing tampil di layar pasien.', 'text-success');
             } else if (res && res.blocked === 'survey') {
-                showingBill = false;
-                status(res.message + ' Klik "Tampilkan" untuk menimpa.', 'text-warning');
+                onScreen = false;
+                $('#lpForceBtn').show();
+                status(res.message, 'text-warning');
             }
         }).catch(function (xhr) {
             status((xhr.responseJSON && xhr.responseJSON.message) || 'Gagal mengirim ke layar pasien.', 'text-danger');
@@ -103,11 +116,40 @@ window.layarPelanggan = (function () {
         pushTimer = setTimeout(function () { pushBilling(false); }, delay == null ? 500 : delay);
     }
 
+    function startSharing() {
+        sharing = true;
+        lastSentJson = '';
+        setSharingUi();
+        pushBilling(false);
+    }
+
+    function stopSharing() {
+        sharing = false;
+        clearTimeout(pushTimer);
+        lastSentJson = '';
+        setSharingUi();
+        if (!selectedId || !VISITATION_ID) return;
+        post({ mode: 'hold', visitation_id: VISITATION_ID }).then(function (res) {
+            if (sharing) return;
+            if (res && res.skipped === 'survey') {
+                onScreen = false;
+                status('Tidak dibagikan. Layar sedang menampilkan survei pasien sebelumnya.');
+            } else {
+                onScreen = true;
+                status('Tidak dibagikan.', 'text-warning');
+            }
+            setSharingUi();
+        }).catch(function () { status('Gagal menjeda layar pasien.', 'text-danger'); });
+    }
+
     function pushSurvey(invoiceId) {
         if (!selectedId || !invoiceId) return;
         clearTimeout(pushTimer);
         post({ mode: 'survey', invoice_id: invoiceId }).then(function (res) {
-            showingBill = false;
+            onScreen = false;
+            sharing = false;
+            setSharingUi();
+            $('#lpForceBtn').hide();
             if (res && res.success) {
                 status('Survei kepuasan tampil di layar pasien.', 'text-success');
                 $('#lpSurveyBtn').hide();
@@ -122,28 +164,35 @@ window.layarPelanggan = (function () {
     function clearScreen() {
         if (!selectedId) return;
         clearTimeout(pushTimer);
+        sharing = false;
         post({ mode: 'idle' }).then(function () {
-            showingBill = false;
+            onScreen = false;
             lastSentJson = '';
-            status('Layar pasien dikosongkan.');
+            $('#lpForceBtn').hide();
+            setSharingUi();
+            status('Layar pasien dikosongkan. Nyalakan "Bagikan ke pasien" untuk menampilkan lagi.');
         }).catch(function () { status('Gagal mengosongkan layar.', 'text-danger'); });
     }
 
     $(function () {
         if (!$('#layarPelangganPanel').length) return;
-        auto = lsGet(LS_AUTO) !== '0';
-        $('#lpAuto').prop('checked', auto).on('change', function () {
-            auto = this.checked;
-            lsSet(LS_AUTO, auto ? '1' : '0');
-            if (auto && !PAID_AT_LOAD && !paidHere) schedulePush(0);
+        setSharingUi();
+        $('#lpShare').on('change', function () {
+            if (this.checked) startSharing(); else stopSharing();
         });
         $('#lpSelect').on('change', function () {
             selectedId = this.value;
             lsSet(LS_SEL, selectedId);
-            showingBill = false;
+            onScreen = false;
+            lastSentJson = '';
             renderDot();
+            if (sharing) pushBilling(false);
         });
-        $('#lpShowBtn').on('click', function () { pushBilling(true); });
+        $('#lpForceBtn').on('click', function () {
+            sharing = true;
+            setSharingUi();
+            pushBilling(true);
+        });
         $('#lpClearBtn').on('click', clearScreen);
         $('#lpSurveyBtn').on('click', function () {
             pushSurvey(window.oldInvoice && window.oldInvoice.id);
@@ -153,9 +202,9 @@ window.layarPelanggan = (function () {
         loadList(true);
         setInterval(function () { loadList(false); }, 20000);
 
-        // leaving the page takes this bill off the screen (never a survey or another patient's bill)
+        // leaving the page takes this bill / "mohon tunggu" off the screen (never a survey or another patient's bill)
         window.addEventListener('pagehide', function () {
-            if (!showingBill || !selectedId || !navigator.sendBeacon) return;
+            if (!onScreen || !selectedId || !navigator.sendBeacon) return;
             var fd = new FormData();
             fd.append('_token', CSRF);
             fd.append('mode', 'idle');
@@ -167,9 +216,7 @@ window.layarPelanggan = (function () {
     return {
         onTotals: function (snap) {
             snapshot = snap;
-            if (!ready) return;
-            if (auto && !PAID_AT_LOAD && !paidHere) schedulePush();
-            else if (showingBill && !paidHere) schedulePush();   // shown manually: keep it live
+            if (ready && sharing && !paidHere) schedulePush();
         },
         afterPayment: function (invoiceId) {
             paidHere = true;

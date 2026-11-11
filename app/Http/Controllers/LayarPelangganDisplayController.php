@@ -56,6 +56,8 @@ class LayarPelangganDisplayController extends Controller
                 'items' => $state['items'] ?? [],
                 'totals' => $state['totals'] ?? [],
             ];
+        } elseif ($public['mode'] === 'hold') {
+            $public['klinik'] = $state['klinik'] ?? null;
         } elseif ($public['mode'] === 'survey') {
             $public += [
                 'invoice_id' => $state['invoice_id'] ?? null,

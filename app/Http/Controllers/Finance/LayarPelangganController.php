@@ -9,6 +9,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\KepuasanPasien;
 use App\Models\Finance\LayarPelanggan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -94,6 +95,7 @@ class LayarPelangganController extends Controller
         return match ($mode) {
             'billing' => $this->pushBilling($request, $layar),
             'survey' => $this->pushSurvey($request, $layar),
+            'hold' => $this->pushHold($request, $layar),
             'idle' => $this->pushIdle($request, $layar),
             default => response()->json(['success' => false, 'message' => 'Mode tidak dikenal.'], 422),
         };
@@ -190,12 +192,37 @@ class LayarPelangganController extends Controller
             'visitation_id' => $invoice->visitation_id,
             'pasien' => optional(optional($invoice->visitation)->pasien)->nama ?? '-',
             'klinik' => optional(optional($invoice->visitation)->klinik)->nama,
-            'kasir_user_id' => auth()->id(),
+            'kasir_user_id' => Auth::id(),
             'at' => time(),
             'expires_at' => time() + LayarPelanggan::SURVEY_SECONDS,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Survei ditampilkan di layar pasien.']);
+    }
+
+    /**
+     * Kasir stopped sharing (e.g. adjusting prices the patient should not see): the tablet shows a neutral
+     * "mohon tunggu" screen without name, items or prices. A survey on screen is left alone.
+     */
+    private function pushHold(Request $request, LayarPelanggan $layar)
+    {
+        $data = $request->validate(['visitation_id' => 'required|string|max:191']);
+        $visitation = Visitation::with('klinik:id,nama')->find($data['visitation_id']);
+
+        return DB::transaction(function () use ($layar, $data, $visitation) {
+            $layar = LayarPelanggan::lockForUpdate()->find($layar->id);
+            if (($layar->currentState()['mode'] ?? 'idle') === 'survey') {
+                return response()->json(['success' => true, 'skipped' => 'survey']);
+            }
+            $layar->writeState([
+                'mode' => 'hold',
+                'visitation_id' => $data['visitation_id'],
+                'klinik' => optional(optional($visitation)->klinik)->nama,
+                'at' => time(),
+            ]);
+
+            return response()->json(['success' => true]);
+        });
     }
 
     private function pushIdle(Request $request, LayarPelanggan $layar)
@@ -206,7 +233,7 @@ class LayarPelangganController extends Controller
         return DB::transaction(function () use ($layar, $only) {
             $layar = LayarPelanggan::lockForUpdate()->find($layar->id);
             $current = $layar->currentState();
-            if ($only !== null && (($current['mode'] ?? 'idle') !== 'billing' || (string) ($current['visitation_id'] ?? '') !== (string) $only)) {
+            if ($only !== null && (!in_array($current['mode'] ?? 'idle', ['billing', 'hold'], true) || (string) ($current['visitation_id'] ?? '') !== (string) $only)) {
                 return response()->json(['success' => true, 'skipped' => true]);
             }
             if (($current['mode'] ?? 'idle') !== 'idle') {

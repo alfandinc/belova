@@ -39,6 +39,15 @@
         #idle img { max-width: 46vw; max-height: 28vh; object-fit: contain; }
         #idle .welcome { font-size: clamp(22px, 3.4vw, 40px); font-weight: 300; letter-spacing: .02em; }
         #idle .clock { font-size: clamp(16px, 2vw, 22px); color: var(--muted); }
+        #hold { flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
+        #hold img { max-width: 36vw; max-height: 22vh; object-fit: contain; }
+        #hold .welcome { font-size: clamp(24px, 3.4vw, 40px); font-weight: 500; }
+        #hold .clock { font-size: clamp(16px, 2vw, 22px); color: var(--muted); }
+        .dots { display: flex; gap: 10px; }
+        .dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); opacity: .3; animation: dot 1.2s infinite; }
+        .dots span:nth-child(2) { animation-delay: .2s; }
+        .dots span:nth-child(3) { animation-delay: .4s; }
+        @keyframes dot { 0%, 80%, 100% { opacity: .3; transform: scale(1); } 40% { opacity: 1; transform: scale(1.25); } }
 
         /* billing */
         #billing { flex-direction: column; padding: 24px 28px; gap: 18px; }
@@ -117,6 +126,13 @@
         <img id="idleLogo" src="{{ $defaultLogo }}" alt="logo">
         <div class="welcome">Selamat datang</div>
         <div class="clock" id="clock"></div>
+    </section>
+
+    <section id="hold" class="screen">
+        <img id="holdLogo" src="{{ $defaultLogo }}" alt="logo">
+        <div class="welcome">Mohon tunggu sebentar</div>
+        <div class="clock">Tagihan Anda sedang disiapkan oleh kasir</div>
+        <div class="dots"><span></span><span></span><span></span></div>
     </section>
 
     <section id="billing" class="screen">
@@ -207,7 +223,7 @@
     }
 
     function show(id) {
-        ['idle', 'billing', 'survey', 'thanks'].forEach(function (s) { $(s).classList.toggle('active', s === id); });
+        ['idle', 'hold', 'billing', 'survey', 'thanks'].forEach(function (s) { $(s).classList.toggle('active', s === id); });
     }
 
     function tickClock() {
@@ -290,6 +306,10 @@
         } else if (s.mode === 'survey') {
             renderSurvey(s);
             show('survey');
+        } else if (s.mode === 'hold') {
+            shownItemKeys = {};
+            $('holdLogo').src = logoFor(s.klinik);
+            show('hold');
         } else {
             surveyInvoice = null;
             surveyDeadline = 0;

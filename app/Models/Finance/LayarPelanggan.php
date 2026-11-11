@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
  * Customer-facing display (tablet) at the kasir desk. `state` is what the tablet shows:
  *   null / mode=idle  → logo screen
  *   mode=billing      → live bill of the patient the kasir has open
+ *   mode=hold         → kasir paused sharing: neutral "mohon tunggu" screen, no name / items / prices
  *   mode=survey       → satisfaction survey for a processed invoice (expires after a few minutes)
  */
 class LayarPelanggan extends Model
@@ -57,7 +58,7 @@ class LayarPelanggan extends Model
         if ($mode === 'survey' && (int) ($state['expires_at'] ?? 0) < time()) {
             return ['mode' => 'idle'];
         }
-        if ($mode === 'billing' && (int) ($state['at'] ?? 0) < time() - self::BILLING_STALE_SECONDS) {
+        if (in_array($mode, ['billing', 'hold'], true) && (int) ($state['at'] ?? 0) < time() - self::BILLING_STALE_SECONDS) {
             return ['mode' => 'idle'];
         }
 
