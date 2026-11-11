@@ -408,7 +408,8 @@ class ContentPlanController extends Controller
                     $links[$platform] = trim($url);
                 }
             }
-            if (!array_filter($links, fn ($v) => trim((string) $v) !== '')) {
+            // a Story has no post link to copy, so the link is optional there
+            if (!$plan->isStoryOnly() && !array_filter($links, fn ($v) => trim((string) $v) !== '')) {
                 return response()->json(['message' => 'Isi minimal satu link publikasi sebelum menandai Published.', 'errors' => ['link_publikasi' => ['Link publikasi wajib diisi.']]], 422);
             }
             $update['link_publikasi'] = $links;
@@ -934,6 +935,7 @@ class ContentPlanController extends Controller
                 }))
                 ->orderByDesc('tanggal_publish')->get()
                 ->filter(fn (ContentPlan $p) => in_array('Instagram', (array) $p->platform, true)
+                    && !$p->isStoryOnly()
                     && !\App\Support\Marketing\InstagramInsights::shortcode(\App\Support\Marketing\InstagramInsights::instagramLink($p)))
                 ->values();
             if ($request->boolean('count_only')) {

@@ -63,4 +63,15 @@ class ContentPlan extends Model
     {
         return $this->belongsTo(\App\Models\User::class, 'assigned_to');
     }
+
+    /**
+     * Only Story: an Instagram story has no shareable post link (and expires in 24 hours), so it can be
+     * marked Published without one and is not listed as "tanpa link" for the insights.
+     */
+    public function isStoryOnly(): bool
+    {
+        $jenis = array_values(array_filter((array) ($this->jenis_konten ?? [])));
+
+        return $jenis !== [] && !array_diff($jenis, ['Story']);
+    }
 }

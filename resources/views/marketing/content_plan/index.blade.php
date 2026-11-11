@@ -2007,12 +2007,17 @@ $(function () {
             // ask the post link per platform in the same dialog
             var links = plan.link_publikasi || {};
             var platforms = plan.platform || [];
+            // a Story has no post link to copy: link optional when the content is only Story
+            var jenis = plan.jenis_konten || [];
+            var storyOnly = jenis.length > 0 && jenis.every(function (j) { return j === 'Story'; });
             opts.text = undefined;
             opts.html = '<div class="text-left">' + tayangInput(plan.tanggal_publish, true) + platforms.map(function (p) {
                 return '<label class="d-block mt-2 mb-1" style="text-transform:none">Link ' + esc(p) + '</label>'
                     + '<input class="swal2-input m-0 w-100 js-pub-link" data-platform="' + esc(p) + '" value="' + esc(links[p] || '') + '" placeholder="https://…">'
                     + (p === 'Instagram' && CAN_MANAGE ? '<div class="cp-link-check js-link-check"></div>' : '');
-            }).join('') + '<div class="small text-muted mt-2">Minimal satu link wajib diisi.</div></div>';
+            }).join('') + '<div class="small text-muted mt-2">' + (storyOnly
+                ? 'Konten Story: link opsional (story Instagram tidak punya link postingan).'
+                : 'Minimal satu link wajib diisi.') + '</div></div>';
             opts.didOpen = function () {
                 var $ig = $('.js-pub-link[data-platform="Instagram"]');
                 bindLinkCheck($ig, $ig.next('.js-link-check'), true);
@@ -2021,7 +2026,7 @@ $(function () {
             opts.preConfirm = function () {
                 var out = {}, any = false;
                 $('.js-pub-link').each(function () { var v = $.trim($(this).val()); if (v) { out[$(this).data('platform')] = v; any = true; } });
-                if (!any) { Swal.showValidationMessage('Isi minimal satu link publikasi.'); return false; }
+                if (!any && !storyOnly) { Swal.showValidationMessage('Isi minimal satu link publikasi.'); return false; }
                 var tayang = readTayang(true);
                 if (!tayang) return false;
                 return { links: out, tayang_at: tayang };
@@ -2095,6 +2100,7 @@ $(function () {
         runTransition({
             id: row.id, judul: row.judul, transitions: row.transitions, tanggal_publish: row.tanggal_publish,
             platform: (row.platforms || []).map(function (p) { return p.name; }),
+            jenis_konten: row.jenis_konten || [],
             link_publikasi: row.link_publikasi || {}
         }, $(this).data('action'));
     });
